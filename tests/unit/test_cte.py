@@ -13,7 +13,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 def test_case1():
     nodes = [mock.create_autospec(SnowflakePlan) for _ in range(7)]
     for i, node in enumerate(nodes):
-        node.encoded_id = i
+        node.encoded_node_id_with_query = i
         node.source_plan = None
     nodes[0].children_plan_nodes = [nodes[1], nodes[3]]
     nodes[1].children_plan_nodes = [nodes[2], nodes[2]]
@@ -30,7 +30,7 @@ def test_case1():
 def test_case2():
     nodes = [mock.create_autospec(SnowflakePlan) for _ in range(7)]
     for i, node in enumerate(nodes):
-        node.encoded_id = i
+        node.encoded_node_id_with_query = i
         node.source_plan = None
     nodes[0].children_plan_nodes = [nodes[1], nodes[3]]
     nodes[1].children_plan_nodes = [nodes[2], nodes[2]]
