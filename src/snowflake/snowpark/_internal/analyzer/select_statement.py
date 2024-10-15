@@ -383,7 +383,8 @@ class Selectable(LogicalPlan, ABC):
     @property
     @abstractmethod
     def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
-        """Return the set of ctes referenced by the whole selectable subtree, includes its-self and children"""
+        """Return the dict of ctes referenced by the whole selectable subtree and the
+        reference count of the cte. Includes itself and its children"""
         pass
 
 
@@ -1478,6 +1479,7 @@ class SetStatement(Selectable):
     @property
     def referenced_ctes(self) -> Dict[WithQueryBlock, int]:
         # get a union of referenced cte tables from all child nodes
+        # and sum up the reference counts
         merged_ctes = dict()
         for node in self._nodes:
             for with_query_block, count in node.referenced_ctes.items():
