@@ -152,11 +152,11 @@ def test_large_query_breakdown_external_cte_ref(session):
     summary_value = kwargs["compilation_stage_summary"]
     assert summary_value["breakdown_failure_summary"] == [
         {
-            "num_nodes_invalid_due_to_external_cte_ref": 2,
-            "num_nodes_invalid_due_to_pipeline": 4,
-            "num_nodes_invalid_due_to_score_below_lower_bound": 24,
-            "num_nodes_invalid_due_to_score_above_upper_bound": 1,
-            "num_valid_nodes_in_partition": 0,
+            "num_external_cte_ref_nodes": 2,
+            "num_non_pipeline_breaker_nodes": 4,
+            "num_nodes_below_lower_bound": 28,
+            "num_nodes_above_upper_bound": 1,
+            "num_valid_nodes": 0,
             "num_partitions_made": 0,
         }
     ]
@@ -199,7 +199,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
     df1 = df1.join(df0, on=["b"], how="inner")
 
     df2 = df1.filter(col("b") == 2).union_all(df1)
-    df3 = df0.with_column("a", col("b") + 1)
+    df3 = session.sql("select 3 as b, 4 as c").with_column("a", col("b") + 1)
     for i in range(7):
         df2 = df2.with_column("a", col("a") + i + col("a"))
         df3 = df3.with_column("b", col("b") + i + col("b"))

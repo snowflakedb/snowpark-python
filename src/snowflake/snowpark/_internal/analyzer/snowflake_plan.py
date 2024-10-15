@@ -225,8 +225,8 @@ class SnowflakePlan(LogicalPlan):
         # TODO (SNOW-1541096): Remove placeholder_query once CTE is supported with the
         #               new compilation step.
         placeholder_query: Optional[str] = None,
-        # This field records all the CTE tables that are referred by the
-        # current SnowflakePlan tree. This is needed for the final query
+        # This field records all the WithQueryBlocks and their reference count that are
+        # referred by the current SnowflakePlan tree. This is needed for the final query
         # generation to generate the correct sql query with CTE definition.
         referenced_ctes: Optional[Dict[WithQueryBlock, int]] = None,
         *,
@@ -1672,7 +1672,7 @@ class SnowflakePlanBuilder:
         # the query parameter will be propagate along with the definition during
         # query generation stage.
         queries = child.queries[:-1] + [Query(sql=new_query)]
-        # propagate the cte table
+        # propagate the WithQueryBlock references
         referenced_ctes = child.referenced_ctes.copy()
         if with_query_block in referenced_ctes:
             referenced_ctes[with_query_block] += 1
