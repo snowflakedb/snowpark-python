@@ -7,7 +7,7 @@ from typing import List
 import pytest
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, lit, seq2, table_function
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
     Session,
@@ -31,20 +31,37 @@ def setup(session):
     session.reduce_describe_query_enabled = is_reduce_describe_query_enabled
 
 
-# TODO SNOW-1728988: add more test cases with select after caching attributes on SelectStatement
 # Create from SQL
 create_from_sql_funcs = [
     lambda session: session.sql("SELECT 1 AS a, 2 AS b"),
+    lambda session: session.sql("SELECT 1 AS a, 2 AS b").select("b"),
+    lambda session: session.sql("SELECT 1 AS a, 2 AS b").select(
+        "a", lit("2").alias("c")
+    ),
 ]
 
 # Create from Values
-create_from_values_funcs = []
+create_from_values_funcs = [
+    lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]),
+    lambda session: session.create_dataframe(
+        [[1, 2], [3, 4]], schema=["a", "b"]
+    ).select("b"),
+    lambda session: session.create_dataframe(
+        [[1, 2], [3, 4]], schema=["a", "b"]
+    ).select("a", lit("2").alias("c")),
+]
 
 # Create from Table
 create_from_table_funcs = [
     lambda session: session.create_dataframe(
         [[1, 2], [3, 4]], schema=["a", "b"]
     ).cache_result(),
+    lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    .cache_result()
+    .select("b"),
+    lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    .cache_result()
+    .select("a", lit("2").alias("c")),
 ]
 
 # Create from SnowflakePlan
@@ -58,7 +75,35 @@ create_from_snowflake_plan_funcs = [
     lambda session: session.create_dataframe(
         [[1, 2], [3, 4]], schema=["a", "b"]
     ).rename({"b": "c"}),
+    lambda session: session.range(10).to_df("a"),
+    lambda session: session.range(10).select(seq2().as_("a")),  # no flatten
 ]
+
+# Create from table functions
+create_from_table_function_funcs = [
+    lambda session: session.create_dataframe(
+        [[1, "some string value"]], schema=["a", "b"]
+    ).select("a", table_function("split_to_table")("b", lit(" "))),
+    lambda session: session.create_dataframe(
+        [[1, "some string value"]], schema=["a", "b"]
+    )
+    .select("a", table_function("split_to_table")("b", lit(" ")))
+    .select("a"),
+]
+
+# Create from unions
+create_from_unions_funcs = [
+    lambda session: session.sql("SELECT 1 AS a, 2 AS b").union(
+        session.sql("SELECT 3 AS a, 4 AS b")
+    ),
+    lambda session: session.sql("SELECT 1 AS a, 2 AS b")
+    .union(session.sql("SELECT 3 AS a, 4 AS b"))
+    .select("b"),
+    lambda session: session.sql("SELECT 1 AS a, 2 AS b")
+    .union(session.sql("SELECT 3 AS a, 4 AS b"))
+    .select("a", lit("2").alias("c")),
+]
+
 
 metadata_no_change_df_ops = [
     lambda df: df.filter(col("a") > 2),
@@ -66,6 +111,7 @@ metadata_no_change_df_ops = [
     lambda df: df.sort(col("a").desc()),
     lambda df: df.sort(-col("a")),
     lambda df: df.limit(2),
+    lambda df: df.sort(col("a").desc()).limit(2).filter(col("a") > 2),  # no flatten
     lambda df: df.filter(col("a") > 2).sort(col("a").desc()).limit(2),
     lambda df: df.sample(0.5),
     lambda df: df.sample(0.5).filter(col("a") > 2),
@@ -89,7 +135,9 @@ def check_attributes_equality(attrs1: List[Attribute], attrs2: List[Attribute]) 
     create_from_sql_funcs
     + create_from_values_funcs
     + create_from_table_funcs
-    + create_from_snowflake_plan_funcs,
+    + create_from_snowflake_plan_funcs
+    + create_from_table_function_funcs
+    + create_from_unions_funcs,
 )
 def test_metadata_no_change(session, action, create_df_func):
     df = create_df_func(session)
