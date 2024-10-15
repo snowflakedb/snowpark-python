@@ -282,7 +282,7 @@ class TestReindexAxis0:
 
         with pytest.raises(
             SnowparkSQLException,
-            match='.*Failed to cast variant value "A" to TIMESTAMP_NTZ',
+            match='Failed to cast variant value "A" to TIMESTAMP_NTZ',
         ):
             snow_df.reindex(list("ABC")).to_pandas()
 
