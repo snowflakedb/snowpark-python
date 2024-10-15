@@ -73,6 +73,7 @@
 - Removed unnecessary warning message about `convert_dtype` in `Series.apply`.
 - Improved generated SQL query for `head` and `iloc` when the row key is a slice.
 - Improved error message when passing an unknown timezone to `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex`.
+- Improved documentation for `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex` to specify the supported timezone formats.
 
 #### Bug Fixes
 
