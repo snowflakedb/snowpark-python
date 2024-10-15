@@ -80,6 +80,8 @@ def test_idxmax_idxmin_df(data, index, func, axis, skipna):
             index=index,
         ),
         lambda df: getattr(df, func)(axis=axis, skipna=skipna),
+        # native pandas does not propagate attrs when the input is empty, but does otherwise
+        test_attrs=len(native_pd.DataFrame(data).index) != 0,
     )
 
 
@@ -251,6 +253,7 @@ def test_idxmax_idxmin_empty_df_with_index(func, axis):
                     index=["hello"],
                 ),
                 lambda df: getattr(df, func)(axis=axis),
+                test_attrs=False,  # native pandas does not propagate when the frame is empty
             )
     else:
         with SqlCounter(query_count=0):
