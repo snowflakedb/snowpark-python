@@ -8783,8 +8783,9 @@ def map(
     """
 
     snowpark_package = "snowflake-snowpark-python"
-    if snowpark_package not in dataframe._session.get_packages():
-        dataframe._session.add_packages(snowpark_package)
+    with dataframe._session._package_lock:
+        if snowpark_package not in dataframe._session.get_packages():
+            dataframe._session.add_packages(snowpark_package)
 
     if len(output_types) == 0:
         raise ValueError("output_types cannot be empty.")

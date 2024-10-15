@@ -3,6 +3,7 @@
 #
 
 import inspect
+import threading
 from typing import Union
 from unittest import mock
 
@@ -145,6 +146,7 @@ def test_map():
     session._packages = {
         "snowflake-snowpark-python": "snowflake-snowpark-python",
     }
+    session._package_lock = threading.RLock()
 
     def generated_udtf(*args, **kwargs):
         return lambda *arguments: args[0]()
