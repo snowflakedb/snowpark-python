@@ -98,6 +98,10 @@ def test_all_any_invalid_types(data, msg):
         pd.DataFrame(data).groupby("by").any().to_pandas()
 
 
+@pytest.mark.skipif(
+    native_pd.__version__ == "2.2.3",
+    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+)
 @sql_count_checker(query_count=5, join_count=1, udtf_count=1)
 def test_all_any_chained():
     data = {
