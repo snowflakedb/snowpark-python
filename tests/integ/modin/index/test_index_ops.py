@@ -6,8 +6,8 @@ import modin.pandas as pd
 import pandas as native_pd
 import pytest
 
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_index_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -103,3 +103,24 @@ def test_index_ops_bw_indices(func):
         func(native_pd.Index(left), native_pd.Index(right)),
         check_exact=False,
     )
+
+
+@pytest.mark.parametrize(
+    "func",
+    [
+        lambda x: x & 1,
+        lambda x: x | 1,
+        lambda x: x ^ 1,
+        lambda x: x << 1,
+        lambda x: x >> 1,
+        lambda x: 1 & x,
+        lambda x: 1 | x,
+        lambda x: 1 ^ x,
+        lambda x: 1 << x,
+        lambda x: 1 >> x,
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_index_not_implemented_ops(func):
+    with pytest.raises(NotImplementedError):
+        func(pd.Index([-10, 5, 2.1]))

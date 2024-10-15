@@ -3,9 +3,13 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import copy
+import tempfile
 from typing import Dict, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    get_complexity_score,
+)
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
@@ -91,7 +95,7 @@ def resolve_and_update_snowflake_plan(
     node.expr_to_alias = new_snowflake_plan.expr_to_alias
     node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
     node._output_dict = new_snowflake_plan._output_dict
-    node.df_aliased_col_name_to_real_col_name = (
+    node.df_aliased_col_name_to_real_col_name.update(
         new_snowflake_plan.df_aliased_col_name_to_real_col_name
     )
     node.placeholder_query = new_snowflake_plan.placeholder_query
@@ -132,6 +136,9 @@ def replace_child(
 
     elif isinstance(parent, SelectStatement):
         parent.from_ = to_selectable(new_child, query_generator)
+        # once the subquery is updated, set _merge_projection_complexity_with_subquery to False to
+        # disable the projection complexity merge
+        parent._merge_projection_complexity_with_subquery = False
 
     elif isinstance(parent, SetStatement):
         new_child_as_selectable = to_selectable(new_child, query_generator)
@@ -227,13 +234,20 @@ def update_resolvable_node(
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
         node._snowflake_plan = None
+        # make sure we also clean up the cached _projection_in_str, so that
+        # the projection expression can be re-analyzed during code generation
+        node._projection_in_str = None
         node.analyzer = query_generator
+        # reset the _projection_complexities fields to re-calculate the complexities
+        node._projection_complexities = None
 
         # update the pre_actions and post_actions for the select statement
         node.pre_actions = node.from_.pre_actions
         node.post_actions = node.from_.post_actions
         node.expr_to_alias = node.from_.expr_to_alias
-        node.df_aliased_col_name_to_real_col_name.clear()
+        # df_aliased_col_name_to_real_col_name is updated at the frontend api
+        # layer when alias is called, not produced during code generation. Should
+        # always retain the original value of the map.
         node.df_aliased_col_name_to_real_col_name.update(
             node.from_.df_aliased_col_name_to_real_col_name
         )
@@ -267,12 +281,26 @@ def update_resolvable_node(
         update_resolvable_node(node.snowflake_plan, query_generator)
         node.analyzer = query_generator
 
+        node.pre_actions = node._snowflake_plan.queries[:-1]
+        node.post_actions = node._snowflake_plan.post_actions
+        node._api_calls = node._snowflake_plan.api_calls
+
+        if isinstance(node, SelectSnowflakePlan):
+            node.expr_to_alias.update(node._snowflake_plan.expr_to_alias)
+            node.df_aliased_col_name_to_real_col_name.update(
+                node._snowflake_plan.df_aliased_col_name_to_real_col_name
+            )
+            node._query_params = []
+            for query in node._snowflake_plan.queries:
+                if query.params:
+                    node._query_params.extend(query.params)
+
     elif isinstance(node, Selectable):
         node.analyzer = query_generator
 
 
 def get_snowflake_plan_queries(
-    plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, str]
+    plan: SnowflakePlan, resolved_with_query_blocks: Dict[str, Query]
 ) -> Dict[PlanQueryType, List[Query]]:
 
     from snowflake.snowpark._internal.analyzer.analyzer_utils import cte_statement
@@ -286,14 +314,109 @@ def get_snowflake_plan_queries(
         post_action_queries = copy.deepcopy(plan.post_actions)
         table_names = []
         definition_queries = []
+        final_query_params = []
+        plan_referenced_cte_names = {
+            with_query_block.name for with_query_block in plan.referenced_ctes
+        }
         for name, definition_query in resolved_with_query_blocks.items():
-            if name in plan.referenced_ctes:
+            if name in plan_referenced_cte_names:
                 table_names.append(name)
-                definition_queries.append(definition_query)
+                definition_queries.append(definition_query.sql)
+                final_query_params.extend(definition_query.params)
         with_query = cte_statement(definition_queries, table_names)
         plan_queries[-1].sql = with_query + plan_queries[-1].sql
+        final_query_params.extend(plan_queries[-1].params)
+        plan_queries[-1].params = final_query_params
 
     return {
         PlanQueryType.QUERIES: plan_queries,
         PlanQueryType.POST_ACTIONS: post_action_queries,
     }
+
+
+def is_active_transaction(session):
+    """Check is the session has an active transaction."""
+    return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
+
+
+def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
+    """A helper function to plot the query plan tree using graphviz useful for debugging.
+    It plots the plan if the environment variable ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING
+    is set to true.
+
+    The plots are saved in the temp directory of the system which is obtained using
+    https://docs.python.org/3/library/tempfile.html#tempfile.gettempdir. Setting env variable
+    TMPDIR to your desired location is recommended. Within the temp directory, the plots are
+    saved in the directory `snowpark_query_plan_plots` with the given `filename`. For example,
+    we can set the environment variables as follows:
+
+        $ export ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING=true
+        $ export TMPDIR="/tmp"
+        $ ls /tmp/snowpark_query_plan_plots/  # to see the plots
+
+    Args:
+        root: root TreeNode of the plan to plot.
+        filename: name of the file to save the image plot.
+    """
+    import os
+
+    if (
+        os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING", "false").lower()
+        != "true"
+    ):
+        return
+
+    import graphviz  # pyright: ignore[reportMissingImports]
+
+    def get_stat(node: LogicalPlan):
+        def get_name(node: Optional[LogicalPlan]) -> str:
+            if node is None:
+                return "EMPTY_SOURCE_PLAN"
+            addr = hex(id(node))
+            name = str(type(node)).split(".")[-1].split("'")[0]
+            return f"{name}({addr})"
+
+        name = get_name(node)
+        if isinstance(node, SnowflakePlan):
+            name = f"{name} :: ({get_name(node.source_plan)})"
+        elif isinstance(node, SelectSnowflakePlan):
+            name = f"{name} :: ({get_name(node.snowflake_plan.source_plan)})"
+        elif isinstance(node, SetStatement):
+            name = f"{name} :: ({node.set_operands[1].operator})"
+
+        score = get_complexity_score(node)
+        sql_text = ""
+        if isinstance(node, Selectable):
+            sql_text = node.sql_query
+        elif isinstance(node, SnowflakePlan):
+            sql_text = node.queries[-1].sql
+        sql_size = len(sql_text)
+        sql_preview = sql_text[:50]
+
+        return f"{name=}\n{score=}, {sql_size=}\n{sql_preview=}"
+
+    g = graphviz.Graph(format="png")
+
+    curr_level = [root]
+    edges = set()  # add edges to set for de-duplication
+    while curr_level:
+        next_level = []
+        for node in curr_level:
+            node_id = hex(id(node))
+            g.node(node_id, get_stat(node))
+            if isinstance(node, (Selectable, SnowflakePlan)):
+                children = node.children_plan_nodes
+            else:
+                children = node.children
+            for child in children:
+                child_id = hex(id(child))
+                edges.add((node_id, child_id))
+                next_level.append(child)
+        curr_level = next_level
+    for edge in edges:
+        g.edge(*edge, dir="back")
+
+    tempdir = tempfile.gettempdir()
+    path = os.path.join(tempdir, "snowpark_query_plan_plots", filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    g.render(path, format="png", cleanup=True)

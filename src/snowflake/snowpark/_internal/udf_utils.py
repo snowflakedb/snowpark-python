@@ -399,6 +399,8 @@ def get_opt_arg_defaults(
         input_types: List[DataType],
         convert_python_str_to_object: bool,
     ) -> List[Optional[str]]:
+        if default_values is None:
+            return EMPTY_DEFAULT_VALUES
         num_optional_args = len(default_values) if default_values is not None else 0
         num_positional_args = len(input_types) - num_optional_args
         input_types_for_default_args = input_types[-num_optional_args:]
@@ -446,8 +448,6 @@ def get_opt_arg_defaults(
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             default_values_str = retrieve_func_defaults_from_source(filename, func_name)
 
-        if default_values_str is None:
-            return EMPTY_DEFAULT_VALUES
         return build_default_values_result(default_values_str, input_types, True)
 
     try:
@@ -1078,6 +1078,7 @@ def resolve_imports_and_packages(
             )
         )
 
+    all_urls = []
     if session is not None:
         import_only_stage = (
             unwrap_stage_location_single_quote(stage_location)
@@ -1091,7 +1092,6 @@ def resolve_imports_and_packages(
             else session.get_session_stage(statement_params=statement_params)
         )
 
-    if session:
         if imports:
             udf_level_imports = {}
             for udf_import in imports:
@@ -1119,22 +1119,15 @@ def resolve_imports_and_packages(
                 upload_and_import_stage,
                 statement_params=statement_params,
             )
-        else:
-            all_urls = []
-    else:
-        all_urls = []
 
     dest_prefix = get_udf_upload_prefix(udf_name)
 
     # Upload closure to stage if it is beyond inline closure size limit
     handler = inline_code = upload_file_stage_location = None
-    custom_python_runtime_version_allowed = False
+    # As cloudpickle is being used, we cannot allow a custom runtime
+    custom_python_runtime_version_allowed = not isinstance(func, Callable)
     if session is not None:
         if isinstance(func, Callable):
-            custom_python_runtime_version_allowed = (
-                False  # As cloudpickle is being used, we cannot allow a custom runtime
-            )
-
             # generate a random name for udf py file
             # and we compress it first then upload it
             udf_file_name_base = f"udf_py_{random_number()}"
@@ -1204,11 +1197,6 @@ def resolve_imports_and_packages(
                     skip_upload_on_content_match=skip_upload_on_content_match,
                 )
                 all_urls.append(upload_file_stage_location)
-    else:
-        if isinstance(func, Callable):
-            custom_python_runtime_version_allowed = False
-        else:
-            custom_python_runtime_version_allowed = True
 
     # build imports and packages string
     all_imports = ",".join(

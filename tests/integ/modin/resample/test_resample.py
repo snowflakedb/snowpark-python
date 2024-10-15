@@ -12,14 +12,17 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     IMPLEMENTED_AGG_METHODS,
     IMPLEMENTED_DATEOFFSET_STRINGS,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     create_test_dfs,
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
-agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_AGG_METHODS)
+# Parametrize on all IMPLEMENTED_AGG_METHODS except 'indices' which is tested in a separate file
+agg_func = pytest.mark.parametrize(
+    "agg_func", list(filter(lambda x: x not in ["indices"], IMPLEMENTED_AGG_METHODS))
+)
 freq = pytest.mark.parametrize("freq", IMPLEMENTED_DATEOFFSET_STRINGS)
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
 
@@ -34,16 +37,53 @@ def randomword(length):
 @agg_func
 # One extra query to convert index to native pandas for dataframe constructor
 @sql_count_checker(query_count=3, join_count=1)
-def test_resample_with_varying_freq_and_interval(freq, interval, agg_func):
+def test_resample_floats_with_varying_freq_and_interval(freq, interval, agg_func):
     rule = f"{interval}{freq}"
     eval_snowpark_pandas_result(
         *create_test_dfs(
             {"A": np.random.randn(15)},
             index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
         ),
-        lambda df: getattr(df.resample(rule=rule), agg_func)(),
+        lambda df: getattr(df.resample(rule=rule, closed="left"), agg_func)(),
         check_freq=False,
     )
+
+
+@freq
+@interval
+@agg_func
+def test_resample_timedelta_and_floats_with_varying_freq_and_interval(
+    freq, interval, agg_func
+):
+    rule = f"{interval}{freq}"
+    # One extra query to convert index to native pandas for dataframe constructor
+    with SqlCounter(query_count=1):
+        dfs = create_test_dfs(
+            {
+                "A": np.random.randn(15),
+                "B": native_pd.timedelta_range("1 day", periods=15),
+            },
+            index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
+        )
+
+    def operation(df):
+        return getattr(df.resample(rule=rule, closed="left"), agg_func)()
+
+    if agg_func == "var":
+        with SqlCounter(query_count=0):
+            eval_snowpark_pandas_result(
+                *dfs,
+                operation,
+                expect_exception=True,
+                expect_exception_type=TypeError,
+            )
+    else:
+        with SqlCounter(query_count=2, join_count=1):
+            eval_snowpark_pandas_result(
+                *dfs,
+                operation,
+                check_freq=False,
+            )
 
 
 # One extra query to convert index to native pandas for dataframe constructor
@@ -102,7 +142,7 @@ def test_resample_missing_data_upsample(agg_func, freq):
     rule = f"1{freq}"
     eval_snowpark_pandas_result(
         *create_test_dfs({"A": np.random.randn(10)}, index=date_data),
-        lambda df: getattr(df.resample(rule=rule), agg_func)(),
+        lambda df: getattr(df.resample(rule=rule, closed="left"), agg_func)(),
         check_freq=False,
     )
 
@@ -152,16 +192,46 @@ def test_resample_duplicated_timestamps():
 @interval
 @agg_func
 @sql_count_checker(query_count=2, join_count=1)
-def test_resample_series(freq, interval, agg_func):
+def test_resample_int_series(freq, interval, agg_func):
     rule = f"{interval}{freq}"
     eval_snowpark_pandas_result(
         *create_test_series(
             range(15),
             index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
         ),
-        lambda ser: getattr(ser.resample(rule=rule), agg_func)(),
+        lambda ser: getattr(ser.resample(rule=rule, closed="left"), agg_func)(),
         check_freq=False,
     )
+
+
+@freq
+@interval
+@agg_func
+def test_resample_timedelta_series(freq, interval, agg_func):
+    rule = f"{interval}{freq}"
+    series = create_test_series(
+        native_pd.timedelta_range("1 day", periods=15),
+        index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
+    )
+
+    def operation(ser):
+        return getattr(ser.resample(rule=rule, closed="left"), agg_func)()
+
+    if agg_func == "var":
+        with SqlCounter(query_count=0):
+            eval_snowpark_pandas_result(
+                *series,
+                operation,
+                expect_exception=True,
+                expect_exception_type=TypeError,
+            )
+    else:
+        with SqlCounter(query_count=2, join_count=1):
+            eval_snowpark_pandas_result(
+                *series,
+                operation,
+                check_freq=False,
+            )
 
 
 # One extra query to convert index to native pandas for dataframe constructor
@@ -288,5 +358,19 @@ def test_resample_date_trunc_hour():
             index=native_pd.date_range("2020-01-01 2:00:23", periods=5, freq="1h"),
         ),
         lambda df: df.resample("2H").min(),
+        check_freq=False,
+    )
+
+
+# One extra query to convert index to native pandas for dataframe constructor
+@pytest.mark.parametrize("q", [0.1, 0.7])
+@sql_count_checker(query_count=3, join_count=1)
+def test_resample_quantile_various_q(q):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {"A": np.random.randn(15)},
+            index=native_pd.date_range("2020-01-01", periods=15, freq="1s"),
+        ),
+        lambda df: df.resample(rule="3s").quantile(q=q),
         check_freq=False,
     )

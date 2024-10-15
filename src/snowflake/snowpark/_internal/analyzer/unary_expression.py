@@ -2,12 +2,13 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import AbstractSet, Dict, Optional
+from typing import AbstractSet, Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     NamedExpression,
     derive_dependent_columns,
+    derive_dependent_columns_with_duplication,
 )
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
@@ -35,6 +36,9 @@ class UnaryExpression(Expression):
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.child)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(self.child)
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
