@@ -7,7 +7,7 @@ import io
 import modin.pandas as pd
 import pandas as npd
 
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 species = ["adelie"] * 3 + ["chinstrap"] * 3 + ["gentoo"] * 3
 measurements = ["bill_length", "flipper_length", "bill_depth"] * 3
