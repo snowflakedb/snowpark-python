@@ -412,9 +412,28 @@ class Interval(Expression):
         if self._ast is None and _emit_ast:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_interval)
-            # Set the AST values based on the values_dict.
-            for k, v in self.values_dict.items():
-                getattr(ast, k.lower()).value = v
+            if year is not None:
+                ast.year.value = year
+            if quarter is not None:
+                ast.quarter.value = quarter
+            if month is not None:
+                ast.month.value = month
+            if week is not None:
+                ast.week.value = week
+            if day is not None:
+                ast.day.value = day
+            if hour is not None:
+                ast.hour.value = hour
+            if minute is not None:
+                ast.minute.value = minute
+            if second is not None:
+                ast.second.value = second
+            if millisecond is not None:
+                ast.millisecond.value = millisecond
+            if microsecond is not None:
+                ast.microsecond.value = microsecond
+            if nanosecond is not None:
+                ast.nanosecond.value = nanosecond
             self._ast = expr
 
     @property
