@@ -30,6 +30,11 @@ from tests.integ.modin.utils import (
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
+pytestmark = pytest.mark.skipif(
+    native_pd.__version__ == "2.2.3",
+    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+)
+
 # TODO SNOW-891796: replace native_pd with pd after allowing using snowpandas module/function in UDF
 
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
