@@ -46,7 +46,11 @@ def pytest_configure(config):
 def session():
     # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
     # Need to use the Session.builder to properly register this as active session etc.
-    with Session.builder.config("local_testing", True).create() as s:
+    with (
+        Session.builder.config("local_testing", False)
+        .config("connection_name", "sfctest0_aws_oplaton_svc")
+        .create() as s
+    ):
         s.ast_enabled = True
         yield s
 
