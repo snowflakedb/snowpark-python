@@ -22,11 +22,13 @@ from typing import (
 )
 
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
+from snowflake.snowpark._internal.analyzer.cte_utils import (
+    encode_id,
+    merge_referenced_ctes,
+)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
-    merge_referenced_ctes,
     subtract_complexities,
     sum_node_complexities,
 )

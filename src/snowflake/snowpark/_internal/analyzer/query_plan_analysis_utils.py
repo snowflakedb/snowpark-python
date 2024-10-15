@@ -6,8 +6,6 @@ from collections import Counter
 from enum import Enum
 from typing import TYPE_CHECKING, Dict
 
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
-
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 
@@ -102,16 +100,3 @@ def get_complexity_score(node: "LogicalPlan") -> int:
 
     score = sum(adjusted_cumulative_complexity.values())
     return score
-
-
-def merge_referenced_ctes(
-    ref1: Dict[WithQueryBlock, int], ref2: Dict[WithQueryBlock, int]
-) -> Dict[WithQueryBlock, int]:
-    """Utility function to merge two referenced_cte dictionaries"""
-    merged = ref1.copy()
-    for with_query_block, value in ref2.items():
-        if with_query_block in merged:
-            merged[with_query_block] += value
-        else:
-            merged[with_query_block] = value
-    return merged

@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     cte_statement,
     project_statement,
 )
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -146,6 +147,19 @@ def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> s
     )
     final_query = with_stmt + SPACE + plan_to_query_map[root]
     return final_query
+
+
+def merge_referenced_ctes(
+    ref1: Dict[WithQueryBlock, int], ref2: Dict[WithQueryBlock, int]
+) -> Dict[WithQueryBlock, int]:
+    """Utility function to merge two referenced_cte dictionaries"""
+    merged = ref1.copy()
+    for with_query_block, value in ref2.items():
+        if with_query_block in merged:
+            merged[with_query_block] += value
+        else:
+            merged[with_query_block] = value
+    return merged
 
 
 def encode_id(
