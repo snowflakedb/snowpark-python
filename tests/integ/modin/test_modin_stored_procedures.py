@@ -283,7 +283,7 @@ def test_sproc_pivot(session):
     )
 
 
-# TODO add ticket to debug
+# TODO SNOW-1739042 figure out why apply/applymap UDF doesn't use the correct modin/snowpark version
 @pytest.mark.xfail(strict=True)
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_apply(session):
@@ -298,7 +298,7 @@ def test_sproc_apply(session):
     assert run() == "0     2\n1    10\n2    13\ndtype: int64"
 
 
-# TODO add ticket to debug
+# TODO SNOW-1739042 figure out why apply/applymap UDF doesn't use the correct modin/snowpark version
 @pytest.mark.xfail(strict=True)
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_applymap(session):
