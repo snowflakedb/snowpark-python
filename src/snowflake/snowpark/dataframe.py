@@ -97,6 +97,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 )
 from snowflake.snowpark._internal.ast_utils import (
     add_intermediate_stmt,
+    build_expr_from_dict_str_str,
     build_expr_from_python_val,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_col_name,
@@ -662,10 +663,7 @@ class DataFrame:
             debug_check_missing_ast(self._ast_id, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = expr.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
             expr.block = block
             expr.case_sensitive = case_sensitive
             expr.log_on_exception = log_on_exception
@@ -715,10 +713,7 @@ class DataFrame:
             debug_check_missing_ast(self._ast_id, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = expr.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
             expr.case_sensitive = case_sensitive
             expr.log_on_exception = log_on_exception
             expr.no_wait = True
@@ -851,10 +846,7 @@ class DataFrame:
 
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = expr.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
             expr.block = block
             expr.case_sensitive = case_sensitive
 
@@ -950,10 +942,7 @@ class DataFrame:
             debug_check_missing_ast(self._ast_id, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = ast.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
             ast.block = block
             self._session._ast_batch.eval(stmt)
 
@@ -1054,10 +1043,7 @@ class DataFrame:
             debug_check_missing_ast(self._ast_id, self)
             ast.id.bitfield1 = self._ast_id
             if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = ast.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
             ast.block = block
             self._session._ast_batch.eval(stmt)
 
@@ -3817,10 +3803,7 @@ class DataFrame:
             debug_check_missing_ast(self._ast_id, self)
             expr.id.bitfield1 = self._ast_id
             if statement_params is not None:
-                for k, v in statement_params.items():
-                    t = expr.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
             expr.block = block
 
             self._session._ast_batch.eval(repr)
@@ -3983,10 +3966,7 @@ class DataFrame:
                     entry._1 = k
                     build_expr_from_python_val(entry._2, format_type_options[k])
             if statement_params is not None:
-                for k in statement_params:
-                    entry = expr.statement_params.add()
-                    entry._1 = k
-                    entry._2 = statement_params[k]
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
             if copy_options is not None:
                 for k in copy_options:
                     entry = expr.copy_options.add()
@@ -4410,11 +4390,7 @@ class DataFrame:
             if comment is not None:
                 expr.comment.value = comment
             if statement_params is not None:
-                for k in statement_params:
-                    entry = expr.statement_params.add()
-                    entry._1 = k
-                    entry._2 = statement_params[k]
-
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
         return self._do_create_or_replace_view(
             formatted_name,
             PersistedView(),
@@ -4516,11 +4492,7 @@ class DataFrame:
             if comment is not None:
                 expr.comment.value = comment
             if statement_params is not None:
-                for k in statement_params:
-                    entry = expr.statement_params.add()
-                    entry._1 = k
-                    entry._2 = statement_params[k]
-
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
         # TODO: Support create_or_replace_dynamic_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -4601,10 +4573,7 @@ class DataFrame:
             if comment is not None:
                 expr.comment.value = comment
             if statement_params is not None:
-                for k in statement_params:
-                    entry = expr.statement_params.add()
-                    entry._1 = k
-                    entry._2 = statement_params[k]
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
 
         return self._do_create_or_replace_view(
             formatted_name,
@@ -4742,7 +4711,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_first, stmt)
             if statement_params is not None:
-                ast.statement_params.append((k, v) for k, v in statement_params)
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
             self._set_ast_ref(ast.df)
             ast.block = block
             ast.num = 1 if n is None else n
@@ -5197,10 +5166,7 @@ class DataFrame:
             expr = with_src_position(stmt.expr.sp_dataframe_cache_result, stmt)
             self._set_ast_ref(expr.df)
             if statement_params is not None:
-                for k in statement_params:
-                    entry = expr.statement_params.add()
-                    entry._1 = k
-                    entry._2 = statement_params[k]
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
 
         temp_table_name = self._session.get_fully_qualified_name_if_possible(
             f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
