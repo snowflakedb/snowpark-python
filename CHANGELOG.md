@@ -10,8 +10,8 @@
 
 #### Improvements
 - Disables sql simplification when sort is performed after limit. 
-  - Improve performance of generated query since limit stops table scanning as soon as number of record is satisfied.
-  - Note before sort after limit and limit after sort will always return top k result, but now sort after limit will no longer return deterministic result.
+  - Respect the original clause order and improve performance of generated query since limit stops table scanning as soon as number of record is satisfied.
+  - Note that before `df.sort().limit()` and `df.limit().sort()` will generate same query with effect of `df.sort().limit()`. This will be no longer the case after the change, `df.limit().sort()` will keep its original clause order.
 
 ### Snowpark pandas API Updates
 
