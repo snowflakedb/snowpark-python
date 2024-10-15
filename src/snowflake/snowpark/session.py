@@ -222,6 +222,9 @@ _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
     "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED"
 )
+_PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED = (
+    "PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED"
+)
 _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION = (
     "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION"
 )
@@ -588,7 +591,11 @@ class Session:
         #         _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED, False
         #     )
         # )
-
+        self._reduce_describe_query_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, False
+            )
+        )
         self._query_compilation_stage_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
@@ -737,6 +744,18 @@ class Session:
     @property
     def large_query_breakdown_complexity_bounds(self) -> Tuple[int, int]:
         return self._large_query_breakdown_complexity_bounds
+
+    @property
+    def reduce_describe_query_enabled(self) -> bool:
+        """
+        When setting this parameter to ``True``, Snowpark will infer the schema of DataFrame locally if possible,
+        instead of issuing an internal `describe query
+        <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#retrieving-column-metadata>`_
+        to get the schema from the Snowflake server. This optimization improves the performance of your workloads by
+        reducing the number of describe queries issued to the server.
+        The default value is ``False``.
+        """
+        return self._reduce_describe_query_enabled
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -888,6 +907,20 @@ class Session:
             )
 
             self._large_query_breakdown_complexity_bounds = value
+
+    @reduce_describe_query_enabled.setter
+    @experimental_parameter(version="1.24.0")
+    def reduce_describe_query_enabled(self, value: bool) -> None:
+        """Set the value for reduce_describe_query_enabled"""
+        if value in [True, False]:
+            self._conn._telemetry_client.send_reduce_describe_query_telemetry(
+                self._session_id, value
+            )
+            self._reduce_describe_query_enabled = value
+        else:
+            raise ValueError(
+                "value for reduce_describe_query_enabled must be True or False!"
+            )
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
