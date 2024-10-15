@@ -505,9 +505,11 @@ class SnowflakePlan(LogicalPlan):
             )
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
-        copied_source_plan = (
-            copy.deepcopy(self.source_plan) if self.source_plan else None
-        )
+        if self.source_plan:
+            copied_source_plan = copy.deepcopy(self.source_plan, memodict)
+        else:
+            copied_source_plan = None
+
         copied_plan = SnowflakePlan(
             queries=copy.deepcopy(self.queries) if self.queries else [],
             schema_query=self.schema_query,
