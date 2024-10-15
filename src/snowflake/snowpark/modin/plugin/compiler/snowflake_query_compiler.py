@@ -8675,6 +8675,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         arg: Union[AggFuncType, "pd.Series"],
         na_action: Optional[Literal["ignore"]] = None,
+        **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         """This method will only be called from Series."""
         self._raise_not_implemented_error_for_timedelta()
@@ -8692,7 +8693,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas map API doesn't yet support non callable 'arg'"
             )
-        return self.applymap(func=arg, na_action=na_action)
+        return self.applymap(func=arg, na_action=na_action, **kwargs)
 
     def apply_on_series(
         self, func: AggFuncType, args: tuple[Any, ...] = (), **kwargs: Any

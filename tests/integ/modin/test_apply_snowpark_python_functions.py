@@ -31,6 +31,26 @@ def test_apply_sin():
     )
 
 
+@sql_count_checker(query_count=4)
+def test_apply_log10():
+    from snowflake.snowpark.functions import log
+
+    native_s = native_pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
+    s = pd.Series(native_s)
+
+    assert_series_equal(s.apply(log, base=10), native_s.apply(np.log10))
+    assert_series_equal(s.map(log, base=10), native_s.map(np.log10))
+    assert_frame_equal(
+        s.to_frame().applymap(log, base=10), native_s.to_frame().applymap(np.log10)
+    )
+    assert_frame_equal(
+        s.to_frame().apply(log, base=10),
+        native_s.to_frame().apply(
+            np.log10
+        ),  # Note math.sin does not work with df.apply
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_apply_snowpark_python_function_not_implemented():
     from snowflake.snowpark.functions import cos, sin
