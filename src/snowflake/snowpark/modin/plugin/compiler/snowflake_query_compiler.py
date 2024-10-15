@@ -415,7 +415,6 @@ _TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED = (
 _RESET_ATTRS_METHODS = [
     "compare",
     "merge",
-    "pivot",
     "value_counts",
     "dataframe_to_datetime",
     "series_to_datetime",

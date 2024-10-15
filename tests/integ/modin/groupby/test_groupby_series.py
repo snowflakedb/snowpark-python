@@ -54,7 +54,10 @@ def test_groupby_series_count_with_nan():
     index.names = ["grp_col"]
     series = pd.Series([1.2, np.nan, np.nan, np.nan, np.nan], index=index)
     eval_snowpark_pandas_result(
-        series, series.to_pandas(), lambda se: se.groupby("grp_col").count()
+        series,
+        series.to_pandas(),
+        lambda se: se.groupby("grp_col").count(),
+        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
     )
 
 

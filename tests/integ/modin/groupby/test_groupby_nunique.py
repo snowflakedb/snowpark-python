@@ -49,6 +49,7 @@ def test_groupby_nunique(df, groupby_columns, dropna):
         snow_df,
         df,
         lambda df: df.groupby(groupby_columns).agg("nunique", dropna=dropna),
+        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
     )
 
     # Test invoking nunique directly
