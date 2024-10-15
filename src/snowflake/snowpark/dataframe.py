@@ -106,6 +106,7 @@ from snowflake.snowpark._internal.ast_utils import (
     build_proto_from_pivot_values,
     debug_check_missing_ast,
     fill_ast_for_column,
+    fill_sp_save_mode,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -3992,6 +3993,11 @@ class DataFrame:
                     entry = expr.copy_options.add()
                     entry._1 = k
                     build_expr_from_python_val(entry._2, copy_options[k])
+            if iceberg_config is not None:
+                for k, v in iceberg_config.items():
+                    t = expr.iceberg_config.add()
+                    t._1 = k
+                    t._2 = v
             self._set_ast_ref(expr.df)
 
         # TODO: Support copy_into_table in MockServerConnection.
@@ -4515,6 +4521,23 @@ class DataFrame:
             expr.lag = lag
             if comment is not None:
                 expr.comment.value = comment
+
+            fill_sp_save_mode(expr.mode, mode)
+            if refresh_mode is not None:
+                expr.refresh_mode.value = refresh_mode
+            if initialize is not None:
+                expr.initialize.value = initialize
+            if clustering_keys is not None:
+                for col_or_name in clustering_keys:
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.clustering_keys.list.add(), col_or_name
+                    )
+            expr.is_transient = is_transient
+            if data_retention_time is not None:
+                expr.data_retention_time.value = data_retention_time
+            if max_data_extension_time is not None:
+                expr.max_data_extension_time.value = max_data_extension_time
+
             if statement_params is not None:
                 for k in statement_params:
                     entry = expr.statement_params.add()
