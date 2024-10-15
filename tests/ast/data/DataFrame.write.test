@@ -6,6 +6,8 @@ df = session.table("test_table")
 
 df.write.save_as_table("saved_table")
 
+df.write.save_as_table("saved_table_2", comment="test", enable_schema_evolution=True, data_retention_time=2, max_data_extension_time=3, change_tracking=True, copy_grants=True, iceberg_config={"catalog":"foo"})
+
 df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
 
 df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary", mode="ignore")
