@@ -9,7 +9,9 @@ import logging
 import os
 import pathlib
 import platform
+import random
 import re
+import string
 import subprocess
 import sys
 import tempfile
@@ -235,29 +237,52 @@ def run_test(session):
     # that would otherwise be thrown.
     session._conn._suppress_not_implemented_error = True
 
-    # We use temp files to enable symbol capture in the AST. Having an underlying file instead of simply calling
-    # `exec(source, globals)` allows the Python interpreter to correctly capture symbols, which we use in the AST.
-    test_file = tempfile.NamedTemporaryFile(
-        mode="w", prefix="test_ast", suffix=".py", delete=False
-    )
-    try:
-        test_file.write(source)
-        test_file.close()
-
-        spec = importlib.util.spec_from_file_location(test_name, test_file.name)
-        test_module = importlib.util.module_from_spec(spec)
-        sys.modules[test_name] = test_module
-        spec.loader.exec_module(test_module)
-        base64_batches = test_module.run_test(session)
-        raw_unparser_output = render(base64_batches) if pytest.unparser_jar else ""
-        unparser_output = re.sub(
-            r"SNOWPARK_TEMP_TABLE_(\w+)", "SNOWPARK_TEMP_TABLE_xxx", raw_unparser_output
+    with session.connection.cursor() as cursor:
+        # We use temp files to enable symbol capture in the AST. Having an underlying file instead of simply calling
+        # `exec(source, globals)` allows the Python interpreter to correctly capture symbols, which we use in the AST.
+        test_file = tempfile.NamedTemporaryFile(
+            mode="w", prefix="test_ast", suffix=".py", delete=False
         )
-        return unparser_output, "\n".join(base64_batches)
-    except Exception as e:
-        raise Exception("Generated AST test failed") from e
-    finally:
-        os.unlink(test_file.name)
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y%m%d_%H%M%S%f"
+        )
+        random_string = "".join(
+            random.choices(string.ascii_lowercase + string.digits, k=8)
+        )
+        schema_name = f"ast_{timestamp}_{random_string}_test"
+        logging.info(
+            "Creating schema %s",
+            schema_name,
+        )
+        try:
+            test_file.write(source)
+            test_file.close()
+            cursor.execute(f"CREATE TRANSIENT SCHEMA {schema_name}")
+            session.use_schema(schema_name)
+
+            spec = importlib.util.spec_from_file_location(test_name, test_file.name)
+            test_module = importlib.util.module_from_spec(spec)
+            sys.modules[test_name] = test_module
+            spec.loader.exec_module(test_module)
+            base64_batches = test_module.run_test(session)
+            sys.modules.pop(test_name)
+            raw_unparser_output = render(base64_batches) if pytest.unparser_jar else ""
+            unparser_output = re.sub(
+                r"SNOWPARK_TEMP_TABLE_(\w+)",
+                "SNOWPARK_TEMP_TABLE_xxx",
+                raw_unparser_output,
+            )
+            return unparser_output, "\n".join(base64_batches)
+        except Exception as e:
+            raise Exception("Generated AST test failed") from e
+        finally:
+            try:
+                cursor.execute(f"DROP SCHEMA {schema_name}")
+            except Exception as e:
+                logging.warning(
+                    "Ignoring exception in DROP SCHEMA %s: %s", schema_name, e
+                )
+            os.unlink(test_file.name)
 
 
 def ClearTempTables(message: proto.Request) -> None:
