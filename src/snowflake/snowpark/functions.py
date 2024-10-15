@@ -189,10 +189,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     LiteralType,
 )
-from snowflake.snowpark._internal.udf_utils import (
-    add_snowpark_package_to_sproc_packages,
-    check_decorator_args,
-)
+from snowflake.snowpark._internal.udf_utils import check_decorator_args
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     validate_object_name,
@@ -8800,9 +8797,10 @@ def map(
         as specified in the `output_types` argument.
     """
 
-    kwargs["packages"] = add_snowpark_package_to_sproc_packages(
-        dataframe._session, kwargs.get("packages")
-    )
+    snowpark_package = "snowflake-snowpark-python"
+    if snowpark_package not in dataframe._session.get_packages():
+        dataframe._session.add_packages(snowpark_package)
+
     if len(output_types) == 0:
         raise ValueError("output_types cannot be empty.")
     input_types = [field.datatype for field in dataframe.schema.fields]

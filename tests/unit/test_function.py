@@ -142,6 +142,9 @@ def test_map():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     session = snowflake.snowpark.session.Session(mock_connection)
+    session._packages = {
+        "snowflake-snowpark-python": "snowflake-snowpark-python",
+    }
 
     def generated_udtf(*args, **kwargs):
         return lambda *arguments: args[0]()
