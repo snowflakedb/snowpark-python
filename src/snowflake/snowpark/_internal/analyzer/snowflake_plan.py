@@ -25,6 +25,7 @@ from typing import (
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
+    merge_referenced_ctes,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
@@ -668,12 +669,9 @@ class SnowflakePlanBuilder:
             # the referred cte tables are propagated from left and right can have
             # duplicated queries if there is a common CTE block referenced by
             # both left and right.
-            referenced_ctes.update(select_left.referenced_ctes)
-            for with_query_block, count in select_right.referenced_ctes.items():
-                if with_query_block in referenced_ctes:
-                    referenced_ctes[with_query_block] += count
-                else:
-                    referenced_ctes[with_query_block] = count
+            referenced_ctes = merge_referenced_ctes(
+                select_left.referenced_ctes, select_right.referenced_ctes
+            )
 
         queries = merged_queries + [
             Query(
@@ -1673,11 +1671,9 @@ class SnowflakePlanBuilder:
         # query generation stage.
         queries = child.queries[:-1] + [Query(sql=new_query)]
         # propagate the WithQueryBlock references
-        referenced_ctes = child.referenced_ctes.copy()
-        if with_query_block in referenced_ctes:
-            referenced_ctes[with_query_block] += 1
-        else:
-            referenced_ctes[with_query_block] = 1
+        referenced_ctes = merge_referenced_ctes(
+            child.referenced_ctes, {with_query_block: 1}
+        )
 
         return SnowflakePlan(
             queries,
