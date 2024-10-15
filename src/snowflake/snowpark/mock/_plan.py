@@ -2665,7 +2665,7 @@ def calculate_expression(
             return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
     elif isinstance(exp, Interval):
         if not keep_literal:
-            res = ColumnEmulator(
+            return ColumnEmulator(
                 data=[exp.values_dict for _ in range(len(input_data))],
                 sf_type=ColumnType(exp.datatype, nullable=True),
             )
