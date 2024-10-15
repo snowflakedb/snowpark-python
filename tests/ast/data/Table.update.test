@@ -40,11 +40,76 @@ df.update({"b": 5}, condition=(df["num"] == source_df["a"]), source=source_df, s
 
 ## EXPECTED ENCODED AST
 
-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
-EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_table": {
+            "name": {
+              "sp_table_name_flat": {
+                "name": "test_table"
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            },
+            "variant": {
+              "sp_table_init": true
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_table_update": {
+            "block": true,
+            "id": {
+              "bitfield1": "1"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "92"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}

@@ -84,7 +84,185 @@ foo = udtf(Foo, output_schema=["a", "b"], input_types=[IntegerType(), LongType()
 
 ## EXPECTED ENCODED AST
 
-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
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "udtf": {
+            "handler": {
+              "name": "PrimeSieve"
+            },
+            "input_types": {
+              "list": [
+                {
+                  "sp_integer_type": true
+                }
+              ]
+            },
+            "output_schema": {
+              "udtf_schema__type": {
+                "return_type": {
+                  "sp_struct_type": {
+                    "fields": [
+                      {
+                        "column_identifier": {
+                          "name": "number"
+                        },
+                        "data_type": {
+                          "sp_integer_type": true
+                        },
+                        "nullable": true
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "parallel": "4",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "111"
+            }
+          }
+        },
+        "symbol": "prime_udtf",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "apply_expr": {
+            "fn": {
+              "sp_fn_ref": {
+                "id": {
+                  "bitfield1": "1"
+                }
+              }
+            },
+            "pos_args": [
+              {
+                "apply_expr": {
+                  "fn": {
+                    "builtin_fn": {
+                      "name": {
+                        "fn_name_flat": {
+                          "name": "lit"
+                        }
+                      }
+                    }
+                  },
+                  "pos_args": [
+                    {
+                      "int64_val": {
+                        "src": {
+                          "file": "SRC_POSITION_TEST_MODE",
+                          "start_line": "113"
+                        },
+                        "v": "20"
+                      }
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "113"
+                  }
+                }
+              }
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "113"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_session_table_function": {
+            "fn": {
+              "apply_expr": {
+                "fn": {
+                  "indirect_table_fn_id_ref": {
+                    "id": {
+                      "bitfield1": "2"
+                    }
+                  }
+                },
+                "src": {
+                  "file": "SRC_POSITION_TEST_MODE",
+                  "start_line": "113"
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "113"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_collect": {
+            "block": true,
+            "case_sensitive": true,
+            "id": {
+              "bitfield1": "3"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "113"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}

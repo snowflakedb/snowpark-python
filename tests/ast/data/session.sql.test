@@ -16,4 +16,114 @@ df3 = session.sql("select 42")
 
 ## EXPECTED ENCODED AST
 
-CjoKOAoq8gsnEglzZWxlY3QgNDIaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShaEgQKAmRmGAEiAggBCuYBCuMBCtMB8gvPAQohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXBABCiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShcEgFhCiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShcEAIKIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFwSAWISI3NlbGVjdCAqIGZyb20gdmFsdWVzICg/LCA/KSwgKD8sID8pGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXBIFCgNkZjIYAiICCAIKOwo5CiryCycSCXNlbGVjdCA0MhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKF4SBQoDZGYzGAMiAggDEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_sql": {
+            "query": "select 42",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_sql": {
+            "params": [
+              {
+                "int64_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "92"
+                  },
+                  "v": "1"
+                }
+              },
+              {
+                "string_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "92"
+                  },
+                  "v": "a"
+                }
+              },
+              {
+                "int64_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "92"
+                  },
+                  "v": "2"
+                }
+              },
+              {
+                "string_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "92"
+                  },
+                  "v": "b"
+                }
+              }
+            ],
+            "query": "select * from values (?, ?), (?, ?)",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "92"
+            }
+          }
+        },
+        "symbol": "df2",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_sql": {
+            "query": "select 42",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "94"
+            }
+          }
+        },
+        "symbol": "df3",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}

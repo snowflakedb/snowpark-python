@@ -25,4 +25,408 @@ my_sproc_sp(2, "one", {}, False)
 
 ## EXPECTED ENCODED AST
 
-CoABCn4KZ/IMZAodChtUaGUgcGFyYW1ldGVycyBhcmUgdXNlbGVzcy4SBW93bmVyIgoSCG15X3Nwcm9jWgwKCgoIbXlfc3Byb2NoBHABiAEBkgEaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKF8SDQoLbXlfc3Byb2Nfc3AYASICCAEK9wIK9AIK5QKSAeECChJCEFIAWgwKCgoIbXlfc3Byb2MaIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGEQARok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYRIDdHdvGsIBkgS+AQpMEif6DCQKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShhEgZwYXJhbTESIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGEQCgpSEif6DCQKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShhEgZwYXJhbTISJ/oMJAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGESBnR3ZW50eRIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGEaIcoBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGEQASIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGESBAoCZGYYAiICCAIK5wIK5AIK2QKSAdUCCgY6BAoCCAEaIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGEQARok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYRIDdHdvGsIBkgS+AQpMEif6DCQKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShhEgZwYXJhbTESIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGEQCgpSEif6DCQKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShhEgZwYXJhbTISJ/oMJAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGESBnR3ZW50eRIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGEaIcoBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGEQASIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGESABgDIgIIAwoIEgYIBBICCAMK0gEKzwEKvwGSAbsBChJCEFIAWgwKCgoIbXlfc3Byb2MaIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGMQAhok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYxIDb25lGh+SBBwSGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShjGh/KARwKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShjIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYxIFCgNkZjIYBSICCAUKwQEKvgEKswGSAa8BCgY6BAoCCAEaIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGMQAhok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYxIDb25lGh+SBBwSGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShjGh/KARwKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShjIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYxIAGAYiAggGCggSBggHEgIIBhABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "stored_procedure": {
+            "comment": "The parameters are useless.",
+            "execute_as": "owner",
+            "func": {
+              "name": "my_sproc"
+            },
+            "name": {
+              "fn_name_flat": {
+                "name": "my_sproc"
+              }
+            },
+            "parallel": "4",
+            "replace": true,
+            "source_code_display": true,
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "95"
+            }
+          }
+        },
+        "symbol": "my_sproc_sp",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "apply_expr": {
+            "fn": {
+              "stored_procedure": {
+                "log_on_exception": false,
+                "name": {
+                  "fn_name_flat": {
+                    "name": "my_sproc"
+                  }
+                }
+              }
+            },
+            "pos_args": [
+              {
+                "int64_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "97"
+                  },
+                  "v": "1"
+                }
+              },
+              {
+                "string_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "97"
+                  },
+                  "v": "two"
+                }
+              },
+              {
+                "seq_map_val": {
+                  "kvs": [
+                    {
+                      "vs": [
+                        {
+                          "string_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "97"
+                            },
+                            "v": "param1"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "97"
+                            },
+                            "v": "10"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "vs": [
+                        {
+                          "string_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "97"
+                            },
+                            "v": "param2"
+                          }
+                        },
+                        {
+                          "string_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "97"
+                            },
+                            "v": "twenty"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "97"
+                  }
+                }
+              },
+              {
+                "bool_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "97"
+                  },
+                  "v": true
+                }
+              }
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "97"
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "apply_expr": {
+            "fn": {
+              "sp_fn_ref": {
+                "id": {
+                  "bitfield1": "1"
+                }
+              }
+            },
+            "pos_args": [
+              {
+                "int64_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "97"
+                  },
+                  "v": "1"
+                }
+              },
+              {
+                "string_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "97"
+                  },
+                  "v": "two"
+                }
+              },
+              {
+                "seq_map_val": {
+                  "kvs": [
+                    {
+                      "vs": [
+                        {
+                          "string_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "97"
+                            },
+                            "v": "param1"
+                          }
+                        },
+                        {
+                          "int64_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "97"
+                            },
+                            "v": "10"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "vs": [
+                        {
+                          "string_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "97"
+                            },
+                            "v": "param2"
+                          }
+                        },
+                        {
+                          "string_val": {
+                            "src": {
+                              "file": "SRC_POSITION_TEST_MODE",
+                              "start_line": "97"
+                            },
+                            "v": "twenty"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "97"
+                  }
+                }
+              },
+              {
+                "bool_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "97"
+                  },
+                  "v": true
+                }
+              }
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "97"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "apply_expr": {
+            "fn": {
+              "stored_procedure": {
+                "log_on_exception": false,
+                "name": {
+                  "fn_name_flat": {
+                    "name": "my_sproc"
+                  }
+                }
+              }
+            },
+            "pos_args": [
+              {
+                "int64_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "99"
+                  },
+                  "v": "2"
+                }
+              },
+              {
+                "string_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "99"
+                  },
+                  "v": "one"
+                }
+              },
+              {
+                "seq_map_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "99"
+                  }
+                }
+              },
+              {
+                "bool_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "99"
+                  }
+                }
+              }
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "99"
+            }
+          }
+        },
+        "symbol": "df2",
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "5"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "apply_expr": {
+            "fn": {
+              "sp_fn_ref": {
+                "id": {
+                  "bitfield1": "1"
+                }
+              }
+            },
+            "pos_args": [
+              {
+                "int64_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "99"
+                  },
+                  "v": "2"
+                }
+              },
+              {
+                "string_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "99"
+                  },
+                  "v": "one"
+                }
+              },
+              {
+                "seq_map_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "99"
+                  }
+                }
+              },
+              {
+                "bool_val": {
+                  "src": {
+                    "file": "SRC_POSITION_TEST_MODE",
+                    "start_line": "99"
+                  }
+                }
+              }
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "99"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "6",
+        "var_id": {
+          "bitfield1": "6"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "7",
+        "var_id": {
+          "bitfield1": "6"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}

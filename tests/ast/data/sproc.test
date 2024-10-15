@@ -185,21 +185,220 @@ session.sql("SELECT 1 as A, 2 as B").show()
 
 ## EXPECTED ENCODED AST
 
-CnYKdApe8gxbChMKEVRoaXMgaXMgYSBjb21tZW50EgVvd25lciIJEgdteV9jb3B5Wg4KDAoKbXlfY29weV9zcGgEcAGIAQGSARoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaxIMCgpteV9jb3B5X3NwGAEiAggBCrQBCrEBCqMB8gufARKAAWNyZWF0ZSBvciByZXBsYWNlIHRlbXAgdGFibGUgdGVzdF9mcm9tKHRlc3Rfc3RyIHZhcmNoYXIpIGFzIHNlbGVjdCByYW5kc3RyKDIwLCByYW5kb20oKSkgZnJvbSB0YWJsZSAoZ2VuZXJhdG9yKHJvd0NvdW50ID0+IDEwMCkpGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobBIDCgFfGAIiAggCCjMKMQon0gYkCAEQARoCCAIyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShsEgAYAyICCAMKCBIGCAQSAggDEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-CqsBCqgBCpQB+gWQAQprCmkKIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKG8QAQohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobxACCiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShvEAMSBQoDCgFhGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobxIJCgdmcm9tX2RmGAUiAggFCjQKMgoosgolCgeCAgQKAggFGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUocBIAGAYiAggGClYKVApK6gxHCAEaBWluZGV4MgIIBjoCIAFCGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShwUg0KCwoJdGVzdF9mcm9tWgl0ZW1wb3JhcnkSABgHIgIIBwoIEgYICBICCAcQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=
-CpcBCpQBCoIB+gV/CloKWAoqwgInChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUocRD///////////8BCirCAicKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShxEP7//////////wESBQoDCgFhGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUocRIHCgV0b19kZhgJIgIICQo0CjIKKLIKJQoHggIECgIICRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHISABgKIgIICgpUClIKSOoMRQgBGgVpbmRleDICCAo6AiABQhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoclILCgkKB3Rlc3RfdG9aCXRlbXBvcmFyeRIAGAsiAggLCggSBggMEgIICxABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
-ClgKVgpM8gtJEitjYWxsIG15X2NvcHlfc3AoJ3Rlc3RfZnJvbScsICd0ZXN0X3RvJywgMTApGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUocxIAGA0iAggNCjMKMQon0gYkCAEQARoCCA0yGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShzEgAYDiICCA4KCBIGCA8SAggOEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-CjwKOgowggwtEgsKCQoHdGVzdF90bxoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHQiAggBEgAYECICCBAKMQovCiXiBiIIARICCBAaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh0EgAYESICCBEKCBIGCBISAggREAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-CkwKSgo98gs6Ehxkcm9wIHRhYmxlIGlmIGV4aXN0cyB0ZXN0X3RvGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodxIDCgFfGBMiAggTCjMKMQon0gYkCAEQARoCCBMyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh3EgAYFCICCBQKCBIGCBUSAggUEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-Cr0BCroBCq8BkgGrAQoUQhJSAFoOCgwKCm15X2NvcHlfc3AaKvoMJwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgSCXRlc3RfZnJvbRoo+gwlChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoeBIHdGVzdF90bxohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoeBAKIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoeBIAGBYiAggWCq8BCqwBCqEBkgGdAQoGOgQKAggBGir6DCcKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh4Egl0ZXN0X2Zyb20aKPoMJQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgSB3Rlc3RfdG8aIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgQCiIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHgSABgXIgIIFwo+CjwKMoIMLxINCgsKCXRlc3RfZnJvbRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgiAggBEgAYGCICCBgKNgo0CiqSCCcKB4ICBAoCCBgQCiIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgSABgZIgIIGQo0CjIKKLIKJQoHggIECgIIGRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgSABgaIgIIGgpUClIKSOoMRQgBGgVpbmRleDICCBo6AiABQhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaFILCgkKB3Rlc3RfdG9aCXRlbXBvcmFyeRIAGBsiAggbCggSBggcEgIIGxABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
-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
-EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "stored_procedure": {
+            "comment": "This is a comment",
+            "execute_as": "owner",
+            "func": {
+              "name": "my_copy"
+            },
+            "name": {
+              "fn_name_flat": {
+                "name": "my_copy_sp"
+              }
+            },
+            "parallel": "4",
+            "replace": true,
+            "source_code_display": true,
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "107"
+            }
+          }
+        },
+        "symbol": "my_copy_sp",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_sql": {
+            "query": "create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))",
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "108"
+            }
+          }
+        },
+        "symbol": "_",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_collect": {
+            "block": true,
+            "case_sensitive": true,
+            "id": {
+              "bitfield1": "2"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "108"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_create_dataframe": {
+            "data": {
+              "sp_dataframe_data__list": {
+                "vs": [
+                  {
+                    "int64_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "111"
+                      },
+                      "v": "1"
+                    }
+                  },
+                  {
+                    "int64_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "111"
+                      },
+                      "v": "2"
+                    }
+                  },
+                  {
+                    "int64_val": {
+                      "src": {
+                        "file": "SRC_POSITION_TEST_MODE",
+                        "start_line": "111"
+                      },
+                      "v": "3"
+                    }
+                  }
+                ]
+              }
+            },
+            "schema": {
+              "sp_dataframe_schema__list": {
+                "vs": [
+                  "a"
+                ]
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "111"
+            }
+          }
+        },
+        "symbol": "from_df",
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "5"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_write": {
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "5"
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "112"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "6",
+        "var_id": {
+          "bitfield1": "6"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_write_table": {
+            "block": true,
+            "column_order": "index",
+            "id": {
+              "bitfield1": "6"
+            },
+            "mode": {
+              "sp_save_mode_overwrite": true
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "112"
+            },
+            "table_name": {
+              "sp_table_name_flat": {
+                "name": "test_from"
+              }
+            },
+            "table_type": "temporary"
+          }
+        },
+        "symbol": "",
+        "uid": "7",
+        "var_id": {
+          "bitfield1": "7"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "8",
+        "var_id": {
+          "bitfield1": "7"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
