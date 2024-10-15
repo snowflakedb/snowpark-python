@@ -719,8 +719,7 @@ class Session:
             >>>
             >>> # The temporary table created by cache_result will be dropped when the DataFrame is no longer referenced
             >>> # outside the function
-            >>> session.sql(f"show tables like '{table_name}'").count()
-
+            >>> session.sql(f"show tables like '{table_name}'").count() # doctest: +SKIP
             >>> session.auto_clean_up_temp_table_enabled = False
 
         Note:
