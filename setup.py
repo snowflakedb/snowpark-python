@@ -55,12 +55,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "openpyxl",  # used in read_excel test, not a requirement for distribution
     "matplotlib",  # used in plot tests
     "pre-commit",
-    "protoc-wheel-0",
-    "aiohttp",  # vcrpy requirements.
-    "boto",  # vcrpy requirements.
-    "httplib2",  # vcrpy requirements.
-    "httpx",  # vcrpy requirements.
-    "tornado",  # vcrpy requirements.
+    "protoc-wheel-0",  # Snowpark IR
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check

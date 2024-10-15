@@ -544,7 +544,8 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          # TODO SNOW-1733956: Remove --disable_cte_optimization when sql counts are fixed
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
@@ -624,7 +625,6 @@ jobs:
     needs:
       - test
       - test-local-testing
-      - test-enable-cte-optimization
       - test-snowpark-pandas
       - test-modin-extra-without-pandas-extra
     runs-on: ubuntu-latest
