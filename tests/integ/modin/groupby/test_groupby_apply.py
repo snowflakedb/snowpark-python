@@ -23,7 +23,7 @@ from tests.integ.modin.utils import (
     assert_values_equal,
     create_test_dfs,
     create_test_series,
-    eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
@@ -31,6 +31,11 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 # of this module.
 # https://github.com/cloudpipe/cloudpickle?tab=readme-ov-file#overriding-pickles-serialization-mechanism-for-importable-constructs
 cloudpickle.register_pickle_by_value(sys.modules[__name__])
+
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # native pandas is inconsistent about whether it propagates attrs
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
 
 
 @pytest.fixture

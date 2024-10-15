@@ -16,9 +16,14 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.utils import (
     assert_frame_equal,
     create_test_dfs,
-    eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
+
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # native pandas is inconsistent about whether it propagates attrs
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
 
 
 @pytest.mark.parametrize(
