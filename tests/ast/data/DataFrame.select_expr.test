@@ -25,4 +25,167 @@ df = df.select_expr(["COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT 
 
 ## EXPECTED ENCODED AST
 
-CkMKQQozggwwEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFoiAggBEgQKAmRmGAEiAggBCj4KPAouigkrCgeCAgQKAggBEgIkMRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFwgARIECgJkZhgCIgIIAgo8CjoKLIoJKQoHggIECgIIAhICJDEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSheEgQKAmRmGAMiAggDCncKdQpniglkCgeCAgQKAggDEghDT1VOVCAkMRIGU1VNICQyEgZBVkcgJDMSBk1JTiAkNBIGTUFYICQ1EhFDT1VOVCBESVNUSU5DVCAkNhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGAgARIECgJkZhgEIgIIBAp1CnMKZYoJYgoHggIECgIIBBIIQ09VTlQgJDESBlNVTSAkMhIGQVZHICQzEgZNSU4gJDQSBk1BWCAkNRIRQ09VTlQgRElTVElOQ1QgJDYaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShiEgQKAmRmGAUiAggFEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_table": {
+            "name": {
+              "sp_table_name_flat": {
+                "name": "test_table"
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            },
+            "variant": {
+              "sp_session_table": true
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_select__exprs": {
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "1"
+                }
+              }
+            },
+            "exprs": [
+              "$1"
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "92"
+            },
+            "variadic": true
+          }
+        },
+        "symbol": "df",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_select__exprs": {
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "2"
+                }
+              }
+            },
+            "exprs": [
+              "$1"
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "94"
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_select__exprs": {
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "3"
+                }
+              }
+            },
+            "exprs": [
+              "COUNT $1",
+              "SUM $2",
+              "AVG $3",
+              "MIN $4",
+              "MAX $5",
+              "COUNT DISTINCT $6"
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "96"
+            },
+            "variadic": true
+          }
+        },
+        "symbol": "df",
+        "uid": "4",
+        "var_id": {
+          "bitfield1": "4"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_select__exprs": {
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "4"
+                }
+              }
+            },
+            "exprs": [
+              "COUNT $1",
+              "SUM $2",
+              "AVG $3",
+              "MIN $4",
+              "MAX $5",
+              "COUNT DISTINCT $6"
+            ],
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "98"
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "5",
+        "var_id": {
+          "bitfield1": "5"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
