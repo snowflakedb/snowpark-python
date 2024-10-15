@@ -8312,7 +8312,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas apply API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
                 )
-            return self._apply_snowpark_python_function_to_columns(func)
+            return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
         if axis == 0:
             frame = self._modin_frame
@@ -8571,11 +8571,37 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _apply_snowpark_python_function_to_columns(
         self,
         snowpark_function: Callable,
+        kwargs: Any,  # possible named arguments which need to be added
     ) -> "SnowflakeQueryCompiler":
         """Apply Snowpark Python function to columns."""
 
         def sf_function(col: SnowparkColumn) -> SnowparkColumn:
-            return snowpark_function(col)
+            if not kwargs:
+                return snowpark_function(col)
+            # we have named kwargs, which may be positional
+            # in nature, and we need to align them to the snowpark
+            # function call alongside the column reference
+            # Get the total arg count for the function
+            function_arg_count = snowpark_function.__code__.co_argcount
+            # Get all variables for the function and slice off only the arguments
+            positional_args = snowpark_function.__code__.co_varnames[
+                :function_arg_count
+            ]
+            resolved_positional = []
+            col_specified = False
+            for arg in positional_args:
+                if arg in kwargs:
+                    resolved_positional.append(kwargs[arg])
+                else:
+                    if not col_specified:
+                        resolved_positional.append(col)
+                        col_specified = True
+                    else:
+                        ErrorMessage.not_implemented(
+                            "kwargs specified with apply cannot have multiple column references"
+                        )
+
+            return snowpark_function(*resolved_positional)
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(sf_function)
@@ -8610,7 +8636,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
                 )
-            return self._apply_snowpark_python_function_to_columns(func)
+            return self._apply_snowpark_python_function_to_columns(func, kwargs)
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.

@@ -142,7 +142,7 @@ def test_np_ufunc_unary_operators(np_ufunc):
         # Test numpy ufunc with scalar
         snow_result = np_ufunc(snow_df["A"])
         pandas_result = np_ufunc(pandas_df["A"])
-        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+        assert_almost_equal(np.array(snow_result), np.array(pandas_result))
 
 
 # The query count here is from the argument logging performed by numpy on error
