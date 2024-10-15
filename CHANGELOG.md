@@ -11,8 +11,7 @@
 #### New Features
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
 - Added numpy compatibility support for `np.log`, `np.log2`, and `np.log10`
-- Added additional kwargs support for `df.apply` and `series.apply` when using
-snowpark functions. This allows for some position independent compatibility between apply and functions where the first argument is not a pandas object.
+- Added additional kwargs support for `df.apply` and `series.apply` ( as well as `map` and `applymap` ) when using snowpark functions. This allows for some position independent compatibility between apply and functions where the first argument is not a pandas object.
 
 ## 1.23.0 (2024-10-09)
 
