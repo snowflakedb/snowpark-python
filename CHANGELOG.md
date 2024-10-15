@@ -72,6 +72,7 @@
 - Improved warning messages for operations that lead to materialization with inadvertent slowness.
 - Removed unnecessary warning message about `convert_dtype` in `Series.apply`.
 - Improved generated SQL query for `head` and `iloc` when the row key is a slice.
+- Improved error message when passing an unknown timezone to `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex`.
 
 #### Bug Fixes
 
