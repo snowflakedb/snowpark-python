@@ -74,16 +74,17 @@ def test_tz_convert(tz):
 
 
 @pytest.mark.parametrize(
-    "axis, level, copy, exception",
+    "tz, axis, level, copy, exception",
     [
-        (1, None, None, ValueError),
-        ("columns", None, None, ValueError),
-        (0, 1, None, NotImplementedError),
-        (0, None, False, NotImplementedError),
+        ("UTC", 1, None, None, ValueError),
+        ("UTC", "columns", None, None, ValueError),
+        ("UTC", 0, 1, None, NotImplementedError),
+        ("UTC", 0, None, False, NotImplementedError),
+        ("UTC+09:00", 0, None, None, NotImplementedError),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_tz_convert_negative(axis, level, copy, exception):
+def test_tz_convert_negative(tz, axis, level, copy, exception):
     datetime_index = native_pd.DatetimeIndex(
         [
             "2014-04-04 23:56:01.000000001",
@@ -97,7 +98,7 @@ def test_tz_convert_negative(axis, level, copy, exception):
 
     with pytest.raises(exception):
         snow_ser.tz_convert(
-            tz="UTC",
+            tz=tz,
             axis=axis,
             level=level,
             copy=copy,
