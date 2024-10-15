@@ -204,6 +204,10 @@ class TestCacheResultReducesQueryCount:
                 native_df,
             )
 
+    @pytest.mark.skipif(
+        native_pd.__version__ == "2.2.3",
+        reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+    )
     def test_cache_result_post_applymap(self, inplace, simple_test_data):
         # The high query counts in this test case come from the setup and definition
         # of the UDFs used.
