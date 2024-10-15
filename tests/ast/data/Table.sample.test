@@ -1,0 +1,23 @@
+## TEST CASE
+
+df = Table("test_table", session)
+
+df2 = df.sample(n=3, seed=100)
+
+df3 = df.sample(frac=0.5, seed=123, sampling_method='BERNOULLI')
+
+df4 = df.sample(frac=0.5, sampling_method='SYSTEM')
+
+## EXPECTED UNPARSER OUTPUT
+
+df = Table("test_table", session)
+
+df2 = df.sample(None, 3, seed=100)
+
+df3 = df.sample(0.5, None, seed=123, sampling_method="BERNOULLI")
+
+df4 = df.sample(0.5, None, sampling_method="SYSTEM")
+
+## EXPECTED ENCODED AST
+
+CkMKQQozggwwEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFoiAhABEgQKAmRmGAEiAggBCkEKPwowsgwtCgeCAgQKAggBEgIIAyoCCGQyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShcEgUKA2RmMhgCIgIIAgpVClMKRLIMQQoHggIECgIIARoJCQAAAAAAAOA/IgsKCUJFUk5PVUxMSSoCCHsyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSheEgUKA2RmMxgDIgIIAwpOCkwKPbIMOgoHggIECgIIARoJCQAAAAAAAOA/IggKBlNZU1RFTTIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGASBQoDZGY0GAQiAggEEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
