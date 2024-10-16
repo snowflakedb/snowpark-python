@@ -6,6 +6,7 @@
 
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Updated `Session` class to be thread-safe. This allows concurrent dataframe transformations, dataframe actions, UDF and store procedure registration, and concurrent file uploads.
+- Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 
 #### New Features
 
