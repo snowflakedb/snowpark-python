@@ -27,7 +27,19 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from tests.utils import Utils
 
-pytestmark = pytest.mark.skip(reason="Enable it in PR-#2336")
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_server_connection():
+    options = {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True}
+    s = MockServerConnection(options)
+    yield s
+    s.close()
+
+
+@pytest.fixture(scope="module")
+def session(mock_server_connection):
+    with Session(mock_server_connection) as s:
+        yield s
 
 
 def test_table_update_merge_delete(session):
@@ -154,8 +166,8 @@ def test_mocked_function_registry_created_once():
 
 
 @pytest.mark.parametrize("test_table", [True, False])
-def test_tabular_entity_registry(test_table):
-    conn = MockServerConnection()
+def test_tabular_entity_registry(test_table, mock_server_connection):
+    conn = mock_server_connection
     entity_registry = conn.entity_registry
     num_threads = 10
 
@@ -193,8 +205,8 @@ def test_tabular_entity_registry(test_table):
             future.result()
 
 
-def test_stage_entity_registry_put_and_get():
-    stage_registry = StageEntityRegistry(MockServerConnection())
+def test_stage_entity_registry_put_and_get(mock_server_connection):
+    stage_registry = StageEntityRegistry(mock_server_connection)
     num_threads = 10
 
     def put_and_get_file():
@@ -221,8 +233,8 @@ def test_stage_entity_registry_put_and_get():
         thread.join()
 
 
-def test_stage_entity_registry_upload_and_read(session):
-    stage_registry = StageEntityRegistry(MockServerConnection())
+def test_stage_entity_registry_upload_and_read(session, mock_server_connection):
+    stage_registry = StageEntityRegistry(mock_server_connection)
     num_threads = 10
 
     def upload_and_read_json(thread_id: int):
@@ -251,8 +263,8 @@ def test_stage_entity_registry_upload_and_read(session):
             future.result()
 
 
-def test_stage_entity_registry_create_or_replace():
-    stage_registry = StageEntityRegistry(MockServerConnection())
+def test_stage_entity_registry_create_or_replace(mock_server_connection):
+    stage_registry = StageEntityRegistry(mock_server_connection)
     num_threads = 10
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
