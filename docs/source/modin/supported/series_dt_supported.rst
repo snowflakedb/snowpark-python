@@ -82,16 +82,16 @@ the method in the left column.
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``tz_convert``              | P                               | ``N`` if timezone format is not supported.         |
 |                             |                                 | Only timezones listed in ``pytz.all_timezones`` are|
-|                             |                                 | supported. So for example, ``UTC`` is supported but|
-|                             |                                 | ``UTC+/-<offset>`` such as ``UTC+09:00`` is not    |
+|                             |                                 | supported. For example, ``UTC`` is supported but   |
+|                             |                                 | ``UTC+/-<offset>``, such as ``UTC+09:00``, is not  |
 |                             |                                 | supported.                                         |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``tz_localize``             | P                               | ``N`` if `ambiguous` or `nonexistent` are set to a |
 |                             |                                 | non-default value.                                 |
 |                             |                                 | ``N`` if timezone format is not supported.         |
 |                             |                                 | Only timezones listed in ``pytz.all_timezones`` are|
-|                             |                                 | supported. So for example, ``UTC`` is supported but|
-|                             |                                 | ``UTC+/-<offset>`` such as ``UTC+09:00`` is not    |
+|                             |                                 | supported. For example, ``UTC`` is supported but   |
+|                             |                                 | ``UTC+/-<offset>``, such as ``UTC+09:00``, is not  |
 |                             |                                 | supported.                                         |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``tz_convert``              | Y                               |                                                    |

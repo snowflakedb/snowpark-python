@@ -84,14 +84,14 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``tz_convert``              | P                               |                                  | ``N`` if timezone format is not supported.         |
 |                             |                                 |                                  | Only timezones listed in ``pytz.all_timezones`` are|
-|                             |                                 |                                  | supported. So for example, ``UTC`` is supported but|
-|                             |                                 |                                  | ``UTC+/-<offset>`` such as ``UTC+09:00`` is not    |
+|                             |                                 |                                  | supported. For example, ``UTC`` is supported but   |
+|                             |                                 |                                  | ``UTC+/-<offset>``, such as, ``UTC+09:00`` is not  |
 |                             |                                 |                                  | supported.                                         |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``tz_localize``             | P                               | ``ambiguous``, ``nonexistent``   | ``N`` if timezone format is not supported.         |
 |                             |                                 |                                  | Only timezones listed in ``pytz.all_timezones`` are|
-|                             |                                 |                                  | supported. So for example, ``UTC`` is supported but|
-|                             |                                 |                                  | ``UTC+/-<offset>`` such as ``UTC+09:00`` is not    |
+|                             |                                 |                                  | supported. For example, ``UTC`` is supported but   |
+|                             |                                 |                                  | ``UTC+/-<offset>``, such as, ``UTC+09:00`` is not  |
 |                             |                                 |                                  | supported.                                         |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``round``                   | P                               | ``ambiguous``, ``nonexistent``   |                                                    |
