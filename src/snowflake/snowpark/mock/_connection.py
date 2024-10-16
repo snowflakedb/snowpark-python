@@ -6,7 +6,6 @@
 import functools
 import json
 import logging
-import threading
 import uuid
 from copy import copy
 from decimal import Decimal
@@ -30,6 +29,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
+    create_rlock,
     is_in_stored_procedure,
     result_set_to_rows,
 )
@@ -281,7 +281,6 @@ class MockServerConnection:
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
-        self._lock = threading.RLock()
         self._lower_case_parameters = {}
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
@@ -324,7 +323,10 @@ class MockServerConnection:
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
         # thread safe param protection
-        self._thread_safe_session_enabled = False
+        self._thread_safe_session_enabled = self._options.get(
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
+        )
+        self._lock = create_rlock(self._thread_safe_session_enabled)
 
     def log_not_supported_error(
         self,
