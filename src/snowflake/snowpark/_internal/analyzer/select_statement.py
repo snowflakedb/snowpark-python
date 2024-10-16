@@ -779,6 +779,30 @@ class SelectStatement(Selectable):
             )
         return self._projection_in_str
 
+    def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "SelectStatement":
+        """Add subquery plans to the SelectStatement."""
+        for plan in subquery_plans:
+            for query in plan.queries[:-1]:
+                if self.pre_actions is None:
+                    self.pre_actions = []  # pragma: no cover
+                if query not in self.pre_actions:
+                    self.pre_actions.append(query)
+            for query in plan.post_actions:
+                if self.post_actions is None:
+                    self.post_actions = []  # pragma: no cover
+                if query not in self.post_actions:
+                    self.post_actions.append(query)
+
+            if (self._schema_query is not None) and (plan.schema_query is not None):
+                self._schema_query = self._schema_query.replace(
+                    plan.queries[-1].sql, plan.schema_query
+                )
+
+        if self._snowflake_plan is not None:
+            self._snowflake_plan = self._snowflake_plan.with_subqueries(subquery_plans)
+
+        return self
+
     @property
     def sql_query(self) -> str:
         if self._sql_query:
@@ -795,11 +819,6 @@ class SelectStatement(Selectable):
             placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
-            # This part of code could potentially be triggered during a an
-            # ongoing resolve operation. Therefore, we need to save the intermediate
-            # subquery plans and restore them after.
-            intermediate_subquery_plans = self.analyzer.subquery_plans
-            self.analyzer.subquery_plans = []
             where_clause = (
                 f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
                 if self.where is not None
@@ -821,20 +840,6 @@ class SelectStatement(Selectable):
                 else snowflake.snowpark._internal.utils.EMPTY_STRING
             )
             self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
-
-            for plan in self.analyzer.subquery_plans:
-                for query in plan.queries[:-1]:
-                    if self.pre_actions is None:
-                        self.pre_actions = []  # pragma: no cover
-                    if query not in self.pre_actions:
-                        self.pre_actions.append(query)
-                for query in plan.post_actions:
-                    if self.post_actions is None:
-                        self.post_actions = []  # pragma: no cover
-                    if query not in self.post_actions:
-                        self.post_actions.append(query)
-            self.analyzer.subquery_plans = intermediate_subquery_plans
-
         return self._sql_query
 
     @property
@@ -845,10 +850,6 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.projection:
             self._placeholder_query = from_clause
             return self._placeholder_query
-
-        intermediate_subquery_plans = self.analyzer.subquery_plans
-        self.analyzer.subquery_plans = []
-
         where_clause = (
             f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
             if self.where is not None
@@ -870,20 +871,6 @@ class SelectStatement(Selectable):
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
         self._placeholder_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
-
-        for plan in self.analyzer.subquery_plans:
-            for query in plan.queries[:-1]:
-                if self.pre_actions is None:
-                    self.pre_actions = []  # pragma: no cover
-                if query not in self.pre_actions:
-                    self.pre_actions.append(query)
-            for query in plan.post_actions:
-                if self.post_actions is None:
-                    self.post_actions = []  # pragma: no cover
-                if query not in self.post_actions:
-                    self.post_actions.append(query)
-        self.analyzer.subquery_plans = intermediate_subquery_plans
-
         return self._placeholder_query
 
     @property
