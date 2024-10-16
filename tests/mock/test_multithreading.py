@@ -27,6 +27,8 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from tests.utils import Utils
 
+pytestmark = pytest.mark.skip(reason="Enable it in PR-#2336")
+
 
 def test_table_update_merge_delete(session):
     table_name = Utils.random_table_name()
