@@ -51,11 +51,12 @@ def pytest_configure(config):
             f"Please set the correct path with --unparser-jar or SNOWPARK_UNPARSER_JAR."
         )
     pytest.update_expectations = config.getoption("--update-expectations")
-    pytest.encoding = config.getoption("--ast_encoding", default='json')
+    pytest.encoding = config.getoption("--encoding", default='json')
     if pytest.encoding not in ['json', 'b64']:
         logging.error(
             f"Unrecognized encoding {pytest.encoding}, ignoring.  Using default {default_encoding()}."
         )
+        pytest.encoding = default_encoding()
 
 
 @pytest.fixture(scope="function")
