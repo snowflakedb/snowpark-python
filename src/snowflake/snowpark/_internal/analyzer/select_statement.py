@@ -780,7 +780,8 @@ class SelectStatement(Selectable):
         return self._projection_in_str
 
     def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "SelectStatement":
-        """Add subquery plans to the SelectStatement."""
+        """Update pre-actions, post-actions and schema to capture necessary subquery_plans
+        encountered during plan resolution."""
         for plan in subquery_plans:
             for query in plan.queries[:-1]:
                 if self.pre_actions is None:
@@ -850,6 +851,7 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.projection:
             self._placeholder_query = from_clause
             return self._placeholder_query
+
         where_clause = (
             f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
             if self.where is not None
