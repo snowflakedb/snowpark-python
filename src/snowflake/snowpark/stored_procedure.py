@@ -829,10 +829,14 @@ class StoredProcedureRegistration:
             force_inline_code=force_inline_code,
         )
 
-        if (not custom_python_runtime_version_allowed) and (self._session is not None):
-            check_python_runtime_version(
+        runtime_version_from_requirement = None
+        if self._session is not None:
+            runtime_version_from_requirement = (
                 self._session._runtime_version_from_requirement
             )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(runtime_version_from_requirement)
 
         anonymous_sp_sql = None
         if anonymous:
@@ -847,7 +851,7 @@ class StoredProcedureRegistration:
                 raw_imports=imports,
                 inline_python_code=code,
                 strict=strict,
-                runtime_version=self._session._runtime_version_from_requirement,
+                runtime_version=runtime_version_from_requirement,
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 native_app_params=native_app_params,
@@ -880,6 +884,7 @@ class StoredProcedureRegistration:
                     comment=comment,
                     native_app_params=native_app_params,
                     copy_grants=copy_grants,
+                    runtime_version=runtime_version_from_requirement,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),

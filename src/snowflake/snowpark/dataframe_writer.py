@@ -168,8 +168,9 @@ class DataFrameWriter:
 
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
-                        and ``transient``. An empty string means to create a permanent table. Learn more about table
-                        types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+                        and ``transient``. An empty string means to create a permanent table. Not applicable
+                        for iceberg tables. Learn more about table types
+                        `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
             clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
                 See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys#defining-a-clustering-key-for-a-table>`_
                 for more details.

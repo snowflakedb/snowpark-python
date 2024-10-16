@@ -22,7 +22,10 @@ from typing import (
 )
 
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.cte_utils import encode_id
+from snowflake.snowpark._internal.analyzer.cte_utils import (
+    encode_node_id_with_query,
+    encoded_query_id,
+)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
@@ -239,17 +242,6 @@ class Selectable(LogicalPlan, ABC):
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
 
-    def __eq__(self, other: "Selectable") -> bool:
-        if not isinstance(other, Selectable):
-            return False
-        if self._id is not None and other._id is not None:
-            return type(self) is type(other) and self._id == other._id
-        else:
-            return super().__eq__(other)
-
-    def __hash__(self) -> int:
-        return hash(self._id) if self._id else super().__hash__()
-
     @property
     @abstractmethod
     def sql_query(self) -> str:
@@ -263,9 +255,20 @@ class Selectable(LogicalPlan, ABC):
         pass
 
     @cached_property
-    def _id(self) -> Optional[str]:
-        """Returns the id of this Selectable logical plan."""
-        return encode_id(self.sql_query, self.query_params)
+    def encoded_node_id_with_query(self) -> str:
+        """
+        Returns an encoded node id of this Selectable logical plan.
+
+        Note that the encoding algorithm uses queries as content, and returns the same id for
+        two selectable node with same queries. This is currently used by repeated subquery
+        elimination to detect two nodes with same query, please use it with careful.
+        """
+        return encode_node_id_with_query(self)
+
+    @cached_property
+    def encoded_query_id(self) -> Optional[str]:
+        """Returns an encoded id of the queries for this Selectable logical plan."""
+        return encoded_query_id(self)
 
     @property
     @abstractmethod
@@ -405,7 +408,9 @@ class SelectableEntity(Selectable):
         self.entity = entity
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
-        copied = SelectableEntity(deepcopy(self.entity), analyzer=self.analyzer)
+        copied = SelectableEntity(
+            deepcopy(self.entity, memodict), analyzer=self.analyzer
+        )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
 
         return copied
@@ -505,14 +510,6 @@ class SelectSQL(Selectable):
         return None
 
     @property
-    def _id(self) -> Optional[str]:
-        """
-        Returns the id of this SelectSQL logical plan. The original SQL is used to encode its ID,
-        which might be a non-select SQL.
-        """
-        return encode_id(self.original_sql, self.query_params)
-
-    @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self._query_param
 
@@ -570,7 +567,8 @@ class SelectSnowflakePlan(Selectable):
 
     def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
         copied = SelectSnowflakePlan(
-            snowflake_plan=deepcopy(self._snowflake_plan), analyzer=self.analyzer
+            snowflake_plan=deepcopy(self._snowflake_plan, memodict),
+            analyzer=self.analyzer,
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
         copied._query_params = deepcopy(self._query_params)
@@ -588,9 +586,9 @@ class SelectSnowflakePlan(Selectable):
     def placeholder_query(self) -> Optional[str]:
         return self._snowflake_plan.placeholder_query
 
-    @property
-    def _id(self) -> Optional[str]:
-        return self._snowflake_plan._id
+    @cached_property
+    def encoded_query_id(self) -> Optional[str]:
+        return self._snowflake_plan.encoded_query_id
 
     @property
     def schema_query(self) -> Optional[str]:
@@ -711,11 +709,11 @@ class SelectStatement(Selectable):
 
     def __deepcopy__(self, memodict={}) -> "SelectStatement":  # noqa: B006
         copied = SelectStatement(
-            projection=deepcopy(self.projection),
-            from_=deepcopy(self.from_),
-            where=deepcopy(self.where),
-            order_by=deepcopy(self.order_by),
-            limit_=deepcopy(self.limit_),
+            projection=deepcopy(self.projection, memodict),
+            from_=deepcopy(self.from_, memodict),
+            where=deepcopy(self.where, memodict),
+            order_by=deepcopy(self.order_by, memodict),
+            limit_=self.limit_,
             offset=self.offset,
             analyzer=self.analyzer,
             # directly copy the current schema fields
@@ -790,9 +788,9 @@ class SelectStatement(Selectable):
         if (
             self.analyzer.session._cte_optimization_enabled
             and (not self.analyzer.session._query_compilation_stage_enabled)
-            and self.from_._id
+            and self.from_.encoded_query_id
         ):
-            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
+            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_query_id}{analyzer_utils.RIGHT_PARENTHESIS}"
             self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
         else:
             where_clause = (
@@ -822,7 +820,7 @@ class SelectStatement(Selectable):
     def placeholder_query(self) -> str:
         if self._placeholder_query:
             return self._placeholder_query
-        from_clause = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_._id}{analyzer_utils.RIGHT_PARENTHESIS}"
+        from_clause = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_query_id}{analyzer_utils.RIGHT_PARENTHESIS}"
         if not self.has_clause and not self.projection:
             self._placeholder_query = from_clause
             return self._placeholder_query
@@ -1322,13 +1320,12 @@ class SelectTableFunction(Selectable):
 
     def __deepcopy__(self, memodict={}) -> "SelectTableFunction":  # noqa: B006
         copied = SelectTableFunction(
-            func_expr=deepcopy(self.func_expr),
-            snowflake_plan=deepcopy(self._snowflake_plan),
+            func_expr=deepcopy(self.func_expr, memodict),
+            snowflake_plan=deepcopy(self._snowflake_plan, memodict),
             analyzer=self.analyzer,
         )
         # copy over the other selectable fields, the snowflake plan has already been set correctly.
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-
         return copied
 
     @property
@@ -1406,7 +1403,9 @@ class SetStatement(Selectable):
             self._nodes.append(operand.selectable)
 
     def __deepcopy__(self, memodict={}) -> "SetStatement":  # noqa: B006
-        copied = SetStatement(*deepcopy(self.set_operands), analyzer=self.analyzer)
+        copied = SetStatement(
+            *deepcopy(self.set_operands, memodict), analyzer=self.analyzer
+        )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
         copied._placeholder_query = self._placeholder_query
         copied._sql_query = self._sql_query
@@ -1425,9 +1424,9 @@ class SetStatement(Selectable):
     @property
     def placeholder_query(self) -> Optional[str]:
         if not self._placeholder_query:
-            sql = f"({self.set_operands[0].selectable._id})"
+            sql = f"({self.set_operands[0].selectable.encoded_query_id})"
             for i in range(1, len(self.set_operands)):
-                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable._id})"
+                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.encoded_query_id})"
             self._placeholder_query = sql
         return self._placeholder_query
 

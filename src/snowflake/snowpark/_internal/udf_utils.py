@@ -397,6 +397,8 @@ def get_opt_arg_defaults(
         input_types: List[DataType],
         convert_python_str_to_object: bool,
     ) -> List[Optional[str]]:
+        if default_values is None:
+            return EMPTY_DEFAULT_VALUES
         num_optional_args = len(default_values)
         num_positional_args = len(input_types) - num_optional_args
         input_types_for_default_args = input_types[-num_optional_args:]
@@ -441,8 +443,6 @@ def get_opt_arg_defaults(
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             default_values_str = retrieve_func_defaults_from_source(filename, func_name)
 
-        if default_values_str is None:
-            return EMPTY_DEFAULT_VALUES
         return build_default_values_result(default_values_str, input_types, True)
 
     try:
@@ -980,8 +980,10 @@ def add_snowpark_package_to_sproc_packages(
     if packages is None:
         if session is None:
             packages = [this_package]
-        elif package_name not in session._packages:
-            packages = list(session._packages.values()) + [this_package]
+        else:
+            with session._package_lock:
+                if package_name not in session._packages:
+                    packages = list(session._packages.values()) + [this_package]
     else:
         package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
         if not any(p.startswith(package_name) for p in package_names):
@@ -1235,11 +1237,9 @@ def create_python_udf_or_sp(
     comment: Optional[str] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
     copy_grants: bool = False,
+    runtime_version: Optional[str] = None,
 ) -> None:
-    if session is not None and session._runtime_version_from_requirement:
-        runtime_version = session._runtime_version_from_requirement
-    else:
-        runtime_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
