@@ -31,13 +31,21 @@ from snowflake.snowpark.functions import lit
 from snowflake.snowpark.row import Row
 from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Utils
 
-pytestmark = [
-    pytest.mark.skipif(
-        "config.getoption('multithreading_mode', default=False) is False",
-        reason="Multithreading tests are disabled",
-        run=False,
-    )
-]
+
+@pytest.fixture(scope="module")
+def session(
+    db_parameters, sql_simplifier_enabled, cte_optimization_enabled, local_testing_mode
+):
+    new_db_parameters = db_parameters.copy()
+    new_db_parameters["local_testing"] = local_testing_mode
+    new_db_parameters["PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"] = True
+    session = Session.builder.configs(new_db_parameters).create()
+    session._sql_simplifier_enabled = sql_simplifier_enabled
+    session._cte_optimization_enabled = cte_optimization_enabled
+
+    yield session
+
+    session.close()
 
 
 def test_concurrent_select_queries(session):

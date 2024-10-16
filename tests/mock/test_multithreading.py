@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.functions import lit, when_matched
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry
 from snowflake.snowpark.mock._plan import MockExecutionPlan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
@@ -26,13 +27,19 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from tests.utils import Utils
 
-pytestmark = [
-    pytest.mark.skipif(
-        "config.getoption('multithreading_mode', default=False) is False",
-        reason="Multithreading tests are disabled",
-        run=False,
-    )
-]
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_server_connection():
+    options = {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True}
+    s = MockServerConnection(options)
+    yield s
+    s.close()
+
+
+@pytest.fixture(scope="module")
+def session(mock_server_connection):
+    with Session(mock_server_connection) as s:
+        yield s
 
 
 def test_table_update_merge_delete(session):
