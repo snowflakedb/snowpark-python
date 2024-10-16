@@ -6,6 +6,7 @@
 import os
 
 import modin.pandas as pd
+import pandas as native_pd
 import pytest
 
 from snowflake.snowpark import Session
@@ -15,6 +16,13 @@ from snowflake.snowpark.modin.plugin import (
     supported_modin_version,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
+
+pytestmark = (
+    pytest.mark.skipif(
+        native_pd.__version__ == "2.2.3",
+        reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+    ),
+)
 
 PACKAGE_LIST = [
     # modin 0.30.1 supports any pandas 2.2.x, so just pick whichever one is installed in the client
