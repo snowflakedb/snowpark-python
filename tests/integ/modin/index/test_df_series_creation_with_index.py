@@ -371,6 +371,7 @@ def test_create_with_index_as_data_and_series_as_index(
         (
             native_pd.Series([], name="empty series", dtype="int64"),
             native_pd.Index([], name="empty index", dtype="int64"),
+            # TODO: SNOW-1740545: Reindex with an empty index has empty dtype instead of specified dtype
             False,
         ),  # empty series and index
     ],
