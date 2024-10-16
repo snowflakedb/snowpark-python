@@ -176,6 +176,10 @@ class TestCacheResultReducesQueryCount:
                 cached_snow_df, native_df
             )
 
+    @pytest.mark.skipif(
+        native_pd.__version__ == "2.2.3",
+        reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+    )
     def test_cache_result_post_apply(self, inplace, simple_test_data):
         # In this test, the caching doesn't aid in the query counts since
         # the implementation of apply(axis=1) itself contains intermediate
