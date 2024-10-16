@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+- Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
+  - `option`
+  - `options`
+  - `partition_by`
 - Updated `Session` class to be thread-safe. This allows concurrent dataframe transformations, dataframe actions, UDF and store procedure registration, and concurrent file uploads.
 
 #### New Features
