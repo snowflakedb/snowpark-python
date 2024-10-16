@@ -323,7 +323,10 @@ class MockServerConnection:
             self._oob_telemetry.disable()
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
-        self._thread_safe_session_enabled = True
+        # thread safe param protection
+        self._thread_safe_session_enabled = self._options.get(
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
+        )
 
     def log_not_supported_error(
         self,

@@ -49,8 +49,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
-    DummyLock,
-    DummyThreadLocal,
+    create_rlock,
+    create_thread_local,
     escape_quotes,
     get_application_name,
     get_version,
@@ -178,14 +178,8 @@ class ServerConnection:
                 "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
             ),
         )
-        self._lock = (
-            threading.RLock() if self._thread_safe_session_enabled else DummyLock()
-        )
-        self._thread_store = (
-            threading.local()
-            if self._thread_safe_session_enabled
-            else DummyThreadLocal()
-        )
+        self._lock = create_rlock(self._thread_safe_session_enabled)
+        self._thread_store = create_thread_local(self._thread_safe_session_enabled)
 
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
