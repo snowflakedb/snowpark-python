@@ -10,7 +10,6 @@ import os
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
-import pandas as native_pd
 import pytest
 
 try:
@@ -76,10 +75,6 @@ from tests.utils import (
 )
 
 pytestmark = [
-    pytest.mark.skipif(
-        native_pd.__version__ == "2.2.3",
-        reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-    ),
     pytest.mark.udf,
 ]
 
