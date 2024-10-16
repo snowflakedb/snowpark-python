@@ -436,6 +436,9 @@ def test_non_select_query_composition(session):
     run=False,
 )
 def test_non_select_query_composition_union(session):
+    session.sql_simplifier_enabled = False
+    session.cte_optimization_enabled = True
+    # session._query_compilation_stage_enabled = True
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         session.sql(
