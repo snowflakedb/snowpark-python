@@ -172,11 +172,8 @@ class ServerConnection:
                 pass
 
         # thread safe param protection
-        self._thread_safe_session_enabled = self._lower_case_parameters.get(
-            "python_snowpark_enable_thread_safe_session",
-            self._get_client_side_session_parameter(
-                "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
-            ),
+        self._thread_safe_session_enabled = self._get_client_side_session_parameter(
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
         )
         self._lock = create_rlock(self._thread_safe_session_enabled)
         self._thread_store = create_thread_local(self._thread_safe_session_enabled)

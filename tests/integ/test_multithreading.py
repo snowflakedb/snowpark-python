@@ -13,7 +13,10 @@ from unittest.mock import patch
 
 import pytest
 
-from snowflake.snowpark.session import Session
+from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION,
+    Session,
+)
 from snowflake.snowpark.types import IntegerType
 from tests.integ.test_temp_table_cleanup import wait_for_drop_table_sql_done
 
@@ -38,14 +41,13 @@ def session(
 ):
     new_db_parameters = db_parameters.copy()
     new_db_parameters["local_testing"] = local_testing_mode
-    new_db_parameters["PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"] = True
-    session = Session.builder.configs(new_db_parameters).create()
-    session._sql_simplifier_enabled = sql_simplifier_enabled
-    session._cte_optimization_enabled = cte_optimization_enabled
-
-    yield session
-
-    session.close()
+    new_db_parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: True
+    }
+    with Session.builder.configs(new_db_parameters).create() as session:
+        session._sql_simplifier_enabled = sql_simplifier_enabled
+        session._cte_optimization_enabled = cte_optimization_enabled
+        yield session
 
 
 def test_concurrent_select_queries(session):
@@ -605,10 +607,11 @@ def test_num_cursors_created(db_parameters, is_enabled, local_testing_mode):
 
     num_workers = 5 if is_enabled else 1
     new_db_parameters = db_parameters.copy()
-    new_db_parameters["PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"] = is_enabled
-    new_session = Session.builder.configs(new_db_parameters).create()
+    new_db_parameters["session_parameters"] = {
+        _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: is_enabled
+    }
 
-    try:
+    with Session.builder.configs(new_db_parameters).create() as new_session:
 
         def run_query(session_, thread_id):
             assert session_.sql(f"SELECT {thread_id} as A").collect()[0][0] == thread_id
@@ -624,5 +627,3 @@ def test_num_cursors_created(db_parameters, is_enabled, local_testing_mode):
         # otherwise, we will use the same cursor created by the main thread
         # thus creating 0 new cursors.
         assert mock_telemetry.call_count == (num_workers if is_enabled else 0)
-    finally:
-        new_session.close()

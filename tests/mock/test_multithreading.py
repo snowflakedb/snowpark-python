@@ -30,7 +30,9 @@ from tests.utils import Utils
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_server_connection():
-    options = {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True}
+    options = {
+        "server_parameters": {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True}
+    }
     s = MockServerConnection(options)
     yield s
     s.close()
