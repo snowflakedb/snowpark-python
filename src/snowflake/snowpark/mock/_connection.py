@@ -281,6 +281,12 @@ class MockServerConnection:
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
+        self._options = options or {}
+        # thread safe param protection
+        self._thread_safe_session_enabled = self._options.get(
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
+        )
+        self._lock = create_rlock(self._thread_safe_session_enabled)
         self._lower_case_parameters = {}
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
@@ -292,7 +298,6 @@ class MockServerConnection:
             "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
         }
-        self._options = options or {}
         self._active_account = self._options.get(
             "account", snowflake.snowpark.mock._constants.CURRENT_ACCOUNT
         )
@@ -322,11 +327,6 @@ class MockServerConnection:
             self._oob_telemetry.disable()
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
-        # thread safe param protection
-        self._thread_safe_session_enabled = self._options.get(
-            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
-        )
-        self._lock = create_rlock(self._thread_safe_session_enabled)
 
     def log_not_supported_error(
         self,
