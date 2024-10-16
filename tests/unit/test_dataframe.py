@@ -288,7 +288,7 @@ def test_statement_params():
 def test_dataFrame_printSchema(capfd, mock_server_connection):
     session = snowflake.snowpark.session.Session(mock_server_connection)
     df = session.create_dataframe([[1, ""], [3, None]])
-    df._plan.attributes = [
+    df._plan._attributes = [
         Attribute("A", IntegerType(), False),
         Attribute("B", StringType()),
     ]
