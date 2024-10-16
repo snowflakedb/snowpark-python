@@ -36,7 +36,7 @@ from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Util
 
 
 @pytest.fixture(scope="module")
-def session(
+def threadsafe_session(
     db_parameters, sql_simplifier_enabled, cte_optimization_enabled, local_testing_mode
 ):
     new_db_parameters = db_parameters.copy()
@@ -50,21 +50,21 @@ def session(
         yield session
 
 
-def test_concurrent_select_queries(session):
+def test_concurrent_select_queries(threadsafe_session):
     def run_select(session_, thread_id):
         df = session_.sql(f"SELECT {thread_id} as A")
         assert df.collect()[0][0] == thread_id
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
-            executor.submit(run_select, session, i)
+            executor.submit(run_select, threadsafe_session, i)
 
 
-def test_concurrent_dataframe_operations(session):
+def test_concurrent_dataframe_operations(threadsafe_session):
     try:
         table_name = Utils.random_table_name()
         data = [(i, 11 * i) for i in range(10)]
-        df = session.create_dataframe(data, ["A", "B"])
+        df = threadsafe_session.create_dataframe(data, ["A", "B"])
         df.write.save_as_table(table_name, table_type="temporary")
 
         def run_dataframe_operation(session_, thread_id):
@@ -77,7 +77,8 @@ def test_concurrent_dataframe_operations(session):
         dfs = []
         with ThreadPoolExecutor(max_workers=10) as executor:
             df_futures = [
-                executor.submit(run_dataframe_operation, session, i) for i in range(10)
+                executor.submit(run_dataframe_operation, threadsafe_session, i)
+                for i in range(10)
             ]
 
             for future in as_completed(df_futures):
@@ -92,7 +93,7 @@ def test_concurrent_dataframe_operations(session):
         )
 
     finally:
-        Utils.drop_table(session, table_name)
+        Utils.drop_table(threadsafe_session, table_name)
 
 
 @pytest.mark.xfail(
@@ -100,14 +101,14 @@ def test_concurrent_dataframe_operations(session):
     reason="SQL query and query listeners are not supported",
     run=False,
 )
-def test_query_listener(session):
+def test_query_listener(threadsafe_session):
     def run_select(session_, thread_id):
         session_.sql(f"SELECT {thread_id} as A").collect()
 
-    with session.query_history() as history:
+    with threadsafe_session.query_history() as history:
         with ThreadPoolExecutor(max_workers=10) as executor:
             for i in range(10):
-                executor.submit(run_select, session, i)
+                executor.submit(run_select, threadsafe_session, i)
 
     queries_sent = [query.sql_text for query in history.queries]
     assert len(queries_sent) == 10
@@ -123,16 +124,18 @@ def test_query_listener(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="show parameters is not supported in stored procedure"
 )
-def test_query_tagging(session):
+def test_query_tagging(threadsafe_session):
     def set_query_tag(session_, thread_id):
         session_.query_tag = f"tag_{thread_id}"
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
-            executor.submit(set_query_tag, session, i)
+            executor.submit(set_query_tag, threadsafe_session, i)
 
-    actual_query_tag = session.sql("SHOW PARAMETERS LIKE 'QUERY_TAG'").collect()[0][1]
-    assert actual_query_tag == session.query_tag
+    actual_query_tag = threadsafe_session.sql(
+        "SHOW PARAMETERS LIKE 'QUERY_TAG'"
+    ).collect()[0][1]
+    assert actual_query_tag == threadsafe_session.query_tag
 
 
 @pytest.mark.xfail(
@@ -140,21 +143,24 @@ def test_query_tagging(session):
     reason="SQL query is not supported",
     run=False,
 )
-def test_session_stage_created_once(session):
+def test_session_stage_created_once(threadsafe_session):
     with patch.object(
-        session._conn, "run_query", wraps=session._conn.run_query
+        threadsafe_session._conn, "run_query", wraps=threadsafe_session._conn.run_query
     ) as patched_run_query:
         with ThreadPoolExecutor(max_workers=10) as executor:
             for _ in range(10):
-                executor.submit(session.get_session_stage)
+                executor.submit(threadsafe_session.get_session_stage)
 
         assert patched_run_query.call_count == 1
 
 
-def test_action_ids_are_unique(session):
+def test_action_ids_are_unique(threadsafe_session):
     with ThreadPoolExecutor(max_workers=10) as executor:
         action_ids = set()
-        futures = [executor.submit(session._generate_new_action_id) for _ in range(10)]
+        futures = [
+            executor.submit(threadsafe_session._generate_new_action_id)
+            for _ in range(10)
+        ]
 
         for future in as_completed(futures):
             action_ids.add(future.result())
@@ -163,7 +169,7 @@ def test_action_ids_are_unique(session):
 
 
 @pytest.mark.parametrize("use_stream", [True, False])
-def test_file_io(session, resources_path, temp_stage, use_stream):
+def test_file_io(threadsafe_session, resources_path, temp_stage, use_stream):
     stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
     stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
     test_files = TestFiles(resources_path)
@@ -188,11 +194,11 @@ def test_file_io(session, resources_path, temp_stage, use_stream):
     def put_and_get_file(upload_file_path, download_dir):
         if use_stream:
             with open(upload_file_path, "rb") as fd:
-                results = session.file.put_stream(
+                results = threadsafe_session.file.put_stream(
                     fd, stage_with_prefix, auto_compress=False, overwrite=False
                 )
         else:
-            results = session.file.put(
+            results = threadsafe_session.file.put(
                 upload_file_path,
                 stage_with_prefix,
                 auto_compress=False,
@@ -204,12 +210,12 @@ def test_file_io(session, resources_path, temp_stage, use_stream):
 
         stage_file_name = f"{stage_with_prefix}{os.path.basename(upload_file_path)}"
         if use_stream:
-            fd = session.file.get_stream(stage_file_name, download_dir)
+            fd = threadsafe_session.file.get_stream(stage_file_name, download_dir)
             with open(upload_file_path, "rb") as upload_fd:
                 assert get_file_hash(upload_fd) == get_file_hash(fd)
 
         else:
-            results = session.file.get(stage_file_name, download_dir)
+            results = threadsafe_session.file.get(stage_file_name, download_dir)
             # assert file is downloaded successfully
             assert len(results) == 1
             assert results[0].status == "DOWNLOADED"
@@ -232,7 +238,7 @@ def test_file_io(session, resources_path, temp_stage, use_stream):
             }
 
 
-def test_concurrent_add_packages(session):
+def test_concurrent_add_packages(threadsafe_session):
     # this is a list of packages available in snowflake anaconda. If this
     # test fails due to packages not being available, please update the list
     package_list = {
@@ -247,21 +253,21 @@ def test_concurrent_add_packages(session):
     try:
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [
-                executor.submit(session.add_packages, package)
+                executor.submit(threadsafe_session.add_packages, package)
                 for package in package_list
             ]
 
             for future in as_completed(futures):
                 future.result()
 
-            assert session.get_packages() == {
+            assert threadsafe_session.get_packages() == {
                 package: package for package in package_list
             }
     finally:
-        session.clear_packages()
+        threadsafe_session.clear_packages()
 
 
-def test_concurrent_remove_package(session):
+def test_concurrent_remove_package(threadsafe_session):
     def remove_package(session_, package_name):
         try:
             session_.remove_package(package_name)
@@ -272,11 +278,12 @@ def test_concurrent_remove_package(session):
             raise e
 
     try:
-        session.add_packages("numpy")
+        threadsafe_session.add_packages("numpy")
         with ThreadPoolExecutor(max_workers=10) as executor:
 
             futures = [
-                executor.submit(remove_package, session, "numpy") for _ in range(10)
+                executor.submit(remove_package, threadsafe_session, "numpy")
+                for _ in range(10)
             ]
             success_count, failure_count = 0, 0
             for future in as_completed(futures):
@@ -289,11 +296,11 @@ def test_concurrent_remove_package(session):
             assert success_count == 1
             assert failure_count == 9
     finally:
-        session.clear_packages()
+        threadsafe_session.clear_packages()
 
 
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is not available")
-def test_concurrent_add_import(session, resources_path):
+def test_concurrent_add_import(threadsafe_session, resources_path):
     test_files = TestFiles(resources_path)
     import_files = [
         test_files.test_udf_py_file,
@@ -308,18 +315,18 @@ def test_concurrent_add_import(session, resources_path):
         with ThreadPoolExecutor(max_workers=10) as executor:
             for file in import_files:
                 executor.submit(
-                    session.add_import,
+                    threadsafe_session.add_import,
                     file,
                 )
 
-        assert set(session.get_imports()) == {
+        assert set(threadsafe_session.get_imports()) == {
             os.path.abspath(file) for file in import_files
         }
     finally:
-        session.clear_imports()
+        threadsafe_session.clear_imports()
 
 
-def test_concurrent_remove_import(session, resources_path):
+def test_concurrent_remove_import(threadsafe_session, resources_path):
     test_files = TestFiles(resources_path)
 
     def remove_import(session_, import_file):
@@ -332,10 +339,12 @@ def test_concurrent_remove_import(session, resources_path):
             raise e
 
     try:
-        session.add_import(test_files.test_udf_py_file)
+        threadsafe_session.add_import(test_files.test_udf_py_file)
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [
-                executor.submit(remove_import, session, test_files.test_udf_py_file)
+                executor.submit(
+                    remove_import, threadsafe_session, test_files.test_udf_py_file
+                )
                 for _ in range(10)
             ]
 
@@ -350,12 +359,12 @@ def test_concurrent_remove_import(session, resources_path):
             assert success_count == 1
             assert failure_count == 9
     finally:
-        session.clear_imports()
+        threadsafe_session.clear_imports()
 
 
-def test_concurrent_sp_register(session, tmpdir):
+def test_concurrent_sp_register(threadsafe_session, tmpdir):
     try:
-        session.add_packages("snowflake-snowpark-python")
+        threadsafe_session.add_packages("snowflake-snowpark-python")
 
         def register_and_test_sp(session_, thread_id):
             prefix = Utils.random_alphanumeric_str(10)
@@ -391,13 +400,13 @@ def add_{thread_id}(session_: Session, x: int) -> int:
 
         with ThreadPoolExecutor(max_workers=10) as executor:
             for i in range(10):
-                executor.submit(register_and_test_sp, session, i)
+                executor.submit(register_and_test_sp, threadsafe_session, i)
     finally:
-        session.clear_packages()
+        threadsafe_session.clear_packages()
 
 
-def test_concurrent_udf_register(session, tmpdir):
-    df = session.range(-5, 5).to_df("a")
+def test_concurrent_udf_register(threadsafe_session, tmpdir):
+    df = threadsafe_session.range(-5, 5).to_df("a")
 
     def register_and_test_udf(session_, thread_id):
         prefix = Utils.random_alphanumeric_str(10)
@@ -425,7 +434,7 @@ def add_{thread_id}(x: int) -> int:
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
-            executor.submit(register_and_test_udf, session, i)
+            executor.submit(register_and_test_udf, threadsafe_session, i)
 
 
 @pytest.mark.xfail(
@@ -433,7 +442,7 @@ def add_{thread_id}(x: int) -> int:
     reason="UDTFs is not supported in local testing mode",
     run=False,
 )
-def test_concurrent_udtf_register(session, tmpdir):
+def test_concurrent_udtf_register(threadsafe_session, tmpdir):
     def register_and_test_udtf(session_, thread_id):
         udtf_body = f"""
 from typing import List, Tuple
@@ -458,14 +467,14 @@ class UDTFEcho:
         )
         echo_udtf = session_.udtf.register(d["UDTFEcho"], output_schema=["num"])
 
-        df_local = session.table_function(echo_udtf(lit(1)))
-        df_from_file = session.table_function(echo_udtf_from_file(lit(1)))
+        df_local = threadsafe_session.table_function(echo_udtf(lit(1)))
+        df_from_file = threadsafe_session.table_function(echo_udtf_from_file(lit(1)))
         assert df_local.collect() == [(thread_id + 1,)]
         assert df_from_file.collect() == [(thread_id + 1,)]
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
-            executor.submit(register_and_test_udtf, session, i)
+            executor.submit(register_and_test_udtf, threadsafe_session, i)
 
 
 @pytest.mark.xfail(
@@ -473,8 +482,10 @@ class UDTFEcho:
     reason="UDAFs is not supported in local testing mode",
     run=False,
 )
-def test_concurrent_udaf_register(session: Session, tmpdir):
-    df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+def test_concurrent_udaf_register(threadsafe_session, tmpdir):
+    df = threadsafe_session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df(
+        "a", "b"
+    )
 
     def register_and_test_udaf(session_, thread_id):
         udaf_body = f"""
@@ -522,7 +533,7 @@ class OffsetSumUDAFHandler:
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         for i in range(10):
-            executor.submit(register_and_test_udaf, session, i)
+            executor.submit(register_and_test_udaf, threadsafe_session, i)
 
 
 @pytest.mark.xfail(
@@ -530,13 +541,15 @@ class OffsetSumUDAFHandler:
     reason="session.sql is not supported in local testing mode",
     run=False,
 )
-def test_auto_temp_table_cleaner(session, caplog):
-    session._temp_table_auto_cleaner.ref_count_map.clear()
-    original_auto_clean_up_temp_table_enabled = session.auto_clean_up_temp_table_enabled
-    session.auto_clean_up_temp_table_enabled = True
+def test_auto_temp_table_cleaner(threadsafe_session, caplog):
+    threadsafe_session._temp_table_auto_cleaner.ref_count_map.clear()
+    original_auto_clean_up_temp_table_enabled = (
+        threadsafe_session.auto_clean_up_temp_table_enabled
+    )
+    threadsafe_session.auto_clean_up_temp_table_enabled = True
 
     def create_temp_table(session_, thread_id):
-        df = session.sql(f"select {thread_id} as A").cache_result()
+        df = threadsafe_session.sql(f"select {thread_id} as A").cache_result()
         table_name = df.table_name
         del df
         return table_name
@@ -545,21 +558,24 @@ def test_auto_temp_table_cleaner(session, caplog):
         futures = []
         table_names = []
         for i in range(10):
-            futures.append(executor.submit(create_temp_table, session, i))
+            futures.append(executor.submit(create_temp_table, threadsafe_session, i))
 
         for future in as_completed(futures):
             table_names.append(future.result())
 
     gc.collect()
-    wait_for_drop_table_sql_done(session, caplog, expect_drop=True)
+    wait_for_drop_table_sql_done(threadsafe_session, caplog, expect_drop=True)
 
     try:
         for table_name in table_names:
-            assert session._temp_table_auto_cleaner.ref_count_map[table_name] == 0
-        assert session._temp_table_auto_cleaner.num_temp_tables_created == 10
-        assert session._temp_table_auto_cleaner.num_temp_tables_cleaned == 10
+            assert (
+                threadsafe_session._temp_table_auto_cleaner.ref_count_map[table_name]
+                == 0
+            )
+        assert threadsafe_session._temp_table_auto_cleaner.num_temp_tables_created == 10
+        assert threadsafe_session._temp_table_auto_cleaner.num_temp_tables_cleaned == 10
     finally:
-        session.auto_clean_up_temp_table_enabled = (
+        threadsafe_session.auto_clean_up_temp_table_enabled = (
             original_auto_clean_up_temp_table_enabled
         )
 
@@ -579,12 +595,14 @@ def test_auto_temp_table_cleaner(session, caplog):
         ("large_query_breakdown_complexity_bounds", (20, 30)),
     ],
 )
-def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
+def test_concurrent_update_on_sensitive_configs(
+    threadsafe_session, config, value, caplog
+):
     def change_config_value(session_):
         session_.conf.set(config, value)
 
     caplog.clear()
-    change_config_value(session)
+    change_config_value(threadsafe_session)
     assert (
         f"You might have more than one threads sharing the Session object trying to update {config}"
         not in caplog.text
@@ -593,7 +611,7 @@ def test_concurrent_update_on_sensitive_configs(session, config, value, caplog):
     with caplog.at_level(logging.WARNING):
         with ThreadPoolExecutor(max_workers=5) as executor:
             for _ in range(5):
-                executor.submit(change_config_value, session)
+                executor.submit(change_config_value, threadsafe_session)
     assert (
         f"You might have more than one threads sharing the Session object trying to update {config}"
         in caplog.text
