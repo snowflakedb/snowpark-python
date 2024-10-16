@@ -5,7 +5,6 @@
 import base64
 import datetime
 import importlib.util
-import json
 import logging
 import os
 import pathlib
@@ -22,7 +21,6 @@ import dateutil
 import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
-
 from google.protobuf.json_format import MessageToJson, Parse
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -349,8 +347,14 @@ def json_str_to_request(json_str) -> proto.Request:
     return request
 
 
-AST_TO_OUTPUT_MAP = { 'json': base64_str_to_json_str, 'b64': lambda x: x, }
-AST_TO_REQUEST_MAP = { 'json': json_str_to_request, 'b64': base64_str_to_request, }
+AST_TO_OUTPUT_MAP = {
+    "json": base64_str_to_json_str,
+    "b64": lambda x: x,
+}
+AST_TO_REQUEST_MAP = {
+    "json": json_str_to_request,
+    "b64": base64_str_to_request,
+}
 
 
 def ast_to_output(ast: str) -> str:
