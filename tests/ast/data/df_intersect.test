@@ -17,4 +17,103 @@ df3 = df1.intersect(df2)
 
 ## EXPECTED ENCODED AST
 
-CkIKQAoxggwuEgwKCgoIdGVzdF9kZjEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShaIgIIARIFCgNkZjEYASICCAEKQgpACjGCDC4SDAoKCgh0ZXN0X2RmMhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFwiAggBEgUKA2RmMhgCIgIIAgpCCkAKMeoHLgoHggIECgIIARIHggIECgIIAhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKF4SBQoDZGYzGAMiAggDEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_table": {
+            "name": {
+              "sp_table_name_flat": {
+                "name": "test_df1"
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            },
+            "variant": {
+              "sp_session_table": true
+            }
+          }
+        },
+        "symbol": "df1",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_table": {
+            "name": {
+              "sp_table_name_flat": {
+                "name": "test_df2"
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "92"
+            },
+            "variant": {
+              "sp_session_table": true
+            }
+          }
+        },
+        "symbol": "df2",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_dataframe_intersect": {
+            "df": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "1"
+                }
+              }
+            },
+            "other": {
+              "sp_dataframe_ref": {
+                "id": {
+                  "bitfield1": "2"
+                }
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "94"
+            }
+          }
+        },
+        "symbol": "df3",
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "3"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}

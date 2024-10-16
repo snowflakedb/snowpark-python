@@ -48,9 +48,76 @@ df.delete(condition=source_df["a"] == ["num"], source=source_df)
 
 ## EXPECTED ENCODED AST
 
-CkMKQQozggwwEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFoiAhABEgQKAmRmGAEiAggBCjEKLwoligwiCAEaAggBKhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXBIAGAIiAggCCggSBggDEgIIAhABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
-CkMKQQozggwwEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKF4iAhABEgQKAmRmGAQiAggECi8KLQojigwgGgIIBCoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGASABgFIgIIBQoIEgYIBhICCAUQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=
-CkMKQQozggwwEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGIiAhABEgQKAmRmGAciAggHCksKSQo/igw8GgIIByoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGQyGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYCCICCAgKCBIGCAkSAggIEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-CkMKQQozggwwEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGYiAhABEgQKAmRmGAoiAggKCqcBCqQBCpkBigyVAQgBEnH6AW4KLcoGKgoDbnVtEgeCAgQKAggKGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaBIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaBABGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaBoCCAoqGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShoEgAYCyICCAsKCBIGCAwSAggLEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-CkMKQQozggwwEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGoiAhABEgQKAmRmGA0iAggNCtIBCs8BCrkB+gW1AQqPAQqMAQohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobBACCiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShsEAMKIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGwQBAohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobBAFEgUKAwoBYRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGwSCwoJc291cmNlX2RmGA4iAggOCtQBCtEBCsYBigzCAQgBEpQB+gGQAQorygYoCgFhEgeCAgQKAggOGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhJF0gJCChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhIk+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhIDbnVtGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhoCCA0iB4ICBAoCCA4qGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShuEgAYDyICCA8KCBIGCBASAggPEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+{
+  "body": [
+    {
+      "assign": {
+        "expr": {
+          "sp_table": {
+            "name": {
+              "sp_table_name_flat": {
+                "name": "test_table"
+              }
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "90"
+            },
+            "variant": {
+              "sp_table_init": true
+            }
+          }
+        },
+        "symbol": "df",
+        "uid": "1",
+        "var_id": {
+          "bitfield1": "1"
+        }
+      }
+    },
+    {
+      "assign": {
+        "expr": {
+          "sp_table_delete": {
+            "block": true,
+            "id": {
+              "bitfield1": "1"
+            },
+            "src": {
+              "file": "SRC_POSITION_TEST_MODE",
+              "start_line": "92"
+            }
+          }
+        },
+        "symbol": "",
+        "uid": "2",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    },
+    {
+      "eval": {
+        "uid": "3",
+        "var_id": {
+          "bitfield1": "2"
+        }
+      }
+    }
+  ],
+  "client_ast_version": "1",
+  "client_language": {
+    "python_language": {
+      "version": {
+        "label": "final",
+        "major": "3",
+        "minor": "9",
+        "patch": "20"
+      }
+    }
+  },
+  "client_version": {
+    "major": "1",
+    "minor": "23"
+  }
+}
