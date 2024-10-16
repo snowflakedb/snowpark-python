@@ -11,7 +11,7 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 
 @pytest.fixture(scope="function")
 def session():
-    options = {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True}
+    options = {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": False}
     with Session(MockServerConnection(options)) as s:
         yield s
 
