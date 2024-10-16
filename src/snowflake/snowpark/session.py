@@ -13,7 +13,6 @@ import os
 import re
 import sys
 import tempfile
-import threading
 import warnings
 from array import array
 from functools import reduce
