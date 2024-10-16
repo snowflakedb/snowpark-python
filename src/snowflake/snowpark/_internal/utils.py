@@ -692,10 +692,10 @@ class DummyRLock:
         pass
 
     def acquire(self, *args, **kwargs):
-        pass
+        pass  # pragma: no cover
 
     def release(self, *args, **kwargs):
-        pass
+        pass  # pragma: no cover
 
 
 class DummyThreadLocal:
