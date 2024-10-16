@@ -8599,7 +8599,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         col_specified = True
                     else:
                         ErrorMessage.not_implemented(
-                            "kwargs specified with apply cannot have multiple column references"
+                            f"Unspecified Argument: {arg} - when using apply with kwargs, all function arguments should be specified except the single column reference (if applicable)."
                         )
 
             return snowpark_function(*resolved_positional)
