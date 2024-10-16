@@ -50,6 +50,12 @@ def test_apply_log10():
         ),  # Note math.sin does not work with df.apply
     )
 
+    # triggers the error when the kwargs is incompletely specified
+    try:
+        s.apply(log, not_an_arg=10)
+    except NotImplementedError:
+        pass
+
 
 @sql_count_checker(query_count=0)
 def test_apply_snowpark_python_function_not_implemented():
