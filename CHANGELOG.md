@@ -27,6 +27,8 @@
 - Fixed a bug where `DataFrame` and `Series` `pct_change()` would raise `TypeError` when input contained timedelta columns.
 - Fixed a bug where `replace()` would sometimes propagate `Timedelta` types incorrectly through `replace()`. Instead raise `NotImplementedError` for `replace()` on `Timedelta`.
 - Fixed a bug where `DataFrame` and `Series` `round()` would raise `AssertionError` for `Timedelta` columns. Instead raise `NotImplementedError` for `round()` on `Timedelta`.
+- Fixed a bug where `reindex` fails when the new index is a Series with non-overlapping types from the original index.
+
 
 ## 1.23.0 (2024-10-09)
 
