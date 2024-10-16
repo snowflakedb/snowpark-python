@@ -127,9 +127,6 @@ def test_close_exception():
 
 
 def test_close_session_in_stored_procedure_no_op(closed_mock_server_connection):
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
-    # fake_connection.is_closed = MagicMock(return_value=False)
     session = Session(closed_mock_server_connection)
     with mock.patch.object(
         snowflake.snowpark.session, "is_in_stored_procedure"
@@ -156,9 +153,6 @@ def test_close_session_in_stored_procedure_log_level(
 ):
     caplog.clear()
     caplog.set_level(warning_level)
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
-    # fake_connection.is_closed = MagicMock(return_value=False)
     session = Session(closed_mock_server_connection)
     with mock.patch.object(
         snowflake.snowpark.session, "is_in_stored_procedure"
@@ -172,8 +166,6 @@ def test_close_session_in_stored_procedure_log_level(
 def test_resolve_import_path_ignore_import_path(
     tmp_path_factory, mock_server_connection
 ):
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
     session = Session(mock_server_connection)
 
     tmp_path = tmp_path_factory.mktemp("session_test")
@@ -221,8 +213,6 @@ def test_resolve_package_current_database(has_current_database):
 
 
 def test_resolve_package_terms_not_accepted(mock_server_connection):
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
     session = Session(mock_server_connection)
 
     def get_information_schema_packages(table_name: str):
@@ -263,8 +253,6 @@ def test_resolve_packages_side_effect(mock_server_connection):
         ]
         return result
 
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
     session = Session(mock_server_connection)
     session.table = MagicMock(name="session.table")
     session.table.side_effect = mock_get_information_schema_packages
@@ -288,8 +276,6 @@ def test_resolve_packages_side_effect(mock_server_connection):
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
 def test_write_pandas_wrong_table_type(mock_server_connection):
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
     session = Session(mock_server_connection)
     with pytest.raises(ValueError, match="Unsupported table type."):
         session.write_pandas(
@@ -298,8 +284,6 @@ def test_write_pandas_wrong_table_type(mock_server_connection):
 
 
 def test_create_dataframe_empty_schema(mock_server_connection):
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
     session = Session(mock_server_connection)
     with pytest.raises(
         ValueError,
@@ -309,8 +293,6 @@ def test_create_dataframe_empty_schema(mock_server_connection):
 
 
 def test_create_dataframe_wrong_type(mock_server_connection):
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
     session = Session(mock_server_connection)
     with pytest.raises(
         TypeError, match=r"Cannot cast <class 'int'>\(1\) to <class 'str'>."
@@ -319,8 +301,6 @@ def test_create_dataframe_wrong_type(mock_server_connection):
 
 
 def test_table_exists_invalid_table_name(mock_server_connection):
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
     session = Session(mock_server_connection)
     with pytest.raises(
         SnowparkInvalidObjectNameException,
@@ -330,8 +310,6 @@ def test_table_exists_invalid_table_name(mock_server_connection):
 
 
 def test_explain_query_error(mock_server_connection):
-    # fake_connection = mock.create_autospec(ServerConnection)
-    # fake_connection._conn = mock.Mock()
     session = Session(mock_server_connection)
     session._run_query = MagicMock()
     session._run_query.side_effect = ProgrammingError("Can't explain.")
