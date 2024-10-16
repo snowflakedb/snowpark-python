@@ -31,6 +31,14 @@ from snowflake.snowpark.functions import lit
 from snowflake.snowpark.row import Row
 from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Utils
 
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('multithreading_mode', default=False) is False",
+        reason="Multithreading tests are disabled",
+        run=False,
+    )
+]
+
 
 def test_concurrent_select_queries(session):
     def run_select(session_, thread_id):

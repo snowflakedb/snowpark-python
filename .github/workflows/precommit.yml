@@ -460,6 +460,14 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
+      - name: Run local tests
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-localmultithreaded-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
