@@ -324,7 +324,7 @@ class MockServerConnection:
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
         # thread safe param protection
-        self._thread_safe_session_enabled = True
+        self._thread_safe_session_enabled = False
 
     def log_not_supported_error(
         self,

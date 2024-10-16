@@ -680,8 +680,8 @@ class WarningHelper:
         self.count += 1
 
 
-# TODO: SNOW-1720855: Remove DummyLock and DummyThreadLocal after the rollout
-class DummyLock:
+# TODO: SNOW-1720855: Remove DummyRLock and DummyThreadLocal after the rollout
+class DummyRLock:
     """This is a dummy lock that is used in place of threading.Rlock when multithreading is
     disabled."""
 
@@ -691,12 +691,34 @@ class DummyLock:
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
+    def acquire(self, *args, **kwargs):
+        pass
+
+    def release(self, *args, **kwargs):
+        pass
+
 
 class DummyThreadLocal:
     """This is a dummy thread local class that is used in place of threading.local when
     multithreading is disabled."""
 
     pass
+
+
+def create_thread_local(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.local, DummyThreadLocal]:
+    if thread_safe_session_enabled:
+        return threading.local()
+    return DummyThreadLocal()
+
+
+def create_rlock(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.RLock, DummyRLock]:
+    if thread_safe_session_enabled:
+        return threading.RLock()
+    return DummyRLock()
 
 
 warning_dict: Dict[str, WarningHelper] = {}
