@@ -27,14 +27,6 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from tests.utils import Utils
 
-pytestmark = [
-    pytest.mark.skipif(
-        "config.getoption('multithreading_mode', default=False)",
-        reason="Test relies on multithreading to be enabled",
-        run=False,
-    ),
-]
-
 
 def test_table_update_merge_delete(session):
     table_name = Utils.random_table_name()
