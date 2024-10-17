@@ -7,7 +7,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Dict
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
-from snowflake.snowpark._internal.utils import is_in_stored_procedure, create_rlock
+from snowflake.snowpark._internal.utils import create_rlock, is_in_stored_procedure
 
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
