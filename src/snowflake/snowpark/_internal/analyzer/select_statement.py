@@ -1183,7 +1183,8 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
-        new._attributes = self._attributes
+        if self.analyzer.session.reduce_describe_query_enabled:
+            new._attributes = self._attributes
 
         return new
 
@@ -1209,7 +1210,8 @@ class SelectStatement(Selectable):
                 order_by=cols,
                 analyzer=self.analyzer,
             )
-        new._attributes = self._attributes
+        if self.analyzer.session.reduce_describe_query_enabled:
+            new._attributes = self._attributes
 
         return new
 
@@ -1292,7 +1294,8 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
-        new._attributes = self._attributes
+        if self.analyzer.session.reduce_describe_query_enabled:
+            new._attributes = self._attributes
 
         return new
 

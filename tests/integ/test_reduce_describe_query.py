@@ -22,11 +22,13 @@ pytestmark = [
     ),
 ]
 
+param_list = [False, True]
 
-@pytest.fixture(scope="module", autouse=True)
-def setup(session):
+
+@pytest.fixture(params=param_list, autouse=True)
+def setup(request, session):
     is_reduce_describe_query_enabled = session.reduce_describe_query_enabled
-    session.reduce_describe_query_enabled = True
+    session.reduce_describe_query_enabled = request.param
     yield
     session.reduce_describe_query_enabled = is_reduce_describe_query_enabled
 
@@ -144,8 +146,13 @@ def test_metadata_no_change(session, action, create_df_func):
     with SqlCounter(query_count=0, describe_count=1):
         attributes = df._plan.attributes
     df = action(df)
-    check_attributes_equality(df._plan._attributes, attributes)
-    with SqlCounter(query_count=0, describe_count=0):
+    if session.reduce_describe_query_enabled:
+        check_attributes_equality(df._plan._attributes, attributes)
+        expected_describe_query_count = 0
+    else:
+        assert df._plan._attributes is None
+        expected_describe_query_count = 1
+    with SqlCounter(query_count=0, describe_count=expected_describe_query_count):
         _ = df.schema
         _ = df.columns
 
