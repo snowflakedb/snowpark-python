@@ -154,6 +154,9 @@ class Tables:
         return table_name
 
 
+# For test performance (especially integration tests), it would be very valuable to create the Snowpark session and the
+# temporary tables only once per test session. Unfortunately, the local testing features don't work well with any scope
+# setting above "function" (e.g. "module" or "session").
 @pytest.fixture(scope="function")
 def session():
     # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
