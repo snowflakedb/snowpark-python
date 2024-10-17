@@ -802,6 +802,11 @@ class DataFrame:
 
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
+
+            3. For TIMESTAMP columns:
+            - TIMESTAMP_LTZ and TIMESTAMP_TZ are both converted to `datetime64[ns, tz]` in pandas,
+            as pandas cannot distinguish between the two.
+            - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
         """
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
@@ -2027,12 +2032,13 @@ class DataFrame:
         ]
 
         names = right_project_list + not_found_attrs
-        if self._session.sql_simplifier_enabled and other._select_statement:
+        sql_simplifier_enabled = self._session.sql_simplifier_enabled
+        if sql_simplifier_enabled and other._select_statement:
             right_child = self._with_plan(other._select_statement.select(names))
         else:
             right_child = self._with_plan(Project(names, other._plan))
 
-        if self._session.sql_simplifier_enabled:
+        if sql_simplifier_enabled:
             df = self._with_plan(
                 self._select_statement.set_operator(
                     right_child._select_statement

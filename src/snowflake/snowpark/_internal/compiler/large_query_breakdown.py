@@ -113,17 +113,14 @@ class LargeQueryBreakdown:
         session: Session,
         query_generator: QueryGenerator,
         logical_plans: List[LogicalPlan],
+        complexity_bounds: Tuple[int, int],
     ) -> None:
         self.session = session
         self._query_generator = query_generator
         self.logical_plans = logical_plans
         self._parent_map = defaultdict(set)
-        self.complexity_score_lower_bound = (
-            session.large_query_breakdown_complexity_bounds[0]
-        )
-        self.complexity_score_upper_bound = (
-            session.large_query_breakdown_complexity_bounds[1]
-        )
+        self.complexity_score_lower_bound = complexity_bounds[0]
+        self.complexity_score_upper_bound = complexity_bounds[1]
 
     def apply(self) -> List[LogicalPlan]:
         if reason := self._should_skip_optimization_for_session():
