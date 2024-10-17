@@ -188,6 +188,9 @@ def encoded_query_id(node) -> Optional[str]:
         query_params = node.query_params
 
     if not is_sql_select_statement(query):
+        # common subquery elimination only supports eliminating
+        # subquery that is select statement. Skip encoding the query
+        # to avoid being detected as a common subquery.
         return None
 
     string = f"{query}#{query_params}" if query_params else query
