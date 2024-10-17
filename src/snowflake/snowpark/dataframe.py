@@ -804,9 +804,9 @@ class DataFrame:
             :func:`Session.sql` can only be a SELECT statement.
 
             3. For TIMESTAMP columns:
-               - TIMESTAMP_LTZ and TIMESTAMP_TZ are both converted to `datetime64[ns, tz]` in pandas,
-                as pandas cannot distinguish between the two.
-               - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
+            - TIMESTAMP_LTZ and TIMESTAMP_TZ are both converted to `datetime64[ns, tz]` in pandas,
+            as pandas cannot distinguish between the two.
+            - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
         """
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
