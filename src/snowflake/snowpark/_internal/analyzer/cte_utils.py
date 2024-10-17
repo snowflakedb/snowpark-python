@@ -15,6 +15,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
+    is_sql_select_statement,
 )
 
 if TYPE_CHECKING:
@@ -185,6 +186,9 @@ def encoded_query_id(node) -> Optional[str]:
     else:
         query = node.sql_query
         query_params = node.query_params
+
+    if not is_sql_select_statement(query):
+        return None
 
     string = f"{query}#{query_params}" if query_params else query
     try:
