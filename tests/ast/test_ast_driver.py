@@ -152,44 +152,6 @@ def run_test(session, tables):
     # Reset the entity ID generator.
     session._ast_batch.reset_id_gen()
 
-    # Set up mock data.
-
-    # Set up data used for set operation tests.
-    mock = session.create_dataframe(
-        [
-            [1, 2],
-            [3, 4],
-        ],
-        schema=["a", "b"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df1", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [0, 1],
-            [3, 4],
-        ],
-        schema=["c", "d"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df2", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [1, 2],
-        ],
-        schema=["a", "b"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df3", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [2, 1],
-        ],
-        schema=["b", "a"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df4", _emit_ast=False)
-
     session._ast_batch.flush()  # Clear the AST.
 
     # Run the test.
