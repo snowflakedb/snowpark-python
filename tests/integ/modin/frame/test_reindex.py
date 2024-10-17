@@ -281,7 +281,8 @@ class TestReindexAxis0:
         )
 
         with pytest.raises(
-            SnowparkSQLException, match=".*Timestamp 'A' is not recognized"
+            SnowparkSQLException,
+            match='Failed to cast variant value "A" to TIMESTAMP_NTZ',
         ):
             snow_df.reindex(list("ABC")).to_pandas()
 
@@ -636,3 +637,62 @@ def test_reindex_with_lazy_index():
             index=native_idx if isinstance(df, native_pd.DataFrame) else lazy_idx
         ),
     )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_str_index_with_tuple_index():
+    index = ["A", "B", "C", "D"]
+    native_df = native_pd.DataFrame(
+        {"one": [200, 200, 404, 404], "two": [200, 200, 404, 404]}, index=index
+    )
+    snow_df = pd.DataFrame(native_df)
+    nat_df = native_df.reindex(index=native_pd.Series(data=[("A", "B"), ("C", "D")]))
+    res_df = snow_df.reindex(index=pd.Series(data=[("A", "B"), ("C", "D")]))
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_int_index_with_tuple_index():
+    native_df = native_pd.DataFrame(
+        {"one": [200, 200, 404, 404], "two": [200, 200, 404, 404]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    nat_df = native_df.reindex(index=native_pd.Series(data=[("A", "B"), ("C", "D")]))
+    idx = pd.Series(data=[("A", "B"), ("C", "D")])
+    res_df = snow_df.reindex(index=idx)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_int_index_with_str_index():
+    native_df = native_pd.DataFrame(
+        {"one": [200, 200, 404, 404], "two": [200, 200, 404, 404]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    nat_df = native_df.reindex(index=native_pd.Series(data=["A", "C"]))
+    idx = pd.Series(data=["A", "C"])
+    res_df = snow_df.reindex(index=idx)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_reindex_mixed_index_type():
+    native_df = native_pd.DataFrame(
+        {"one": [200, 300], "two": [200, 200]},
+    )
+    snow_df = pd.DataFrame(native_df)
+    nat_df = native_df.reindex(index=native_pd.Series(data=["A", 1]))
+    res_df = snow_df.reindex(index=pd.Series(data=["A", 1]))
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)
+
+
+@sql_count_checker(query_count=3, join_count=1)
+def test_reindex_int_timestamp_index_type():
+    native_df = native_pd.DataFrame({"prices": [100, 101, np.nan, 100, 89, 88]})
+    snow_df = pd.DataFrame(native_df)
+    datetime_series = native_pd.Series(
+        data=pd.date_range("1/1/2010", periods=6, freq="D")
+    )
+    nat_df = native_df.reindex(index=datetime_series)
+    res_df = snow_df.reindex(index=pd.Series(datetime_series))
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(res_df, nat_df)

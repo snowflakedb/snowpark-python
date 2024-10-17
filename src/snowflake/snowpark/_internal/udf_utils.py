@@ -1236,6 +1236,7 @@ def create_python_udf_or_sp(
     statement_params: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
+    copy_grants: bool = False,
     runtime_version: Optional[str] = None,
 ) -> None:
     runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
@@ -1327,6 +1328,7 @@ $$
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
 {"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
+{" COPY GRANTS " if copy_grants else ""}
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 {mutability}
