@@ -59,6 +59,14 @@ READER_OPTIONS_ALIAS_MAP = {
 }
 
 
+def _validate_stage_path(path: str) -> str:
+    if not path.strip("\"'").startswith("@"):
+        raise ValueError(
+            f"'{path}' is an invalid path. DataFrameReader can only read files from stage locations."
+        )
+    return path
+
+
 class DataFrameReader:
     """Provides methods to load data in various supported formats from a Snowflake
     stage to a :class:`DataFrame`. The paths provided to the DataFrameReader must refer
@@ -411,6 +419,7 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
+        path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = "CSV"
 
@@ -706,6 +715,7 @@ class DataFrameReader:
 
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
+        path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = format
 
