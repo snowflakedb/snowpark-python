@@ -138,13 +138,13 @@ def running_on_jenkins() -> bool:
 
 def multithreaded_run(num_threads: int = 5) -> None:
     """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
-    from tests.conftest import MULTITHREADING_MODE_ENABLED
+    from tests.conftest import MULTITHREADING_TEST_MODE_ENABLED
 
     def decorator(func):
         @pytest.mark.multithreaded_run
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if MULTITHREADING_MODE_ENABLED:
+            if MULTITHREADING_TEST_MODE_ENABLED:
                 with ThreadPoolExecutor(max_workers=num_threads) as executor:
                     for _ in range(num_threads):
                         executor.submit(func, *args, **kwargs)
