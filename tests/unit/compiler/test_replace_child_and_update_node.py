@@ -138,7 +138,9 @@ def verify_snowflake_plan(plan: SnowflakePlan, expected_plan: SnowflakePlan) -> 
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
-def test_logical_plan(using_snowflake_plan, mock_query, new_plan, mock_query_generator):
+def test_logical_plan(
+    using_snowflake_plan, mock_query, mock_session, new_plan, mock_query_generator
+):
     def get_children(plan):
         if isinstance(plan, SnowflakePlan):
             return plan.children_plan_nodes
@@ -164,7 +166,7 @@ def test_logical_plan(using_snowflake_plan, mock_query, new_plan, mock_query_gen
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
             placeholder_query=None,
-            session=None,
+            session=mock_session,
         )
     else:
         join_plan = src_join_plan
@@ -449,7 +451,7 @@ def test_select_statement(
 
     assert_precondition(plan, new_plan, mock_query_generator, using_deep_copy=True)
     plan = copy.deepcopy(plan)
-    replace_child(plan, from_, new_plan, mock_query_generator)
+    replace_child(plan, plan.children_plan_nodes[0], new_plan, mock_query_generator)
     assert len(plan.children_plan_nodes) == 1
 
     new_replaced_plan = plan.children_plan_nodes[0]
@@ -574,11 +576,11 @@ def test_set_statement(
     assert_precondition(plan, new_plan, mock_analyzer, using_deep_copy=True)
     plan = copy.deepcopy(plan)
 
-    replace_child(plan, selectable1, new_plan, mock_query_generator)
+    replace_child(plan, plan.children_plan_nodes[0], new_plan, mock_query_generator)
     assert len(plan.children_plan_nodes) == 2
     new_replaced_plan = plan.children_plan_nodes[0]
-    assert isinstance(new_replaced_plan, SelectSnowflakePlan)
-    assert plan.children_plan_nodes[1] == selectable2
+    assert isinstance(plan.children_plan_nodes[0], SelectSnowflakePlan)
+    assert isinstance(plan.children_plan_nodes[1], SelectSQL)
 
     mocked_snowflake_plan = mock_snowflake_plan()
     verify_snowflake_plan(new_replaced_plan.snowflake_plan, mocked_snowflake_plan)

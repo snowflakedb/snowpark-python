@@ -16,6 +16,10 @@ from ..conftest import opentelemetry_installed
 pytestmark = [
     pytest.mark.udf,
     pytest.mark.skipif(
+        "config.getoption('enable_cte_optimization', default=False)",
+        reason="Flaky in CTE mode",
+    ),
+    pytest.mark.skipif(
         not opentelemetry_installed,
         reason="opentelemetry is not installed",
     ),

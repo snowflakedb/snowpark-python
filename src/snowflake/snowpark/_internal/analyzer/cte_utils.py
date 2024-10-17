@@ -5,7 +5,7 @@
 import hashlib
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Set, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     SPACE,
@@ -25,11 +25,9 @@ if TYPE_CHECKING:
     TreeNode = Union[SnowflakePlan, Selectable]
 
 
-def find_duplicate_subtrees(
-    root: "TreeNode",
-) -> Tuple[Set["TreeNode"], Dict["TreeNode", Set["TreeNode"]]]:
+def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
     """
-    Returns a set containing all duplicate subtrees in query plan tree.
+    Returns a set of TreeNode encoded_id that indicates all duplicate subtrees in query plan tree.
     The root of a duplicate subtree is defined as a duplicate node, if
         - it appears more than once in the tree, AND
         - one of its parent is unique (only appear once) in the tree, OR
@@ -50,8 +48,8 @@ def find_duplicate_subtrees(
 
     This function is used to only include nodes that should be converted to CTEs.
     """
-    node_count_map = defaultdict(int)
-    node_parents_map = defaultdict(set)
+    id_count_map = defaultdict(int)
+    id_parents_map = defaultdict(set)
 
     def traverse(root: "TreeNode") -> None:
         """
@@ -61,32 +59,39 @@ def find_duplicate_subtrees(
         while len(current_level) > 0:
             next_level = []
             for node in current_level:
-                node_count_map[node] += 1
+                id_count_map[node.encoded_node_id_with_query] += 1
                 for child in node.children_plan_nodes:
-                    node_parents_map[child].add(node)
+                    id_parents_map[child.encoded_node_id_with_query].add(
+                        node.encoded_node_id_with_query
+                    )
                     next_level.append(child)
             current_level = next_level
 
-    def is_duplicate_subtree(node: "TreeNode") -> bool:
-        is_duplicate_node = node_count_map[node] > 1
+    def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
+        is_duplicate_node = id_count_map[encoded_node_id_with_query] > 1
         if is_duplicate_node:
             is_any_parent_unique_node = any(
-                node_count_map[n] == 1 for n in node_parents_map[node]
+                id_count_map[id] == 1
+                for id in id_parents_map[encoded_node_id_with_query]
             )
             if is_any_parent_unique_node:
                 return True
             else:
-                has_multi_parents = len(node_parents_map[node]) > 1
+                has_multi_parents = len(id_parents_map[encoded_node_id_with_query]) > 1
                 if has_multi_parents:
                     return True
         return False
 
     traverse(root)
-    duplicated_node = {node for node in node_count_map if is_duplicate_subtree(node)}
-    return duplicated_node, node_parents_map
+    duplicated_node = {
+        encoded_node_id_with_query
+        for encoded_node_id_with_query in id_count_map
+        if is_duplicate_subtree(encoded_node_id_with_query)
+    }
+    return duplicated_node
 
 
-def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> str:
+def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
     plan_to_query_map = {}
@@ -111,32 +116,41 @@ def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> s
 
         while stack2:
             node = stack2.pop()
-            if node in plan_to_query_map:
+            if node.encoded_node_id_with_query in plan_to_query_map:
                 continue
 
             if not node.children_plan_nodes or not node.placeholder_query:
-                plan_to_query_map[node] = (
+                plan_to_query_map[node.encoded_node_id_with_query] = (
                     node.sql_query
                     if isinstance(node, Selectable)
                     else node.queries[-1].sql
                 )
             else:
-                plan_to_query_map[node] = node.placeholder_query
+                plan_to_query_map[
+                    node.encoded_node_id_with_query
+                ] = node.placeholder_query
                 for child in node.children_plan_nodes:
                     # replace the placeholder (id) with child query
-                    plan_to_query_map[node] = plan_to_query_map[node].replace(
-                        child._id, plan_to_query_map[child]
+                    plan_to_query_map[
+                        node.encoded_node_id_with_query
+                    ] = plan_to_query_map[node.encoded_node_id_with_query].replace(
+                        child.encoded_query_id,
+                        plan_to_query_map[child.encoded_node_id_with_query],
                     )
 
             # duplicate subtrees will be converted CTEs
-            if node in duplicate_plan_set:
+            if node.encoded_node_id_with_query in duplicated_node_ids:
                 # when a subquery is converted a CTE to with clause,
                 # it will be replaced by `SELECT * from TEMP_TABLE` in the original query
                 table_name = random_name_for_temp_object(TempObjectType.CTE)
                 select_stmt = project_statement([], table_name)
-                duplicate_plan_to_table_name_map[node] = table_name
-                duplicate_plan_to_cte_map[node] = plan_to_query_map[node]
-                plan_to_query_map[node] = select_stmt
+                duplicate_plan_to_table_name_map[
+                    node.encoded_node_id_with_query
+                ] = table_name
+                duplicate_plan_to_cte_map[
+                    node.encoded_node_id_with_query
+                ] = plan_to_query_map[node.encoded_node_id_with_query]
+                plan_to_query_map[node.encoded_node_id_with_query] = select_stmt
 
     build_plan_to_query_map_in_post_order(root)
 
@@ -145,7 +159,7 @@ def create_cte_query(root: "TreeNode", duplicate_plan_set: Set["TreeNode"]) -> s
         list(duplicate_plan_to_cte_map.values()),
         list(duplicate_plan_to_table_name_map.values()),
     )
-    final_query = with_stmt + SPACE + plan_to_query_map[root]
+    final_query = with_stmt + SPACE + plan_to_query_map[root.encoded_node_id_with_query]
     return final_query
 
 
@@ -162,12 +176,49 @@ def merge_referenced_ctes(
     return merged
 
 
-def encode_id(
-    query: str, query_params: Optional[Sequence[Any]] = None
-) -> Optional[str]:
+def encoded_query_id(node) -> Optional[str]:
+    """
+    Encode the query and its query parameter into an id using sha256.
+
+
+    Returns:
+        If encode succeed, return the first 10 encoded value.
+        Otherwise, return None
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+
+    if isinstance(node, SnowflakePlan):
+        query = node.queries[-1].sql
+        query_params = node.queries[-1].params
+    elif isinstance(node, SelectSQL):
+        # For SelectSql, The original SQL is used to encode its ID,
+        # which might be a non-select SQL.
+        query = node.original_sql
+        query_params = node.query_params
+    else:
+        query = node.sql_query
+        query_params = node.query_params
+
     string = f"{query}#{query_params}" if query_params else query
     try:
         return hashlib.sha256(string.encode()).hexdigest()[:10]
     except Exception as ex:
         logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
         return None
+
+
+def encode_node_id_with_query(node: "TreeNode") -> str:
+    """
+    Encode a for the given TreeNode.
+
+    If query and query parameters can be encoded successfully using sha256,
+    return the encoded query id + node_type_name.
+    Otherwise, return the original node id.
+    """
+    query_id = encoded_query_id(node)
+    if query_id is not None:
+        node_type_name = type(node).__name__
+        return f"{query_id}_{node_type_name}"
+    else:
+        return str(id(node))
