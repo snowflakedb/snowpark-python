@@ -12330,7 +12330,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if on is not None:
             if on not in self._modin_frame.data_column_pandas_labels:
                 raise KeyError(f"{on}")
-            frame = self.set_index(on)._modin_frame
+            frame = self.set_index(keys=[on])._modin_frame
         else:
             frame = self._modin_frame
 

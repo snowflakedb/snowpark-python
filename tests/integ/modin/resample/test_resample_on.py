@@ -41,6 +41,22 @@ def test_resample_on(freq, agg_func):
     )
 
 
+# One extra query to convert index to native pandas for dataframe constructor
+@sql_count_checker(query_count=3, join_count=1)
+def test_resample_hashable_on():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {
+                "A": np.random.randn(15),
+                1: native_pd.date_range("2020-01-01", periods=15, freq="1s"),
+            },
+            index=native_pd.date_range("2020-10-01", periods=15, freq="1s"),
+        ),
+        lambda df: df.resample(rule="2s", on=1, closed="left").min(),
+        check_freq=False,
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_resample_non_datetime_on():
     native_df = native_pd.DataFrame(
