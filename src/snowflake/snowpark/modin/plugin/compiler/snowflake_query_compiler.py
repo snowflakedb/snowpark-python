@@ -23,6 +23,7 @@ import pandas as native_pd
 import pandas.core.resample
 import pandas.io.parsers
 import pandas.io.parsers.readers
+import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from pandas import Timedelta
 from pandas._libs import lib
@@ -245,6 +246,7 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     InheritJoinIndex,
     JoinKeyCoalesceConfig,
     MatchComparator,
+    convert_index_type_to_variant,
 )
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
@@ -2634,6 +2636,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             _filter_column_snowflake_quoted_id = (
                 modin_frame.data_column_snowflake_quoted_identifiers[-1]
             )
+        # convert index frame to variant type so it can be joined with a frame of differing type
+        new_index_modin_frame = convert_index_type_to_variant(new_index_modin_frame)
         result_frame, result_frame_column_mapper = join_utils.join(
             new_index_modin_frame,
             modin_frame,
@@ -17323,6 +17327,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas method '{method_name}' doesn't support 'tz={tz}'"
+            )
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
@@ -17346,6 +17354,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler containing values with converted time zone.
         """
+        if not include_index:
+            method_name = "Series.dt.tz_convert"
+        else:
+            method_name = "DatetimeIndex.tz_convert"
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas method '{method_name}' doesn't support 'tz={tz}'"
+            )
+
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
                 lambda column: tz_convert_column(column, tz),
@@ -18897,6 +18914,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas 'tz_convert' method doesn't support 'copy=False'"
             )
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'tz_convert' method doesn't support 'tz={tz}'"
+            )
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
@@ -18968,6 +18989,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.not_implemented(
                 "Snowpark pandas 'tz_localize' method doesn't yet support the 'nonexistent' parameter"
+            )
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'tz_localize' method doesn't support 'tz={tz}'"
             )
 
         return SnowflakeQueryCompiler(
