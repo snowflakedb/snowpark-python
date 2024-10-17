@@ -21,6 +21,7 @@
 - Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
 - Added support for tracking usages of `__array_ufunc__`.
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
+- Added support for `DataFrameGroupBy.bfill`, `SeriesGroupBy.bfill`, `DataFrameGroupBy.ffill`, and `SeriesGroupBy.ffill`.
 
 #### Improvements
 
