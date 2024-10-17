@@ -50,6 +50,21 @@ def threadsafe_session(
         yield session
 
 
+@pytest.fixture(scope="function")
+def threadsafe_temp_stage(threadsafe_session, resources_path, local_testing_mode):
+    tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+
+    if not local_testing_mode:
+        Utils.create_stage(threadsafe_session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        threadsafe_session, tmp_stage_name, test_files.test_file_parquet, compress=False
+    )
+    yield tmp_stage_name
+    if not local_testing_mode:
+        Utils.drop_stage(threadsafe_session, tmp_stage_name)
+
+
 def test_concurrent_select_queries(threadsafe_session):
     def run_select(session_, thread_id):
         df = session_.sql(f"SELECT {thread_id} as A")
@@ -169,9 +184,9 @@ def test_action_ids_are_unique(threadsafe_session):
 
 
 @pytest.mark.parametrize("use_stream", [True, False])
-def test_file_io(threadsafe_session, resources_path, temp_stage, use_stream):
+def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_stream):
     stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
-    stage_with_prefix = f"@{temp_stage}/{stage_prefix}/"
+    stage_with_prefix = f"@{threadsafe_temp_stage}/{stage_prefix}/"
     test_files = TestFiles(resources_path)
 
     resources_files = [
