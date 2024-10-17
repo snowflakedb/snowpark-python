@@ -7,7 +7,7 @@ from typing import List
 import pytest
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark.functions import col, lit, seq2, table_function
+from snowflake.snowpark.functions import col, count, lit, seq2, table_function
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
     Session,
@@ -106,6 +106,13 @@ create_from_unions_funcs = [
     .select("a", lit("2").alias("c")),
 ]
 
+create_without_select_funcs = [
+    create_from_sql_funcs[0],
+    create_from_values_funcs[0],
+    create_from_table_funcs[0],
+    create_from_unions_funcs[0],
+]
+
 
 metadata_no_change_df_ops = [
     lambda df: df.filter(col("a") > 2),
@@ -118,6 +125,27 @@ metadata_no_change_df_ops = [
     lambda df: df.sample(0.5),
     lambda df: df.sample(0.5).filter(col("a") > 2),
     lambda df: df.filter(col("a") > 2).sample(0.5),
+]
+
+select_df_ops_expected_quoted_identifiers = [
+    (lambda df: df.select("a", col("b")), ['"A"', '"B"']),
+    (lambda df: df.select("*", lit(1).as_('"c"')), ['"A"', '"B"', '"c"']),
+    (lambda df: df.select("a", (col("b") + 1).as_("b")), ['"A"', '"B"']),
+    (lambda df: df.select(count("*")), ['"COUNT(1)"']),
+    (
+        lambda df: df.select("a", (col("b") + 1).as_("b")).select(
+            (col("b") + 1).as_("b"), "a"
+        ),
+        ['"B"', '"A"'],
+    ),
+    (
+        lambda df: df.select("a", (col("b") + 1).as_("b")).filter(col("a") == 1),
+        ['"A"', '"B"'],
+    ),
+    (
+        lambda df: df.filter(col("a") == 1).select("a", (col("b") + 1).as_("b")),
+        ['"A"', '"B"'],
+    ),
 ]
 
 
@@ -145,6 +173,8 @@ def test_metadata_no_change(session, action, create_df_func):
     df = create_df_func(session)
     with SqlCounter(query_count=0, describe_count=1):
         attributes = df._plan.attributes
+        quoted_identifiers = df._plan.quoted_identifiers
+
     df = action(df)
     if session.reduce_describe_query_enabled:
         check_attributes_equality(df._plan._attributes, attributes)
@@ -152,9 +182,38 @@ def test_metadata_no_change(session, action, create_df_func):
     else:
         assert df._plan._attributes is None
         expected_describe_query_count = 1
+
     with SqlCounter(query_count=0, describe_count=expected_describe_query_count):
         _ = df.schema
         _ = df.columns
+        assert df._plan._quoted_identifiers is None
+        assert df._plan.quoted_identifiers == quoted_identifiers
+
+
+@pytest.mark.parametrize(
+    "action,expected_quoted_identifiers",
+    select_df_ops_expected_quoted_identifiers,
+)
+@pytest.mark.parametrize(
+    "create_df_func",
+    create_without_select_funcs,
+)
+def test_select_quoted_identifiers(
+    session, action, expected_quoted_identifiers, create_df_func
+):
+    df = create_df_func(session)
+    df = action(df)
+    if session.reduce_describe_query_enabled:
+        assert df._plan._quoted_identifiers == expected_quoted_identifiers
+        expected_describe_query_count = 0
+    else:
+        assert df._plan._quoted_identifiers is None
+        expected_describe_query_count = 1
+
+    assert df._plan._attributes is None
+    with SqlCounter(query_count=0, describe_count=expected_describe_query_count):
+        quoted_identifiers = df._plan.quoted_identifiers
+        assert quoted_identifiers == expected_quoted_identifiers
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
