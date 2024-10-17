@@ -153,16 +153,6 @@ def run_test(session, tables):
     session._ast_batch.reset_id_gen()
 
     # Set up mock data.
-    mock = session.create_dataframe(
-        [
-            [1, "one"],
-            [2, "two"],
-            [3, "three"],
-        ],
-        schema=['num', 'Owner\\'s""opinion.s'],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"", _emit_ast=False)
 
     # Set up data used for set operation tests.
     mock = session.create_dataframe(
