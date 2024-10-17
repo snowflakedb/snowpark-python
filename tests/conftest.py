@@ -87,14 +87,14 @@ def cte_optimization_enabled(pytestconfig):
     return pytestconfig.getoption("enable_cte_optimization")
 
 
-MULTITHREADING_MODE_ENABLED = False
+MULTITHREADING_TEST_MODE_ENABLED = False
 
 
 @pytest.fixture(scope="session", autouse=True)
 def multithreading_mode_enabled(pytestconfig):
     enabled = pytestconfig.getoption("multithreading_mode")
-    global MULTITHREADING_MODE_ENABLED
-    MULTITHREADING_MODE_ENABLED = enabled
+    global MULTITHREADING_TEST_MODE_ENABLED
+    MULTITHREADING_TEST_MODE_ENABLED = enabled
     return enabled
 
 
