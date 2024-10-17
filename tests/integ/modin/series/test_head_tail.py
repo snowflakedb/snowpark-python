@@ -70,9 +70,4 @@ def test_head_efficient_sql(session, ops):
     # check no row count
     assert "count" not in eval_query
     # check orderBy behinds limit
-    if session.sql_simplifier_enabled:
-        # TODO SNOW-1731549 fix this issue in sql simplifier
-        assert eval_query.index("limit") > eval_query.index("order by")
-    else:
-        assert "count" not in eval_query
-        assert eval_query.index("limit") < eval_query.index("order by")
+    assert eval_query.index("limit") < eval_query.index("order by")
