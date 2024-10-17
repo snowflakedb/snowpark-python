@@ -9,6 +9,9 @@
 
 #### New Features
 
+- Added the following new functions in `snowflake.snowpark.functions`:
+  - `map`
+
 #### Improvements
 - Disables sql simplification when sort is performed after limit. 
   - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
