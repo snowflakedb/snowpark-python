@@ -131,7 +131,7 @@ def indent_lines(source: str, n_indents: int = 0):
     return "\n".join(map(lambda line: indent * n_indents + line, source.split("\n")))
 
 
-def run_test(session, test_name, test_source):
+def run_test(session, tables, test_name, test_source):
     override_time_zone()
     os.chdir(DATA_DIR)
 
@@ -150,74 +150,9 @@ AstBatch.generate_request_id = lambda: uuid.uuid5(uuid.NAMESPACE_DNS, "id-gen")
 
 ast_utils.SRC_POSITION_TEST_MODE = True
 
-def run_test(session):
+def run_test(session, tables):
     # Reset the entity ID generator.
     session._ast_batch.reset_id_gen()
-
-    # Set up mock data.
-    mock = session.create_dataframe(
-        [
-            [1, "one"],
-            [2, "two"],
-            [3, "three"],
-        ],
-        schema=['num', 'str'],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_table", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [1, "one"],
-            [2, "two"],
-            [3, "three"],
-        ],
-        schema=['num', 'Owner\\'s""opinion.s'],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"", _emit_ast=False)
-
-    # Set up data used for set operation tests.
-    mock = session.create_dataframe(
-        [
-            [1, 2],
-            [3, 4],
-        ],
-        schema=["a", "b"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df1", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [0, 1],
-            [3, 4],
-        ],
-        schema=["c", "d"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df2", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [1, 2],
-        ],
-        schema=["a", "b"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df3", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [2, 1],
-        ],
-        schema=["b", "a"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df4", _emit_ast=False)
-
-    mock = session.create_dataframe(
-        [[1, [1, 2, 3], {{"Ashi Garami": "Single Leg X"}}, "Kimura"],
-        [2, [11, 22], {{"Sankaku": "Triangle"}}, "Coffee"],
-        [3, [], {{}}, "Tea"]],
-        schema=["idx", "lists", "maps", "strs"], _emit_ast=False)
-    mock.write.save_as_table("test_table2", _emit_ast=False)
 
     session._ast_batch.flush()  # Clear the AST.
 
@@ -264,7 +199,7 @@ def run_test(session):
             test_module = importlib.util.module_from_spec(spec)
             sys.modules[test_name] = test_module
             spec.loader.exec_module(test_module)
-            base64_batches = test_module.run_test(session)
+            base64_batches = test_module.run_test(session, tables)
             sys.modules.pop(test_name)
             raw_unparser_output = render(base64_batches) if pytest.unparser_jar else ""
             unparser_output = re.sub(
@@ -297,11 +232,11 @@ def ClearTempTables(message: proto.Request) -> None:
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
-def test_ast(session, test_case):
+def test_ast(session, tables, test_case):
     logging.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
 
     actual, base64_str = run_test(
-        session, test_case.filename.replace(".", "_"), test_case.source
+        session, tables, test_case.filename.replace(".", "_"), test_case.source
     )
     if pytest.update_expectations:
         assert pytest.unparser_jar, (
