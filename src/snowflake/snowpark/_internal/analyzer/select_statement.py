@@ -779,6 +779,31 @@ class SelectStatement(Selectable):
             )
         return self._projection_in_str
 
+    def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "SelectStatement":
+        """Update pre-actions, post-actions and schema to capture necessary subquery_plans
+        encountered during plan resolution."""
+        for plan in subquery_plans:
+            for query in plan.queries[:-1]:
+                if self.pre_actions is None:
+                    self.pre_actions = []  # pragma: no cover
+                if query not in self.pre_actions:
+                    self.pre_actions.append(query)
+            for query in plan.post_actions:
+                if self.post_actions is None:
+                    self.post_actions = []  # pragma: no cover
+                if query not in self.post_actions:
+                    self.post_actions.append(query)
+
+            if (self._schema_query is not None) and (plan.schema_query is not None):
+                self._schema_query = self._schema_query.replace(
+                    plan.queries[-1].sql, plan.schema_query
+                )
+
+        if self._snowflake_plan is not None:
+            self._snowflake_plan = self._snowflake_plan.with_subqueries(subquery_plans)
+
+        return self
+
     @property
     def sql_query(self) -> str:
         if self._sql_query:
