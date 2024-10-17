@@ -8575,7 +8575,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _apply_snowpark_python_function_to_columns(
         self,
         snowpark_function: Callable,
-        **kwargs: Any,  # possible named arguments which need to be added
+        kwargs: dict[str, Any],  # possible named arguments which need to be added
     ) -> "SnowflakeQueryCompiler":
         """Apply Snowpark Python function to columns."""
 
