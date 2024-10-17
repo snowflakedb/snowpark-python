@@ -28,29 +28,31 @@ from snowflake.snowpark.session import Session
 from tests.utils import Utils
 
 
-@pytest.fixture(scope="session", autouse=True)
-def mock_server_connection():
-    options = {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True}
+@pytest.fixture(scope="function", autouse=True)
+def threadsafe_server_connection():
+    options = {
+        "session_parameters": {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True}
+    }
     s = MockServerConnection(options)
     yield s
     s.close()
 
 
-@pytest.fixture(scope="module")
-def session(mock_server_connection):
-    with Session(mock_server_connection) as s:
+@pytest.fixture(scope="function")
+def threadsafe_session(threadsafe_server_connection):
+    with Session(threadsafe_server_connection) as s:
         yield s
 
 
-def test_table_update_merge_delete(session):
+def test_table_update_merge_delete(threadsafe_session):
     table_name = Utils.random_table_name()
     num_threads = 10
     data = [[v, 11 * v] for v in range(10)]
-    df = session.create_dataframe(data, schema=["a", "b"])
+    df = threadsafe_session.create_dataframe(data, schema=["a", "b"])
     df.write.save_as_table(table_name, table_type="temp")
 
     source_df = df
-    t = session.table(table_name)
+    t = threadsafe_session.table(table_name)
 
     def update_table(thread_id: int):
         t.update({"b": 0}, t.a == lit(thread_id))
@@ -90,18 +92,18 @@ def test_table_update_merge_delete(session):
         assert t.count() == 0
 
 
-def test_udf_register_and_invoke(session):
-    df = session.create_dataframe([[1], [2]], schema=["num"])
+def test_udf_register_and_invoke(threadsafe_session):
+    df = threadsafe_session.create_dataframe([[1], [2]], schema=["num"])
     num_threads = 10
 
     def register_udf(x: int):
         def echo(x: int) -> int:
             return x
 
-        return session.udf.register(echo, name="echo", replace=True)
+        return threadsafe_session.udf.register(echo, name="echo", replace=True)
 
     def invoke_udf():
-        result = df.select(session.udf.call_udf("echo", df.num)).collect()
+        result = df.select(threadsafe_session.udf.call_udf("echo", df.num)).collect()
         assert result[0][0] == 1
         assert result[1][0] == 2
 
@@ -119,19 +121,19 @@ def test_udf_register_and_invoke(session):
         thread.join()
 
 
-def test_sp_register_and_invoke(session):
+def test_sp_register_and_invoke(threadsafe_session):
     num_threads = 10
 
     def increment_by_one_fn(session_: Session, x: int) -> int:
         return x + 1
 
     def register_sproc():
-        session.sproc.register(
+        threadsafe_session.sproc.register(
             increment_by_one_fn, name="increment_by_one", replace=True
         )
 
     def invoke_sproc():
-        result = session.call("increment_by_one", 1)
+        result = threadsafe_session.call("increment_by_one", 1)
         assert result == 2
 
     threads = []
@@ -166,8 +168,8 @@ def test_mocked_function_registry_created_once():
 
 
 @pytest.mark.parametrize("test_table", [True, False])
-def test_tabular_entity_registry(test_table, mock_server_connection):
-    entity_registry = mock_server_connection.entity_registry
+def test_tabular_entity_registry(test_table, threadsafe_server_connection):
+    entity_registry = threadsafe_server_connection.entity_registry
     num_threads = 10
 
     def write_read_and_drop_table():
@@ -204,8 +206,8 @@ def test_tabular_entity_registry(test_table, mock_server_connection):
             future.result()
 
 
-def test_stage_entity_registry_put_and_get(mock_server_connection):
-    stage_registry = StageEntityRegistry(mock_server_connection)
+def test_stage_entity_registry_put_and_get(threadsafe_server_connection):
+    stage_registry = StageEntityRegistry(threadsafe_server_connection)
     num_threads = 10
 
     def put_and_get_file():
@@ -232,8 +234,10 @@ def test_stage_entity_registry_put_and_get(mock_server_connection):
         thread.join()
 
 
-def test_stage_entity_registry_upload_and_read(session, mock_server_connection):
-    stage_registry = StageEntityRegistry(mock_server_connection)
+def test_stage_entity_registry_upload_and_read(
+    threadsafe_session, threadsafe_server_connection
+):
+    stage_registry = StageEntityRegistry(threadsafe_server_connection)
     num_threads = 10
 
     def upload_and_read_json(thread_id: int):
@@ -249,7 +253,7 @@ def test_stage_entity_registry_upload_and_read(session, mock_server_connection):
             f"@test_stage/test_parent_dir/test_file_{thread_id}",
             "json",
             [],
-            session._analyzer,
+            threadsafe_session._analyzer,
             {"INFER_SCHEMA": "True"},
         )
 
@@ -262,8 +266,8 @@ def test_stage_entity_registry_upload_and_read(session, mock_server_connection):
             future.result()
 
 
-def test_stage_entity_registry_create_or_replace(mock_server_connection):
-    stage_registry = StageEntityRegistry(mock_server_connection)
+def test_stage_entity_registry_create_or_replace(threadsafe_server_connection):
+    stage_registry = StageEntityRegistry(threadsafe_server_connection)
     num_threads = 10
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
