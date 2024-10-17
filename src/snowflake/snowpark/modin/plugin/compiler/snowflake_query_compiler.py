@@ -23,6 +23,7 @@ import pandas as native_pd
 import pandas.core.resample
 import pandas.io.parsers
 import pandas.io.parsers.readers
+import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from pandas import Timedelta
 from pandas._libs import lib
@@ -245,6 +246,7 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     InheritJoinIndex,
     JoinKeyCoalesceConfig,
     MatchComparator,
+    convert_index_type_to_variant,
 )
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
@@ -2634,6 +2636,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             _filter_column_snowflake_quoted_id = (
                 modin_frame.data_column_snowflake_quoted_identifiers[-1]
             )
+        # convert index frame to variant type so it can be joined with a frame of differing type
+        new_index_modin_frame = convert_index_type_to_variant(new_index_modin_frame)
         result_frame, result_frame_column_mapper = join_utils.join(
             new_index_modin_frame,
             modin_frame,
@@ -12318,7 +12322,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         validate_resample_supported_by_snowflake(resample_kwargs)
 
-        frame = self._modin_frame
+        axis = resample_kwargs.get("axis", 0)
+        rule = resample_kwargs.get("rule")
+        on = resample_kwargs.get("on")
+
+        # Supplying 'on' to Resampler replaces the existing index of the DataFrame with the 'on' column
+        if on is not None:
+            if on not in self._modin_frame.data_column_pandas_labels:
+                raise KeyError(f"{on}")
+            frame = self.set_index(keys=[on])._modin_frame
+        else:
+            frame = self._modin_frame
 
         if resample_method in ("var", np.var) and any(
             isinstance(t, TimedeltaType)
@@ -12329,8 +12343,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         snowflake_index_column_identifier = (
             get_snowflake_quoted_identifier_for_resample_index_col(frame)
         )
-
-        rule = resample_kwargs.get("rule")
 
         slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
@@ -12401,13 +12413,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             return SnowflakeQueryCompiler(output_frame).set_index_names(index_name)
         elif resample_method in IMPLEMENTED_AGG_METHODS:
-            frame = perform_resample_binning_on_frame(frame, start_date, rule)
+            resampled_frame = perform_resample_binning_on_frame(
+                frame=frame,
+                datetime_index_col_identifier=snowflake_index_column_identifier,
+                start_date=start_date,
+                slice_width=slice_width,
+                slice_unit=slice_unit,
+            )
             if resample_method == "indices":
                 # Convert groupby_indices output of dict[Hashable, np.ndarray] to
                 # collections.defaultdict
-                result_dict = SnowflakeQueryCompiler(frame).groupby_indices(
-                    by=self._modin_frame.index_column_pandas_labels,
-                    axis=resample_kwargs.get("axis", 0),
+                result_dict = SnowflakeQueryCompiler(resampled_frame).groupby_indices(
+                    by=frame.index_column_pandas_labels,
+                    axis=axis,
                     groupby_kwargs=dict(),
                     values_as_np_array=False,
                 )
@@ -12416,33 +12434,34 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # Call groupby_size directly on the dataframe or series with the index reset
                 # to ensure we perform count aggregation on row positions which cannot be null
                 qc = (
-                    SnowflakeQueryCompiler(frame)
+                    SnowflakeQueryCompiler(resampled_frame)
                     .reset_index()
                     .groupby_size(
-                        by="index",
-                        axis=resample_kwargs.get("axis", 0),
+                        by=on if on is not None else "index",
+                        axis=axis,
                         groupby_kwargs=dict(),
                         agg_args=resample_method_args,
                         agg_kwargs=resample_method_kwargs,
                     )
-                    .set_index_names([None])
+                    .set_index_names(frame.index_column_pandas_labels)
                 )
             elif resample_method in ("first", "last"):
                 # Call groupby_first or groupby_last directly
                 qc = getattr(
-                    SnowflakeQueryCompiler(frame), f"groupby_{resample_method}"
+                    SnowflakeQueryCompiler(resampled_frame),
+                    f"groupby_{resample_method}",
                 )(
-                    by=self._modin_frame.index_column_pandas_labels,
-                    axis=resample_kwargs.get("axis", 0),
+                    by=frame.index_column_pandas_labels,
+                    axis=axis,
                     groupby_kwargs=dict(),
                     agg_args=resample_method_args,
                     agg_kwargs=resample_method_kwargs,
                 )
             else:
-                qc = SnowflakeQueryCompiler(frame).groupby_agg(
-                    by=self._modin_frame.index_column_pandas_labels,
+                qc = SnowflakeQueryCompiler(resampled_frame).groupby_agg(
+                    by=frame.index_column_pandas_labels,
                     agg_func=resample_method,
-                    axis=resample_kwargs.get("axis", 0),
+                    axis=axis,
                     groupby_kwargs=dict(),
                     agg_args=resample_method_args,
                     agg_kwargs=resample_method_kwargs,
@@ -12450,7 +12469,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     is_series_groupby=is_series,
                 )
 
-            frame = fill_missing_resample_bins_for_frame(
+            resampled_frame_all_bins = fill_missing_resample_bins_for_frame(
                 qc._modin_frame, rule, start_date, end_date
             )
             if resample_method in ("sum", "count", "size", "nunique"):
@@ -12459,7 +12478,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     # For sum(), we need to fill NaN values as Timedelta(0)
                     # for timedelta columns and as 0 for other columns.
                     values_arg = {}
-                    for pandas_label in frame.data_column_pandas_labels:
+                    for (
+                        pandas_label
+                    ) in resampled_frame_all_bins.data_column_pandas_labels:
                         label_dtypes: native_pd.Series = self.dtypes[[pandas_label]]
                         # query compiler's fillna() takes a dictionary mapping
                         # pandas labels to values. When we have two columns
@@ -12481,7 +12502,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         values_arg = list(values_arg.values())[0]
                 else:
                     values_arg = 0
-                return SnowflakeQueryCompiler(frame).fillna(
+                return SnowflakeQueryCompiler(resampled_frame_all_bins).fillna(
                     value=values_arg, self_is_series=is_series
                 )
         else:
@@ -12489,7 +12510,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Resample Method {resample_method} has not been implemented."
             )
 
-        return SnowflakeQueryCompiler(frame)
+        return SnowflakeQueryCompiler(resampled_frame_all_bins)
 
     def value_counts_index(
         self,
@@ -17323,6 +17344,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas method '{method_name}' doesn't support 'tz={tz}'"
+            )
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
@@ -17346,6 +17371,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler containing values with converted time zone.
         """
+        if not include_index:
+            method_name = "Series.dt.tz_convert"
+        else:
+            method_name = "DatetimeIndex.tz_convert"
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas method '{method_name}' doesn't support 'tz={tz}'"
+            )
+
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
                 lambda column: tz_convert_column(column, tz),
@@ -18897,6 +18931,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas 'tz_convert' method doesn't support 'copy=False'"
             )
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'tz_convert' method doesn't support 'tz={tz}'"
+            )
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
@@ -18968,6 +19006,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.not_implemented(
                 "Snowpark pandas 'tz_localize' method doesn't yet support the 'nonexistent' parameter"
+            )
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'tz_localize' method doesn't support 'tz={tz}'"
             )
 
         return SnowflakeQueryCompiler(

@@ -6,10 +6,42 @@
 
 #### New Features
 
+- Added support for 'Service' domain to `session.lineage.trace` API.
+- Added support for `copy_grants` parameter when registering UDxF and stored procedures.
+
+#### Improvements
+
+- Disables sql simplification when sort is performed after limit. 
+  - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
+  - Improve performance of generated query for `df.limit().sort()`, because limit stops table scanning as soon as the number of records is satisfied.
+
+#### Bug Fixes
+
+- Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
+
 ### Snowpark pandas API Updates
 
 #### New Features
+
+- Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
+- Added support for tracking usages of `__array_ufunc__`.
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
+- Added support for `DataFrameGroupBy.bfill`, `SeriesGroupBy.bfill`, `DataFrameGroupBy.ffill`, and `SeriesGroupBy.ffill`.
+- Added support for `on` parameter with `Resampler`.
+
+#### Improvements
+
+- Improved generated SQL query for `head` and `iloc` when the row key is a slice.
+- Improved error message when passing an unknown timezone to `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex`.
+- Improved documentation for `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex` to specify the supported timezone formats.
+
+#### Bug Fixes
+
+- Fixed a bug where `DataFrame` and `Series` `pct_change()` would raise `TypeError` when input contained timedelta columns.
+- Fixed a bug where `replace()` would sometimes propagate `Timedelta` types incorrectly through `replace()`. Instead raise `NotImplementedError` for `replace()` on `Timedelta`.
+- Fixed a bug where `DataFrame` and `Series` `round()` would raise `AssertionError` for `Timedelta` columns. Instead raise `NotImplementedError` for `round()` on `Timedelta`.
+- Fixed a bug where `reindex` fails when the new index is a Series with non-overlapping types from the original index.
+
 
 ## 1.23.0 (2024-10-09)
 
@@ -23,7 +55,6 @@
 - Added support for file writes. This feature is currently in private preview.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 - Added support for `Session.stored_procedure_profiler`.
-- Added support for 'Service' domain to `session.lineage.trace` API. 
 
 #### Improvements
 
@@ -55,8 +86,6 @@
 - Added support for `DataFrame.tz_localize` and `Series.tz_localize`.
 - Added support for `DataFrame.tz_convert` and `Series.tz_convert`.
 - Added support for applying Snowpark Python functions (e.g., `sin`) in `Series.map`, `Series.apply`, `DataFrame.apply` and `DataFrame.applymap`.
-- Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
-- Added support for tracking usages of `__array_ufunc__`.
 
 #### Improvements
 
@@ -68,7 +97,6 @@
 - Use SCOPED object for internal create temp tables. The SCOPED objects will be stored sproc scoped if created within stored sproc, otherwise will be session scoped, and the object will be automatically cleaned at the end of the scope.
 - Improved warning messages for operations that lead to materialization with inadvertent slowness.
 - Removed unnecessary warning message about `convert_dtype` in `Series.apply`.
-- Improved generated SQL query for `head` and `iloc` when the row key is a slice.
 
 #### Bug Fixes
 
@@ -80,9 +108,6 @@
 - Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
 - Fixed a bug where `pd.to_numeric()` would leave `Timedelta` inputs as `Timedelta` instead of converting them to integers.
 - Fixed `loc` set when setting a single row, or multiple rows, of a DataFrame with a Series value.
-- Fixed a bug where `DataFrame` and `Series` `pct_change()` would raise `TypeError` when input contained timedelta columns.
-- Fixed a bug where `replace()` would sometimes propagate `Timedelta` types incorrectly through `replace()`. Instead raise `NotImplementedError` for `replace()` on `Timedelta`.
-- Fixed a bug where `DataFrame` and `Series` `round()` would raise `AssertionError` for `Timedelta` columns. Instead raise `NotImplementedError` for `round()` on `Timedelta`.
 
 ### Snowpark Local Testing Updates
 
