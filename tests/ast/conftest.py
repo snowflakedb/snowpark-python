@@ -50,108 +50,96 @@ class Tables:
     @cached_property
     def table1(self) -> str:
         table_name: str = "table1"
-        df = self._session.create_dataframe(
+        return self._save_table(
+            table_name,
             [
                 [1, "one"],
                 [2, "two"],
                 [3, "three"],
             ],
             schema=["num", "str"],
-            _emit_ast=False,
         )
-        logging.debug("Creating table %s", table_name)
-        df.write.save_as_table(table_name, _emit_ast=False)
-        return table_name
 
     @cached_property
     def table2(self) -> str:
         table_name: str = "table2"
-        df = self._session.create_dataframe(
+        return self._save_table(
+            table_name,
             [
                 [1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"],
                 [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"],
                 [3, [], {}, "Tea"],
             ],
             schema=["idx", "lists", "maps", "strs"],
-            _emit_ast=False,
         )
-        logging.debug("Creating table %s", table_name)
-        df.write.save_as_table(table_name, _emit_ast=False)
-        return table_name
 
     @cached_property
     def df1_table(self) -> str:
         table_name: str = "df1"
-        df = self._session.create_dataframe(
+        return self._save_table(
+            table_name,
             [
                 [1, 2],
                 [3, 4],
             ],
             schema=["a", "b"],
-            _emit_ast=False,
         )
-        logging.debug("Creating table %s", table_name)
-        df.write.save_as_table(table_name, _emit_ast=False)
-        return table_name
 
     @cached_property
     def df2_table(self) -> str:
         table_name: str = "df2"
-        df = self._session.create_dataframe(
+        return self._save_table(
+            table_name,
             [
                 [0, 1],
                 [3, 4],
             ],
             schema=["c", "d"],
-            _emit_ast=False,
         )
-        logging.debug("Creating table %s", table_name)
-        df.write.save_as_table(table_name, _emit_ast=False)
-        return table_name
 
     @cached_property
     def df3_table(self) -> str:
         table_name: str = "df3"
-        df = self._session.create_dataframe(
+        return self._save_table(
+            table_name,
             [
                 [1, 2],
             ],
             schema=["a", "b"],
-            _emit_ast=False,
         )
-        logging.debug("Creating table %s", table_name)
-        df.write.save_as_table(table_name, _emit_ast=False)
-        return table_name
 
     @cached_property
     def df4_table(self) -> str:
         table_name: str = "df4"
-        df = self._session.create_dataframe(
+        return self._save_table(
+            table_name,
             [
                 [2, 1],
             ],
             schema=["b", "a"],
-            _emit_ast=False,
         )
-        logging.debug("Creating table %s", table_name)
-        df.write.save_as_table(table_name, _emit_ast=False)
-        return table_name
 
     @cached_property
     def double_quoted_table(self) -> str:
         table_name: str = '"the#qui.ck#bro.wn#""Fox""won\'t#jump!"'
-        df = self._session.create_dataframe(
+        return self._save_table(
+            table_name,
             [
                 [1, "one"],
                 [2, "two"],
                 [3, "three"],
             ],
             schema=["num", 'Owner\'s""opinion.s'],
-            _emit_ast=False,
         )
-        logging.debug("Creating table %s", table_name)
-        df.write.save_as_table(table_name, _emit_ast=False)
-        return table_name
+
+    def _save_table(self, name: str, *args, **kwargs):
+        kwargs.pop("_emit_ast", None)
+        kwargs.pop("_ast_stmt", None)
+        kwargs.pop("_ast", None)
+        df = self._session.create_dataframe(*args, _emit_ast=False, **kwargs)
+        logging.debug("Creating table %s", name)
+        df.write.save_as_table(name, _emit_ast=False)
+        return name
 
 
 # For test performance (especially integration tests), it would be very valuable to create the Snowpark session and the
