@@ -51,10 +51,13 @@ def test_resample_non_datetime_on():
         index=native_pd.date_range("2020-10-01", periods=15, freq="1s"),
     )
     snow_df = pd.DataFrame(native_df)
-    with pytest.raises(TypeError):
+    with pytest.raises(
+        TypeError,
+        match="Only valid with DatetimeIndex, TimedeltaIndex or PeriodIndex, but got an instance of 'Index'",
+    ):
         native_df.resample(rule="2s", on="A").min()
     with pytest.raises(
-        TypeError, match="Only valid with DatetimeIndex or TimedeltaIndex."
+        TypeError, match="Only valid with DatetimeIndex or TimedeltaIndex"
     ):
         snow_df.resample(rule="2s", on="A").min().to_pandas()
 
