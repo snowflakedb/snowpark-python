@@ -1,6 +1,6 @@
 {% set name = "snowflake-snowpark-python" %}
 {% set version = "1.23.0" %}
-{% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false') | lower) == 'true' %}
+{% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 
 package:
   name: {{ name|lower }}
