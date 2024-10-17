@@ -53,6 +53,20 @@ class TempTableAutoCleaner:
             current_ref_count = self.ref_count_map[name]
         if current_ref_count == 0:
             if (
+                is_in_stored_procedure()
+                and not self.session._conn._get_client_side_session_parameter(
+                    "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+                )
+            ):
+                warning_message = "Drop table requires async query which is not supported in stored procedure yet"
+                logging.warning(warning_message)
+                self.session._conn._telemetry_client.send_temp_table_cleanup_abnormal_exception_telemetry(
+                    self.session.session_id,
+                    name,
+                    str(warning_message),
+                )
+                return
+            if (
                 self.session.auto_clean_up_temp_table_enabled
                 # if the session is already closed before garbage collection,
                 # we have no way to drop the table
@@ -69,20 +83,6 @@ class TempTableAutoCleaner:
         logging.debug(f"Ready to drop {common_log_text}")
         query_id = None
         try:
-            if (
-                is_in_stored_procedure()
-                and not self.session._conn._get_client_side_session_parameter(
-                    "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
-                )
-            ):
-                warning_message = "Drop table requires async query which is not supported in stored procedure yet"
-                logging.warning(warning_message)
-                self.session._conn._telemetry_client.send_temp_table_cleanup_abnormal_exception_telemetry(
-                    self.session.session_id,
-                    name,
-                    str(warning_message),
-                )
-                return
             with self.session.connection.cursor() as cursor:
                 async_job_query_id = cursor.execute_async(
                     command=f"drop table if exists {name}",
