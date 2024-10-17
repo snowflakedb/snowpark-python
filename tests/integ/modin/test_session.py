@@ -5,6 +5,7 @@ import os
 from typing import Optional
 
 import modin.pandas as pd
+import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -212,6 +213,10 @@ def test_snowpark_pandas_session_class_does_not_exist_snow_1022098():
         pd.Session
 
 
+@pytest.mark.skipif(
+    native_pd.__version__ == "2.2.3",
+    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+)
 @pytest.mark.parametrize(
     "operation",
     [
