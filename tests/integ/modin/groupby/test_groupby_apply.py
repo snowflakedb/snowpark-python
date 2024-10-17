@@ -34,7 +34,7 @@ cloudpickle.register_pickle_by_value(sys.modules[__name__])
 
 
 def eval_snowpark_pandas_result(*args, **kwargs):
-    # native pandas is inconsistent about whether it propagates attrs
+    # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments
     return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
 
 

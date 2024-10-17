@@ -49,7 +49,8 @@ def test_groupby_nunique(df, groupby_columns, dropna):
         snow_df,
         df,
         lambda df: df.groupby(groupby_columns).agg("nunique", dropna=dropna),
-        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
     # Test invoking nunique directly
@@ -57,7 +58,7 @@ def test_groupby_nunique(df, groupby_columns, dropna):
         snow_df,
         df,
         lambda df: df.groupby(groupby_columns).nunique(dropna),
-        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
+        test_attrs=False,
     )
 
     # Test invoking per column.
@@ -84,7 +85,7 @@ def test_groupby_nunique(df, groupby_columns, dropna):
             lambda df: df.groupby(groupby_columns).agg(
                 {"value1": "count", "value2": "nunique"}, dropna=dropna
             ),
-            test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
+            test_attrs=False,
         )
 
 

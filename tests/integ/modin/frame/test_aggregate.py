@@ -160,8 +160,8 @@ def test_string_sum(data, numeric_only_kwargs):
     eval_snowpark_pandas_result(
         *create_test_dfs(data),
         lambda df: df.sum(**numeric_only_kwargs),
-        # apparently, pandas doesn't propagate attrs if the frame is empty
-        # which happens if numeric_only=True and all columns are strings
+        # pandas doesn't propagate attrs if the frame is empty after type filtering,
+        # which happens if numeric_only=True and all columns are strings, but Snowpark pandas does.
         test_attrs=not (
             numeric_only_kwargs.get("numeric_only", False)
             and isinstance(data["col1"][0], str)
