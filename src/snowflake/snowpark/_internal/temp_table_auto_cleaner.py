@@ -63,7 +63,7 @@ class TempTableAutoCleaner:
                 self.session._conn._telemetry_client.send_temp_table_cleanup_abnormal_exception_telemetry(
                     self.session.session_id,
                     name,
-                    str(warning_message),
+                    warning_message,
                 )
                 return
             if (
