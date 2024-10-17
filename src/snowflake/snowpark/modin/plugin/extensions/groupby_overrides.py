@@ -434,25 +434,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         )
 
     def bfill(self, limit=None):
-        is_series_groupby = self.ndim == 1
-
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        query_compiler = self._query_compiler.groupby_fillna(
-            self._by,
-            self._axis,
-            self._kwargs,
-            value=None,
-            method="bfill",
-            fill_axis=None,
-            inplace=False,
-            limit=limit,
-            downcast=None,
-        )
-        return (
-            pd.Series(query_compiler=query_compiler)
-            if is_series_groupby
-            else pd.DataFrame(query_compiler=query_compiler)
-        )
+        ErrorMessage.method_not_implemented_error(name="bfill", class_="GroupBy")
 
     def corr(self, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -525,25 +507,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         ErrorMessage.method_not_implemented_error(name="diff", class_="GroupBy")
 
     def ffill(self, limit=None):
-        is_series_groupby = self.ndim == 1
-
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        query_compiler = self._query_compiler.groupby_fillna(
-            self._by,
-            self._axis,
-            self._kwargs,
-            value=None,
-            method="ffill",
-            fill_axis=None,
-            inplace=False,
-            limit=limit,
-            downcast=None,
-        )
-        return (
-            pd.Series(query_compiler=query_compiler)
-            if is_series_groupby
-            else pd.DataFrame(query_compiler=query_compiler)
-        )
+        ErrorMessage.method_not_implemented_error(name="ffill", class_="GroupBy")
 
     def fillna(
         self,
@@ -1092,10 +1056,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         if is_list_like(key):
             make_dataframe = True
         else:
-            if self._as_index:
-                make_dataframe = False
-            else:
-                make_dataframe = True
+            make_dataframe = False
             key = [key]
 
         column_index = self._df.columns
@@ -1427,7 +1388,10 @@ class SeriesGroupBy(DataFrameGroupBy):
 
     def size(self):
         # TODO: Remove this once SNOW-1478924 is fixed
-        return super().size().rename(self._df.columns[-1])
+        if self._as_index:
+            return super().size().rename(self._df.columns[-1])
+        else:
+            return pd.DataFrame(super().size()).T
 
     def value_counts(
         self,

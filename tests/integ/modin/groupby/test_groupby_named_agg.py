@@ -4,6 +4,7 @@
 import re
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 
@@ -111,6 +112,22 @@ def test_named_agg_passed_in_via_star_kwargs(basic_df_data):
     eval_snowpark_pandas_result(
         *create_test_dfs(basic_df_data),
         lambda df: df.groupby("col1").agg(**kwargs),
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_named_agg_count_vs_size():
+    data = [[1, 2, 3], [1, 5, np.nan], [7, np.nan, 9]]
+    native_df = native_pd.DataFrame(
+        data, columns=["a", "b", "c"], index=["owl", "toucan", "eagle"]
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby("a").agg(
+            l=("b", "size"), j=("c", "size"), m=("c", "count"), n=("b", "count")
+        ),
     )
 
 
