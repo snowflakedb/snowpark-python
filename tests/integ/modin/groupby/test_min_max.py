@@ -14,9 +14,14 @@ from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
-    eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
+
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
 
 
 @sql_count_checker(query_count=0)

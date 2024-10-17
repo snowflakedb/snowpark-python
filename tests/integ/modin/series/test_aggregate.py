@@ -399,6 +399,8 @@ class TestTimedelta:
                 comparator=validate_scalar_result
                 if is_scalar
                 else assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+                # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+                test_attrs=False,
             )
 
     @sql_count_checker(query_count=0)

@@ -856,6 +856,7 @@ def test_merge_with_self():
         snow_df,
         snow_df.to_pandas(),
         lambda df: df.merge(df, on="A"),
+        test_attrs=False,  # native pandas propagates attrs on self-merge, but we do not
     )
 
 

@@ -76,12 +76,15 @@ def test_isin_integer_data(values, expected_query_count):
         snow_series = pd.Series(data)
         native_series = native_pd.Series(data)
 
+        # Because _test_isin_with_snowflake_logic helper wraps the initial
+        # Snowpark pandas result with a new pd.Series object, it doesn't make sense to test attrs.
         eval_snowpark_pandas_result(
             snow_series,
             native_series,
             lambda s: _test_isin_with_snowflake_logic(
                 s, try_convert_index_to_native(values)
             ),
+            test_attrs=False,
         )
 
 
@@ -148,10 +151,13 @@ def test_isin_various_combos(data, values, expected_query_count):
         snow_series = pd.Series(data)
         native_series = native_pd.Series(data)
 
+        # Because _test_isin_with_snowflake_logic helper wraps the initial
+        # Snowpark pandas result with a new pd.Series object, it doesn't make sense to test attrs.
         eval_snowpark_pandas_result(
             snow_series,
             native_series,
             lambda s: _test_isin_with_snowflake_logic(s, values),
+            test_attrs=False,
         )
 
 
