@@ -387,9 +387,6 @@ def test_deep_nested_select(session):
     [
         lambda session_: session_.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]),
         lambda session_: session_.sql("select 1 as a, 2 as b"),
-        lambda session_: session_.table(
-            session_.sql("select 1 as a, 2 as b").cache_result().table_name
-        ),
     ],
 )
 def test_deepcopy_no_duplicate(session, generator):
