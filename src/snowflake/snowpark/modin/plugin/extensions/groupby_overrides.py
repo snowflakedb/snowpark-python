@@ -434,7 +434,25 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         )
 
     def bfill(self, limit=None):
-        ErrorMessage.method_not_implemented_error(name="bfill", class_="GroupBy")
+        is_series_groupby = self.ndim == 1
+
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+        query_compiler = self._query_compiler.groupby_fillna(
+            self._by,
+            self._axis,
+            self._kwargs,
+            value=None,
+            method="bfill",
+            fill_axis=None,
+            inplace=False,
+            limit=limit,
+            downcast=None,
+        )
+        return (
+            pd.Series(query_compiler=query_compiler)
+            if is_series_groupby
+            else pd.DataFrame(query_compiler=query_compiler)
+        )
 
     def corr(self, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -507,7 +525,25 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         ErrorMessage.method_not_implemented_error(name="diff", class_="GroupBy")
 
     def ffill(self, limit=None):
-        ErrorMessage.method_not_implemented_error(name="ffill", class_="GroupBy")
+        is_series_groupby = self.ndim == 1
+
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+        query_compiler = self._query_compiler.groupby_fillna(
+            self._by,
+            self._axis,
+            self._kwargs,
+            value=None,
+            method="ffill",
+            fill_axis=None,
+            inplace=False,
+            limit=limit,
+            downcast=None,
+        )
+        return (
+            pd.Series(query_compiler=query_compiler)
+            if is_series_groupby
+            else pd.DataFrame(query_compiler=query_compiler)
+        )
 
     def fillna(
         self,

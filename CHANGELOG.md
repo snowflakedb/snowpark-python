@@ -5,7 +5,6 @@
 ### Snowpark Python API Updates
 
 - Added support for 'Service' domain to `session.lineage.trace` API.
-- Updated `Session` class to be thread-safe. This allows concurrent dataframe transformations, dataframe actions, UDF and store procedure registration, and concurrent file uploads.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 
 #### New Features
@@ -22,6 +21,7 @@
 - Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
 - Added support for tracking usages of `__array_ufunc__`.
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
+- Added support for `DataFrameGroupBy.bfill`, `SeriesGroupBy.bfill`, `DataFrameGroupBy.ffill`, and `SeriesGroupBy.ffill`.
 
 #### Improvements
 

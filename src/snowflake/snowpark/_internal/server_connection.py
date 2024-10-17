@@ -49,6 +49,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
+    create_rlock,
+    create_thread_local,
     escape_quotes,
     get_application_name,
     get_version,
@@ -155,8 +157,6 @@ class ServerConnection:
         options: Dict[str, Union[int, str]],
         conn: Optional[SnowflakeConnection] = None,
     ) -> None:
-        self._lock = threading.RLock()
-        self._thread_store = threading.local()
         self._lower_case_parameters = {k.lower(): v for k, v in options.items()}
         self._add_application_parameters()
         self._conn = conn if conn else connect(**self._lower_case_parameters)
@@ -170,6 +170,13 @@ class ServerConnection:
                 )
             except TypeError:
                 pass
+
+        # thread safe param protection
+        self._thread_safe_session_enabled = self._get_client_side_session_parameter(
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
+        )
+        self._lock = create_rlock(self._thread_safe_session_enabled)
+        self._thread_store = create_thread_local(self._thread_safe_session_enabled)
 
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None

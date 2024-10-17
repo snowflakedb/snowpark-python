@@ -36,9 +36,12 @@ def infer_metadata(
             attributes = source_plan.child._attributes
     # If source_plan is a SelectStatement, SQL simplifier is enabled
     elif isinstance(source_plan, SelectStatement):
+        # When attributes is cached on source_plan, just use it
+        if source_plan._attributes is not None:
+            attributes = source_plan._attributes
         # When source_plan.from_ is a Selectable and it doesn't have a projection,
         # it's a simple `SELECT * from ...`, which has the same metadata as it's child plan (source_plan.from_).
-        if (
+        elif (
             isinstance(source_plan.from_, Selectable)
             and source_plan.projection is None
             and source_plan.from_._snowflake_plan is not None

@@ -394,12 +394,22 @@ class SnowflakePlan(LogicalPlan):
 
     @property
     def attributes(self) -> List[Attribute]:
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectStatement,
+        )
+
         if self._attributes is not None:
             return self._attributes
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
         self._attributes = analyze_attributes(self.schema_query, self.session)
+        # We need to cache attributes on SelectStatement too because df._plan is not
+        # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
+        if self.session.reduce_describe_query_enabled and isinstance(
+            self.source_plan, SelectStatement
+        ):
+            self.source_plan._attributes = self._attributes
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
             self.schema_query = schema_value_statement(self._attributes)

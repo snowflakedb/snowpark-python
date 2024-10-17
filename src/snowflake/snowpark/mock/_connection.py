@@ -6,7 +6,6 @@
 import functools
 import json
 import logging
-import threading
 import uuid
 from copy import copy
 from decimal import Decimal
@@ -30,6 +29,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
+    create_rlock,
     is_in_stored_procedure,
     result_set_to_rows,
 )
@@ -281,19 +281,26 @@ class MockServerConnection:
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
-        self._lock = threading.RLock()
+        self._options = options or {}
+        session_params = self._options.get("session_parameters", {})
+        # thread safe param protection
+        self._thread_safe_session_enabled = session_params.get(
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
+        )
+        self._lock = create_rlock(self._thread_safe_session_enabled)
         self._lower_case_parameters = {}
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
         self._telemetry_client = Mock()
         self.entity_registry = MockServerConnection.TabularEntityRegistry(self)
         self.stage_registry = StageEntityRegistry(self)
-        self._conn._session_parameters = {
-            "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
-            "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
-            "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
-        }
-        self._options = options or {}
+        self._conn._session_parameters = session_params.update(
+            {
+                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
+                "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
+                "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
+            }
+        )
         self._active_account = self._options.get(
             "account", snowflake.snowpark.mock._constants.CURRENT_ACCOUNT
         )
