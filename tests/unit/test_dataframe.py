@@ -148,10 +148,8 @@ def test_select_bad_input():
     )
 
 
-def test_join_bad_input():
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
+def test_join_bad_input(mock_server_connection):
+    session = snowflake.snowpark.session.Session(mock_server_connection)
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
     )
@@ -174,20 +172,16 @@ def test_join_bad_input():
     assert "Invalid type for join. Must be Dataframe" in str(exc_info)
 
 
-def test_with_column_renamed_bad_input():
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
+def test_with_column_renamed_bad_input(mock_server_connection):
+    session = snowflake.snowpark.session.Session(mock_server_connection)
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
     with pytest.raises(TypeError) as exc_info:
         df1.with_column_renamed(123, "int4")
     assert "must be a column name or Column object." in str(exc_info)
 
 
-def test_with_column_rename_function_bad_input():
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
+def test_with_column_rename_function_bad_input(mock_server_connection):
+    session = snowflake.snowpark.session.Session(mock_server_connection)
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
     with pytest.raises(TypeError) as exc_info:
         df1.rename(123, "int4")
@@ -200,10 +194,8 @@ def test_with_column_rename_function_bad_input():
     assert "You cannot rename a column using value 123 of type int" in str(exc_info)
 
 
-def test_create_or_replace_view_bad_input():
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
+def test_create_or_replace_view_bad_input(mock_server_connection):
+    session = snowflake.snowpark.session.Session(mock_server_connection)
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
     with pytest.raises(TypeError) as exc_info:
         df1.create_or_replace_view(123)
@@ -213,10 +205,8 @@ def test_create_or_replace_view_bad_input():
     )
 
 
-def test_create_or_replace_dynamic_table_bad_input():
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
+def test_create_or_replace_dynamic_table_bad_input(mock_server_connection):
+    session = snowflake.snowpark.session.Session(mock_server_connection)
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
     with pytest.raises(TypeError) as exc_info:
         df1.create_or_replace_dynamic_table(123, warehouse="warehouse", lag="1 minute")
@@ -249,10 +239,8 @@ def test_create_or_replace_dynamic_table_bad_input():
     )
 
 
-def test_create_or_replace_temp_view_bad_input():
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
+def test_create_or_replace_temp_view_bad_input(mock_server_connection):
+    session = snowflake.snowpark.session.Session(mock_server_connection)
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "str"])
     with pytest.raises(TypeError) as exc_info:
         df1.create_or_replace_temp_view(123)
@@ -266,10 +254,8 @@ def test_create_or_replace_temp_view_bad_input():
     "join_type",
     ["inner", "leftouter", "rightouter", "fullouter", "leftsemi", "leftanti", "cross"],
 )
-def test_same_joins_should_generate_same_queries(join_type):
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
+def test_same_joins_should_generate_same_queries(join_type, mock_server_connection):
+    session = snowflake.snowpark.session.Session(mock_server_connection)
     session._conn._telemetry_client = mock.MagicMock()
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["a1", "b1", "str1"]
@@ -284,6 +270,7 @@ def test_same_joins_should_generate_same_queries(join_type):
 def test_statement_params():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
+    mock_connection._thread_safe_session_enabled = True
     session = snowflake.snowpark.session.Session(mock_connection)
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -298,10 +285,8 @@ def test_statement_params():
     )
 
 
-def test_dataFrame_printSchema(capfd):
-    mock_connection = mock.create_autospec(ServerConnection)
-    mock_connection._conn = mock.MagicMock()
-    session = snowflake.snowpark.session.Session(mock_connection)
+def test_dataFrame_printSchema(capfd, mock_server_connection):
+    session = snowflake.snowpark.session.Session(mock_server_connection)
     df = session.create_dataframe([[1, ""], [3, None]])
     df._plan._attributes = [
         Attribute("A", IntegerType(), False),
@@ -327,6 +312,7 @@ def test_session():
 def test_table_source_plan(sql_simplifier_enabled):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
+    mock_connection._thread_safe_session_enabled = True
     session = snowflake.snowpark.session.Session(mock_connection)
     session._sql_simplifier_enabled = sql_simplifier_enabled
     t = session.table("table")
