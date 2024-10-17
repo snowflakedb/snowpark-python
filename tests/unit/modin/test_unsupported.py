@@ -118,8 +118,6 @@ def test_unsupported_general(general_method, kwargs):
         ["to_xml", {}],
         ["transform", {"func": [[], {}]}],
         ["truncate", {}],
-        ["tz_convert", {"tz": ""}],
-        ["tz_localize", {"tz": ""}],
         ["xs", {"key": ""}],
         ["__dataframe__", {}],
     ],
@@ -194,8 +192,6 @@ def test_unsupported_df(df_method, kwargs):
         ["to_xarray", {}],
         ["transform", {"func": ""}],
         ["truncate", {}],
-        ["tz_convert", {"tz": ""}],
-        ["tz_localize", {"tz": ""}],
         ["view", {}],
         ["xs", {"key": ""}],
     ],
@@ -207,17 +203,3 @@ def test_unsupported_series(series_method, kwargs):
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, series_method)(**kwargs)
-
-
-@pytest.mark.parametrize(
-    "series_method, kwargs",
-    [["items", {}]],
-)
-def test_unsupported_series_generator(series_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = Series(query_compiler=mock_query_compiler)
-
-    with pytest.raises(NotImplementedError):
-        for x in getattr(mock_df, series_method)(**kwargs):
-            x + 1
