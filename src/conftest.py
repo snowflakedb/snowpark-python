@@ -20,7 +20,10 @@ LOCAL_TESTING_MODE = False
 
 
 def pytest_addoption(parser):
-    parser.addoption("--local_testing_mode", action="store_true", default=False)
+    if not any(
+        "--local_testing_mode" in opt.names() for opt in parser._anonymous.options
+    ):
+        parser.addoption("--local_testing_mode", action="store_true", default=False)
 
 
 def pytest_runtest_makereport(item, call):
