@@ -12,7 +12,9 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 @pytest.fixture(scope="function")
 def mock_server_connection(multithreading_mode_enabled):
     options = {
-        "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled
+        "session_parameters": {
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled
+        }
     }
     s = MockServerConnection(options)
     yield s

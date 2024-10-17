@@ -1182,6 +1182,14 @@ class SelectStatement(Selectable):
     def sort(self, cols: List[Expression]) -> "SelectStatement":
         can_be_flattened = (
             (not self.flatten_disabled)
+            # limit order by and order by limit can cause big performance
+            # difference, because limit can stop table scanning whenever the
+            # number of record is satisfied.
+            # Therefore, disallow sql simplification when the
+            # current SelectStatement has a limit clause to avoid moving
+            # order by in front of limit.
+            and (not self.limit_)
+            and (not self.offset)
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(*cols), self.column_states
             )

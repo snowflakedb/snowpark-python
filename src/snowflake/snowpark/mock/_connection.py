@@ -282,8 +282,9 @@ class MockServerConnection:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
         self._options = options or {}
+        session_params = self._options.get("session_parameters", {})
         # thread safe param protection
-        self._thread_safe_session_enabled = self._options.get(
+        self._thread_safe_session_enabled = session_params.get(
             "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
         )
         self._lock = create_rlock(self._thread_safe_session_enabled)
@@ -293,12 +294,13 @@ class MockServerConnection:
         self._telemetry_client = Mock()
         self.entity_registry = MockServerConnection.TabularEntityRegistry(self)
         self.stage_registry = StageEntityRegistry(self)
-        self._conn._session_parameters = {
-            "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
-            "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
-            "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
-            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": self._thread_safe_session_enabled,
-        }
+        self._conn._session_parameters = session_params.update(
+            {
+                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
+                "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
+                "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
+            }
+        )
         self._active_account = self._options.get(
             "account", snowflake.snowpark.mock._constants.CURRENT_ACCOUNT
         )
