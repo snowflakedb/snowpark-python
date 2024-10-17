@@ -4,7 +4,10 @@
 
 from collections import Counter
 from enum import Enum
-from typing import Dict
+from typing import TYPE_CHECKING, Dict
+
+if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 
 
 class PlanNodeCategory(Enum):
@@ -33,11 +36,25 @@ class PlanNodeCategory(Enum):
         "function"  # cover all snowflake built-in function, table functions and UDXFs
     )
     IN = "in"
+    WITH_QUERY = "with_query"
     LOW_IMPACT = "low_impact"
     OTHERS = "others"
 
     def __repr__(self) -> str:
         return self.name
+
+
+class PlanState(Enum):
+    """
+    This is an enum class for the state that are extracted for a given SnowflakePlan
+    or SelectStatement.
+    """
+
+    # the height of the given plan
+    PLAN_HEIGHT = "plan_height"
+    # the number of SelectStatement nodes in the plan that have
+    # _merge_projection_complexity_with_subquery set to True
+    NUM_SELECTS_WITH_COMPLEXITY_MERGED = "num_selects_with_complexity_merged"
 
 
 def sum_node_complexities(
@@ -69,8 +86,17 @@ def subtract_complexities(
     return result_complexities
 
 
-def get_complexity_score(
-    cumulative_node_complexity: Dict[PlanNodeCategory, int]
-) -> int:
+def get_complexity_score(node: "LogicalPlan") -> int:
     """Calculates the complexity score based on the cumulative node complexity"""
-    return sum(cumulative_node_complexity.values())
+    adjusted_cumulative_complexity = node.cumulative_node_complexity.copy()
+    if hasattr(node, "referenced_ctes"):
+        for with_query_block in node.referenced_ctes:  # type: ignore
+            child_node = with_query_block.children[0]
+            for category, value in child_node.cumulative_node_complexity.items():
+                if category in adjusted_cumulative_complexity:
+                    adjusted_cumulative_complexity[category] += value
+                else:
+                    adjusted_cumulative_complexity[category] = value
+
+    score = sum(adjusted_cumulative_complexity.values())
+    return score

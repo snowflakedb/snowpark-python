@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import typing
-from collections.abc import Hashable
+from collections.abc import Hashable, Sized
 from enum import Enum
 from typing import Any, Literal, Optional, Union
 
@@ -479,18 +479,38 @@ def get_frame_by_row_pos_slice_frame(
     frame = internal_frame.ensure_row_position_column()
     row_pos_col = col(frame.row_position_snowflake_quoted_identifier)
 
-    # create a count column which will be used to check step
-    frame = frame.append_column("count", pandas_lit(1) + max_(row_pos_col).over())
-    count_col = col(frame.data_column_snowflake_quoted_identifiers[-1])
+    def get_count_col() -> Column:
+        """
+        The purpose of this helper function is to avoid creating row count column if it is not needed. Creating row
+        count column will cause the query to scan the whole table.
+        """
+        nonlocal frame
+        frame = frame.ensure_row_count_column()
+        return col(frame.row_count_snowflake_quoted_identifier)
 
     ordering_columns = internal_frame.ordering_columns
     start, stop, step = key.start, key.stop, key.step
 
     def make_positive(val: int) -> Column:
         # Helper to turn negative start and stop values to positive values. Example: -1 --> num_rows - 1.
-        return val + count_col if val < 0 else pandas_lit(val)
+        return val + get_count_col() if val < 0 else pandas_lit(val)
 
     step = 1 if step is None else step
+
+    # if `limit_n` is not None, use limit in the query to narrow down the search.
+    limit_n = None
+    if step < 0:
+        # Switch start and stop; convert given slice key into a similar slice key with positive step.
+        start, stop = stop, start
+    if (stop is not None and stop >= 0) and (start is None or start >= 0):
+        # set limit_n = abs(stop - start) // step when we exactly know how many rows it is going to return.
+        limit_n = stop
+        if start is not None:
+            limit_n = abs(limit_n - start)
+        if step < 0 and start is None:
+            limit_n += 1  # e.g., df.iloc[1:None:-1] return 2 rows
+        limit_n = 1 + (limit_n - 1) // abs(step)
+
     if step < 0:
         # Set ascending to False if step is negative.
         ordering_columns = [
@@ -498,14 +518,12 @@ def get_frame_by_row_pos_slice_frame(
                 internal_frame.row_position_snowflake_quoted_identifier, ascending=False
             )
         ]
-        # Switch start and stop; convert given slice key into a similar slice key with positive step.
-        start, stop = stop, start
         start = 0 if start is None else make_positive(start) + 1
-        stop = count_col - 1 if stop is None else make_positive(stop)
+        stop = get_count_col() - 1 if stop is None else make_positive(stop)
     else:  # step > 0
         # Assign default values or convert to positive values.
         start = pandas_lit(0) if start is None else make_positive(start)
-        stop = (count_col if stop is None else make_positive(stop)) - 1
+        stop = (get_count_col() if stop is None else make_positive(stop)) - 1
 
     # Both start and stop are inclusive.
     left_bound_filter = row_pos_col >= start
@@ -514,13 +532,13 @@ def get_frame_by_row_pos_slice_frame(
     if step > 1:
         # start can be negative --> make the lower-bound 0.
         step_bound_filter = (
-            (row_pos_col - greatest(pandas_lit(0), least(start, count_col - 1)))
+            (row_pos_col - greatest(pandas_lit(0), least(start, get_count_col() - 1)))
             % pandas_lit(step)
         ) == 0
     elif step < -1:
         # Similarly, stop can be too large --> make the upper-bound the max row number.
         step_bound_filter = (
-            (greatest(pandas_lit(0), least(stop, count_col - 1)) - row_pos_col)
+            (greatest(pandas_lit(0), least(stop, get_count_col() - 1)) - row_pos_col)
             % pandas_lit(abs(step))
         ) == 0
     else:  # abs(step) == 1, so all values in range are included.
@@ -528,6 +546,10 @@ def get_frame_by_row_pos_slice_frame(
 
     filter_cond = left_bound_filter & right_bound_filter & step_bound_filter
     ordered_dataframe = frame.ordered_dataframe.filter(filter_cond)
+    if limit_n is not None:
+        # adding limit here could improve performance when the filter is applied directly on a table, because it can
+        # exit the scanning of table once enough record is found
+        ordered_dataframe = ordered_dataframe.limit(limit_n, sort=False)
     ordered_dataframe = ordered_dataframe.sort(ordering_columns)
     return InternalFrame.create(
         ordered_dataframe=ordered_dataframe,
@@ -1734,6 +1756,7 @@ def _set_2d_labels_helper_for_frame_item(
     assert len(index.data_column_snowflake_quoted_identifiers) == len(
         item.index_column_snowflake_quoted_identifiers
     ), "TODO: SNOW-966427 handle it well in multiindex case"
+
     if not matching_item_rows_by_label:
         index = index.ensure_row_position_column()
         left_on = [index.row_position_snowflake_quoted_identifier]
@@ -1954,6 +1977,96 @@ def _set_2d_labels_helper_for_single_column_wise_item(
     ).result_frame
 
 
+def _convert_series_item_to_row_for_set_frame_2d_labels(
+    columns: Union[
+        "snowflake_query_compiler.SnowflakeQueryCompiler",
+        tuple,
+        slice,
+        list,
+        "pd.Index",
+        np.ndarray,
+    ],
+    col_info: LocSetColInfo,
+    item: InternalFrame,
+) -> InternalFrame:
+    """
+    Helper method to convert a Series to a row for a locset.
+
+    Args:
+        columns: the column labels to set
+        col_info: information about the column labels to set
+        item: the new values to set
+    Returns:
+        New item frame that has been converted from Series (single column) to single
+        row - in effect a transpose.
+    """
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
+    col_len = len(col_info.existing_column_positions)
+
+    if isinstance(columns, SnowflakeQueryCompiler):
+        # In the following step, we convert the Series item value to a single row.
+        # The column names for that row will come from the Series index. In the
+        # remainder of this set operation, we will use label based matching to
+        # match the column names of the item value and the column names of the
+        # frame that we are setting. If we are passed in columns as a Series,
+        # we want to match the values positionally (example below). To do this,
+        # we set the index of the item frame to the columns key passed in, so
+        # that after the next step, the item frame (single row frame) will have
+        # the columns key as the columns.
+        # Example:
+        # df.loc[:, pd.Series(["C", "B", "A"])] = pd.Series([1, 2, 3])
+        # In the above example, we want to set column C to 1, column B
+        # to 2, and column A to 3. If we didn't do the step below (the set_index
+        # step), then after the transpose, the item would look like this:
+        #    0  1  2
+        # 0  1  2  3
+        # but we want instead for it to look like this:
+        #    C  B  A
+        # 0  1  2  3
+        # so by setting the index to ["C", "B", "A"], then we get the desired result.
+        item = SnowflakeQueryCompiler(item).set_index_from_series(columns)._modin_frame
+
+    # Here we do the `reset_index`, since it may be the case that we set the index
+    # in the previous step to the columns key, rather than what the index was previously,
+    # which can lead to Snowflake internal errors if, for example, the index of the internal
+    # frame we are setting is of type int, but the columns are of type string, since the
+    # new index of item after the transpose will be of type string rather than of type int
+    # causing a join error.
+    item = (
+        SnowflakeQueryCompiler(
+            get_item_series_as_single_row_frame(item, col_len, move_index_to_cols=True)
+        )
+        .reset_index(drop=True)
+        ._modin_frame
+    )
+    return item
+
+
+def _add_scalar_index_to_item_and_convert_index_to_internal_frame(
+    item: InternalFrame, index: Scalar
+) -> tuple[InternalFrame, InternalFrame]:
+    """
+    Helper method to convert a scalar index to an InternalFrame and add it to the item InternalFrame.
+
+    Args:
+        item: the new values to set
+        index: the row labels to set. None means all rows are included.
+    Returns:
+        New item value with the index value as its index, and new index value converted
+        to a Series with a single value.
+    """
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
+    index = pd.Series([index])._query_compiler
+    item = SnowflakeQueryCompiler(item).set_index_from_series(index)._modin_frame
+    return item, index._modin_frame
+
+
 def set_frame_2d_labels(
     internal_frame: InternalFrame,
     index: Union[Scalar, slice, InternalFrame],
@@ -1970,6 +2083,7 @@ def set_frame_2d_labels(
     matching_item_rows_by_label: bool,
     index_is_bool_indexer: bool,
     deduplicate_columns: bool,
+    frame_is_df_and_item_is_series: bool,
 ) -> InternalFrame:
     """
     Helper function to handle the general loc set functionality. The general idea here is to join the key from ``index``
@@ -1996,6 +2110,7 @@ def set_frame_2d_labels(
         index_is_bool_indexer: if True, the index is a boolean indexer. Note we only handle boolean indexer with
                 item is a SnowflakeQueryCompiler here.
         deduplicate_columns: if True, deduplicate columns from ``columns``.
+        frame_is_df_and_item_is_series: Whether item is from a Series object and is being assigned to a DataFrame object
     Returns:
         New frame where values have been set
     """
@@ -2058,6 +2173,7 @@ def set_frame_2d_labels(
     index_is_frame = isinstance(index, InternalFrame)
     item_is_frame = isinstance(item, InternalFrame)
     item_is_scalar = is_scalar(item)
+    original_index = index
 
     assert not isinstance(index, slice) or index == slice(
         None
@@ -2068,6 +2184,30 @@ def set_frame_2d_labels(
     # map from item's data column label to its position in the joined frame or item_column_values
     item_data_col_label_to_pos_map: dict[Hashable, int] = {}
     if item_is_frame:
+        from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+            SnowflakeQueryCompiler,
+        )
+
+        # If `item` is from a Series (rather than a Dataframe), flip the series item values to apply them
+        # across columns rather than rows.
+        is_multi_col_set = (
+            isinstance(columns, Sized) and len(columns) > 1
+        ) or isinstance(columns, (slice, SnowflakeQueryCompiler))
+        if frame_is_df_and_item_is_series and is_multi_col_set:
+            # If columns is slice(None), we are setting all columns in the InternalFrame.
+            matching_item_columns_by_label = True
+            matching_item_rows_by_label = False
+            item = _convert_series_item_to_row_for_set_frame_2d_labels(
+                columns, col_info, item
+            )
+            if is_scalar(index):
+                (
+                    item,
+                    index,
+                ) = _add_scalar_index_to_item_and_convert_index_to_internal_frame(
+                    item, index
+                )
+
         # when item is not frame, this map will be initialized later
         item_data_col_label_to_pos_map = {
             label: pos
@@ -2254,7 +2394,7 @@ def set_frame_2d_labels(
 
         if index_is_scalar:
             col_obj = iff(
-                result_frame_index_col.equal_null(pandas_lit(index)),
+                result_frame_index_col.equal_null(pandas_lit(original_index)),
                 col_obj,
                 original_col,
             )
@@ -2313,7 +2453,7 @@ def set_frame_2d_labels(
             return SnowparkPandasColumn(pandas_lit(None), None)
         if index_is_scalar:
             new_column = iff(
-                result_frame_index_col.equal_null(pandas_lit(index)),
+                result_frame_index_col.equal_null(pandas_lit(original_index)),
                 new_column,
                 pandas_lit(None),
             )
@@ -2449,7 +2589,6 @@ def set_frame_2d_positional(
         index = _get_adjusted_key_frame_by_row_pos_int_frame(internal_frame, index)
 
     assert isinstance(index_data_type, (_IntegralType, BooleanType))
-
     if isinstance(item, InternalFrame):
         # If item is Series (rather than a Dataframe), then we need to flip the series item values so they apply across
         # columns rather than rows.
@@ -2763,7 +2902,9 @@ def get_kv_frame_from_index_and_item_frames(
 
 
 def get_item_series_as_single_row_frame(
-    item: InternalFrame, num_columns: int
+    item: InternalFrame,
+    num_columns: int,
+    move_index_to_cols: Optional[bool] = False,
 ) -> InternalFrame:
     """
     Get an internal frame that transpose single data column into frame with single row.  For example, if the
@@ -2785,13 +2926,18 @@ def get_item_series_as_single_row_frame(
     ----------
         num_columns: Number of columns in the return frame
         item: Item frame that contains a single column of values.
+        move_index_to_cols: Whether to use the index as the column names.
 
     Returns
     -------
         Frame containing single row with columns for each row.
     """
     item = item.ensure_row_position_column()
-    item_series_pandas_labels = list(range(num_columns))
+    item_series_pandas_labels = (
+        list(range(num_columns))
+        if not move_index_to_cols
+        else item.index_columns_pandas_index().values
+    )
 
     # This is a 2 step process.
     #

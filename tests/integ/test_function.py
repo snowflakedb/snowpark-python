@@ -1816,17 +1816,27 @@ def test_date_operations_negative(session):
 
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
-        [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
+        [
+            ("2019-01-23"),
+            ("2019-06-24"),
+            ("2019-09-20"),
+            (None),
+        ],
+        ["date"],
     )
     df = df.withColumn("date", to_date("date"))
-    res = df.withColumn("date", date_add("date", 4)).collect()
-    assert res[0].DATE == datetime.date(2019, 1, 27)
-    assert res[1].DATE == datetime.date(2019, 6, 28)
-    assert res[2].DATE == datetime.date(2019, 9, 24)
-    res = df.withColumn("date", date_sub("date", 4)).collect()
-    assert res[0].DATE == datetime.date(2019, 1, 19)
-    assert res[1].DATE == datetime.date(2019, 6, 20)
-    assert res[2].DATE == datetime.date(2019, 9, 16)
+    assert df.withColumn("date", date_add("date", 4)).collect() == [
+        Row(datetime.date(2019, 1, 27)),
+        Row(datetime.date(2019, 6, 28)),
+        Row(datetime.date(2019, 9, 24)),
+        Row(None),
+    ]
+    assert df.withColumn("date", date_sub("date", 4)).collect() == [
+        Row(datetime.date(2019, 1, 19)),
+        Row(datetime.date(2019, 6, 20)),
+        Row(datetime.date(2019, 9, 16)),
+        Row(None),
+    ]
 
 
 @pytest.mark.skipif(

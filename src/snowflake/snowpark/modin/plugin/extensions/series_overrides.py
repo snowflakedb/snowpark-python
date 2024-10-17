@@ -45,11 +45,15 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     error_checking_for_init,
 )
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
+from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
+    SnowparkPandasRowPartitionIterator,
+)
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
     series_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.frontend_constants import (
+    SERIES_ITEMS_WARNING_MESSAGE,
     SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SCALAR_ERROR_MESSAGE,
     SERIES_SETITEM_INCOMPATIBLE_INDEXER_WITH_SERIES_ERROR_MESSAGE,
     SERIES_SETITEM_LIST_LIKE_KEY_AND_RANGE_LIKE_VALUE_ERROR_MESSAGE,
@@ -203,9 +207,22 @@ def item(self):  # noqa: RT01, D200
     pass  # pragma: no cover
 
 
-@register_series_not_implemented()
-def items(self):  # noqa: RT01, D200
-    pass  # pragma: no cover
+# Snowpark pandas has a custom iterator.
+@register_series_accessor("items")
+def items(self):
+    # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
+    """
+    Iterate over ``Series`` rows as (index, value) tuples.
+    """
+
+    def items_builder(s):
+        """Return tuple of the given ``Series`` in the form (index, value)."""
+        return s.name, s.squeeze()
+
+    # Raise warning message since Series.items is very inefficient.
+    WarningMessage.single_warning(SERIES_ITEMS_WARNING_MESSAGE)
+
+    return SnowparkPandasRowPartitionIterator(DataFrame(self), items_builder, True)
 
 
 @register_series_not_implemented()
