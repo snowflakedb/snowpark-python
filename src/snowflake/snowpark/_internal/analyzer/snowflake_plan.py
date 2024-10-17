@@ -273,9 +273,17 @@ class SnowflakePlan(LogicalPlan):
         # to UUID track queries that are generated from the same plan.
         self._uuid = str(uuid.uuid4())
         # Metadata/Attributes for the plan
-        self._attributes: Optional[List[Attribute]] = None
+        self._attributes = None
+        self._quoted_identifiers = None
+        # If _attributes is not None, then _quoted_identifiers will be None.
+        # If _quoted_identifiers is not None, then _attributes will be None.
         if session.reduce_describe_query_enabled and self.source_plan is not None:
-            self._attributes = infer_metadata(self.source_plan)
+            self._attributes, self._quoted_identifiers = infer_metadata(
+                self.source_plan
+            )
+        assert not (
+            self._attributes is not None and self._quoted_identifiers is not None
+        )
 
     @property
     def uuid(self) -> str:
@@ -393,6 +401,17 @@ class SnowflakePlan(LogicalPlan):
         )
 
     @property
+    def quoted_identifiers(self) -> List[str]:
+        # If self._quoted_identifiers is not None (self._attributes must be None),
+        # retrieve quoted_identifiers from self._quoted_identifiers.
+        # otherwise, retrieve quoted_identifiers from self.attributes
+        # (which may trigger a describe query).
+        if self._quoted_identifiers is not None:
+            return self._quoted_identifiers
+        else:
+            return [attr.name for attr in self.attributes]
+
+    @property
     def attributes(self) -> List[Attribute]:
         from snowflake.snowpark._internal.analyzer.select_statement import (
             SelectStatement,
@@ -410,6 +429,7 @@ class SnowflakePlan(LogicalPlan):
             self.source_plan, SelectStatement
         ):
             self.source_plan._attributes = self._attributes
+        self._quoted_identifiers = None
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
             self.schema_query = schema_value_statement(self._attributes)
