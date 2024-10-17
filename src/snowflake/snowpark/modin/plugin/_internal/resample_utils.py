@@ -344,7 +344,7 @@ def time_slice(
 
 def perform_resample_binning_on_frame(
     frame: InternalFrame,
-    datetime_index_col: str,
+    datetime_index_col_identifier: str,
     start_date: str,
     slice_width: int,
     slice_unit: str,
@@ -359,8 +359,8 @@ def perform_resample_binning_on_frame(
         The internal frame with a single DatetimeIndex column
         to perform resample binning on.
 
-    datetime_index_col : str
-        The datetime-like column to use for resampling.
+    datetime_index_col_identifier : str
+        The datetime-like column snowflake quoted identifier to use for resampling.
 
     start_date : str
         The earliest date in the Datetime index column of
@@ -401,7 +401,11 @@ def perform_resample_binning_on_frame(
 
     # Subtract the normalization amount in seconds from the input datetime.
     normalized_dates = to_timestamp_ntz(
-        datediff("second", to_timestamp_ntz(lit(normalization_amt)), datetime_index_col)
+        datediff(
+            "second",
+            to_timestamp_ntz(lit(normalization_amt)),
+            datetime_index_col_identifier,
+        )
     )
     # frame:
     #             data_col
@@ -462,7 +466,7 @@ def perform_resample_binning_on_frame(
     # 2023-08-16         9
 
     return frame.update_snowflake_quoted_identifiers_with_expressions(
-        {datetime_index_col: unnormalized_dates_set_to_bins}
+        {datetime_index_col_identifier: unnormalized_dates_set_to_bins}
     ).frame
 
 

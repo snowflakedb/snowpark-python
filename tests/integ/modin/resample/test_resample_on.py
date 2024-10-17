@@ -59,17 +59,19 @@ def test_resample_non_datetime_on():
         snow_df.resample(rule="2s", on="A").min().to_pandas()
 
 
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
+# One query to get the Modin frame data column pandas labels
 def test_resample_invalid_on():
-    native_df = native_pd.DataFrame(
-        data={
-            "A": np.random.randn(15),
-            "B": native_pd.date_range("2020-01-01", periods=15, freq="1s"),
-        },
-        index=native_pd.date_range("2020-10-01", periods=15, freq="1s"),
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {
+                "A": np.random.randn(15),
+                "B": native_pd.date_range("2020-01-01", periods=15, freq="1s"),
+            },
+            index=native_pd.date_range("2020-10-01", periods=15, freq="1s"),
+        ),
+        lambda df: df.resample(rule="2s", on="invalid", closed="left").min(),
+        expect_exception=True,
+        expect_exception_type=KeyError,
+        expect_exception_match="invalid",
     )
-    snow_df = pd.DataFrame(native_df)
-    with pytest.raises(KeyError):
-        native_df.resample(rule="2s", on="invalid").min()
-    with pytest.raises(IndexError):
-        snow_df.resample(rule="2s", on="invalid").min().to_pandas()

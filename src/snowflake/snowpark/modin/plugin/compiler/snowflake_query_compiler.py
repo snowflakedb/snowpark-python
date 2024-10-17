@@ -12327,7 +12327,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         on = resample_kwargs.get("on")
 
         # Supplying 'on' to Resampler replaces the existing index of the DataFrame with the 'on' column
-        frame = self.set_index(on)._modin_frame if on else self._modin_frame
+        if on is not None:
+            if on not in self._modin_frame.data_column_pandas_labels:
+                raise KeyError(f"{on}")
+            frame = self.set_index(on)._modin_frame
+        else:
+            frame = self._modin_frame
 
         if resample_method in ("var", np.var) and any(
             isinstance(t, TimedeltaType)
@@ -12410,7 +12415,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         elif resample_method in IMPLEMENTED_AGG_METHODS:
             resampled_frame = perform_resample_binning_on_frame(
                 frame=frame,
-                datetime_index_col=snowflake_index_column_identifier,
+                datetime_index_col_identifier=snowflake_index_column_identifier,
                 start_date=start_date,
                 slice_width=slice_width,
                 slice_unit=slice_unit,
@@ -12432,7 +12437,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     SnowflakeQueryCompiler(resampled_frame)
                     .reset_index()
                     .groupby_size(
-                        by=on if on else "index",
+                        by=on if on is not None else "index",
                         axis=axis,
                         groupby_kwargs=dict(),
                         agg_args=resample_method_args,
