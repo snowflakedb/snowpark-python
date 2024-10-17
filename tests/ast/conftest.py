@@ -80,6 +80,64 @@ class Tables:
         return table_name
 
     @cached_property
+    def df1_table(self) -> str:
+        table_name: str = "df1"
+        df = self._session.create_dataframe(
+            [
+                [1, 2],
+                [3, 4],
+            ],
+            schema=["a", "b"],
+            _emit_ast=False,
+        )
+        logging.debug("Creating table %s", table_name)
+        df.write.save_as_table(table_name, _emit_ast=False)
+        return table_name
+
+    @cached_property
+    def df2_table(self) -> str:
+        table_name: str = "df2"
+        df = self._session.create_dataframe(
+            [
+                [0, 1],
+                [3, 4],
+            ],
+            schema=["c", "d"],
+            _emit_ast=False,
+        )
+        logging.debug("Creating table %s", table_name)
+        df.write.save_as_table(table_name, _emit_ast=False)
+        return table_name
+
+    @cached_property
+    def df3_table(self) -> str:
+        table_name: str = "df3"
+        df = self._session.create_dataframe(
+            [
+                [1, 2],
+            ],
+            schema=["a", "b"],
+            _emit_ast=False,
+        )
+        logging.debug("Creating table %s", table_name)
+        df.write.save_as_table(table_name, _emit_ast=False)
+        return table_name
+
+    @cached_property
+    def df4_table(self) -> str:
+        table_name: str = "df4"
+        df = self._session.create_dataframe(
+            [
+                [2, 1],
+            ],
+            schema=["b", "a"],
+            _emit_ast=False,
+        )
+        logging.debug("Creating table %s", table_name)
+        df.write.save_as_table(table_name, _emit_ast=False)
+        return table_name
+
+    @cached_property
     def double_quoted_table(self) -> str:
         table_name: str = '"the#qui.ck#bro.wn#""Fox""won\'t#jump!"'
         df = self._session.create_dataframe(
