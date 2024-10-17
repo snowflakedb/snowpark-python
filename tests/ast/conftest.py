@@ -64,6 +64,22 @@ class Tables:
         return table_name
 
     @cached_property
+    def table2(self) -> str:
+        table_name: str = "table2"
+        df = self._session.create_dataframe(
+            [
+                [1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"],
+                [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"],
+                [3, [], {}, "Tea"],
+            ],
+            schema=["idx", "lists", "maps", "strs"],
+            _emit_ast=False,
+        )
+        logging.debug("Creating table %s", table_name)
+        df.write.save_as_table(table_name, _emit_ast=False)
+        return table_name
+
+    @cached_property
     def double_quoted_table(self) -> str:
         table_name: str = '"the#qui.ck#bro.wn#""Fox""won\'t#jump!"'
         df = self._session.create_dataframe(

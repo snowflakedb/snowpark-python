@@ -190,13 +190,6 @@ def run_test(session, tables):
     )
     mock.write.save_as_table("test_df4", _emit_ast=False)
 
-    mock = session.create_dataframe(
-        [[1, [1, 2, 3], {{"Ashi Garami": "Single Leg X"}}, "Kimura"],
-        [2, [11, 22], {{"Sankaku": "Triangle"}}, "Coffee"],
-        [3, [], {{}}, "Tea"]],
-        schema=["idx", "lists", "maps", "strs"], _emit_ast=False)
-    mock.write.save_as_table("test_table2", _emit_ast=False)
-
     session._ast_batch.flush()  # Clear the AST.
 
     # Run the test.
