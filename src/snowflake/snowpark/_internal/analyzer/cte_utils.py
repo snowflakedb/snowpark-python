@@ -14,8 +14,8 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
-    random_name_for_temp_object,
     is_sql_select_statement,
+    random_name_for_temp_object,
 )
 
 if TYPE_CHECKING:
