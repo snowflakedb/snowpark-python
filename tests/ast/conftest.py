@@ -3,6 +3,7 @@
 #
 import logging
 import os
+from functools import cached_property
 
 import pytest
 
@@ -42,6 +43,26 @@ def pytest_configure(config):
     pytest.update_expectations = config.getoption("--update-expectations")
 
 
+class Tables:
+    def __init__(self, session) -> None:
+        self._session = session
+
+    @cached_property
+    def table1(self) -> str:
+        table_name: str = "table1"
+        df = self._session.create_dataframe(
+            [
+                [1, "one"],
+                [2, "two"],
+                [3, "three"],
+            ],
+            schema=["num", "str"],
+            _emit_ast=False,
+        )
+        df.write.save_as_table(table_name, _emit_ast=False)
+        return table_name
+
+
 @pytest.fixture(scope="function")
 def session():
     # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
@@ -49,6 +70,11 @@ def session():
     with Session.builder.config("local_testing", True).create() as s:
         s.ast_enabled = True
         yield s
+
+
+@pytest.fixture(scope="function")
+def tables(session):
+    return Tables(session)
 
 
 def pytest_sessionstart(session):
