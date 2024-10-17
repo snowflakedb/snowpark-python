@@ -132,6 +132,23 @@ class Tables:
             schema=["num", 'Owner\'s""opinion.s'],
         )
 
+    @property
+    def throwaway_table1(self) -> str:
+        table_name: str = "throwaway1"
+        df = self._session.create_dataframe(
+            [
+                [1, "one"],
+                [2, "two"],
+                [3, "three"],
+            ],
+            schema=["num", "str"],
+            _emit_ast=False,
+        )
+        df.write.save_as_table(
+            table_name, mode="ignore", table_type="temporary", _emit_ast=False
+        )
+        return table_name
+
     def _save_table(self, name: str, *args, **kwargs):
         kwargs.pop("_emit_ast", None)
         kwargs.pop("_ast_stmt", None)

@@ -1,22 +1,22 @@
 ## TEST CASE
 
-df = Table(tables.table1, session)
+df = Table(tables.throwaway_table1, session)
 
 df.delete()
 
-df = Table(tables.table1, session)
+df = Table(tables.throwaway_table1, session)
 
 df.delete(block=False)
 
-df = Table(tables.table1, session)
+df = Table(tables.throwaway_table1, session)
 
 df.delete(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
-df = Table(tables.table1, session)
+df = Table(tables.throwaway_table1, session)
 
 df.delete(df["num"] == 1)
 
-df = Table(tables.table1, session)
+df = Table(tables.throwaway_table1, session)
 
 source_df = session.create_dataframe([2, 3, 4, 5], schema=["a"])
 
@@ -24,23 +24,23 @@ df.delete(["num"] == source_df.a, source_df)
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = Table("table1", session)
+df = Table("throwaway1", session)
 
 df.delete()
 
-df = Table("table1", session)
+df = Table("throwaway1", session)
 
 df.delete(block=False)
 
-df = Table("table1", session)
+df = Table("throwaway1", session)
 
 df.delete(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
-df = Table("table1", session)
+df = Table("throwaway1", session)
 
 df.delete(condition=df["num"] == 1)
 
-df = Table("table1", session)
+df = Table("throwaway1", session)
 
 source_df = session.create_dataframe([2, 3, 4, 5], schema=["a"])
 
