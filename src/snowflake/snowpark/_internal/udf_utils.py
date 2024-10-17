@@ -980,8 +980,10 @@ def add_snowpark_package_to_sproc_packages(
     if packages is None:
         if session is None:
             packages = [this_package]
-        elif package_name not in session._packages:
-            packages = list(session._packages.values()) + [this_package]
+        else:
+            with session._package_lock:
+                if package_name not in session._packages:
+                    packages = list(session._packages.values()) + [this_package]
     else:
         package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
         if not any(p.startswith(package_name) for p in package_names):
@@ -1234,11 +1236,10 @@ def create_python_udf_or_sp(
     statement_params: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
+    copy_grants: bool = False,
+    runtime_version: Optional[str] = None,
 ) -> None:
-    if session is not None and session._runtime_version_from_requirement:
-        runtime_version = session._runtime_version_from_requirement
-    else:
-        runtime_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
@@ -1327,6 +1328,7 @@ $$
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
 {"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
+{" COPY GRANTS " if copy_grants else ""}
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 {mutability}

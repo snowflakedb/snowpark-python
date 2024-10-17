@@ -23,6 +23,7 @@ import pandas as native_pd
 import pandas.core.resample
 import pandas.io.parsers
 import pandas.io.parsers.readers
+import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from pandas import Timedelta
 from pandas._libs import lib
@@ -245,6 +246,7 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     InheritJoinIndex,
     JoinKeyCoalesceConfig,
     MatchComparator,
+    convert_index_type_to_variant,
 )
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
@@ -2634,6 +2636,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             _filter_column_snowflake_quoted_id = (
                 modin_frame.data_column_snowflake_quoted_identifiers[-1]
             )
+        # convert index frame to variant type so it can be joined with a frame of differing type
+        new_index_modin_frame = convert_index_type_to_variant(new_index_modin_frame)
         result_frame, result_frame_column_mapper = join_utils.join(
             new_index_modin_frame,
             modin_frame,
@@ -14512,6 +14516,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler with all `to_replace` values replaced by `value`.
         """
+        # Propagating client-side types through replace() is complicated.
+        # Timedelta columns may change types after replace(), and non-timedelta
+        # columns may contain timedelta columns after replace().
+        self._raise_not_implemented_error_for_timedelta()
+
         if method is not lib.no_default:
             ErrorMessage.not_implemented(
                 "Snowpark pandas replace API does not support 'method' parameter"
@@ -14620,6 +14629,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             value_map = {i: value for i in identifiers}  # type: ignore
         elif value != lib.no_default:
             raise TypeError(f"Unsupported value type: {type(value)}")
+
+        def _scalar_belongs_to_timedelta_classes(s: Any) -> bool:
+            return any(
+                issubclass(type(s), timedelta_class)
+                for timedelta_class in TimedeltaType.types_to_convert_with_from_pandas
+            )
+
+        # Raise if the new values in `value` include timedelta.
+        if any(
+            (
+                isinstance(v, list)
+                and any(_scalar_belongs_to_timedelta_classes(vv) for vv in v)
+            )
+            or _scalar_belongs_to_timedelta_classes(v)
+            for v in value_map.values()
+        ):
+            ErrorMessage.not_implemented_for_timedelta("replace")
 
         replaced_column_exprs = {}
         for identifier, to_replace in replace_map.items():
@@ -15111,7 +15137,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
-    @snowpark_pandas_type_immutable_check
     def round(
         self, decimals: Union[int, Mapping, "pd.Series"] = 0, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
@@ -15130,6 +15155,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         BaseQueryCompiler
             QueryCompiler with rounded values.
         """
+        # DataFrame.round() and Series.round() ignore non-numeric columns like
+        # timedelta. We raise a Snowflake error for non-numeric, non-timedelta
+        # columns like strings, but we have to detect timedelta separately
+        # because its underlying representation is an integer. Without this
+        # check, we'd round the integer representation of the timedelta instead
+        # of leaving the timedelta unchanged.
+        self._raise_not_implemented_error_for_timedelta()
+
         if isinstance(decimals, pd.Series):
             raise ErrorMessage.not_implemented(
                 "round with decimals of type Series is not yet supported"
@@ -17294,6 +17327,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.parameter_not_implemented_error("ambiguous", method_name)
         if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.parameter_not_implemented_error("nonexistent", method_name)
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas method '{method_name}' doesn't support 'tz={tz}'"
+            )
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
@@ -17317,6 +17354,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new QueryCompiler containing values with converted time zone.
         """
+        if not include_index:
+            method_name = "Series.dt.tz_convert"
+        else:
+            method_name = "DatetimeIndex.tz_convert"
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas method '{method_name}' doesn't support 'tz={tz}'"
+            )
+
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
                 lambda column: tz_convert_column(column, tz),
@@ -18868,6 +18914,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas 'tz_convert' method doesn't support 'copy=False'"
             )
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'tz_convert' method doesn't support 'tz={tz}'"
+            )
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
@@ -18939,6 +18989,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not isinstance(nonexistent, str) or nonexistent != "raise":
             ErrorMessage.not_implemented(
                 "Snowpark pandas 'tz_localize' method doesn't yet support the 'nonexistent' parameter"
+            )
+        if isinstance(tz, str) and tz not in pytz.all_timezones:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'tz_localize' method doesn't support 'tz={tz}'"
             )
 
         return SnowflakeQueryCompiler(

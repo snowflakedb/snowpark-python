@@ -71,3 +71,23 @@ def test_empty_dataframe(n, empty_snowpark_pandas_df):
         comparator=eval_result_and_query_with_no_join,
         check_column_type=False,
     )
+
+
+@pytest.mark.parametrize(
+    "ops",
+    [
+        lambda df: df.head(),
+        lambda df: df.iloc[1:100],
+        lambda df: df.iloc[1000:100:-1],
+    ],
+)
+@sql_count_checker(query_count=6)
+def test_head_efficient_sql(session, ops):
+    df = DataFrame({"a": [1] * 10000})
+    with session.query_history() as query_listener:
+        ops(df).to_pandas()
+    eval_query = query_listener.queries[-2].sql_text.lower()
+    # check no row count
+    assert "count" not in eval_query
+    # check orderBy behinds limit
+    assert eval_query.index("limit") < eval_query.index("order by")
