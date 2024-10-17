@@ -472,6 +472,43 @@ def test_structured_dtypes_iceberg(
         structured_type_session.sql(f"drop table if exists {table_name}")
 
 
+def test_struct_dtype_iceberg_lqb(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+    table_name = f"snowpark_structured_dtypes_lqb_{uuid.uuid4().hex[:5]}"
+    query = """select
+                [1, 2, 3] :: array(bigint) as arr,
+                object_construct('k1', 1, 'k2', 2) :: map(varchar, bigint) as map,
+                1 as a,
+                2 as b
+    """
+    expected_dtypes = [
+        ("ARR", "array<bigint>"),
+        ("MAP", "map<string(16777216),bigint>"),
+        ("A", "bigint"),
+        ("B", "bigint"),
+    ]
+    expected_schema = StructType(
+        [
+            StructField("ARR", ArrayType(LongType(), structured=True), nullable=True),
+            StructField(
+                "MAP",
+                MapType(StringType(100), LongType(), structured=True),
+                nullable=True,
+            ),
+            StructType("A", IntegerType(), nullable=True),
+            StructType("B", IntegerType(), nullable=True),
+        ]
+    )
+    try:
+        structured_type_session.sql(f"create or replace table {table_name} as {query}")
+        df = structured_type_session.table(table_name)
+        assert df.schema == expected_schema
+        assert df.dtypes == expected_dtypes
+    finally:
+        Utils.drop_table(structured_type_session, table_name)
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
