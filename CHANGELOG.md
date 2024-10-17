@@ -41,6 +41,8 @@
 
 ### Snowpark Python API Updates
 
+- Updated `Session` class to be thread-safe. This allows concurrent dataframe transformations, dataframe actions, UDF and store procedure registration, and concurrent file uploads.
+
 #### New Features
 
 - Added the following new functions in `snowflake.snowpark.functions`:
