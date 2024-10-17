@@ -57,7 +57,8 @@ def test_groupby_series_count_with_nan():
         series,
         series.to_pandas(),
         lambda se: se.groupby("grp_col").count(),
-        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 
@@ -95,7 +96,8 @@ def test_groupby_agg_series(agg_func, sort):
         series,
         series.to_pandas(),
         perform_groupby,
-        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 
@@ -153,7 +155,8 @@ def test_groupby_agg_series_named_agg(aggs, sort):
         series,
         series.to_pandas(),
         lambda se: se.groupby(by="grp_col", sort=sort).agg(**aggs),
-        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 

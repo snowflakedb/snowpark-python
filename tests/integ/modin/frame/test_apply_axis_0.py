@@ -323,7 +323,8 @@ def test_groupby_apply_constant_output():
         snow_df,
         native_df,
         lambda df: df.groupby(by=["fg"], axis=0).apply(lambda x: [1, 2]),
-        test_attrs=False,  # native pandas is inconsistent about whether it propagates attrs
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 
