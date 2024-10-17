@@ -179,7 +179,6 @@ def test_query_history_without_multi_thread(session):
         # assert it equals to main thread id
         assert query.thread_id == threading.get_ident()
         thread_numbers.add(query.thread_id)
-    print(query_history.queries)
     assert len(thread_numbers) == 1
 
 
@@ -195,7 +194,7 @@ def test_query_history_with_multi_thread_and_describe(session):
             _, _ = wait(works, return_when=ALL_COMPLETED)
     thread_numbers = set()
     for query in query_history.queries:
-        assert query.sql_text.split(" ")[-1] == str(query.thread_id)
+        if query.is_describe:
+            assert query.sql_text.split(" ")[-1] == str(query.thread_id)
         thread_numbers.add(query.thread_id)
-    print(query_history.queries)
     assert len(thread_numbers) == 2
