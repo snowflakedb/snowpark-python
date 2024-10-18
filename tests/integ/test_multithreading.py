@@ -41,7 +41,6 @@ def threadsafe_session(
     db_parameters,
     session,
     sql_simplifier_enabled,
-    cte_optimization_enabled,
     local_testing_mode,
 ):
     if IS_IN_STORED_PROC:
@@ -54,7 +53,6 @@ def threadsafe_session(
         }
         with Session.builder.configs(new_db_parameters).create() as session:
             session._sql_simplifier_enabled = sql_simplifier_enabled
-            session._cte_optimization_enabled = cte_optimization_enabled
             yield session
 
 
