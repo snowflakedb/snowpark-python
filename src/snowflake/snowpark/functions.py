@@ -8820,7 +8820,9 @@ def map(
     ]
 
     output_cols = [
-        col(f"${i + num_fields + 1}").alias(col_name)
+        col(f"${i + num_fields + 1}").alias(
+            col_name
+        )  # this is done to avoid collision with original table columns
         for i, col_name in enumerate(output_column_names)
     ]
     input_row_obj = snowflake.snowpark.Row(*dataframe.columns) if wrap_row else None
