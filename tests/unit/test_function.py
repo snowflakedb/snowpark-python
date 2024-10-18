@@ -141,7 +141,9 @@ def test_functions_alias():
 
 def test_map():
     mock_connection = mock.create_autospec(ServerConnection)
+    mock_connection._thread_safe_session_enabled = True
     mock_connection._conn = mock.MagicMock()
+
     session = snowflake.snowpark.session.Session(mock_connection)
     session._packages = {
         "snowflake-snowpark-python": "snowflake-snowpark-python",
