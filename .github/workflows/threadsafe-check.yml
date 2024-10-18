@@ -19,18 +19,21 @@ jobs:
                 echo "changed_files=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | xargs)" >> $GITHUB_OUTPUT
 
             - name: Verify threadsafety acknowledgement
-              run: |
-                CHANGED_FILES="${{ steps.changed_files.outputs.changed_files }}"
-                # Check if changed files are in snowpark/_internal, snowpark/mock, or snowpark/*.py. We exclude snowpark/modin in this check.
-                if echo "$CHANGED_FILES" | grep -qE '(src/snowflake/snowpark/_internal|src/snowflake/snowpark/mock|src/snowflake/snowpark/[^/]+\.py)'; then
-                    echo "Checking PR description for thread-safety acknowledgment..."
-                    if [[ "${{ github.event.pull_request.body }}" != *"[x] I acknowledge that I have ensured my changes to be thread-safe"* ]]; then
-                        echo "Thread-safety acknowledgment not found in PR description."
-                        echo "Please acknowledge the threadsafety implications of your changes by adding '[x] I acknowledge that I have ensured my changes to be thread-safe' to the PR description."
-                        exit 1
-                    else
-                        echo "Thread-safety acknowledgment found in PR description."
-                    fi
-                else
-                    echo "No critical files modified; skipping threadsafety check."
-                fi
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                    const changedFiles = context.payload.pull_request.changed_files;
+                    const prBody = context.payload.pull_request.body;
+                    // Check if changed files are in snowpark/_internal, snowpark/mock, or snowpark/*.py. We exclude snowpark/modin in this check.
+                    if (changedFiles.some(file => file.match(/src\/snowflake\/snowpark\/_internal|src\/snowflake\/snowpark\/mock|src\/snowflake\/snowpark\/[^/]+\.py/))) {
+                        console.log("Checking PR description for thread-safety acknowledgment...");
+                        if (!prBody.includes("[x] I acknowledge that I have ensured my changes to be thread-safe")) {
+                            console.log("Thread-safety acknowledgment not found in PR description.");
+                            console.log("Please acknowledge the threadsafety implications of your changes by adding '[x] I acknowledge that I have ensured my changes to be thread-safe' to the PR description.");
+                            process.exit(1);
+                        } else {
+                            console.log("Thread-safety acknowledgment found in PR description.");
+                        }
+                    } else {
+                        console.log("No critical files modified; skipping threadsafety check.");
+                    }
