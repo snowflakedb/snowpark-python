@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    is_sql_select_statement,
     random_name_for_temp_object,
 )
 
@@ -185,6 +186,12 @@ def encoded_query_id(node) -> Optional[str]:
     else:
         query = node.sql_query
         query_params = node.query_params
+
+    if not is_sql_select_statement(query):
+        # common subquery elimination only supports eliminating
+        # subquery that is select statement. Skip encoding the query
+        # to avoid being detected as a common subquery.
+        return None
 
     string = f"{query}#{query_params}" if query_params else query
     try:

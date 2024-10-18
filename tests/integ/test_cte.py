@@ -747,6 +747,25 @@ def test_sql(session, query):
         assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+def test_sql_non_select(session):
+    df1 = session.sql("show tables in schema limit 10")
+    df2 = session.sql("show tables in schema limit 10")
+
+    df_result = df1.union(df2).select('"name"').filter(lit(True))
+
+    check_result(
+        session,
+        df_result,
+        # since the two show tables are called in two different dataframe, we
+        # won't be able to detect those as common subquery.
+        expect_cte_optimized=False,
+        query_count=3,
+        describe_count=0,
+        union_count=1,
+        join_count=0,
+    )
+
+
 @pytest.mark.parametrize(
     "action",
     [
