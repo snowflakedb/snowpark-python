@@ -145,7 +145,9 @@ def test_df_setitem_slice_key_df_value(key, dtype):
         else:
             df[key] = val
 
-    with SqlCounter(query_count=1, join_count=3):
+    expected_join_count = 3 if isinstance(key.start, int) else 4
+
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(snow_df, native_df, setitem, inplace=True)
 
 
@@ -338,9 +340,6 @@ def test_df_setitem_self_df_set_aligned_row_key(native_df):
         param(
             [pd.Timedelta(5), pd.Timedelta(6), pd.Timedelta(7)],
             id="timedelta_type",
-            marks=pytest.mark.xfail(
-                strict=True, raises=NotImplementedError, reason="SNOW-1738952"
-            ),
         ),
         native_pd.Series(["x", "y", "z"], index=[2, 0, 1]),
         native_pd.RangeIndex(3),
@@ -379,20 +378,35 @@ def test_df_setitem_replace_column_with_single_column(column, key):
     ):
         expected_join_count = 4
 
-    # 3 extra queries, 2 for iter and 1 for tolist
-    with SqlCounter(
-        query_count=4
-        if isinstance(column, native_pd.Index)
-        and not isinstance(column, native_pd.DatetimeIndex)
-        else 1,
-        join_count=expected_join_count,
+    if (
+        key == "a"
+        and isinstance(column, list)
+        and column == [pd.Timedelta(5), pd.Timedelta(6), pd.Timedelta(7)]
     ):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda df: func_insert_new_column(df, column),
-            inplace=True,
-        )
+        # failure because of SNOW-1738952. SNOW-1738952 only applies to this
+        # case because we're replacing an existing column.
+        with SqlCounter(query_count=0), pytest.raises(NotImplementedError):
+            eval_snowpark_pandas_result(
+                snow_df,
+                native_df,
+                lambda df: func_insert_new_column(df, column),
+                inplace=True,
+            )
+    else:
+        # 3 extra queries, 2 for iter and 1 for tolist
+        with SqlCounter(
+            query_count=4
+            if isinstance(column, native_pd.Index)
+            and not isinstance(column, native_pd.DatetimeIndex)
+            else 1,
+            join_count=expected_join_count,
+        ):
+            eval_snowpark_pandas_result(
+                snow_df,
+                native_df,
+                lambda df: func_insert_new_column(df, column),
+                inplace=True,
+            )
 
 
 @pytest.mark.parametrize("value", [[], [1, 2], np.array([4, 5, 6, 7])])
