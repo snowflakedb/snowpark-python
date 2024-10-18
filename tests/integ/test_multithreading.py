@@ -74,9 +74,10 @@ def threadsafe_temp_stage(threadsafe_session, resources_path, local_testing_mode
 
 
 def test_threadsafe_session_uses_locks(threadsafe_session):
-    assert isinstance(threadsafe_session._lock, threading.RLock)
-    assert isinstance(threadsafe_session._temp_table_auto_cleaner.lock, threading.RLock)
-    assert isinstance(threadsafe_session._conn._lock, threading.RLock)
+    rlock_class = threading.RLock().__class__
+    assert isinstance(threadsafe_session._lock, rlock_class)
+    assert isinstance(threadsafe_session._temp_table_auto_cleaner.lock, rlock_class)
+    assert isinstance(threadsafe_session._conn._lock, rlock_class)
 
 
 def test_concurrent_select_queries(threadsafe_session):
