@@ -589,7 +589,7 @@ class Session:
         )
         self._reduce_describe_query_enabled: bool = (
             self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, True
+                _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, False
             )
         )
         self._query_compilation_stage_enabled: bool = (

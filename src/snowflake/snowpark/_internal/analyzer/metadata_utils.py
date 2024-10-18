@@ -2,14 +2,9 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Tuple
 
-from snowflake.snowpark._internal.analyzer.expression import (
-    Attribute,
-    Expression,
-    NamedExpression,
-    Star,
-)
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression, Star
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import Limit, LogicalPlan
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 
@@ -18,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def infer_quoted_identifiers_from_expressions(
-    expressions: List[Union[Expression, NamedExpression]],
+    expressions: List[Expression],
     analyzer: "Analyzer",
     df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
 ) -> Optional[List[str]]:
@@ -78,7 +73,9 @@ def infer_metadata(
             quoted_identifiers = source_plan.child._quoted_identifiers
     elif isinstance(source_plan, Project):
         quoted_identifiers = infer_quoted_identifiers_from_expressions(
-            source_plan.project_list, analyzer, df_aliased_col_name_to_real_col_name
+            source_plan.project_list,  # type: ignore
+            analyzer,
+            df_aliased_col_name_to_real_col_name,
         )
     # If source_plan is a SelectStatement, SQL simplifier is enabled
     elif isinstance(source_plan, SelectStatement):
