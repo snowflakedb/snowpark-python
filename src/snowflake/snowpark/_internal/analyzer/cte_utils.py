@@ -5,7 +5,7 @@
 import hashlib
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Optional, Set, Union
+from typing import TYPE_CHECKING, Dict, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     SPACE,
