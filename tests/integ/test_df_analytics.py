@@ -443,9 +443,9 @@ def test_time_series_agg(session):
     # Define the expected data
     expected_data = {
         "PRODUCTKEY": [101, 101, 101, 102],
-        "SLIDING_POINT": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
-        "SALESAMOUNT": [200, 100, 300, 250],
         "ORDERDATE": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
+        "SALESAMOUNT": [200, 100, 300, 250],
+        "SLIDING_POINT": ["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04"],
         "SUM_SALESAMOUNT_1D": [300, 400, 300, 250],
         "MAX_SALESAMOUNT_1D": [200, 300, 300, 250],
         "SUM_SALESAMOUNT_-1D": [200, 300, 400, 250],
@@ -463,6 +463,61 @@ def test_time_series_agg(session):
     # Compare the result to the expected DataFrame
     assert_frame_equal(
         res.order_by("ORDERDATE").to_pandas(), expected_df, check_dtype=False, atol=1e-1
+    )
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
+def test_time_series_aggregation_grouping_bug_fix(session):
+    data = [
+        ["2024-02-01 00:00:00", "product_A", "transaction_1", 10],
+        ["2024-02-15 00:00:00", "product_A", "transaction_2", 15],
+        ["2024-02-15 08:00:00", "product_A", "transaction_3", 7],
+        ["2024-02-17 00:00:00", "product_A", "transaction_4", 3],
+    ]
+    df = session.create_dataframe(data).to_df(
+        "TS", "PRODUCT_ID", "TRANSACTION_ID", "QUANTITY"
+    )
+
+    res = df.analytics.time_series_agg(
+        time_col="TS",
+        group_by=["PRODUCT_ID"],
+        aggs={"QUANTITY": ["SUM"]},
+        windows=["-1D", "-7D"],
+        sliding_interval="1D",
+    )
+
+    expected_data = {
+        "PRODUCT_ID": ["product_A", "product_A", "product_A", "product_A"],
+        "TS": [
+            "2024-02-01 00:00:00",
+            "2024-02-15 00:00:00",
+            "2024-02-15 08:00:00",
+            "2024-02-17 00:00:00",
+        ],
+        "TRANSACTION_ID": [
+            "transaction_1",
+            "transaction_2",
+            "transaction_3",
+            "transaction_4",
+        ],
+        "QUANTITY": [10, 15, 7, 3],
+        "SLIDING_POINT": [
+            "2024-02-01 00:00:00",
+            "2024-02-15 00:00:00",
+            "2024-02-15 00:00:00",
+            "2024-02-17 00:00:00",
+        ],
+        "QUANTITY_SUM_-1D": [10, 22, 22, 3],
+        "QUANTITY_SUM_-7D": [10, 22, 22, 25],
+    }
+
+    expected_df = pd.DataFrame(expected_data)
+
+    expected_df["SLIDING_POINT"] = pd.to_datetime(expected_df["SLIDING_POINT"])
+
+    # Compare the result to the expected DataFrame
+    assert_frame_equal(
+        res.order_by("TS").to_pandas(), expected_df, check_dtype=False, atol=1e-1
     )
 
 
@@ -502,17 +557,6 @@ def test_time_series_agg_month_sliding_window(session):
 
     expected_data = {
         "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
-        "SLIDING_POINT": [
-            "2023-01-01",
-            "2023-02-01",
-            "2023-03-01",
-            "2023-04-01",
-            "2023-02-01",
-            "2023-03-01",
-            "2023-04-01",
-            "2023-05-01",
-        ],
-        "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
         "ORDERDATE": [
             "2023-01-15",
             "2023-02-15",
@@ -522,6 +566,17 @@ def test_time_series_agg_month_sliding_window(session):
             "2023-02-20",
             "2023-03-20",
             "2023-04-20",
+        ],
+        "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
+        "SLIDING_POINT": [
+            "2023-01-01",
+            "2023-02-01",
+            "2023-03-01",
+            "2023-04-01",
+            "2023-02-01",
+            "2023-03-01",
+            "2023-04-01",
+            "2023-05-01",
         ],
         "SUM_SALESAMOUNT_-2mm": [100, 300, 600, 900, 150, 400, 750, 1050],
         "MAX_SALESAMOUNT_-2mm": [100, 200, 300, 400, 150, 250, 350, 450],
@@ -573,17 +628,6 @@ def test_time_series_agg_year_sliding_window(session):
     # Calculated expected data for 2Y window with 1Y sliding interval
     expected_data = {
         "PRODUCTKEY": [101, 101, 101, 101, 102, 102, 102, 102],
-        "SLIDING_POINT": [
-            "2021-01-01",
-            "2022-01-01",
-            "2023-01-01",
-            "2024-01-01",
-            "2021-01-01",
-            "2022-01-01",
-            "2023-01-01",
-            "2024-01-01",
-        ],
-        "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
         "ORDERDATE": [
             "2021-01-15",
             "2022-01-15",
@@ -593,6 +637,17 @@ def test_time_series_agg_year_sliding_window(session):
             "2022-01-20",
             "2023-01-20",
             "2024-01-20",
+        ],
+        "SALESAMOUNT": [100, 200, 300, 400, 150, 250, 350, 450],
+        "SLIDING_POINT": [
+            "2021-01-01",
+            "2022-01-01",
+            "2023-01-01",
+            "2024-01-01",
+            "2021-01-01",
+            "2022-01-01",
+            "2023-01-01",
+            "2024-01-01",
         ],
         "SUM_SALESAMOUNT_-1Y": [100, 300, 500, 700, 150, 400, 600, 800],
         "MAX_SALESAMOUNT_-1Y": [100, 200, 300, 400, 150, 250, 350, 450],
