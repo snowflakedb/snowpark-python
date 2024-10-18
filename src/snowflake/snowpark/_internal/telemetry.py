@@ -48,6 +48,7 @@ class TelemetryField(Enum):
     )
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
     TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
+    TYPE_REDUCE_DESCRIBE_QUERY_ENABLED = "snowpark_reduce_describe_query_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -552,6 +553,20 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.THREAD_IDENTIFIER.value: thread_id,
+            },
+        }
+        self.send(message)
+
+    def send_reduce_describe_query_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_REDUCE_DESCRIBE_QUERY_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TYPE_REDUCE_DESCRIBE_QUERY_ENABLED.value: value,
             },
         }
         self.send(message)

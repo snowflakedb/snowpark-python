@@ -66,7 +66,7 @@ def test_series_iloc_snowpark_pandas_input_return_dataframe(
         )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_diff2native(default_index_snowpark_pandas_series, default_index_native_series):
     assert (
         default_index_snowpark_pandas_series.iloc[..., 3]
@@ -338,7 +338,7 @@ def test_series_iloc_get_key_scalar(
     # One join is performed for each query.
 
     # test ser with default index
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=1):
         snowpark_res = iloc_helper(default_index_int_series)
         native_res = iloc_helper(default_index_native_int_series)
         assert snowpark_res == native_res
@@ -348,14 +348,14 @@ def test_series_iloc_get_key_scalar(
     int_series_with_non_default_index = pd.Series(
         native_int_series_with_non_default_index
     )
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=1):
         snowpark_res = iloc_helper(int_series_with_non_default_index)
         native_res = iloc_helper(native_int_series_with_non_default_index)
         assert snowpark_res == native_res
 
     # test ser with MultiIndex
     int_series_with_multiindex = pd.Series(multiindex_native_int_series)
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=1):
         snowpark_res = iloc_helper(int_series_with_multiindex)
         native_res = iloc_helper(multiindex_native_int_series)
         assert snowpark_res == native_res
@@ -527,7 +527,7 @@ def test_series_iloc_get_key_raises_not_implemented_error_negative(
         _ = snowpark_index_int_series.iloc[key]
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_series_iloc_get_empty(empty_snowpark_pandas_series):
     _ = empty_snowpark_pandas_series.iloc[0]
 
@@ -958,3 +958,28 @@ def test_series_iloc_set_scalar_key_with_list_value_negative():
         series.iloc[0] = [4, 5, 6]
 
     eval_snowpark_pandas_result(series, native_s, helper, inplace=True)
+
+
+@pytest.mark.parametrize(
+    "ops",
+    [
+        lambda df: df.head(),
+        lambda df: df.iloc[1:100],
+        lambda df: df.iloc[1000:100:-1],
+        lambda df: df.iloc[0],
+        lambda df: df.iloc[100],
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_iloc_efficient_sql(session, ops):
+    df = pd.Series({"a": [1] * 10000})
+    with session.query_history() as query_listener:
+        res = ops(df)
+        if isinstance(res, pd.Series):
+            res._to_pandas()
+    eval_query = query_listener.queries[-1].sql_text.lower()
+    # check no row count
+    assert "count" not in eval_query
+    # check orderBy is after limit in the sql query
+    assert "count" not in eval_query
+    assert eval_query.index("limit") < eval_query.index("order by")

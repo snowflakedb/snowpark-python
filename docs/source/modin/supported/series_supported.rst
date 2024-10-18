@@ -342,7 +342,7 @@ Methods
 | ``replace``                 | P                               | ``method``, ``limit``            |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``resample``                | P                               | ``axis``, ``label``,             | Only DatetimeIndex is supported and its ``freq``   |
-|                             |                                 | ``convention``, ``kind``, ``on`` | will be lost. ``rule`` frequencies 's', 'min',     |
+|                             |                                 | ``convention``, ``kind``,        | will be lost. ``rule`` frequencies 's', 'min',     |
 |                             |                                 | , ``level``, ``origin``,         | 'h', and 'D' are supported. ``rule`` frequencies   |
 |                             |                                 | , ``offset``, ``group_keys``     | 'W', 'ME', and 'YE' are supported with             |
 |                             |                                 |                                  | `closed = "left"`                                  |
@@ -457,10 +457,17 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``truncate``                | N                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``tz_convert``              | P                               | ``axis``, ``level``, ``copy``    |                                                    |
+| ``tz_convert``              | P                               | ``axis``, ``level``, ``copy``    | ``N`` if timezone format is not supported.         |
+|                             |                                 |                                  | Only timezones listed in ``pytz.all_timezones`` are|
+|                             |                                 |                                  | supported. For example, ``UTC`` is supported but   |
+|                             |                                 |                                  | ``UTC+/-<offset>``, such as, ``UTC+09:00`` is not  |
+|                             |                                 |                                  | supported.                                         |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``tz_localize``             | P                               | ``axis``, ``level``, ``copy``,   |                                                    |
-|                             |                                 | ``ambiguous``, ``nonexistent``   |                                                    |
+| ``tz_localize``             | P                               | ``axis``, ``level``, ``copy``    | ``N`` if timezone format is not supported.         |
+|                             |                                 | ``ambiguous``, ``nonexistent``   | Only timezones listed in ``pytz.all_timezones`` are|
+|                             |                                 |                                  | supported. For example, ``UTC`` is supported but   |
+|                             |                                 |                                  | ``UTC+/-<offset>``, such as ``UTC+09:00``, is not  |
+|                             |                                 |                                  | supported.                                         |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``unique``                  | Y                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
