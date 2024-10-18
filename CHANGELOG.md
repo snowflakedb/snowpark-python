@@ -28,6 +28,7 @@
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
 - Added support for `DataFrameGroupBy.bfill`, `SeriesGroupBy.bfill`, `DataFrameGroupBy.ffill`, and `SeriesGroupBy.ffill`.
 - Added support for `on` parameter with `Resampler`.
+- Added support for timedelta inputs in `value_counts()`.
 
 #### Improvements
 
@@ -41,6 +42,9 @@
 - Fixed a bug where `replace()` would sometimes propagate `Timedelta` types incorrectly through `replace()`. Instead raise `NotImplementedError` for `replace()` on `Timedelta`.
 - Fixed a bug where `DataFrame` and `Series` `round()` would raise `AssertionError` for `Timedelta` columns. Instead raise `NotImplementedError` for `round()` on `Timedelta`.
 - Fixed a bug where `reindex` fails when the new index is a Series with non-overlapping types from the original index.
+- Fixed a bug where inserting timedelta values into an existing column would silently convert the values to integers instead of raising `NotImplementedError`.
+- Fixed a bug where `DataFrame.shift()` on axis=0 and axis=1 would fail to propagate timedelta types.
+- `DataFrame.abs()`, `DataFrame.__neg__()`, `DataFrame.stack()`, and `DataFrame.unstack()` now raise `NotImplementedError` for timedelta inputs instead of failing to propagate timedelta types.
 
 
 ## 1.23.0 (2024-10-09)

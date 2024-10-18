@@ -6,6 +6,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import sql_count_checker
@@ -20,15 +21,27 @@ from tests.integ.utils.sql_counter import sql_count_checker
         ["hello", None],
     ],
 )
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        float,
+        param(
+            "timedelta64[ns]",
+            marks=pytest.mark.xfail(strict=True, raises=NotImplementedError),
+        ),
+    ],
+)
 @sql_count_checker(query_count=1)
-def test_unstack_input_no_multiindex(index_names):
+def test_unstack_input_no_multiindex(index_names, dtype):
     index = native_pd.MultiIndex.from_tuples(
         tuples=[("one", "a"), ("one", "b"), ("two", "a"), ("two", "b")],
         names=index_names,
     )
     # Note we call unstack below to create a dataframe without a multiindex before
     # calling unstack again
-    native_df = native_pd.Series(np.arange(1.0, 5.0), index=index).unstack(level=0)
+    native_df = native_pd.Series(np.arange(1.0, 5.0), index=index, dtype=dtype).unstack(
+        level=0
+    )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.unstack())
 

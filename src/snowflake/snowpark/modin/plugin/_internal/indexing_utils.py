@@ -60,7 +60,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     rindex,
 )
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
-from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
+from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL, ErrorMessage
 from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
@@ -96,6 +96,7 @@ LOC_SET_ITEM_KV_MISMATCH_ERROR_MESSAGE = (
     "Must have equal len keys and value when setting with an iterable"
 )
 LOC_SET_ITEM_EMPTY_ERROR = "The length of the value/item to set is empty"
+_LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR = "Snowpark pandas does not yet support assigning timedelta values to an existing column."
 
 
 # Used for `first_valid_index` and `last_valid_index` Snowpark pandas APIs
@@ -1935,21 +1936,29 @@ def _set_2d_labels_helper_for_single_column_wise_item(
         [item.row_position_snowflake_quoted_identifier]
     )[0]
 
+    new_left_ids = index_with_item_mapper.map_left_quoted_identifiers(
+        index.data_column_snowflake_quoted_identifiers
+    )
     # If the item values is shorter than the index, we will fill in with the last item value.
+    last_item_id = index_with_item.data_column_snowflake_quoted_identifiers[-1]
     index_with_item = index_with_item.project_columns(
         index_with_item.data_column_pandas_labels,
-        [
-            col(col_id)
-            for col_id in index_with_item_mapper.map_left_quoted_identifiers(
-                index.data_column_snowflake_quoted_identifiers
-            )
-        ]
+        [col(col_id) for col_id in new_left_ids]
         + [
             iff(
                 col(item_row_position_column).is_null(),
                 pandas_lit(item_values[-1]),
-                col(index_with_item.data_column_snowflake_quoted_identifiers[-1]),
+                col(last_item_id),
             )
+        ],
+        column_types=[
+            index_with_item.snowflake_quoted_identifier_to_snowpark_pandas_type[id]
+            for id in new_left_ids
+        ]
+        + [
+            index_with_item.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                last_item_id
+            ]
         ],
     )
 
@@ -2404,13 +2413,36 @@ def set_frame_2d_labels(
         elif index_is_frame:
             col_obj = iff(index_data_col.is_null(), original_col, col_obj)
 
-        col_obj_type = (
-            origin_col_type
-            if col_obj_type == origin_col_type or (is_scalar(item) and pd.isna(item))
-            else None
-        )
-
-        return SnowparkPandasColumn(col_obj, col_obj_type)
+        if (
+            # In these cases, we can infer that the resulting column has a
+            # SnowparkPandasType of `col_obj_type`:
+            # Case 1: The values we are inserting have the same type as the
+            # original column. For example, we are inserting Timedelta values
+            # into a timedelta column, or int values into an int column. In
+            # this case, we just propagate the original column type.
+            col_obj_type == origin_col_type
+            or  # noqa: W504
+            # Case 2: We are inserting a null value. Inserting a scalar null
+            # value should not change a column from TimedeltaType to a
+            # non-timedelta type, or vice versa.
+            (is_scalar(item) and pd.isna(item))
+            or  # noqa: W504
+            # Case 3: We are inserting a list-like of null values. Inserting
+            # null values should not change a column from TimedeltaType to a
+            # non-timedelta type, or vice versa.
+            (item_column_values and (pd.isna(v) for v in item_column_values))
+        ):
+            final_col_obj_type = origin_col_type
+        else:
+            # In these cases, we can't necessarily infer the type of the
+            # resulting column. For example, inserting 3 timedelta values
+            # into a column of 3 integer values would change the
+            # SnowparkPandasType from None to TimedeltaType, but inserting
+            # only 1 timedelta value into a column of 3 integer values would
+            # produce a mixed column of integers and timedelta values.
+            # TODO(SNOW-1738952): Deduce the result types in these cases.
+            ErrorMessage.not_implemented(_LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR)
+        return SnowparkPandasColumn(col_obj, final_col_obj_type)
 
     def generate_updated_expr_for_new_col(
         col_label: Hashable,

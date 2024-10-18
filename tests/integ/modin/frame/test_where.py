@@ -1023,3 +1023,12 @@ def test_where_with_zero_other_SNOW_1372268():
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         df_result, native_df_result
     )
+
+
+@sql_count_checker(query_count=1)
+def test_where_timedelta(test_data):
+    native_df = native_pd.DataFrame(test_data, dtype="timedelta64[ns]")
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.where(df > pd.Timedelta(1))
+    )
