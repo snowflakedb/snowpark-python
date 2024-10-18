@@ -1092,10 +1092,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         if is_list_like(key):
             make_dataframe = True
         else:
-            if self._as_index:
-                make_dataframe = False
-            else:
-                make_dataframe = True
+            make_dataframe = False
             key = [key]
 
         column_index = self._df.columns
@@ -1267,7 +1264,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only = False
 
         if is_result_dataframe is None:
-            is_result_dataframe = not is_series_groupby
+            is_result_dataframe = not is_series_groupby or not self._as_index
         result_type = pd.DataFrame if is_result_dataframe else pd.Series
         result = result_type(
             query_compiler=qc_method(
@@ -1427,7 +1424,11 @@ class SeriesGroupBy(DataFrameGroupBy):
 
     def size(self):
         # TODO: Remove this once SNOW-1478924 is fixed
-        return super().size().rename(self._df.columns[-1])
+        result = super().size()
+        if isinstance(result, Series):
+            return result.rename(self._df.columns[-1])
+        else:
+            return result
 
     def value_counts(
         self,
