@@ -9,6 +9,7 @@ import re
 import statistics
 import typing
 import uuid
+from collections import defaultdict
 from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property, partial, reduce
@@ -193,7 +194,7 @@ class MockExecutionPlan(LogicalPlan):
         self.child = child
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
         self.df_aliased_col_name_to_real_col_name = (
-            df_aliased_col_name_to_real_col_name or {}
+            df_aliased_col_name_to_real_col_name or defaultdict(dict)
         )
         self.api_calls = []
         self._attributes = None

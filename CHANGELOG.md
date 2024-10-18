@@ -45,6 +45,11 @@
 - Fixed a bug where `reindex` fails when the new index is a Series with non-overlapping types from the original index.
 - Fixed a bug where calling `__getitem__` on a DataFrameGroupBy object always returned a DataFrameGroupBy object if `as_index=False`.
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where `DataFrame.alias` raises `KeyError` for input column name.
 
 ## 1.23.0 (2024-10-09)
 
