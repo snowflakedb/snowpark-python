@@ -3271,10 +3271,9 @@ def test_df_iloc_efficient_sql(session, ops):
     eval_query = query_listener.queries[
         -2
     ].sql_text.lower()  # query before drop temp table
-    # check no row count
+    # check no row count is in the sql query
     assert "count" not in eval_query
-    # check orderBy behinds limit
-    assert "count" not in eval_query
+    # check orderBy is after limit in the sql query
     assert eval_query.index("limit") < eval_query.index("order by")
 
 
@@ -3293,7 +3292,7 @@ def test_df_iloc_scalar_efficient_sql(session, ops):
     eval_query = query_listener.queries[
         -3
     ].sql_text.lower()  # query before drop temp table and transpose
-    # check no row count
+    # check no row count is in the sql query
     assert "count" not in eval_query
-    # check orderBy behinds limit
+    # check limit is used in the sql query
     assert "limit" in eval_query
