@@ -46,3 +46,4 @@ class SkipLargeQueryBreakdownCategory(Enum):
     ACTIVE_TRANSACTION = "active transaction"
     VIEW_DYNAMIC_TABLE = "view or dynamic table command"
     NO_ACTIVE_DATABASE = "no active database"
+    NO_ACTIVE_SCHEMA = "no active schema"

@@ -454,7 +454,10 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="cannot create a new session in stored procedure"
 )
-def test_optimization_skipped_with_no_active_db(session, caplog):
+@pytest.mark.parametrize("db_or_schema", ["database", "schema"])
+def test_optimization_skipped_with_no_active_db_or_schema(
+    session, db_or_schema, caplog
+):
     df = session.sql("select 1 as a, 2 as b")
 
     # no database check
@@ -462,17 +465,17 @@ def test_optimization_skipped_with_no_active_db(session, caplog):
         session._conn._telemetry_client,
         "send_large_query_optimization_skipped_telemetry",
     ) as patched_send_telemetry:
-        with patch.object(session, "get_current_database", return_value=None):
+        with patch.object(session, f"get_current_{db_or_schema}", return_value=None):
             with caplog.at_level(logging.DEBUG):
                 with SqlCounter(query_count=0, describe_count=0):
                     df.queries
     assert (
-        "Skipping large query breakdown optimization since there is no active database"
+        f"Skipping large query breakdown optimization since there is no active {db_or_schema}"
         in caplog.text
     )
     patched_send_telemetry.assert_called_once
     called_with_reason = patched_send_telemetry.call_args[0][1]
-    assert called_with_reason == "no active database"
+    assert called_with_reason == f"no active {db_or_schema}"
 
 
 def test_async_job_with_large_query_breakdown(session, large_query_df):

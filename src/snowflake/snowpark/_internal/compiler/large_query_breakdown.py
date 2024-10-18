@@ -162,6 +162,13 @@ class LargeQueryBreakdown:
             )
             return SkipLargeQueryBreakdownCategory.NO_ACTIVE_DATABASE
 
+        if self.session.get_current_schema() is None:
+            # Skip optimization if there is no active schema.
+            _logger.debug(
+                "Skipping large query breakdown optimization since there is no active schema."
+            )
+            return SkipLargeQueryBreakdownCategory.NO_ACTIVE_SCHEMA
+
         if is_active_transaction(self.session):
             # Skip optimization if the session is in an active transaction.
             _logger.debug(
