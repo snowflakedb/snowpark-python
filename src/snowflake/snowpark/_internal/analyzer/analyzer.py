@@ -124,6 +124,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
     Cast,
     UnaryExpression,
+    UnaryMinus,
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -151,7 +152,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import quote_name
-from snowflake.snowpark.types import _NumericType
+from snowflake.snowpark.types import BooleanType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -204,6 +205,13 @@ class Analyzer:
                 self.analyze(
                     expr.pattern, df_aliased_col_name_to_real_col_name, parse_local_name
                 ),
+                self.analyze(
+                    expr.parameters,
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
+                )
+                if expr.parameters is not None
+                else None,
             )
 
         if isinstance(expr, Collate):
@@ -337,14 +345,10 @@ class Analyzer:
             return specified_window_frame_expression(
                 expr.frame_type.sql,
                 self.window_frame_boundary(
-                    self.to_sql_try_avoid_cast(
-                        expr.lower, df_aliased_col_name_to_real_col_name
-                    )
+                    expr.lower, df_aliased_col_name_to_real_col_name
                 ),
                 self.window_frame_boundary(
-                    self.to_sql_try_avoid_cast(
-                        expr.upper, df_aliased_col_name_to_real_col_name
-                    )
+                    expr.upper, df_aliased_col_name_to_real_col_name
                 ),
             )
         if isinstance(expr, UnspecifiedFrame):
@@ -598,7 +602,7 @@ class Analyzer:
             sql = named_arguments_function(
                 expr.func_name,
                 {
-                    key: self.analyze(
+                    key: self.to_sql_try_avoid_cast(
                         value, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for key, value in expr.args.items()
@@ -715,12 +719,28 @@ class Analyzer:
             df_aliased_col_name_to_real_col_name,
         )
 
-    def window_frame_boundary(self, offset: str) -> str:
-        try:
-            num = int(offset)
-            return window_frame_boundary_expression(str(abs(num)), num >= 0)
-        except Exception:
-            return offset
+    def window_frame_boundary(
+        self,
+        boundary: Expression,
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+    ) -> str:
+        # it means interval preceding
+        if isinstance(boundary, UnaryMinus) and isinstance(boundary.child, Interval):
+            return window_frame_boundary_expression(
+                boundary.child.sql, is_following=False
+            )
+        elif isinstance(boundary, Interval):
+            return window_frame_boundary_expression(boundary.sql, is_following=True)
+        else:
+            # boundary should be an integer
+            offset = self.to_sql_try_avoid_cast(
+                boundary, df_aliased_col_name_to_real_col_name
+            )
+            try:
+                num = int(offset)
+                return window_frame_boundary_expression(str(abs(num)), num >= 0)
+            except Exception:
+                return offset
 
     def to_sql_try_avoid_cast(
         self,
@@ -738,6 +758,12 @@ class Analyzer:
         # otherwise process as normal
         if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
             return numeric_to_sql_without_cast(expr.value, expr.datatype)
+        elif (
+            isinstance(expr, Literal)
+            and isinstance(expr.datatype, BooleanType)
+            and isinstance(expr.value, bool)
+        ):
+            return str(expr.value).upper()
         else:
             return self.analyze(
                 expr, df_aliased_col_name_to_real_col_name, parse_local_name
@@ -771,7 +797,7 @@ class Analyzer:
 
         if isinstance(logical_plan, Selectable):
             # Selectable doesn't have children. It already has the expr_to_alias dict.
-            self.alias_maps_to_use = logical_plan.expr_to_alias
+            self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
             use_maps = {}
             # get counts of expr_to_alias keys
@@ -943,10 +969,7 @@ class Analyzer:
                 schema_query = schema_query_for_values_statement(logical_plan.output)
 
             if logical_plan.data:
-                if (
-                    len(logical_plan.output) * len(logical_plan.data)
-                    < ARRAY_BIND_THRESHOLD
-                ):
+                if not logical_plan.is_large_local_data:
                     return self.plan_builder.query(
                         values_statement(logical_plan.output, logical_plan.data),
                         logical_plan,
@@ -970,20 +993,29 @@ class Analyzer:
             return self.plan_builder.table(logical_plan.name, logical_plan)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
+            resolved_child = resolved_children[logical_plan.children[0]]
             return self.plan_builder.save_as_table(
-                logical_plan.table_name,
-                logical_plan.column_names,
-                logical_plan.mode,
-                logical_plan.table_type,
-                [
+                table_name=logical_plan.table_name,
+                column_names=logical_plan.column_names,
+                mode=logical_plan.mode,
+                table_type=logical_plan.table_type,
+                clustering_keys=[
                     self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.clustering_exprs
                 ],
-                logical_plan.comment,
-                resolved_children[logical_plan.children[0]],
-                logical_plan,
-                self.session._use_scoped_temp_objects,
-                logical_plan.is_generated,
+                comment=logical_plan.comment,
+                enable_schema_evolution=logical_plan.enable_schema_evolution,
+                data_retention_time=logical_plan.data_retention_time,
+                max_data_extension_time=logical_plan.max_data_extension_time,
+                change_tracking=logical_plan.change_tracking,
+                copy_grants=logical_plan.copy_grants,
+                child=resolved_child,
+                source_plan=logical_plan,
+                use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                creation_source=logical_plan.creation_source,
+                child_attributes=resolved_child.attributes,
+                iceberg_config=logical_plan.iceberg_config,
+                table_exists=logical_plan.table_exists,
             )
 
         if isinstance(logical_plan, Limit):
@@ -1117,12 +1149,22 @@ class Analyzer:
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
             return self.plan_builder.create_or_replace_dynamic_table(
-                logical_plan.name,
-                logical_plan.warehouse,
-                logical_plan.lag,
-                logical_plan.comment,
-                resolved_children[logical_plan.child],
-                logical_plan,
+                name=logical_plan.name,
+                warehouse=logical_plan.warehouse,
+                lag=logical_plan.lag,
+                comment=logical_plan.comment,
+                create_mode=logical_plan.create_mode,
+                refresh_mode=logical_plan.refresh_mode,
+                initialize=logical_plan.initialize,
+                clustering_keys=[
+                    self.analyze(x, df_aliased_col_name_to_real_col_name)
+                    for x in logical_plan.clustering_exprs
+                ],
+                is_transient=logical_plan.is_transient,
+                data_retention_time=logical_plan.data_retention_time,
+                max_data_extension_time=logical_plan.max_data_extension_time,
+                child=resolved_children[logical_plan.child],
+                source_plan=logical_plan,
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
@@ -1154,6 +1196,7 @@ class Analyzer:
                 else None,
                 user_schema=logical_plan.user_schema,
                 create_table_from_infer_schema=logical_plan.create_table_from_infer_schema,
+                iceberg_config=logical_plan.iceberg_config,
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):
@@ -1187,7 +1230,9 @@ class Analyzer:
                 )
                 if logical_plan.condition
                 else None,
-                logical_plan.source_data,
+                resolved_children[logical_plan.source_data]
+                if logical_plan.source_data
+                else None,
                 logical_plan,
             )
 
@@ -1199,14 +1244,19 @@ class Analyzer:
                 )
                 if logical_plan.condition
                 else None,
-                logical_plan.source_data,
+                # source_data is marked as child of the logical_plan
+                resolved_children[logical_plan.source_data]
+                if logical_plan.source_data
+                else None,
                 logical_plan,
             )
 
         if isinstance(logical_plan, TableMerge):
             return self.plan_builder.merge(
                 logical_plan.table_name,
-                logical_plan.source,
+                resolved_children[logical_plan.source]
+                if logical_plan.source
+                else logical_plan.source,
                 self.analyze(
                     logical_plan.join_expr, df_aliased_col_name_to_real_col_name
                 ),

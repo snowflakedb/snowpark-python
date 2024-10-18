@@ -35,6 +35,7 @@ Snowpark Session
       Session.add_import
       Session.add_packages
       Session.add_requirements
+      Session.append_query_tag
       Session.call
       Session.cancel_all
       Session.clear_imports
@@ -57,6 +58,7 @@ Snowpark Session
       Session.get_packages
       Session.get_session_stage
       Session.query_history
+      Session.stored_procedure_profiler
       Session.range
       Session.remove_import
       Session.remove_package
@@ -64,6 +66,7 @@ Snowpark Session
       Session.sql
       Session.table
       Session.table_function
+      Session.update_query_tag
       Session.use_database
       Session.use_role
       Session.use_schema

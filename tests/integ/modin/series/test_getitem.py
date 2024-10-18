@@ -9,9 +9,9 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -46,7 +46,7 @@ def test_series_getitem_with_boolean_list_like(
             _key, _ser = snow_key, ser
         return _ser[_key]
 
-    with SqlCounter(query_count=2 if isinstance(key, native_pd.Index) else 1):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,
             default_index_native_series,

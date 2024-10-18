@@ -5,8 +5,8 @@ import modin.pandas as pd
 import pytest
 from pandas.errors import IndexingError
 
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=2, join_count=2)
@@ -201,3 +201,12 @@ def test_at_multiindex_neg(
     snowpark_df = pd.DataFrame(native_df)
     with pytest.raises(error):
         snowpark_df.at[key]
+
+
+@sql_count_checker(query_count=0)
+def test_raise_set_cell_with_list_like_value_error():
+    s = pd.Series([[1, 2], [3, 4]])
+    with pytest.raises(NotImplementedError):
+        s.at[0] = [0, 0]
+    with pytest.raises(NotImplementedError):
+        s.to_frame().at[0, 0] = [0, 0]

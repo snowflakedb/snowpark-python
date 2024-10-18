@@ -3,6 +3,7 @@
 #
 
 import contextlib
+import re
 
 import modin.pandas as pd
 import pandas as native_pd
@@ -10,8 +11,11 @@ import pytest
 from pandas._libs.lib import no_default
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.base_overrides import (
+    _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE,
+)
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 # From pandas doc example
 PCT_CHANGE_NATIVE_FRAME = native_pd.DataFrame(
@@ -69,6 +73,75 @@ def test_pct_change_simple(native_data, periods, fill_method, axis):
                 periods=periods, fill_method=fill_method, axis=axis
             ),
         )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "periods",
+    [-1, 0, 1, 2],
+)
+@pytest.mark.parametrize(
+    "fill_method", [None, no_default, "ffill", "pad", "backfill", "bfill"]
+)
+def test_axis_0_with_timedelta(periods, fill_method):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {
+                "timedelta": [
+                    pd.Timedelta(100),
+                    pd.Timedelta(25),
+                    None,
+                    pd.Timedelta(75),
+                ],
+                "float": [4.0405, 4.0963, 4.3149, None],
+            }
+        ),
+        lambda df: df.pct_change(periods=periods, fill_method=fill_method),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "periods",
+    [-1, 0, 1, 2],
+)
+@pytest.mark.parametrize(
+    "fill_method", [None, no_default, "ffill", "pad", "backfill", "bfill"]
+)
+def test_axis_1_with_timedelta_columns(periods, fill_method):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {
+                "col0": [pd.Timedelta(100), pd.Timedelta(25)],
+                "col1": [pd.Timedelta(50), None],
+                "col3": [pd.Timedelta(75), pd.Timedelta(75)],
+                "col4": [None, pd.Timedelta(150)],
+            }
+        ),
+        lambda df: df.pct_change(axis=1, periods=periods, fill_method=fill_method),
+    )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"timedelta": [pd.Timedelta(1)], "string": ["value"]},
+        {"timedelta": [pd.Timedelta(1)], "int": [0]},
+    ],
+)
+def test_axis_1_with_timedelta_and_non_timedelta_column_invalid(data):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(data),
+        lambda df: df.pct_change(axis=1),
+        expect_exception=True,
+        # pandas exception depends on the type of the non-timedelta column, so
+        # we don't try to match the pandas exception.
+        assert_exception_equal=False,
+        expect_exception_match=re.escape(
+            _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE
+        ),
+    )
 
 
 @pytest.mark.parametrize("params", [{"limit": 2}, {"freq": "ME"}])

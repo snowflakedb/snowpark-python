@@ -427,7 +427,7 @@ class UDTFRegistration:
             -----------------------------
             <BLANKLINE>
 
-    [Preview Feature] The syntax for declaring UDTF with a vectorized process method is similar to above.
+    The syntax for declaring UDTF with a vectorized process method is similar to above.
     Defining ``__init__`` and ``end_partition`` methods are optional. The ``process`` method only accepts one
     argument which is the pandas Dataframe object, and outputs the same number of rows as is in the given input.
     Both ``__init__`` and ``end_partition`` do not take any additional arguments.
@@ -553,6 +553,7 @@ class UDTFRegistration:
         immutable: bool = False,
         max_batch_size: Optional[int] = None,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         **kwargs,
@@ -634,6 +635,8 @@ class UDTFRegistration:
                 be ignored when registering a non-vectorized UDTF.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -682,6 +685,7 @@ class UDTFRegistration:
                 api_call_source="UDTFRegistration.register",
                 is_permanent=is_permanent,
                 native_app_params=native_app_params,
+                copy_grants=copy_grants,
             )
 
     def register_from_file(
@@ -705,6 +709,7 @@ class UDTFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         skip_upload_on_content_match: bool = False,
@@ -789,6 +794,8 @@ class UDTFRegistration:
             immutable: Whether the UDTF result is deterministic or not for the same input.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -838,6 +845,7 @@ class UDTFRegistration:
                 api_call_source="UDTFRegistration.register_from_file",
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                copy_grants=copy_grants,
             )
 
     def _do_register_udtf(
@@ -866,6 +874,7 @@ class UDTFRegistration:
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        copy_grants: bool = False,
     ) -> UserDefinedTableFunction:
 
         if isinstance(output_schema, StructType):
@@ -894,6 +903,7 @@ class UDTFRegistration:
             is_dataframe_input,
             output_schema,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session,
             TempObjectType.TABLE_FUNCTION,
@@ -933,10 +943,14 @@ class UDTFRegistration:
             is_permanent=is_permanent,
         )
 
-        if (not custom_python_runtime_version_allowed) and (self._session is not None):
-            check_python_runtime_version(
+        runtime_version_from_requirement = None
+        if self._session is not None:
+            runtime_version_from_requirement = (
                 self._session._runtime_version_from_requirement
             )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(runtime_version_from_requirement)
 
         raised = False
         try:
@@ -945,6 +959,7 @@ class UDTFRegistration:
                 func=handler,
                 return_type=output_schema,
                 input_args=input_args,
+                opt_arg_defaults=opt_arg_defaults,
                 handler=handler_name,
                 object_type=TempObjectType.FUNCTION,
                 object_name=udtf_name,
@@ -964,6 +979,8 @@ class UDTFRegistration:
                 statement_params=statement_params,
                 comment=comment,
                 native_app_params=native_app_params,
+                copy_grants=copy_grants,
+                runtime_version=runtime_version_from_requirement,
             )
         # an exception might happen during registering a udtf
         # (e.g., a dependency might not be found on the stage),

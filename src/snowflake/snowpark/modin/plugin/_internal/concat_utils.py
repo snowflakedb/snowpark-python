@@ -98,6 +98,8 @@ def convert_to_single_level_index(frame: InternalFrame, axis: int) -> InternalFr
             data_column_pandas_index_names=[None],
             index_column_pandas_labels=frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=frame.cached_index_column_snowpark_pandas_types,
         )
     else:
         WarningMessage.tuples_stored_as_array(
@@ -122,6 +124,8 @@ def convert_to_single_level_index(frame: InternalFrame, axis: int) -> InternalFr
             data_column_pandas_labels=frame.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=frame.data_column_pandas_index_names,
+            data_column_types=None,
+            index_column_types=None,
         )
 
 
@@ -224,6 +228,8 @@ def union_all(
         data_column_pandas_index_names=frame1.data_column_pandas_index_names,
         index_column_pandas_labels=frame1.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame1.index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -262,6 +268,8 @@ def add_key_as_index_columns(frame: InternalFrame, key: Hashable) -> InternalFra
         data_column_pandas_index_names=frame.data_column_pandas_index_names,
         index_column_pandas_labels=index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -322,6 +330,8 @@ def _select_columns(
         data_column_pandas_index_names=frame.data_column_pandas_index_names,
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -360,4 +370,6 @@ def add_global_ordering_columns(frame: InternalFrame, position: int) -> Internal
         data_column_pandas_index_names=frame.data_column_pandas_index_names,
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
     )

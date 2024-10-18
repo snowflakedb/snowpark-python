@@ -386,6 +386,25 @@ True
 Series([], dtype: bool)
 """
 
+_get_set_index_doc = """
+{desc}
+
+{parameters_or_returns}
+
+Note
+----
+When setting `DataFrame.index` or `Series.index` where the length of the
+`Series`/`DataFrame` object does not match with the new index's length,
+pandas raises a ValueError. Snowpark pandas does not raise this error;
+this operation is valid.
+When the `Series`/`DataFrame` object is longer than the new index,
+the `Series`/`DataFrame`'s new index is filled with `NaN` values for
+the "extra" elements. When the `Series`/`DataFrame` object is shorter than
+the new index, the extra values in the new index are ignored—`Series` and
+`DataFrame` stay the same length `n`, and use only the first `n` values of
+the new index.
+"""
+
 
 class BasePandasDataset:
     """
@@ -462,6 +481,79 @@ class BasePandasDataset:
     def asfreq():
         """
         Convert time series to specified frequency.
+
+        Returns the original data conformed to a new index with the specified frequency.
+
+        If the index of this Series/DataFrame is a PeriodIndex, the new index is the result of transforming the original
+        index with PeriodIndex.asfreq (so the original index will map one-to-one to the new index).
+
+        The new index will be equivalent to pd.date_range(start, end, freq=freq) where start and end are,
+        respectively, the first and last entries in the original index (see pandas.date_range()). The values
+        corresponding to any timesteps in the new index which were not present in the original index will be null (NaN),
+        unless a method for filling such unknowns is provided (see the method parameter below).
+
+        The resample() method is more appropriate if an operation on each group of timesteps (such as an aggregate) is
+        necessary to represent the data at the new frequency.
+
+        Parameters
+        ----------
+        freq : DateOffset or str
+            Frequency DateOffset or string.
+
+        method : {'backfill', 'bfill', 'pad', 'ffill'}, default None
+            Method to use for filling holes in reindexed Series (note this does not fill NaNs that already were present):
+            ‘pad’ / ‘ffill’: propagate last valid observation forward to next valid
+            ‘backfill’ / ‘bfill’: use NEXT valid observation to fill.
+
+        how : {'start', 'end'}, default None
+            For PeriodIndex only.
+
+        normalize : bool, default False
+            Whether to reset output index to midnight.
+
+        fill_value : scalar, optional
+            Value to use for missing values, applied during upsampling
+            (note this does not fill NaNs that already were present).
+
+        Returns
+        -------
+        Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~modin.pandas.Series`
+
+        Notes
+        -----
+        This implementation calls `resample` with the `first` aggregation. `asfreq`
+        is only supported on DataFrame/Series with DatetimeIndex, and only
+        the `freq` and `method` parameters are currently supported.
+
+        Examples
+        --------
+        >>> index = pd.date_range('1/1/2000', periods=4, freq='min')
+        >>> series = pd.Series([0.0, None, 2.0, 3.0], index=index)
+        >>> df = pd.DataFrame({'s': series})
+        >>> df
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:03:00  3.0
+        >>> df.asfreq(freq='30s')
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:00:30  NaN
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:01:30  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:02:30  NaN
+        2000-01-01 00:03:00  3.0
+        >>> df.asfreq(freq='30s', method='ffill')
+                               s
+        2000-01-01 00:00:00  0.0
+        2000-01-01 00:00:30  0.0
+        2000-01-01 00:01:00  NaN
+        2000-01-01 00:01:30  NaN
+        2000-01-01 00:02:00  2.0
+        2000-01-01 00:02:30  2.0
+        2000-01-01 00:03:00  3.0
         """
 
     def asof():
@@ -493,7 +585,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        same type as caller (Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`)
+        same type as caller (Snowpark pandas :class:`~modin.pandas.DataFrame` or Snowpark pandas :class:`~modin.pandas.Series`)
 
         Examples
         --------
@@ -603,7 +695,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        copy : Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        copy : Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             Object type matches caller.
 
         Examples
@@ -661,7 +753,7 @@ class BasePandasDataset:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
+        Snowpark pandas :class:`~modin.pandas.Series`
             For each column/row the number of non-NA/null entries.
 
         See Also
@@ -1018,11 +1110,6 @@ class BasePandasDataset:
     def drop_duplicates():
         """
         Return `BasePandasDataset` with duplicate rows removed.
-        """
-
-    def map():
-        """
-        Apply a function to `BasePandasDataset elementwise.
         """
 
     def mask():
@@ -1404,7 +1491,7 @@ class BasePandasDataset:
         With a scalar integer.
 
         >>> type(df.iloc[0])
-        <class 'snowflake.snowpark.modin.pandas.series.Series'>
+        <class 'modin.pandas.series.Series'>
         >>> df.iloc[0]
         a    1
         b    2
@@ -1424,8 +1511,6 @@ class BasePandasDataset:
         >>> df.iloc[[0]]
            a  b  c  d
         0  1  2  3  4
-        >>> type(df.iloc[[0]])
-        <class 'snowflake.snowpark.modin.pandas.dataframe.DataFrame'>
 
         >>> df.iloc[[0, 1]]
              a    b    c    d
@@ -1477,9 +1562,8 @@ class BasePandasDataset:
         With a callable, useful in method chains. The `x` passed
         to the ``lambda`` is the DataFrame being sliced. This selects
         the rows whose index labels are even.
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df.iloc[lambda x: x.index.to_pandas() % 2 == 0]
+        >>> df.iloc[lambda x: x.index % 2 == 0]
               a     b     c     d
         0     1     2     3     4
         2  1000  2000  3000  4000
@@ -1620,6 +1704,12 @@ class BasePandasDataset:
         - Special indexing for DatetimeIndex is unsupported in Snowpark pandas, e.g., `partial string indexing <https://pandas.pydata.org/docs/user_guide/timeseries.html#partial-string-indexing>`_.
         - While setting rows with duplicated index, Snowpark pandas won't raise ValueError for duplicate labels to avoid
           eager evaluation.
+        - When using ``.loc`` to set values with a Series key and Series item, the index of the item is ignored, and values are set positionally.
+        - pandas ``.loc`` may sometimes raise a ValueError when using ``.loc`` to set values in a DataFrame from a Series using a Series as the
+          column key, but Snowpark pandas ``.loc`` supports this type of operation according to the rules specified above.
+        - ``.loc`` with boolean indexers for columns is currently unsupported.
+        - When using ``.loc`` to set column values for a Series item, with a ``slice(None)`` for the row columns, Snowpark pandas
+          sets the value for each row from the Series.
 
         See Also
         --------
@@ -1746,6 +1836,15 @@ class BasePandasDataset:
         viper               0       0
         sidewinder          0       0
 
+        Setting the values with a Series item.
+
+        >>> df.loc["viper"] = pd.Series([99, 99], index=["max_speed", "shield"])
+        >>> df
+                    max_speed  shield
+        cobra              30      10
+        viper              99      99
+        sidewinder          0       0
+
         **Getting values on a DataFrame with an index that has integer labels**
 
         Another example using integers for the index
@@ -1843,6 +1942,40 @@ class BasePandasDataset:
                    mark ii          1       4
         viper      mark ii          7       1
 
+        Set column values from Series with Series key.
+
+        >>> df = pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
+        >>> df.loc[:, pd.Series(list("ABC"))] = pd.Series([-10, -20, -30])
+        >>> df
+            A   B   C
+        0 -10 -20 -30
+        1 -10 -20 -30
+        >>> df.loc[:, pd.Series(list("ABC"))] = pd.Series([10, 20, 30], index=list("CBA"))
+        >>> df
+            A   B   C
+        0  10  20  30
+        1  10  20  30
+        >>> df.loc[:, pd.Series(list("BAC"))] = pd.Series([-10, -20, -30], index=list("ABC"))
+        >>> df
+            A   B   C
+        0 -20 -10 -30
+        1 -20 -10 -30
+
+        Set column values from Series with list key.
+
+        >>> df.loc[:, list("ABC")] = pd.Series([1, 3, 5], index=list("CAB"))
+        >>> df
+           A  B  C
+        0  3  5  1
+        1  3  5  1
+
+        Set column values for all rows from Series item.
+
+        >>> df.loc[:, "A":"B"] = pd.Series([10, 20, 30], index=list("ABC"))
+        >>> df
+            A   B  C
+        0  10  20  1
+        1  10  20  1
         """
 
     @doc(
@@ -1957,7 +2090,6 @@ class BasePandasDataset:
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> df = pd.DataFrame({'A': [4, 5, 6], 'B': [4, 1, 1]})
         >>> df.nunique()
         A    3
@@ -2208,11 +2340,6 @@ class BasePandasDataset:
     def reindex():
         """
         Conform `BasePandasDataset` to new index with optional filling logic.
-        """
-
-    def reindex_like():
-        """
-        Return an object with matching indices as `other` object.
         """
 
     def rename_axis():
@@ -2754,6 +2881,7 @@ class BasePandasDataset:
         """
         Implement shared functionality between DataFrame and Series for shift. axis argument is only relevant for
         Dataframe, and should be 0 for Series.
+
         Args:
             periods : int | Sequence[int]
                 Number of periods to shift. Can be positive or negative. If an iterable of ints,
@@ -3532,3 +3660,21 @@ class BasePandasDataset:
         BasePandasDataset
             The result of the ufunc applied to the `BasePandasDataset`.
         """
+
+    @doc(
+        _get_set_index_doc,
+        desc="Get the index for this `Series`/`DataFrame`.",
+        parameters_or_returns="Returns\n-------\nIndex\n    The index for this `Series`/`DataFrame`.",
+    )
+    def _get_index():
+        pass
+
+    @doc(
+        _get_set_index_doc,
+        desc="Set the index for this `Series`/`DataFrame`.",
+        parameters_or_returns="Parameters\n----------\nnew_index : Index\n    The new index to set.",
+    )
+    def _set_index():
+        pass
+
+    index = property(_get_index, _set_index)

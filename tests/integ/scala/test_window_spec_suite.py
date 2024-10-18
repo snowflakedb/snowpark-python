@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -274,6 +275,30 @@ def test_window_function_should_fail_if_order_by_clause_is_not_specified(session
     assert "requires ORDER BY in window specification" in str(ex_info)
 
 
+def test_snow_1360263_repro(session):
+    data = [
+        Row(id=1, row_date=date(2024, 1, 1), value=1),
+        Row(id=2, row_date=date(2024, 1, 1), value=1),
+        Row(id=1, row_date=date(2024, 1, 2), value=1),
+        Row(id=1, row_date=date(2024, 1, 2), value=100),
+        Row(id=2, row_date=date(2024, 1, 2), value=1),
+    ]
+
+    test_data = session.create_dataframe(data)
+
+    # partition over id and row_date and get the records with the largest values
+    window = Window.partition_by("id", "row_date").order_by(col("value").desc())
+    df = test_data.with_column("row_num", row_number().over(window)).where(
+        col("row_num") == 1
+    )
+    assert df.order_by("ID", "ROW_DATE").collect() == [
+        Row(1, date(2024, 1, 1), 1, 1),
+        Row(1, date(2024, 1, 2), 100, 1),
+        Row(2, date(2024, 1, 1), 1, 1),
+        Row(2, date(2024, 1, 2), 1, 1),
+    ]
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="corr is not yet supported in local testing mode.",
@@ -484,7 +509,7 @@ def test_window_functions_in_multiple_selects(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
+    reason="Window function ListAgg is not supported",
 )
 def test_listagg_window_function(session):
     df = session.create_dataframe(

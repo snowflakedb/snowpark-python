@@ -68,6 +68,7 @@ def test_str(account, role, database, schema, warehouse):
 def test_used_scoped_temp_object():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
+    fake_connection._thread_safe_session_enabled = True
 
     fake_connection._get_client_side_session_parameter = (
         lambda x, y: ServerConnection._get_client_side_session_parameter(
@@ -112,6 +113,8 @@ def test_used_scoped_temp_object():
 def test_close_exception():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
+    fake_connection._thread_safe_session_enabled = True
+    fake_connection._telemetry_client = mock.Mock()
     fake_connection.is_closed = MagicMock(return_value=False)
     exception_msg = "Mock exception for session.cancel_all"
     fake_connection.run_query = MagicMock(side_effect=Exception(exception_msg))
@@ -123,11 +126,8 @@ def test_close_exception():
         session.close()
 
 
-def test_close_session_in_stored_procedure_no_op():
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    fake_connection.is_closed = MagicMock(return_value=False)
-    session = Session(fake_connection)
+def test_close_session_in_stored_procedure_no_op(closed_mock_server_connection):
+    session = Session(closed_mock_server_connection)
     with mock.patch.object(
         snowflake.snowpark.session, "is_in_stored_procedure"
     ) as mock_fn, mock.patch.object(
@@ -148,13 +148,12 @@ def test_close_session_in_stored_procedure_no_op():
     "warning_level, expected",
     [(logging.WARNING, True), (logging.INFO, True), (logging.ERROR, False)],
 )
-def test_close_session_in_stored_procedure_log_level(caplog, warning_level, expected):
+def test_close_session_in_stored_procedure_log_level(
+    caplog, closed_mock_server_connection, warning_level, expected
+):
     caplog.clear()
     caplog.set_level(warning_level)
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    fake_connection.is_closed = MagicMock(return_value=False)
-    session = Session(fake_connection)
+    session = Session(closed_mock_server_connection)
     with mock.patch.object(
         snowflake.snowpark.session, "is_in_stored_procedure"
     ) as mock_fn:
@@ -164,10 +163,10 @@ def test_close_session_in_stored_procedure_log_level(caplog, warning_level, expe
     assert result == expected
 
 
-def test_resolve_import_path_ignore_import_path(tmp_path_factory):
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    session = Session(fake_connection)
+def test_resolve_import_path_ignore_import_path(
+    tmp_path_factory, mock_server_connection
+):
+    session = Session(mock_server_connection)
 
     tmp_path = tmp_path_factory.mktemp("session_test")
     a_temp_file = tmp_path / "file.txt"
@@ -202,6 +201,7 @@ def test_resolve_package_current_database(has_current_database):
 
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
+    fake_connection._thread_safe_session_enabled = True
     fake_connection._get_current_parameter = mock_get_current_parameter
     session = Session(fake_connection)
     session.table = MagicMock(name="session.table")
@@ -212,10 +212,8 @@ def test_resolve_package_current_database(has_current_database):
     )
 
 
-def test_resolve_package_terms_not_accepted():
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    session = Session(fake_connection)
+def test_resolve_package_terms_not_accepted(mock_server_connection):
+    session = Session(mock_server_connection)
 
     def get_information_schema_packages(table_name: str):
         if table_name == "information_schema.packages":
@@ -245,21 +243,48 @@ def test_resolve_package_terms_not_accepted():
         )
 
 
+def test_resolve_packages_side_effect(mock_server_connection):
+    """Python stored procedure depends on this behavior to add packages to the session."""
+
+    def mock_get_information_schema_packages(table_name: str):
+        result = MagicMock()
+        result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
+            ("random_package_name", json.dumps(["1.0.0"]))
+        ]
+        return result
+
+    session = Session(mock_server_connection)
+    session.table = MagicMock(name="session.table")
+    session.table.side_effect = mock_get_information_schema_packages
+
+    existing_packages = {}
+
+    resolved_packages = session._resolve_packages(
+        ["random_package_name"],
+        existing_packages_dict=existing_packages,
+        validate_package=True,
+        include_pandas=False,
+    )
+
+    assert (
+        len(resolved_packages) == 2
+    ), resolved_packages  # random_package_name and cloudpickle
+    assert (
+        len(existing_packages) == 1
+    ), existing_packages  # {"random_package_name": "random_package_name"}
+
+
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
-def test_write_pandas_wrong_table_type():
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    session = Session(fake_connection)
+def test_write_pandas_wrong_table_type(mock_server_connection):
+    session = Session(mock_server_connection)
     with pytest.raises(ValueError, match="Unsupported table type."):
         session.write_pandas(
             mock.create_autospec(pandas.DataFrame), table_name="t", table_type="aaa"
         )
 
 
-def test_create_dataframe_empty_schema():
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    session = Session(fake_connection)
+def test_create_dataframe_empty_schema(mock_server_connection):
+    session = Session(mock_server_connection)
     with pytest.raises(
         ValueError,
         match="The provided schema or inferred schema cannot be None or empty",
@@ -267,20 +292,16 @@ def test_create_dataframe_empty_schema():
         session.create_dataframe([[1]], schema=StructType([]))
 
 
-def test_create_dataframe_wrong_type():
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    session = Session(fake_connection)
+def test_create_dataframe_wrong_type(mock_server_connection):
+    session = Session(mock_server_connection)
     with pytest.raises(
         TypeError, match=r"Cannot cast <class 'int'>\(1\) to <class 'str'>."
     ):
         session.create_dataframe([[1]], schema=StructType([StructField("a", str)]))
 
 
-def test_table_exists_invalid_table_name():
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    session = Session(fake_connection)
+def test_table_exists_invalid_table_name(mock_server_connection):
+    session = Session(mock_server_connection)
     with pytest.raises(
         SnowparkInvalidObjectNameException,
         match="The object name 'a.b.c.d' is invalid.",
@@ -288,10 +309,8 @@ def test_table_exists_invalid_table_name():
         session._table_exists(["a", "b", "c", "d"])
 
 
-def test_explain_query_error():
-    fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
-    session = Session(fake_connection)
+def test_explain_query_error(mock_server_connection):
+    session = Session(mock_server_connection)
     session._run_query = MagicMock()
     session._run_query.side_effect = ProgrammingError("Can't explain.")
     assert session._explain_query("select 1") is None
@@ -417,6 +436,7 @@ def test_parse_table_name():
 
 def test_session_id():
     fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
     fake_server_connection.get_session_id = mock.Mock(return_value=123456)
     session = Session(fake_server_connection)
 

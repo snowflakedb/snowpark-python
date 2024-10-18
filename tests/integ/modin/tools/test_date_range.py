@@ -8,8 +8,16 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.utils.sql_counter import sql_count_checker
+
+
+@pytest.fixture(params=["date_range", "bdate_range"])
+def date_range_func(request):
+    """
+    utc keyword to pass to to_datetime.
+    """
+    return request.param
 
 
 @pytest.mark.parametrize(
@@ -61,9 +69,12 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
     ],
 )
 @sql_count_checker(query_count=1)
-def test_regular_range(kwargs):
+def test_regular_range(kwargs, date_range_func):
+    if date_range_func == "bdate_range" and kwargs.get("freq", None) is None:
+        kwargs["freq"] = "D"
     assert_snowpark_pandas_equal_to_pandas(
-        pd.date_range(**kwargs), native_pd.Series(native_pd.date_range(**kwargs))
+        getattr(pd, date_range_func)(**kwargs),
+        getattr(native_pd, date_range_func)(**kwargs),
     )
 
 
@@ -86,9 +97,19 @@ def test_regular_range(kwargs):
             "freq": "ME",
         },
         {
+            "start": "2/29/2024",
+            "periods": 5,
+            "freq": "BME",
+        },
+        {
             "start": "6/15/2018",
             "periods": 5,
             "freq": "MS",
+        },
+        {
+            "start": "6/15/2018",
+            "periods": 5,
+            "freq": "BMS",
         },
         {
             "start": "7/15/2018",
@@ -101,9 +122,19 @@ def test_regular_range(kwargs):
             "freq": "QS",
         },
         {
+            "start": "8/15/2018",
+            "periods": 5,
+            "freq": "BQS",
+        },
+        {
             "start": "9/15/2018",
             "periods": 5,
             "freq": "QE",
+        },
+        {
+            "start": "9/15/2018",
+            "periods": 5,
+            "freq": "BQE",
         },
         {
             "end": "10/10/2018",
@@ -111,42 +142,54 @@ def test_regular_range(kwargs):
             "freq": "YS",
         },
         {
+            "end": "10/10/2018",
+            "periods": 5,
+            "freq": "BYS",
+        },
+        {
             "end": "11/10/2018",
             "periods": 5,
             "freq": "Y",
+        },
+        {
+            "end": "11/10/2018",
+            "periods": 5,
+            "freq": "BY",
         },
         {
             "end": "12/10/2018",
             "periods": 5,
             "freq": "YE",
         },
+        {
+            "end": "12/10/2018",
+            "periods": 5,
+            "freq": "BYE",
+        },
     ],
 )
 @sql_count_checker(query_count=1)
-def test_irregular_range(kwargs):
+def test_irregular_range(kwargs, date_range_func):
     assert_snowpark_pandas_equal_to_pandas(
-        pd.date_range(**kwargs), native_pd.Series(native_pd.date_range(**kwargs))
+        getattr(pd, date_range_func)(**kwargs),
+        getattr(native_pd, date_range_func)(**kwargs),
     )
 
 
 @pytest.mark.parametrize(
     "freq",
     [
-        "B",  # business day frequency
         "C",  # custom business day frequency
         "SMS",  # semi-month start frequency (1st and 15th)
-        "BMS",  # business month start frequency
         "CBMS",  # custom business month start frequency
-        "BQS",  # business quarter start frequency
-        "BYS",  # business year start frequency
         "bh",  # business hour frequency
         "cbh",  # custom business hour frequency
     ],
 )
 @sql_count_checker(query_count=0)
-def test_irregular_range_not_implemented(freq):
+def test_irregular_range_not_implemented(freq, date_range_func):
     with pytest.raises(NotImplementedError):
-        pd.date_range(start="1/1/2018", periods=5, freq=freq)
+        getattr(pd, date_range_func)(start="1/1/2018", periods=5, freq=freq)
 
 
 @sql_count_checker(query_count=1)
@@ -168,7 +211,7 @@ def test_without_freq(periods, inclusive):
         "inclusive": inclusive,
     }
     assert_snowpark_pandas_equal_to_pandas(
-        pd.date_range(**kwargs), native_pd.Series(native_pd.date_range(**kwargs))
+        pd.date_range(**kwargs), native_pd.date_range(**kwargs)
     )
 
 
@@ -193,7 +236,7 @@ def test_without_freq(periods, inclusive):
 def test_inclusive(kwargs, inclusive):
     kwargs.update({"inclusive": inclusive})
     assert_snowpark_pandas_equal_to_pandas(
-        pd.date_range(**kwargs), native_pd.Series(native_pd.date_range(**kwargs))
+        pd.date_range(**kwargs), native_pd.date_range(**kwargs)
     )
 
 
@@ -223,14 +266,42 @@ def test_value_error_negative(kwargs, match):
         pd.date_range(**kwargs).to_pandas()
 
 
+@sql_count_checker(query_count=0)
+def test_bdate_range_negative():
+    with pytest.raises(TypeError):
+        pd.bdate_range(freq=None)
+
+    with pytest.raises(NotImplementedError):
+        pd.bdate_range(holidays="set")
+
+
 @pytest.mark.parametrize(
-    "kwargs",
+    "start, end, periods, tz, tz_offset",
     [
-        # Specify tz to set the timezone. TODO: SNOW-879476 support tz with other tz APIs
-        {"start": "1/1/2018", "periods": 5, "tz": "Asia/Tokyo"},
+        ["2018-04-24", None, 10, "Asia/Tokyo", "UTC+09:00"],
+        ["2018-04-24", None, 10, "UTC", "UTC"],
+        [
+            native_pd.to_datetime("1/1/2018").tz_localize("Europe/Berlin"),
+            native_pd.to_datetime("1/08/2018").tz_localize("Europe/Berlin"),
+            None,
+            None,
+            "UTC+01:00",
+        ],
     ],
 )
-@sql_count_checker(query_count=0)
-def test_not_supported(kwargs):
-    with pytest.raises(NotImplementedError):
-        pd.date_range(**kwargs).to_pandas()
+@sql_count_checker(query_count=1)
+def test_tz(date_range_func, start, end, periods, tz, tz_offset):
+    kwargs = {
+        "start": start,
+        "end": end,
+        "periods": periods,
+        "tz": tz,
+    }
+    # TODO: SNOW-1707640 fix this bug: bdate_range returns less data points than expected
+    if date_range_func == "bdate_range" and kwargs.get("freq", None) is None:
+        kwargs["freq"] = "D"
+    assert_snowpark_pandas_equal_to_pandas(
+        getattr(pd, date_range_func)(**kwargs),
+        # convert expected index with tz offset
+        getattr(native_pd, date_range_func)(**kwargs).tz_convert(tz_offset),
+    )

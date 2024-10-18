@@ -7,7 +7,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=1)
@@ -17,6 +17,11 @@ from tests.integ.modin.sql_counter import sql_count_checker
         ([1, None, 4, 3, 4], ["A", "B", "C", "D", "E"]),
         ([1, None, 4, 3, 4], [None, "B", "C", "D", "E"]),
         ([1, 10, 4, 3, 4], ["E", "D", "C", "A", "B"]),
+        pytest.param(
+            [pd.Timedelta(1), None, pd.Timedelta(4), pd.Timedelta(3), pd.Timedelta(4)],
+            ["A", "B", "C", "D", "E"],
+            id="timedelta",
+        ),
     ],
 )
 @pytest.mark.parametrize("func", ["idxmax", "idxmin"])
@@ -48,10 +53,8 @@ def test_series_idxmax_idxmin_with_multiindex(
     multiindex_native_int_series, func, skipna
 ):
     """
-    Test DataFrameGroupBy.idxmax and DataFrameGroupBy.idxmin with a MultiIndex DataFrame.
-    Here, the MultiIndex DataFrames are grouped by `level` and not `by`.
+    Test Series.idxmax and Series.idxmin with a MultiIndex Series.
     """
-    # Create MultiIndex DataFrames.
     native_series = multiindex_native_int_series
     snow_series = pd.Series(native_series)
     with pytest.raises(
