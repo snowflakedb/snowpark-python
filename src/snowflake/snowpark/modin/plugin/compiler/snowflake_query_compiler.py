@@ -1606,8 +1606,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         frame = self._modin_frame.ensure_row_position_column()
         row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
 
-        fill_value_dtype = infer_object_type(fill_value)
-        fill_value = None if pd.isna(fill_value) else pandas_lit(fill_value)
+        timedelta_invalid_fill_value_error_message = f"value should be a 'Timedelta' or 'NaT'. Got '{type(fill_value).__name__}' instead."
 
         def shift_expression_and_type(
             quoted_identifier: str, dtype: DataType
@@ -1622,19 +1621,51 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Returns:
                 SnowparkPandasColumn representing the result.
             """
+            if isinstance(dtype, TimedeltaType):
+                if isinstance(fill_value, str):
+                    # Despite the error messages, pandas allows filling a timedelta
+                    # with strings, but it converts strings to timedelta.
+                    try:
+                        fill_value_for_snowpark = pd.Timedelta(fill_value)
+                    except BaseException:
+                        raise TypeError(timedelta_invalid_fill_value_error_message)
+                else:
+                    fill_value_for_snowpark = fill_value
+                if not (
+                    pd.isna(fill_value_for_snowpark)
+                    or isinstance(
+                        SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+                            type(fill_value_for_snowpark)
+                        ),
+                        TimedeltaType,
+                    )
+                ):
+                    raise TypeError(timedelta_invalid_fill_value_error_message)
+            else:
+                fill_value_for_snowpark = fill_value
+
+            fill_value_dtype = infer_object_type(fill_value_for_snowpark)
+            fill_value_snowpark_column = (
+                None
+                if pd.isna(fill_value_for_snowpark)
+                else pandas_lit(fill_value_for_snowpark)
+            )
+
             window_expr = Window.orderBy(col(row_position_quoted_identifier))
 
             # convert to variant type if types differ
-            if fill_value is not None and dtype != fill_value_dtype:
+            if fill_value_snowpark_column is not None and dtype != fill_value_dtype:
                 shift_expression = lag(
                     to_variant(col(quoted_identifier)),
                     offset=periods,
-                    default_value=to_variant(fill_value),
+                    default_value=to_variant(fill_value_snowpark_column),
                 ).over(window_expr)
                 expression_type = VariantType()
             else:
                 shift_expression = lag(
-                    quoted_identifier, offset=periods, default_value=fill_value
+                    quoted_identifier,
+                    offset=periods,
+                    default_value=fill_value_snowpark_column,
                 ).over(window_expr)
                 expression_type = dtype
             # TODO(https://snowflakecomputing.atlassian.net/browse/SNOW-1634393):
@@ -1680,10 +1711,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         frame = self._modin_frame
         column_labels = frame.data_column_pandas_labels
 
+        fill_value_snowpark_pandas_type = (
+            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+                type(fill_value)
+            )
+        )
+
         # Fill all columns with fill value (or NULL) if abs(periods) exceeds column count.
         if abs(periods) >= len(column_labels):
             new_frame = frame.apply_snowpark_function_to_columns(
-                lambda column: pandas_lit(fill_value)
+                lambda column: pandas_lit(fill_value),
+                return_type=fill_value_snowpark_pandas_type,
             )
             return self.__constructor__(new_frame)
 
@@ -1699,18 +1737,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             col(quoted_identifier)
             for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
         ]
+        col_snowpark_pandas_types = frame.cached_data_column_snowpark_pandas_types
         if periods > 0:
             # create expressions to shift data to right
             # | lit(...) | lit(...) | ... | lit(...) | col(...) | ... | col(...) |
             col_expressions = [pandas_lit(fill_value)] * periods + col_expressions[
                 :-periods
             ]
+            snowpark_pandas_types = [
+                fill_value_snowpark_pandas_type
+            ] * periods + col_snowpark_pandas_types[:-periods]
         else:
             # create expressions to shift data to left
             # | col(...) | ... | col(...) | lit(...) | lit(...) | ... | lit(...) |
             col_expressions = col_expressions[-periods:] + [pandas_lit(fill_value)] * (
                 -periods
             )
+            snowpark_pandas_types = col_snowpark_pandas_types[-periods:] + [
+                fill_value_snowpark_pandas_type
+            ] * (-periods)
 
         new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
             {
@@ -1718,7 +1763,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 for i, quoted_identifier in enumerate(
                     frame.data_column_snowflake_quoted_identifiers
                 )
-            }
+            },
+            snowpark_pandas_types=snowpark_pandas_types,
         ).frame
 
         return self.__constructor__(new_frame)
@@ -11851,9 +11897,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self._modin_frame.is_multiindex(axis=axis)
 
     def abs(self) -> "SnowflakeQueryCompiler":
+        # TODO(SNOW-1620415): Implement abs() for timedelta.
+        self._raise_not_implemented_error_for_timedelta()
         return self.unary_op("abs")
 
     def negative(self) -> "SnowflakeQueryCompiler":
+        # TODO(SNOW-1620415): Implement __neg__() for timedelta.
+        self._raise_not_implemented_error_for_timedelta()
         return self.unary_op("__neg__")
 
     def unary_op(self, op: str) -> "SnowflakeQueryCompiler":
@@ -12632,8 +12682,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 rather than the entire dataset. This parameter is exclusive to the Snowpark pandas
                 query compiler and is only used internally to implement groupby_value_counts.
         """
-        self._raise_not_implemented_error_for_timedelta()
-
         # validate whether by is valid (e.g., contains duplicates or non-existing labels)
         self.validate_groupby(by=by, axis=0, level=None)
 
@@ -18224,6 +18272,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sort : bool, default True
             Whether to sort the levels of the resulting MultiIndex.
         """
+        # stack() may create a column that includes values from multiple input
+        # columns. Tracking types in that case is not simple, so we don't
+        # handle the client-side timedelta type as an input.
+        self._raise_not_implemented_error_for_timedelta()
+
         if level != -1:
             ErrorMessage.not_implemented(
                 "Snowpark pandas doesn't yet support 'level != -1' in stack API",
@@ -18283,6 +18336,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas doesn't support multiindex columns in the unstack API"
             )
+
+        # unstack() should preserve timedelta types, but one input column may
+        # may map to multiple output columns, so we don't support timedelta
+        # inputs yet.
+        self._raise_not_implemented_error_for_timedelta()
 
         level = [level]
 

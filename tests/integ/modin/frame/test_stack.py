@@ -69,3 +69,17 @@ def test_stack_multiindex_unsupported():
         match="Snowpark pandas doesn't support multiindex columns in stack API",
     ):
         df_multi_level_cols1.stack()
+
+
+@sql_count_checker(query_count=0)
+def test_stack_timedelta_unsupported():
+    with pytest.raises(NotImplementedError):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                [[0, 1], [2, 3]],
+                index=["cat", "dog"],
+                columns=["weight", "height"],
+                dtype="timedelta64[ns]",
+            ),
+            lambda df: df.stack(),
+        )

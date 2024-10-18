@@ -28,8 +28,15 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
             },
             1,
         ),
+        ([[pd.Timedelta(1), 1]], {}, 1),
     ],
-    ids=["non-empty 2x3", "empty column", "100x10 random dataframe", "multi-index"],
+    ids=[
+        "non-empty 2x3",
+        "empty column",
+        "100x10 random dataframe",
+        "multi-index",
+        "frame_with_timedelta",
+    ],
 )
 def test_dataframe_size_param(args, kwargs, expected_query_count):
     with SqlCounter(query_count=expected_query_count):
