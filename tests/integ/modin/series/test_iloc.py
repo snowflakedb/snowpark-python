@@ -980,6 +980,6 @@ def test_iloc_efficient_sql(session, ops):
     eval_query = query_listener.queries[-1].sql_text.lower()
     # check no row count
     assert "count" not in eval_query
-    # check orderBy behinds limit
+    # check orderBy is after limit in the sql query
     assert "count" not in eval_query
     assert eval_query.index("limit") < eval_query.index("order by")
