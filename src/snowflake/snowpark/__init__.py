@@ -39,6 +39,9 @@ __all__ = [
 ]
 
 
+import sys
+import warnings
+
 from snowflake.snowpark.version import VERSION
 
 __version__ = ".".join(str(x) for x in VERSION if x is not None)
@@ -69,3 +72,22 @@ from snowflake.snowpark.table import (
     WhenNotMatchedClause,
 )
 from snowflake.snowpark.window import Window, WindowSpec
+
+_deprecation_warning_msg = (
+    "Snowpark Python Runtime Support for Python 3.8 will reach end-of-life "
+    "on March 31, 2025. To ensure continued support, please upgrade "
+    "your runtime environment to Python > 3.8 before this date. "
+    "For more details, please refer "
+    "to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy."
+)
+warnings.filterwarnings(
+    "once",
+    message=_deprecation_warning_msg,
+)
+
+if sys.version_info.major == 3 and sys.version_info.minor == 8:
+    warnings.warn(
+        _deprecation_warning_msg,
+        category=DeprecationWarning,
+        stacklevel=2,
+    )
