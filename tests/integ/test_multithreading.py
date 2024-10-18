@@ -7,6 +7,7 @@ import hashlib
 import logging
 import os
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple  # noqa: F401
 from unittest.mock import patch
@@ -37,17 +38,24 @@ from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Util
 
 @pytest.fixture(scope="module")
 def threadsafe_session(
-    db_parameters, sql_simplifier_enabled, cte_optimization_enabled, local_testing_mode
+    db_parameters,
+    session,
+    sql_simplifier_enabled,
+    cte_optimization_enabled,
+    local_testing_mode,
 ):
-    new_db_parameters = db_parameters.copy()
-    new_db_parameters["local_testing"] = local_testing_mode
-    new_db_parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: True
-    }
-    with Session.builder.configs(new_db_parameters).create() as session:
-        session._sql_simplifier_enabled = sql_simplifier_enabled
-        session._cte_optimization_enabled = cte_optimization_enabled
+    if IS_IN_STORED_PROC:
         yield session
+    else:
+        new_db_parameters = db_parameters.copy()
+        new_db_parameters["local_testing"] = local_testing_mode
+        new_db_parameters["session_parameters"] = {
+            _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: True
+        }
+        with Session.builder.configs(new_db_parameters).create() as session:
+            session._sql_simplifier_enabled = sql_simplifier_enabled
+            session._cte_optimization_enabled = cte_optimization_enabled
+            yield session
 
 
 @pytest.fixture(scope="function")
@@ -63,6 +71,13 @@ def threadsafe_temp_stage(threadsafe_session, resources_path, local_testing_mode
     yield tmp_stage_name
     if not local_testing_mode:
         Utils.drop_stage(threadsafe_session, tmp_stage_name)
+
+
+def test_threadsafe_session_uses_locks(threadsafe_session):
+    rlock_class = threading.RLock().__class__
+    assert isinstance(threadsafe_session._lock, rlock_class)
+    assert isinstance(threadsafe_session._temp_table_auto_cleaner.lock, rlock_class)
+    assert isinstance(threadsafe_session._conn._lock, rlock_class)
 
 
 def test_concurrent_select_queries(threadsafe_session):
@@ -633,6 +648,9 @@ def test_concurrent_update_on_sensitive_configs(
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Cannot create new session inside stored proc"
+)
 @pytest.mark.parametrize("is_enabled", [True, False])
 def test_num_cursors_created(db_parameters, is_enabled, local_testing_mode):
     if is_enabled and local_testing_mode:
