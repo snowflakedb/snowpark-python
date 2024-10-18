@@ -35,11 +35,13 @@ def infer_quoted_identifiers_from_expressions(
         # not perform any inference in this case.
         if isinstance(e, UnresolvedAlias) and isinstance(e.child, Star):
             return None
-        result.append(
-            quote_name(
-                parse_column_name(e, analyzer, df_aliased_col_name_to_real_col_name)
-            )
+        column_name = parse_column_name(
+            e, analyzer, df_aliased_col_name_to_real_col_name
         )
+        if column_name is not None:
+            result.append(quote_name(column_name))
+        else:
+            return None
     return result
 
 
