@@ -16,7 +16,6 @@ from pandas.core.dtypes.common import is_bool_dtype, is_float_dtype, is_integer_
 from pandas.core.dtypes.inference import is_integer, is_scalar
 from pandas.core.indexing import IndexingError
 
-# dummy change
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.functions import (
     Column,
