@@ -8,6 +8,8 @@
 
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
+- Added the following new functions in `snowflake.snowpark.functions`:
+  - `map`
 
 #### Improvements
 
