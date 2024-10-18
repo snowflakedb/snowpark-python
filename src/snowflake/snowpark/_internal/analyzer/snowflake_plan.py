@@ -273,8 +273,8 @@ class SnowflakePlan(LogicalPlan):
         # to UUID track queries that are generated from the same plan.
         self._uuid = str(uuid.uuid4())
         # Metadata/Attributes for the plan
-        self._attributes = None
-        self._quoted_identifiers = None
+        self._attributes: Optional[List[Attribute]] = None
+        self._quoted_identifiers: Optional[List[str]] = None
         # If _attributes is not None, then _quoted_identifiers will be None.
         # If _quoted_identifiers is not None, then _attributes will be None.
         if session.reduce_describe_query_enabled and self.source_plan is not None:
