@@ -1082,12 +1082,13 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             "idx_name": self._idx_name,
         }
         # The rules of type deduction for the resulted object is the following:
-        #   1. If `key` is a list-like or `as_index is False`, then the resulted object is a DataFrameGroupBy
+        #   1. If `key` is a list-like, then the resulted object is a DataFrameGroupBy
         #   2. Otherwise, the resulted object is SeriesGroupBy
         #   3. Result type does not depend on the `by` origin
         # Examples:
         #   - drop: any, as_index: any, __getitem__(key: list_like) -> DataFrameGroupBy
-        #   - drop: any, as_index: False, __getitem__(key: any) -> DataFrameGroupBy
+        #   - drop: any, as_index: False, __getitem__(key: list_like) -> DataFrameGroupBy
+        #   - drop: any, as_index: False, __getitem__(key: label) -> SeriesGroupBy
         #   - drop: any, as_index: True, __getitem__(key: label) -> SeriesGroupBy
         if is_list_like(key):
             make_dataframe = True
@@ -1264,6 +1265,11 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             numeric_only = False
 
         if is_result_dataframe is None:
+            # If the GroupBy object is a SeriesGroupBy, we generally return a Series
+            # after an aggregation - unless `as_index` is False, in which case we
+            # return a DataFrame with N columns, where the first N-1 columns are
+            # the grouping columns (by), and the Nth column is the aggregation
+            # result.
             is_result_dataframe = not is_series_groupby or not self._as_index
         result_type = pd.DataFrame if is_result_dataframe else pd.Series
         result = result_type(
