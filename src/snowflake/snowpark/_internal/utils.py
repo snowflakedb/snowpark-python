@@ -17,6 +17,7 @@ import platform
 import random
 import re
 import string
+import threading
 import traceback
 import zipfile
 from enum import Enum
@@ -169,6 +170,7 @@ NON_FORMAT_TYPE_OPTIONS = {
     "FILES",
     # The following are not copy into SQL command options but client side options.
     "INFER_SCHEMA",
+    "INFER_SCHEMA_OPTIONS",
     "FORMAT_TYPE_OPTIONS",
     "TARGET_COLUMNS",
     "TRANSFORMATIONS",
@@ -294,6 +296,20 @@ def normalize_path(path: str, is_local: bool) -> str:
     if not any(path.startswith(prefix) for prefix in prefixes):
         path = f"{prefixes[0]}{path}"
     return f"'{path}'"
+
+
+def warn_session_config_update_in_multithreaded_mode(
+    config: str, thread_safe_mode_enabled: bool
+) -> None:
+    if not thread_safe_mode_enabled:
+        return
+
+    if threading.active_count() > 1:
+        logger.warning(
+            "You might have more than one threads sharing the Session object trying to update "
+            f"{config}. Updating this while other tasks are running can potentially cause "
+            "unexpected behavior. Please update the session configuration before starting the threads."
+        )
 
 
 def normalize_remote_file_or_dir(name: str) -> str:
@@ -664,6 +680,47 @@ class WarningHelper:
         self.count += 1
 
 
+# TODO: SNOW-1720855: Remove DummyRLock and DummyThreadLocal after the rollout
+class DummyRLock:
+    """This is a dummy lock that is used in place of threading.Rlock when multithreading is
+    disabled."""
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def acquire(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+    def release(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+
+class DummyThreadLocal:
+    """This is a dummy thread local class that is used in place of threading.local when
+    multithreading is disabled."""
+
+    pass
+
+
+def create_thread_local(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.local, DummyThreadLocal]:
+    if thread_safe_session_enabled:
+        return threading.local()
+    return DummyThreadLocal()
+
+
+def create_rlock(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.RLock, DummyRLock]:
+    if thread_safe_session_enabled:
+        return threading.RLock()
+    return DummyRLock()
+
+
 warning_dict: Dict[str, WarningHelper] = {}
 
 
@@ -790,6 +847,25 @@ def get_copy_into_table_options(
         elif k not in NON_FORMAT_TYPE_OPTIONS:
             file_format_type_options[k] = v
     return file_format_type_options, copy_options
+
+
+def get_aliased_option_name(
+    key: str,
+    alias_map: Dict[str, str],
+) -> str:
+    """Method that takes a key and an option alias map as arguments and returns
+    the aliased key if the key is present in the alias map. Also raise a warning
+    if alias key is applied.
+    """
+    upper_key = key.strip().upper()
+    aliased_key = alias_map.get(upper_key, upper_key)
+    if aliased_key != upper_key:
+        logger.warning(
+            f"Option '{key}' is aliased to '{aliased_key}'. You may see unexpected behavior."
+            " Please refer to format specific options for more information"
+        )
+
+    return aliased_key
 
 
 def strip_double_quotes_in_like_statement_in_table_name(table_name: str) -> str:

@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 from collections.abc import Hashable
-from typing import Union
+from typing import Optional, Union
 
 import pandas as native_pd
 from modin.core.dataframe.algebra.default2pandas import DataFrameDefault  # type: ignore
@@ -12,6 +12,9 @@ from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
     OrderingColumn,
+)
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
 )
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     UnpivotResultInfo,
@@ -27,6 +30,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     serialize_pandas_labels,
 )
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 TRANSPOSE_INDEX = "TRANSPOSE_IDX"
 # transpose value column used in unpivot
@@ -40,14 +44,16 @@ TRANSPOSE_OBJ_NAME_COLUMN = "TRANSPOSE_OBJ_NAME"
 def transpose_empty_df(
     original_frame: InternalFrame,
 ) -> "SnowflakeQueryCompiler":  # type: ignore[name-defined] # noqa: F821
-    from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
         SnowflakeQueryCompiler,
+    )
+    from snowflake.snowpark.modin.plugin.extensions.utils import (
+        try_convert_index_to_native,
     )
 
     return SnowflakeQueryCompiler.from_pandas(
         native_pd.DataFrame(
-            columns=original_frame.index_columns_pandas_index,
+            columns=original_frame.index_columns_pandas_index(),
             index=try_convert_index_to_native(original_frame.data_columns_index),
         )
     )
@@ -104,6 +110,72 @@ def prepare_and_unpivot_for_transpose(
         value_column_name=TRANSPOSE_VALUE_COLUMN,
         variable_column_name=TRANSPOSE_NAME_COLUMN,
         object_column_name=TRANSPOSE_OBJ_NAME_COLUMN,
+    )
+
+
+def _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(
+    pandas_label: Union[Hashable, tuple[Hashable]],
+    cached_types: list[Optional[SnowparkPandasType]],
+) -> Union[Hashable, tuple[Hashable]]:
+    """
+    Convert a transpose result's SnowparkPandasType column labels, if they exist, to pandas.
+
+    When we transpose a frame where the type of at least one level of the index
+    is a SnowparkPandasType, the intermediate transpose result for each column
+    uses the Snowpark representation of the row label rather than the Snowpark
+    pandas representation. For example, if a row has pandas label
+    pd.Timedelta(7), then that row's label in Snowpark is the number 7, so the
+    intermediate transpose result would have a column named 7 instead of
+    pd.Timedelta(7). This method uses the index types of the original frame to
+    fix the pandas labels of column levels that come from SnowparkPandasType
+    index levels.
+
+    Args
+    ----
+        pandas_label: transpose result label. This is a tuple if the result has
+                      multiple column levels.
+        cached_types: SnowparkPandasType for each index level of the original
+                      frame.
+
+    Returns
+    -------
+        The pandas label with levels that are instances of SnowparkPandasType
+        converted to the corresponding pandas type.
+
+    Examples
+    --------
+
+    >>> from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import TimedeltaType
+
+
+    Transposing a frame with a single timedelta index level:
+
+    >>> _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(native_pd.Timedelta(1), [TimedeltaType()])
+    Timedelta('0 days 00:00:00.000000001')
+
+    Transposing a frame with a timedelta index level and a string level:
+
+    >>> _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(("a", native_pd.Timedelta(1)), [None, TimedeltaType()])
+    ('a', Timedelta('0 days 00:00:00.000000001'))
+
+    """
+    if isinstance(pandas_label, tuple):
+        return tuple(
+            (
+                index_type.to_pandas(level_label)
+                if index_type is not None
+                else level_label
+            )
+            for index_type, level_label in zip(cached_types, pandas_label)
+        )
+    assert len(cached_types) == 1, (
+        "Internal error: If the transpose result has a single column level, "
+        + "then the input should have a single index level with a single "
+        + "SnowparkPandasType."
+    )
+    cached_type = cached_types[0]
+    return (
+        cached_type.to_pandas(pandas_label) if cached_type is not None else pandas_label
     )
 
 
@@ -178,8 +250,10 @@ def clean_up_transpose_result_index_and_labels(
 
     # If it's a single level, we store the label, otherwise we store tuple for each level.
     new_data_column_pandas_labels = [
-        data_column_object_identifier[0]
-        for data_column_object_identifier, _ in data_column_object_identifier_pairs
+        _convert_transpose_result_snowpark_pandas_column_labels_to_pandas(
+            pandas_label, original_frame.cached_index_column_snowpark_pandas_types
+        )
+        for (pandas_label, _), _ in data_column_object_identifier_pairs
     ]
 
     new_data_column_snowflake_quoted_identifiers = [
@@ -277,6 +351,30 @@ def clean_up_transpose_result_index_and_labels(
         OrderingColumn(row_position_snowflake_quoted_identifier)
     )
 
+    original_frame_data_column_types = (
+        original_frame.cached_data_column_snowpark_pandas_types
+    )
+    if all(t is None for t in original_frame_data_column_types):
+        new_data_column_types = None
+    elif len(set(original_frame_data_column_types)) == 1:
+        # unique type
+        new_data_column_types = [original_frame_data_column_types[0]] * len(
+            new_data_column_snowflake_quoted_identifiers
+        )
+    else:
+        # transpose will lose the type
+        new_data_column_types = None
+        WarningMessage.lost_type_warning(
+            "transpose",
+            ", ".join(
+                [
+                    type(t).__name__
+                    for t in set(original_frame_data_column_types)
+                    if t is not None
+                ]
+            ),
+        )
+
     new_internal_frame = InternalFrame.create(
         ordered_dataframe=ordered_transposed_df,
         data_column_pandas_labels=new_data_column_pandas_labels,
@@ -284,6 +382,8 @@ def clean_up_transpose_result_index_and_labels(
         data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=new_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
+        data_column_types=new_data_column_types,
+        index_column_types=None,
     )
 
     # Rename the data column snowflake quoted identifiers to be closer to pandas labels, normalizing names

@@ -1,15 +1,14 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import re
 
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=1)
@@ -23,6 +22,6 @@ def test_title():
 @sql_count_checker(query_count=0)
 def test_casefold_not_implemented():
     s = pd.Series(["ß", "case", "ßd"])
-    msg = re.escape("casefold is not yet implemented for Series.str")
+    msg = "Snowpark pandas does not yet support the method Series.str.casefold"
     with pytest.raises(NotImplementedError, match=msg):
         s.str.casefold()

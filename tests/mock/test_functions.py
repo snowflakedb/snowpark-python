@@ -3,6 +3,7 @@
 #
 import datetime
 import math
+import unittest.mock
 
 import pytest
 
@@ -16,6 +17,9 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
     col,
     contains,
     count,
+    current_date,
+    current_time,
+    current_timestamp,
     desc,
     is_null,
     lit,
@@ -327,3 +331,13 @@ def test_function_register_unregister(session):
     assert registry.get_function("abs") == mocked
     registry.unregister("abs")
     assert registry.get_function("abs") is None
+
+
+def test_current_time(session):
+    df = session.create_dataframe([1], schema=["a"])
+    now_datetime = datetime.datetime(2024, 8, 13, 10, 1, 50)
+    with unittest.mock.patch("snowflake.snowpark.mock._functions.datetime") as dt:
+        dt.datetime.now.return_value = now_datetime
+        assert df.select(
+            current_timestamp(), current_date(), current_time()
+        ).collect() == [Row(now_datetime, now_datetime.date(), now_datetime.time())]

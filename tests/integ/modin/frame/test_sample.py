@@ -5,10 +5,11 @@
 import modin.pandas as pd
 import numpy as np
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_index_equal
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.fixture(params=[True, False])
@@ -28,11 +29,19 @@ def test_df_sample_cols():
 
 
 @pytest.mark.parametrize("n", [0, 1, 10, 20])
+@pytest.mark.parametrize(
+    "data",
+    [
+        param(np.random.randint(100, size=(20, 20)), id="ints"),
+        param(
+            np.random.randint(100, size=(20, 20)).astype("timedelta64[ns]"),
+            id="timedelta",
+        ),
+    ],
+)
 @sql_count_checker(query_count=4)
-def test_df_sample_rows_n(n, ignore_index):
-    sample_df = pd.DataFrame(np.random.randint(100, size=(20, 20))).sample(
-        n=n, ignore_index=ignore_index
-    )
+def test_df_sample_rows_n(data, n, ignore_index):
+    sample_df = pd.DataFrame(data).sample(n=n, ignore_index=ignore_index)
     assert len(sample_df) == n
     assert_index_equal(sample_df.index, sample_df.index)
 

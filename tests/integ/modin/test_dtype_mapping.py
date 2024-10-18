@@ -17,11 +17,11 @@ from pandas import Timestamp
 from pandas._testing import assert_frame_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
+from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import Utils
 
 
-# TODO 849288 verify df.dtypes too
+@pytest.mark.modin_sp_precommit
 @pytest.mark.parametrize(
     "col_name_type, samples, expected_dtype, expected_to_pandas_dtype, expected_to_pandas",
     [
@@ -265,7 +265,7 @@ from tests.utils import Utils
         (
             "timestamp_ltz timestamp_ltz",
             "values ('2023-01-01 00:00:01.001'), ('2023-12-31 23:59:59.999')",
-            dtype("<M8[ns]"),
+            "datetime64[ns, America/Los_Angeles]",
             "datetime64[ns, America/Los_Angeles]",
             native_pd.DataFrame(
                 [
@@ -279,16 +279,12 @@ from tests.utils import Utils
         (
             "timestamp_tz timestamp_tz",
             "values ('2023-01-01 00:00:01.001 +0000'), ('2023-12-31 23:59:59.999 +1000')",  # timestamp_tz only supports tz offset
-            dtype("<M8[ns]"),
-            "datetime64[ns, America/Los_Angeles]",  # to_pandas convert tz to local timezone
+            "object",  # multi timezone case
+            "object",
             native_pd.DataFrame(
                 [
-                    Timestamp(
-                        "2022-12-31 16:00:01.001000-08:00", tz="America/Los_Angeles"
-                    ),
-                    Timestamp(
-                        "2023-12-31 05:59:59.999000-08:00", tz="America/Los_Angeles"
-                    ),
+                    Timestamp("2023-01-01 00:00:01.001 +0000"),
+                    Timestamp("2023-12-31 23:59:59.999 +1000"),
                 ],
                 index=native_pd.Index([0, 1]),
                 columns=["TIMESTAMP_TZ"],
@@ -339,7 +335,13 @@ def test_read_snowflake_data_types(
     expected_to_pandas_dtype,
     expected_to_pandas,
 ):
-    expected_query_count = 9 if isinstance(samples, list) and len(samples) > 1 else 4
+    expected_query_count = (
+        9
+        if isinstance(samples, list) and len(samples) > 1
+        else 5
+        if "timestamp_tz" in col_name_type
+        else 4
+    )
     with SqlCounter(query_count=expected_query_count):
         Utils.create_table(session, test_table_name, col_name_type, is_temporary=True)
         if not isinstance(samples, list):

@@ -4,9 +4,11 @@
 #
 
 import copy
+import datetime
 
 import pytest
 
+from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import (
     DeleteResult,
     MergeResult,
@@ -20,13 +22,23 @@ from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkTableException
 from snowflake.snowpark.functions import (
     col,
+    lit,
     max as max_,
     mean,
     min as min_,
     when_matched,
     when_not_matched,
 )
-from snowflake.snowpark.types import IntegerType, StructField, StructType
+from snowflake.snowpark.types import (
+    DateType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+    TimeType,
+)
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
 table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -292,7 +304,7 @@ def test_merge_with_delete_clause_only(session):
     Utils.check_answer(target, [Row(10, "too_old"), Row(11, "old")])
 
 
-def test_merge_with_insert_clause_only(session):
+def test_merge_with_insert_clause_only(session, local_testing_mode):
     target_df = session.createDataFrame(
         [(10, "old"), (11, "new")], schema=["id", "desc"]
     )
@@ -330,6 +342,53 @@ def test_merge_with_insert_clause_only(session):
         ],
     ) == MergeResult(1, 0, 0)
     Utils.check_answer(target, [Row(10, "old"), Row(11, "new"), Row(12, "new")])
+
+    fixed_datetime = datetime.datetime(2024, 7, 18, 12, 12, 12)
+    insert_datetime = datetime.datetime(2024, 8, 13, 10, 1, 50)
+    target_df = session.create_dataframe(
+        [("id1", fixed_datetime, fixed_datetime.date(), fixed_datetime.time())],
+        schema=StructType(
+            [
+                StructField("id", StringType()),
+                StructField("col_datetime", TimestampType(TimestampTimeZone.NTZ)),
+                StructField("col_date", DateType()),
+                StructField("col_time", TimeType()),
+            ]
+        ),
+    )
+    target_df.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
+    source_df = session.create_dataframe(
+        [
+            ("id1"),
+            ("id2"),
+            ("id3"),
+        ],
+        schema=StructType([StructField("id", StringType())]),
+    )
+    assert target.merge(
+        source_df,
+        target["id"] == source_df["id"],
+        [
+            when_not_matched().insert(
+                {
+                    "id": source_df["id"],
+                    "col_datetime": insert_datetime,
+                    "col_date": insert_datetime.date(),
+                    "col_time": insert_datetime.time(),
+                }
+            )
+        ],
+    ) == MergeResult(2, 0, 0)
+
+    Utils.check_answer(
+        target,
+        [
+            Row("id1", fixed_datetime, fixed_datetime.date(), fixed_datetime.time()),
+            Row("id2", insert_datetime, insert_datetime.date(), insert_datetime.time()),
+            Row("id3", insert_datetime, insert_datetime.date(), insert_datetime.time()),
+        ],
+    )
 
 
 def test_merge_with_matched_and_not_matched_clauses(session):
@@ -611,3 +670,29 @@ def test_merge_multi_operation(session):
         ],
     )
     assert target.sort(col("id")).collect() == [Row(1, "a")]
+
+
+@pytest.mark.skipif(
+    not installed_pandas,
+    reason="Test requires pandas.",
+)
+def test_snow_1694649_repro_merge_with_equal_null(session):
+    # Force temp table
+    import pandas as pd
+
+    df1 = session.create_dataframe(pd.DataFrame({"A": [0, 1], "B": ["a", "b"]}))
+    df2 = session.create_dataframe(pd.DataFrame({"A": [0, 1], "B": ["a", "c"]}))
+
+    df1.merge(
+        source=df2,
+        join_expr=df1["A"].equal_null(df2["A"]),
+        clauses=[
+            when_matched(
+                ~(df1["A"].equal_null(df2["A"])) & (df1["B"].equal_null(df2["B"]))
+            ).update({"A": lit(3)})
+        ],
+    )
+    assert session.table(df1.table_name).order_by("A").collect() == [
+        Row(0, "a"),
+        Row(1, "b"),
+    ]

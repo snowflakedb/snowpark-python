@@ -61,6 +61,7 @@ DataFrame
     DataFrame.__iter__
     DataFrame.keys
     DataFrame.iterrows
+    DataFrame.items
     DataFrame.itertuples
     DataFrame.tail
     DataFrame.isin
@@ -200,6 +201,7 @@ DataFrame
     DataFrame.stack
     DataFrame.T
     DataFrame.transpose
+    DataFrame.unstack
 
 .. rubric:: Combining / comparing / joining / merging
 

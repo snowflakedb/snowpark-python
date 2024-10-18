@@ -113,10 +113,12 @@ class UserDefinedFunction:
         return Column(self._create_udf_expression(exprs))
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
-        if len(exprs) != len(self._input_types):
+        # len(exprs) can be less than len(self._input_types) if udf has
+        # optional arguments but it cannot have more arguments
+        if len(exprs) > len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"
-                f" Expected: {len(self._input_types)}, Found: {len(exprs)}"
+                f" Expected: <={len(self._input_types)}, Found: {len(exprs)}"
             )
         return SnowflakeUDF(
             self.name,
@@ -503,6 +505,7 @@ class UDFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -591,6 +594,9 @@ class UDFRegistration:
             immutable: Whether the UDF result is deterministic or not for the same input.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
+
         See Also:
         - :func:`~snowflake.snowpark.functions.udf`
         - :meth:`register_from_file`
@@ -635,6 +641,7 @@ class UDFRegistration:
                 api_call_source="UDFRegistration.register"
                 + ("[pandas_udf]" if _from_pandas else ""),
                 is_permanent=is_permanent,
+                copy_grants=copy_grants,
             )
 
     def register_from_file(
@@ -657,6 +664,7 @@ class UDFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -748,6 +756,8 @@ class UDFRegistration:
             immutable: Whether the UDF result is deterministic or not for the same input.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -790,6 +800,7 @@ class UDFRegistration:
                 api_call_source="UDFRegistration.register_from_file",
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                copy_grants=copy_grants,
             )
 
     def _do_register_udf(
@@ -819,6 +830,7 @@ class UDFRegistration:
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        copy_grants: bool = False,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -827,6 +839,7 @@ class UDFRegistration:
             is_dataframe_input,
             return_type,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
@@ -870,10 +883,14 @@ class UDFRegistration:
             is_permanent=is_permanent,
         )
 
-        if (not custom_python_runtime_version_allowed) and (self._session is not None):
-            check_python_runtime_version(
+        runtime_version_from_requirement = None
+        if self._session is not None:
+            runtime_version_from_requirement = (
                 self._session._runtime_version_from_requirement
             )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(runtime_version_from_requirement)
 
         raised = False
         try:
@@ -882,6 +899,7 @@ class UDFRegistration:
                 func=func,
                 return_type=return_type,
                 input_args=input_args,
+                opt_arg_defaults=opt_arg_defaults,
                 handler=handler,
                 object_type=TempObjectType.FUNCTION,
                 object_name=udf_name,
@@ -901,6 +919,8 @@ class UDFRegistration:
                 statement_params=statement_params,
                 comment=comment,
                 native_app_params=native_app_params,
+                copy_grants=copy_grants,
+                runtime_version=runtime_version_from_requirement,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),

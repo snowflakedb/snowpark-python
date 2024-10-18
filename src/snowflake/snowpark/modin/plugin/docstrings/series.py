@@ -15,6 +15,8 @@ from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
 )
 from snowflake.snowpark.modin.utils import _create_operator_docstring
 
+from .base import BasePandasDataset
+
 _shared_doc_kwargs = {
     "axes": "index",
     "klass": "Series",
@@ -35,7 +37,7 @@ axis : int or str, optional
 }
 
 
-class Series:
+class Series(BasePandasDataset):
     """
     Snowpark pandas representation of `pandas.Series` with a lazily-evaluated relational dataset.
 
@@ -556,7 +558,7 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or None
+        Snowpark pandas :class:`~modin.pandas.Series` or None
             Series with specified index labels removed or None if ``inplace=True``.
 
         Raises
@@ -670,17 +672,17 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             If func returns a Series object the result will be a DataFrame.
 
 
         See Also
         --------
-        :func:`Series.map <snowflake.snowpark.modin.pandas.Series.map>` : For applying more complex functions on a Series.
+        :func:`Series.map <modin.pandas.Series.map>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -700,7 +702,7 @@ class Series:
         When no type annotation is provided and Variant data is returned, Python ``None`` is translated to
         JSON NULL, and all other pandas missing values (np.nan, pd.NA, pd.NaT) are translated to SQL NULL.
 
-        4. For working with 3rd-party-packages see :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>`.
+        4. For working with 3rd-party-packages see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
         """
 
     def argmax():
@@ -838,7 +840,7 @@ class Series:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             If axis is 0 or 'index' the result will be a Series.
             The resulting index will be a MultiIndex with 'self' and 'other'
             stacked alternately at the inner level.
@@ -965,8 +967,8 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` with the first differences of the Series.
+        Snowpark pandas :class:`~modin.pandas.Series`
+            Snowpark pandas :class:`~modin.pandas.Series` with the first differences of the Series.
 
         Notes
         -----
@@ -1099,7 +1101,7 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or None
+        Snowpark pandas :class:`~modin.pandas.Series` or None
             Series with NA entries dropped from it or None if ``inplace=True``.
 
         See Also
@@ -1175,7 +1177,7 @@ class Series:
         Returns
         -------
         Snowpark pandas Series[bool]
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` indicating whether each value has occurred
+            Snowpark pandas :class:`~modin.pandas.Series` indicating whether each value has occurred
             in the preceding values.
 
         See Also
@@ -1728,6 +1730,37 @@ class Series:
     def items():
         """
         Lazily iterate over (index, value) tuples.
+
+        This method returns an iterable tuple (index, value). This is convenient if you want
+        to create a lazy iterator.
+
+        Returns
+        -------
+        Iterable
+            Iterable of tuples containing the (index, value) pairs from a Series.
+
+        See Also
+        --------
+        :func:`DataFrame.items <modin.pandas.DataFrame.items>`
+            Iterate over (column name, Series) pairs.
+        :func:`DataFrame.iterrows <modin.pandas.DataFrame.iterrows>`
+            Iterate over DataFrame rows as (index, Series) pairs.
+
+        Notes
+        -----
+        1. Iterating over rows is an antipattern in Snowpark pandas and pandas. Use Series.apply() or other aggregation
+           methods when possible instead of iterating over a Series. Iterators and for loops do not scale well.
+        2. You should **never modify** something you are iterating over. This will not work. The iterator returns a copy
+           of the data and writing to it will have no effect.
+
+        Examples
+        --------
+        >>> s = pd.Series(['A', 'B', 'C'])
+        >>> for index, value in s.items():
+        ...     print(f"Index : {index}, Value : {value}")
+        Index : 0, Value : A
+        Index : 1, Value : B
+        Index : 2, Value : C
         """
 
     def keys():
@@ -1774,11 +1807,11 @@ class Series:
 
         See Also
         --------
-        :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
+        :func:`Series.apply <modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -2164,6 +2197,46 @@ class Series:
     def unstack():
         """
         Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) of index to unstack, can pass level name.
+
+        fillna : int, str, dict, optional
+            Replace NaN with this value if the unstack produces missing values.
+
+        sort : bool, default True
+            Sort the level(s) in the resulting MultiIndex columns.
+
+        Returns
+        -------
+        Snowpark pandas :class:`~modin.pandas.DataFrame`
+
+        Notes
+        -----
+        Supports only integer ``level`` and ``sort = True``. Internally, calls ``pivot_table``
+        or ``melt`` to perform ``unstack`` operation.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3, 4],
+        ...               index=pd.MultiIndex.from_product([['one', 'two'],
+        ...                                                 ['a', 'b']]))
+        >>> s
+        one  a    1
+             b    2
+        two  a    3
+             b    4
+        dtype: int64
+        >>> s.unstack(level=-1)
+             a  b
+        one  1  2
+        two  3  4
+        >>> s.unstack(level=0)
+           one  two
+        a    1    3
+        b    2    4
         """
 
     @property
@@ -2390,6 +2463,11 @@ class Series:
 
         In the example above, index value ``7`` is forward filled from index value ``6``, since that
         is the previous index value when the data is sorted.
+        """
+
+    def reindex_like():
+        """
+        Return an object with matching indices as `other` object.
         """
 
     def rename_axis():
@@ -3152,9 +3230,8 @@ class Series:
 
         Slicing a single row from a single column will produce a single
         scalar DataFrame:
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df_0a = df.loc[df.index.to_pandas() < 1, ['a']]
+        >>> df_0a = df.loc[df.index < 1, ['a']]
         >>> df_0a
            a
         0  1
@@ -3227,14 +3304,6 @@ class Series:
         Take elements at positions 0 and 3 along the axis 0 (default).
 
         >>> ser.take([0, 3])
-        0   -1
-        3    2
-        dtype: int64
-
-
-        For `Series` axis parameter is unused and defaults to 0.
-
-        >>> ser.take([0, 3], axis=1)
         0   -1
         3    2
         dtype: int64
@@ -3331,6 +3400,11 @@ class Series:
         Cast to DatetimeIndex of Timestamps, at beginning of period.
         """
 
+    def transform():
+        """
+        Call ``func`` on self producing a `BasePandasDataset` with the same axis shape as self.
+        """
+
     def transpose():
         """
         Return the transpose, which is by definition `self`.
@@ -3349,6 +3423,163 @@ class Series:
     def truncate():
         """
         Truncate a Series before and after some index value.
+        """
+
+    def tz_convert():
+        """
+        Convert tz-aware axis to target time zone.
+
+        Parameters
+        ----------
+        tz : str or tzinfo object or None
+            Target time zone. Passing None will convert to UTC and remove the timezone information.
+        axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+            The axis to convert
+        level : int, str, default None
+            If axis is a MultiIndex, convert a specific level. Otherwise must be None.
+        copy : bool, default True
+            Also make a copy of the underlying data.
+
+        Returns
+        -------
+        Series/DataFrame
+            Object with time zone converted axis.
+
+        Raises
+        ------
+        TypeError
+            If the axis is tz-naive.
+
+        Examples
+        --------
+        Change to another time zone:
+
+        >>> s = pd.Series(
+        ...     [1],
+        ...     index=pd.DatetimeIndex(['2018-09-15 01:30:00+02:00']),
+        ... )
+        >>> s.tz_convert('Asia/Shanghai')
+        2018-09-15 07:30:00+08:00    1
+        Freq: None, dtype: int64
+
+        Pass None to convert to UTC and get a tz-naive index:
+
+        >>> s = pd.Series([1],
+        ...             index=pd.DatetimeIndex(['2018-09-15 01:30:00+02:00']))
+        >>> s.tz_convert(None)
+        2018-09-14 23:30:00    1
+        Freq: None, dtype: int64
+        """
+
+    def tz_localize():
+        """
+        Localize tz-naive index of a Series or DataFrame to target time zone.
+
+        This operation localizes the Index. To localize the values in a timezone-naive Series, use Series.dt.tz_localize().
+
+        Parameters
+        ----------
+        tz : str or tzinfo or None
+            Time zone to localize. Passing None will remove the time zone information and preserve local time.
+        axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+            The axis to localize
+        level : int, str, default None
+            If axis is a MultiIndex, localize a specific level. Otherwise must be None.
+        copy : bool, default True
+            Also make a copy of the underlying data.
+        ambiguous : ‘infer’, bool-ndarray, ‘NaT’, default ‘raise’
+            When clocks moved backward due to DST, ambiguous times may arise. For example in Central European Time (UTC+01), when going from 03:00 DST to 02:00 non-DST, 02:30:00 local time occurs both at 00:30:00 UTC and at 01:30:00 UTC. In such a situation, the ambiguous parameter dictates how ambiguous times should be handled.
+            - ‘infer’ will attempt to infer fall dst-transition hours based on order
+            - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
+            - ‘NaT’ will return NaT where there are ambiguous times
+            - ‘raise’ will raise an AmbiguousTimeError if there are ambiguous times.
+        nonexistent : str, default ‘raise’
+            A nonexistent time does not exist in a particular timezone where clocks moved forward due to DST. Valid values are:
+            - ‘shift_forward’ will shift the nonexistent time forward to the closest existing time
+            - ‘shift_backward’ will shift the nonexistent time backward to the closest existing time
+            - ‘NaT’ will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - ‘raise’ will raise an NonExistentTimeError if there are nonexistent times.
+
+        Returns
+        -------
+        Series/DataFrame
+            Same type as the input.
+
+        Raises
+        ------
+        TypeError
+            If the TimeSeries is tz-aware and tz is not None.
+
+        Examples
+        --------
+        Localize local times:
+
+        >>> s = pd.Series(
+        ...     [1],
+        ...     index=pd.DatetimeIndex(['2018-09-15 01:30:00']),
+        ... )
+        >>> s.tz_localize('CET')
+        2018-09-15 01:30:00+02:00    1
+        Freq: None, dtype: int64
+
+        Pass None to convert to tz-naive index and preserve local time:
+
+        >>> s = pd.Series([1],
+        ...             index=pd.DatetimeIndex(['2018-09-15 01:30:00+02:00']))
+        >>> s.tz_localize(None)
+        2018-09-15 01:30:00    1
+        Freq: None, dtype: int64
+
+        Be careful with DST changes. When there is sequential data, pandas can infer the DST time:
+
+        >>> s = pd.Series(range(7),
+        ...             index=pd.DatetimeIndex(['2018-10-28 01:30:00',
+        ...                                     '2018-10-28 02:00:00',
+        ...                                     '2018-10-28 02:30:00',
+        ...                                     '2018-10-28 02:00:00',
+        ...                                     '2018-10-28 02:30:00',
+        ...                                     '2018-10-28 03:00:00',
+        ...                                     '2018-10-28 03:30:00']))
+        >>> s.tz_localize('CET', ambiguous='infer')  # doctest: +SKIP
+        2018-10-28 01:30:00+02:00    0
+        2018-10-28 02:00:00+02:00    1
+        2018-10-28 02:30:00+02:00    2
+        2018-10-28 02:00:00+01:00    3
+        2018-10-28 02:30:00+01:00    4
+        2018-10-28 03:00:00+01:00    5
+        2018-10-28 03:30:00+01:00    6
+        dtype: int64
+
+        In some cases, inferring the DST is impossible. In such cases, you can pass an ndarray to the ambiguous parameter to set the DST explicitly
+
+        >>> s = pd.Series(range(3),
+        ...             index=pd.DatetimeIndex(['2018-10-28 01:20:00',
+        ...                                     '2018-10-28 02:36:00',
+        ...                                     '2018-10-28 03:46:00']))
+        >>> s.tz_localize('CET', ambiguous=np.array([True, True, False]))  # doctest: +SKIP
+        2018-10-28 01:20:00+02:00    0
+        2018-10-28 02:36:00+02:00    1
+        2018-10-28 03:46:00+01:00    2
+        dtype: int64
+
+        If the DST transition causes nonexistent times, you can shift these dates forward or backward with a timedelta object or ‘shift_forward’ or ‘shift_backward’.
+
+        >>> s = pd.Series(range(2),
+        ...             index=pd.DatetimeIndex(['2015-03-29 02:30:00',
+        ...                                     '2015-03-29 03:30:00']))
+        >>> s.tz_localize('Europe/Warsaw', nonexistent='shift_forward')  # doctest: +SKIP
+        2015-03-29 03:00:00+02:00    0
+        2015-03-29 03:30:00+02:00    1
+        dtype: int64
+        >>> s.tz_localize('Europe/Warsaw', nonexistent='shift_backward')  # doctest: +SKIP
+        2015-03-29 01:59:59.999999999+01:00    0
+        2015-03-29 03:30:00+02:00              1
+        dtype: int64
+        >>> s.tz_localize('Europe/Warsaw', nonexistent=pd.Timedelta('1h'))  # doctest: +SKIP
+        2015-03-29 03:30:00+02:00    0
+        2015-03-29 03:30:00+02:00    1
+        dtype: int64
         """
 
     def unique():
@@ -3385,7 +3616,7 @@ class Series:
 
         >>> pd.Series([pd.Timestamp('2016-01-01', tz='US/Eastern')
         ...            for _ in range(3)]).unique()
-        array([Timestamp('2015-12-31 21:00:00-0800', tz='America/Los_Angeles')],
+        array([Timestamp('2016-01-01 00:00:00-0500', tz='UTC-05:00')],
               dtype=object)
 
         """
@@ -3610,6 +3841,48 @@ class Series:
         Return True if there are any NaNs.
         """
 
+    @property
+    def is_monotonic_decreasing():
+        """
+        Return boolean if values in the object are monotonically decreasing.
+
+        Returns
+        -------
+        bool
+            Whether or not the Series is monotonically decreasing.
+
+        Examples
+        --------
+        >>> s = pd.Series([3, 2, 2, 1])
+        >>> s.is_monotonic_decreasing
+        True
+
+        >>> s = pd.Series([1, 2, 3])
+        >>> s.is_monotonic_decreasing
+        False
+        """
+
+    @property
+    def is_monotonic_increasing():
+        """
+        Return boolean if values in the object are monotonically increasing.
+
+        Returns
+        -------
+        bool
+            Whether or not the Series is monotonically increasing.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 2])
+        >>> s.is_monotonic_increasing
+        True
+
+        >>> s = pd.Series([3, 2, 1])
+        >>> s.is_monotonic_increasing
+        False
+        """
+
     def isna():
         """
         Detect missing values.
@@ -3671,18 +3944,6 @@ class Series:
         """
 
     @property
-    def is_monotonic_increasing():
-        """
-        Return True if values in the Series are monotonic_increasing.
-        """
-
-    @property
-    def is_monotonic_decreasing():
-        """
-        Return True if values in the Series are monotonic_decreasing.
-        """
-
-    @property
     def is_unique():
         """
         Return True if values in the Series are unique.
@@ -3719,7 +3980,6 @@ class Series:
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> import numpy as np
         >>> s = pd.Series([1, 3, 5, 7, 7])
         >>> s

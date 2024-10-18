@@ -9,13 +9,12 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_values_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1017231")
 @pytest.mark.parametrize("method", ["any", "all"])
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=1)
 def test_empty(method):
     # Because empty dataframes are by default object and Snowpark pandas currently falls back
     # for non-int/bool columns, we need to explicitly specify a type here
@@ -39,7 +38,7 @@ def test_empty(method):
         [0, 0, 1],
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_all_int(data):
     eval_snowpark_pandas_result(
         pd.Series(data),
@@ -56,7 +55,7 @@ def test_all_int(data):
         [0, 1, 2],
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_any_int(data):
     eval_snowpark_pandas_result(
         pd.Series(data),
@@ -66,7 +65,7 @@ def test_any_int(data):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_all_named_index():
     data = [1, 0, 3]
     index_name = ["a", "b", "c"]
@@ -78,7 +77,7 @@ def test_all_named_index():
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_any_named_index():
     data = [1, 0, 3]
     index_name = ["a", "b", "c"]

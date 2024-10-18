@@ -19,6 +19,7 @@ from snowflake.snowpark.types import (
     MapType,
     NullType,
     StringType,
+    TimestampTimeZone,
     TimestampType,
     TimeType,
     VariantType,
@@ -31,6 +32,17 @@ from snowflake.snowpark.types import (
 # not installed, here we redefine the base class to avoid ImportError
 PandasDataframeType = object if not installed_pandas else pd.DataFrame
 PandasSeriesType = object if not installed_pandas else pd.Series
+
+# https://docs.snowflake.com/en/sql-reference/parameters#label-timestamp-type-mapping
+# SNOW-1630258 for local testing session parameters support
+_TIMESTAMP_TYPE_MAPPING = "TIMESTAMP_NTZ"
+
+
+_TIMESTAMP_TYPE_TIMEZONE_MAPPING = {
+    "TIMESTAMP_NTZ": TimestampTimeZone.NTZ,
+    "TIMESTAMP_LTZ": TimestampTimeZone.LTZ,
+    "TIMESTAMP_TZ": TimestampTimeZone.TZ,
+}
 
 
 class Operator:
@@ -302,6 +314,13 @@ def coerce_t1_into_t2(t1: DataType, t2: DataType) -> Optional[DataType]:
     elif isinstance(t1, (TimeType, TimestampType, MapType, ArrayType)):
         if isinstance(t2, VariantType):
             return t2
+        if isinstance(t1, TimestampType) and isinstance(t2, TimestampType):
+            if (
+                t1.tz is TimestampTimeZone.DEFAULT
+                and t2.tz is TimestampTimeZone.NTZ
+                and _TIMESTAMP_TYPE_MAPPING == "TIMESTAMP_NTZ"
+            ):
+                return t2
     return None
 
 

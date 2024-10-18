@@ -4,6 +4,7 @@ NumPy Interoperability
 Snowpark pandas provides limited interoperability with NumPy functions through the NumPy
 NEP18 and NEP13 specifications defined by `__array_ufunc__` and `__array_function__`. 
 A discrete number of NumPy APIs are translated to distributed snowpark pandas functions.
+NumPy ufuncs called with Snowpark pandas arguments will ignore kwargs.
 
 +-----------------------------+----------------------------------------------------+
 | NumPy method                | Notes for current implementation                   |
@@ -25,6 +26,32 @@ A discrete number of NumPy APIs are translated to distributed snowpark pandas fu
 |                             | will occur.)                                       |
 +-----------------------------+----------------------------------------------------+
 | ``np.add``                  | Mapped to df.__add__(df2)                          |
++-----------------------------+----------------------------------------------------+
+| ``np.subtract``             | Mapped to df.__sub__(df2)                          |
++-----------------------------+----------------------------------------------------+
+| ``np.multiply``             | Mapped to df.__mul__(df2)                          |
++-----------------------------+----------------------------------------------------+
+| ``np.divide``               | Mapped to df.__truediv__(df2)                      |
++-----------------------------+----------------------------------------------------+
+| ``np.true_divide``          | Mapped to df.__truediv__(df2)                      |
++-----------------------------+----------------------------------------------------+
+| ``np.float_power``          | Mapped to df.__pow__(df2)                          |
++-----------------------------+----------------------------------------------------+
+| ``np.mod``                  | Mapped to df.__mod__(df2)                          |
++-----------------------------+----------------------------------------------------+
+| ``np.remainder``            | Mapped to df.__mod__(df2)                          |
++-----------------------------+----------------------------------------------------+
+| ``np.greater``              | Mapped to df > df2                                 |
++-----------------------------+----------------------------------------------------+
+| ``np.greater_equal``        | Mapped to df >= df2                                |
++-----------------------------+----------------------------------------------------+
+| ``np.less``                 | Mapped to df < df2                                 |
++-----------------------------+----------------------------------------------------+
+| ``np.less_equal``           | Mapped to df <= df2                                |
++-----------------------------+----------------------------------------------------+
+| ``np.not_equal``            | Mapped to df != df2                                |
++-----------------------------+----------------------------------------------------+
+| ``np.equal``                | Mapped to df == df2                                |
 +-----------------------------+----------------------------------------------------+
 | ``np.logical_and``          | Mapped to df.__and__(df2)                          |
 +-----------------------------+----------------------------------------------------+

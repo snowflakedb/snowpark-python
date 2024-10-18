@@ -16,17 +16,13 @@ def validate_expected_boolean_data_columns(frame: InternalFrame) -> None:
     Returns:
         None
     """
-    frame_snowflake_identifier_to_data_type_map = (
-        frame.quoted_identifier_to_snowflake_type()
-    )
-
     if not all(
         isinstance(
-            frame_snowflake_identifier_to_data_type_map.get(
-                snowflake_quoted_identifier
-            ),
+            t,
             BooleanType,
         )
-        for snowflake_quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+        for t in frame.get_snowflake_type(
+            frame.data_column_snowflake_quoted_identifiers
+        )
     ):
         raise ValueError("Boolean array expected for the condition, not object")
