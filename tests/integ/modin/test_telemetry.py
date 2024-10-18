@@ -485,7 +485,7 @@ def test_telemetry_property_index():
 @pytest.mark.parametrize(
     "name, method, expected_query_count, expected_join_count",
     [
-        ["iloc", lambda df: df.iloc[0, 0], 1, 2],
+        ["iloc", lambda df: df.iloc[0, 0], 1, 0],
         ["loc", lambda df: df.loc[0, "a"], 2, 2],
     ],
 )
