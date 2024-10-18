@@ -279,7 +279,9 @@ class SnowflakePlan(LogicalPlan):
         # If _quoted_identifiers is not None, then _attributes will be None.
         if session.reduce_describe_query_enabled and self.source_plan is not None:
             self._attributes, self._quoted_identifiers = infer_metadata(
-                self.source_plan
+                self.source_plan,
+                self.session._analyzer,
+                self.df_aliased_col_name_to_real_col_name,
             )
         assert not (
             self._attributes is not None and self._quoted_identifiers is not None

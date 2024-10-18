@@ -6,7 +6,14 @@ from typing import List
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark import DataFrame
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
+from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
+from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.functions import col, count, lit, seq2, table_function
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
@@ -23,12 +30,16 @@ pytestmark = [
 ]
 
 param_list = [False, True]
+temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
 
 
-@pytest.fixture(params=param_list, autouse=True)
+@pytest.fixture(params=param_list, autouse=True, scope="module")
 def setup(request, session):
     is_reduce_describe_query_enabled = session.reduce_describe_query_enabled
     session.reduce_describe_query_enabled = request.param
+    session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
+        temp_table_name, table_type="temp", mode="overwrite"
+    )
     yield
     session.reduce_describe_query_enabled = is_reduce_describe_query_enabled
 
@@ -55,15 +66,9 @@ create_from_values_funcs = [
 
 # Create from Table
 create_from_table_funcs = [
-    lambda session: session.create_dataframe(
-        [[1, 2], [3, 4]], schema=["a", "b"]
-    ).cache_result(),
-    lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    .cache_result()
-    .select("b"),
-    lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    .cache_result()
-    .select("a", lit("2").alias("c")),
+    lambda session: session.table(temp_table_name),
+    lambda session: session.table(temp_table_name).select("b"),
+    lambda session: session.table(temp_table_name).select("a", lit("2").alias("c")),
 ]
 
 # Create from SnowflakePlan
@@ -106,11 +111,11 @@ create_from_unions_funcs = [
     .select("a", lit("2").alias("c")),
 ]
 
-create_without_select_funcs = [
-    create_from_sql_funcs[0],
-    create_from_values_funcs[0],
-    create_from_table_funcs[0],
-    create_from_unions_funcs[0],
+create_without_select_funcs_expected_describe_count = [
+    (create_from_sql_funcs[0], 1),
+    (create_from_values_funcs[0], 0),
+    (create_from_table_funcs[0], 1),
+    (create_from_unions_funcs[0], 0),
 ]
 
 
@@ -130,6 +135,10 @@ metadata_no_change_df_ops = [
 select_df_ops_expected_quoted_identifiers = [
     (lambda df: df.select("a", col("b")), ['"A"', '"B"']),
     (lambda df: df.select("*", lit(1).as_('"c"')), ['"A"', '"B"', '"c"']),
+    (
+        lambda df: df.select("*", lit(1).as_('"c"')).select(col("a") == 2),
+        ['"(""A"" = 2)"'],
+    ),
     (lambda df: df.select("a", (col("b") + 1).as_("b")), ['"A"', '"B"']),
     (lambda df: df.select(count("*")), ['"COUNT(1)"']),
     (
@@ -154,6 +163,14 @@ def check_attributes_equality(attrs1: List[Attribute], attrs2: List[Attribute]) 
         assert attr1.name == attr2.name
         assert attr1.datatype == attr2.datatype
         assert attr1.nullable == attr2.nullable
+
+
+def has_star_in_projection(df: DataFrame) -> bool:
+    plan = df._plan.source_plan
+    return isinstance(plan, Project) and any(
+        isinstance(e, UnresolvedAlias) and isinstance(e.child, Star)
+        for e in plan.project_list
+    )
 
 
 @pytest.mark.parametrize(
@@ -195,15 +212,30 @@ def test_metadata_no_change(session, action, create_df_func):
     select_df_ops_expected_quoted_identifiers,
 )
 @pytest.mark.parametrize(
-    "create_df_func",
-    create_without_select_funcs,
+    "create_df_func,expected_describe_query_count",
+    create_without_select_funcs_expected_describe_count,
 )
 def test_select_quoted_identifiers(
-    session, action, expected_quoted_identifiers, create_df_func
+    sql_simplifier_enabled,
+    session,
+    action,
+    expected_quoted_identifiers,
+    create_df_func,
+    expected_describe_query_count,
 ):
     df = create_df_func(session)
-    df = action(df)
-    if session.reduce_describe_query_enabled:
+
+    # if sql simplifier is disabled, there is no describe query
+    # because we don't need to get quoted identifiers
+    with SqlCounter(
+        query_count=0,
+        describe_count=expected_describe_query_count if sql_simplifier_enabled else 0,
+    ):
+        df = action(df)
+
+    # if we select a "*", it can't be inferred when sql simplifier is disabled
+    # because no describe query is issued before to get quoted identifiers
+    if session.reduce_describe_query_enabled and not has_star_in_projection(df):
         assert df._plan._quoted_identifiers == expected_quoted_identifiers
         expected_describe_query_count = 0
     else:

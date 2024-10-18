@@ -2,14 +2,51 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Tuple, Union
 
-from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.expression import (
+    Attribute,
+    Expression,
+    NamedExpression,
+    Star,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import Limit, LogicalPlan
+from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
+
+if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+
+
+def infer_quoted_identifiers_from_expressions(
+    expressions: List[Union[Expression, NamedExpression]],
+    analyzer: "Analyzer",
+    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+) -> Optional[List[str]]:
+    """
+    Infer quoted identifiers from (named) expressions.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import parse_column_name
+    from snowflake.snowpark._internal.utils import quote_name
+
+    result = []
+    for e in expressions:
+        # If we do select *, we may not be able to get all current quoted identifiers
+        # (e.g., when SQL simplifier is disabled), so we just be conservative and do
+        # not perform any inference in this case.
+        if isinstance(e, UnresolvedAlias) and isinstance(e.child, Star):
+            return None
+        result.append(
+            quote_name(
+                parse_column_name(e, analyzer, df_aliased_col_name_to_real_col_name)
+            )
+        )
+    return result
 
 
 def infer_metadata(
     source_plan: LogicalPlan,
+    analyzer: "Analyzer",
+    df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
 ) -> Tuple[Optional[List[Attribute]], Optional[List[str]]]:
     """
     Infer metadata from the source plan.
@@ -22,6 +59,7 @@ def infer_metadata(
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
     from snowflake.snowpark._internal.analyzer.unary_plan_node import (
         Filter,
+        Project,
         Sample,
         Sort,
     )
@@ -36,6 +74,10 @@ def infer_metadata(
         if isinstance(source_plan.child, SnowflakePlan):
             attributes = source_plan.child._attributes
             quoted_identifiers = source_plan.child._quoted_identifiers
+    elif isinstance(source_plan, Project):
+        quoted_identifiers = infer_quoted_identifiers_from_expressions(
+            source_plan.project_list, analyzer, df_aliased_col_name_to_real_col_name
+        )
     # If source_plan is a SelectStatement, SQL simplifier is enabled
     elif isinstance(source_plan, SelectStatement):
         # When attributes is cached on source_plan, just use it
