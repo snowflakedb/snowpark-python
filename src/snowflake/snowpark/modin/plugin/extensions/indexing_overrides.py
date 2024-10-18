@@ -1192,9 +1192,10 @@ class _iLocIndexer(_LocationIndexerBase):
         if not isinstance(col_loc, pd.Series) and is_range_like(col_loc):
             col_loc = self._convert_range_to_valid_slice(col_loc)
 
-        # Convert all scalar, list-like, and indexer row_loc to a Series object to get a query compiler object.
+        # Convert scalar to slice to generate efficient SQL query
         if is_scalar(row_loc):
-            row_loc = pd.Series([row_loc])
+            row_loc = slice(row_loc, None if row_loc == -1 else row_loc + 1, 1)
+        # Convert list-like, and indexer row_loc to a Series object to get a query compiler object.
         elif isinstance(row_loc, pd.Index):
             # Convert index row_loc to series
             row_loc = row_loc.to_series().reset_index(drop=True)
