@@ -3770,10 +3770,6 @@ def test_to_df_then_copy(session):
     Utils.check_answer(df1, Row("2023-01-01"))
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="DataFrame alias is not supported in Local Testing",
-)
 def test_to_df_then_alias_and_join(session):
     data = [
         ["2023-01-01", 101, 200],
