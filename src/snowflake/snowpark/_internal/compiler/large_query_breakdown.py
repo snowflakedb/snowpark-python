@@ -123,7 +123,8 @@ class LargeQueryBreakdown:
         self.complexity_score_upper_bound = complexity_bounds[1]
 
     def apply(self) -> List[LogicalPlan]:
-        if reason := self._should_skip_optimization_for_session():
+        reason = self._should_skip_optimization_for_session()
+        if reason is not None:
             # Skip optimization if the session is in an active transaction.
             _logger.debug(
                 "Skipping large query breakdown optimization due to active transaction."
@@ -148,7 +149,12 @@ class LargeQueryBreakdown:
     def _should_skip_optimization_for_session(
         self,
     ) -> Optional[SkipLargeQueryBreakdownCategory]:
-        """Method to check if the optimization should be skipped based on the session state."""
+        """Method to check if the optimization should be skipped based on the session state.
+
+        Returns:
+            SkipLargeQueryBreakdownCategory: enum indicating the reason for skipping the optimization.
+                if the optimization should be skipped, otherwise None.
+        """
         if self.session.get_current_database() is None:
             # Skip optimization if there is no active database.
             _logger.debug(
@@ -171,7 +177,8 @@ class LargeQueryBreakdown:
         """Method to check if the optimization should be skipped based on the root node type.
 
         Returns:
-            A SkipLargeQueryBreakdownCategory enum indicating the reason for skipping the optimization.
+            SkipLargeQueryBreakdownCategory enum indicating the reason for skipping the optimization
+                if the optimization should be skipped, otherwise None.
         """
         if (
             isinstance(root, SnowflakePlan)
@@ -204,7 +211,8 @@ class LargeQueryBreakdown:
         _logger.debug(
             f"Applying large query breakdown optimization for root of type {type(root)}"
         )
-        if reason := self._should_skip_optimization_for_root(root):
+        reason = self._should_skip_optimization_for_root(root)
+        if reason is not None:
             self.session._conn._telemetry_client.send_large_query_optimization_skipped_telemetry(
                 self.session.session_id,
                 reason.value,
