@@ -37,17 +37,24 @@ from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Util
 
 @pytest.fixture(scope="module")
 def threadsafe_session(
-    db_parameters, sql_simplifier_enabled, cte_optimization_enabled, local_testing_mode
+    db_parameters,
+    session,
+    sql_simplifier_enabled,
+    cte_optimization_enabled,
+    local_testing_mode,
 ):
-    new_db_parameters = db_parameters.copy()
-    new_db_parameters["local_testing"] = local_testing_mode
-    new_db_parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: True
-    }
-    with Session.builder.configs(new_db_parameters).create() as session:
-        session._sql_simplifier_enabled = sql_simplifier_enabled
-        session._cte_optimization_enabled = cte_optimization_enabled
+    if IS_IN_STORED_PROC:
         yield session
+    else:
+        new_db_parameters = db_parameters.copy()
+        new_db_parameters["local_testing"] = local_testing_mode
+        new_db_parameters["session_parameters"] = {
+            _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: True
+        }
+        with Session.builder.configs(new_db_parameters).create() as session:
+            session._sql_simplifier_enabled = sql_simplifier_enabled
+            session._cte_optimization_enabled = cte_optimization_enabled
+            yield session
 
 
 @pytest.fixture(scope="function")
