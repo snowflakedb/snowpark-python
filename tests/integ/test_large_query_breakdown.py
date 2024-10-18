@@ -432,16 +432,47 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
             in caplog.text
         )
 
-        with caplog.at_level(logging.DEBUG):
-            df.create_or_replace_view(view_name)
+        with patch.object(
+            session._conn._telemetry_client,
+            "send_large_query_optimization_skipped_telemetry",
+        ) as patched_send_telemetry:
+            with caplog.at_level(logging.DEBUG):
+                df.create_or_replace_view(view_name)
         assert (
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
+        patched_send_telemetry.assert_called_once
+        called_with_reason = patched_send_telemetry.call_args[0][1]
+        assert called_with_reason == "view or dynamic table command"
     finally:
         Utils.drop_dynamic_table(session, table_name)
         Utils.drop_view(session, view_name)
         Utils.drop_table(session, source_table)
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="cannot create a new session in stored procedure"
+)
+def test_optimization_skipped_with_no_active_db(session, caplog):
+    df = session.sql("select 1 as a, 2 as b")
+
+    # no database check
+    with patch.object(
+        session._conn._telemetry_client,
+        "send_large_query_optimization_skipped_telemetry",
+    ) as patched_send_telemetry:
+        with patch.object(session, "get_current_database", return_value=None):
+            with caplog.at_level(logging.DEBUG):
+                with SqlCounter(query_count=0, describe_count=0):
+                    df.queries
+    assert (
+        "Skipping large query breakdown optimization since there is no active database"
+        in caplog.text
+    )
+    patched_send_telemetry.assert_called_once
+    called_with_reason = patched_send_telemetry.call_args[0][1]
+    assert called_with_reason == "no active database"
 
 
 def test_async_job_with_large_query_breakdown(session, large_query_df):
