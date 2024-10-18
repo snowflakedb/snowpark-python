@@ -36,6 +36,11 @@
 - Fixed a bug where `DataFrame` and `Series` `round()` would raise `AssertionError` for `Timedelta` columns. Instead raise `NotImplementedError` for `round()` on `Timedelta`.
 - Fixed a bug where `reindex` fails when the new index is a Series with non-overlapping types from the original index.
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where `DataFrame.alias` raises `KeyError` for input column name.
 
 ## 1.23.0 (2024-10-09)
 
