@@ -18,17 +18,18 @@ jobs:
               uses: actions/github-script@v6
               with:
                   script: |
-                    const baseSha = context.payload.pull_request.base.sha;
-                    const headSha = context.payload.pull_request.head.sha;
-                    const response = await github.repos.compareCommits({
-                        base: baseSha,
-                        head: headSha
+                    const pr = context.payload.pull_request;
+                    const { data: files } = await github.pulls.listFiles({
+                      owner: pr.base.repo.owner.login,
+                      repo: pr.base.repo.name,
+                      pull_number: pr.number,
                     });
-                    const changedFiles = response.data.files.map(file => file.filename);
+                    const changedFiles = files.map(file => file.filename);
                     console.log(`Changed files: ${changedFiles}`);
                     return changedFiles;
 
             - name: Verify threadsafety acknowledgement
+              if: steps.changed_files.outputs.result != ''
               uses: actions/github-script@v6
               with:
                   script: |
