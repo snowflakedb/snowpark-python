@@ -33,7 +33,7 @@ jobs:
               uses: actions/github-script@v6
               with:
                   script: |
-                    const changedFiles = JSON.parse(steps.changed_files.outputs.result);
+                    const changedFiles = JSON.parse(${{ steps.changed_files.outputs.result }});
                     const prBody = context.payload.pull_request.body;
                     // Check if changed files are in snowpark/_internal, snowpark/mock, or snowpark/*.py. We exclude snowpark/modin in this check.
                     if (changedFiles.some(file => file.match(/src\/snowflake\/snowpark\/_internal|src\/snowflake\/snowpark\/mock|src\/snowflake\/snowpark\/[^/]+\.py/))) {
