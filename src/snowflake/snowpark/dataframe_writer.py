@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExp
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     get_aliased_option_name,
+    get_copy_into_location_options,
     normalize_remote_file_or_dir,
     parse_table_name,
     str_to_enum,
@@ -67,6 +68,8 @@ class DataFrameWriter:
     def __init__(self, dataframe: "snowflake.snowpark.dataframe.DataFrame") -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
+        self._partition_by: Optional[ColumnOrSqlExpr] = None
+        self._cur_options: Dict[str, Any] = {}
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
@@ -90,6 +93,26 @@ class DataFrameWriter:
             The :class:`DataFrameWriter` itself.
         """
         self._save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")
+        return self
+
+    def partition_by(self, expr: ColumnOrSqlExpr) -> "DataFrameWriter":
+        """Specifies an expression used to partition the unloaded table rows into separate files. It can be a
+        :class:`Column`, a column name, or a SQL expression.
+        """
+        self._partition_by = expr
+        return self
+
+    def option(self, key: str, value: Any) -> "DataFrameWriter":
+        """Depending on the ``file_format_type`` specified, you can include more format specific options.
+        Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
+        """
+        aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
+        self._cur_options[aliased_key] = value
+        return self
+
+    def options(self, configs: Dict) -> "DataFrameWriter":
+        for k, v in configs.items():
+            self.option(k, v)
         return self
 
     @overload
@@ -383,6 +406,7 @@ class DataFrameWriter:
             LAST_NAME: [["Berry","Berry","Davis"]]
         """
         stage_location = normalize_remote_file_or_dir(location)
+        partition_by = partition_by if partition_by is not None else self._partition_by
         if isinstance(partition_by, str):
             partition_by = sql_expr(partition_by)._expression
         elif isinstance(partition_by, Column):
@@ -392,13 +416,21 @@ class DataFrameWriter:
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
 
-        # apply writer option alias mapping
-        format_type_aliased_options = None
+        # read current options and update them with the new options
+        cur_format_type_options, cur_copy_options = get_copy_into_location_options(
+            self._cur_options
+        )
+        if copy_options:
+            cur_copy_options.update(copy_options)
+
         if format_type_options:
+            # apply writer option alias mapping
             format_type_aliased_options = {}
             for key, value in format_type_options.items():
                 aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
                 format_type_aliased_options[aliased_key] = value
+
+            cur_format_type_options.update(format_type_aliased_options)
 
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
@@ -407,8 +439,8 @@ class DataFrameWriter:
                 partition_by=partition_by,
                 file_format_name=file_format_name,
                 file_format_type=file_format_type,
-                format_type_options=format_type_aliased_options,
-                copy_options=copy_options,
+                format_type_options=cur_format_type_options,
+                copy_options=cur_copy_options,
                 header=header,
             )
         )
