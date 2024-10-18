@@ -647,6 +647,9 @@ def test_concurrent_update_on_sensitive_configs(
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Cannot create new session inside stored proc"
+)
 @pytest.mark.parametrize("is_enabled", [True, False])
 def test_num_cursors_created(db_parameters, is_enabled, local_testing_mode):
     if is_enabled and local_testing_mode:
