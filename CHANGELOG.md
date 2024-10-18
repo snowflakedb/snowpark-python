@@ -51,6 +51,9 @@
 
 - Fixed a bug where `DataFrame.alias` raises `KeyError` for input column name.
 
+#### Bug Fixes
+- Fixed a bug where `to_csv` on Snowflake stage fails when data contains empty strings.
+
 ## 1.23.0 (2024-10-09)
 
 ### Snowpark Python API Updates
