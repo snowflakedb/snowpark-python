@@ -1945,7 +1945,7 @@ def test_binary_comparison_method_between_series_different_types(op):
 @pytest.mark.parametrize(
     "op", [operator.eq, operator.ne, operator.gt, operator.ge, operator.lt, operator.le]
 )
-@sql_count_checker(query_count=2, join_count=5)
+@sql_count_checker(query_count=2, join_count=2)
 def test_binary_comparison_method_between_series_variant(lhs, rhs, op):
     snow_ans = op(pd.Series(lhs), pd.Series(rhs))
     native_ans = op(native_pd.Series(lhs), native_pd.Series(rhs))
