@@ -15,8 +15,18 @@ jobs:
 
             - name: Check for modified files
               id: changed_files
-              run: |
-                echo "changed_files=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | xargs)" >> $GITHUB_OUTPUT
+              uses: actions/github-script@v6
+              with:
+                  script: |
+                    const baseSha = context.payload.pull_request.base.sha;
+                    const headSha = context.payload.pull_request.head.sha;
+                    const response = await github.repos.compareCommits({
+                        base: baseSha,
+                        head: headSha
+                    });
+                    const changedFiles = response.data.files.map(file => file.filename);
+                    console.log(`Changed files: ${changedFiles}`);
+                    return changedFiles;
 
             - name: Verify threadsafety acknowledgement
               uses: actions/github-script@v6
