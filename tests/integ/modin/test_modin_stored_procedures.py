@@ -3,27 +3,59 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import os
+
 import modin.pandas as pd
+import pandas as native_pd
+import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.modin.plugin import (
+    actual_pandas_version,
     supported_modin_version,
-    supported_pandas_version,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
 
+pytestmark = (
+    pytest.mark.skipif(
+        native_pd.__version__ == "2.2.3",
+        reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+    ),
+)
+
 PACKAGE_LIST = [
-    f"pandas=={supported_pandas_version}",
+    # modin 0.30.1 supports any pandas 2.2.x, so just pick whichever one is installed in the client
+    f"pandas=={actual_pandas_version}",
     f"modin=={supported_modin_version}",
     "snowflake-snowpark-python",
     "numpy",
 ]
 
+# Snowpark pandas strictly pins the modin dependency version, so while testing a dependency upgrade,
+# we need to upload snowflake-snowpark-python as a zip file. Otherwise, the conda package solver
+# will resolve snowflake-snowpark-python==1.16.0, the newest version which does not pin a modin
+# version.
+# We still specify snowflake-snowpark-python in the package list to prevent the sproc registration
+# code from failing in the solver step; the import here will override whatever version is chosen.
+IMPORT_LIST = [
+    # The current path of this file is `tests/modin/integ/test_modin_stored_procedures.py`, so we need
+    # to go back to the repository root to reach `src/snowflake/snowpark/`.
+    (
+        os.path.join(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            ),
+            "src/snowflake/snowpark",
+        ),
+        "snowflake.snowpark",
+    ),
+]
+
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_head(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame(
             [["a", 2.1, 1], ["b", 4.2, 2], ["c", 6.3, None]],
@@ -40,7 +72,7 @@ def test_sproc_head(session):
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_dropna(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> int:
         default_index_snowpark_pandas_df = pd.DataFrame(
             [["a", 2.1, 1], ["b", None, 2], ["c", 6.3, None]],
@@ -55,7 +87,7 @@ def test_sproc_dropna(session):
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_idx(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
         df_result = df["a"]
@@ -66,7 +98,7 @@ def test_sproc_idx(session):
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_loc(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
         df_result = df.loc[df["a"] > 2]
@@ -77,7 +109,7 @@ def test_sproc_loc(session):
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_iloc(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
         df_result = df.iloc[0, 1]
@@ -88,7 +120,7 @@ def test_sproc_iloc(session):
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_missing_val(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> int:
         import numpy as np
 
@@ -109,7 +141,7 @@ def test_sproc_missing_val(session):
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_type_conv(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame({"int": [1, 2, 3], "str": ["4", "5", "6"]})
         df_result = df.astype(float)["int"].iloc[0]
@@ -120,14 +152,14 @@ def test_sproc_type_conv(session):
 
 @sql_count_checker(query_count=8, sproc_count=2)
 def test_sproc_binary_ops(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def add(session_: Session) -> str:
         df_1 = pd.DataFrame([[1, 2, 3], [4, 5, 6]])
         df_2 = pd.DataFrame([[6, 7, 8]])
         df_result = df_1.add(df_2)
         return str(df_result)
 
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def plus(session_: Session) -> str:
         s1 = pd.Series([1, 2, 3])
         s2 = pd.Series([2, 2, 2])
@@ -140,7 +172,7 @@ def test_sproc_binary_ops(session):
 
 @sql_count_checker(query_count=8, sproc_count=2)
 def test_sproc_agg(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run_agg(session_: Session) -> str:
         import numpy as np
 
@@ -151,7 +183,7 @@ def test_sproc_agg(session):
         df_result = df.agg(["sum", "min"])
         return str(df_result)
 
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run_median(session_: Session) -> str:
         import numpy as np
 
@@ -171,7 +203,7 @@ def test_sproc_agg(session):
 
 @sql_count_checker(query_count=8, sproc_count=2)
 def test_sproc_merge(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run_merge(session_: Session) -> str:
         df1 = pd.DataFrame(
             {"lkey": ["foo", "bar", "baz", "foo"], "value": [1, 2, 3, 5]}
@@ -182,7 +214,7 @@ def test_sproc_merge(session):
         df_result = df1.merge(df2, left_on="lkey", right_on="rkey")
         return str(df_result["value_x"])
 
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run_join(session_: Session) -> str:
         df = pd.DataFrame(
             {
@@ -206,7 +238,7 @@ def test_sproc_merge(session):
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_groupby(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame(
             {
@@ -225,7 +257,7 @@ def test_sproc_groupby(session):
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_pivot(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame(
             {
@@ -257,9 +289,11 @@ def test_sproc_pivot(session):
     )
 
 
+# TODO SNOW-1739042 figure out why apply/applymap UDF doesn't use the correct modin/snowpark version
+@pytest.mark.xfail(strict=True)
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_apply(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> str:
         import numpy as np
 
@@ -270,9 +304,11 @@ def test_sproc_apply(session):
     assert run() == "0     2\n1    10\n2    13\ndtype: int64"
 
 
+# TODO SNOW-1739042 figure out why apply/applymap UDF doesn't use the correct modin/snowpark version
+@pytest.mark.xfail(strict=True)
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_applymap(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> str:
         df = pd.DataFrame([[1, 2.12], [3.356, 4.567]])
         df_result = df.applymap(lambda x: len(str(x)))
@@ -283,7 +319,7 @@ def test_sproc_applymap(session):
 
 @sql_count_checker(query_count=4, sproc_count=1)
 def test_sproc_devguide_example(session):
-    @sproc(packages=PACKAGE_LIST)
+    @sproc(packages=PACKAGE_LIST, imports=IMPORT_LIST)
     def run(session_: Session) -> int:
         # Create a Snowpark Pandas DataFrame with sample data.
         df = pd.DataFrame(

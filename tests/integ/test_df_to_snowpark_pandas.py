@@ -43,21 +43,19 @@ def test_to_snowpark_pandas_no_modin(session, tmp_table_basic):
     try:
         import modin  # noqa: F401
     except ModuleNotFoundError:
-        # Current Snowpark Python installs pandas==2.2.2, but Snowpark pandas depends on modin
-        # 0.28.1, which needs pandas==2.2.1. The pandas version check is currently performed
-        # before Snowpark pandas checks whether modin is installed.
-        # TODO: SNOW-1552497: after upgrading to modin 0.30.1, Snowpark pandas will support
-        # all pandas 2.2.x, and this function call will raise a ModuleNotFoundError since
-        # modin is not installed.
-        match = (
-            "Snowpark pandas does not support Python 3.8. Please update to Python 3.9 or later"
-            if sys.version_info.major == 3 and sys.version_info.minor == 8
-            else "does not match the supported pandas version in Snowpark pandas"
-        )
-        with pytest.raises(
-            RuntimeError,
-            match=match,
-        ):
+        if sys.version_info.major == 3 and sys.version_info.minor == 8:
+            # Snowpark pandas does not support Python 3.8
+            ctx = pytest.raises(
+                RuntimeError,
+                match="Snowpark pandas does not support Python 3.8. Please update to Python 3.9 or later",
+            )
+        else:
+            # This function call will raise a ModuleNotFoundError since modin is not installed
+            ctx = pytest.raises(
+                ModuleNotFoundError,
+                match="Modin is not installed.",
+            )
+        with ctx:
             snowpark_df.to_snowpark_pandas()
     else:
         snowpark_df.to_snowpark_pandas()  # should have no errors
