@@ -272,6 +272,7 @@ def pivot(data, index=None, columns=None, values=None):  # noqa: PR01, RT01, D20
 
 
 @register_pd_accessor("pivot_table")
+@_inherit_docstrings(pandas.pivot_table)
 def pivot_table(
     data,
     values=None,
