@@ -7,6 +7,7 @@ import hashlib
 import logging
 import os
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple  # noqa: F401
 from unittest.mock import patch
@@ -70,6 +71,12 @@ def threadsafe_temp_stage(threadsafe_session, resources_path, local_testing_mode
     yield tmp_stage_name
     if not local_testing_mode:
         Utils.drop_stage(threadsafe_session, tmp_stage_name)
+
+
+def test_threadsafe_session_uses_locks(threadsafe_session):
+    assert isinstance(threadsafe_session._lock, threading.RLock)
+    assert isinstance(threadsafe_session._temp_table_auto_cleaner.lock, threading.RLock)
+    assert isinstance(threadsafe_session._conn._lock, threading.RLock)
 
 
 def test_concurrent_select_queries(threadsafe_session):
