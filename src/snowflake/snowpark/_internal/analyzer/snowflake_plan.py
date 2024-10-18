@@ -85,7 +85,8 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 )
 from snowflake.snowpark._internal.analyzer.cte_utils import (
     create_cte_query,
-    encode_id,
+    encode_node_id_with_query,
+    encoded_query_id,
     find_duplicate_subtrees,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -256,9 +257,13 @@ class SnowflakePlan(LogicalPlan):
         # It is used for optimization, by replacing a subquery with a CTE
         self.placeholder_query = placeholder_query
         # encode an id for CTE optimization. This is generated based on the main
-        # query and the associated query parameters. We use this id for equality comparison
-        # to determine if two plans are the same.
-        self._id = encode_id(queries[-1].sql, queries[-1].params)
+        # query, query parameters and the node type. We use this id for equality
+        # comparison to determine if two plans are the same.
+        self.encoded_node_id_with_query = encode_node_id_with_query(self)
+        # encode id for the main query and query parameters, this is currently only used
+        # by the create_cte_query process.
+        # TODO (SNOW-1541096) remove this filed along removing the old cte implementation
+        self.encoded_query_id = encoded_query_id(self)
         self.referenced_ctes: Set[WithQueryBlock] = (
             referenced_ctes.copy() if referenced_ctes else set()
         )
@@ -270,17 +275,6 @@ class SnowflakePlan(LogicalPlan):
         self._attributes: Optional[List[Attribute]] = None
         if session.reduce_describe_query_enabled and self.source_plan is not None:
             self._attributes = infer_metadata(self.source_plan)
-
-    def __eq__(self, other: "SnowflakePlan") -> bool:
-        if not isinstance(other, SnowflakePlan):
-            return False
-        if self._id is not None and other._id is not None:
-            return isinstance(other, SnowflakePlan) and self._id == other._id
-        else:
-            return super().__eq__(other)
-
-    def __hash__(self) -> int:
-        return hash(self._id) if self._id else super().__hash__()
 
     @property
     def uuid(self) -> str:
@@ -353,7 +347,7 @@ class SnowflakePlan(LogicalPlan):
             return self
 
         # if there is no duplicate node, no optimization will be performed
-        duplicate_plan_set, _ = find_duplicate_subtrees(self)
+        duplicate_plan_set = find_duplicate_subtrees(self)
         if not duplicate_plan_set:
             return self
 
@@ -399,12 +393,22 @@ class SnowflakePlan(LogicalPlan):
 
     @property
     def attributes(self) -> List[Attribute]:
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectStatement,
+        )
+
         if self._attributes is not None:
             return self._attributes
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
         self._attributes = analyze_attributes(self.schema_query, self.session)
+        # We need to cache attributes on SelectStatement too because df._plan is not
+        # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
+        if self.session.reduce_describe_query_enabled and isinstance(
+            self.source_plan, SelectStatement
+        ):
+            self.source_plan._attributes = self._attributes
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
             self.schema_query = schema_value_statement(self._attributes)
@@ -424,7 +428,7 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def num_duplicate_nodes(self) -> int:
-        duplicated_nodes, _ = find_duplicate_subtrees(self)
+        duplicated_nodes = find_duplicate_subtrees(self)
         return len(duplicated_nodes)
 
     @cached_property
@@ -596,8 +600,9 @@ class SnowflakePlanBuilder:
             new_schema_query = schema_query or sql_generator(child.schema_query)
 
         placeholder_query = (
-            sql_generator(select_child._id)
-            if self.session._cte_optimization_enabled and select_child._id is not None
+            sql_generator(select_child.encoded_query_id)
+            if self.session._cte_optimization_enabled
+            and select_child.encoded_query_id is not None
             else None
         )
 
@@ -635,10 +640,10 @@ class SnowflakePlanBuilder:
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
         placeholder_query = (
-            sql_generator(select_left._id, select_right._id)
+            sql_generator(select_left.encoded_query_id, select_right.encoded_query_id)
             if self.session._cte_optimization_enabled
-            and select_left._id is not None
-            and select_right._id is not None
+            and select_left.encoded_query_id is not None
+            and select_right.encoded_query_id is not None
             else None
         )
 

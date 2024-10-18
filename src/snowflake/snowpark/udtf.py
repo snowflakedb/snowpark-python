@@ -553,6 +553,7 @@ class UDTFRegistration:
         immutable: bool = False,
         max_batch_size: Optional[int] = None,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         **kwargs,
@@ -634,6 +635,8 @@ class UDTFRegistration:
                 be ignored when registering a non-vectorized UDTF.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udtf`
@@ -682,6 +685,7 @@ class UDTFRegistration:
                 api_call_source="UDTFRegistration.register",
                 is_permanent=is_permanent,
                 native_app_params=native_app_params,
+                copy_grants=copy_grants,
             )
 
     def register_from_file(
@@ -705,6 +709,7 @@ class UDTFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         skip_upload_on_content_match: bool = False,
@@ -789,6 +794,8 @@ class UDTFRegistration:
             immutable: Whether the UDTF result is deterministic or not for the same input.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -838,6 +845,7 @@ class UDTFRegistration:
                 api_call_source="UDTFRegistration.register_from_file",
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                copy_grants=copy_grants,
             )
 
     def _do_register_udtf(
@@ -866,6 +874,7 @@ class UDTFRegistration:
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        copy_grants: bool = False,
     ) -> UserDefinedTableFunction:
 
         if isinstance(output_schema, StructType):
@@ -970,6 +979,7 @@ class UDTFRegistration:
                 statement_params=statement_params,
                 comment=comment,
                 native_app_params=native_app_params,
+                copy_grants=copy_grants,
                 runtime_version=runtime_version_from_requirement,
             )
         # an exception might happen during registering a udtf

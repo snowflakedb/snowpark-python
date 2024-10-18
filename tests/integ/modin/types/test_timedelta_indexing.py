@@ -18,7 +18,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 @pytest.mark.parametrize(
     "key, iloc_join_count, loc_query_count, loc_join_count",
     [
-        [2, 2, 2, 2],
+        [2, 0, 2, 2],
         [[2, 1], 2, 1, 1],
         [slice(1, None), 0, 1, 0],
         [[True, False, False, True], 1, 1, 1],
@@ -56,16 +56,16 @@ def test_series_indexing_get_timedelta(
 @pytest.mark.parametrize(
     "key, query_count, join_count, type_preserved",
     [
-        [(1, 1), 1, 2, True],
-        [(2, 2), 1, 2, True],
+        [(1, 1), 1, 0, True],
+        [(2, 2), 1, 0, True],
         [([2, 1], 1), 1, 2, True],
         [
             (2, [1, 0]),
             1,
-            4,
+            0,
             True,
         ],  # require transpose and keep result column type as timedelta
-        [(2, ...), 1, 4, False],  # require transpose but lose the type
+        [(2, ...), 1, 0, False],  # require transpose but lose the type
         [(slice(1, None), 0), 1, 0, True],
         [([True, False, False, True], 1), 1, 1, True],
         [(1, "a"), 2, 2, True],
@@ -77,7 +77,7 @@ def test_series_indexing_get_timedelta(
             3,
             True,
         ],  # require transpose and keep result column type as timedelta
-        [(2, ...), 1, 4, False],  # require transpose but lose the type
+        [(2, ...), 1, 0, False],  # require transpose but lose the type
         [(slice(1, None), "a"), 1, 0, True],
         [([True, False, False, True], "b"), 1, 1, True],
     ],
@@ -427,7 +427,7 @@ def test_df_indexing_enlargement_timedelta(item):
 
 @pytest.mark.parametrize(
     "key, join_count",
-    [(2, 2), ([2, 1], 2), (slice(1, None), 0), ([True, False, False, True], 1)],
+    [(2, 0), ([2, 1], 2), (slice(1, None), 0), ([True, False, False, True], 1)],
 )
 def test_index_get_timedelta(key, join_count):
     td_idx = native_pd.TimedeltaIndex(
@@ -450,7 +450,7 @@ def test_index_get_timedelta(key, join_count):
 @pytest.mark.parametrize(
     "key, api, query_count, join_count",
     [
-        [2, "iat", 1, 4],
+        [2, "iat", 1, 1],
         [native_pd.Timedelta("1 days 1 hour"), "at", 2, 4],
         [[2, 1], "iloc", 1, 4],
         [
@@ -494,7 +494,7 @@ def test_series_with_timedelta_index(key, api, query_count, join_count):
 @pytest.mark.parametrize(
     "key, api, query_count, join_count",
     [
-        [2, "iat", 1, 4],
+        [2, "iat", 1, 1],
         [native_pd.Timedelta("1 days 1 hour"), "at", 2, 4],
         [[2, 1], "iloc", 1, 4],
         [
