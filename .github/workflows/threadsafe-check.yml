@@ -24,7 +24,7 @@ jobs:
                       repo: pr.base.repo.name,
                       pull_number: pr.number,
                     });
-                    const changedFiles = files.map(file => file.filename);
+                    const changedFiles = JSON.stringify(files.map(file => file.filename));
                     console.log(`Changed files: ${changedFiles}`);
                     return changedFiles;
 
