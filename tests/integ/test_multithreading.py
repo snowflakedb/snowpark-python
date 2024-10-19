@@ -270,7 +270,7 @@ def test_concurrent_add_packages(threadsafe_session):
     # this is a list of packages available in snowflake anaconda. If this
     # test fails due to packages not being available, please update the list
     package_list = {
-        "graphviz",
+        "cloudpickle",
         "numpy",
         "pandas",
         "scipy",
