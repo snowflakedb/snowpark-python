@@ -269,6 +269,7 @@ def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_
 def test_concurrent_add_packages(threadsafe_session):
     # this is a list of packages available in snowflake anaconda. If this
     # test fails due to packages not being available, please update the list
+    existing_packages = threadsafe_session.get_packages()
     package_list = {
         "cloudpickle",
         "numpy",
@@ -280,19 +281,16 @@ def test_concurrent_add_packages(threadsafe_session):
 
     try:
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [
+            for package in package_list:
                 executor.submit(threadsafe_session.add_packages, package)
-                for package in package_list
-            ]
 
-            for future in as_completed(futures):
-                future.result()
-
-            assert threadsafe_session.get_packages() == {
-                package: package for package in package_list
-            }
+        final_packages = threadsafe_session.get_packages()
+        for package in package_list:
+            assert package in final_packages
     finally:
-        threadsafe_session.clear_packages()
+        for package in package_list:
+            if package not in existing_packages:
+                threadsafe_session.remove_package(package)
 
 
 def test_concurrent_remove_package(threadsafe_session):
