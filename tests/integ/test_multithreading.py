@@ -275,7 +275,7 @@ def test_concurrent_add_packages(threadsafe_session):
         "pandas",
         "scipy",
         "scikit-learn",
-        "matplotlib",
+        "pyyaml",
     }
 
     try:
@@ -330,6 +330,7 @@ def test_concurrent_remove_package(threadsafe_session):
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is not available")
 def test_concurrent_add_import(threadsafe_session, resources_path):
     test_files = TestFiles(resources_path)
+    existing_imports = set(threadsafe_session.get_imports())
     import_files = [
         test_files.test_udf_py_file,
         os.path.relpath(test_files.test_udf_py_file),
@@ -349,7 +350,7 @@ def test_concurrent_add_import(threadsafe_session, resources_path):
 
         assert set(threadsafe_session.get_imports()) == {
             os.path.abspath(file) for file in import_files
-        }
+        }.union(existing_imports)
     finally:
         threadsafe_session.clear_imports()
 
@@ -568,6 +569,9 @@ class OffsetSumUDAFHandler:
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in local testing mode",
     run=False,
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
 def test_auto_temp_table_cleaner(threadsafe_session, caplog):
     threadsafe_session._temp_table_auto_cleaner.ref_count_map.clear()
