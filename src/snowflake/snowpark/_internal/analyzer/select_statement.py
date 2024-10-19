@@ -678,6 +678,8 @@ class SelectStatement(Selectable):
         self._projection_complexities: Optional[
             List[Dict[PlanNodeCategory, int]]
         ] = None
+        # Metadata/Attributes for the plan
+        self._attributes: Optional[List[Attribute]] = None
 
     def __copy__(self):
         new = SelectStatement(
@@ -1201,6 +1203,8 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
+        if self.analyzer.session.reduce_describe_query_enabled:
+            new._attributes = self._attributes
 
         return new
 
@@ -1234,6 +1238,9 @@ class SelectStatement(Selectable):
                 order_by=cols,
                 analyzer=self.analyzer,
             )
+        if self.analyzer.session.reduce_describe_query_enabled:
+            new._attributes = self._attributes
+
         return new
 
     def set_operator(
@@ -1315,6 +1322,9 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
+        if self.analyzer.session.reduce_describe_query_enabled:
+            new._attributes = self._attributes
+
         return new
 
 

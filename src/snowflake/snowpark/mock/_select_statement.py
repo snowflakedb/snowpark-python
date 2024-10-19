@@ -2,8 +2,18 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 from abc import ABC
+from collections import defaultdict
 from copy import copy
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnChangeState,
@@ -62,7 +72,9 @@ class MockSelectable(LogicalPlan, ABC):
         self._execution_plan: Optional[SnowflakePlan] = None
         self._attributes = None
         self.expr_to_alias = {}
-        self.df_aliased_col_name_to_real_col_name = {}
+        self.df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
 
     @property
     def sql_query(self) -> str:
