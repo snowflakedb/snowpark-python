@@ -53,6 +53,7 @@ from pandas._typing import (
 from pandas.core.arrays import datetimelike
 from pandas.core.arrays.datetimes import (
     _infer_tz_from_endpoints,
+    _maybe_localize_point,
     _maybe_normalize_endpoints,
 )
 from pandas.core.dtypes.common import is_list_like, is_nested_list_like
@@ -2804,8 +2805,6 @@ def date_range(
 
     Notes
     -----
-    ``tz`` is not supported.
-
     Of the four parameters ``start``, ``end``, ``periods``, and ``freq``,
     exactly three must be specified. If ``freq`` is omitted, the resulting
     ``DatetimeIndex`` will have ``periods`` linearly spaced elements between
@@ -2830,6 +2829,21 @@ def date_range(
     DatetimeIndex(['2018-01-01', '2018-01-02', '2018-01-03', '2018-01-04',
                    '2018-01-05', '2018-01-06', '2018-01-07', '2018-01-08'],
                   dtype='datetime64[ns]', freq=None)
+
+    Specify timezone-aware `start` and `end`, with the default daily frequency. Note that Snowflake use TIMESTAMP_TZ to
+    represent datetime with timezone, and internally it stores UTC time together with an associated time zone offset
+    (and the actual timezone is no longer available). More details can be found in
+    https://docs.snowflake.com/en/sql-reference/data-types-datetime#timestamp-ltz-timestamp-ntz-timestamp-tz.
+
+    >>> pd.date_range(
+    ...     start=pd.to_datetime("1/1/2018").tz_localize("Europe/Berlin"),
+    ...     end=pd.to_datetime("1/08/2018").tz_localize("Europe/Berlin"),
+    ... )
+    DatetimeIndex(['2018-01-01 00:00:00+01:00', '2018-01-02 00:00:00+01:00',
+                   '2018-01-03 00:00:00+01:00', '2018-01-04 00:00:00+01:00',
+                   '2018-01-05 00:00:00+01:00', '2018-01-06 00:00:00+01:00',
+                   '2018-01-07 00:00:00+01:00', '2018-01-08 00:00:00+01:00'],
+                  dtype='datetime64[ns, UTC+01:00]', freq=None)
 
     Specify `start` and `periods`, the number of periods (days).
 
@@ -2876,6 +2890,14 @@ def date_range(
     DatetimeIndex(['2018-01-31', '2018-04-30', '2018-07-31', '2018-10-31',
                    '2019-01-31'],
                   dtype='datetime64[ns]', freq=None)
+
+    Specify `tz` to set the timezone.
+
+    >>> pd.date_range(start='1/1/2018', periods=5, tz='Asia/Tokyo')
+    DatetimeIndex(['2018-01-01 00:00:00+09:00', '2018-01-02 00:00:00+09:00',
+                   '2018-01-03 00:00:00+09:00', '2018-01-04 00:00:00+09:00',
+                   '2018-01-05 00:00:00+09:00'],
+                  dtype='datetime64[ns, UTC+09:00]', freq=None)
 
     `inclusive` controls whether to include `start` and `end` that are on the
     boundary. The default, "both", includes boundary points on either end.
@@ -2932,6 +2954,15 @@ def date_range(
     # If more than one of these inputs provides a timezone, require that they all agree.
     tz = _infer_tz_from_endpoints(start, end, tz)
 
+    if tz is not None:
+        # Localize the start and end arguments (reuse native pandas code)
+        start = _maybe_localize_point(
+            start, freq, tz, ambiguous="raise", nonexistent="raise"
+        )
+        end = _maybe_localize_point(
+            end, freq, tz, ambiguous="raise", nonexistent="raise"
+        )
+
     qc = SnowflakeQueryCompiler.from_date_range(
         start=start,
         end=end,
@@ -2945,7 +2976,10 @@ def date_range(
     qc = qc.set_index_from_columns(qc.columns.tolist(), include_index=False)
     # Set index column name.
     qc = qc.set_index_names([name])
-    return pd.DatetimeIndex(query_compiler=qc)
+    idx = pd.DatetimeIndex(query_compiler=qc)
+    if tz is not None:
+        idx = idx.tz_localize(tz)
+    return idx
 
 
 @register_pd_accessor("bdate_range")

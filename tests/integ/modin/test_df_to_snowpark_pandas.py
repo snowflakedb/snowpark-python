@@ -9,8 +9,8 @@ import pytest
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import Utils
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import Utils, multithreaded_run
 
 
 @pytest.fixture(scope="module")
@@ -72,6 +72,7 @@ def test_to_snowpark_pandas_basic(session, tmp_table_basic, index_col, columns) 
                 assert snowpark_pandas_df.columns.tolist() == expected_data_cols
 
 
+@multithreaded_run()
 @sql_count_checker(query_count=3)
 def test_to_snowpark_pandas_from_views(session, tmp_table_basic) -> None:
     snowpark_df = session.sql(

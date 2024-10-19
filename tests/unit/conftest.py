@@ -17,8 +17,25 @@ from snowflake.snowpark.session import Session
 @pytest.fixture
 def mock_server_connection() -> ServerConnection:
     fake_snowflake_connection = mock.create_autospec(SnowflakeConnection)
+    fake_snowflake_connection._conn = mock.MagicMock()
     fake_snowflake_connection._telemetry = None
     fake_snowflake_connection._session_parameters = {}
+    fake_snowflake_connection._thread_safe_session_enabled = True
+    fake_snowflake_connection.cursor.return_value = mock.create_autospec(
+        SnowflakeCursor
+    )
+    fake_snowflake_connection.is_closed.return_value = False
+    return ServerConnection({}, fake_snowflake_connection)
+
+
+@pytest.fixture
+def closed_mock_server_connection() -> ServerConnection:
+    fake_snowflake_connection = mock.create_autospec(SnowflakeConnection)
+    fake_snowflake_connection._conn = mock.MagicMock()
+    fake_snowflake_connection._telemetry = None
+    fake_snowflake_connection._session_parameters = {}
+    fake_snowflake_connection._thread_safe_session_enabled = True
+    fake_snowflake_connection.is_closed = mock.MagicMock(return_value=False)
     fake_snowflake_connection.cursor.return_value = mock.create_autospec(
         SnowflakeCursor
     )
@@ -60,6 +77,7 @@ def mock_analyzer(mock_snowflake_plan) -> Analyzer:
 @pytest.fixture(scope="module")
 def mock_session(mock_analyzer) -> Session:
     fake_session = mock.create_autospec(Session)
+    fake_session._cte_optimization_enabled = False
     fake_session._analyzer = mock_analyzer
     mock_analyzer.session = fake_session
     return fake_session

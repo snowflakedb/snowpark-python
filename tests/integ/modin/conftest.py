@@ -15,7 +15,7 @@ from pytest import fail
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
-from tests.integ.modin.sql_counter import (
+from tests.integ.utils.sql_counter import (
     SqlCounter,
     clear_sql_counter_called,
     generate_sql_count_report,
@@ -44,7 +44,6 @@ def pytest_addoption(parser):
     parser.addoption(
         "--generate_pandas_api_coverage", action="store_true", default=False
     )
-    parser.addoption("--skip_sql_count_check", action="store_true", default=False)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -52,17 +51,6 @@ def setup_pandas_api_coverage_generator(pytestconfig):
     enable_coverage = pytestconfig.getoption("generate_pandas_api_coverage")
     if enable_coverage:
         PandasAPICoverageGenerator()
-
-
-SKIP_SQL_COUNT_CHECK = False
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_skip_sql_count_check(pytestconfig):
-    skip = pytestconfig.getoption("skip_sql_count_check")
-    if skip:
-        global SKIP_SQL_COUNT_CHECK
-        SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(scope="function")
@@ -91,8 +79,12 @@ def auto_annotate_sql_counter(request):
 
 @pytest.fixture(autouse=True)
 def check_sql_counter_invoked(request):
+    from tests.conftest import SKIP_SQL_COUNT_CHECK
+
     do_check = (
-        INTEG_PANDAS_SUBPATH in request.node.location[0] and running_on_public_ci()
+        INTEG_PANDAS_SUBPATH in request.node.location[0]
+        and running_on_public_ci()
+        and not SKIP_SQL_COUNT_CHECK
     )
 
     if do_check:

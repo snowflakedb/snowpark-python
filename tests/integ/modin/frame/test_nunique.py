@@ -8,8 +8,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 TEST_LABELS = np.array(["A", "B", "C", "D", "E"])
 TEST_DATA = [
@@ -31,10 +31,6 @@ TEST_SLICES = [
 @pytest.mark.parametrize("axes_slices", TEST_SLICES)
 @pytest.mark.parametrize("dropna", [True, False])
 def test_dataframe_nunique(axes_slices, dropna):
-    expected_join_count = 0
-    if axes_slices == (0, slice(None)):
-        expected_join_count = 4
-
     df = pd.DataFrame(
         pd.DataFrame(TEST_DATA, columns=TEST_LABELS).iloc[
             axes_slices[0], axes_slices[1]
@@ -46,7 +42,7 @@ def test_dataframe_nunique(axes_slices, dropna):
         ]
     )
 
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             df,
             native_df,

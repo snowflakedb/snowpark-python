@@ -20,7 +20,6 @@ from tests.integ.modin.frame.test_loc import (
     negative_snowpark_pandas_input_keys,
     row_inputs,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
@@ -28,6 +27,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
     generate_a_random_permuted_list_exclude_self,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 EMPTY_LIST_LIKE_VALUES = [
     [],
@@ -942,19 +942,23 @@ def test_series_loc_set_key_slice_with_series(start, stop, step):
             else native_item_ser
         )
 
-    expected_join_count = 1 if not start and not stop and not step else 4
-
-    with SqlCounter(query_count=1, join_count=expected_join_count):
-        if slice_len == 0:
-            # pandas can fail in this case, so we skip call loc for it, see more below in
-            # test_series_loc_set_key_slice_with_series_item_pandas_bug
-            set_loc_helper(snow_ser)
-            # snow_ser should not change when slice_len = 0
+    if slice_len == 0:
+        # pandas can fail in this case, so we skip call loc for it, see more below in
+        # test_series_loc_set_key_slice_with_series_item_pandas_bug
+        set_loc_helper(snow_ser)
+        # snow_ser should not change when slice_len = 0
+        with SqlCounter(query_count=1):
             assert_snowpark_pandas_equal_to_pandas(snow_ser, native_ser)
+    else:
+        native_res = set_loc_helper(native_ser)
+        if is_scalar(native_res):
+            with SqlCounter(query_count=0):
+                snow_res = set_loc_helper(snow_ser)
+                assert snow_res == native_res
         else:
-            eval_snowpark_pandas_result(
-                snow_ser, native_ser, set_loc_helper, inplace=True
-            )
+            with SqlCounter(query_count=1, join_count=4):
+                snow_res = set_loc_helper(snow_ser)
+                assert_series_equal(snow_res, native_res)
 
 
 @pytest.mark.parametrize(

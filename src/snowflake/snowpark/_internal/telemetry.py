@@ -4,6 +4,7 @@
 #
 
 import functools
+import threading
 from enum import Enum, unique
 from typing import Any, Dict, List, Optional
 
@@ -14,6 +15,7 @@ from snowflake.connector.telemetry import (
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
 )
@@ -37,6 +39,7 @@ class TelemetryField(Enum):
     TYPE_PERFORMANCE_DATA = "snowpark_performance_data"
     TYPE_FUNCTION_USAGE = "snowpark_function_usage"
     TYPE_SESSION_CREATED = "snowpark_session_created"
+    TYPE_CURSOR_CREATED = "snowpark_cursor_created"
     TYPE_SQL_SIMPLIFIER_ENABLED = "snowpark_sql_simplifier_enabled"
     TYPE_CTE_OPTIMIZATION_ENABLED = "snowpark_cte_optimization_enabled"
     # telemetry for optimization that eliminates the extra cast expression generated for expressions
@@ -45,6 +48,7 @@ class TelemetryField(Enum):
     )
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
     TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
+    TYPE_REDUCE_DESCRIBE_QUERY_ENABLED = "snowpark_reduce_describe_query_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -75,10 +79,6 @@ class TelemetryField(Enum):
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
     CTE_OPTIMIZATION_ENABLED = "cte_optimization_enabled"
     LARGE_QUERY_BREAKDOWN_ENABLED = "large_query_breakdown_enabled"
-    # dataframe query stats
-    QUERY_PLAN_HEIGHT = "query_plan_height"
-    QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
-    QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
     # temp table cleanup
     TYPE_TEMP_TABLE_CLEANUP = "snowpark_temp_table_cleanup"
     NUM_TEMP_TABLES_CLEANED = "num_temp_tables_cleaned"
@@ -93,6 +93,8 @@ class TelemetryField(Enum):
     TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_MESSAGE = (
         "temp_table_cleanup_abnormal_exception_message"
     )
+    # multi-threading
+    THREAD_IDENTIFIER = "thread_ident"
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -181,19 +183,25 @@ def df_collect_api_telemetry(func):
             0
         ]._session.sql_simplifier_enabled
         try:
-            api_calls[0][TelemetryField.QUERY_PLAN_HEIGHT.value] = plan.plan_height
+            api_calls[0][
+                CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value
+            ] = plan.plan_state[PlanState.PLAN_HEIGHT]
+            api_calls[0][
+                CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
+            ] = plan.plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
             # The uuid for df._select_statement can be different from df._plan. Since plan
             # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
             # to track the queries.
             uuid = args[0]._plan.uuid
             api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
             api_calls[0][
-                TelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
             ] = plan.num_duplicate_nodes
-            api_calls[0][TelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
+            api_calls[0][CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
                 key.value: value
                 for key, value in plan.cumulative_node_complexity.items()
             }
+            api_calls[0][TelemetryField.THREAD_IDENTIFIER.value] = threading.get_ident()
         except Exception:
             pass
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
@@ -341,6 +349,7 @@ class TelemetryClient:
                 TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_UPLOAD_FILE.value,
                 TelemetryField.KEY_FUNC_NAME.value: func_name,
                 TelemetryField.KEY_DURATION.value: duration,
+                TelemetryField.THREAD_IDENTIFIER.value: threading.get_ident(),
             },
         }
         self.send(message)
@@ -532,6 +541,32 @@ class TelemetryClient:
                         upper_bound,
                     ),
                 },
+            },
+        }
+        self.send(message)
+
+    def send_cursor_created_telemetry(self, session_id: int, thread_id: int):
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_CURSOR_CREATED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.THREAD_IDENTIFIER.value: thread_id,
+            },
+        }
+        self.send(message)
+
+    def send_reduce_describe_query_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_REDUCE_DESCRIBE_QUERY_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TYPE_REDUCE_DESCRIBE_QUERY_ENABLED.value: value,
             },
         }
         self.send(message)

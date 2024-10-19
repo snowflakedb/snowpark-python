@@ -12,7 +12,6 @@ from pandas import Index, MultiIndex
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_index_equal,
@@ -20,7 +19,8 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
-from tests.utils import TestFiles
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import TestFiles, multithreaded_run
 
 
 @pytest.fixture(scope="function")
@@ -745,6 +745,7 @@ def test_concat_dict(df1, df2, dict_keys, axis):
         )
 
 
+@multithreaded_run()
 @pytest.mark.parametrize("dict_keys", [["x", "y"], ["y", "x"]])
 @pytest.mark.parametrize("keys", [["x", "y"], ["y", "x"], ["x"], ["y"]])
 def test_concat_dict_with_keys(df1, df2, dict_keys, keys, axis):

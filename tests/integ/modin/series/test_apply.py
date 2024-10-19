@@ -20,7 +20,6 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import DoubleType, StringType, VariantType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     ColumnSchema,
     assert_snowpark_pandas_equal_to_pandas,
@@ -29,6 +28,7 @@ from tests.integ.modin.utils import (
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 BASIC_DATA_FUNC_RETURN_TYPE_MAP = [
     ([1, 2, 3, None], lambda x: x + 1, "int"),

@@ -83,6 +83,10 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 )
 from snowflake.snowpark.modin.utils import validate_int_kwarg
 
+_TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
+    "pct_change(axis=1) is invalid when one column is Timedelta another column is not."
+)
+
 
 def register_base_override(method_name: str):
     """
@@ -491,14 +495,7 @@ def truncate(
 
 
 @register_base_not_implemented()
-def tz_convert(self, tz, axis=0, level=None, copy=True):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
-def tz_localize(
-    self, tz, axis=0, level=None, copy=True, ambiguous="raise", nonexistent="raise"
-):  # noqa: PR01, RT01, D200
+def update(self, other) -> None:  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -1896,16 +1893,25 @@ def pct_change(
     if limit is lib.no_default:
         limit = None
 
-    if "axis" in kwargs:
-        kwargs["axis"] = self._get_axis_number(kwargs["axis"])
+    kwargs["axis"] = self._get_axis_number(kwargs.get("axis", 0))
 
     # Attempting to match pandas error behavior here
     if not isinstance(periods, int):
         raise TypeError(f"periods must be an int. got {type(periods)} instead")
 
+    column_is_timedelta_type = [
+        self._query_compiler.is_timedelta64_dtype(i, is_index=False)
+        for i in range(len(self._query_compiler.columns))
+    ]
+
+    if kwargs["axis"] == 1:
+        if any(column_is_timedelta_type) and not all(column_is_timedelta_type):
+            # pct_change() between timedelta and a non-timedelta type is invalid.
+            raise TypeError(_TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE)
+
     # Attempting to match pandas error behavior here
-    for dtype in self._get_dtypes():
-        if not is_numeric_dtype(dtype):
+    for i, dtype in enumerate(self._get_dtypes()):
+        if not is_numeric_dtype(dtype) and not column_is_timedelta_type[i]:
             raise TypeError(
                 f"cannot perform pct_change on non-numeric column with dtype {dtype}"
             )
@@ -2329,7 +2335,12 @@ def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
 
     if ufunc.__name__ in numpy_to_pandas_universal_func_map:
         ufunc = numpy_to_pandas_universal_func_map[ufunc.__name__]
-        return ufunc(self, inputs[1:], kwargs)
+        if ufunc == NotImplemented:
+            return NotImplemented
+        # We cannot support the out argument
+        if kwargs.get("out") is not None:
+            return NotImplemented
+        return ufunc(self, inputs[1:])
     # return the sentinel NotImplemented if we do not support this function
     return NotImplemented  # pragma: no cover
 

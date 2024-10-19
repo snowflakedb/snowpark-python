@@ -10,12 +10,11 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=0)
@@ -259,8 +258,7 @@ def test_reindex_index_fill_method_with_old_na_values_pandas_negative(limit, met
     )
 
 
-@pytest.mark.xfail(reason="SNOW-1638397 reindex issue when column types don't match")
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize("limit", [None, 1, 2, 100])
 @pytest.mark.parametrize("method", ["bfill", "backfill", "pad", "ffill"])
 def test_reindex_index_datetime_with_fill(limit, method):
@@ -301,8 +299,7 @@ def test_reindex_index_non_overlapping_index():
     )
 
 
-@pytest.mark.xfail(reason="SNOW-1638397 reindex issue when column types don't match")
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_reindex_index_non_overlapping_datetime_index():
     date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
     native_series = native_pd.Series(
@@ -328,15 +325,23 @@ def test_reindex_index_non_overlapping_datetime_index():
     )
 
 
-@sql_count_checker(query_count=0)
-def test_reindex_index_non_overlapping_different_types_index_negative():
+@sql_count_checker(query_count=1, join_count=2)
+def test_reindex_index_non_overlapping_different_types_index():
+    date_index = native_pd.date_range("1/1/2010", periods=6, freq="D")
+    native_series = native_pd.Series(
+        {"prices": [100, 101, np.nan, 100, 89, 88]}, index=date_index
+    )
     date_index = pd.date_range("1/1/2010", periods=6, freq="D")
     snow_series = pd.Series(
         {"prices": [100, 101, np.nan, 100, 89, 88]}, index=date_index
     )
 
-    with pytest.raises(SnowparkSQLException, match=".*Timestamp 'A' is not recognized"):
-        snow_series.reindex(list("ABC")).to_pandas()
+    eval_snowpark_pandas_result(
+        snow_series,
+        native_series,
+        lambda series: series.reindex(list("ABC")),
+        check_freq=False,
+    )
 
 
 @sql_count_checker(query_count=1, join_count=1)

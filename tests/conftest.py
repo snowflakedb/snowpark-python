@@ -29,6 +29,8 @@ def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
     parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_cte_optimization", action="store_true", default=False)
+    parser.addoption("--multithreading_mode", action="store_true", default=False)
+    parser.addoption("--skip_sql_count_check", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -85,8 +87,30 @@ def cte_optimization_enabled(pytestconfig):
     return pytestconfig.getoption("enable_cte_optimization")
 
 
+MULTITHREADING_TEST_MODE_ENABLED = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def multithreading_mode_enabled(pytestconfig):
+    enabled = pytestconfig.getoption("multithreading_mode")
+    global MULTITHREADING_TEST_MODE_ENABLED
+    MULTITHREADING_TEST_MODE_ENABLED = enabled
+    return enabled
+
+
 def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
+
+
+SKIP_SQL_COUNT_CHECK = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_skip_sql_count_check(pytestconfig):
+    skip = pytestconfig.getoption("skip_sql_count_check")
+    if skip:
+        global SKIP_SQL_COUNT_CHECK
+        SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(autouse=True)

@@ -7,8 +7,8 @@ import pandas as native_pd
 import pytest
 
 from tests.integ.modin.groupby.conftest import multiindex_data
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 # Seeded random number generator.
 rng = np.random.default_rng(1234)

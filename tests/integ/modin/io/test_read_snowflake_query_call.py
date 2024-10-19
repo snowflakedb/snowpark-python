@@ -6,10 +6,10 @@ import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import TempObjectType
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 
@@ -46,5 +46,5 @@ def filter_by_role(session, table_name, role):
 @sql_count_checker(query_count=5, sproc_count=2)
 def test_read_snowflake_call_system_function(session):
     df = pd.read_snowflake("CALL SYSTEM$TYPEOF(TRUE)")
-    native_df = native_pd.DataFrame(session.sql("CALL SYSTEM$TYPEOF(TRUE)").collect())
+    native_df = session.sql("CALL SYSTEM$TYPEOF(TRUE)").to_pandas()
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, native_df)

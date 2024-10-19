@@ -315,8 +315,11 @@ def get_snowflake_plan_queries(
         table_names = []
         definition_queries = []
         final_query_params = []
+        plan_referenced_cte_names = {
+            with_query_block.name for with_query_block in plan.referenced_ctes
+        }
         for name, definition_query in resolved_with_query_blocks.items():
-            if name in plan.referenced_ctes:
+            if name in plan_referenced_cte_names:
                 table_names.append(name)
                 definition_queries.append(definition_query.sql)
                 final_query_params.extend(definition_query.params)
@@ -357,13 +360,13 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     """
     import os
 
-    import graphviz  # pyright: ignore[reportMissingImports]
-
     if (
         os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING", "false").lower()
         != "true"
     ):
         return
+
+    import graphviz  # pyright: ignore[reportMissingImports]
 
     def get_stat(node: LogicalPlan):
         def get_name(node: Optional[LogicalPlan]) -> str:
@@ -381,7 +384,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         elif isinstance(node, SetStatement):
             name = f"{name} :: ({node.set_operands[1].operator})"
 
-        score = get_complexity_score(node.cumulative_node_complexity)
+        score = get_complexity_score(node)
         sql_text = ""
         if isinstance(node, Selectable):
             sql_text = node.sql_query

@@ -11,8 +11,8 @@ import pytest
 import pytz
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 dt_properties = pytest.mark.parametrize(
     "property_name",
@@ -249,6 +249,24 @@ def test_tz_convert(tz):
     )
 
 
+@sql_count_checker(query_count=0)
+def test_tz_convert_negative():
+    datetime_index = native_pd.DatetimeIndex(
+        [
+            "2014-04-04 23:56:01.000000001",
+            "2014-07-18 21:24:02.000000002",
+            "2015-11-22 22:14:03.000000003",
+            "2015-11-23 20:12:04.1234567890",
+            pd.NaT,
+        ],
+        tz="US/Eastern",
+    )
+    native_ser = native_pd.Series(datetime_index)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(NotImplementedError):
+        snow_ser.dt.tz_convert(tz="UTC+09:00")
+
+
 @sql_count_checker(query_count=1)
 @timezones
 def test_tz_localize(tz):
@@ -271,20 +289,21 @@ def test_tz_localize(tz):
 
 
 @pytest.mark.parametrize(
-    "ambiguous, nonexistent",
+    "tz, ambiguous, nonexistent",
     [
-        ("infer", "raise"),
-        ("NaT", "raise"),
-        (np.array([True, True, False]), "raise"),
-        ("raise", "shift_forward"),
-        ("raise", "shift_backward"),
-        ("raise", "NaT"),
-        ("raise", pd.Timedelta("1h")),
-        ("infer", "shift_forward"),
+        (None, "infer", "raise"),
+        (None, "NaT", "raise"),
+        (None, np.array([True, True, False]), "raise"),
+        (None, "raise", "shift_forward"),
+        (None, "raise", "shift_backward"),
+        (None, "raise", "NaT"),
+        (None, "raise", pd.Timedelta("1h")),
+        (None, "infer", "shift_forward"),
+        ("UTC+09:00", "raise", "raise"),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_tz_localize_negative(ambiguous, nonexistent):
+def test_tz_localize_negative(tz, ambiguous, nonexistent):
     datetime_index = native_pd.DatetimeIndex(
         [
             "2014-04-04 23:56:01.000000001",
@@ -297,7 +316,7 @@ def test_tz_localize_negative(ambiguous, nonexistent):
     native_ser = native_pd.Series(datetime_index)
     snow_ser = pd.Series(native_ser)
     with pytest.raises(NotImplementedError):
-        snow_ser.dt.tz_localize(tz=None, ambiguous=ambiguous, nonexistent=nonexistent)
+        snow_ser.dt.tz_localize(tz=tz, ambiguous=ambiguous, nonexistent=nonexistent)
 
 
 @pytest.mark.parametrize("name", [None, "hello"])

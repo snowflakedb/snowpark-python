@@ -17,7 +17,6 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -25,6 +24,7 @@ from tests.integ.modin.utils import (
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 
@@ -1945,7 +1945,7 @@ def test_binary_comparison_method_between_series_different_types(op):
 @pytest.mark.parametrize(
     "op", [operator.eq, operator.ne, operator.gt, operator.ge, operator.lt, operator.le]
 )
-@sql_count_checker(query_count=2, join_count=5)
+@sql_count_checker(query_count=2, join_count=2)
 def test_binary_comparison_method_between_series_variant(lhs, rhs, op):
     snow_ans = op(pd.Series(lhs), pd.Series(rhs))
     native_ans = op(native_pd.Series(lhs), native_pd.Series(rhs))

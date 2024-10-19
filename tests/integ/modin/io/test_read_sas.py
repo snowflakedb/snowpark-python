@@ -4,8 +4,8 @@
 import modin.pandas as pd
 import pandas as native_pd
 
-from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import TestFiles
 
 

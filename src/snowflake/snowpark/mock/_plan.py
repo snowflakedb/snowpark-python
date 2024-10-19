@@ -9,10 +9,11 @@ import re
 import statistics
 import typing
 import uuid
+from collections import defaultdict
 from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property, partial, reduce
-from typing import TYPE_CHECKING, Dict, List, NoReturn, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -96,6 +97,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     UnresolvedAttribute,
     WithinGroup,
 )
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
@@ -192,9 +194,10 @@ class MockExecutionPlan(LogicalPlan):
         self.child = child
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
         self.df_aliased_col_name_to_real_col_name = (
-            df_aliased_col_name_to_real_col_name or {}
+            df_aliased_col_name_to_real_col_name or defaultdict(dict)
         )
         self.api_calls = []
+        self._attributes = None
 
     @property
     def attributes(self) -> List[Attribute]:
@@ -206,9 +209,12 @@ class MockExecutionPlan(LogicalPlan):
         return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
 
     @cached_property
-    def plan_height(self) -> int:
+    def plan_state(self) -> Dict[PlanState, Any]:
         # dummy return
-        return -1
+        return {
+            PlanState.PLAN_HEIGHT: -1,
+            PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: -1,
+        }
 
     @cached_property
     def num_duplicate_nodes(self) -> int:
@@ -2001,8 +2007,10 @@ def calculate_expression(
 
         # Process partition_by clause
         if window_spec.partition_spec:
+            # Remove duplicate keys while maintaining order
+            keys = list(dict.fromkeys([exp.name for exp in window_spec.partition_spec]))
             res = res.groupby(
-                [exp.name for exp in window_spec.partition_spec],
+                keys,
                 sort=False,
                 as_index=False,
             )
@@ -2029,10 +2037,14 @@ def calculate_expression(
                 indexer = EntireWindowIndexer()
                 rolling = res.rolling(indexer)
                 windows = [ordered.loc[w.index] for w in rolling]
+                # rolling can unpredictably change the index of the data
+                # apply a trivial function to materialize the final index
+                res_index = list(rolling.count().index)
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
             res = res.rolling(indexer)
+            res_index = list(res.count().index)
             windows = [w for w in res]
 
         elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
@@ -2062,16 +2074,6 @@ def calculate_expression(
                 isinstance(lower, UnboundedPreceding),
                 isinstance(upper, UnboundedFollowing),
             )
-
-        # Reorder windows to match the index order in res_index
-        reordered_windows = []
-        for idx in res_index:
-            for w in windows:
-                if idx in w.index:
-                    reordered_windows.append(w)
-                    break
-
-        windows = reordered_windows
 
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):

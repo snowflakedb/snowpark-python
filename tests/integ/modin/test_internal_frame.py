@@ -10,8 +10,9 @@ from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.utils.sql_counter import sql_count_checker
+from tests.utils import multithreaded_run
 
 
 @pytest.mark.parametrize(
@@ -38,6 +39,7 @@ def test_strip_duplicates(input, expected):
     assert_frame_equal(result, pd.DataFrame(expected))
 
 
+@multithreaded_run()
 @sql_count_checker(query_count=2, join_count=1)
 def test_strip_duplicates_after_sort():
     df = pd.DataFrame({"A": [0, 1, 0, 1, 2], "B": [1, 2, 3, 4, 5]})

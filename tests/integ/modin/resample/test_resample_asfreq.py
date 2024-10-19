@@ -7,8 +7,8 @@ import numpy as np
 import pandas as native_pd
 import pytest
 
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 freq = pytest.mark.parametrize("freq", ["min", "s", "h", "D"])
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
@@ -21,7 +21,10 @@ def test_asfreq_no_method(freq, interval):
     rule = f"{interval}{freq}"
     eval_snowpark_pandas_result(
         *create_test_dfs(
-            {"A": np.random.randn(15)},
+            {
+                "A": np.random.randn(15),
+                "B": native_pd.timedelta_range("1 days", periods=15),
+            },
             index=native_pd.date_range("2020-01-01", periods=15, freq=f"1{freq}"),
         ),
         lambda df: df.asfreq(freq=rule),
@@ -46,7 +49,10 @@ def test_asfreq_ffill():
 def test_resampler_asfreq(freq):
     eval_snowpark_pandas_result(
         *create_test_dfs(
-            {"A": np.random.randn(15)},
+            {
+                "A": np.random.randn(15),
+                "B": native_pd.timedelta_range("1 days", periods=15),
+            },
             index=native_pd.date_range("2020-01-01", periods=15, freq="1min"),
         ),
         lambda df: df.resample(freq).asfreq(),

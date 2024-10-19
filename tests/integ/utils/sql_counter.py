@@ -2,21 +2,22 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import functools
 import inspect
 import os
 import re
 import sys
 import threading
 import traceback
-from typing import Optional
+from typing import Dict, List, Optional, Union
 
 import pytest
-from decorator import decorator
-from pandas._typing import Scalar
 
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
+
+PythonScalar = Union[str, float, bool]
 
 UPDATED_SUFFIX = "updated"
 ORIGINAL_SUFFIX = "original"
@@ -76,12 +77,15 @@ HIGH_QUERY_COUNT_THRESHOLD = 9
 # it only runs at the first time of creating a fallback stored procedure
 # 5. test_table_fixture does a drop table which is inconsistently included but ultimately not related to the tested code
 # These cases should be excluded in our query counts.
+# 6. Unused temp tables to be dropped to temp table cleaner may happen any time when garbage collection kicks in,
+# so we should not count it
 FILTER_OUT_QUERIES = [
     ["create SCOPED TEMPORARY", "stage if not exists"],
     ["PUT", "file:///tmp/placeholder/snowpark.zip"],
     ["PUT", "file:///tmp/placeholder/udf_py_"],
     ['SELECT "PACKAGE_NAME"', 'array_agg("VERSION")'],
     ["drop table if exists", "TESTTABLENAME"],
+    ["drop table if exists", "/* internal query to drop unused temp table */"],
 ]
 
 # define global at module-level
@@ -121,7 +125,7 @@ class SqlCounter:
         high_count_reason=None,
         **kwargs,
     ) -> "SqlCounter":
-        from tests.integ.modin.conftest import SKIP_SQL_COUNT_CHECK
+        from tests.conftest import SKIP_SQL_COUNT_CHECK
 
         self._queries: list[QueryRecord] = []
 
@@ -363,9 +367,7 @@ class SqlCounter:
         self.session = None
 
 
-@decorator
 def sql_count_checker(
-    func,
     no_check=None,
     high_count_expected=False,
     high_count_reason=None,
@@ -379,13 +381,6 @@ def sql_count_checker(
     **kwargs,
 ):
     """SqlCounter decorator that automatically validates the sql counts when test finishes."""
-    sql_counter = SqlCounter(
-        no_check=no_check,
-        log_stack_trace=False,
-        high_count_expected=high_count_expected,
-        high_count_reason=high_count_reason,
-    )
-
     all_args = inspect.getargvalues(inspect.currentframe())
     count_kwargs = {
         key: value
@@ -394,15 +389,29 @@ def sql_count_checker(
         )
     }
 
-    result = func(*args, **kwargs)
-    try:
-        sql_counter.expects(**count_kwargs)
-    finally:
-        try:
-            sql_counter.close()
-        except Exception:
-            pass
-    return result
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            sql_counter = SqlCounter(
+                no_check=no_check,
+                log_stack_trace=False,
+                high_count_expected=high_count_expected,
+                high_count_reason=high_count_reason,
+            )
+
+            result = func(*args, **kwargs)
+            try:
+                sql_counter.expects(**count_kwargs)
+            finally:
+                try:
+                    sql_counter.close()
+                except Exception:
+                    pass
+            return result
+
+        return wrapper
+
+    return decorator
 
 
 def get_readable_sql_count_values(tr):
@@ -419,7 +428,7 @@ def get_readable_sql_count_values(tr):
 
 
 def update_test_code_with_sql_counts(
-    sql_count_records: dict[str, dict[str, list[dict[str, Optional[Scalar]]]]]
+    sql_count_records: Dict[str, Dict[str, List[Dict[str, Optional[PythonScalar]]]]]
 ):
     """This helper takes sql count records and rewrites the source test files to validate sql counts where possible.
 
@@ -431,7 +440,7 @@ def update_test_code_with_sql_counts(
     last_status_file = None
 
     # Iterate through each sql count record, this is nested dictionary structured as:
-    #     sql_count_records[test_file][test_name] -> dict[Str, Scalar]
+    #     sql_count_records[test_file][test_name] -> dict[Str, PythonScalar]
     # The valid keys are:
     #     "test_name" for alternative reference
     #     "test_parms" if the test is parameterized

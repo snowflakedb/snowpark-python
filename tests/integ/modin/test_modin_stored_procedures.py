@@ -11,7 +11,8 @@ from snowflake.snowpark.modin.plugin import (
     supported_modin_version,
     supported_pandas_version,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
+from tests.utils import multithreaded_run
 
 PACKAGE_LIST = [
     f"pandas=={supported_pandas_version}",
@@ -138,6 +139,7 @@ def test_sproc_binary_ops(session):
     assert plus() == "0    3\n1    4\n2    5\ndtype: int64"
 
 
+@multithreaded_run()
 @sql_count_checker(query_count=8, sproc_count=2)
 def test_sproc_agg(session):
     @sproc(packages=PACKAGE_LIST)

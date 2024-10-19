@@ -11,7 +11,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
 from tests.integ.modin.conftest import IRIS_DF
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # expected_query_count is for test_repr_html paramterized SqlCounter test
 _DATAFRAMES_TO_TEST = [
@@ -20,8 +20,18 @@ _DATAFRAMES_TO_TEST = [
             {
                 "Animal": ["Falcon", "Falcon", "Parrot", "Parrot"],
                 "Max Speed": [380.0, 370.0, 24.0, 26.0],
+                "Timedelta": [
+                    pd.Timedelta(1, unit="ns"),
+                    pd.Timedelta(microseconds=1),
+                    pd.Timedelta(milliseconds=-1),
+                    pd.Timedelta(days=9999, hours=10, minutes=30, seconds=10),
+                ],
             }
         ),
+        1,
+    ),
+    (
+        native_pd.DataFrame([1, 2], index=[pd.Timedelta(1), pd.Timedelta(-1)]),
         1,
     ),
     (

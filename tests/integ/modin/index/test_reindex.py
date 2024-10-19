@@ -11,8 +11,8 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_index_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def assert_reindex_result_equal(
@@ -168,7 +168,10 @@ def test_non_overlapping_datetime_index():
 def test_non_overlapping_different_types_index_negative_SNOW_1622502():
     date_index = pd.date_range("1/1/2010", periods=6, freq="D")
 
-    with pytest.raises(SnowparkSQLException, match=".*Timestamp 'A' is not recognized"):
+    with pytest.raises(
+        SnowparkSQLException,
+        match='Failed to cast variant value "A" to TIMESTAMP_NTZ',
+    ):
         date_index.reindex(list("ABC"))
 
 
