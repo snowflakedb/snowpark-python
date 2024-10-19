@@ -9,6 +9,10 @@
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 
+#### Bug Fixes
+
+- Fixed a bug where in expression values created using a dataframe would throw errors like `Object 'SNOWPARK_TEMP_TABLE_ABCDXYZ123' does not exist or not authorized`.
+
 #### Improvements
 
 - Disables sql simplification when sort is performed after limit. 
