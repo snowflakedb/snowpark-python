@@ -33,7 +33,14 @@ except ImportError:
 
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.row import Row
-from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC_LOCALFS,
+    IS_LINUX,
+    IS_WINDOWS,
+    TestFiles,
+    Utils,
+)
 
 
 @pytest.fixture(scope="module")
@@ -196,6 +203,7 @@ def test_action_ids_are_unique(threadsafe_session):
     assert len(action_ids) == 10
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Skip file IO tests in localfs")
 @pytest.mark.parametrize("use_stream", [True, False])
 def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_stream):
     stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
