@@ -6,8 +6,8 @@ from unittest import mock
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.compiler.cte_utils import find_duplicate_subtrees
 
 
 def test_case1():
