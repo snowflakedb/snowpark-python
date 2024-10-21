@@ -50,6 +50,9 @@ class InvalidNodesInBreakdownCategory(Enum):
     SCORE_BELOW_LOWER_BOUND = "num_nodes_below_lower_bound"
     SCORE_ABOVE_UPPER_BOUND = "num_nodes_above_upper_bound"
     NON_PIPELINE_BREAKER = "num_non_pipeline_breaker_nodes"
+    NON_PIPELINE_BREAKER_NON_SELECT_STMT = (
+        "num_non_pipeline_breaker_nodes_non_select_stmt"
+    )
     EXTERNAL_CTE_REF = "num_external_cte_ref_nodes"
     VALID_NODE = "num_valid_nodes"
 
