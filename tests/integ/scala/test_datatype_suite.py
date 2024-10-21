@@ -469,7 +469,7 @@ def test_structured_dtypes_iceberg(
         )
 
     finally:
-        structured_type_session.sql(f"drop table if exists {table_name}")
+        Utils.drop_table(structured_type_session, table_name)
 
 
 @pytest.mark.skipif(
@@ -500,7 +500,7 @@ def test_structured_dtypes_iceberg_create_from_values(
             col("ARR"), ascending=True
         ).collect() == [Row(*d) for d in data]
     finally:
-        structured_type_session.sql(f"drop table if exists {table_name}")
+        Utils.drop_table(structured_type_session, table_name)
 
 
 @pytest.mark.skipif(
@@ -556,7 +556,7 @@ def test_structured_dtypes_iceberg_udf(
                 nop_map_udf(col("map")).alias("map"),
             ).collect()
     finally:
-        structured_type_session.sql(f"drop table if exists {table_name}")
+        Utils.drop_table(structured_type_session, table_name)
 
 
 @pytest.mark.xfail(reason="SNOW-974852 vectors are not yet rolled out", strict=False)
