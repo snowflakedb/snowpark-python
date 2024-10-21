@@ -29,6 +29,7 @@
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
 - Added support for `DataFrameGroupBy.bfill`, `SeriesGroupBy.bfill`, `DataFrameGroupBy.ffill`, and `SeriesGroupBy.ffill`.
 - Added support for `on` parameter with `Resampler`.
+- Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 
 #### Improvements
 
