@@ -3,6 +3,7 @@
 #
 import logging
 import os
+from functools import cached_property
 
 import pytest
 
@@ -42,6 +43,108 @@ def pytest_configure(config):
     pytest.update_expectations = config.getoption("--update-expectations")
 
 
+class TestTables:
+    def __init__(self, session) -> None:
+        self._session = session
+
+    @cached_property
+    def table1(self) -> str:
+        table_name: str = "table1"
+        return self._save_table(
+            table_name,
+            [
+                [1, "one"],
+                [2, "two"],
+                [3, "three"],
+            ],
+            schema=["num", "str"],
+        )
+
+    @cached_property
+    def table2(self) -> str:
+        table_name: str = "table2"
+        return self._save_table(
+            table_name,
+            [
+                [1, [1, 2, 3], {"Ashi Garami": "Single Leg X"}, "Kimura"],
+                [2, [11, 22], {"Sankaku": "Triangle"}, "Coffee"],
+                [3, [], {}, "Tea"],
+            ],
+            schema=["idx", "lists", "maps", "strs"],
+        )
+
+    @cached_property
+    def df1_table(self) -> str:
+        table_name: str = "df1"
+        return self._save_table(
+            table_name,
+            [
+                [1, 2],
+                [3, 4],
+            ],
+            schema=["a", "b"],
+        )
+
+    @cached_property
+    def df2_table(self) -> str:
+        table_name: str = "df2"
+        return self._save_table(
+            table_name,
+            [
+                [0, 1],
+                [3, 4],
+            ],
+            schema=["c", "d"],
+        )
+
+    @cached_property
+    def df3_table(self) -> str:
+        table_name: str = "df3"
+        return self._save_table(
+            table_name,
+            [
+                [1, 2],
+            ],
+            schema=["a", "b"],
+        )
+
+    @cached_property
+    def df4_table(self) -> str:
+        table_name: str = "df4"
+        return self._save_table(
+            table_name,
+            [
+                [2, 1],
+            ],
+            schema=["b", "a"],
+        )
+
+    @cached_property
+    def double_quoted_table(self) -> str:
+        table_name: str = '"the#qui.ck#bro.wn#""Fox""won\'t#jump!"'
+        return self._save_table(
+            table_name,
+            [
+                [1, "one"],
+                [2, "two"],
+                [3, "three"],
+            ],
+            schema=["num", 'Owner\'s""opinion.s'],
+        )
+
+    def _save_table(self, name: str, *args, **kwargs):
+        kwargs.pop("_emit_ast", None)
+        kwargs.pop("_ast_stmt", None)
+        kwargs.pop("_ast", None)
+        df = self._session.create_dataframe(*args, _emit_ast=False, **kwargs)
+        logging.debug("Creating table %s", name)
+        df.write.save_as_table(name, _emit_ast=False)
+        return name
+
+
+# For test performance (especially integration tests), it would be very valuable to create the Snowpark session and the
+# temporary tables only once per test session. Unfortunately, the local testing features don't work well with any scope
+# setting above "function" (e.g. "module" or "session").
 @pytest.fixture(scope="function")
 def session():
     # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
@@ -49,6 +152,11 @@ def session():
     with Session.builder.config("local_testing", True).create() as s:
         s.ast_enabled = True
         yield s
+
+
+@pytest.fixture(scope="function")
+def tables(session):
+    return TestTables(session)
 
 
 def pytest_sessionstart(session):
