@@ -253,8 +253,9 @@ class LargeQueryBreakdown:
             4. Return the statistics of partition for the current root.
         """
         current_level = [root]
-        candidate_node = None
-        candidate_score = -1  # start with -1 since score is always > 0
+        candidate_node, relaxed_candidate_node = None, None
+        # start with -1 since score is always > 0
+        candidate_score, relaxed_candidate_score = -1, -1
         current_node_validity_statistics = defaultdict(int)
 
         while current_level:
@@ -264,7 +265,7 @@ class LargeQueryBreakdown:
                 for child in node.children_plan_nodes:
                     self._parent_map[child].add(node)
                     validity_status, score = self._is_node_valid_to_breakdown(
-                        child, root
+                        child, root, allow_select_statement=False
                     )
                     if validity_status == InvalidNodesInBreakdownCategory.VALID_NODE:
                         # If the score for valid node is higher than the last candidate,
@@ -276,6 +277,19 @@ class LargeQueryBreakdown:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
 
+                    relaxed_validity_status, _ = self._is_node_valid_to_breakdown(
+                        child, root, allow_select_statement=True
+                    )
+                    if (
+                        relaxed_validity_status
+                        == InvalidNodesInBreakdownCategory.VALID_NODE
+                    ):
+                        # If the score for valid node is higher than the last relaxed candidate,
+                        # update the relaxed candidate node and score.
+                        if score > relaxed_candidate_score:
+                            relaxed_candidate_score = score
+                            relaxed_candidate_node = child
+
                     # Update the statistics for the current node.
                     current_node_validity_statistics[validity_status] += 1
 
@@ -283,7 +297,10 @@ class LargeQueryBreakdown:
 
         # If no valid node is found, candidate_node will be None.
         # Otherwise, return the node with the highest complexity score.
-        return candidate_node, current_node_validity_statistics
+        return (
+            candidate_node or relaxed_candidate_node,
+            current_node_validity_statistics,
+        )
 
     def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
         """This method takes cuts the child out from the root, creates a temp table plan for the
@@ -316,7 +333,7 @@ class LargeQueryBreakdown:
         return temp_table_plan
 
     def _is_node_valid_to_breakdown(
-        self, node: TreeNode, root: TreeNode
+        self, node: TreeNode, root: TreeNode, allow_select_statement: bool
     ) -> Tuple[InvalidNodesInBreakdownCategory, int]:
         """Method to check if a node is valid to breakdown based on complexity score and node type.
 
@@ -337,9 +354,15 @@ class LargeQueryBreakdown:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
 
-        if is_valid and not self._is_node_pipeline_breaker(node):
+        if is_valid and not self._is_node_pipeline_breaker(
+            node, allow_select_statement
+        ):
             is_valid = False
-            validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
+            validity_status = (
+                InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER_NON_SELECT_STMT
+                if not allow_select_statement
+                else InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
+            )
 
         if is_valid and self._contains_external_cte_ref(node, root):
             is_valid = False
@@ -408,7 +431,9 @@ class LargeQueryBreakdown:
 
         return False
 
-    def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
+    def _is_node_pipeline_breaker(
+        self, node: LogicalPlan, allow_select_statement: bool
+    ) -> bool:
         """Method to check if a node is a pipeline breaker based on the node type.
 
         If the node contains a SnowflakePlan, we check its source plan recursively.
@@ -430,9 +455,10 @@ class LargeQueryBreakdown:
             return True
 
         if isinstance(node, SelectStatement):
-            # SelectStatement is a pipeline breaker if it contains an order by clause since sorting
-            # is a pipeline breaker.
-            return node.order_by is not None
+            # If select statement are allowed to be considered as pipeline breaker, then
+            # we return True. Otherwise, we check if the select statement contains an order by
+            # clause since sorting is a pipeline breaker.
+            return allow_select_statement or (node.order_by is not None)
 
         if isinstance(node, SetStatement):
             # If the last operator applied in the SetStatement is a pipeline breaker, then the
