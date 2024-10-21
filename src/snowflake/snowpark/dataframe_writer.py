@@ -3,7 +3,6 @@
 #
 
 import sys
-from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
@@ -197,7 +196,7 @@ class DataFrameWriter:
         copy_grants: bool = False,
         iceberg_config: Optional[dict] = None,
         _emit_ast: bool = True,
-7    ) -> Optional[AsyncJob]:
+    ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
 
         Args:
