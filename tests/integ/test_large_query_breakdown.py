@@ -444,12 +444,20 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
         Utils.drop_table(session, source_table)
 
 
-def test_async_job_with_large_query_breakdown(session, large_query_df):
+def test_async_job_with_large_query_breakdown(large_query_df):
     """Test large query breakdown gives same result for async and non-async jobs"""
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=3):
+        # 1 for current transaction
+        # 1 for created temp table; main query submitted as multi-statement query
+        # 1 for post action
         job = large_query_df.collect(block=False)
         result = job.result()
-    assert result == large_query_df.collect()
+    with SqlCounter(query_count=4):
+        # 1 for current transaction
+        # 1 for created temp table
+        # 1 for main query
+        # 1 for post action
+        assert result == large_query_df.collect()
     assert len(large_query_df.queries["queries"]) == 2
     assert large_query_df.queries["queries"][0].startswith(
         "CREATE  SCOPED TEMPORARY  TABLE"
