@@ -35,6 +35,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Set,
     Tuple,
     Type,
     Union,
@@ -798,20 +799,29 @@ def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
         )
 
 
+def _get_options(
+    options: Dict[str, Any], allowed_options: Set[str]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Helper method that extracts common logic for getting options for
+    COPY INTO TABLE and COPY INTO LOCATION command.
+    """
+    file_format_type_options = options.get("FORMAT_TYPE_OPTIONS", {})
+    copy_options = options.get("COPY_OPTIONS", {})
+    for k, v in options.items():
+        if k in allowed_options:
+            copy_options[k] = v
+        elif k not in NON_FORMAT_TYPE_OPTIONS:
+            file_format_type_options[k] = v
+    return file_format_type_options, copy_options
+
+
 def get_copy_into_table_options(
     options: Dict[str, Any]
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Method that extracts options for COPY INTO TABLE command into file
     format type options and copy options.
     """
-    file_format_type_options = options.get("FORMAT_TYPE_OPTIONS", {})
-    copy_options = options.get("COPY_OPTIONS", {})
-    for k, v in options.items():
-        if k in COPY_INTO_TABLE_COPY_OPTIONS:
-            copy_options[k] = v
-        elif k not in NON_FORMAT_TYPE_OPTIONS:
-            file_format_type_options[k] = v
-    return file_format_type_options, copy_options
+    return _get_options(options, COPY_INTO_TABLE_COPY_OPTIONS)
 
 
 def get_copy_into_location_options(
@@ -820,14 +830,7 @@ def get_copy_into_location_options(
     """Method that extracts options for COPY INTO LOCATION command into file
     format type options and copy options.
     """
-    file_format_type_options = options.get("FORMAT_TYPE_OPTIONS", {})
-    copy_options = options.get("COPY_OPTIONS", {})
-    for k, v in options.items():
-        if k in COPY_INTO_LOCATION_COPY_OPTIONS:
-            copy_options[k] = v
-        elif k not in NON_FORMAT_TYPE_OPTIONS:
-            file_format_type_options[k] = v
-    return file_format_type_options, copy_options
+    return _get_options(options, COPY_INTO_LOCATION_COPY_OPTIONS)
 
 
 def get_aliased_option_name(
