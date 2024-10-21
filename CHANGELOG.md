@@ -21,6 +21,7 @@
 
 - Improved generated SQL query for `head` and `iloc` when the row key is a slice.
 - Improved error message when passing an unknown timezone to `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex`.
+- Improved documentation for `Series.map` to reflect the unsupported features.
 
 #### Bug Fixes
 

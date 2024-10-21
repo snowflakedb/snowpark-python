@@ -1795,10 +1795,12 @@ class Series(BasePandasDataset):
         ----------
         arg : function, collections.abc.Mapping subclass or Series
             Mapping correspondence.
+            Only function is currently supported by Snowpark pandas.
         na_action : {None, 'ignore'}, default None
             If 'ignore', propagate NULL values, without passing them to the
             mapping correspondence. Note that, it will not bypass NaN values
             in a FLOAT column in Snowflake.
+            'ignore' is currently not supported by Snowpark pandas.
 
         Returns
         -------
@@ -1833,7 +1835,7 @@ class Series(BasePandasDataset):
 
         ``map`` accepts a ``dict`` or a ``Series``. Values that are not found
         in the ``dict`` are converted to ``NaN``, unless the dict has a default
-        value (e.g. ``defaultdict``):
+        value (e.g. ``defaultdict``) (Currently not supported by Snowpark pandas):
 
         >>> s.map({'cat': 'kitten', 'dog': 'puppy'})  # doctest: +SKIP
         0    kitten
@@ -1852,7 +1854,7 @@ class Series(BasePandasDataset):
         dtype: object
 
         To avoid applying the function to missing values (and keep them as
-        ``NaN``) ``na_action='ignore'`` can be used:
+        ``NaN``) ``na_action='ignore'`` can be used (Currently not supported by Snowpark pandas):
 
         >>> s.map('I am a {}'.format, na_action='ignore')  # doctest: +SKIP
         0       I am a cat
