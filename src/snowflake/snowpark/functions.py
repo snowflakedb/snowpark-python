@@ -6112,7 +6112,10 @@ def array_append(
     return builtin("array_append", _emit_ast=_emit_ast)(a, e)
 
 
-def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
+@publicapi
+def array_remove(
+    array: ColumnOrName, element: ColumnOrLiteral, _emit_ast: bool = True
+) -> Column:
     """Given a source ARRAY, returns an ARRAY with elements of the specified value removed.
 
     Args:
@@ -6158,8 +6161,17 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
     See Also:
         - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "array_remove", array, element)
+
     a = _to_col_if_str(array, "array_remove")
-    return builtin("array_remove")(a, element)
+    ans = builtin("array_remove", _emit_ast=False)(a, element)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -6811,7 +6823,8 @@ def vector_inner_product(
     return builtin("vector_inner_product", _emit_ast=_emit_ast)(v1, v2)
 
 
-def ln(c: ColumnOrLiteral) -> Column:
+@publicapi
+def ln(c: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
     """Returns the natrual logarithm of given column expression.
 
     Example::
@@ -6826,8 +6839,17 @@ def ln(c: ColumnOrLiteral) -> Column:
         ------------
         <BLANKLINE>
     """
-    c = _to_col_if_str(c, "ln")
-    return builtin("ln")(c)
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "ln", c)
+
+    c = Column(c, _emit_ast=False) if isinstance(c, str) else c
+    ans = builtin("ln", _emit_ast=False)(c)
+    ans._ast = ast
+    return ans
 
 
 @publicapi

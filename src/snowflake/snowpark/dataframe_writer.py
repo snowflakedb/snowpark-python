@@ -174,7 +174,7 @@ class DataFrameWriter:
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
-        iceberg_config: Optional[dict] = None,
+        iceberg_config: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
     ) -> Optional[AsyncJob]:
         """Writes the data to the specified table in a Snowflake database.
@@ -269,6 +269,12 @@ class DataFrameWriter:
             # statement_params: Optional[Dict[str, str]] = None,
             # block: bool = True,
             # comment: Optional[str] = None,
+            # enable_schema_evolution: Optional[bool] = None,
+            # data_retention_time: Optional[int] = None,
+            # max_data_extension_time: Optional[int] = None,
+            # change_tracking: Optional[bool] = None,
+            # copy_grants: bool = False,
+            # iceberg_config: Optional[dict] = None,
 
             if isinstance(table_name, str):
                 expr.table_name.sp_table_name_flat.name = table_name
@@ -298,6 +304,20 @@ class DataFrameWriter:
 
             if comment is not None:
                 expr.comment.value = comment
+            if enable_schema_evolution is not None:
+                expr.enable_schema_evolution.value = enable_schema_evolution
+            if data_retention_time is not None:
+                expr.data_retention_time.value = data_retention_time
+            if max_data_extension_time is not None:
+                expr.max_data_extension_time.value = max_data_extension_time
+            if change_tracking is not None:
+                expr.change_tracking.value = change_tracking
+            expr.copy_grants = copy_grants
+            if iceberg_config is not None:
+                for k, v in iceberg_config.items():
+                    t = expr.iceberg_config.add()
+                    t._1 = k
+                    t._2 = v
 
             self._dataframe._session._ast_batch.eval(repr)
 
