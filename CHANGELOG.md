@@ -18,6 +18,7 @@
 #### Bug Fixes
 
 - Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
+- Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
 
 ### Snowpark pandas API Updates
 
@@ -36,6 +37,8 @@
 - Improved error message when passing an unknown timezone to `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex`.
 - Improved documentation for `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex` to specify the supported timezone formats.
 - Added additional kwargs support for `df.apply` and `series.apply` ( as well as `map` and `applymap` ) when using snowpark functions. This allows for some position independent compatibility between apply and functions where the first argument is not a pandas object.
+- Improved generated SQL query for `iloc` and `iat` when the row key is a scalar.
+- Removed all joins in `iterrows`.
 
 #### Bug Fixes
 
@@ -43,7 +46,16 @@
 - Fixed a bug where `replace()` would sometimes propagate `Timedelta` types incorrectly through `replace()`. Instead raise `NotImplementedError` for `replace()` on `Timedelta`.
 - Fixed a bug where `DataFrame` and `Series` `round()` would raise `AssertionError` for `Timedelta` columns. Instead raise `NotImplementedError` for `round()` on `Timedelta`.
 - Fixed a bug where `reindex` fails when the new index is a Series with non-overlapping types from the original index.
+- Fixed a bug where calling `__getitem__` on a DataFrameGroupBy object always returned a DataFrameGroupBy object if `as_index=False`.
 
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where `DataFrame.alias` raises `KeyError` for input column name.
+
+#### Bug Fixes
+- Fixed a bug where `to_csv` on Snowflake stage fails when data contains empty strings.
 
 ## 1.23.0 (2024-10-09)
 
