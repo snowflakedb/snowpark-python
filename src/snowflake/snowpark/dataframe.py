@@ -1432,9 +1432,9 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ).select(names)
                 )
-            return self._with_plan(self._select_statement.select(names), ast_stmt=stmt)
+            return self._with_plan(self._select_statement.select(names), _ast_stmt=stmt)
 
-        return self._with_plan(Project(names, join_plan or self._plan), ast_stmt=stmt)
+        return self._with_plan(Project(names, join_plan or self._plan), _ast_stmt=stmt)
 
     @df_api_usage
     @publicapi
@@ -1627,14 +1627,14 @@ class DataFrame:
                 self._select_statement.filter(
                     _to_col_if_sql_expr(expr, "filter/where")._expression
                 ),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
             )
         return self._with_plan(
             Filter(
                 _to_col_if_sql_expr(expr, "filter/where")._expression,
                 self._plan,
             ),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -2432,10 +2432,10 @@ class DataFrame:
 
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.limit(n, offset=offset), ast_stmt=stmt
+                self._select_statement.limit(n, offset=offset), _ast_stmt=stmt
             )
         return self._with_plan(
-            Limit(Literal(n), Literal(offset), self._plan), ast_stmt=stmt
+            Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
         )
 
     @df_api_usage
@@ -2653,7 +2653,7 @@ class DataFrame:
                     ),
                     operator=SET_UNION_ALL if is_all else SET_UNION,
                 ),
-                ast_stmt=ast_stmt,
+                _ast_stmt=ast_stmt,
             )
         else:
             df = self._with_plan(
@@ -2842,8 +2842,8 @@ class DataFrame:
                 ),
                 analyzer=self._session._analyzer,
             )
-            return self._with_plan(select_plan, ast_stmt=stmt)
-        return self._with_plan(join_plan, ast_stmt=stmt)
+            return self._with_plan(select_plan, _ast_stmt=stmt)
+        return self._with_plan(join_plan, _ast_stmt=stmt)
 
     @df_api_usage
     @publicapi
@@ -3228,7 +3228,7 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
             )
 
         raise TypeError("Invalid type for join. Must be Dataframe")
@@ -3386,13 +3386,13 @@ class DataFrame:
             )
             if project_cols:
                 select_plan = select_plan.select(project_cols)
-            return self._with_plan(select_plan, ast_stmt=stmt)
+            return self._with_plan(select_plan, _ast_stmt=stmt)
         if project_cols:
-            return self._with_plan(Project(project_cols, join_plan), ast_stmt=stmt)
+            return self._with_plan(Project(project_cols, join_plan), _ast_stmt=stmt)
 
         return self._with_plan(
             TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @df_api_usage
@@ -3467,7 +3467,7 @@ class DataFrame:
             None,
             lsuffix=lsuffix,
             rsuffix=rsuffix,
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     def _join_dataframes(
@@ -3479,7 +3479,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
-        ast_stmt: proto.Expr = None,
+        _ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self._join_dataframes_internal(
@@ -3489,7 +3489,7 @@ class DataFrame:
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
                 match_condition=match_condition,
-                ast_stmt=ast_stmt,
+                _ast_stmt=_ast_stmt,
             )
 
         if isinstance(join_type, (LeftSemi, LeftAnti)):
@@ -3504,7 +3504,7 @@ class DataFrame:
                 join_cond,
                 lsuffix=lsuffix,
                 rsuffix=rsuffix,
-                ast_stmt=ast_stmt,
+                _ast_stmt=_ast_stmt,
             )
         else:
             lhs, rhs = _disambiguate(
@@ -3534,9 +3534,9 @@ class DataFrame:
                         ),
                         analyzer=self._session._analyzer,
                     ),
-                    ast_stmt=ast_stmt,
+                    _ast_stmt=_ast_stmt,
                 )
-            return self._with_plan(join_logical_plan, ast_stmt=ast_stmt)
+            return self._with_plan(join_logical_plan, ast_stmt=_ast_stmt)
 
     def _join_dataframes_internal(
         self,
@@ -3547,7 +3547,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
-        ast_stmt: proto.Expr = None,
+        _ast_stmt: proto.Expr = None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
@@ -3572,9 +3572,9 @@ class DataFrame:
                     ),
                     analyzer=self._session._analyzer,
                 ),
-                ast_stmt=ast_stmt,
+                _ast_stmt=_ast_stmt,
             )
-        return self._with_plan(join_logical_plan, ast_stmt=ast_stmt)
+        return self._with_plan(join_logical_plan, ast_stmt=_ast_stmt)
 
     @df_api_usage
     @publicapi
@@ -4800,9 +4800,9 @@ class DataFrame:
                     ),
                     analyzer=self._session._analyzer,
                 ),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
             )
-        return self._with_plan(sample_plan, ast_stmt=stmt)
+        return self._with_plan(sample_plan, _ast_stmt=stmt)
 
     @staticmethod
     def _validate_sample_input(frac: Optional[float] = None, n: Optional[int] = None):
@@ -5030,9 +5030,9 @@ class DataFrame:
                 ),
                 analyzer=self._session._analyzer,
             )
-            return self._with_plan(select_plan, ast_stmt=_ast_stmt)
+            return self._with_plan(select_plan, _ast_stmt=_ast_stmt)
 
-        return self._with_plan(rename_plan, ast_stmt=_ast_stmt)
+        return self._with_plan(rename_plan, _ast_stmt=_ast_stmt)
 
     @df_api_usage
     @publicapi
@@ -5427,15 +5427,15 @@ Query List:
         ]
         return dtypes
 
-    def _with_plan(self, plan, ast_stmt=None) -> "DataFrame":
+    def _with_plan(self, plan, _ast_stmt=None) -> "DataFrame":
         """
         :param proto.Assign ast_stmt: The AST statement protobuf corresponding to this value.
         """
-        df = DataFrame(self._session, plan, _ast_stmt=ast_stmt, _emit_ast=False)
+        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt, _emit_ast=False)
         df._statement_params = self._statement_params
 
-        if ast_stmt is not None:
-            df._ast_id = ast_stmt.var_id.bitfield1
+        if _ast_stmt is not None:
+            df._ast_id = _ast_stmt.var_id.bitfield1
 
         return df
 
