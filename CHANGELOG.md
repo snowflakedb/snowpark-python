@@ -31,6 +31,7 @@
 - Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
 - Added support for tracking usages of `__array_ufunc__`.
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
+- Added numpy compatibility support for `np.log`, `np.log2`, and `np.log10`
 - Added support for `DataFrameGroupBy.bfill`, `SeriesGroupBy.bfill`, `DataFrameGroupBy.ffill`, and `SeriesGroupBy.ffill`.
 - Added support for `on` parameter with `Resampler`.
 - Added support for timedelta inputs in `value_counts()`.
@@ -40,6 +41,7 @@
 - Improved generated SQL query for `head` and `iloc` when the row key is a slice.
 - Improved error message when passing an unknown timezone to `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex`.
 - Improved documentation for `tz_convert` and `tz_localize` in `Series`, `DataFrame`, `Series.dt`, and `DatetimeIndex` to specify the supported timezone formats.
+- Added additional kwargs support for `df.apply` and `series.apply` ( as well as `map` and `applymap` ) when using snowpark functions. This allows for some position independent compatibility between apply and functions where the first argument is not a pandas object.
 - Improved generated SQL query for `iloc` and `iat` when the row key is a scalar.
 - Removed all joins in `iterrows`.
 
