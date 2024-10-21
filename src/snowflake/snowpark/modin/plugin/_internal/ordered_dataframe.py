@@ -1377,6 +1377,7 @@ class OrderedDataFrame:
             how: We support the following align/join types:
                 - "outer": Full outer align (default value)
                 - "left": Left outer align
+                - "inner": Left inner align
                 - "coalesce": If left frame is not empty perform left outer align
                   otherwise perform right outer align. When left frame is empty, the
                   left_on column is replaced with the right_on column in the result.
@@ -1671,6 +1672,13 @@ class OrderedDataFrame:
                     select_list.append(identifier)
         elif how == "left":
             filter_expression = filter_expression & left_row_pos.is_not_null()
+            select_list = result_projected_column_snowflake_quoted_identifiers
+        elif how == "inner":
+            filter_expression = (
+                filter_expression
+                & left_row_pos.is_not_null()
+                & right_row_pos.is_not_null()
+            )
             select_list = result_projected_column_snowflake_quoted_identifiers
         else:  # outer
             select_list = result_projected_column_snowflake_quoted_identifiers
