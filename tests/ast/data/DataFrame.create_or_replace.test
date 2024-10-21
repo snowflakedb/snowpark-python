@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 
 df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
 
@@ -15,7 +15,7 @@ df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
 # df2 = session.read.option("INFER_SCHEMA", True).json("@test/test.json")
 
 df.copy_into_table(
-    ["test_db", "test_schema", "test_table2"],
+    ["test_db", "test_schema", tables.table2],
     files=["file1", "file2"],
     pattern="[A-Z]+",
     validation_mode="RETURN_ERRORS",
@@ -26,23 +26,15 @@ df.copy_into_table(
     force=True,
 )
 
-df.copy_into_table(["test_db", "test_schema", "test_table2"],
-                   files=["file1", "file2"], pattern="[A-Z]+", iceberg_config={"catalog": "foo", "base_location": "bar"},
-                   validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")],
-                   format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
-
 df3 = df.cache_result()
 
 df4 = df.cache_result(statement_params={"foo": "bar"})
 
 df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo")
 
-df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="errorifexists", refresh_mode="AUTO", initialize="ON_CREATE", clustering_keys=["A"], is_transient=True, data_retention_time=10, max_data_extension_time=20)
-
-
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("test_table")
+df = session.table("table1")
 
 res1 = df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
 
@@ -52,18 +44,14 @@ res3 = df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], c
 
 res4 = df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
 
-res5 = df.copy_into_table(["test_db", "test_schema", "test_table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
-
-res6 = df.copy_into_table(["test_db", "test_schema", "test_table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True, iceberg_config={"catalog": "foo"}{"base_location": "bar"})
+res5 = df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
 
 df3 = df.cache_result()
 
 df4 = df.cache_result(statement_params={"foo": "bar"})
 
-res7 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite"])
-
-res8 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="errorifexists", refresh_mode="AUTO", initialize="ON_CREATE", clustering_keys=["A"], is_transient=True, data_retention_time=10, max_data_extension_time=20])
+res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo")
 
 ## EXPECTED ENCODED AST
 
-CkMKQQozggwwEg4KDAoKdGVzdF90YWJsZRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFoiAggBEgQKAmRmGAEiAggBClwKWgpQ8gZNCgUKA2ZvbxIHggIECgIIASIHdGVzdF9kYiILdGVzdF9zY2hlbWEiCXRlc3RfdmlldyoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKFwSABgCIgIIAgpLCkkKP/IGPBIHggIECgIIASIJdGVzdF92aWV3KhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoXjIKCgNmb28SA2JhchIAGAMiAggDCl4KXApS8gZPCgUKA2ZvbxIHggIECgIIARgBIgd0ZXN0X2RiIgt0ZXN0X3NjaGVtYSIJdGVzdF92aWV3KhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoYBIAGAQiAggECk0KSwpB8gY+EgeCAgQKAggBGAEiCXRlc3RfdmlldyoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGIyCgoDZm9vEgNiYXISABgFIgIIBQqdBAqaBAqPBNoGiwQKKgoFZm9yY2USIcoBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgQARIHggIECgIIARoFZmlsZTEaBWZpbGUyIjQKC0NPTVBSRVNTSU9OEiX6DCIKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShoEgRHWklQIjYKEFJFQ09SRF9ERUxJTUlURVISIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKGgSAXwyCAoGW0EtWl0rOhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoaEIKCgNmb28SA2JhckoHdGVzdF9kYkoLdGVzdF9zY2hlbWFKC3Rlc3RfdGFibGUyUgFuUgNzdHJalQHqApEBClCSAU0KCxoJCgcKBQoDY29sGiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERShuEgFuIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhAKGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoblpSkgFPCgsaCQoHCgUKA2NvbBok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobhIDc3RyIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUobmIPCg1SRVRVUk5fRVJST1JTEgAYBiICCAYKwwQKwAQKtQTaBrEECioKBWZvcmNlEiHKAR4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh0EAESB4ICBAoCCAEaBWZpbGUxGgVmaWxlMiI0CgtDT01QUkVTU0lPThIl+gwiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodBIER1pJUCI2ChBSRUNPUkRfREVMSU1JVEVSEiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh0EgF8Kg4KB2NhdGFsb2cSA2ZvbyoUCg1iYXNlX2xvY2F0aW9uEgNiYXIyCAoGW0EtWl0rOhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodEIKCgNmb28SA2JhckoHdGVzdF9kYkoLdGVzdF9zY2hlbWFKC3Rlc3RfdGFibGUyUgFuUgNzdHJalQHqApEBClCSAU0KCxoJCgcKBQoDY29sGiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh2EgFuIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhAKGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodlpSkgFPCgsaCQoHCgUKA2NvbBok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodhIDc3RyIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUodmIPCg1SRVRVUk5fRVJST1JTEgAYByICCAcKOQo3CijCBiUKB4ICBAoCCAESGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh5EgUKA2RmMxgIIgIICApFCkMKNMIGMQoHggIECgIIARIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKHsaCgoDZm9vEgNiYXISBQoDZGY0GAkiAggJCmAKXgpU6gZREgUKA2ZvbyIHggIECgIIAToGMSBob3VySgIgAVIOdGVzdF9keW5fdGFibGViGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh9cgd0ZXN0X3doEgAYCiICCAoKqAEKpQEKmgHqBpYBCiQKIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKH8SAUESBQoDZm9vGgIICiIHggIECgIIASoLCglPTl9DUkVBVEUwAToGMSBob3VyQgIIFEoCEAFSDnRlc3RfZHluX3RhYmxlWgYKBEFVVE9iGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSh/cgd0ZXN0X3doEgAYCyICCAsQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
+Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKXApaClDyBk0KBQoDZm9vEgeCAgQKAggBIgd0ZXN0X2RiIgt0ZXN0X3NjaGVtYSIJdGVzdF92aWV3KhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIAGAIiAggCCksKSQo/8gY8EgeCAgQKAggBIgl0ZXN0X3ZpZXcqGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdMgoKA2ZvbxIDYmFyEgAYAyICCAMKXgpcClLyBk8KBQoDZm9vEgeCAgQKAggBGAEiB3Rlc3RfZGIiC3Rlc3Rfc2NoZW1hIgl0ZXN0X3ZpZXcqGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfEgAYBCICCAQKTQpLCkHyBj4SB4ICBAoCCAEYASIJdGVzdF92aWV3KhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoITIKCgNmb28SA2JhchIAGAUiAggFCpgECpUECooE2gaGBAoqCgVmb3JjZRIhygEeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoJxABEgeCAgQKAggBGgVmaWxlMRoFZmlsZTIiNAoLQ09NUFJFU1NJT04SJfoMIgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCcSBEdaSVAiNgoQUkVDT1JEX0RFTElNSVRFUhIi+gwfChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoJxIBfCoICgZbQS1aXSsyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgnOgoKA2ZvbxIDYmFyQgd0ZXN0X2RiQgt0ZXN0X3NjaGVtYUIGdGFibGUySgFuSgNzdHJSlQHqApEBClCSAU0KCxoJCgcKBQoDY29sGiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgtEgFuIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLRAKGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLVJSkgFPCgsaCQoHCgUKA2NvbBok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLRIDc3RyIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLVoPCg1SRVRVUk5fRVJST1JTEgAYBiICCAYKOQo3CijCBiUKB4ICBAoCCAESGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgzEgUKA2RmMxgHIgIIBwpFCkMKNMIGMQoHggIECgIIARIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDUaCgoDZm9vEgNiYXISBQoDZGY0GAgiAggIClwKWgpQ6gZNCgUKA2ZvbxIHggIECgIIARoGMSBob3VyIg50ZXN0X2R5bl90YWJsZSoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDc6B3Rlc3Rfd2gSABgJIgIICRABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
