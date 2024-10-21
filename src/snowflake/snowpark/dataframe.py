@@ -4071,17 +4071,8 @@ class DataFrame:
                 create_table_from_infer_schema=create_table_from_infer_schema,
                 iceberg_config=iceberg_config,
             ),
-<<<<<<< HEAD
-            ast_stmt=stmt,
-        )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
-=======
             _ast_stmt=stmt,
-        )
-
-        return df._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params
-        )
->>>>>>> 9b2b77e3e ([SNOW-1625268] Add `--enable-ast` merge gate, pass local-testing/integ testing for Snowpark python with flag disabled. (#2357))
+        )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
     @df_collect_api_telemetry
     @publicapi
