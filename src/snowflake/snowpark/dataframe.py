@@ -2371,7 +2371,7 @@ class DataFrame:
                 isinstance(self._session._conn, MockServerConnection)
                 and self._session._conn._suppress_not_implemented_error
             )
-            else self._with_plan(unpivot_plan, ast_stmt=stmt)
+            else self._with_plan(unpivot_plan, _ast_stmt=stmt)
         )
 
         if _emit_ast:
@@ -2572,7 +2572,7 @@ class DataFrame:
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
-        return self._union_by_name_internal(other, is_all=False, ast_stmt=stmt)
+        return self._union_by_name_internal(other, is_all=False, _ast_stmt=stmt)
 
     @df_api_usage
     @publicapi
@@ -2610,10 +2610,10 @@ class DataFrame:
             self._set_ast_ref(ast.df)
             other._set_ast_ref(ast.other)
 
-        return self._union_by_name_internal(other, is_all=True, ast_stmt=stmt)
+        return self._union_by_name_internal(other, is_all=True, _ast_stmt=stmt)
 
     def _union_by_name_internal(
-        self, other: "DataFrame", is_all: bool = False, ast_stmt: proto.Assign = None
+        self, other: "DataFrame", is_all: bool = False, _ast_stmt: proto.Assign = None
     ) -> "DataFrame":
         left_output_attrs = self._output
         right_output_attrs = other._output
@@ -2653,11 +2653,11 @@ class DataFrame:
                     ),
                     operator=SET_UNION_ALL if is_all else SET_UNION,
                 ),
-                _ast_stmt=ast_stmt,
+                _ast_stmt=_ast_stmt,
             )
         else:
             df = self._with_plan(
-                UnionPlan(self._plan, right_child._plan, is_all), ast_stmt=ast_stmt
+                UnionPlan(self._plan, right_child._plan, is_all), _ast_stmt=_ast_stmt
             )
         return df
 
@@ -3536,7 +3536,7 @@ class DataFrame:
                     ),
                     _ast_stmt=_ast_stmt,
                 )
-            return self._with_plan(join_logical_plan, ast_stmt=_ast_stmt)
+            return self._with_plan(join_logical_plan, _ast_stmt=_ast_stmt)
 
     def _join_dataframes_internal(
         self,
@@ -3632,7 +3632,7 @@ class DataFrame:
             build_expr_from_snowpark_column_or_table_fn(expr.col, col)
             self._set_ast_ref(expr.df)
 
-        df = self.with_columns([col_name], [col], ast_stmt=ast_stmt, _emit_ast=False)
+        df = self.with_columns([col_name], [col], _ast_stmt=ast_stmt, _emit_ast=False)
 
         if _emit_ast:
             df._ast_id = ast_stmt.var_id.bitfield1
@@ -3645,7 +3645,7 @@ class DataFrame:
         self,
         col_names: List[str],
         values: List[Union[Column, TableFunctionCall]],
-        ast_stmt: proto.Expr = None,
+        _ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
@@ -3739,9 +3739,11 @@ class DataFrame:
         ]
 
         # AST.
-        if ast_stmt is None and _emit_ast:
-            ast_stmt = self._session._ast_batch.assign()
-            expr = with_src_position(ast_stmt.expr.sp_dataframe_with_columns, ast_stmt)
+        if _ast_stmt is None and _emit_ast:
+            _ast_stmt = self._session._ast_batch.assign()
+            expr = with_src_position(
+                _ast_stmt.expr.sp_dataframe_with_columns, _ast_stmt
+            )
             for col_name in col_names:
                 expr.col_names.append(col_name)
             for value in values:
@@ -3749,10 +3751,10 @@ class DataFrame:
             self._set_ast_ref(expr.df)
 
         # Put it all together
-        df = self.select([*old_cols, *new_cols], _ast_stmt=ast_stmt, _emit_ast=False)
+        df = self.select([*old_cols, *new_cols], _ast_stmt=_ast_stmt, _emit_ast=False)
 
         if _emit_ast:
-            df._ast_id = ast_stmt.var_id.bitfield1
+            df._ast_id = _ast_stmt.var_id.bitfield1
 
         return df
 
