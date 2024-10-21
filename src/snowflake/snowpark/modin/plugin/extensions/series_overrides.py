@@ -1000,12 +1000,15 @@ def map(
     self,
     arg: Callable | Mapping | Series,
     na_action: Literal["ignore"] | None = None,
+    **kwargs: Any,
 ) -> Series:
     """
     Map values of Series according to input correspondence.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    return self.__constructor__(query_compiler=self._query_compiler.map(arg, na_action))
+    return self.__constructor__(
+        query_compiler=self._query_compiler.map(arg, na_action, **kwargs)
+    )
 
 
 # Snowpark pandas does different validation than upstream Modin.
