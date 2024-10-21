@@ -2912,7 +2912,7 @@ def test_array_remove(session):
         array_remove(array_remove(col("arr1"), lit(1)), lit(8))
     )
 
-    expected = session.createDataFrame(
+    Utils.check_answer(
         [
             Row("[\n  2,\n  3\n]"),
             Row("[\n  6,\n  7\n]"),
