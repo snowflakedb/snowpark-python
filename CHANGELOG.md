@@ -8,6 +8,10 @@
 
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
+- Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
+  - `option`
+  - `options`
+  - `partition_by`
 
 #### Improvements
 
@@ -18,6 +22,7 @@
 #### Bug Fixes
 
 - Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
+- Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
 
 ### Snowpark pandas API Updates
 
@@ -50,6 +55,9 @@
 #### Bug Fixes
 
 - Fixed a bug where `DataFrame.alias` raises `KeyError` for input column name.
+
+#### Bug Fixes
+- Fixed a bug where `to_csv` on Snowflake stage fails when data contains empty strings.
 
 ## 1.23.0 (2024-10-09)
 
