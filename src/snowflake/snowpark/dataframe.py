@@ -3574,7 +3574,7 @@ class DataFrame:
                 ),
                 _ast_stmt=_ast_stmt,
             )
-        return self._with_plan(join_logical_plan, ast_stmt=_ast_stmt)
+        return self._with_plan(join_logical_plan, _ast_stmt=_ast_stmt)
 
     @df_api_usage
     @publicapi
