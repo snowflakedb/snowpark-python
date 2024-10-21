@@ -14,7 +14,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkUploadFileException,
 )
-from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, Utils
+from tests.utils import IS_IN_STORED_PROC, IS_WINDOWS, Utils, multithreaded_run
 
 
 def random_alphanumeric_name():
@@ -74,6 +74,7 @@ def path4(temp_source_directory):
     yield filename
 
 
+@multithreaded_run()
 def test_put_with_one_file(
     session, temp_stage, path1, path2, path3, local_testing_mode
 ):

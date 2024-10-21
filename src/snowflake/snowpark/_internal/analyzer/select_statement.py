@@ -678,6 +678,8 @@ class SelectStatement(Selectable):
         self._projection_complexities: Optional[
             List[Dict[PlanNodeCategory, int]]
         ] = None
+        # Metadata/Attributes for the plan
+        self._attributes: Optional[List[Attribute]] = None
 
     def __copy__(self):
         new = SelectStatement(
@@ -1176,12 +1178,22 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
+        if self.analyzer.session.reduce_describe_query_enabled:
+            new._attributes = self._attributes
 
         return new
 
     def sort(self, cols: List[Expression]) -> "SelectStatement":
         can_be_flattened = (
             (not self.flatten_disabled)
+            # limit order by and order by limit can cause big performance
+            # difference, because limit can stop table scanning whenever the
+            # number of record is satisfied.
+            # Therefore, disallow sql simplification when the
+            # current SelectStatement has a limit clause to avoid moving
+            # order by in front of limit.
+            and (not self.limit_)
+            and (not self.offset)
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(*cols), self.column_states
             )
@@ -1201,6 +1213,9 @@ class SelectStatement(Selectable):
                 order_by=cols,
                 analyzer=self.analyzer,
             )
+        if self.analyzer.session.reduce_describe_query_enabled:
+            new._attributes = self._attributes
+
         return new
 
     def set_operator(
@@ -1282,6 +1297,9 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
+        if self.analyzer.session.reduce_describe_query_enabled:
+            new._attributes = self._attributes
+
         return new
 
 
