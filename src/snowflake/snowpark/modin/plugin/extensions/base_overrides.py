@@ -135,23 +135,6 @@ def register_base_not_implemented():
 
 
 @register_base_not_implemented()
-def align(
-    self,
-    other,
-    join="outer",
-    axis=None,
-    level=None,
-    copy=None,
-    fill_value=None,
-    method=lib.no_default,
-    limit=lib.no_default,
-    fill_axis=lib.no_default,
-    broadcast_axis=lib.no_default,
-):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def asof(self, where, subset=None):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
@@ -857,6 +840,30 @@ def var(
         skipna=skipna,
         numeric_only=numeric_only,
         **kwargs,
+    )
+
+
+@register_base_override("align")
+def align(
+    self,
+    other: BasePandasDataset,
+    join: str = "outer",
+    axis: int = None,
+    level: Level = None,
+    copy: bool = True,
+    fill_value: Scalar = None,
+):  # noqa: PR01, RT01, D200
+    if axis not in [0, 1, None]:
+        if isinstance(self, pd.Series):
+            raise ValueError(f"No axis named {axis} for object type Series")
+        elif isinstance(self, pd.DataFrame):
+            raise ValueError(f"No axis named {axis} for object type DataFrame")
+    query_compiler1, query_compiler2 = self._query_compiler.align(
+        other, join=join, axis=axis, level=level, copy=copy, fill_value=fill_value
+    )
+    return (
+        self._create_or_update_from_compiler(query_compiler1, False),
+        self._create_or_update_from_compiler(query_compiler2, False),
     )
 
 

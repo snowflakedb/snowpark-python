@@ -8239,6 +8239,147 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_frame)
 
+    def align(
+        self,
+        other: SnowparkDataFrame = None,
+        join: str = "outer",
+        axis: int = 0,
+        level: Level = None,
+        copy: bool = True,
+        fill_value: Scalar = None,
+    ) -> tuple["SnowflakeQueryCompiler", "SnowflakeQueryCompiler"]:
+        """
+        Align two objects on their axes with the specified join method.
+
+        Join method is specified for each axis Index.
+
+        Args:
+            other: DataFrame or Series
+            join: {‘outer’, ‘inner’, ‘left’, ‘right’}, default ‘outer’
+                Type of alignment to be performed.
+                left: use only keys from left frame, preserve key order.
+                right: use only keys from right frame, preserve key order.
+                outer: use union of keys from both frames, sort keys lexicographically.
+                inner: use intersection of keys from both frames, preserve the order of the left keys.
+            axis: allowed axis of the other object, default None
+                Align on index (0), columns (1), or both (None).
+            level: int or level name, default None
+                Broadcast across a level, matching Index values on the passed MultiIndex level.
+            copy: bool, default True
+                Always returns new objects. If copy=False and no reindexing is required then original objects are returned.
+            fill_value: scalar, default np.nan
+                Value to use for missing values. Defaults to NaN, but can be any “compatible” value.
+
+        Returns:
+            tuple of SnowflakeQueryCompilers
+            Aligned objects.
+
+        """
+        if copy is not True:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'copy=False'"
+            )
+        if fill_value is not None:
+            # TODO: SNOW-1752860
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'fill_value'"
+            )
+        if axis == 1:
+            # TODO: SNOW-1752856
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'axis=1'"
+            )
+        if axis is None:
+            # TODO: SNOW-1752856
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'axis=None'"
+            )
+        frame = self._modin_frame
+        other_frame = other._query_compiler._modin_frame
+
+        if self.is_multiindex(axis=axis) or other._query_compiler.is_multiindex(
+            axis=axis
+        ):
+            raise NotImplementedError(
+                "Snowpark pandas doesn't support `align` with MultiIndex"
+            )
+
+        left_result, right_result = self._modin_frame, self._modin_frame
+        left_frame, right_frame = self._modin_frame, self._modin_frame
+        if axis == 0:
+            if join == "right":
+                left_result, left_column_mapper = join_utils.align_on_index(
+                    other_frame, frame, how=join
+                )
+                left_frame_data_ids = left_column_mapper.map_right_quoted_identifiers(
+                    frame.data_column_snowflake_quoted_identifiers
+                )
+                left_index_ids = left_result.index_column_snowflake_quoted_identifiers
+                left_frame = left_result.ordered_dataframe.select(
+                    left_frame_data_ids + left_index_ids
+                )
+
+            else:
+                left_result, left_column_mapper = join_utils.align_on_index(
+                    frame, other_frame, how=join
+                )
+                left_frame_data_ids = left_column_mapper.map_left_quoted_identifiers(
+                    frame.data_column_snowflake_quoted_identifiers
+                )
+                left_index_ids = left_result.index_column_snowflake_quoted_identifiers
+                left_frame = left_result.ordered_dataframe.select(
+                    left_frame_data_ids + left_index_ids
+                )
+
+            if join == "left":
+                right_result, right_column_mapper = join_utils.align_on_index(
+                    frame, other_frame, how=join
+                )
+                right_frame_data_ids = right_column_mapper.map_right_quoted_identifiers(
+                    other_frame.data_column_snowflake_quoted_identifiers
+                )
+                right_index_ids = right_result.index_column_snowflake_quoted_identifiers
+                right_frame = right_result.ordered_dataframe.select(
+                    right_frame_data_ids + right_index_ids
+                )
+            else:
+                right_result, right_column_mapper = join_utils.align_on_index(
+                    other_frame, frame, how=join
+                )
+                right_frame_data_ids = right_column_mapper.map_left_quoted_identifiers(
+                    other_frame.data_column_snowflake_quoted_identifiers
+                )
+                right_index_ids = right_result.index_column_snowflake_quoted_identifiers
+                right_frame = right_result.ordered_dataframe.select(
+                    right_frame_data_ids + right_index_ids
+                )
+
+        left_qc = SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=left_frame,
+                data_column_snowflake_quoted_identifiers=left_frame_data_ids,
+                data_column_pandas_labels=frame.data_column_pandas_labels,
+                data_column_pandas_index_names=frame.data_column_pandas_index_names,
+                data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                index_column_snowflake_quoted_identifiers=left_index_ids,
+                index_column_pandas_labels=left_result.index_column_pandas_labels,
+                index_column_types=left_result.cached_index_column_snowpark_pandas_types,
+            )
+        )
+        right_qc = SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=right_frame,
+                data_column_snowflake_quoted_identifiers=right_frame_data_ids,
+                data_column_pandas_labels=other_frame.data_column_pandas_labels,
+                data_column_pandas_index_names=other_frame.data_column_pandas_index_names,
+                data_column_types=other_frame.cached_data_column_snowpark_pandas_types,
+                index_column_snowflake_quoted_identifiers=right_index_ids,
+                index_column_pandas_labels=right_result.index_column_pandas_labels,
+                index_column_types=right_result.cached_index_column_snowpark_pandas_types,
+            )
+        )
+        return left_qc, right_qc
+
     def apply(
         self,
         func: Union[AggFuncType, UserDefinedFunction],

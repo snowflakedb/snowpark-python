@@ -1307,12 +1307,13 @@ def align_on_index(
     Args:
         left: Left DataFrame.
         right: right DataFrame.
-        how: the align method {{'left', 'coalesce', 'outer'}}, by default is outer
+        how: the align method {{'left', 'coalesce', 'outer', 'inner'}}, by default is outer
             * left: use only index from left frame, preserve left order.
             * coalesce: if left frame has non-zero rows use only index from left
                 frame, preserve left order otherwise use only right index and preserver
                 right order.
             * outer: use union of index from both frames, sort index lexicographically.
+            * inner: use intersection of index from both frames, preserve left order.
     Returns:
         An InternalFrame for the aligned result.
         A JoinOrAlignResultColumnMapper that provides quoted identifiers mapping from the
