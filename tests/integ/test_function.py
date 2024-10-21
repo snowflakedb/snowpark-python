@@ -2292,4 +2292,5 @@ The next sections explain these steps in more detail.
     ][0]
     summary_from_str = df.select(snowflake_cortex_summarize(content)).collect()[0][0]
     assert summary_from_col == summary_from_str
+    # this length check is to get around the fact that this function may not be deterministic
     assert 0 < len(summary_from_str) < len(content)

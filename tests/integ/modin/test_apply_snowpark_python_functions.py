@@ -91,5 +91,6 @@ def test_apply_snowflake_cortex_summarize():
     Python library, which enables scalable data processing of Python code within the Snowflake platform.
 """
     s = pd.Series([content])
-    summary = s.apply(snowflake_cortex_summarize)
+    summary = s.apply(snowflake_cortex_summarize).iloc[0]
+    # this length check is to get around the fact that this function may not be deterministic
     assert 0 < len(summary) < len(content)
