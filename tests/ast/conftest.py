@@ -43,7 +43,7 @@ def pytest_configure(config):
     pytest.update_expectations = config.getoption("--update-expectations")
 
 
-class Tables:
+class TestTables:
     def __init__(self, session) -> None:
         self._session = session
 
@@ -177,7 +177,7 @@ def session():
 
 @pytest.fixture(scope="function")
 def tables(session):
-    return Tables(session)
+    return TestTables(session)
 
 
 def pytest_sessionstart(session):
