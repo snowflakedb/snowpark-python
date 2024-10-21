@@ -153,3 +153,32 @@ def test_multiindex_negative(level):
         match="Snowpark pandas doesn't support `align` with MultiIndex",
     ):
         left, right = df.align(other_df, join="outer", axis=0, level=0)
+
+
+@sql_count_checker(query_count=0)
+def test_align_frame_copy_negative():
+    df = pd.DataFrame([[1, 2, 3, 4], [6, 7, 8, 9]], columns=["D", "B", "E", "A"])
+    other_df = pd.DataFrame(
+        [[10, 20, 30, 40], [60, 70, 80, 90], [600, 700, 800, 900]],
+        columns=["A", "B", "C", "D"],
+    )
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas 'align' method doesn't support 'copy=False'",
+    ):
+        left, right = df.align(other_df, join="outer", axis=0, copy=False)
+
+
+@sql_count_checker(query_count=0)
+def test_align_frame_invalid_axis_negative():
+    df = pd.DataFrame([[1, 2, 3, 4], [6, 7, 8, 9]], columns=["D", "B", "E", "A"])
+    other_df = pd.DataFrame(
+        [[10, 20, 30, 40], [60, 70, 80, 90], [600, 700, 800, 900]],
+        columns=["A", "B", "C", "D"],
+    )
+    axis = 2
+    with pytest.raises(
+        ValueError,
+        match=f"No axis named {axis} for object type DataFrame",
+    ):
+        left, right = df.align(other_df, join="outer", axis=axis)

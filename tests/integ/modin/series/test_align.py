@@ -84,3 +84,26 @@ def test_align_series_axis_1_negative():
         match="Snowpark pandas 'align' method doesn't support 'axis=1'",
     ):
         left, right = ser.align(other_ser, join="outer", axis=1)
+
+
+@sql_count_checker(query_count=0)
+def test_align_series_copy_negative():
+    ser = pd.Series([1, 2, 3])
+    other_ser = pd.Series([60, 70, 80, 90, 100, np.nan])
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas 'align' method doesn't support 'copy=False'",
+    ):
+        left, right = ser.align(other_ser, join="outer", copy=False)
+
+
+@sql_count_checker(query_count=0)
+def test_align_series_invalid_axis_negative():
+    ser = pd.Series([1, 2, 3])
+    other_ser = pd.Series([60, 70, 80, 90, 100, np.nan])
+    axis = 2
+    with pytest.raises(
+        ValueError,
+        match=f"No axis named {axis} for object type Series",
+    ):
+        left, right = ser.align(other_ser, join="outer", axis=axis)
