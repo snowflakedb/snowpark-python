@@ -87,6 +87,7 @@ from tests.utils import (
     TestData,
     TestFiles,
     Utils,
+    multithreaded_run,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1336,6 +1337,7 @@ def test_join_left_semi(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@multithreaded_run()
 def test_join_cross(session):
     """Test for cross join of dataframes."""
 
@@ -1705,6 +1707,7 @@ def test_create_dataframe_with_dict_given_schema(session):
     Utils.check_answer(df, [Row(None, None), Row(None, None)])
 
 
+@multithreaded_run()
 def test_create_dataframe_with_namedtuple(session):
     Data = namedtuple("Data", [f"snow_{idx + 1}" for idx in range(5)])
     data = Data(*[idx**3 for idx in range(5)])
@@ -2221,6 +2224,7 @@ def test_dropna(session, local_testing_mode):
     assert "subset should be a list or tuple of column names" in str(ex_info)
 
 
+@multithreaded_run()
 def test_dropna_large_num_of_columns(session):
     n = 1000
     data = [str(i) for i in range(n)]
@@ -3770,10 +3774,6 @@ def test_to_df_then_copy(session):
     Utils.check_answer(df1, Row("2023-01-01"))
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="DataFrame alias is not supported in Local Testing",
-)
 def test_to_df_then_alias_and_join(session):
     data = [
         ["2023-01-01", 101, 200],
