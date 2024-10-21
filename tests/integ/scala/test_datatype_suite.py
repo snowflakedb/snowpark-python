@@ -15,6 +15,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     any_value,
     array_construct,
+    array_sort,
     col,
     lit,
     object_construct,
@@ -554,7 +555,8 @@ def test_struct_dtype_iceberg_lqb(
             any_value(col("ARR")).alias("ARR"),
             any_value(col("MAP")).alias("MAP"),
         )
-        union_df = df1.union_all(df2).select("ARR", "MAP", "A", "B")
+        union_df = df1.union_all(df2)
+        union_df = union_df.select(array_sort("ARR", sort_ascending=False).alias("ARR"), "MAP", "A", "B")
         queries = union_df.queries
 
         union_df.write.save_as_table(
