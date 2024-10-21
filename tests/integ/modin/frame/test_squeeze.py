@@ -87,7 +87,7 @@ def test_scalar(axis, scalar):
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason="Transpose produces a column with both an int value and a timedelta value, so it can't preserve the timedelta type for the timdelta row.",
+    reason="Transpose produces a column with both an int value and a timedelta value, so it can't preserve the timedelta type for the timedelta row.",
 )
 @pytest.mark.parametrize("axis", [0, "index", None])
 def test_timedelta_1_by_n_horizontal(axis):
