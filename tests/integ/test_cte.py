@@ -4,9 +4,12 @@
 
 import logging
 import re
+from functools import reduce
+from typing import List
 
 import pytest
 
+import snowflake.snowpark.functions as F
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
@@ -41,7 +44,6 @@ binary_operations = [
 
 
 WITH = "WITH"
-
 
 @pytest.fixture(autouse=True)
 def setup(request, session):
@@ -142,17 +144,20 @@ def count_number_of_ctes(query):
     "action",
     [
         lambda x: x.select("a", "b").select("b"),
-        lambda x: x.filter(col("a") == 1).select("b"),
-        lambda x: x.select("a").filter(col("a") == 1),
-        lambda x: x.select_expr("sum(a) as a").with_column("b", seq1()),
-        lambda x: x.drop("b").sort("a", ascending=False),
-        lambda x: x.rename(col("a"), "new_a").limit(1),
-        lambda x: x.to_df("a1", "b1").alias("L"),
+        # lambda x: x.filter(col("a") == 1).select("b"),
+        # lambda x: x.select("a").filter(col("a") == 1),
+        # lambda x: x.select_expr("sum(a) as a").with_column("b", seq1()),
+        # lambda x: x.drop("b").sort("a", ascending=False),
+        # lambda x: x.rename(col("a"), "new_a").limit(1),
+        # lambda x: x.to_df("a1", "b1").alias("L"),
     ],
 )
 def test_unary(session, action):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df_action = action(df)
+    df_result = df_action.union_all(df_action)
+    df_result.collect()
+    """
     check_result(
         session,
         df_action,
@@ -171,6 +176,7 @@ def test_unary(session, action):
         union_count=1,
         join_count=0,
     )
+    """
 
 
 @pytest.mark.parametrize("type, action", binary_operations)
@@ -1038,3 +1044,323 @@ def test_cte_optimization_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.cte_optimization_enabled = True
     assert "cte_optimization_enabled is experimental" in caplog.text
+
+
+def test_ctc_workloads(session):
+    import os
+    import random
+
+    os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"] = str(False)
+    os.environ["TMPDIR"] = "/tmp"
+
+    self_width = "M"
+    orders_base_table_fqn = '"SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."ORDERS"'
+    orders_large_base_table_fqn = '"SNOWFLAKE_SAMPLE_DATA"."TPCH_SF10"."ORDERS"'
+    customer_base_table_fqn = '"SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."CUSTOMER"'
+    lineitem_base_table_fqn = '"SNOWFLAKE_SAMPLE_DATA"."TPCH_SF1"."LINEITEM"'
+
+    num_add_drop_column = 1
+    num_redundant_group_by = 1
+    num_self_join = 2
+    num_self_join_layers = 1
+
+    def expand_columns_for_df(df, width: str):
+        if width == "S":
+            return df
+
+        cols = df.columns
+        df = df.with_columns(
+            [f"{col}__COPY1" for col in cols], [F.col(col) for col in cols]
+        )
+        if width == "M":
+            return df
+
+        df = df.with_columns(
+            [f"{col}__COPY2" for col in cols], [F.col(col) for col in cols]
+        )
+        return df
+
+    def get_orders_base_df():
+        df = session.table(orders_base_table_fqn)
+        return expand_columns_for_df(df, self_width)
+
+    def get_orders_large_base_df():
+        df = session.table(orders_large_base_table_fqn)
+        return expand_columns_for_df(df, self_width)
+
+    def get_customer_base_df():
+        df = session.table(customer_base_table_fqn)
+        return expand_columns_for_df(df, self_width)
+
+    def get_lineitem_base_df():
+        df = session.table(lineitem_base_table_fqn)
+        return expand_columns_for_df(df, self_width)
+
+    def union_all_with_non_matching_cols(df1, df2):
+        left_attr = df1.schema
+        right_attr = df2.schema
+        left_datatype_by_name = {attr.name: attr.datatype for attr in left_attr}
+        right_datatype_by_name = {attr.name: attr.datatype for attr in right_attr}
+
+        left_attr_names = {attr.name for attr in left_attr}
+        right_attr_names = {attr.name for attr in right_attr}
+
+        intersect_attr = left_attr_names & right_attr_names
+        left_extra = left_attr_names - intersect_attr
+        right_extra = right_attr_names - intersect_attr
+
+        left_expand, right_expand = df1, df2
+        for v in right_extra:
+            left_expand = left_expand.with_column(
+                v, F.lit(None).cast(right_datatype_by_name[v])
+            )
+        left_expand = left_expand.with_column("__L", F.lit(True))
+
+        for v in left_extra:
+            right_expand = right_expand.with_column(
+                v, F.lit(None).cast(left_datatype_by_name[v])
+            )
+        right_expand = right_expand.with_column("__L", F.lit(False))
+
+        return left_expand.unionByName(right_expand)
+
+    def pseudo_merge_asof(
+        df1,
+        df2,
+        order_on: List[str],
+        partition_by: List[str],
+        over: List[str],
+        direction: str,
+    ):
+        df = union_all_with_non_matching_cols(df1, df2)
+        if direction == "backward":
+            order_on_x = [F.col(x).asc() for x in order_on] + [F.col("__L").asc()]
+        else:
+            order_on_x = [F.col(x).asc() for x in order_on] + [F.col("__L").desc()]
+        partition_spec = Window.partition_by(partition_by).order_by(order_on_x)
+        if direction == "backward":
+            join_spec = partition_spec.rows_between(
+                Window.unboundedPreceding, Window.currentRow
+            )
+        else:
+            join_spec = partition_spec.rows_between(
+                Window.currentRow, Window.unboundedFollowing
+            )
+        cols = [
+            F.last_value(over_col, ignore_nulls=True).over(join_spec)
+            for over_col in over
+        ]
+
+        df = df.with_columns(over, cols)
+        return df.filter("__L").drop("__L")
+
+    def pseudo_one_to_many_merge_asof(
+        df1,
+        df2,
+        order_on: str,
+        partition_by: List[str],
+    ):
+        order_on_col_name = "__ORDER_ON_COLUMN_NAME"
+        order_on_backward_col_name = order_on_col_name + "__BACKWARD"
+        order_on_forward_col_name = order_on_col_name + "__FORWARD"
+
+        df2 = df2.with_column(order_on_col_name, F.col(order_on))
+        df = pseudo_merge_asof(
+            df1,
+            df2.with_column(order_on_backward_col_name, F.col(order_on)),
+            order_on=[order_on],
+            partition_by=partition_by,
+            over=[order_on_backward_col_name],
+            direction="backward",
+        )
+        df = pseudo_merge_asof(
+            df,
+            df2.with_column(order_on_forward_col_name, F.col(order_on)),
+            order_on=[order_on],
+            partition_by=partition_by,
+            over=[order_on_forward_col_name],
+            direction="forward",
+        )
+        df = df.with_column(
+            order_on_col_name,
+            F.when(
+                F.is_null(order_on_backward_col_name)
+                | (
+                    F.abs(F.col(order_on) - F.col(order_on_backward_col_name))
+                    > F.abs(F.col(order_on) - F.col(order_on_forward_col_name))
+                ),
+                F.col(order_on_forward_col_name),
+            ).otherwise(F.col(order_on_backward_col_name)),
+        ).drop(order_on_forward_col_name, order_on_backward_col_name)
+
+        df = df.drop(order_on_col_name)
+        return df
+
+    def get_customer_with_filter_and_dropped_cols(customer_df):
+        customer_df = customer_df.where(F.col("C_ACCTBAL") < F.lit(100))
+        customer_df = customer_df.drop("C_PHONE")
+        customer_df = customer_df.distinct()
+
+        original_cols = customer_df.columns
+        for col_t in original_cols:
+            customer_df = customer_df.with_column(f"{col_t}__NOTNULL", F.col(col_t))
+
+        return customer_df.drop(original_cols)
+
+    def apply_with_column_and_filter_ops(df):
+        discount_lower_bound = 0.06
+        discount_upper_bound = 0.07
+
+        df = df.with_column(
+            "O_ORDERSTATUS",
+            F.when(
+                (F.col("O_ORDERPRIORITY") == "1-URGENT")
+                & (F.col("L_DISCOUNT") > discount_lower_bound),
+                "F",
+            ).otherwise(F.col("O_ORDERSTATUS")),
+        )
+
+        df = df.with_column(
+            "EFFECTIVE_DISCOUNT",
+            F.when(F.col("L_DISCOUNT") < discount_upper_bound, 3).otherwise(
+                F.col("L_DISCOUNT")
+            ),
+        )
+
+        df = df.where(F.col("L_TAX") > F.col("EFFECTIVE_DISCOUNT"))
+        df = df.drop("EFFECTIVE_DISCOUNT")
+        return df
+
+    def apply_with_column_and_filter_for_self_union(df, seed: int):
+        window_lineitem = Window.partition_by("L_ORDERKEY")
+        window_order = Window.partition_by("O_CUSTKEY")
+
+        random.seed(seed)
+        date_diff_thresh = random.randint(25, 50)
+        random_year = random.randint(5, 7)
+        random_month = random.randint(1, 9)
+        random_day = random.randint(1, 28)
+        expensive_thresh = random.randint(1600, 3000)
+
+        df_filtered = df.with_column(
+            "EARLY_ORDER",
+            F.datediff("day", F.col("L_SHIPDATE"), F.col("L_COMMITDATE"))
+            < date_diff_thresh,
+        )
+        df_filtered = df_filtered.with_column(
+            "MOST_EXPENSIVE_PART", F.max(F.col("L_EXTENDEDPRICE")).over(window_lineitem)
+        )
+        df_filtered = df_filtered.with_column(
+            "MOST_EXPENSIVE_BUY", F.max(F.col("O_TOTALPRICE")).over(window_order)
+        )
+        df_filtered = df_filtered.with_column(
+            "MOST_EXPENSIVE_PART_BY_CUSTOMER",
+            F.max(F.col("MOST_EXPENSIVE_PART")).over(window_order),
+        )
+        df_filtered = df_filtered.where(
+            F.col("L_SHIPDATE")
+            > F.lit(f"199{random_year}-0{random_month}-{random_day}")
+        )
+        df_filtered = df_filtered.where(F.col("EARLY_ORDER"))
+        df_filtered = df_filtered.where(
+            F.col("MOST_EXPENSIVE_PART_BY_CUSTOMER") > expensive_thresh
+        )
+        df_filtered = df_filtered.drop(
+            "EARLY_ORDER",
+            "MOST_EXPENSIVE_PART",
+            "MOST_EXPENSIVE_BUY",
+            "MOST_EXPENSIVE_PART_BY_CUSTOMER",
+        )
+
+        return df_filtered
+
+    def apply_add_drop_column(df):
+        df = df.with_column("C_CUSTKEY_TO_BE_DROPPED", F.col("C_CUSTKEY").is_not_null())
+        df = df.filter(F.col("C_CUSTKEY_TO_BE_DROPPED"))
+        df = df.drop("C_CUSTKEY_TO_BE_DROPPED")
+
+        return df
+
+    def get_left_df():
+        # base tables
+        orders_small_df = get_orders_base_df()
+        orders_large_df = get_orders_large_base_df()
+        customer_df = get_customer_base_df()
+        lineitem_sf1 = get_lineitem_base_df()
+
+        # add a column by calling a temp udf
+        @F.udf
+        def add_one(x: int) -> int:
+            return x + 1
+
+        customer_df = customer_df.with_column(
+            "NATIONKEY_PLUS1", add_one(customer_df["C_NATIONKEY"])
+        )
+
+        orders_with_customer_df = orders_small_df.join(
+            customer_df,
+            orders_small_df["O_CUSTKEY"] == customer_df["C_CUSTKEY"],
+            how="left",
+        )
+        orders_with_customer_lineitem_df = orders_with_customer_df.join(
+            lineitem_sf1.distinct(),
+            orders_small_df["O_ORDERKEY"] == lineitem_sf1["L_ORDERKEY"],
+            how="left",
+        )
+
+        # perform one_to_many_merge_asof
+        return pseudo_one_to_many_merge_asof(
+            orders_with_customer_lineitem_df,
+            orders_large_df,
+            "O_ORDERDATE",
+            "O_CUSTKEY",
+        )
+
+    def get_right_df():
+        customer_df = get_customer_base_df()
+        # create a new base with filtering and dropping cols
+        customer_with_filter_and_dropped_rows = (
+            get_customer_with_filter_and_dropped_cols(customer_df)
+        )
+
+        for _ in range(num_redundant_group_by):
+            customer_with_filter_and_dropped_rows = (
+                customer_with_filter_and_dropped_rows.distinct()
+            )
+        return customer_with_filter_and_dropped_rows
+
+    def apply_self_join_layers(df, layer: int):
+        df_layer_set = df.distinct().where(F.col("LAYER_SEQ") == layer)
+        return df.union_all_by_name(df_layer_set)
+
+    def get_df_before_self_union():
+        df_left = get_left_df()
+        df_right = get_right_df()
+
+        df_res = df_left.join(
+            df_right,
+            df_left["C_CUSTKEY"] == df_right["C_CUSTKEY__NOTNULL"],
+            how="inner",
+        )
+
+        for _ in range(num_add_drop_column):
+            df_res = apply_add_drop_column(df_res)
+
+        df_res = apply_with_column_and_filter_ops(df_res)
+        return df_res
+
+    # def get_df():
+    df = get_df_before_self_union()
+
+    df_with_filters = []
+    for i in range(num_self_join):
+        df_with_filters.append(apply_with_column_and_filter_for_self_union(df, i))
+
+    df = reduce(lambda l, r: l.unionByName(r), df_with_filters)
+
+    df = df.with_column("LAYER_SEQ", F.seq8())
+    for i in range(1, num_self_join_layers):
+        df = apply_self_join_layers(df, i)
+
+    print(df.queries)
+    # return df

@@ -5,10 +5,18 @@
 from collections import defaultdict
 from typing import Dict, List, Optional, Set
 
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    drop_table_if_exists_statement,
+)
+from snowflake.snowpark._internal.analyzer.select_statement import SelectableEntity
+from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
-    WithQueryBlock,
+    SaveMode,
+    SnowflakeCreateTable,
+    SnowflakeTable,
+    TableCreationSource,
 )
 from snowflake.snowpark._internal.compiler.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
@@ -21,6 +29,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
+from snowflake.snowpark.session import Session
 
 
 class RepeatedSubqueryEliminationResult:
@@ -62,12 +71,15 @@ class RepeatedSubqueryElimination:
     _logical_plans: List[LogicalPlan]
     _query_generator: QueryGenerator
     _total_number_ctes: int
+    session: Session
 
     def __init__(
         self,
+        session: Session,
         logical_plans: List[LogicalPlan],
         query_generator: QueryGenerator,
     ) -> None:
+        self.session = session
         self._logical_plans = logical_plans
         self._query_generator = query_generator
         self._total_number_ctes = 0
@@ -94,7 +106,7 @@ class RepeatedSubqueryElimination:
                 deduplicated_plan = self._replace_duplicate_node_with_cte(
                     logical_plan, duplicated_node_ids
                 )
-                final_logical_plans.append(deduplicated_plan)
+                final_logical_plans.extend(deduplicated_plan)
             else:
                 final_logical_plans.append(logical_plan)
 
@@ -107,7 +119,7 @@ class RepeatedSubqueryElimination:
         self,
         root: TreeNode,
         duplicated_node_ids: Set[str],
-    ) -> LogicalPlan:
+    ) -> List[LogicalPlan]:
         """
         Replace all duplicated nodes with a WithQueryBlock (CTE node), to enable
         query generation with CTEs.
@@ -117,7 +129,7 @@ class RepeatedSubqueryElimination:
         from bottom (innermost subquery) to top (outermost query).
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
-
+        result_plans = []
         node_parents_map: Dict[TreeNode, Set[TreeNode]] = defaultdict(set)
         stack1, stack2 = [root], []
 
@@ -132,7 +144,7 @@ class RepeatedSubqueryElimination:
         visited_nodes: Set[TreeNode] = set()
         updated_nodes: Set[TreeNode] = set()
         # track the resolved WithQueryBlock node has been created for each duplicated node
-        resolved_with_block_map: Dict[str, SnowflakePlan] = {}
+        resolved_with_block_map: Dict[str, SelectableEntity] = {}
 
         def _update_parents(
             node: TreeNode,
@@ -160,10 +172,11 @@ class RepeatedSubqueryElimination:
                 if node.encoded_node_id_with_query in resolved_with_block_map:
                     # if the corresponding CTE block has been created, use the existing
                     # one.
-                    resolved_with_block = resolved_with_block_map[
+                    temp_table_selectable = resolved_with_block_map[
                         node.encoded_node_id_with_query
                     ]
                 else:
+                    """
                     # create a WithQueryBlock node
                     with_block = WithQueryBlock(
                         name=random_name_for_temp_object(TempObjectType.CTE), child=node
@@ -174,14 +187,55 @@ class RepeatedSubqueryElimination:
                     resolved_with_block_map[
                         node.encoded_node_id_with_query
                     ] = resolved_with_block
+                    """
+                    # Create a temp table for the partitioned node
+                    temp_table_name = self.session.get_fully_qualified_name_if_possible(
+                        f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
+                    )
+                    temp_table_plan = self._query_generator.resolve(
+                        SnowflakeCreateTable(
+                            [temp_table_name],
+                            None,
+                            SaveMode.ERROR_IF_EXISTS,
+                            node,
+                            table_type="temp",
+                            creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+                        )
+                    )
+                    result_plans.append(temp_table_plan)
+                    temp_table_node = SnowflakeTable(
+                        temp_table_name, session=self.session
+                    )
+                    temp_table_selectable = (
+                        self._query_generator.create_selectable_entity(
+                            temp_table_node, analyzer=self._query_generator
+                        )
+                    )
+
+                    resolved_with_block_map[
+                        node.encoded_node_id_with_query
+                    ] = temp_table_selectable
+
+                    # add drop table in post action since the temp table created here
+                    # is only used for the current query.
+                    drop_table_query = Query(
+                        drop_table_if_exists_statement(temp_table_name),
+                        is_ddl_on_temp_object=True,
+                    )
+                    temp_table_selectable.post_actions = [drop_table_query]
+
                     self._total_number_ctes += 1
                 _update_parents(
-                    node, should_replace_child=True, new_child=resolved_with_block
+                    node, should_replace_child=True, new_child=temp_table_selectable
                 )
+                # _update_parents(
+                #    node, should_replace_child=True, new_child=resolved_with_block
+                # )
             elif node in updated_nodes:
                 # if the node is updated, make sure all nodes up to parent is updated
                 _update_parents(node, should_replace_child=False)
 
             visited_nodes.add(node)
 
-        return root
+        result_plans.append(root)
+        return result_plans
