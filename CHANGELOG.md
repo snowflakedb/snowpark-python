@@ -8,6 +8,10 @@
 
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
+- Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
+  - `option`
+  - `options`
+  - `partition_by`
 
 #### Improvements
 

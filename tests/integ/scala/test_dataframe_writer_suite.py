@@ -24,6 +24,14 @@ from snowflake.snowpark.types import (
 from tests.utils import TestFiles, Utils, iceberg_supported
 
 
+@pytest.fixture(scope="function")
+def temp_stage(session):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    yield temp_stage
+    Utils.drop_stage(session, temp_stage)
+
+
 def test_write_with_target_column_name_order(session, local_testing_mode):
     table_name = Utils.random_table_name()
     empty_df = session.create_dataframe(
@@ -194,6 +202,53 @@ def test_iceberg(session, local_testing_mode):
         )
     finally:
         session.table(table_name).drop_table()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'schema_query'",
+)
+def test_writer_options(session, temp_stage):
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8]], schema=["a", "b"])
+
+    # default case
+    result = df.write.csv(f"@{temp_stage}/test_options")
+    assert result[0].rows_unloaded == 4
+
+    # overwrite case with option
+    result = df.write.option("overwrite", True).csv(f"@{temp_stage}/test_options")
+    assert result[0].rows_unloaded == 4
+
+    # mixed case with format type option and copy option
+    result = df.write.options({"single": True, "compression": "None"}).csv(
+        f"@{temp_stage}/test_mixed_options"
+    )
+    assert result[0].rows_unloaded == 4
+    files = session.sql(f"list @{temp_stage}/test_mixed_options").collect()
+    assert len(files) == 1
+    assert (files[0].name).lower() == f"{temp_stage.lower()}/test_mixed_options"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'schema_query'",
+)
+def test_writer_partition_by(session, temp_stage):
+    df = session.create_dataframe(
+        [[1, "a"], [1, "b"], [2, "c"], [2, "d"]], schema=["a", "b"]
+    )
+    df.write.partition_by(col("a")).csv(f"@{temp_stage}/test_partition_by_a")
+    cols = session.sql(f"list @{temp_stage}/test_partition_by_a").collect()
+    num_files = len(cols)
+    assert num_files == 2, cols
+
+    # test kwarg supersedes .partition_by
+    df.write.partition_by(col("a")).csv(
+        f"@{temp_stage}/test_partition_by_b", partition_by=col("b")
+    )
+    cols = session.sql(f"list @{temp_stage}/test_partition_by_b").collect()
+    num_files = len(cols)
+    assert num_files == 4, cols
 
 
 def test_negative_write_with_target_column_name_order(session):
@@ -579,7 +634,7 @@ def test_write_table_names(session, db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",
 )
-def test_writer_csv(session, caplog):
+def test_writer_csv(session, temp_stage, caplog):
 
     """Tests for df.write.csv()."""
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [3, 7]], schema=["a", "b"])
@@ -588,80 +643,71 @@ def test_writer_csv(session, caplog):
         [StructField("a", IntegerType()), StructField("b", IntegerType())]
     )
 
-    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
-    Utils.create_stage(session, temp_stage, is_temporary=True)
+    # test default case
+    path1 = f"{temp_stage}/test_csv_example1"
+    result1 = df.write.csv(path1)
+    assert result1[0].rows_unloaded == ROWS_COUNT
+    data1 = session.read.schema(schema).csv(f"@{path1}_0_0_0.csv.gz")
+    Utils.assert_rows_count(data1, ROWS_COUNT)
 
-    try:
-        # test default case
-        path1 = f"{temp_stage}/test_csv_example1"
-        result1 = df.write.csv(path1)
-        assert result1[0].rows_unloaded == ROWS_COUNT
-        data1 = session.read.schema(schema).csv(f"@{path1}_0_0_0.csv.gz")
-        Utils.assert_rows_count(data1, ROWS_COUNT)
+    # test overwrite case
+    result2 = df.write.csv(path1, overwrite=True)
+    assert result2[0].rows_unloaded == ROWS_COUNT
+    data2 = session.read.schema(schema).csv(f"@{path1}_0_0_0.csv.gz")
+    Utils.assert_rows_count(data2, ROWS_COUNT)
 
-        # test overwrite case
-        result2 = df.write.csv(path1, overwrite=True)
-        assert result2[0].rows_unloaded == ROWS_COUNT
-        data2 = session.read.schema(schema).csv(f"@{path1}_0_0_0.csv.gz")
-        Utils.assert_rows_count(data2, ROWS_COUNT)
+    # partition by testing cases
+    path3 = f"{temp_stage}/test_csv_example3/"
+    result3 = df.write.csv(path3, partition_by=col("a"))
+    assert result3[0].rows_unloaded == ROWS_COUNT
+    data3 = session.read.schema(schema).csv(f"@{path3}")
+    Utils.assert_rows_count(data3, ROWS_COUNT)
 
-        # partition by testing cases
-        path3 = f"{temp_stage}/test_csv_example3/"
-        result3 = df.write.csv(path3, partition_by=col("a"))
-        assert result3[0].rows_unloaded == ROWS_COUNT
-        data3 = session.read.schema(schema).csv(f"@{path3}")
-        Utils.assert_rows_count(data3, ROWS_COUNT)
+    path4 = f"{temp_stage}/test_csv_example4/"
+    result4 = df.write.csv(path4, partition_by="a")
+    assert result4[0].rows_unloaded == ROWS_COUNT
+    data4 = session.read.schema(schema).csv(f"@{path4}")
+    Utils.assert_rows_count(data4, ROWS_COUNT)
 
-        path4 = f"{temp_stage}/test_csv_example4/"
-        result4 = df.write.csv(path4, partition_by="a")
-        assert result4[0].rows_unloaded == ROWS_COUNT
-        data4 = session.read.schema(schema).csv(f"@{path4}")
-        Utils.assert_rows_count(data4, ROWS_COUNT)
+    # test single case
+    path5 = f"{temp_stage}/test_csv_example5/my_file.csv"
+    result5 = df.write.csv(path5, single=True)
+    assert result5[0].rows_unloaded == ROWS_COUNT
+    data5 = session.read.schema(schema).csv(f"@{path5}")
+    Utils.assert_rows_count(data5, ROWS_COUNT)
 
-        # test single case
-        path5 = f"{temp_stage}/test_csv_example5/my_file.csv"
-        result5 = df.write.csv(path5, single=True)
-        assert result5[0].rows_unloaded == ROWS_COUNT
-        data5 = session.read.schema(schema).csv(f"@{path5}")
-        Utils.assert_rows_count(data5, ROWS_COUNT)
+    # test compression case
+    path6 = f"{temp_stage}/test_csv_example6/my_file.csv.gz"
+    result6 = df.write.csv(
+        path6, format_type_options=dict(compression="gzip"), single=True
+    )
 
-        # test compression case
-        path6 = f"{temp_stage}/test_csv_example6/my_file.csv.gz"
-        result6 = df.write.csv(
-            path6, format_type_options=dict(compression="gzip"), single=True
+    assert result6[0].rows_unloaded == ROWS_COUNT
+    data6 = session.read.schema(schema).csv(f"@{path6}")
+    Utils.assert_rows_count(data6, ROWS_COUNT)
+
+    # test option alias case
+    path7 = f"{temp_stage}/test_csv_example7/my_file.csv.gz"
+    with caplog.at_level(logging.WARNING):
+        result7 = df.write.csv(
+            path7,
+            format_type_options={"SEP": ":", "quote": '"'},
+            single=True,
+            header=True,
         )
+    assert "Option 'SEP' is aliased to 'FIELD_DELIMITER'." in caplog.text
+    assert "Option 'quote' is aliased to 'FIELD_OPTIONALLY_ENCLOSED_BY'." in caplog.text
 
-        assert result6[0].rows_unloaded == ROWS_COUNT
-        data6 = session.read.schema(schema).csv(f"@{path6}")
-        Utils.assert_rows_count(data6, ROWS_COUNT)
-
-        # test option alias case
-        path7 = f"{temp_stage}/test_csv_example7/my_file.csv.gz"
-        with caplog.at_level(logging.WARNING):
-            result7 = df.write.csv(
-                path7,
-                format_type_options={"SEP": ":", "quote": '"'},
-                single=True,
-                header=True,
-            )
-        assert "Option 'SEP' is aliased to 'FIELD_DELIMITER'." in caplog.text
-        assert (
-            "Option 'quote' is aliased to 'FIELD_OPTIONALLY_ENCLOSED_BY'."
-            in caplog.text
-        )
-
-        assert result7[0].rows_unloaded == ROWS_COUNT
-        data7 = (
-            session.read.schema(schema)
-            .option("header", True)
-            .option("inferSchema", True)
-            .option("SEP", ":")
-            .option("quote", '"')
-            .csv(f"@{path7}")
-        )
-        Utils.check_answer(data7, df)
-    finally:
-        Utils.drop_stage(session, temp_stage)
+    assert result7[0].rows_unloaded == ROWS_COUNT
+    data7 = (
+        session.read.schema(schema)
+        .option("header", True)
+        .option("inferSchema", True)
+        .option("SEP", ":")
+        .option("quote", '"')
+        .csv(f"@{path7}")
+    )
+    Utils.check_answer(data7, df)
 
 
 @pytest.mark.skipif(

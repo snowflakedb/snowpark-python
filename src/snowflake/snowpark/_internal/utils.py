@@ -35,6 +35,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Set,
     Tuple,
     Type,
     Union,
@@ -150,7 +151,7 @@ GENERATED_PY_FILE_EXT = (".pyc", ".pyo", ".pyd", ".pyi")
 
 INFER_SCHEMA_FORMAT_TYPES = ("PARQUET", "ORC", "AVRO", "JSON", "CSV")
 
-COPY_OPTIONS = {
+COPY_INTO_TABLE_COPY_OPTIONS = {
     "ON_ERROR",
     "SIZE_LIMIT",
     "PURGE",
@@ -160,6 +161,14 @@ COPY_OPTIONS = {
     "TRUNCATECOLUMNS",
     "FORCE",
     "LOAD_UNCERTAIN_FILES",
+}
+
+COPY_INTO_LOCATION_COPY_OPTIONS = {
+    "OVERWRITE",
+    "SINGLE",
+    "MAX_FILE_SIZE",
+    "INCLUDE_QUERY_ID",
+    "DETAILED_OUTPUT",
 }
 
 NON_FORMAT_TYPE_OPTIONS = {
@@ -836,17 +845,38 @@ def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
         )
 
 
-def get_copy_into_table_options(
-    options: Dict[str, Any]
+def _get_options(
+    options: Dict[str, Any], allowed_options: Set[str]
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Helper method that extracts common logic for getting options for
+    COPY INTO TABLE and COPY INTO LOCATION command.
+    """
     file_format_type_options = options.get("FORMAT_TYPE_OPTIONS", {})
     copy_options = options.get("COPY_OPTIONS", {})
     for k, v in options.items():
-        if k in COPY_OPTIONS:
+        if k in allowed_options:
             copy_options[k] = v
         elif k not in NON_FORMAT_TYPE_OPTIONS:
             file_format_type_options[k] = v
     return file_format_type_options, copy_options
+
+
+def get_copy_into_table_options(
+    options: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Method that extracts options for COPY INTO TABLE command into file
+    format type options and copy options.
+    """
+    return _get_options(options, COPY_INTO_TABLE_COPY_OPTIONS)
+
+
+def get_copy_into_location_options(
+    options: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Method that extracts options for COPY INTO LOCATION command into file
+    format type options and copy options.
+    """
+    return _get_options(options, COPY_INTO_LOCATION_COPY_OPTIONS)
 
 
 def get_aliased_option_name(
