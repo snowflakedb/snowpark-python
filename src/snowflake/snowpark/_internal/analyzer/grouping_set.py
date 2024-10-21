@@ -13,10 +13,6 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     sum_node_complexities,
 )
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
-    PlanNodeCategory,
-    sum_node_complexities,
-)
 
 
 class GroupingSet(Expression):
