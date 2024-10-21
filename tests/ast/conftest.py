@@ -43,7 +43,7 @@ def pytest_configure(config):
     pytest.update_expectations = config.getoption("--update-expectations")
 
 
-class Tables:
+class TestTables:
     def __init__(self, session) -> None:
         self._session = session
 
