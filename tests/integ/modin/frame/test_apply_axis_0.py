@@ -3,11 +3,13 @@
 #
 
 import datetime
+import re
 
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from packaging.version import Version
 from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -20,6 +22,11 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+pytestmark = pytest.mark.skipif(
+    native_pd.__version__ == "2.2.3",
+    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+)
 
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
 BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
@@ -220,9 +227,13 @@ def test_axis_0_return_dataframe_not_supported():
 
     # Note that pands returns failure "ValueError: If using all scalar values, you must pass an index" which
     # doesn't explain this isn't supported.  We go with the default returned by pandas in this case.
-    with pytest.raises(
-        SnowparkSQLException, match="The truth value of a DataFrame is ambiguous."
-    ):
+    if Version(native_pd.__version__) > Version("2.2.1"):
+        expected_message = re.escape(
+            "Data must be 1-dimensional, got ndarray of shape (2, 1) instead"
+        )
+    else:
+        expected_message = "The truth value of a DataFrame is ambiguous."
+    with pytest.raises(SnowparkSQLException, match=expected_message):
         # return value
         snow_df.apply(lambda x: native_pd.DataFrame([1, 2]), axis=0).to_pandas()
 
