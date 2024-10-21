@@ -4,7 +4,7 @@
 import time
 from enum import Enum
 from logging import getLogger
-from typing import TYPE_CHECKING, Dict, Iterator, List, Literal, Optional, Union
+from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
@@ -176,7 +176,6 @@ class AsyncJob:
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         num_statements: Optional[int] = None,
-        placeholders: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> None:
         self.query_id: str = query_id  #: The query ID of the executed query
@@ -194,7 +193,6 @@ class AsyncJob:
         self._inserted = False
         self._updated = False
         self._deleted = False
-        self._placeholders = placeholders
 
     @property
     def query(self) -> Optional[str]:
@@ -407,12 +405,8 @@ class AsyncJob:
             else:
                 raise ValueError(f"{async_result_type} is not supported")
         for action in self._post_actions:
-            query = action.sql
-            if self._placeholders:
-                for holder, id_ in self._placeholders.items():
-                    query = query.replace(holder, id_)
             self._session._conn.run_query(
-                query,
+                action.sql,
                 is_ddl_on_temp_object=action.is_ddl_on_temp_object,
                 log_on_exception=self._log_on_exception,
                 **self._parameters,
