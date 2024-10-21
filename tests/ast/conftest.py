@@ -156,7 +156,7 @@ def session():
 
 @pytest.fixture(scope="function")
 def tables(session):
-    return Tables(session)
+    return TestTables(session)
 
 
 def pytest_sessionstart(session):
