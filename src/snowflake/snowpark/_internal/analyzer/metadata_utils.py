@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, NamedTuple, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression, Star
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import Limit, LogicalPlan
@@ -12,6 +12,11 @@ if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 
 
+class PlanMetadata(NamedTuple):
+    attributes: Optional[List[Attribute]]
+    quoted_identifiers: Optional[List[str]]
+
+
 def infer_quoted_identifiers_from_expressions(
     expressions: List[Expression],
     analyzer: "Analyzer",
@@ -19,6 +24,8 @@ def infer_quoted_identifiers_from_expressions(
 ) -> Optional[List[str]]:
     """
     Infer quoted identifiers from (named) expressions.
+    The list of quoted identifier will be only returned
+    if and only if the identifier can be derived from all expressions.
     """
     from snowflake.snowpark._internal.analyzer.select_statement import parse_column_name
     from snowflake.snowpark._internal.utils import quote_name
@@ -44,7 +51,7 @@ def infer_metadata(
     source_plan: LogicalPlan,
     analyzer: "Analyzer",
     df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
-) -> Tuple[Optional[List[Attribute]], Optional[List[str]]]:
+) -> PlanMetadata:
     """
     Infer metadata from the source plan.
     Returns the metadata including attributes (schema) and quoted identifiers (column names).
@@ -82,7 +89,8 @@ def infer_metadata(
         # When attributes is cached on source_plan, just use it
         if source_plan._attributes is not None:
             attributes = source_plan._attributes
-        # When _column_states.projection is available, just use it, which is
+        # When _column_states.projection is available, we can just use it,
+        # which is either (only one happen):
         # 1) cached on self._snowflake_plan._quoted_identifiers
         # 2) inferred in `derive_column_states_from_subquery` during `select()` call
         if source_plan._column_states is not None:
@@ -100,7 +108,7 @@ def infer_metadata(
                 and source_plan.from_._snowflake_plan._attributes is not None
             ):
                 attributes = source_plan.from_._snowflake_plan._attributes
-            if (
+            elif (
                 quoted_identifiers is None
                 and source_plan.from_._snowflake_plan._quoted_identifiers is not None
             ):
@@ -113,4 +121,4 @@ def infer_metadata(
     if attributes is not None:
         quoted_identifiers = None
 
-    return attributes, quoted_identifiers
+    return PlanMetadata(attributes, quoted_identifiers)
