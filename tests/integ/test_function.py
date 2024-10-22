@@ -2265,6 +2265,7 @@ def test_ln(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
 )
+@pytest.mark.skip("SNOW-1758914 snowflake.cortex.summarize error on GCP")
 def test_snowflake_cortex_summarize(session):
     content = """In Snowpark, the main way in which you query and process data is through a DataFrame. This topic explains how to work with DataFrames.
 
@@ -2291,6 +2292,6 @@ The next sections explain these steps in more detail.
         0
     ][0]
     summary_from_str = df.select(snowflake_cortex_summarize(content)).collect()[0][0]
-    assert summary_from_col == summary_from_str
     # this length check is to get around the fact that this function may not be deterministic
+    assert 0 < len(summary_from_col) < len(content)
     assert 0 < len(summary_from_str) < len(content)
