@@ -221,9 +221,6 @@ class MockExecutionPlan(LogicalPlan):
         # dummy return
         return -1
 
-    def replace_repeated_subquery_with_cte(self):
-        return self
-
     @property
     def post_actions(self):
         return []
