@@ -31,6 +31,7 @@ def pytest_addoption(parser):
     parser.addoption("--enable_cte_optimization", action="store_true", default=False)
     parser.addoption("--multithreading_mode", action="store_true", default=False)
     parser.addoption("--skip_sql_count_check", action="store_true", default=False)
+    parser.addoption("--enable-ast", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
