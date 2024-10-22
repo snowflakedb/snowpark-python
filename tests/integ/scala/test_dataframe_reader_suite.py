@@ -167,6 +167,12 @@ def setup(session, resources_path, local_testing_mode):
     Utils.upload_to_stage(
         session,
         "@" + tmp_stage_name1,
+        test_files.test_file_csv_quotes_special,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
         test_files.test_file_csv_header,
         compress=False,
     )
