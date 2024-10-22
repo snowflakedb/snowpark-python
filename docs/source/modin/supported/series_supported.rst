@@ -216,7 +216,7 @@ Methods
 |                             |                                 |                                  | Note that supported functions are agg, count,      |
 |                             |                                 |                                  | cumcount, cummax, cummin, cumsum, first, last,     |
 |                             |                                 |                                  | max, mean, median, min, quantile, shift, size,     |
-|                             |                                 |                                  | std , sum, and var.
+|                             |                                 |                                  | std, sum, and var.                                 |
 |                             |                                 |                                  | Otherwise ``N``                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``gt``                      | P                               | ``level``                        |                                                    |
