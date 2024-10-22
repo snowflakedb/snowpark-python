@@ -50,7 +50,6 @@ DEVELOPMENT_REQUIREMENTS = [
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
-    "scikit-learn==1.5.2",  # snowpandas scikit-learn tests
 ]
 
 # read the version
@@ -121,6 +120,7 @@ setup(
             *DEVELOPMENT_REQUIREMENTS,
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
+            "scikit-learn==1.5.2",  # snowpandas scikit-learn tests
         ],
         "localtest": [
             "pandas",
