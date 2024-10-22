@@ -1,0 +1,19 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df = df.sample(n=3)
+
+df = df.sample(frac=0.5)
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df = df.sample(None, 3)
+
+df = df.sample(0.5, None)
+
+## EXPECTED ENCODED AST
+
+Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKPAo6Ciz6CCkKB4ICBAoCCAESAggDIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIECgJkZhgCIgIIAgpDCkEKM/oIMAoHggIECgIIAhoJCQAAAAAAAOA/IhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHRIECgJkZhgDIgIIAxABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==

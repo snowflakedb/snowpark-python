@@ -1,0 +1,57 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+df.create_or_replace_view("test_view", statement_params={"foo": "bar"})
+
+df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
+
+# TODO: remove the suppress check in `copy_into_table()`.
+# session.file.put(local_file_name="test.json", stage_location="test", auto_compress=False)
+# df2 = session.read.option("INFER_SCHEMA", True).json("@test/test.json")
+
+df.copy_into_table(
+    ["test_db", "test_schema", tables.table2],
+    files=["file1", "file2"],
+    pattern="[A-Z]+",
+    validation_mode="RETURN_ERRORS",
+    target_columns=["n", "str"],
+    transformations=[col("n") * 10, col("str")],
+    format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"},
+    statement_params={"foo": "bar"},
+    force=True,
+)
+
+df3 = df.cache_result()
+
+df4 = df.cache_result(statement_params={"foo": "bar"})
+
+df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+res1 = df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+res2 = df.create_or_replace_view("test_view", statement_params={"foo": "bar"})
+
+res3 = df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+res4 = df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
+
+res5 = df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
+
+df3 = df.cache_result()
+
+df4 = df.cache_result(statement_params={"foo": "bar"})
+
+res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo")
+
+## EXPECTED ENCODED AST
+
+Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKXApaClDyBk0KBQoDZm9vEgeCAgQKAggBIgd0ZXN0X2RiIgt0ZXN0X3NjaGVtYSIJdGVzdF92aWV3KhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIAGAIiAggCCksKSQo/8gY8EgeCAgQKAggBIgl0ZXN0X3ZpZXcqGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdMgoKA2ZvbxIDYmFyEgAYAyICCAMKXgpcClLyBk8KBQoDZm9vEgeCAgQKAggBGAEiB3Rlc3RfZGIiC3Rlc3Rfc2NoZW1hIgl0ZXN0X3ZpZXcqGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfEgAYBCICCAQKTQpLCkHyBj4SB4ICBAoCCAEYASIJdGVzdF92aWV3KhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoITIKCgNmb28SA2JhchIAGAUiAggFCpgECpUECooE2gaGBAoqCgVmb3JjZRIhygEeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoJxABEgeCAgQKAggBGgVmaWxlMRoFZmlsZTIiNAoLQ09NUFJFU1NJT04SJfoMIgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCcSBEdaSVAiNgoQUkVDT1JEX0RFTElNSVRFUhIi+gwfChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoJxIBfCoICgZbQS1aXSsyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgnOgoKA2ZvbxIDYmFyQgd0ZXN0X2RiQgt0ZXN0X3NjaGVtYUIGdGFibGUySgFuSgNzdHJSlQHqApEBClCSAU0KCxoJCgcKBQoDY29sGiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgtEgFuIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLRAKGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLVJSkgFPCgsaCQoHCgUKA2NvbBok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLRIDc3RyIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoLVoPCg1SRVRVUk5fRVJST1JTEgAYBiICCAYKOQo3CijCBiUKB4ICBAoCCAESGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgzEgUKA2RmMxgHIgIIBwpFCkMKNMIGMQoHggIECgIIARIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDUaCgoDZm9vEgNiYXISBQoDZGY0GAgiAggIClwKWgpQ6gZNCgUKA2ZvbxIHggIECgIIARoGMSBob3VyIg50ZXN0X2R5bl90YWJsZSoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKDc6B3Rlc3Rfd2gSABgJIgIICRABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
