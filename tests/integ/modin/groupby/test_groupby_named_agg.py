@@ -4,6 +4,7 @@
 import re
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 
@@ -127,3 +128,19 @@ def test_named_agg_with_invalid_function_raises_not_implemented(
         pd.DataFrame(basic_df_data).groupby("col1").agg(
             c1=("col2", "min"), c2=("col2", "random_function")
         )
+
+
+@sql_count_checker(query_count=1)
+def test_named_agg_count_vs_size():
+    data = [[1, 2, 3], [1, 5, np.nan], [7, np.nan, 9]]
+    native_df = native_pd.DataFrame(
+        data, columns=["a", "b", "c"], index=["owl", "toucan", "eagle"]
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby("a").agg(
+            l=("b", "size"), j=("c", "size"), m=("c", "count"), n=("b", "count")
+        ),
+    )
