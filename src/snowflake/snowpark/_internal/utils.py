@@ -724,10 +724,11 @@ def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:
                 pass
     finally:
         if session is None:
-            logging.debug(
-                f"Could not retrieve default session "
-                f"for function {func.__qualname__}, capturing AST by default."
-            )
+            # This interferes with doctests, do not print.
+            # logging.debug(
+            #    f"Could not retrieve default session "
+            #    f"for function {func.__qualname__}, capturing AST by default."
+            # )
             # session has not been created yet. To not lose information, always encode AST.
             return True  # noqa: B012
         else:
