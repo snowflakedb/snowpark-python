@@ -103,7 +103,7 @@ def test_groupby_size(by, as_index):
 )
 @pytest.mark.parametrize("as_index", [True, False])
 def test_groupby_agg_size(by, as_index):
-    snowpark_pandas_df = pd.DataFrame(
+    pandas_df = native_pd.DataFrame(
         {
             "col1_grp": ["g1", "g2", "g0", "g0", "g2", "g3", "g0", "g2", "g3"],
             "col2_int64": np.arange(9, dtype="int64") // 3,
@@ -142,7 +142,7 @@ def test_groupby_agg_size(by, as_index):
             ),
         }
     )
-    pandas_df = snowpark_pandas_df.to_pandas()
+    snowpark_pandas_df = pd.DataFrame(pandas_df)
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snowpark_pandas_df,
