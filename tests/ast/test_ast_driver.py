@@ -24,6 +24,8 @@ from dateutil.tz import tzlocal
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
+_logger = logging.getLogger(__name__)
+
 TEST_DIR = pathlib.Path(__file__).parent
 
 DATA_DIR = TEST_DIR / "data"
@@ -208,7 +210,7 @@ def ClearTempTables(message: proto.Request) -> None:
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, tables, test_case):
-    logging.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
+    _logger.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
 
     actual, base64_str = run_test(
         session, tables, test_case.filename.replace(".", "_"), test_case.source
@@ -273,7 +275,7 @@ def test_ast(session, tables, test_case):
                 line for line in differ.compare(actual_lines, expected_lines)
             ]
 
-            logging.error(
+            _logger.error(
                 "expected vs. actual encoded protobuf:\n" + "\n".join(diffed_lines)
             )
 
@@ -288,7 +290,7 @@ def override_time_zone(tz_name: str = "EST") -> None:
 
     tz = dateutil.tz.gettz(tz_name)
     tz_code = tz.tzname(datetime.datetime.now())
-    logging.debug(f"Overriding time zone to {tz_name} ({tz_code}).")
+    _logger.debug(f"Overriding time zone to {tz_name} ({tz_code}).")
 
     if platform.system() != "Windows":
         # This works only under Unix systems.
@@ -311,7 +313,7 @@ def override_time_zone(tz_name: str = "EST") -> None:
         # Possible modification code (not working):
         # Use direct msvcrt.dll override (only for this process, does not work for child processes).
         # cf. https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/tzset?view=msvc-170
-        logging.debug(
+        _logger.debug(
             f"Windows current time (before msvcrt set): {datetime.datetime.now()}"
         )
 
@@ -320,18 +322,18 @@ def override_time_zone(tz_name: str = "EST") -> None:
         cdll.msvcrt._putenv(f"TZ={tz_code}")
         cdll.msvcrt._tzset()
         # If working, we would expect this to show output adjusted to the timezone referred to by tz_code.
-        logging.debug(
+        _logger.debug(
             f"Windows current time (after msvcrt set): {datetime.datetime.now()}"
         )
         # Other python libraries would have been updated then as well.
         from tzlocal import get_localzone
 
-        logging.debug(
+        _logger.debug(
             f"Windows: tzlocal={get_localzone()} TZ={env_tz}, will be using TZ when encoding for AST."
         )
 
     tz_name = datetime.datetime.now(tzlocal()).tzname()
-    logging.debug(f"Local time zone is now: {tz_name}.")
+    _logger.debug(f"Local time zone is now: {tz_name}.")
 
 
 if __name__ == "__main__":
