@@ -1,0 +1,19 @@
+## TEST CASE
+
+df1 = session.table(tables.table1)
+
+df2 = session.table(tables.table1)
+
+df1.cross_join(df2, lsuffix="_t1", rsuffix="_t2").select('*')
+
+## EXPECTED UNPARSER OUTPUT
+
+df1 = session.table("table1")
+
+df2 = session.table("table1")
+
+res2 = df1.cross_join(df2, lsuffix="_t1", rsuffix="_t2").select("*")
+
+## EXPECTED ENCODED AST
+
+CkAKPgovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBQoDZGYxGAEiAggBCkAKPgovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGyICCAESBQoDZGYyGAIiAggCCksKSQo/+gY8CgeCAgQKAggBEgUKA190MRoHggIECgIIAiIFCgNfdDIqGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEgAYAyICCAMKWgpYCk6CCUsKIqoFHxIBKhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SB4ICBAoCCAMaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdIAESABgEIgIIBBABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==

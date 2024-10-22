@@ -1,0 +1,14 @@
+## TEST CASE
+
+df = session.table(tables.double_quoted_table)
+df = df.select("num")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\"")
+
+df = df.select(col("num"))
+
+## EXPECTED ENCODED AST
+
+Cl8KXQpPggxMEioKKAomInRoZSNxdWkuY2sjYnJvLnduIyIiRm94IiJ3b24ndCNqdW1wISIaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZIgIIARIECgJkZhgBIgIIAQqPAQqMAQp+ggl7ClKSAU8KCxoJCgcKBQoDY29sGiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgaEgNudW0iGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgaEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGiABEgQKAmRmGAIiAggCEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
