@@ -50,6 +50,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
+    "sklearn",  # snowpandas scikit-learn tests
 ]
 
 # read the version
