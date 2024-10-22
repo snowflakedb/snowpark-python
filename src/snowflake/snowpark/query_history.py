@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+from abc import abstractmethod
 from typing import List, NamedTuple
 
 import snowflake.snowpark
