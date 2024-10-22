@@ -490,7 +490,17 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
     with caplog.at_level(logging.DEBUG):
         with session.query_history() as history:
             with SqlCounter(query_count=2, describe_count=0):
-                large_query_df.collect()
+                with patch.object(
+                    session._conn._telemetry_client,
+                    "send_query_compilation_summary_telemetry",
+                ) as patch_send:
+                    large_query_df.collect()
+
+    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+        "active transaction": 1,
+    }
+
     assert len(history.queries) == 2, history.queries
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
     assert "Skipping large query breakdown" in caplog.text
@@ -508,20 +518,38 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
         session.sql("select 1 as a, 2 as b").write.save_as_table(source_table)
         df = session.table(source_table)
         with caplog.at_level(logging.DEBUG):
-            df.create_or_replace_dynamic_table(
-                table_name, warehouse=session.get_current_warehouse(), lag="20 minutes"
-            )
+            with patch.object(
+                session._conn._telemetry_client,
+                "send_query_compilation_summary_telemetry",
+            ) as patch_send:
+                df.create_or_replace_dynamic_table(
+                    table_name,
+                    warehouse=session.get_current_warehouse(),
+                    lag="20 minutes",
+                )
         assert (
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
+        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+            "view or dynamic table command": 1,
+        }
 
         with caplog.at_level(logging.DEBUG):
-            df.create_or_replace_view(view_name)
+            with patch.object(
+                session._conn._telemetry_client,
+                "send_query_compilation_summary_telemetry",
+            ) as patch_send:
+                df.create_or_replace_view(view_name)
         assert (
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
+        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+            "view or dynamic table command": 1,
+        }
     finally:
         Utils.drop_dynamic_table(session, table_name)
         Utils.drop_view(session, view_name)

@@ -69,14 +69,18 @@ class LargeQueryBreakdownResult:
     logical_plans: List[LogicalPlan]
     # breakdown summary for each root plan
     breakdown_summary: List[Dict[str, int]]
+    # skipped summary for each root plan
+    skipped_summary: Dict[str, int]
 
     def __init__(
         self,
         logical_plans: List[LogicalPlan],
         breakdown_summary: List[dict],
+        skipped_summary: Dict[str, int],
     ) -> None:
         self.logical_plans = logical_plans
         self.breakdown_summary = breakdown_summary
+        self.skipped_summary = skipped_summary
 
 
 class LargeQueryBreakdown:
@@ -144,6 +148,9 @@ class LargeQueryBreakdown:
         # partition could not proceed, it contains how the nodes in this partitions
         # were classified.
         self._breakdown_summary: list = list()
+        # This is used to track the summary of reason why the optimization was skipped
+        # on a root plan.
+        self._skipped_summary: dict = defaultdict(int)
 
     def apply(self) -> LargeQueryBreakdownResult:
         if is_active_transaction(self.session):
@@ -151,11 +158,11 @@ class LargeQueryBreakdown:
             _logger.debug(
                 "Skipping large query breakdown optimization due to active transaction."
             )
-            self.session._conn._telemetry_client.send_large_query_optimization_skipped_telemetry(
-                self.session.session_id,
-                SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION.value,
+            return LargeQueryBreakdownResult(
+                self.logical_plans,
+                [],
+                {SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION.value: 1},
             )
-            return LargeQueryBreakdownResult(self.logical_plans, [])
 
         resulting_plans = []
         for logical_plan in self.logical_plans:
@@ -166,7 +173,9 @@ class LargeQueryBreakdown:
             partition_plans = self._try_to_breakdown_plan(resolved_plan)
             resulting_plans.extend(partition_plans)
 
-        return LargeQueryBreakdownResult(resulting_plans, self._breakdown_summary)
+        return LargeQueryBreakdownResult(
+            resulting_plans, self._breakdown_summary, self._skipped_summary
+        )
 
     def _try_to_breakdown_plan(self, root: TreeNode) -> List[LogicalPlan]:
         """Method to breakdown a single plan into smaller partitions based on
@@ -195,10 +204,9 @@ class LargeQueryBreakdown:
             _logger.debug(
                 "Skipping large query breakdown optimization for view/dynamic table plan."
             )
-            self.session._conn._telemetry_client.send_large_query_optimization_skipped_telemetry(
-                self.session.session_id,
-                SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE.value,
-            )
+            self._skipped_summary[
+                SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE.value
+            ] += 1
             return [root]
 
         complexity_score = get_complexity_score(root)
@@ -215,13 +223,7 @@ class LargeQueryBreakdown:
             if child is None:
                 final_partition_breakdown_summary = {
                     k.value: validity_statistics.get(k, 0)
-                    for k in [
-                        InvalidNodesInBreakdownCategory.SCORE_BELOW_LOWER_BOUND,
-                        InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND,
-                        InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER,
-                        InvalidNodesInBreakdownCategory.EXTERNAL_CTE_REF,
-                        InvalidNodesInBreakdownCategory.VALID_NODE,
-                    ]
+                    for k in InvalidNodesInBreakdownCategory
                 }
                 _logger.debug(
                     f"Could not find a valid node for partitioning. "

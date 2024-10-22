@@ -474,20 +474,6 @@ class TelemetryClient:
         }
         self.send(message)
 
-    def send_large_query_optimization_skipped_telemetry(
-        self, session_id: int, reason: str
-    ) -> None:
-        message = {
-            **self._create_basic_telemetry_data(
-                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value
-            ),
-            TelemetryField.KEY_DATA.value: {
-                TelemetryField.SESSION_ID.value: session_id,
-                CompilationStageTelemetryField.KEY_REASON.value: reason,
-            },
-        }
-        self.send(message)
-
     def send_temp_table_cleanup_telemetry(
         self,
         session_id: str,
