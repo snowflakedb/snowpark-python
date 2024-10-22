@@ -42,14 +42,12 @@ binary_operations = [
 
 WITH = "WITH"
 
-paramList = [False, True]
 
-
-@pytest.fixture(params=paramList, autouse=True)
+@pytest.fixture(autouse=True)
 def setup(request, session):
     is_cte_optimization_enabled = session._cte_optimization_enabled
     is_query_compilation_enabled = session._query_compilation_stage_enabled
-    session._query_compilation_stage_enabled = request.param
+    session._query_compilation_stage_enabled = True
     session._cte_optimization_enabled = True
     yield
     session._cte_optimization_enabled = is_cte_optimization_enabled
@@ -291,11 +289,6 @@ def test_variable_binding_binary(session, type, action):
 
 
 def test_variable_binding_multiple(session):
-    if not session._query_compilation_stage_enabled:
-        pytest.skip(
-            "CTE query generation without the new query generation doesn't work correctly"
-        )
-
     df1 = session.sql(
         "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]
     )
@@ -724,11 +717,6 @@ def test_table(session):
     ],
 )
 def test_sql(session, query):
-    if not session._query_compilation_stage_enabled:
-        pytest.skip(
-            "CTE query generation without the new query generation doesn't work correctly"
-        )
-
     df = session.sql(query).filter(lit(True))
     df_result = df.union_all(df).select("*")
     expected_query_count = 1
