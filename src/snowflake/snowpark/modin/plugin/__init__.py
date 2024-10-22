@@ -21,6 +21,7 @@ install_msg = 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 # since modin may raise its own warnings/errors on the wrong pandas version
 import pandas  # isort: skip  # noqa: E402
 
+# TODO SNOW-1758773: perform version check in modin instead
 supported_pandas_major_version = 2
 supported_pandas_minor_version = 2
 actual_pandas_version = version.parse(pandas.__version__)
