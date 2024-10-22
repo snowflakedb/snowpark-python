@@ -62,7 +62,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import QueryHistory, QueryListener, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
@@ -181,7 +181,7 @@ class ServerConnection:
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
         self._telemetry_client = TelemetryClient(self._conn)
-        self._query_listener: Set[QueryHistory] = set()
+        self._query_listeners: Set[QueryListener] = set()
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
@@ -229,11 +229,11 @@ class ServerConnection:
 
     def add_query_listener(self, listener: QueryHistory) -> None:
         with self._lock:
-            self._query_listener.add(listener)
+            self._query_listeners.add(listener)
 
     def remove_query_listener(self, listener: QueryHistory) -> None:
         with self._lock:
-            self._query_listener.remove(listener)
+            self._query_listeners.remove(listener)
 
     def close(self) -> None:
         if self._conn:
@@ -268,15 +268,15 @@ class ServerConnection:
         )
 
     def _run_new_describe(
-        self, cursor: SnowflakeCursor, query: str
+        self, cursor: SnowflakeCursor, query: str, **kwargs: dict
     ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
         result_metadata = run_new_describe(cursor, query)
 
         with self._lock:
             for listener in filter(
-                lambda listener: hasattr(listener, "include_describe")
-                and listener.include_describe,
-                self._query_listener,
+                lambda observer: hasattr(observer, "include_describe")
+                and observer.include_describe,
+                self._query_listeners,
             ):
                 thread_id = (
                     threading.get_ident()
@@ -286,7 +286,7 @@ class ServerConnection:
                 query_record = QueryRecord(
                     cursor.sfqid, query, True, thread_id=thread_id
                 )
-                listener._add_query(query_record)
+                listener._notify(query_record, kwargs)
 
         return result_metadata
 
@@ -402,9 +402,9 @@ class ServerConnection:
             else:
                 raise ex
 
-    def notify_query_listeners(self, query_record: QueryRecord) -> None:
+    def notify_query_listeners(self, query_record: QueryRecord, **kwargs) -> None:
         with self._lock:
-            for listener in self._query_listener:
+            for listener in self._query_listeners:
                 if getattr(listener, "include_thread_id", False):
                     new_record = QueryRecord(
                         query_record.query_id,
@@ -412,16 +412,21 @@ class ServerConnection:
                         query_record.is_describe,
                         thread_id=threading.get_ident(),
                     )
-                    listener._add_query(new_record)
+                    listener._notify(new_record, **kwargs)
                 else:
-                    listener._add_query(query_record)
+                    listener._notify(query_record, **kwargs)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
+
         results_cursor = self._cursor.execute(query, **kwargs)
+        notify_kwargs = {"requestId": str(results_cursor._request_id)}
+        if "_dataframe_ast" in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
+
         self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
+            QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )
         return results_cursor
 
