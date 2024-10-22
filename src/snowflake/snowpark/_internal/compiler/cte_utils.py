@@ -5,15 +5,10 @@
 import hashlib
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Optional, Set, Union
+from typing import Optional, Set
 
+from snowflake.snowpark._internal.compiler.utils import TreeNode
 from snowflake.snowpark._internal.utils import is_sql_select_statement
-
-if TYPE_CHECKING:
-    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
-    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-
-    TreeNode = Union[SnowflakePlan, Selectable]
 
 
 def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
