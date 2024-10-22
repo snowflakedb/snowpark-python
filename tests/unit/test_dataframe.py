@@ -19,7 +19,6 @@ from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
-from snowflake.snowpark._internal.ast import AstBatch
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
