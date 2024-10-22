@@ -505,6 +505,10 @@ def create_udtf_for_groupby_apply(
 
     data_column_index = try_convert_index_to_native(data_column_index)
 
+    # Get the length of this list outside of the vUDTF function because the vUDTF
+    # doesn't have access to the Snowpark module, which defines these types.
+    num_by = len(by_types)
+
     class ApplyFunc:
         def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
             """
