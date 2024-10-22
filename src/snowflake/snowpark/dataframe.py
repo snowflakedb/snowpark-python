@@ -5,7 +5,6 @@
 
 import copy
 import itertools
-import logging
 import re
 import sys
 from collections import Counter
@@ -4525,7 +4524,7 @@ class DataFrame:
             isinstance(self._session._conn, MockServerConnection)
             and self._session._conn._suppress_not_implemented_error
         ):
-            logging.error(
+            _logger.error(
                 "create_or_replace_dynamic_table not supported in local testing mode, returning empty result."
             )
             # Allow AST tests to pass.
