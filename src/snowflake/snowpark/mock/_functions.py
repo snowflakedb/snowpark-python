@@ -4,6 +4,7 @@
 import base64
 import binascii
 import datetime
+import decimal
 import json
 import math
 import numbers
@@ -191,6 +192,72 @@ class MockedFunctionRegistry:
                 del self._registry[name]
 
 
+_DEFAULT_OUTPUT_FORMAT = {
+    DateType: "YYYY-MM-DD",
+    TimeType: "HH24:MI:SS",
+    TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
+}
+
+
+class MockedFunction:
+    def __init__(
+        self,
+        name: str,
+        func_implementation: Callable,
+        distinct: Optional["MockedFunction"] = None,
+        pass_column_index: Optional[bool] = None,
+        pass_row_index: Optional[bool] = None,
+        pass_input_data: Optional[bool] = None,
+    ) -> None:
+        self.name = name
+        self.impl = func_implementation
+        self.distinct = distinct or self
+        self._pass_row_index = pass_row_index
+        self._pass_column_index = pass_column_index
+        self._pass_input_data = pass_input_data
+
+    def _check_constant_result(self, input_data, args, result):
+        # This function helps automaticallly fill a column with a constant value in certain
+        # circumstances. Ideally a mocked function would enable pass_index and generate it's own
+        # column filled with constant values, but this works as well as a fallback.
+
+        # If none of the args are column emulators and the function result only has one item
+        # assume that the single value should be repeated instead of Null filled. This allows
+        # constant expressions like current_date or current_database to fill a column instead
+        # of just the first row.
+        if (
+            not any(isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in args)
+            and len(result) == 1
+        ):
+            resized = result.repeat(len(input_data)).reset_index(drop=True)
+            resized.sf_type = result.sf_type
+            return resized
+
+        return result
+
+    def __call__(self, *args, input_data=None, row_number=None, **kwargs):
+
+        if self._pass_input_data:
+            kwargs["raw_input"] = input_data
+        if self._pass_row_index:
+            kwargs["row_index"] = list(input_data.index).index(row_number)
+        if self._pass_column_index:
+            kwargs["column_index"] = input_data.index
+
+        result = self.impl(*args, **kwargs)
+
+        if (
+            input_data is not None
+            and not self._pass_column_index
+            and not self._pass_row_index
+        ):
+            return self._check_constant_result(
+                input_data, args + tuple(kwargs.values()), result
+            )
+
+        return result
+
+
 class LocalTimezone:
     """
     A singleton class that encapsulates conversion to the local timezone.
@@ -329,8 +396,10 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
 
     notna = column[~column.isna()]
     res = notna.mean()
-    if isinstance(res_type, Decimal):
-        res = round(res, scale)
+    if isinstance(res_type, DecimalType):
+        fmt_string = f"{{:.{res_type.scale}f}}"
+        res_formatted = fmt_string.format(res)
+        res = decimal.Decimal(res_formatted)
     return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
 
 
@@ -2033,7 +2102,7 @@ def cast_column_to(
         target_data_type, _IntegralType
     ):  # includes ByteType, ShortType, IntegerType, LongType
         res = mock_to_decimal(col, try_cast=try_cast)
-        res.set_sf_type(ColumnType(target_data_type, nullable=True))
+        res.sf_type = ColumnType(target_data_type, nullable=True)
         return res
     if isinstance(target_data_type, BinaryType):
         return mock_to_binary(col, try_cast=try_cast)
