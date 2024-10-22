@@ -5,12 +5,12 @@
 from collections import defaultdict
 from typing import Dict, List, Optional, Set
 
-from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     WithQueryBlock,
 )
+from snowflake.snowpark._internal.compiler.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,

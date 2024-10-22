@@ -119,6 +119,29 @@ def test_np_ufunc_binop_operators(np_ufunc):
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
 
+@pytest.mark.parametrize(
+    "np_ufunc",
+    [
+        np.log,
+        np.log2,
+        np.log10,
+    ],
+)
+def test_np_ufunc_unary_operators(np_ufunc):
+    data = {
+        "A": [3, 1, 2, 2, 1, 2, 5, 1, 2],
+        "B": [1, 2, 3, 4, 1, 2, 3, 4, 1],
+    }
+    snow_df = pd.DataFrame(data)
+    pandas_df = native_pd.DataFrame(data)
+
+    with SqlCounter(query_count=1):
+        # Test numpy ufunc with scalar
+        snow_result = np_ufunc(snow_df["A"])
+        pandas_result = np_ufunc(pandas_df["A"])
+        assert_almost_equal(np.array(snow_result), np.array(pandas_result))
+
+
 # The query count here is from the argument logging performed by numpy on error
 @sql_count_checker(query_count=2)
 def test_np_ufunc_notimplemented():

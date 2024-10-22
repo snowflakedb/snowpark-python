@@ -123,7 +123,6 @@ def verify_snowflake_plan(plan: SnowflakePlan, expected_plan: SnowflakePlan) -> 
         plan.df_aliased_col_name_to_real_col_name
         == expected_plan.df_aliased_col_name_to_real_col_name
     )
-    assert plan.placeholder_query == expected_plan.placeholder_query
     assert plan.referenced_ctes == expected_plan.referenced_ctes
     assert plan._cumulative_node_complexity == expected_plan._cumulative_node_complexity
     assert plan.source_plan is not None
@@ -157,7 +156,6 @@ def test_logical_plan(
             source_plan=src_join_plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
     else:
@@ -286,7 +284,6 @@ def test_selectable_entity(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
@@ -318,7 +315,6 @@ def test_select_sql(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
@@ -355,7 +351,6 @@ def test_select_snowflake_plan(
         source_plan=project_plan,
         api_calls=None,
         df_aliased_col_name_to_real_col_name=None,
-        placeholder_query=None,
         session=mock_session,
     )
 
@@ -370,7 +365,6 @@ def test_select_snowflake_plan(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
@@ -421,7 +415,6 @@ def test_select_statement(
             source_plan=None,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         ),
         analyzer=mock_analyzer,
@@ -437,7 +430,6 @@ def test_select_statement(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
@@ -486,7 +478,6 @@ def test_select_table_function(
         source_plan=project_plan,
         api_calls=None,
         df_aliased_col_name_to_real_col_name=None,
-        placeholder_query=None,
         session=mock_session,
     )
     plan = SelectTableFunction(
@@ -503,7 +494,6 @@ def test_select_table_function(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
@@ -561,7 +551,6 @@ def test_set_statement(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 

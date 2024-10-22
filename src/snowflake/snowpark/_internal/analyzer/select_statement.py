@@ -22,10 +22,6 @@ from typing import (
 )
 
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.cte_utils import (
-    encode_node_id_with_query,
-    encoded_query_id,
-)
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
@@ -38,6 +34,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer.window_expression import WindowExpression
+from snowflake.snowpark._internal.compiler.cte_utils import encode_node_id_with_query
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.types import DataType
 
@@ -248,12 +245,6 @@ class Selectable(LogicalPlan, ABC):
         """Returns the sql query of this Selectable logical plan."""
         pass
 
-    @property
-    @abstractmethod
-    def placeholder_query(self) -> Optional[str]:
-        """Returns the placeholder query of this Selectable logical plan."""
-        pass
-
     @cached_property
     def encoded_node_id_with_query(self) -> str:
         """
@@ -264,11 +255,6 @@ class Selectable(LogicalPlan, ABC):
         elimination to detect two nodes with same query, please use it with careful.
         """
         return encode_node_id_with_query(self)
-
-    @cached_property
-    def encoded_query_id(self) -> Optional[str]:
-        """Returns an encoded id of the queries for this Selectable logical plan."""
-        return encoded_query_id(self)
 
     @property
     @abstractmethod
@@ -321,7 +307,6 @@ class Selectable(LogicalPlan, ABC):
                 expr_to_alias=self.expr_to_alias,
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
-                placeholder_query=self.placeholder_query,
                 referenced_ctes=self.referenced_ctes,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
@@ -420,10 +405,6 @@ class SelectableEntity(Selectable):
         return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
 
     @property
-    def placeholder_query(self) -> Optional[str]:
-        return None
-
-    @property
     def sql_in_subquery(self) -> str:
         return self.entity.name
 
@@ -506,10 +487,6 @@ class SelectSQL(Selectable):
         return self._sql_query
 
     @property
-    def placeholder_query(self) -> Optional[str]:
-        return None
-
-    @property
     def query_params(self) -> Optional[Sequence[Any]]:
         return self._query_param
 
@@ -583,14 +560,6 @@ class SelectSnowflakePlan(Selectable):
         return self._snowflake_plan.queries[-1].sql
 
     @property
-    def placeholder_query(self) -> Optional[str]:
-        return self._snowflake_plan.placeholder_query
-
-    @cached_property
-    def encoded_query_id(self) -> Optional[str]:
-        return self._snowflake_plan.encoded_query_id
-
-    @property
     def schema_query(self) -> Optional[str]:
         return self.snowflake_plan.schema_query
 
@@ -659,7 +628,6 @@ class SelectStatement(Selectable):
         self.api_calls = (
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
-        self._placeholder_query = None
         # indicate whether we should try to merge the projection complexity of the current
         # SelectStatement with the projection complexity of from_ during the calculation of
         # node complexity. For example:
@@ -812,46 +780,6 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         from_clause = self.from_.sql_in_subquery
-        if (
-            self.analyzer.session._cte_optimization_enabled
-            and (not self.analyzer.session._query_compilation_stage_enabled)
-            and self.from_.encoded_query_id
-        ):
-            placeholder = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_query_id}{analyzer_utils.RIGHT_PARENTHESIS}"
-            self._sql_query = self.placeholder_query.replace(placeholder, from_clause)
-        else:
-            where_clause = (
-                f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
-                if self.where is not None
-                else snowflake.snowpark._internal.utils.EMPTY_STRING
-            )
-            order_by_clause = (
-                f"{analyzer_utils.ORDER_BY}{analyzer_utils.COMMA.join(self.analyzer.analyze(x, self.df_aliased_col_name_to_real_col_name) for x in self.order_by)}"
-                if self.order_by
-                else snowflake.snowpark._internal.utils.EMPTY_STRING
-            )
-            limit_clause = (
-                f"{analyzer_utils.LIMIT}{self.limit_}"
-                if self.limit_ is not None
-                else snowflake.snowpark._internal.utils.EMPTY_STRING
-            )
-            offset_clause = (
-                f"{analyzer_utils.OFFSET}{self.offset}"
-                if self.offset
-                else snowflake.snowpark._internal.utils.EMPTY_STRING
-            )
-            self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
-        return self._sql_query
-
-    @property
-    def placeholder_query(self) -> str:
-        if self._placeholder_query:
-            return self._placeholder_query
-        from_clause = f"{analyzer_utils.LEFT_PARENTHESIS}{self.from_.encoded_query_id}{analyzer_utils.RIGHT_PARENTHESIS}"
-        if not self.has_clause and not self.projection:
-            self._placeholder_query = from_clause
-            return self._placeholder_query
-
         where_clause = (
             f"{analyzer_utils.WHERE}{self.analyzer.analyze(self.where, self.df_aliased_col_name_to_real_col_name)}"
             if self.where is not None
@@ -872,8 +800,8 @@ class SelectStatement(Selectable):
             if self.offset
             else snowflake.snowpark._internal.utils.EMPTY_STRING
         )
-        self._placeholder_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
-        return self._placeholder_query
+        self._sql_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}{where_clause}{order_by_clause}{limit_clause}{offset_clause}"
+        return self._sql_query
 
     @property
     def query_params(self) -> Optional[Sequence[Any]]:
@@ -1380,10 +1308,6 @@ class SelectTableFunction(Selectable):
         return self._snowflake_plan.queries[-1].sql
 
     @property
-    def placeholder_query(self) -> Optional[str]:
-        return self._snowflake_plan.placeholder_query
-
-    @property
     def schema_query(self) -> Optional[str]:
         return self._snowflake_plan.schema_query
 
@@ -1427,7 +1351,6 @@ class SetStatement(Selectable):
     def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
         self._sql_query = None
-        self._placeholder_query = None
         self.set_operands = set_operands
         self._nodes = []
         for operand in set_operands:
@@ -1450,7 +1373,6 @@ class SetStatement(Selectable):
             *deepcopy(self.set_operands, memodict), analyzer=self.analyzer
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-        copied._placeholder_query = self._placeholder_query
         copied._sql_query = self._sql_query
 
         return copied
@@ -1463,15 +1385,6 @@ class SetStatement(Selectable):
                 sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.sql_query})"
             self._sql_query = sql
         return self._sql_query
-
-    @property
-    def placeholder_query(self) -> Optional[str]:
-        if not self._placeholder_query:
-            sql = f"({self.set_operands[0].selectable.encoded_query_id})"
-            for i in range(1, len(self.set_operands)):
-                sql = f"{sql}{self.set_operands[i].operator}({self.set_operands[i].selectable.encoded_query_id})"
-            self._placeholder_query = sql
-        return self._placeholder_query
 
     @property
     def schema_query(self) -> str:
