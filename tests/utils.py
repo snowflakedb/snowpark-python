@@ -12,7 +12,7 @@ import string
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import List, NamedTuple, Optional, Union
 
@@ -82,6 +82,14 @@ IS_IN_STORED_PROC = is_in_stored_procedure()
 IS_NOT_ON_GITHUB = os.getenv("GITHUB_ACTIONS") != "true"
 # this env variable is set in regression test
 IS_IN_STORED_PROC_LOCALFS = IS_IN_STORED_PROC and os.getenv("IS_LOCAL_FS")
+# SNOW-1348805: Structured types have not been rolled out to all accounts yet.
+# Once rolled out this should be updated to include all accounts.
+STRUCTURED_TYPE_ENVIRONMENTS = {"dev", "aws"}
+IS_STRUCTURED_TYPES_SUPPORTED = (
+    os.getenv("cloud_provider", "dev") in STRUCTURED_TYPE_ENVIRONMENTS
+)
+ICEBERG_ENVIRONMENTS = {"dev", "aws"}
+IS_ICEBERG_SUPPORTED = os.getenv("cloud_provider", "dev") in ICEBERG_ENVIRONMENTS
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
@@ -1565,3 +1573,30 @@ def check_tracing_span_answers(results: list, expected_answer: tuple):
             if check_tracing_span_single_answer(result[1], expected_answer[1]):
                 return True
     return False
+
+
+def local_to_utc_offset_in_hours():
+    """In tests on CI UTC is assumed. However, when comparing dates these are returned in local timezone format.
+    Adjust expectations with this localization function.
+    Returns difference between UTC and current, local timezone."""
+    offset = datetime.now(timezone.utc).astimezone().tzinfo.utcoffset(datetime.now())
+    if offset.days < 0:
+        return -(24 - offset.seconds / 3600)
+    else:
+        return offset.seconds / 3600
+
+
+def add_to_time(t: datetime.time, delta: timedelta) -> time:
+    """datetime.time does not support +, implement this here."""
+    now = datetime.now()
+    dt = datetime(
+        now.year,
+        now.month,
+        now.day,
+        hour=t.hour,
+        minute=t.minute,
+        second=t.second,
+        microsecond=t.microsecond,
+    )
+    ans = dt + delta
+    return time(ans.hour, ans.minute, ans.second, ans.microsecond)
