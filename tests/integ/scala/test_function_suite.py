@@ -1522,6 +1522,7 @@ def test_to_time(session, local_testing_mode):
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+6")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(
                     2017, 2, 24, 12, 0, 0, 456000, tzinfo=pytz.timezone("Etc/GMT+8")
@@ -4066,7 +4067,7 @@ def test_timestamp_from_parts_internal():
 
 def test_timestamp_from_parts_internal_negative():
     func_name = "negative test"
-    with pytest.raises(ValueError, match="expected 2 or 6 required arguments"):
+    with pytest.raises(ValueError, match="expected 2, 6, 7 or 8"):
         _timestamp_from_parts_internal(func_name, 1)
 
     with pytest.raises(ValueError, match="does not accept timezone as an argument"):
@@ -4108,6 +4109,7 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(2024, 2, 1, 12, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
                 None,
@@ -4117,6 +4119,7 @@ def test_as_time(session):
         (
             as_timestamp_ltz,
             Row(
+                None,
                 None,
                 None,
                 None,
@@ -4430,6 +4433,7 @@ def test_get_path(session, v, k):
     )
 
 
+@pytest.mark.localtest
 def test_get(session):
     Utils.check_answer(
         TestData.object2(session).select(get(col("obj"), col("k"))),
