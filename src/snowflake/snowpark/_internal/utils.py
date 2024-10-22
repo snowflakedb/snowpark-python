@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     except ImportError:
         ResultMetadataV2 = ResultMetadata
 
-logger = logging.getLogger("snowflake.snowpark")
+_logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
@@ -208,7 +208,7 @@ def _pandas_importer():  # noqa: E302
         # since we enable relative imports without dots this import gives us an issues when ran from test directory
         from pandas import DataFrame  # NOQA
     except ImportError as e:
-        logger.error(f"pandas is not installed {e}")
+        _logger.error(f"pandas is not installed {e}")
     return pandas
 
 
@@ -683,7 +683,7 @@ class WarningHelper:
 
     def warning(self, text: str) -> None:
         if self.count < self.warning_times:
-            logger.warning(text)
+            _logger.warning(text)
         self.count += 1
 
 
@@ -724,11 +724,10 @@ def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:
                 pass
     finally:
         if session is None:
-            # This interferes with doctests, do not print.
-            # logging.debug(
-            #    f"Could not retrieve default session "
-            #    f"for function {func.__qualname__}, capturing AST by default."
-            # )
+            _logger.debug(
+                f"Could not retrieve default session "
+                f"for function {func.__qualname__}, capturing AST by default."
+            )
             # session has not been created yet. To not lose information, always encode AST.
             return True  # noqa: B012
         else:
@@ -974,7 +973,7 @@ def get_aliased_option_name(
     upper_key = key.strip().upper()
     aliased_key = alias_map.get(upper_key, upper_key)
     if aliased_key != upper_key:
-        logger.warning(
+        _logger.warning(
             f"Option '{key}' is aliased to '{aliased_key}'. You may see unexpected behavior."
             " Please refer to format specific options for more information"
         )

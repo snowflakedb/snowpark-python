@@ -5,31 +5,11 @@
 
 import logging
 import os
-import sys
 from pathlib import Path
 
 import pytest
-from _pytest.config import hookimpl
-from _pytest.doctest import DoctestItem
-from _pytest.nodes import Item
 
 from snowflake.snowpark._internal.utils import COMPATIBLE_WITH_MODIN, warning_dict
-
-
-@hookimpl(hookwrapper=True)
-def pytest_runtest_call(item: Item) -> None:
-    """Hook to suspend global capture when running doctests"""
-    if isinstance(item, DoctestItem):
-        raise NotImplementedError
-        capman = item.config.pluginmanager.getplugin("capturemanager")
-        if capman:
-            capman.suspend_global_capture(in_=True)
-            out, err = capman.read_global_capture()
-            sys.stdout.write(out)
-            sys.stderr.write(err)
-
-    yield
-
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
