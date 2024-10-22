@@ -16,6 +16,7 @@ from typing import Tuple
 from unittest import mock
 
 from snowflake.snowpark.session import Session
+from tests.conftest import local_testing_mode
 
 try:
     import pandas as pd  # noqa: F401
@@ -177,7 +178,7 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
             session.read.option("purge", False)
             .schema(user_schema)
             .csv(test_file_on_stage)
-            ._show_string()
+            ._show_string(_emit_ast=session.ast_enabled)
         )
         assert (
             result_str
@@ -209,7 +210,7 @@ def test_show_using_with_select_statement(session):
         "select * from t1"
     )
     assert (
-        df._show_string()
+        df._show_string(_emit_ast=session.ast_enabled)
         == """
 -------
 |"A"  |
@@ -1870,7 +1871,7 @@ def test_create_dataframe_empty(session):
 
     # show
     assert (
-        df._show_string()
+        df._show_string(_emit_ast=session.ast_enabled)
         == """
 -------------
 |"A"  |"B"  |
@@ -2363,10 +2364,6 @@ def test_replace_with_coercion(session):
         df.replace({1: None, 2: None, "2.0": None}),
         [Row(None, None, "1.0"), Row(None, None, None)],
     )
-    Utils.check_answer(
-        df.replace(1.0, None),
-        [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
-    )
 
     df = session.create_dataframe([[[1, 2], (1, 3)]], schema=["col1", "col2"])
     Utils.check_answer(
@@ -2395,6 +2392,24 @@ def test_replace_with_coercion(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
+
+
+@pytest.mark.skipif(
+    local_testing_mode,
+    reason="Bug in local testing mode, broadcast behavior "
+    "not implemented correctly in handle_expression for table_emulator.",
+)
+def test_replace_with_coercion_II(session):
+    # TODO: Once fixed in local testing mode, merge this test case with the ones in
+    # test_replace_with_coercion
+    df = session.create_dataframe(
+        [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
+    )
+
+    Utils.check_answer(
+        df.replace(1.0, None),
+        [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
+    )
 
 
 def test_select_case_expr(session):
@@ -2571,6 +2586,10 @@ def test_truncate_preserves_schema(session, local_testing_mode):
     Utils.check_answer(session.table(tmp_table_name), [Row(1, 2, 3), Row(4, 5, 6)])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
+)
 def test_truncate_existing_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1, 2), (3, 4)]).toDF("a", "b")
@@ -2595,6 +2614,10 @@ def test_table_types_in_save_as_table(
         Utils.assert_table_type(session, table_name, table_type)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1369973 Truncate table with mismatching columns raises bad error",
+)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
@@ -2651,6 +2674,10 @@ def test_save_as_table_respects_schema(session, save_mode, local_testing_mode):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1373882: nullability is not enforced in Local Testing",
+)
 @pytest.mark.parametrize("large_data", [True, False])
 @pytest.mark.parametrize(
     "data_type",
@@ -2700,6 +2727,10 @@ def test_save_as_table_nullable_test(
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1373882: nullability is not enforced in Local Testing",
+)
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
 )
@@ -3774,6 +3805,10 @@ def test_to_df_then_copy(session):
     Utils.check_answer(df1, Row("2023-01-01"))
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame alias is not supported in Local Testing",
+)
 def test_to_df_then_alias_and_join(session):
     data = [
         ["2023-01-01", 101, 200],
