@@ -39,7 +39,6 @@ def init_snowflake_plan(session: Session) -> SnowflakePlan:
         is_ddl_on_temp_object=False,
         api_calls=None,
         df_aliased_col_name_to_real_col_name={"df_alias": {"A": "A", "B": "B1"}},
-        placeholder_query=None,
         session=session,
     )
 
@@ -197,9 +196,6 @@ def test_select_statement():
     assert copied_selectable.limit_ == select_snowflake_plan.limit_
     assert copied_selectable.offset == select_snowflake_plan.offset
     assert copied_selectable._query_params == select_snowflake_plan._query_params
-    assert (
-        copied_selectable._placeholder_query == select_snowflake_plan._placeholder_query
-    )
 
 
 def test_select_table_function():
