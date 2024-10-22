@@ -258,67 +258,6 @@ class MockedFunction:
         return result
 
 
-class MockedFunctionRegistry:
-    _instance = None
-
-    def __init__(self) -> None:
-        self._registry = dict()
-        self._lock = threading.RLock()
-
-    @classmethod
-    def get_or_create(cls) -> "MockedFunctionRegistry":
-        with cls._lock_init:
-            if cls._instance is None:
-                cls._instance = MockedFunctionRegistry()
-        return cls._instance
-
-    def get_function(
-        self, func: Union[FunctionExpression, str]
-    ) -> Optional[MockedFunction]:
-        if isinstance(func, str):
-            func_name = func
-            distinct = False
-        else:
-            func_name = func.name
-            distinct = func.is_distinct
-        func_name = func_name.lower()
-
-        with self._lock:
-            if func_name not in self._registry:
-                return None
-
-            function = self._registry[func_name]
-
-        return function.distinct if distinct else function
-
-    def register(
-        self,
-        snowpark_func: Union[str, Callable],
-        func_implementation: Callable,
-        *args,
-        **kwargs,
-    ) -> MockedFunction:
-        name = (
-            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
-        )
-        mocked_function = MockedFunction(name, func_implementation, *args, **kwargs)
-        with self._lock:
-            self._registry[name] = mocked_function
-        return mocked_function
-
-    def unregister(
-        self,
-        snowpark_func: Union[str, Callable],
-    ):
-        name = (
-            snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
-        )
-
-        with self._lock:
-            if name in self._registry:
-                del self._registry[name]
-
-
 class LocalTimezone:
     """
     A singleton class that encapsulates conversion to the local timezone.
@@ -2070,33 +2009,6 @@ def mock_current_database(column_index):
     return ColumnEmulator(
         data=[session.get_current_database()] * len(column_index),
         sf_type=ColumnType(StringType(), False),
-    )
-
-
-@patch("get")
-def mock_get(
-    column_expression: ColumnEmulator, value_expression: ColumnEmulator
-) -> ColumnEmulator:
-    def get(obj, key):
-        try:
-            if isinstance(obj, list):
-                return obj[key]
-            elif isinstance(obj, dict):
-                return obj.get(key, None)
-            else:
-                return None
-        except KeyError:
-            return None
-
-    # pandas.Series.combine does not work here because it will not allow Nones in int columns
-    result = []
-    for exp, k in zip(column_expression, value_expression):
-        result.append(get(exp, k))
-
-    return ColumnEmulator(
-        result,
-        sf_type=ColumnType(column_expression.sf_type.datatype, True),
-        dtype=object,
     )
 
 
