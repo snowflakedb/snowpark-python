@@ -876,7 +876,7 @@ client_language {
       label: "final"
       major: 3
       minor: 9
-      patch: 20
+      patch: 1
     }
   }
 }
@@ -884,4 +884,3 @@ client_version {
   major: 1
   minor: 23
 }
-

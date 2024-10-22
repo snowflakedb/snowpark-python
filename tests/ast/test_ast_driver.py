@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import base64
 import datetime
 import importlib.util
 import logging
@@ -21,10 +20,13 @@ import dateutil
 import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
-from google.protobuf.text_format import MessageToString, Parse
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.ast_utils import (
+    base64_str_to_request,
+    base64_str_to_textproto,
+    textproto_to_request,
+)
 
 TEST_DIR = pathlib.Path(__file__).parent
 
@@ -331,31 +333,6 @@ def override_time_zone(tz_name: str = "EST") -> None:
 
     tz_name = datetime.datetime.now(tzlocal()).tzname()
     logging.debug(f"Local time zone is now: {tz_name}.")
-
-
-def base64_str_to_request(base64_str: str) -> proto.Request:
-    message = proto.Request()
-    message.ParseFromString(base64.b64decode(base64_str.strip()))
-    return message
-
-
-def base64_str_to_textproto(base64_str: str) -> str:
-    message = base64_str_to_request(base64_str)
-    textproto = MessageToString(message)
-    id_lookup = {}
-    cnt = 0
-    for prefix, object_type, random_id in re.findall(rf"\"(SNOWPARK_TEMP_)({'|'.join([e.value for e in TempObjectType])})_(.*)\"", textproto):
-        if random_id not in id_lookup:
-            cnt = cnt + 1
-            id_lookup[random_id] = '{:010x}'.format(cnt)
-        sub_id = id_lookup[random_id]
-        textproto = textproto.replace(f"{prefix}{object_type}_{random_id}", f"{prefix}{object_type}_{sub_id}")
-    return textproto
-
-
-def textproto_to_request(textproto_str) -> proto.Request:
-    request = Parse(textproto_str, proto.Request())
-    return request
 
 
 if __name__ == "__main__":

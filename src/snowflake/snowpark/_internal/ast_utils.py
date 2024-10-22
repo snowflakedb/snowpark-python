@@ -2,12 +2,14 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import ast
+import base64
 import datetime
 import decimal
 import inspect
 import logging
 import os
 import platform
+import re
 import sys
 import typing
 from functools import reduce
@@ -18,6 +20,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 
 import dateutil
 from dateutil.tz import tzlocal
+from google.protobuf.text_format import MessageToString, Parse
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -40,7 +43,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
 )
-from snowflake.snowpark._internal.utils import str_to_enum
+from snowflake.snowpark._internal.utils import TempObjectType, str_to_enum
 from snowflake.snowpark.types import DataType, StructType
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
@@ -1325,3 +1328,45 @@ def build_expr_from_dict_str_str(
         t = ast_dict.add()
         t._1 = k
         t._2 = v
+
+
+def reset_snowpark_temp_ids(textproto: str) -> str:
+    id_lookup = {}
+    cnt = 0
+    for prefix, object_type, orig_id in re.findall(
+        rf"\"(SNOWPARK_TEMP_)({'|'.join([e.value for e in TempObjectType])})_(.*)\"",
+        textproto,
+    ):
+        if orig_id not in id_lookup:
+            cnt = cnt + 1
+            id_lookup[orig_id] = f"{cnt:010x}"
+        sub_id = id_lookup[orig_id]
+        textproto = textproto.replace(
+            f"{prefix}{object_type}_{orig_id}", f"{prefix}{object_type}_{sub_id}"
+        )
+    return textproto
+
+
+def base64_str_to_request(base64_str: str) -> proto.Request:
+    message = proto.Request()
+    message.ParseFromString(base64.b64decode(base64_str.strip()))
+    return message
+
+
+def base64_str_to_textproto(base64_str: str) -> str:
+    request = base64_str_to_request(base64_str)
+
+    # Force a fixed python version to avoid unnecessary diffs
+    request.client_language.python_language.version.major = 3
+    request.client_language.python_language.version.minor = 9
+    request.client_language.python_language.version.patch = 1
+    request.client_language.python_language.version.label = "final"
+
+    message = MessageToString(request)
+    message = reset_snowpark_temp_ids(message)
+    return message
+
+
+def textproto_to_request(textproto_str) -> proto.Request:
+    request = Parse(textproto_str, proto.Request())
+    return request
