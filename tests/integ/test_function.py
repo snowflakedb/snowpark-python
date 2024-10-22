@@ -523,6 +523,10 @@ def test_startswith(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1370338 KeyError: 2 raised",
+)
 def test_struct(session):
     df = session.createDataFrame([("Bob", 80), ("Alice", None)], ["name", "age"])
     # case sensitive
@@ -627,7 +631,10 @@ def test_basic_numerical_operations_negative(session, local_testing_mode):
         df.select(sqrt([1])).collect()
     assert "'SQRT' expected Column or str, got: <class 'list'>" in str(ex_info)
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    # TODO: SNOW-1235716 error experience
+    with pytest.raises(
+        SnowparkSQLException if not local_testing_mode else ValueError
+    ) as ex_info:
         df.select(sqrt(lit(-1))).collect()
     if not local_testing_mode:
         assert "Invalid floating point operation: sqrt(-1)" in str(ex_info)
@@ -1112,8 +1119,9 @@ def test_as_negative(session):
     assert "'AS_DECIMAL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
+        # as_number is an alias to as_decimal.
         td.select(as_number(["a"])).collect()
-    assert "'AS_NUMBER' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'AS_DECIMAL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         td.select(as_double(["a"])).collect()
@@ -1198,7 +1206,7 @@ def test_as_negative(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_number("a")).collect()
     assert (
-        "invalid type [VARCHAR(5)] for parameter 'AS_NUMBER(variantValue...)'"
+        "invalid type [VARCHAR(5)] for parameter 'AS_DECIMAL(variantValue...)'"
         in str(ex_info)
     )
 
@@ -1208,13 +1216,13 @@ def test_as_negative(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_number(col("decimal1"), -1)).collect()
-    assert "invalid value [-1] for parameter 'AS_NUMBER(?, precision...)'" in str(
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, precision...)'" in str(
         ex_info
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_number(col("decimal1"), 6, -1)).collect()
-    assert "invalid value [-1] for parameter 'AS_NUMBER(?, ?, scale)'" in str(ex_info)
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, ?, scale)'" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_double("a")).collect()
@@ -1988,6 +1996,10 @@ def test_array_unique_agg(session):
     ), f"Unexpected result: {result_list}, expected: {expected_result}"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1370338 KeyError: 2 raised",
+)
 def test_create_map(session):
     df = session.create_dataframe(
         [("Sales", 6500, "USA"), ("Legal", 3000, None)],

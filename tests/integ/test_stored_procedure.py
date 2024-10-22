@@ -7,6 +7,7 @@ import datetime
 import decimal
 import logging
 import os
+import re
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
@@ -67,6 +68,7 @@ from tests.integ.scala.test_datatype_suite import (
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
+    IS_STRUCTURED_TYPES_SUPPORTED,
     TempObjectType,
     TestFiles,
     Utils,
@@ -1098,12 +1100,15 @@ def test_sp_negative(session, local_testing_mode):
         sproc(1, return_type=IntegerType())
     assert "Invalid function: not a function or callable" in str(ex_info)
 
-    # if return_type is specified, it must be passed passed with keyword argument
-    with pytest.raises(TypeError) as ex_info:
+    # if return_type is specified, it must be passed with keyword argument
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "sproc() takes from 0 to 1 positional arguments but 2"
+            " positional arguments (and 1 keyword-only argument) were given"
+        ),
+    ):
         sproc(f, IntegerType())
-    assert "sproc() takes from 0 to 1 positional arguments but 2 were given" in str(
-        ex_info
-    )
 
     f_sp = sproc(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:
