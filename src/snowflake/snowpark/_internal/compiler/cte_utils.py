@@ -5,24 +5,12 @@
 import hashlib
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Optional, Set, Union
+from typing import TYPE_CHECKING, Optional, Set
 
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    SPACE,
-    cte_statement,
-    project_statement,
-)
-from snowflake.snowpark._internal.utils import (
-    TempObjectType,
-    is_sql_select_statement,
-    random_name_for_temp_object,
-)
+from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 if TYPE_CHECKING:
-    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
-    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-
-    TreeNode = Union[SnowflakePlan, Selectable]
+    from snowflake.snowpark._internal.compiler.utils import TreeNode  # pragma: no cover
 
 
 def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
@@ -91,79 +79,7 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
     return duplicated_node
 
 
-def create_cte_query(root: "TreeNode", duplicated_node_ids: Set[str]) -> str:
-    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
-
-    plan_to_query_map = {}
-    duplicate_plan_to_cte_map = {}
-    duplicate_plan_to_table_name_map = {}
-
-    def build_plan_to_query_map_in_post_order(root: "TreeNode") -> None:
-        """
-        Builds a mapping from query plans to queries that are optimized with CTEs,
-        in post-traversal order. We can get the final query from the mapping value of the root node.
-        The reason of using poster-traversal order is that chained CTEs have to be built
-        from bottom (innermost subquery) to top (outermost query).
-        This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
-        """
-        stack1, stack2 = [root], []
-
-        while stack1:
-            node = stack1.pop()
-            stack2.append(node)
-            for child in reversed(node.children_plan_nodes):
-                stack1.append(child)
-
-        while stack2:
-            node = stack2.pop()
-            if node.encoded_node_id_with_query in plan_to_query_map:
-                continue
-
-            if not node.children_plan_nodes or not node.placeholder_query:
-                plan_to_query_map[node.encoded_node_id_with_query] = (
-                    node.sql_query
-                    if isinstance(node, Selectable)
-                    else node.queries[-1].sql
-                )
-            else:
-                plan_to_query_map[
-                    node.encoded_node_id_with_query
-                ] = node.placeholder_query
-                for child in node.children_plan_nodes:
-                    # replace the placeholder (id) with child query
-                    plan_to_query_map[
-                        node.encoded_node_id_with_query
-                    ] = plan_to_query_map[node.encoded_node_id_with_query].replace(
-                        child.encoded_query_id,
-                        plan_to_query_map[child.encoded_node_id_with_query],
-                    )
-
-            # duplicate subtrees will be converted CTEs
-            if node.encoded_node_id_with_query in duplicated_node_ids:
-                # when a subquery is converted a CTE to with clause,
-                # it will be replaced by `SELECT * from TEMP_TABLE` in the original query
-                table_name = random_name_for_temp_object(TempObjectType.CTE)
-                select_stmt = project_statement([], table_name)
-                duplicate_plan_to_table_name_map[
-                    node.encoded_node_id_with_query
-                ] = table_name
-                duplicate_plan_to_cte_map[
-                    node.encoded_node_id_with_query
-                ] = plan_to_query_map[node.encoded_node_id_with_query]
-                plan_to_query_map[node.encoded_node_id_with_query] = select_stmt
-
-    build_plan_to_query_map_in_post_order(root)
-
-    # construct with clause
-    with_stmt = cte_statement(
-        list(duplicate_plan_to_cte_map.values()),
-        list(duplicate_plan_to_table_name_map.values()),
-    )
-    final_query = with_stmt + SPACE + plan_to_query_map[root.encoded_node_id_with_query]
-    return final_query
-
-
-def encoded_query_id(node) -> Optional[str]:
+def encode_query_id(node) -> Optional[str]:
     """
     Encode the query and its query parameter into an id using sha256.
 
@@ -209,7 +125,7 @@ def encode_node_id_with_query(node: "TreeNode") -> str:
     return the encoded query id + node_type_name.
     Otherwise, return the original node id.
     """
-    query_id = encoded_query_id(node)
+    query_id = encode_query_id(node)
     if query_id is not None:
         node_type_name = type(node).__name__
         return f"{query_id}_{node_type_name}"

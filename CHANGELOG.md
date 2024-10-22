@@ -12,6 +12,7 @@
   - `option`
   - `options`
   - `partition_by`
+- Added support for `snowflake_cortex_summarize`.
 
 #### Improvements
 
@@ -35,6 +36,7 @@
 - Added support for `DataFrameGroupBy.bfill`, `SeriesGroupBy.bfill`, `DataFrameGroupBy.ffill`, and `SeriesGroupBy.ffill`.
 - Added support for `on` parameter with `Resampler`.
 - Added support for timedelta inputs in `value_counts()`.
+- Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 
 #### Improvements
 
