@@ -144,3 +144,14 @@ def test_named_agg_count_vs_size():
             l=("b", "size"), j=("c", "size"), m=("c", "count"), n=("b", "count")
         ),
     )
+
+
+@sql_count_checker(query_count=1)
+def test_named_agg_size_on_series():
+    native_series = native_pd.Series([1, 2, 3, 3], index=["a", "a", "b", "c"])
+    snow_series = pd.Series(native_series)
+    eval_snowpark_pandas_result(
+        snow_series,
+        native_series,
+        lambda series: series.groupby(level=0).agg(new_col="size"),
+    )
