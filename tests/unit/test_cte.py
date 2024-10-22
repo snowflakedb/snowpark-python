@@ -6,8 +6,15 @@ from unittest import mock
 
 import pytest
 
-from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSQL,
+    SelectStatement,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+from snowflake.snowpark._internal.compiler.cte_utils import (
+    encode_node_id_with_query,
+    find_duplicate_subtrees,
+)
 
 
 def test_case1():
@@ -49,3 +56,24 @@ def test_find_duplicate_subtrees(test_case):
     plan, expected_duplicate_subtree_ids = test_case
     duplicate_subtrees_ids = find_duplicate_subtrees(plan)
     assert duplicate_subtrees_ids == expected_duplicate_subtree_ids
+
+
+def test_encode_node_id_with_query_select_sql(mock_analyzer):
+    sql_text = "select 1 as a, 2 as b"
+    select_sql_node = SelectSQL(
+        sql=sql_text,
+        convert_to_select=False,
+        analyzer=mock_analyzer,
+    )
+    expected_hash = "bf156ae77e"
+    assert encode_node_id_with_query(select_sql_node) == f"{expected_hash}_SelectSQL"
+
+    select_statement_node = SelectStatement(
+        from_=select_sql_node,
+        analyzer=mock_analyzer,
+    )
+    select_statement_node._sql_query = sql_text
+    assert (
+        encode_node_id_with_query(select_statement_node)
+        == f"{expected_hash}_SelectStatement"
+    )
