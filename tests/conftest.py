@@ -5,13 +5,9 @@
 
 import logging
 import os
-import sys
 from pathlib import Path
 
 import pytest
-from _pytest.config import hookimpl
-from _pytest.doctest import DoctestItem
-from _pytest.nodes import Item
 
 from snowflake.snowpark._internal.utils import COMPATIBLE_WITH_MODIN, warning_dict
 
@@ -45,20 +41,6 @@ try:
 
 except ModuleNotFoundError:
     opentelemetry_installed = False
-
-
-@hookimpl(hookwrapper=True)
-def pytest_runtest_call(item: Item) -> None:
-    """Hook to suspend global capture when running doctests to avoid empty output error."""
-    if isinstance(item, DoctestItem):
-        capman = item.config.pluginmanager.getplugin("capturemanager")
-        if capman:
-            capman.suspend_global_capture(in_=True)
-            out, err = capman.read_global_capture()
-            sys.stdout.write(out)
-            sys.stderr.write(err)
-
-    yield
 
 
 def is_excluded_frontend_file(path):
