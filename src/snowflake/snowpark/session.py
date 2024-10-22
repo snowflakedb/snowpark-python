@@ -2628,16 +2628,20 @@ class Session:
             0   1  Jane
 
         Note:
-            Unless ``auto_create_table`` is ``True``, you must first create a table in
+            1. Unless ``auto_create_table`` is ``True``, you must first create a table in
             Snowflake that the passed in pandas DataFrame can be written to. If
             your pandas DataFrame cannot be written to the specified table, an
             exception will be raised.
 
-            If the dataframe is Snowpark pandas :class:`~modin.pandas.DataFrame`
+            2. If the dataframe is Snowpark pandas :class:`~modin.pandas.DataFrame`
             or :class:`~modin.pandas.Series`, it will call
             :func:`modin.pandas.DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
             or :func:`modin.pandas.Series.to_snowflake <modin.pandas.Series.to_snowflake>`
             internally to write a Snowpark pandas DataFrame into a Snowflake table.
+
+            3. If the input pandas DataFrame has `datetime64[ns, tz]` columns and `auto_create_table` is set to `True`,
+            they will be converted to `TIMESTAMP_LTZ` in the output Snowflake table by default.
+            If `TIMESTAMP_TZ` is needed for those columns instead, please manually create the table before loading data.
         """
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(

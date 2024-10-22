@@ -169,8 +169,7 @@ def test_mocked_function_registry_created_once():
 
 @pytest.mark.parametrize("test_table", [True, False])
 def test_tabular_entity_registry(test_table, threadsafe_server_connection):
-    conn = threadsafe_server_connection
-    entity_registry = conn.entity_registry
+    entity_registry = threadsafe_server_connection.entity_registry
     num_threads = 10
 
     def write_read_and_drop_table():
