@@ -294,30 +294,7 @@ class SnowflakePlan(LogicalPlan):
         from snowflake.snowpark._internal.compiler.plan_compiler import PlanCompiler
 
         compiler = PlanCompiler(self)
-        compiled_queries = compiler.compile()
-
-        if self.session._conn._thread_safe_session_enabled:
-            placeholders = {}
-            execution_queries_ = {}
-            for query_type, query_list in compiled_queries.items():
-                execution_queries_[query_type] = []
-                for query in query_list:
-                    if query.temp_name_place_holder:
-                        placeholder_name, temp_obj_type = query.temp_name_place_holder
-                        placeholders[placeholder_name] = random_name_for_temp_object(
-                            temp_obj_type
-                        )
-
-                    copied_query = copy.copy(query)
-                    for placeholder_name, target_temp_name in placeholders.items():
-                        copied_query.sql = copied_query.sql.replace(
-                            placeholder_name, target_temp_name
-                        )
-
-                    execution_queries_[query_type].append(copied_query)
-
-            return execution_queries_
-        return compiled_queries
+        return compiler.compile()
 
     @property
     def children_plan_nodes(self) -> List[Union["Selectable", "SnowflakePlan"]]:
@@ -786,7 +763,7 @@ class SnowflakePlanBuilder:
             Query(
                 create_table_stmt,
                 is_ddl_on_temp_object=True,
-                temp_name_place_holder=(temp_table_name, TempObjectType.TABLE)
+                temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
                 if thread_safe_session_enabled
                 else None,
             ),
@@ -1354,7 +1331,7 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
-                    temp_name_place_holder=(format_name, TempObjectType.FILE_FORMAT)
+                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT)
                     if thread_safe_session_enabled
                     else None,
                 )
@@ -1429,7 +1406,7 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
-                    temp_name_place_holder=(temp_table_name, TempObjectType.TABLE)
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
                     if thread_safe_session_enabled
                     else None,
                 ),
@@ -1756,7 +1733,7 @@ class Query:
         *,
         query_id_place_holder: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
-        temp_name_place_holder: Optional[Tuple[str, TempObjectType]] = None,
+        temp_obj_name_placeholder: Optional[Tuple[str, TempObjectType]] = None,
         params: Optional[Sequence[Any]] = None,
     ) -> None:
         self.sql = sql
@@ -1765,13 +1742,16 @@ class Query:
             if query_id_place_holder
             else f"query_id_place_holder_{generate_random_alphanumeric()}"
         )
-        # This is a temporary workaround to handle the case when a snowflake plan is created
-        # in the following way in a multi-threaded environment:
-        # 1. Create a temp object
-        # 2. Use the temp object in a query
-        # 3. Drop the temp object
-        # When auto-temp table cleaner is rolled out, we should implement it using temp table cleaner
-        self.temp_name_place_holder = temp_name_place_holder
+        # This is to handle the case when a snowflake plan is created in the following way
+        # in a multi-threaded environment:
+        #   1. Create a temp object
+        #   2. Use the temp object in a query
+        #   3. Drop the temp object
+        # When step 3 in thread A is executed before step 2 in thread B, the query in thread B will fail with
+        # temp object not found. To handle this, we replace temp object names with placeholders in the query
+        # and track the temp object placeholder name and temp object type here. During query execution, we replace
+        # the placeholders with the actual temp object names for the given execution.
+        self.temp_obj_name_placeholder = temp_obj_name_placeholder
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         self.params = params or []
 
@@ -1790,7 +1770,7 @@ class Query:
             self.sql == other.sql
             and self.query_id_place_holder == other.query_id_place_holder
             and self.is_ddl_on_temp_object == other.is_ddl_on_temp_object
-            and self.temp_name_place_holder == other.temp_name_place_holder
+            and self.temp_obj_name_placeholder == other.temp_obj_name_placeholder
             and self.params == other.params
         )
 
