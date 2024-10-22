@@ -26,6 +26,7 @@ from snowflake.snowpark.functions import (
     ln,
     log,
     sin,
+    snowflake_cortex_summarize,
     udf,
     udtf,
 )
@@ -74,6 +75,7 @@ SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
     ln,
     log,
     sin,
+    snowflake_cortex_summarize,
 }
 
 
