@@ -1,19 +1,21 @@
+#
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+#
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
-import pytest
 from numpy.testing import assert_array_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter
 
 
 # SNOW-1344931 Support MaxAbsScalar by supporting numpy.may_share_memory
-def test_scikit_maxabs():    
+def test_scikit_maxabs():
     from sklearn.preprocessing import MaxAbsScaler
-    data = [[ 1., -1.,  2.],
-        [ 2.,  0.,  0.],
-        [ 0.,  1., -1.]]
+
+    data = [[1.0, -1.0, 2.0], [2.0, 0.0, 0.0], [0.0, 1.0, -1.0]]
     X = pd.DataFrame(data)
     X_native = native_pd.DataFrame(data)
     # the following will result in a TypeError if
@@ -24,14 +26,14 @@ def test_scikit_maxabs():
         result = MaxAbsScaler().fit_transform(X)
         native_result = MaxAbsScaler().fit_transform(X_native)
         assert_array_equal(np.array(result), np.array(native_result))
-        
+
+
 # SNOW-1518382 Support PCA by supporting numpy.may_share_memory
 # similar to the test for MaxAbsScalar
-def test_scikit_pca():    
+def test_scikit_pca():
     from sklearn.decomposition import PCA
-    data = [[ 1., -1.,  2.],
-        [ 2.,  0.,  0.],
-        [ 0.,  1., -1.]]
+
+    data = [[1.0, -1.0, 2.0], [2.0, 0.0, 0.0], [0.0, 1.0, -1.0]]
     X = pd.DataFrame(data)
     X_native = native_pd.DataFrame(data)
     with SqlCounter(query_count=2):
