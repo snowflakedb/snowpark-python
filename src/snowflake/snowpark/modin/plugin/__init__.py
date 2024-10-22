@@ -149,7 +149,11 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
     try_add_telemetry_to_attribute,
 )
 
-# Add telemetry on the ModinAPI accessor object
+# Add telemetry on the ModinAPI accessor object.
+# modin 0.30.1 introduces the pd.DataFrame.modin accessor object for non-pandas methods,
+# such as pd.DataFrame.modin.to_pandas and pd.DataFrame.modin.to_ray. We will automatically
+# raise NotImplementedError for all methods on this accessor object except to_pandas, but
+# we still want to record telemetry.
 for attr_name in dir(ModinAPI):
     if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
         setattr(

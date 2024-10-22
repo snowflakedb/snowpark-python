@@ -1553,6 +1553,7 @@ def __getitem__(self, key):
 
 
 # Modin uses the unique() query compiler method instead of aliasing the duplicated frontend method as of 0.30.1.
+# TODO SNOW-1758721: use the more efficient implementation
 @register_base_override("drop_duplicates")
 def drop_duplicates(
     self, keep="first", inplace=False, **kwargs

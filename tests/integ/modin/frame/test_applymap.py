@@ -15,6 +15,7 @@ from tests.integ.modin.series.test_apply import (
     create_func_with_return_type_hint,
 )
 from tests.integ.modin.utils import (
+    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     create_test_dfs,
     eval_snowpark_pandas_result,
@@ -22,7 +23,7 @@ from tests.integ.modin.utils import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 pytestmark = pytest.mark.skipif(
-    native_pd.__version__ == "2.2.3",
+    PANDAS_VERSION_PREDICATE,
     reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
 )
 

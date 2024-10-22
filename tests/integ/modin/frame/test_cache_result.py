@@ -11,6 +11,7 @@ from pandas.testing import assert_frame_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
+    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
 )
@@ -177,7 +178,7 @@ class TestCacheResultReducesQueryCount:
             )
 
     @pytest.mark.skipif(
-        native_pd.__version__ == "2.2.3",
+        PANDAS_VERSION_PREDICATE,
         reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
     )
     def test_cache_result_post_apply(self, inplace, simple_test_data):
@@ -209,7 +210,7 @@ class TestCacheResultReducesQueryCount:
             )
 
     @pytest.mark.skipif(
-        native_pd.__version__ == "2.2.3",
+        PANDAS_VERSION_PREDICATE,
         reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
     )
     def test_cache_result_post_applymap(self, inplace, simple_test_data):
