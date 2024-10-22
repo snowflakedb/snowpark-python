@@ -8700,3 +8700,18 @@ def make_interval(
             nanoseconds,
         )
     )
+
+
+def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
+    """
+    Summarizes the given English-language input text.
+
+    Args:
+        text: A string containing the English text from which a summary should be generated.
+
+    Returns:
+        A string containing a summary of the original text.
+    """
+    sql_func_name = "snowflake.cortex.summarize"
+    text_col = _to_col_if_lit(text, sql_func_name)
+    return builtin(sql_func_name)(text_col)
