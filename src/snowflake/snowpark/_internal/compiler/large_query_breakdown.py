@@ -265,7 +265,7 @@ class LargeQueryBreakdown:
                 for child in node.children_plan_nodes:
                     self._parent_map[child].add(node)
                     validity_status, score = self._is_node_valid_to_breakdown(
-                        child, root, allow_select_statement=False
+                        child, root, relaxed=False
                     )
                     if validity_status == InvalidNodesInBreakdownCategory.VALID_NODE:
                         # If the score for valid node is higher than the last candidate,
@@ -278,12 +278,13 @@ class LargeQueryBreakdown:
                         next_level.append(child)
 
                     relaxed_validity_status, _ = self._is_node_valid_to_breakdown(
-                        child, root, allow_select_statement=True
+                        child, root, relaxed=True
                     )
                     if (
                         relaxed_validity_status
-                        == InvalidNodesInBreakdownCategory.VALID_NODE
+                        == InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
                     ):
+                        validity_status = relaxed_validity_status
                         # If the score for valid node is higher than the last relaxed candidate,
                         # update the relaxed candidate node and score.
                         if score > relaxed_candidate_score:
@@ -333,7 +334,7 @@ class LargeQueryBreakdown:
         return temp_table_plan
 
     def _is_node_valid_to_breakdown(
-        self, node: TreeNode, root: TreeNode, allow_select_statement: bool
+        self, node: TreeNode, root: TreeNode, relaxed: bool
     ) -> Tuple[InvalidNodesInBreakdownCategory, int]:
         """Method to check if a node is valid to breakdown based on complexity score and node type.
 
@@ -345,7 +346,11 @@ class LargeQueryBreakdown:
         """
         score = get_complexity_score(node)
         is_valid = True
-        validity_status = InvalidNodesInBreakdownCategory.VALID_NODE
+        validity_status = (
+            InvalidNodesInBreakdownCategory.VALID_NODE
+            if not relaxed
+            else InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
+        )
         if score < self.complexity_score_lower_bound:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.SCORE_BELOW_LOWER_BOUND
@@ -354,15 +359,9 @@ class LargeQueryBreakdown:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
 
-        if is_valid and not self._is_node_pipeline_breaker(
-            node, allow_select_statement
-        ):
+        if is_valid and not self._is_node_pipeline_breaker(node, relaxed):
             is_valid = False
-            validity_status = (
-                InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER_NON_SELECT_STMT
-                if not allow_select_statement
-                else InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
-            )
+            validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
 
         if is_valid and self._contains_external_cte_ref(node, root):
             is_valid = False
@@ -483,11 +482,13 @@ class LargeQueryBreakdown:
 
         if isinstance(node, SnowflakePlan):
             return node.source_plan is not None and self._is_node_pipeline_breaker(
-                node.source_plan
+                node.source_plan, allow_select_statement
             )
 
         if isinstance(node, (SelectSnowflakePlan)):
-            return self._is_node_pipeline_breaker(node.snowflake_plan)
+            return self._is_node_pipeline_breaker(
+                node.snowflake_plan, allow_select_statement
+            )
 
         return False
 

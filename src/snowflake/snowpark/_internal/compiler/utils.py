@@ -383,6 +383,19 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             name = f"{name} :: ({get_name(node.snowflake_plan.source_plan)})"
         elif isinstance(node, SetStatement):
             name = f"{name} :: ({node.set_operands[1].operator})"
+        elif isinstance(node, SelectStatement):
+            properties = []
+            if node.projection:
+                properties.append("Proj")
+            if node.where:
+                properties.append("Filter")
+            if node.order_by:
+                properties.append("Order")
+            if node.limit_:
+                properties.append("Limit")
+            if node.offset:
+                properties.append("Offset")
+            name = f"{name} :: ({'| '.join(properties)})"
 
         score = get_complexity_score(node)
         sql_text = ""
