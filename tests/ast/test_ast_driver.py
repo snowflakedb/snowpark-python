@@ -24,6 +24,7 @@ from dateutil.tz import tzlocal
 from google.protobuf.text_format import MessageToString, Parse
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.snowpark._internal.utils import TempObjectType
 
 TEST_DIR = pathlib.Path(__file__).parent
 
@@ -236,7 +237,7 @@ def test_ast(session, tables, test_case):
             # Protobuf serialization is non-deterministic (cf. https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510)
             # Therefore unparse from base64, and then check equality using deterministic (python) protobuf serialization.
             actual_message = base64_str_to_request(base64_str.strip())
-            expected_message = json_str_to_request(
+            expected_message = textproto_to_request(
                 test_case.expected_ast_encoded.strip()
             )
 
@@ -341,11 +342,19 @@ def base64_str_to_request(base64_str: str) -> proto.Request:
 def base64_str_to_textproto(base64_str: str) -> str:
     message = base64_str_to_request(base64_str)
     textproto = MessageToString(message)
+    id_lookup = {}
+    cnt = 0
+    for prefix, object_type, random_id in re.findall(rf"\"(SNOWPARK_TEMP_)({'|'.join([e.value for e in TempObjectType])})_(.*)\"", textproto):
+        if random_id not in id_lookup:
+            cnt = cnt + 1
+            id_lookup[random_id] = '{:010x}'.format(cnt)
+        sub_id = id_lookup[random_id]
+        textproto = textproto.replace(f"{prefix}{object_type}_{random_id}", f"{prefix}{object_type}_{sub_id}")
     return textproto
 
 
-def json_str_to_request(json_str) -> proto.Request:
-    request = Parse(json_str, proto.Request())
+def textproto_to_request(textproto_str) -> proto.Request:
+    request = Parse(textproto_str, proto.Request())
     return request
 
 

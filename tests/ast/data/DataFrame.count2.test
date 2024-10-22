@@ -32,7 +32,7 @@ body {
             v {
               temp_table {
                 sp_table_name_flat {
-                  name: "SNOWPARK_TEMP_TABLE_BPFYWB7EVO"
+                  name: "SNOWPARK_TEMP_TABLE_0000000001"
                 }
               }
             }
