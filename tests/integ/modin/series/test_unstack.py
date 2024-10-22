@@ -34,6 +34,7 @@ def test_unstack_multiindex(level, index_names):
         snow_ser,
         native_ser,
         lambda ser: ser.unstack(level=level),
+        test_attrs=False,  # native pandas does not propagate attrs here but Snowpark pandas does
     )
 
 

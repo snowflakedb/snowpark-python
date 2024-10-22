@@ -37,6 +37,7 @@
 - Added support for `on` parameter with `Resampler`.
 - Added support for timedelta inputs in `value_counts()`.
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
+- Added support for `DataFrame`/`Series.attrs`
 
 #### Improvements
 
