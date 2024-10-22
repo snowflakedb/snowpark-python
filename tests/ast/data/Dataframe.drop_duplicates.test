@@ -1,0 +1,31 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df1 = df.drop_duplicates()
+
+df2 = df.drop_duplicates("NUM")
+
+df3 = df.drop_duplicates("NUM", "STR")
+
+df4 = df.drop_duplicates(["NUM", "STR"])
+
+df5 = df.drop_duplicates([])
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df1 = df.drop_duplicates([])
+
+df2 = df.drop_duplicates("NUM")
+
+df3 = df.drop_duplicates("NUM", "STR")
+
+df4 = df.drop_duplicates(["NUM", "STR"])
+
+df5 = df.drop_duplicates([])
+
+## EXPECTED ENCODED AST
+
+Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKOQo3CiiiByUSB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbEgUKA2RmMRgCIgIIAgpACj4KL6IHLAoDTlVNEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHSABEgUKA2RmMhgDIgIIAwpFCkMKNKIHMQoDTlVNCgNTVFISB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfIAESBQoDZGYzGAQiAggECkMKQQoyogcvCgNOVU0KA1NUUhIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCESBQoDZGY0GAUiAggFCjkKNwooogclEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIxIFCgNkZjUYBiICCAYQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=
