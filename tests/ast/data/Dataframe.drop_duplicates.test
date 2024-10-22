@@ -28,184 +28,183 @@ df5 = df.drop_duplicates([])
 
 ## EXPECTED ENCODED AST
 
-<<<<<<< HEAD
-Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKOQo3CiiiByUSB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbEgUKA2RmMRgCIgIIAgpACj4KL6IHLAoDTlVNEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHSABEgUKA2RmMhgDIgIIAwpFCkMKNKIHMQoDTlVNCgNTVFISB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfIAESBQoDZGYzGAQiAggECkMKQQoyogcvCgNOVU0KA1NUUhIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCESBQoDZGY0GAUiAggFCjkKNwooogclEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIxIFCgNkZjUYBiICCAYQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
-=======
-{
-  "body": [
-    {
-      "assign": {
-        "expr": {
-          "sp_table": {
-            "name": {
-              "sp_table_name_flat": {
-                "name": "test_table"
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "90"
-            },
-            "variant": {
-              "sp_session_table": true
-            }
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
           }
-        },
-        "symbol": "df",
-        "uid": "1",
-        "var_id": {
-          "bitfield1": "1"
         }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_dataframe_drop_duplicates": {
-            "df": {
-              "sp_dataframe_ref": {
-                "id": {
-                  "bitfield1": "1"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "92"
-            }
-          }
-        },
-        "symbol": "df1",
-        "uid": "2",
-        "var_id": {
-          "bitfield1": "2"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
         }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_dataframe_drop_duplicates": {
-            "cols": [
-              "NUM"
-            ],
-            "df": {
-              "sp_dataframe_ref": {
-                "id": {
-                  "bitfield1": "1"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "94"
-            },
-            "variadic": true
-          }
-        },
-        "symbol": "df2",
-        "uid": "3",
-        "var_id": {
-          "bitfield1": "3"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_dataframe_drop_duplicates": {
-            "cols": [
-              "NUM",
-              "STR"
-            ],
-            "df": {
-              "sp_dataframe_ref": {
-                "id": {
-                  "bitfield1": "1"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "96"
-            },
-            "variadic": true
-          }
-        },
-        "symbol": "df3",
-        "uid": "4",
-        "var_id": {
-          "bitfield1": "4"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_dataframe_drop_duplicates": {
-            "cols": [
-              "NUM",
-              "STR"
-            ],
-            "df": {
-              "sp_dataframe_ref": {
-                "id": {
-                  "bitfield1": "1"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "98"
-            }
-          }
-        },
-        "symbol": "df4",
-        "uid": "5",
-        "var_id": {
-          "bitfield1": "5"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_dataframe_drop_duplicates": {
-            "df": {
-              "sp_dataframe_ref": {
-                "id": {
-                  "bitfield1": "1"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "100"
-            }
-          }
-        },
-        "symbol": "df5",
-        "uid": "6",
-        "var_id": {
-          "bitfield1": "6"
+        variant {
+          sp_session_table: true
         }
       }
     }
-  ],
-  "client_ast_version": "1",
-  "client_language": {
-    "python_language": {
-      "version": {
-        "label": "final",
-        "major": "3",
-        "minor": "9",
-        "patch": "20"
-      }
+    symbol {
+      value: "df"
     }
-  },
-  "client_version": {
-    "major": "1",
-    "minor": "23"
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
   }
 }
->>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        cols: "NUM"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        cols: "NUM"
+        cols: "STR"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        cols: "NUM"
+        cols: "STR"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+      value: "df5"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 20
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
+

@@ -23,608 +23,589 @@ df1.join(df2, on=(df1["c1"] == df2["c1"]) & (df1["c2"] == df2["c2"]), how="asof"
 
 ## EXPECTED ENCODED AST
 
-<<<<<<< HEAD
-CqkGCqYGCpYG+gWSBgrfBQrcBQq0AdICsAEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgFBEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAESIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQDxIoggIlChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRGuR+F6FK4JQAq0AdICsAEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgFBEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAISIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQEBIoggIlChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRHD9Shcj8IJQAq0AdICsAEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgFCEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAESIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQERIoggIlChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRHXo3A9CtcJQAq0AdICsAEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgFCEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAISIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQEhIoggIlChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRHsUbgehesQQBISChAKAmMxCgJjMgoCYzMKAmM0GhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIFCgNkZjEYASICCAEKuwMKuAMKqAP6BaQDCvECCu4CCrQB0gKwAQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB4SIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB4SAUESIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB4QARIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHhAOEiiCAiUKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgeEYXrUbgehQlACrQB0gKwAQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB4SIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB4SAUISIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB4QAhIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHhAQEiiCAiUKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgeEVK4HoXrUQhAEhIKEAoCYzEKAmMyCgJjMwoCYzQaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgeEgUKA2RmMhgCIgIIAgrqAwrnAwrcA/IH2AMKmgKKAZYCCnv6AXgKLMoGKQoCYzESB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgiEizKBikKAmMxEgeCAgQKAggCGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCISe/oBeAosygYpCgJjMhIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCISLMoGKQoCYzISB4ICBAoCCAIaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgiGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCISAggBGgeCAgQKAggBIgQKAl9MKnuSAngKLMoGKQoCYzMSB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgjEizKBikKAmMzEgeCAgQKAggCGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIxoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCMyB4ICBAoCCAI6BAoCX1JCGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgiEgAYAyICCAMKhQEKggEKeJoJdRIl+gwiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhIEQzFfTBIl+gwiChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhIEQzJfTBgBIgeCAgQKAggDKhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhIAGAQiAggECjMKMQon0gYkCAEQARoCCAQyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgiEgAYBSICCAUKCBIGCAYSAggFEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
-EAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
-=======
-{
-  "body": [
-    {
-      "assign": {
-        "expr": {
-          "sp_create_dataframe": {
-            "data": {
-              "sp_dataframe_data__list": {
-                "vs": [
-                  {
-                    "list_val": {
-                      "src": {
-                        "file": "SRC_POSITION_TEST_MODE",
-                        "start_line": "90"
-                      },
-                      "vs": [
-                        {
-                          "string_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "A"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "1"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "15"
-                          }
-                        },
-                        {
-                          "float64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": 3.21
-                          }
-                        }
-                      ]
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
                     }
-                  },
-                  {
-                    "list_val": {
-                      "src": {
-                        "file": "SRC_POSITION_TEST_MODE",
-                        "start_line": "90"
-                      },
-                      "vs": [
-                        {
-                          "string_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "A"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "2"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "16"
-                          }
-                        },
-                        {
-                          "float64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": 3.22
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "list_val": {
-                      "src": {
-                        "file": "SRC_POSITION_TEST_MODE",
-                        "start_line": "90"
-                      },
-                      "vs": [
-                        {
-                          "string_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "B"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "1"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "17"
-                          }
-                        },
-                        {
-                          "float64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": 3.23
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "list_val": {
-                      "src": {
-                        "file": "SRC_POSITION_TEST_MODE",
-                        "start_line": "90"
-                      },
-                      "vs": [
-                        {
-                          "string_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "B"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "2"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "18"
-                          }
-                        },
-                        {
-                          "float64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": 4.23
-                          }
-                        }
-                      ]
-                    }
+                    v: "A"
                   }
-                ]
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 15
+                  }
+                }
+                vs {
+                  float64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 3.21
+                  }
+                }
               }
-            },
-            "schema": {
-              "sp_dataframe_schema__list": {
-                "vs": [
-                  "c1",
-                  "c2",
-                  "c3",
-                  "c4"
-                ]
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "A"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 16
+                  }
+                }
+                vs {
+                  float64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 3.22
+                  }
+                }
               }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "90"
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "B"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 17
+                  }
+                }
+                vs {
+                  float64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 3.23
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "B"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 18
+                  }
+                }
+                vs {
+                  float64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 4.23
+                  }
+                }
+              }
             }
           }
-        },
-        "symbol": "df1",
-        "uid": "1",
-        "var_id": {
-          "bitfield1": "1"
         }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_create_dataframe": {
-            "data": {
-              "sp_dataframe_data__list": {
-                "vs": [
-                  {
-                    "list_val": {
-                      "src": {
-                        "file": "SRC_POSITION_TEST_MODE",
-                        "start_line": "95"
-                      },
-                      "vs": [
-                        {
-                          "string_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "95"
-                            },
-                            "v": "A"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "95"
-                            },
-                            "v": "1"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "95"
-                            },
-                            "v": "14"
-                          }
-                        },
-                        {
-                          "float64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "95"
-                            },
-                            "v": 3.19
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "list_val": {
-                      "src": {
-                        "file": "SRC_POSITION_TEST_MODE",
-                        "start_line": "95"
-                      },
-                      "vs": [
-                        {
-                          "string_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "95"
-                            },
-                            "v": "B"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "95"
-                            },
-                            "v": "2"
-                          }
-                        },
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "95"
-                            },
-                            "v": "16"
-                          }
-                        },
-                        {
-                          "float64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "95"
-                            },
-                            "v": 3.04
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            },
-            "schema": {
-              "sp_dataframe_schema__list": {
-                "vs": [
-                  "c1",
-                  "c2",
-                  "c3",
-                  "c4"
-                ]
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "95"
-            }
+        schema {
+          sp_dataframe_schema__list {
+            vs: "c1"
+            vs: "c2"
+            vs: "c3"
+            vs: "c4"
           }
-        },
-        "symbol": "df2",
-        "uid": "2",
-        "var_id": {
-          "bitfield1": "2"
         }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_dataframe_join": {
-            "join_expr": {
-              "and": {
-                "lhs": {
-                  "eq": {
-                    "lhs": {
-                      "sp_dataframe_col": {
-                        "col_name": "c1",
-                        "df": {
-                          "sp_dataframe_ref": {
-                            "id": {
-                              "bitfield1": "1"
-                            }
-                          }
-                        },
-                        "src": {
-                          "file": "SRC_POSITION_TEST_MODE",
-                          "start_line": "99"
-                        }
-                      }
-                    },
-                    "rhs": {
-                      "sp_dataframe_col": {
-                        "col_name": "c1",
-                        "df": {
-                          "sp_dataframe_ref": {
-                            "id": {
-                              "bitfield1": "2"
-                            }
-                          }
-                        },
-                        "src": {
-                          "file": "SRC_POSITION_TEST_MODE",
-                          "start_line": "99"
-                        }
-                      }
-                    },
-                    "src": {
-                      "file": "SRC_POSITION_TEST_MODE",
-                      "start_line": "99"
-                    }
-                  }
-                },
-                "rhs": {
-                  "eq": {
-                    "lhs": {
-                      "sp_dataframe_col": {
-                        "col_name": "c2",
-                        "df": {
-                          "sp_dataframe_ref": {
-                            "id": {
-                              "bitfield1": "1"
-                            }
-                          }
-                        },
-                        "src": {
-                          "file": "SRC_POSITION_TEST_MODE",
-                          "start_line": "99"
-                        }
-                      }
-                    },
-                    "rhs": {
-                      "sp_dataframe_col": {
-                        "col_name": "c2",
-                        "df": {
-                          "sp_dataframe_ref": {
-                            "id": {
-                              "bitfield1": "2"
-                            }
-                          }
-                        },
-                        "src": {
-                          "file": "SRC_POSITION_TEST_MODE",
-                          "start_line": "99"
-                        }
-                      }
-                    },
-                    "src": {
-                      "file": "SRC_POSITION_TEST_MODE",
-                      "start_line": "99"
-                    }
-                  }
-                },
-                "src": {
-                  "file": "SRC_POSITION_TEST_MODE",
-                  "start_line": "99"
-                }
-              }
-            },
-            "join_type": {
-              "sp_join_type__asof": true
-            },
-            "lhs": {
-              "sp_dataframe_ref": {
-                "id": {
-                  "bitfield1": "1"
-                }
-              }
-            },
-            "lsuffix": "_L",
-            "match_condition": {
-              "geq": {
-                "lhs": {
-                  "sp_dataframe_col": {
-                    "col_name": "c3",
-                    "df": {
-                      "sp_dataframe_ref": {
-                        "id": {
-                          "bitfield1": "1"
-                        }
-                      }
-                    },
-                    "src": {
-                      "file": "SRC_POSITION_TEST_MODE",
-                      "start_line": "100"
-                    }
-                  }
-                },
-                "rhs": {
-                  "sp_dataframe_col": {
-                    "col_name": "c3",
-                    "df": {
-                      "sp_dataframe_ref": {
-                        "id": {
-                          "bitfield1": "2"
-                        }
-                      }
-                    },
-                    "src": {
-                      "file": "SRC_POSITION_TEST_MODE",
-                      "start_line": "100"
-                    }
-                  }
-                },
-                "src": {
-                  "file": "SRC_POSITION_TEST_MODE",
-                  "start_line": "100"
-                }
-              }
-            },
-            "rhs": {
-              "sp_dataframe_ref": {
-                "id": {
-                  "bitfield1": "2"
-                }
-              }
-            },
-            "rsuffix": "_R",
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "99"
-            }
-          }
-        },
-        "symbol": "",
-        "uid": "3",
-        "var_id": {
-          "bitfield1": "3"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_dataframe_sort": {
-            "cols": [
-              {
-                "string_val": {
-                  "src": {
-                    "file": "SRC_POSITION_TEST_MODE",
-                    "start_line": "99"
-                  },
-                  "v": "C1_L"
-                }
-              },
-              {
-                "string_val": {
-                  "src": {
-                    "file": "SRC_POSITION_TEST_MODE",
-                    "start_line": "99"
-                  },
-                  "v": "C2_L"
-                }
-              }
-            ],
-            "cols_variadic": true,
-            "df": {
-              "sp_dataframe_ref": {
-                "id": {
-                  "bitfield1": "3"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "99"
-            }
-          }
-        },
-        "symbol": "",
-        "uid": "4",
-        "var_id": {
-          "bitfield1": "4"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_dataframe_collect": {
-            "block": true,
-            "case_sensitive": true,
-            "id": {
-              "bitfield1": "4"
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "99"
-            }
-          }
-        },
-        "symbol": "",
-        "uid": "5",
-        "var_id": {
-          "bitfield1": "5"
-        }
-      }
-    },
-    {
-      "eval": {
-        "uid": "6",
-        "var_id": {
-          "bitfield1": "5"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
         }
       }
     }
-  ],
-  "client_ast_version": "1",
-  "client_language": {
-    "python_language": {
-      "version": {
-        "label": "final",
-        "major": "3",
-        "minor": "9",
-        "patch": "20"
-      }
+    symbol {
+      value: "df1"
     }
-  },
-  "client_version": {
-    "major": "1",
-    "minor": "23"
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
   }
 }
->>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 30
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 30
+                    }
+                    v: "A"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 30
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 30
+                    }
+                    v: 14
+                  }
+                }
+                vs {
+                  float64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 30
+                    }
+                    v: 3.19
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 30
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 30
+                    }
+                    v: "B"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 30
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 30
+                    }
+                    v: 16
+                  }
+                }
+                vs {
+                  float64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 30
+                    }
+                    v: 3.04
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__list {
+            vs: "c1"
+            vs: "c2"
+            vs: "c3"
+            vs: "c4"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 30
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_join {
+        join_expr {
+          and {
+            lhs {
+              eq {
+                lhs {
+                  sp_dataframe_col {
+                    col_name: "c1"
+                    df {
+                      sp_dataframe_ref {
+                        id {
+                          bitfield1: 1
+                        }
+                      }
+                    }
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 34
+                    }
+                  }
+                }
+                rhs {
+                  sp_dataframe_col {
+                    col_name: "c1"
+                    df {
+                      sp_dataframe_ref {
+                        id {
+                          bitfield1: 2
+                        }
+                      }
+                    }
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 34
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 34
+                }
+              }
+            }
+            rhs {
+              eq {
+                lhs {
+                  sp_dataframe_col {
+                    col_name: "c2"
+                    df {
+                      sp_dataframe_ref {
+                        id {
+                          bitfield1: 1
+                        }
+                      }
+                    }
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 34
+                    }
+                  }
+                }
+                rhs {
+                  sp_dataframe_col {
+                    col_name: "c2"
+                    df {
+                      sp_dataframe_ref {
+                        id {
+                          bitfield1: 2
+                        }
+                      }
+                    }
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 34
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 34
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+          }
+        }
+        join_type {
+          sp_join_type__asof: true
+        }
+        lhs {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        lsuffix {
+          value: "_L"
+        }
+        match_condition {
+          geq {
+            lhs {
+              sp_dataframe_col {
+                col_name: "c3"
+                df {
+                  sp_dataframe_ref {
+                    id {
+                      bitfield1: 1
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 35
+                }
+              }
+            }
+            rhs {
+              sp_dataframe_col {
+                col_name: "c3"
+                df {
+                  sp_dataframe_ref {
+                    id {
+                      bitfield1: 2
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 35
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 35
+            }
+          }
+        }
+        rhs {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        rsuffix {
+          value: "_R"
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 34
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_sort {
+        cols {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+            v: "C1_L"
+          }
+        }
+        cols {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+            v: "C2_L"
+          }
+        }
+        cols_variadic: true
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 34
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 4
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 34
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  eval {
+    uid: 6
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 20
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
+

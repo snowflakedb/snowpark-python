@@ -21,7 +21,7 @@ import dateutil
 import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
-from google.protobuf.json_format import MessageToJson, Parse
+from google.protobuf.text_format import MessageToString, Parse
 
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 
@@ -227,7 +227,7 @@ def test_ast(session, tables, test_case):
                     "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
                     "\n\n## EXPECTED ENCODED AST\n\n",
-                    ast_to_output(base64_str.strip()),
+                    base64_str_to_textproto(base64_str.strip()),
                     "\n",
                 ]
             )
@@ -236,7 +236,9 @@ def test_ast(session, tables, test_case):
             # Protobuf serialization is non-deterministic (cf. https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510)
             # Therefore unparse from base64, and then check equality using deterministic (python) protobuf serialization.
             actual_message = base64_str_to_request(base64_str.strip())
-            expected_message = ast_to_request(test_case.expected_ast_encoded.strip())
+            expected_message = json_str_to_request(
+                test_case.expected_ast_encoded.strip()
+            )
 
             # Actual and expected may have been encoded by different client language versions, e.g. Python 3.8.10 and
             # Python 3.9.3. Make comparison here client-language agnostic by removing the data from the message.
@@ -336,33 +338,15 @@ def base64_str_to_request(base64_str: str) -> proto.Request:
     return message
 
 
-def base64_str_to_json_str(base64_str: str) -> str:
+def base64_str_to_textproto(base64_str: str) -> str:
     message = base64_str_to_request(base64_str)
-    json_str = MessageToJson(message, preserving_proto_field_name=True)
-    return json_str
+    textproto = MessageToString(message)
+    return textproto
 
 
 def json_str_to_request(json_str) -> proto.Request:
     request = Parse(json_str, proto.Request())
     return request
-
-
-AST_TO_OUTPUT_MAP = {
-    "json": base64_str_to_json_str,
-    "b64": lambda x: x,
-}
-AST_TO_REQUEST_MAP = {
-    "json": json_str_to_request,
-    "b64": base64_str_to_request,
-}
-
-
-def ast_to_output(ast: str) -> str:
-    return AST_TO_OUTPUT_MAP[pytest.encoding](ast)
-
-
-def ast_to_request(ast: str) -> proto.Request():
-    return AST_TO_REQUEST_MAP[pytest.encoding](ast)
 
 
 if __name__ == "__main__":

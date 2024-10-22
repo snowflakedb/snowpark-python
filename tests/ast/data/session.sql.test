@@ -16,118 +16,115 @@ df3 = session.sql("select 42")
 
 ## EXPECTED ENCODED AST
 
-<<<<<<< HEAD
-CjoKOAoq8gsnEglzZWxlY3QgNDIaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgQKAmRmGAEiAggBCuYBCuMBCtMB8gvPAQohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxABCiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbEgFhCiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbEAIKIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsSAWISI3NlbGVjdCAqIGZyb20gdmFsdWVzICg/LCA/KSwgKD8sID8pGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIFCgNkZjIYAiICCAIKOwo5CiryCycSCXNlbGVjdCA0MhoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SBQoDZGYzGAMiAggDEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
-=======
-{
-  "body": [
-    {
-      "assign": {
-        "expr": {
-          "sp_sql": {
-            "query": "select 42",
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "90"
-            }
-          }
-        },
-        "symbol": "df",
-        "uid": "1",
-        "var_id": {
-          "bitfield1": "1"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_sql": {
-            "params": [
-              {
-                "int64_val": {
-                  "src": {
-                    "file": "SRC_POSITION_TEST_MODE",
-                    "start_line": "92"
-                  },
-                  "v": "1"
-                }
-              },
-              {
-                "string_val": {
-                  "src": {
-                    "file": "SRC_POSITION_TEST_MODE",
-                    "start_line": "92"
-                  },
-                  "v": "a"
-                }
-              },
-              {
-                "int64_val": {
-                  "src": {
-                    "file": "SRC_POSITION_TEST_MODE",
-                    "start_line": "92"
-                  },
-                  "v": "2"
-                }
-              },
-              {
-                "string_val": {
-                  "src": {
-                    "file": "SRC_POSITION_TEST_MODE",
-                    "start_line": "92"
-                  },
-                  "v": "b"
-                }
-              }
-            ],
-            "query": "select * from values (?, ?), (?, ?)",
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "92"
-            }
-          }
-        },
-        "symbol": "df2",
-        "uid": "2",
-        "var_id": {
-          "bitfield1": "2"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_sql": {
-            "query": "select 42",
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "94"
-            }
-          }
-        },
-        "symbol": "df3",
-        "uid": "3",
-        "var_id": {
-          "bitfield1": "3"
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "select 42"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
         }
       }
     }
-  ],
-  "client_ast_version": "1",
-  "client_language": {
-    "python_language": {
-      "version": {
-        "label": "final",
-        "major": "3",
-        "minor": "9",
-        "patch": "20"
-      }
+    symbol {
+      value: "df"
     }
-  },
-  "client_version": {
-    "major": "1",
-    "minor": "23"
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
   }
 }
->>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)
+body {
+  assign {
+    expr {
+      sp_sql {
+        params {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            v: 1
+          }
+        }
+        params {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            v: "a"
+          }
+        }
+        params {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            v: 2
+          }
+        }
+        params {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            v: "b"
+          }
+        }
+        query: "select * from values (?, ?), (?, ?)"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "select 42"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 20
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
+

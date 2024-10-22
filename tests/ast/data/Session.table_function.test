@@ -26,380 +26,369 @@ df5 = session.table_function(call_table_function("my_fn"))
 
 ## EXPECTED ENCODED AST
 
-<<<<<<< HEAD
-CokCCoYCCvcB6gvzAQrUAZIB0AEKDTILCgkKBwoFbXlfZm4aT5IBTAoLGgkKBwoFCgNsaXQaIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQASIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkaUpIBTwoLGgkKBwoFCgNsaXQaJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkSA3R3byIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIECgJkZhgBIgIIAQqYAgqVAgqFAuoLgQIK4gGSAd4BCg0yCwoJCgcKBW15X2ZuElYKA2t3ZBJPkgFMCgsaCQoHCgUKA2xpdBohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxADIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxJZCgNmb28SUpIBTwoLGgkKBwoFCgNsaXQaJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsSA2JhciIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbEhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIFCgNkZjIYAiICCAIKYwphClLqC08KMZIBLgoQMg4KDBIKCgNmb28KA2JhciIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEgUKA2RmMxgDIgIIAwprCmkKX5IBXAoWGhQKEgoQCg50YWJsZV9mdW5jdGlvbhom+gwjChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxIFbXlfZm4iGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfEgAYBCICCAQKWQpXCkjqC0UKJ5IBJAoGKgQKAggEIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIBIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCASBQoDZGY0GAUiAggFCjoKOAoukgErCg0iCwoJCgcKBW15X2ZuIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhIAGAYiAggGClkKVwpI6gtFCieSASQKBioECgIIBiIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCMSGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgjEgUKA2RmNRgHIgIIBxABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
-=======
-{
-  "body": [
-    {
-      "assign": {
-        "expr": {
-          "sp_session_table_function": {
-            "fn": {
-              "apply_expr": {
-                "fn": {
-                  "indirect_table_fn_name_ref": {
-                    "name": {
-                      "fn_name_flat": {
-                        "name": "my_fn"
-                      }
-                    }
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_name_ref {
+                name {
+                  fn_name_flat {
+                    name: "my_fn"
                   }
-                },
-                "pos_args": [
-                  {
-                    "apply_expr": {
-                      "fn": {
-                        "builtin_fn": {
-                          "name": {
-                            "fn_name_flat": {
-                              "name": "lit"
-                            }
-                          }
-                        }
-                      },
-                      "pos_args": [
-                        {
-                          "int64_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "1"
-                          }
-                        }
-                      ],
-                      "src": {
-                        "file": "SRC_POSITION_TEST_MODE",
-                        "start_line": "90"
-                      }
-                    }
-                  },
-                  {
-                    "apply_expr": {
-                      "fn": {
-                        "builtin_fn": {
-                          "name": {
-                            "fn_name_flat": {
-                              "name": "lit"
-                            }
-                          }
-                        }
-                      },
-                      "pos_args": [
-                        {
-                          "string_val": {
-                            "src": {
-                              "file": "SRC_POSITION_TEST_MODE",
-                              "start_line": "90"
-                            },
-                            "v": "two"
-                          }
-                        }
-                      ],
-                      "src": {
-                        "file": "SRC_POSITION_TEST_MODE",
-                        "start_line": "90"
-                      }
-                    }
-                  }
-                ],
-                "src": {
-                  "file": "SRC_POSITION_TEST_MODE",
-                  "start_line": "90"
                 }
               }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "90"
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "two"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 25
             }
           }
-        },
-        "symbol": "df",
-        "uid": "1",
-        "var_id": {
-          "bitfield1": "1"
         }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_session_table_function": {
-            "fn": {
-              "apply_expr": {
-                "fn": {
-                  "indirect_table_fn_name_ref": {
-                    "name": {
-                      "fn_name_flat": {
-                        "name": "my_fn"
-                      }
-                    }
-                  }
-                },
-                "named_args": [
-                  {
-                    "_1": "kwd",
-                    "_2": {
-                      "apply_expr": {
-                        "fn": {
-                          "builtin_fn": {
-                            "name": {
-                              "fn_name_flat": {
-                                "name": "lit"
-                              }
-                            }
-                          }
-                        },
-                        "pos_args": [
-                          {
-                            "int64_val": {
-                              "src": {
-                                "file": "SRC_POSITION_TEST_MODE",
-                                "start_line": "92"
-                              },
-                              "v": "3"
-                            }
-                          }
-                        ],
-                        "src": {
-                          "file": "SRC_POSITION_TEST_MODE",
-                          "start_line": "92"
-                        }
-                      }
-                    }
-                  },
-                  {
-                    "_1": "foo",
-                    "_2": {
-                      "apply_expr": {
-                        "fn": {
-                          "builtin_fn": {
-                            "name": {
-                              "fn_name_flat": {
-                                "name": "lit"
-                              }
-                            }
-                          }
-                        },
-                        "pos_args": [
-                          {
-                            "string_val": {
-                              "src": {
-                                "file": "SRC_POSITION_TEST_MODE",
-                                "start_line": "92"
-                              },
-                              "v": "bar"
-                            }
-                          }
-                        ],
-                        "src": {
-                          "file": "SRC_POSITION_TEST_MODE",
-                          "start_line": "92"
-                        }
-                      }
-                    }
-                  }
-                ],
-                "src": {
-                  "file": "SRC_POSITION_TEST_MODE",
-                  "start_line": "92"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "92"
-            }
-          }
-        },
-        "symbol": "df2",
-        "uid": "2",
-        "var_id": {
-          "bitfield1": "2"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_session_table_function": {
-            "fn": {
-              "apply_expr": {
-                "fn": {
-                  "indirect_table_fn_name_ref": {
-                    "name": {
-                      "fn_name_structured": {
-                        "name": [
-                          "foo",
-                          "bar"
-                        ]
-                      }
-                    }
-                  }
-                },
-                "src": {
-                  "file": "SRC_POSITION_TEST_MODE",
-                  "start_line": "94"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "94"
-            }
-          }
-        },
-        "symbol": "df3",
-        "uid": "3",
-        "var_id": {
-          "bitfield1": "3"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "apply_expr": {
-            "fn": {
-              "builtin_fn": {
-                "name": {
-                  "fn_name_flat": {
-                    "name": "table_function"
-                  }
-                }
-              }
-            },
-            "pos_args": [
-              {
-                "string_val": {
-                  "src": {
-                    "file": "SRC_POSITION_TEST_MODE",
-                    "start_line": "96"
-                  },
-                  "v": "my_fn"
-                }
-              }
-            ],
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "96"
-            }
-          }
-        },
-        "symbol": "",
-        "uid": "4",
-        "var_id": {
-          "bitfield1": "4"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_session_table_function": {
-            "fn": {
-              "apply_expr": {
-                "fn": {
-                  "indirect_table_fn_id_ref": {
-                    "id": {
-                      "bitfield1": "4"
-                    }
-                  }
-                },
-                "src": {
-                  "file": "SRC_POSITION_TEST_MODE",
-                  "start_line": "97"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "97"
-            }
-          }
-        },
-        "symbol": "df4",
-        "uid": "5",
-        "var_id": {
-          "bitfield1": "5"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "apply_expr": {
-            "fn": {
-              "call_table_function_expr": {
-                "name": {
-                  "fn_name_flat": {
-                    "name": "my_fn"
-                  }
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "99"
-            }
-          }
-        },
-        "symbol": "",
-        "uid": "6",
-        "var_id": {
-          "bitfield1": "6"
-        }
-      }
-    },
-    {
-      "assign": {
-        "expr": {
-          "sp_session_table_function": {
-            "fn": {
-              "apply_expr": {
-                "fn": {
-                  "indirect_table_fn_id_ref": {
-                    "id": {
-                      "bitfield1": "6"
-                    }
-                  }
-                },
-                "src": {
-                  "file": "SRC_POSITION_TEST_MODE",
-                  "start_line": "100"
-                }
-              }
-            },
-            "src": {
-              "file": "SRC_POSITION_TEST_MODE",
-              "start_line": "100"
-            }
-          }
-        },
-        "symbol": "df5",
-        "uid": "7",
-        "var_id": {
-          "bitfield1": "7"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
         }
       }
     }
-  ],
-  "client_ast_version": "1",
-  "client_language": {
-    "python_language": {
-      "version": {
-        "label": "final",
-        "major": "3",
-        "minor": "9",
-        "patch": "20"
-      }
+    symbol {
+      value: "df"
     }
-  },
-  "client_version": {
-    "major": "1",
-    "minor": "23"
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
   }
 }
->>>>>>> 66d50cff3 (SNOW-1738538 Update expectation files to json ast output so more stable & readable)
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_name_ref {
+                name {
+                  fn_name_flat {
+                    name: "my_fn"
+                  }
+                }
+              }
+            }
+            named_args {
+              _1: "kwd"
+              _2 {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 27
+                      }
+                      v: 3
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 27
+                  }
+                }
+              }
+            }
+            named_args {
+              _1: "foo"
+              _2 {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 27
+                      }
+                      v: "bar"
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 27
+                  }
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_name_ref {
+                name {
+                  fn_name_structured {
+                    name: "foo"
+                    name: "bar"
+                  }
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          builtin_fn {
+            name {
+              fn_name_flat {
+                name: "table_function"
+              }
+            }
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 31
+            }
+            v: "my_fn"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 4
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              fn_name_flat {
+                name: "my_fn"
+              }
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 34
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 6
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 35
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+      value: "df5"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 20
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
+
