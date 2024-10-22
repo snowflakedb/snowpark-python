@@ -22,6 +22,7 @@ from types import ModuleType
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
     List,
     Literal,
@@ -102,6 +103,7 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
+    check_flatten_mode,
     create_rlock,
     create_thread_local,
     deprecated,
@@ -119,6 +121,7 @@ from snowflake.snowpark._internal.utils import (
     normalize_local_file,
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
+    parse_positional_args_to_list_variadic,
     private_preview,
     publicapi,
     quote_name,
