@@ -46,9 +46,15 @@ def test_np_may_share_memory():
     }
     snow_df_A = pd.DataFrame(data)
     snow_df_B = pd.DataFrame(data)
+    native_df_A = native_pd.DataFrame(data)
+
     # np.may_share_memory always returns False
     with SqlCounter(query_count=0):
         assert not np.may_share_memory(snow_df_A, snow_df_B)
+    with SqlCounter(query_count=0):
+        assert not np.may_share_memory(native_df_A, snow_df_B)
+    with SqlCounter(query_count=0):
+        assert not np.may_share_memory(snow_df_A, native_df_A)
 
 
 def test_logical_operators():
