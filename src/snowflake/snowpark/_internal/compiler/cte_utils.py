@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Optional, Set
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 if TYPE_CHECKING:
-    from snowflake.snowpark._internal.compiler.utils import TreeNode
+    from snowflake.snowpark._internal.compiler.utils import TreeNode  # pragma: no cover
 
 
 def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
@@ -79,7 +79,7 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
     return duplicated_node
 
 
-def encoded_query_id(node) -> Optional[str]:
+def encode_query_id(node) -> Optional[str]:
     """
     Encode the query and its query parameter into an id using sha256.
 
@@ -125,7 +125,7 @@ def encode_node_id_with_query(node: "TreeNode") -> str:
     return the encoded query id + node_type_name.
     Otherwise, return the original node id.
     """
-    query_id = encoded_query_id(node)
+    query_id = encode_query_id(node)
     if query_id is not None:
         node_type_name = type(node).__name__
         return f"{query_id}_{node_type_name}"
