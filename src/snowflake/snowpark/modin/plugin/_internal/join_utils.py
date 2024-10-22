@@ -1247,6 +1247,7 @@ def align(
             * coalesce: use only index from left frame, preserve left order. If left
               frame is empty left_on columns are coalesced with right_on columns.
             * outer: use union of index from both frames, sort index lexicographically.
+            * inner: use intersection of index from both frames, preserve left order.
     Returns:
         New aligned InternalFrame by aligning left frame with right frame.
     """

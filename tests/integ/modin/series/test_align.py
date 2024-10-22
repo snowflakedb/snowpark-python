@@ -107,3 +107,30 @@ def test_align_series_invalid_axis_negative():
         match=f"No axis named {axis} for object type Series",
     ):
         left, right = ser.align(other_ser, join="outer", axis=axis)
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("method", ["backfill", "bfill", "pad", "ffill"])
+def test_align_series_deprecated_negative(method):
+    ser = pd.Series([1, 2, 3])
+    other_ser = pd.Series([60, 70, 80, 90, 100, np.nan])
+    with pytest.raises(
+        NotImplementedError,
+        match="The 'method', 'limit', and 'fill_axis' keywords in Series.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead.",
+    ):
+        left, right = ser.align(other_ser, join="outer", method=method)
+    with pytest.raises(
+        NotImplementedError,
+        match="The 'method', 'limit', and 'fill_axis' keywords in Series.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead.",
+    ):
+        left, right = ser.align(other_ser, join="outer", limit=5)
+    with pytest.raises(
+        NotImplementedError,
+        match="The 'method', 'limit', and 'fill_axis' keywords in Series.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead.",
+    ):
+        left, right = ser.align(other_ser, join="outer", fill_axis=1)
+    with pytest.raises(
+        NotImplementedError,
+        match="The 'broadcast_axis' keyword in Series.align is deprecated and will be removed in a future version.",
+    ):
+        left, right = ser.align(other_ser, join="outer", broadcast_axis=0)

@@ -1377,7 +1377,7 @@ class OrderedDataFrame:
             how: We support the following align/join types:
                 - "outer": Full outer align (default value)
                 - "left": Left outer align
-                - "inner": Left inner align
+                - "inner": Inner align
                 - "coalesce": If left frame is not empty perform left outer align
                   otherwise perform right outer align. When left frame is empty, the
                   left_on column is replaced with the right_on column in the result.

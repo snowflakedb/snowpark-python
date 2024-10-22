@@ -922,24 +922,6 @@ class DataFrame(BasePandasDataset):
         2  22.0       12
         """
 
-    def align():
-        """
-        Align two objects on their axes with the specified join method.
-
-        Join method is specified for each axis Index.
-
-        Args:
-            other: DataFrame or Series
-            join: {‘outer’, ‘inner’, ‘left’, ‘right’}, default ‘outer’
-            axis: allowed axis of the other object, default None
-            level: int or level name, default None
-            copy: bool, default True
-            fill_value: scalar, default np.nan
-
-        Returns:
-            tuple of (Series/DataFrame, type of other)
-        """
-
     def groupby():
         """
         Group DataFrame using a mapper or by a Series of columns.

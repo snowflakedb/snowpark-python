@@ -8280,7 +8280,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             copy: bool, default True
                 Always returns new objects. If copy=False and no reindexing is required then original objects are returned.
             fill_value: scalar, default np.nan
-                Value to use for missing values. Defaults to NaN, but can be any “compatible” value.
+                Always returns new objects. If copy=False and no reindexing is required then original objects are returned.
 
         Returns:
             tuple of SnowflakeQueryCompilers
@@ -8291,20 +8291,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas 'align' method doesn't support 'copy=False'"
             )
+        if level is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'level'"
+            )
         if fill_value is not None:
             # TODO: SNOW-1752860
             ErrorMessage.not_implemented(
                 "Snowpark pandas 'align' method doesn't support 'fill_value'"
             )
-        if axis == 1:
+        if axis != 0:
             # TODO: SNOW-1752856
             ErrorMessage.not_implemented(
-                "Snowpark pandas 'align' method doesn't support 'axis=1'"
-            )
-        if axis is None:
-            # TODO: SNOW-1752856
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'align' method doesn't support 'axis=None'"
+                f"Snowpark pandas 'align' method doesn't support 'axis={axis}'"
             )
         frame = self._modin_frame
         other_frame = other._query_compiler._modin_frame

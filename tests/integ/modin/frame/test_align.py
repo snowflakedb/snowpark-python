@@ -150,7 +150,7 @@ def test_multiindex_negative(level):
     )
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas doesn't support `align` with MultiIndex",
+        match="Snowpark pandas 'align' method doesn't support 'level'",
     ):
         left, right = df.align(other_df, join="outer", axis=0, level=0)
 
@@ -182,3 +182,33 @@ def test_align_frame_invalid_axis_negative():
         match=f"No axis named {axis} for object type DataFrame",
     ):
         left, right = df.align(other_df, join="outer", axis=axis)
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize("method", ["backfill", "bfill", "pad", "ffill"])
+def test_align_frame_deprecated_negative(method):
+    df = pd.DataFrame([[1, 2, 3, 4], [6, 7, 8, 9]], columns=["D", "B", "E", "A"])
+    other_df = pd.DataFrame(
+        [[10, 20, 30, 40], [60, 70, 80, 90], [600, 700, 800, 900]],
+        columns=["A", "B", "C", "D"],
+    )
+    with pytest.raises(
+        NotImplementedError,
+        match="The 'method', 'limit', and 'fill_axis' keywords in DataFrame.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead.",
+    ):
+        left, right = df.align(other_df, join="outer", method=method)
+    with pytest.raises(
+        NotImplementedError,
+        match="The 'method', 'limit', and 'fill_axis' keywords in DataFrame.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead.",
+    ):
+        left, right = df.align(other_df, join="outer", limit=5)
+    with pytest.raises(
+        NotImplementedError,
+        match="The 'method', 'limit', and 'fill_axis' keywords in DataFrame.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead.",
+    ):
+        left, right = df.align(other_df, join="outer", fill_axis=1)
+    with pytest.raises(
+        NotImplementedError,
+        match="The 'broadcast_axis' keyword in DataFrame.align is deprecated and will be removed in a future version.",
+    ):
+        left, right = df.align(other_df, join="outer", broadcast_axis=0)
