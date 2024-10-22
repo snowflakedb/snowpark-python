@@ -6,9 +6,6 @@
 import functools
 import json
 import logging
-import os
-import sys
-import time
 import uuid
 from copy import copy
 from decimal import Decimal
@@ -79,32 +76,6 @@ class MockedSnowflakeConnection(SnowflakeConnection):
             }
         }
         self._rest = Mock(**attrs)
-
-    def close(self, retry: bool = True) -> None:
-        self._rest = None
-
-    def is_closed(self) -> bool:
-        """Checks whether the connection has been closed."""
-        return self.rest is None
-
-    @property
-    def telemetry_enabled(self) -> bool:
-        return False
-
-    @telemetry_enabled.setter
-    def telemetry_enabled(self, _) -> None:
-        self._telemetry_enabled = False
-
-
-class MockedSnowflakeConnection(SnowflakeConnection):
-    def __init__(self, *args, **kwargs) -> None:
-        # pass "application" is a trick to bypass the logic in the constructor to check input params to
-        # avoid rewrite the whole logic -- "application" is not used in any place.
-        super().__init__(*args, **kwargs, application="localtesting")
-        self._password = None
-
-    def connect(self, **kwargs) -> None:
-        self._rest = Mock()
 
     def close(self, retry: bool = True) -> None:
         self._rest = None
@@ -826,10 +797,6 @@ class MockServerConnection:
             internal_feature_name="MockServerConnection.get_result_query_id",
             raise_error=NotImplementedError,
         )
-
-    @property
-    def max_string_size(self) -> int:
-        return DEFAULT_STRING_SIZE
 
     def is_phase1_enabled(self):
         # We don't yet mock Phase 1.
