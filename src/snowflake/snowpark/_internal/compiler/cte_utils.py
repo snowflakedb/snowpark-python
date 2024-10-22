@@ -7,11 +7,12 @@ import logging
 from collections import defaultdict
 from typing import Optional, Set
 
+# if TYPE_CHECKING:
 from snowflake.snowpark._internal.compiler.utils import TreeNode
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 
-def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
+def find_duplicate_subtrees(root: TreeNode) -> Set[str]:
     """
     Returns a set of TreeNode encoded_id that indicates all duplicate subtrees in query plan tree.
     The root of a duplicate subtree is defined as a duplicate node, if
@@ -37,7 +38,7 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
     id_count_map = defaultdict(int)
     id_parents_map = defaultdict(set)
 
-    def traverse(root: "TreeNode") -> None:
+    def traverse(root: TreeNode) -> None:
         """
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
         """
@@ -115,7 +116,7 @@ def encoded_query_id(node) -> Optional[str]:
         return None
 
 
-def encode_node_id_with_query(node: "TreeNode") -> str:
+def encode_node_id_with_query(node: TreeNode) -> str:
     """
     Encode a for the given TreeNode.
 
