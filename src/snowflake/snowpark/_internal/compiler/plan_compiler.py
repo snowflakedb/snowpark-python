@@ -159,7 +159,6 @@ class PlanCompiler:
             )
         else:
             final_plan = self._plan
-            final_plan = final_plan.replace_repeated_subquery_with_cte()
             queries = {
                 PlanQueryType.QUERIES: final_plan.queries,
                 PlanQueryType.POST_ACTIONS: final_plan.post_actions,
