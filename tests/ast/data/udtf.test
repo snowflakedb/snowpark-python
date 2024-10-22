@@ -1,0 +1,90 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col, udtf
+
+from snowflake.snowpark.types import IntegerType, StructField, StructType
+
+class PrimeSieve:
+    def process(self, n):
+        is_prime = [True] * (n + 1)
+        is_prime[0] = False
+        is_prime[1] = False
+        p = 2
+        while p * p <= n:
+            if is_prime[p]:
+                # set all multiples of p to False
+                for i in range(p * p, n + 1, p):
+                    is_prime[i] = False
+            p += 1
+        # yield all prime numbers
+        for p in range(2, n + 1):
+            if is_prime[p]:
+                yield (p,)
+
+prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
+
+session.table_function(prime_udtf(lit(20))).collect()
+
+@udtf(output_schema=["number"])
+class sum_udtf:
+    def process(self, a: int, b: int) -> Iterable[Tuple[int]]:
+        yield (a + b, )
+
+df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+df.with_column("total", sum_udtf(df.a, df.b)).sort(df.a).show()
+
+class GeneratorUDTF:
+    def process(self, n):
+        for i in range(n):
+            yield (i, )
+
+generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType())]), input_types=[IntegerType()])
+
+session.table_function(generator_udtf(lit(3))).collect()
+
+# Test here that all arguments in udtf decorator are supported.
+class Foo:
+    def process(self, a, b) -> Iterable[Tuple[int, int]]:
+        yield (a + b, 2)
+
+foo = udtf(Foo,  output_schema= ["a", "b"],
+           input_types= [IntegerType(), LongType()],
+           name= "foo",
+           is_permanent= True,
+           stage_location="@",
+           imports = ["numpy", ("seaborn", "sns")],
+           packages = ["snowflake.snowpark"],
+           replace = True,
+           if_not_exists = False,
+           parallel = 7,
+           statement_params = {'a':'b'},
+           strict = True,
+           secure = True,
+           force_inline_code=True,
+           external_access_integrations = ["gs"],
+           secrets = {'test':'verysecret'},
+           immutable = True,
+           comment = "fufufufu")
+
+## EXPECTED UNPARSER OUTPUT
+
+prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
+
+session.table_function(prime_udtf(lit(20))).collect()
+
+df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+
+df.with_column("total", udtf(sum_udtf, output_schema=["number"])(df["a"], df["b"])).sort(df["a"]).show()
+
+generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
+
+session.table_function(generator_udtf(lit(3))).collect()
+
+foo = udtf(Foo, output_schema=["a", "b"], input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params=, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", force_inline_code=True)
+
+## EXPECTED ENCODED AST
+
+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

@@ -1,0 +1,19 @@
+## TEST CASE
+
+df1 = session.table(tables.table1)
+
+df2 = session.table(tables.table1)
+
+df1.natural_join(df2).select('*')
+
+## EXPECTED UNPARSER OUTPUT
+
+df1 = session.table("table1")
+
+df2 = session.table("table1")
+
+res2 = df1.natural_join(df2, "inner").select("*")
+
+## EXPECTED ENCODED AST
+
+CkAKPgovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBQoDZGYxGAEiAggBCkAKPgovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGyICCAESBQoDZGYyGAIiAggCCkEKPwo1uggyCgIgARIHggIECgIIARoHggIECgIIAiIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SABgDIgIIAwpaClgKToIJSwoiqgUfEgEqGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHRIHggIECgIIAxoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0gARIAGAQiAggEEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
