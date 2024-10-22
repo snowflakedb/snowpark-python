@@ -16,11 +16,11 @@
 
 #### Bug Fixes
 
-- Fixed a bug where in expression values created using a dataframe would throw errors like `Object 'SNOWPARK_TEMP_TABLE_ABCDXYZ123' does not exist or not authorized`.
+- Fixed a bug where `In` expression used in dataframe select operation would not propagate queries correctly. This surfaces errors like `Object 'SNOWPARK_TEMP_TABLE_ABCDXYZ123' does not exist or not authorized`.
 
 #### Improvements
 
-- Disables sql simplification when sort is performed after limit. 
+- Disables sql simplification when sort is performed after limit.
   - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
   - Improve performance of generated query for `df.limit().sort()`, because limit stops table scanning as soon as the number of records is satisfied.
 
