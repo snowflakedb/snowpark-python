@@ -45,6 +45,7 @@
 - Improved generated SQL query for `iloc` and `iat` when the row key is a scalar.
 - Removed all joins in `iterrows`.
 - Improved documentation for `Series.map` to reflect the unsupported features.
+- Added support for `np.may_share_memory` which is used internally by many scikit-learn functions. This method will always return false
 
 #### Bug Fixes
 
