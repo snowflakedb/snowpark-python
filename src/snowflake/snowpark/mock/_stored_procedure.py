@@ -9,6 +9,12 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import snowflake.snowpark
+import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.snowpark._internal.ast_utils import (
+    build_sproc,
+    build_sproc_apply,
+    with_src_position,
+)
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
@@ -44,6 +50,9 @@ class MockStoredProcedure(StoredProcedure):
         execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         strict=False,
+        _ast: Optional[proto.Expr] = None,
+        _ast_id: Optional[int] = None,
+        **kwargs,
     ) -> None:
         self.imports = imports
         self.strict = strict
@@ -54,17 +63,35 @@ class MockStoredProcedure(StoredProcedure):
             name,
             execute_as=execute_as,
             anonymous_sp_sql=anonymous_sp_sql,
+            **kwargs,
         )
+        self._ast = _ast
+        self._ast_id = _ast_id
 
     def __call__(
         self,
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
     ) -> Any:
         args, session = self._validate_call(args, session)
         if self.strict and any([arg is None for arg in args]):
             return None
+
+        sproc_expr = None
+        if _emit_ast and self._ast is not None:
+            assert (
+                self._ast is not None
+            ), "Need to ensure _emit_ast is True when registering a stored procedure."
+            assert (
+                self._ast_id is not None
+            ), "Need to assign an ID to the stored procedure."
+
+            # Performing an assign here since we want to be able to generate a `sproc(arg1, arg2)` type
+            # expression for the stored procedure call.
+            sproc_expr = session._ast_batch.assign()
+            build_sproc_apply(sproc_expr.expr, self._ast_id, statement_params, *args)
 
         # Unpack columns if passed
         parsed_args = []
@@ -72,7 +99,7 @@ class MockStoredProcedure(StoredProcedure):
             if isinstance(arg, Column):
                 expr = arg._expression
 
-                # If expression does not define its datatype we cannot verify it's compatibale.
+                # If an expression does not define its datatype, we cannot verify if it's compatible.
                 # This is potentially unsafe.
                 if expr.datatype and not types_are_compatible(
                     expr.datatype, expected_type
@@ -92,7 +119,7 @@ class MockStoredProcedure(StoredProcedure):
                     {},
                 )
 
-                # If the length of the resolved expression is not a single value we cannot pass it as a literal.
+                # If the length of the resolved expression is not a single value, we cannot pass it as a literal.
                 if len(resolved_expr) != 1:
                     raise SnowparkLocalTestingException(
                         f"Unexpected type {expr.__class__.__name__} for sproc argument of type {expected_type}"
@@ -141,6 +168,14 @@ class MockStoredProcedure(StoredProcedure):
         ) and not isinstance(result, DataFrame):
             result = json.dumps(result, indent=2, cls=CUSTOM_JSON_ENCODER)
 
+        if self._is_return_table:
+            # If the result is a Column or DataFrame object, the `eval` of the stored procedure expression is performed
+            # in a later operation such as `collect` or `show`.
+            result._ast = sproc_expr
+        elif sproc_expr is not None:
+            # If the result is a scalar, we can return it immediately. Perform the `eval` operation here.
+            session._ast_batch.eval(sproc_expr)
+
         return result
 
 
@@ -186,6 +221,17 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
 
             return module_name
 
+    def get_sproc(self, sproc_name: str) -> MockStoredProcedure:
+        if sproc_name not in self._registry:
+            raise SnowparkLocalTestingException(f"Sproc {sproc_name} does not exist.")
+        return self._registry[sproc_name]
+
+    def get_sproc_imports(
+        self, sproc_name: str
+    ) -> Union[Set[str], List[Union[str, Tuple[str, str]]]]:
+        sproc = self._registry.get(sproc_name)
+        return sproc.imports if sproc else set()
+
     def _do_register_sp(
         self,
         func: Union[Callable, Tuple[str, str]],
@@ -213,7 +259,37 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
         copy_grants: bool = False,
+        _emit_ast: bool = True,
+        **kwargs,
     ) -> StoredProcedure:
+        ast = None
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.stored_procedure, stmt)
+            build_sproc(
+                ast,
+                func,
+                return_type,
+                input_types,
+                sp_name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                external_access_integrations,
+                secrets,
+                comment,
+                execute_as=execute_as,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                is_permanent=is_permanent,
+                session=self._session,
+                **kwargs,
+            )
 
         if is_permanent:
             self._session._conn.log_not_supported_error(
@@ -261,7 +337,10 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 raise ValueError("options replace and if_not_exists are incompatible")
 
             if sproc_name in self._registry and if_not_exists:
-                return self._registry[sproc_name]
+                ans = self._registry[sproc_name]
+                ans._ast = ast
+                ans._ast_id = stmt.var_id.bitfield1 if _emit_ast else None
+                return ans
 
             if sproc_name in self._registry and not replace:
                 raise SnowparkLocalTestingException(
@@ -313,6 +392,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 sproc_imports,
                 execute_as=execute_as,
                 strict=strict,
+                _ast=ast,
+                _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
             )
 
             self._registry[sproc_name] = sproc
@@ -325,7 +406,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
-    ):
+        _emit_ast: bool = True,
+    ) -> Any:
         with self._lock:
             current_schema = self._session.get_current_schema()
             current_database = self._session.get_current_database()
@@ -333,11 +415,38 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 sproc_name, current_schema, current_database
             )
 
+            # TODO: Support call in MockServerConnection.
+            from snowflake.snowpark.mock._connection import MockServerConnection
+
             if sproc_name not in self._registry:
-                raise SnowparkLocalTestingException(
-                    f"Unknown function {sproc_name}. Stored procedure by that name does not exist."
-                )
+                if (
+                    isinstance(self._session._conn, MockServerConnection)
+                    and self._session._conn._suppress_not_implemented_error
+                ):
+                    return None
+                else:
+                    raise SnowparkLocalTestingException(
+                        f"Unknown function {sproc_name}. Stored procedure by that name does not exist."
+                    )
 
             sproc = self._registry[sproc_name]
+            res = sproc(*args, session=session, statement_params=statement_params)
 
-        return sproc(*args, session=session, statement_params=statement_params)
+            sproc_expr = None
+            if _emit_ast and sproc._ast is not None:
+                assert (
+                    sproc._ast is not None
+                ), "Need to ensure _emit_ast is True when registering a stored procedure."
+                assert (
+                    sproc._ast_id is not None
+                ), "Need to assign an ID to the stored procedure."
+                sproc_expr = proto.Expr()
+                build_sproc_apply(sproc_expr, sproc._ast_id, statement_params, *args)
+
+            if sproc._is_return_table:
+                # If the result is a Column or DataFrame object, the expression `eval` is performed in a later operation
+                # such as `collect` or `show`.
+                # If the result is a scalar, it is taken care of in `__call__` in MockStoredProcedure.
+                res._ast = sproc_expr
+
+            return res
