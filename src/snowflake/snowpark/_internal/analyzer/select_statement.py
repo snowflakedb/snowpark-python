@@ -753,12 +753,12 @@ class SelectStatement(Selectable):
         for plan in subquery_plans:
             for query in plan.queries[:-1]:
                 if self.pre_actions is None:
-                    self.pre_actions = []  # pragma: no cover
+                    self.pre_actions = []
                 if query not in self.pre_actions:
                     self.pre_actions.append(query)
             for query in plan.post_actions:
                 if self.post_actions is None:
-                    self.post_actions = []  # pragma: no cover
+                    self.post_actions = []
                 if query not in self.post_actions:
                     self.post_actions.append(query)
 
