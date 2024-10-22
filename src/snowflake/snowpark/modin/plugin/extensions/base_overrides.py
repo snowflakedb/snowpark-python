@@ -12,6 +12,7 @@ and if possible, whether this can be reconciled with upstream Modin.
 """
 from __future__ import annotations
 
+import copy
 import pickle as pkl
 import warnings
 from collections.abc import Sequence
@@ -105,12 +106,16 @@ def register_base_override(method_name: str):
         series_method = getattr(pd.Series, method_name, None)
         if isinstance(series_method, property):
             series_method = series_method.fget
-        if series_method is None or series_method is parent_method:
+        if (
+            series_method is None
+            or series_method is parent_method
+            or parent_method is None
+        ):
             register_series_accessor(method_name)(base_method)
         df_method = getattr(pd.DataFrame, method_name, None)
         if isinstance(df_method, property):
             df_method = df_method.fget
-        if df_method is None or df_method is parent_method:
+        if df_method is None or df_method is parent_method or parent_method is None:
             register_dataframe_accessor(method_name)(base_method)
         # Replace base method
         setattr(BasePandasDataset, method_name, base_method)
@@ -862,6 +867,19 @@ def var(
         numeric_only=numeric_only,
         **kwargs,
     )
+
+
+def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
+    # Use a field on the query compiler instead of self to avoid any possible ambiguity with
+    # a column named "_attrs"
+    self._query_compiler._attrs = copy.deepcopy(value)
+
+
+def _get_attrs(self) -> dict:  # noqa: RT01, D200
+    return self._query_compiler._attrs
+
+
+register_base_override("attrs")(property(_get_attrs, _set_attrs))
 
 
 # Modin does not provide `MultiIndex` support and will default to pandas when `level` is specified,
