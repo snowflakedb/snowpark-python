@@ -6,6 +6,8 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from numpy.testing import assert_array_equal
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import MaxAbsScaler
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.utils.sql_counter import SqlCounter
@@ -13,8 +15,6 @@ from tests.integ.utils.sql_counter import SqlCounter
 
 # SNOW-1344931 Support MaxAbsScalar by supporting numpy.may_share_memory
 def test_scikit_maxabs():
-    from sklearn.preprocessing import MaxAbsScaler
-
     data = [[1.0, -1.0, 2.0], [2.0, 0.0, 0.0], [0.0, 1.0, -1.0]]
     X = pd.DataFrame(data)
     X_native = native_pd.DataFrame(data)
@@ -31,8 +31,6 @@ def test_scikit_maxabs():
 # SNOW-1518382 Support PCA by supporting numpy.may_share_memory
 # similar to the test for MaxAbsScalar
 def test_scikit_pca():
-    from sklearn.decomposition import PCA
-
     data = [[1.0, -1.0, 2.0], [2.0, 0.0, 0.0], [0.0, 1.0, -1.0]]
     X = pd.DataFrame(data)
     X_native = native_pd.DataFrame(data)
