@@ -401,9 +401,13 @@ class LargeQueryBreakdown:
         if isinstance(node, SnowflakePlan) and isinstance(
             node.source_plan, WithQueryBlock
         ):
-            return False
+            ignore_with_query_block = node.source_plan
+        else:
+            ignore_with_query_block = None
 
         for with_query_block, node_count in node.referenced_ctes.items():
+            if with_query_block is ignore_with_query_block:
+                continue
             root_count = root.referenced_ctes[with_query_block]
             if node_count != root_count:
                 return True
