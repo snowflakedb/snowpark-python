@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
+    SNOWFLAKE_PATH_PREFIXES,
     TempObjectType,
     get_aliased_option_name,
     get_copy_into_table_options,
@@ -60,7 +61,8 @@ READER_OPTIONS_ALIAS_MAP = {
 
 
 def _validate_stage_path(path: str) -> str:
-    if not path.strip("\"'").startswith("@"):
+    stripped_path = path.strip("\"'")
+    if not any(stripped_path.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
         raise ValueError(
             f"'{path}' is an invalid path. DataFrameReader can only read files from stage locations."
         )
