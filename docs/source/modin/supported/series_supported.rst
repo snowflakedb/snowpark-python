@@ -214,8 +214,9 @@ Methods
 |                             |                                 | Categoricals are not implemented | label or Series from the current DataFrame;        |
 |                             |                                 | yet                              | otherwise ``N``;                                   |
 |                             |                                 |                                  | Note that supported functions are agg, count,      |
-|                             |                                 |                                  | cumcount, cummax, cummin, cumsum, max, mean,       |
-|                             |                                 |                                  | median, min, quantile, shift, std, sum, and var.   |
+|                             |                                 |                                  | cumcount, cummax, cummin, cumsum, first, last,     |
+|                             |                                 |                                  | max, mean, median, min, quantile, shift, size,     |
+|                             |                                 |                                  | std , sum, and var.
 |                             |                                 |                                  | Otherwise ``N``                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``gt``                      | P                               | ``level``                        |                                                    |
