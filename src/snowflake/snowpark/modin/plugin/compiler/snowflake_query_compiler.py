@@ -7934,12 +7934,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 pandas_labels=["partition_id"]
             )[0]
         )
+        session = self._modin_frame.ordered_dataframe.session
         partition_expression = (
             snowpark_round(
-                col(row_position_snowflake_quoted_identifier)
-                / pandas_lit(partition_size)
+                col(
+                    row_position_snowflake_quoted_identifier,
+                    _emit_ast=session.ast_enabled,
+                )
+                / pandas_lit(partition_size, _emit_ast=session.ast_enabled),
+                _emit_ast=session.ast_enabled,
             )
-        ).as_(partition_identifier)
+        ).as_(partition_identifier, _emit_ast=session.ast_enabled)
         udtf_dataframe = new_internal_df.ordered_dataframe.select(
             partition_expression,
             row_position_snowflake_quoted_identifier,
