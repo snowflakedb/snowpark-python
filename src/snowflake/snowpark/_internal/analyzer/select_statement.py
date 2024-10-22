@@ -22,7 +22,6 @@ from typing import (
 )
 
 import snowflake.snowpark._internal.utils
-from snowflake.snowpark._internal.analyzer.cte_utils import encode_node_id_with_query
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
@@ -35,6 +34,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer.window_expression import WindowExpression
+from snowflake.snowpark._internal.compiler.cte_utils import encode_node_id_with_query
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.types import DataType
 
