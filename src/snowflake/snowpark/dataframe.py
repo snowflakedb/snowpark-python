@@ -1695,6 +1695,7 @@ class DataFrame:
         """
         if not cols:
             raise ValueError("sort() needs at least one sort expression.")
+        # This code performs additional type checks, run first.
         exprs = self._convert_cols_to_exprs("sort()", *cols)
         if not exprs:
             raise ValueError("sort() needs at least one sort expression.")
@@ -1942,6 +1943,11 @@ class DataFrame:
         Args:
             cols: The columns to group by rollup.
         """
+
+        # This code performs additional type checks, run first.
+        rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
+
+        # AST.
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
@@ -1951,7 +1957,6 @@ class DataFrame:
             for c in col_list:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
-        rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             rollup_exprs,
@@ -2001,6 +2006,10 @@ class DataFrame:
             >>> df.group_by("a").function("avg")("b").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
+        # This code performs additional type checks, run first.
+        grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
+
+        # AST.
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
@@ -2016,7 +2025,6 @@ class DataFrame:
             else:
                 stmt = _ast_stmt
 
-        grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         df = snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
@@ -2103,6 +2111,9 @@ class DataFrame:
             cols: The columns to group by cube.
         """
 
+        # This code performs additional type checks, run first.
+        cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -2113,7 +2124,6 @@ class DataFrame:
             for c in col_list:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
-        cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             cube_exprs,
@@ -2342,6 +2352,9 @@ class DataFrame:
             ---------------------------------------------
             <BLANKLINE>
         """
+        # This code performs additional type checks, run first.
+        column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -2353,7 +2366,6 @@ class DataFrame:
             for c in column_list:
                 build_expr_from_snowpark_column_or_col_name(ast.column_list.add(), c)
 
-        column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
 
         # TODO: Support unpivot in MockServerConnection.
