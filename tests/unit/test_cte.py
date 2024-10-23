@@ -6,6 +6,9 @@ from unittest import mock
 
 import pytest
 
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PlanNodeCategory,
+)
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSQL,
     SelectStatement,
@@ -22,6 +25,10 @@ def test_case1():
     for i, node in enumerate(nodes):
         node.encoded_node_id_with_query = i
         node.source_plan = None
+        if i == 5:
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 80000}
+        else:
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 3}
     nodes[0].children_plan_nodes = [nodes[1], nodes[3]]
     nodes[1].children_plan_nodes = [nodes[2], nodes[2]]
     nodes[2].children_plan_nodes = [nodes[4]]
@@ -31,7 +38,8 @@ def test_case1():
     nodes[6].children_plan_nodes = []
 
     expected_duplicate_subtree_ids = {2, 5}
-    return nodes[0], expected_duplicate_subtree_ids
+    expected_repeated_node_complexity = [2, 3, 0, 0, 0, 0, 0]
+    return nodes[0], expected_duplicate_subtree_ids, expected_repeated_node_complexity
 
 
 def test_case2():
@@ -39,6 +47,12 @@ def test_case2():
     for i, node in enumerate(nodes):
         node.encoded_node_id_with_query = i
         node.source_plan = None
+        if i == 4:
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 280000}
+        elif i == 6:
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 15000000}
+        else:
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 10}
     nodes[0].children_plan_nodes = [nodes[1], nodes[3]]
     nodes[1].children_plan_nodes = [nodes[2], nodes[2]]
     nodes[2].children_plan_nodes = [nodes[4], nodes[4]]
@@ -48,14 +62,22 @@ def test_case2():
     nodes[6].children_plan_nodes = [nodes[4], nodes[4]]
 
     expected_duplicate_subtree_ids = {2, 4, 6}
-    return nodes[0], expected_duplicate_subtree_ids
+    expected_repeated_node_complexity = [2, 0, 8, 0, 0, 0, 2]
+    return nodes[0], expected_duplicate_subtree_ids, expected_repeated_node_complexity
 
 
 @pytest.mark.parametrize("test_case", [test_case1(), test_case2()])
 def test_find_duplicate_subtrees(test_case):
-    plan, expected_duplicate_subtree_ids = test_case
-    duplicate_subtrees_ids = find_duplicate_subtrees(plan)
+    plan, expected_duplicate_subtree_ids, expected_repeated_node_complexity = test_case
+    duplicate_subtrees_ids, repeated_node_complexity = find_duplicate_subtrees(plan)
     assert duplicate_subtrees_ids == expected_duplicate_subtree_ids
+    assert repeated_node_complexity is None
+
+    duplicate_subtrees_ids, repeated_node_complexity = find_duplicate_subtrees(
+        plan, propagate_complexity_hist=True
+    )
+    assert duplicate_subtrees_ids == expected_duplicate_subtree_ids
+    assert repeated_node_complexity == expected_repeated_node_complexity
 
 
 def test_encode_node_id_with_query_select_sql(mock_analyzer):

@@ -363,16 +363,12 @@ class SnowflakePlan(LogicalPlan):
         return self._output_dict
 
     @cached_property
-    def num_duplicate_nodes(self) -> int:
-        duplicated_nodes = find_duplicate_subtrees(self)
-        return len(duplicated_nodes)
-
-    @cached_property
     def plan_state(self) -> Dict[PlanState, Any]:
         from snowflake.snowpark._internal.analyzer.select_statement import (
             SelectStatement,
         )
 
+        # calculate plan height and num_selects_with_complexity_merged
         height = 0
         num_selects_with_complexity_merged = 0
         current_level = [self]
@@ -387,9 +383,16 @@ class SnowflakePlan(LogicalPlan):
                     num_selects_with_complexity_merged += 1
             height += 1
             current_level = next_level
+        # calculate the repeated node status
+        cte_nodes, duplicated_node_complexity_distribution = find_duplicate_subtrees(
+            self, propagate_complexity_hist=True
+        )
+
         return {
             PlanState.PLAN_HEIGHT: height,
             PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: num_selects_with_complexity_merged,
+            PlanState.NUM_CTE_NODES: len(cte_nodes),
+            PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: duplicated_node_complexity_distribution,
         }
 
     @property

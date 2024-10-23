@@ -5,16 +5,22 @@
 import hashlib
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, Optional, Set
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
+
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    get_complexity_score,
+)
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.compiler.utils import TreeNode  # pragma: no cover
 
 
-def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
+def find_duplicate_subtrees(
+    root: "TreeNode", propagate_complexity_hist: bool = False
+) -> Tuple[Set[str], Optional[List[int]]]:
     """
     Returns a set of TreeNode encoded_id that indicates all duplicate subtrees in query plan tree.
     The root of a duplicate subtree is defined as a duplicate node, if
@@ -39,6 +45,7 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
     """
     id_count_map = defaultdict(int)
     id_parents_map = defaultdict(set)
+    id_complexity_map = defaultdict(list[int])
 
     def traverse(root: "TreeNode") -> None:
         """
@@ -49,6 +56,10 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
             next_level = []
             for node in current_level:
                 id_count_map[node.encoded_node_id_with_query] += 1
+                if propagate_complexity_hist:
+                    id_complexity_map[node.encoded_node_id_with_query].append(
+                        get_complexity_score(node)
+                    )
                 for child in node.children_plan_nodes:
                     id_parents_map[child.encoded_node_id_with_query].add(
                         node.encoded_node_id_with_query
@@ -72,12 +83,55 @@ def find_duplicate_subtrees(root: "TreeNode") -> Set[str]:
         return False
 
     traverse(root)
-    duplicated_node = {
+    duplicated_node_ids = {
         encoded_node_id_with_query
         for encoded_node_id_with_query in id_count_map
         if is_duplicate_subtree(encoded_node_id_with_query)
     }
-    return duplicated_node
+
+    if propagate_complexity_hist:
+        return (
+            duplicated_node_ids,
+            get_repeated_node_complexity_hist(duplicated_node_ids, id_complexity_map),
+        )
+    else:
+        return (duplicated_node_ids, None)
+
+
+def get_repeated_node_complexity_hist(
+    duplicated_node_id_set: Set[str], id_complexity_map: Dict[str, List[int]]
+) -> List[int]:
+    """
+    Calculate the complexity distribution for the detected repeated node. The complexity are categorized as following:
+    1) low complexity
+        bin 0: <= 10,000; bin 1: > 10,000, <= 100,000; bin 2: > 100,000, <= 500,000
+    2) medium complexity
+        bin 3: > 500,000, <= 1,000,000;  bin 4: > 1,000,000, <= 5,000,000
+    4) large complexity
+        bin 5: > 5,000,000, <= 10,000,000;  bin 6: > 10,000,000
+
+    Returns:
+        A list with size 7, each element corresponds number of repeated nodes with complexity falls into the bin.
+    """
+    repeated_node_complexity_hist = [0] * 7
+    for node_id in duplicated_node_id_set:
+        for complexity_score in id_complexity_map[node_id]:
+            if complexity_score <= 10000:
+                repeated_node_complexity_hist[0] += 1
+            elif 10000 < complexity_score <= 100000:
+                repeated_node_complexity_hist[1] += 1
+            elif 100000 < complexity_score <= 500000:
+                repeated_node_complexity_hist[2] += 1
+            elif 500000 < complexity_score <= 1000000:
+                repeated_node_complexity_hist[3] += 1
+            elif 1000000 < complexity_score <= 5000000:
+                repeated_node_complexity_hist[4] += 1
+            elif 5000000 < complexity_score <= 10000000:
+                repeated_node_complexity_hist[5] += 1
+            elif complexity_score > 10000000:
+                repeated_node_complexity_hist[6] += 1
+
+    return repeated_node_complexity_hist
 
 
 def encode_query_id(node) -> Optional[str]:
