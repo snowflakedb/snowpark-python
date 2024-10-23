@@ -480,20 +480,20 @@ class BasePandasDataset:
             1  1  2  3  4
             2  6  7  8  9
             >>> other
-               A    B    C    D
+                 A    B    C    D
             2   10   20   30   40
             3   60   70   80   90
             4  600  700  800  900
             >>> left, right = df.align(other, join="outer", axis=0)
             >>> left
-                D    B    E    A
+                 D    B    E    A
             1  1.0  2.0  3.0  4.0
             2  6.0  7.0  8.0  9.0
             3  NaN  NaN  NaN  NaN
             4  NaN  NaN  NaN  NaN
             >>> right
-                A      B      C      D
-            1    NaN   NaN    NaN    NaN
+                   A      B      C      D
+            1    NaN    NaN    NaN    NaN
             2   10.0   20.0   30.0   40.0
             3   60.0   70.0   80.0   90.0
             4  600.0  700.0  800.0  900.0
