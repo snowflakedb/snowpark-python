@@ -480,7 +480,7 @@ class BasePandasDataset:
             1  1  2  3  4
             2  6  7  8  9
             >>> other
-                A    B    C    D
+               A    B    C    D
             2   10   20   30   40
             3   60   70   80   90
             4  600  700  800  900
