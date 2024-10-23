@@ -1346,18 +1346,19 @@ def base64_str_to_request(base64_str: str) -> proto.Request:
     return message
 
 
-def merge_requests(messages: List[proto.Request]) -> proto.Request:
-    message = proto.Request()
+def merge_requests(requests: List[proto.Request]) -> proto.Request:
+    """Merge list of requests into a single request through accumulating the request body segments in same order."""
+    request = proto.Request()
 
     # Copy the client_version, etc as part of first message.
-    message.CopyFrom(messages[0])
+    request.CopyFrom(requests[0])
 
-    for next_message in messages[1:]:
-        for next_stmt in next_message.body:
-            stmt = message.body.add()
+    for next_request in requests[1:]:
+        for next_stmt in next_request.body:
+            stmt = request.body.add()
             stmt.CopyFrom(next_stmt)
 
-    return message
+    return request
 
 
 def base64_lines_to_request(base64_lines: str) -> proto.Request:
