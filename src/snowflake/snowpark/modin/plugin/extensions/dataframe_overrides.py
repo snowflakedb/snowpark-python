@@ -381,13 +381,6 @@ def __delitem__(self, key):
     pass  # pragma: no cover
 
 
-@register_dataframe_accessor("attrs")
-@dataframe_not_implemented()
-@property
-def attrs(self):  # noqa: RT01, D200
-    pass  # pragma: no cover
-
-
 @register_dataframe_accessor("style")
 @dataframe_not_implemented()
 @property
