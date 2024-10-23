@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Any, Optional, Union
+from typing import Any, Hashable, Optional, Union
 
 import modin.pandas as pd
 from modin.pandas.base import BasePandasDataset
@@ -112,6 +112,30 @@ def may_share_memory_mapper(a: Any, b: Any, max_work: Optional[int] = None) -> b
     return False
 
 
+def full_like_mapper(
+    a: Union[pd.DataFrame, pd.Series],
+    fill_value: Hashable,
+    dtype: Optional[Any] = None,
+    order: Optional[str] = "K",
+    subok: Optional[bool] = True,
+    shape: Optional[tuple[Any]] = None,
+) -> Union[pd.DataFrame, pd.Series]:
+    if not subok:
+        return NotImplemented
+    if not order == "K":
+        return NotImplemented
+    if dtype is not None:
+        return NotImplemented
+
+    result_shape = shape or a.shape
+    if len(result_shape) == 2:
+        height, width = result_shape  # type: ignore
+        return pd.DataFrame(fill_value, index=range(height), columns=range(width))
+    if len(result_shape) == 1:
+        return pd.Series(fill_value, index=range(result_shape[0]))
+    return NotImplemented
+
+
 # We also need to convert everything to booleans, since numpy will
 # do this implicitly on logical operators and pandas does not.
 def map_to_bools(inputs: Any) -> Any:
@@ -125,6 +149,7 @@ def map_to_bools(inputs: Any) -> Any:
 numpy_to_pandas_func_map = {
     "where": where_mapper,
     "may_share_memory": may_share_memory_mapper,
+    "full_like": full_like_mapper,
 }
 
 # Map that associates a numpy universal function name that operates on

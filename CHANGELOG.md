@@ -38,6 +38,7 @@
 - Added support for timedelta inputs in `value_counts()`.
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 - Added support for `DataFrame`/`Series.attrs`
+- Added numpy compatibility support for `np.full_like`
 
 #### Improvements
 
