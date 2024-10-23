@@ -14,4 +14,183 @@ df = df.unpivot("sales", "month", ["jan", "feb"])
 
 ## EXPECTED ENCODED AST
 
-CsUDCsIDCrMD+gWvAwr1AgryAgq4AZoNtAEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAESLPoMKQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkSC2VsZWN0cm9uaWNzEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEGQSIsICHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQyAEKtAGaDbABChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRACEij6DCUKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgdjbG90aGVzEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEGQSIsICHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQrAISGQoXCgVlbXBpZAoEZGVwdAoDamFuCgNmZWIaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgQKAmRmGAEiAggBCpQBCpEBCoIBigp/CiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEgNqYW4KJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SA2ZlYhIHggIECgIIARoFbW9udGgiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdKgVzYWxlcxIECgJkZhgCIgIIAhABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "electronics"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 100
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 200
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "clothes"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 100
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 300
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__list {
+            vs: "empid"
+            vs: "dept"
+            vs: "jan"
+            vs: "feb"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_unpivot {
+        column_list {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+            v: "jan"
+          }
+        }
+        column_list {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+            v: "feb"
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        name_column: "month"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        value_column: "sales"
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

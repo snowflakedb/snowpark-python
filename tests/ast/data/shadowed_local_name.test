@@ -22,4 +22,168 @@ df4 = df_res1.flatten("STR", Some("path"), True, False, "BOTH")
 
 ## EXPECTED ENCODED AST
 
-Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKkgEKjwEKgAGaB30KVgpSkgFPCgsaCQoHCgUKA2NvbBok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIDTlVNIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRABEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIECgJkZhgCIgIIAgo4CjYKKJIHJQoHggIECgIIAhIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBwSBAoCZGYYAyICCAMKbQprClzCB1kKB4ICBAoCCAISJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCESA1NUUhoCEAEgASoGCgRwYXRoOhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIRIFCgNkZjQYBCICCAQQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    fn_name_flat {
+                      name: "col"
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 25
+                  }
+                  v: "NUM"
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 25
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_distinct {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 28
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_flatten {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        input {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 33
+            }
+            v: "STR"
+          }
+        }
+        mode {
+          sp_flatten_mode_both: true
+        }
+        outer: true
+        path {
+          value: "path"
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

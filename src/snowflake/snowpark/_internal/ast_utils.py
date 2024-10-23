@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import ast
+import base64
 import datetime
 import decimal
 import inspect
@@ -18,6 +19,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 
 import dateutil
 from dateutil.tz import tzlocal
+from google.protobuf.text_format import MessageToString, Parse
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -1325,3 +1327,41 @@ def build_expr_from_dict_str_str(
         t = ast_dict.add()
         t._1 = k
         t._2 = v
+
+
+def ClearTempTables(message: proto.Request) -> None:
+    """Removes temp table when passing pandas data."""
+    for stmt in message.body:
+        if str(
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
+        ):
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
+                "temp_table"
+            )
+
+
+def base64_str_to_request(base64_str: str) -> proto.Request:
+    message = proto.Request()
+    message.ParseFromString(base64.b64decode(base64_str.strip()))
+    return message
+
+
+def base64_str_to_textproto(base64_str: str) -> str:
+    request = base64_str_to_request(base64_str)
+
+    # Force a fixed python version to avoid unnecessary diffs
+    request.client_language.python_language.version.major = 3
+    request.client_language.python_language.version.minor = 9
+    request.client_language.python_language.version.patch = 1
+    request.client_language.python_language.version.label = "final"
+
+    ClearTempTables(request)
+
+    message = MessageToString(request)
+
+    return message
+
+
+def textproto_to_request(textproto_str) -> proto.Request:
+    request = Parse(textproto_str, proto.Request())
+    return request

@@ -35,4 +35,590 @@ df2 = df2.sort("k")
 
 ## EXPECTED ENCODED AST
 
-CrcICrQICqUI+gWhCAr0BwrxBwqNAZoNiQEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAESIsICHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQkE4SJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkSA0pBTgqNAZoNiQEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAESIsICHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQkAMSJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkSA0pBTgqNAZoNiQEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAISIsICHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQlCMSJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkSA0pBTgqOAZoNigEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEAISI8ICIAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkQuJECEiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgNKQU4KjQGaDYkBChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRABEiLCAh8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEIgnEiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgNGRUIKjQGaDYkBChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRABEiLCAh8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZELgXEiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgNGRUIKjQGaDYkBChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIhwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRACEiLCAh8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEMgBEiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgNGRUISDAoKCgFrCgF0CgJtbxoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkSBAoCZGYYASICCAEK8wEK8AEK4AHCCNwBCh+SAxwKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgmEgeCAgQKAggBGiP6DCAKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgmEgJtbyIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCYqbxJtCmvSAmgKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgmEiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgmEgNKQU4SJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCYSA0ZFQhIFCgNkZjEYAiICCAIKZQpjClTKC1EKA3N1bRImCiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgmEgF0EAEaBlIECgIIAiIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCYSBQoDZGYxGAMiAggDCl8KXQpOmglLEiL6DB8KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgmEgFrGAEiB4ICBAoCCAMqGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgmEgUKA2RmMRgEIgIIBAr8AQr5AQrpAcII5QEKKPoMJQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCgSB05vdGhpbmcSB4ICBAoCCAEaI/oMIAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCgSAm1vIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoKCpvEm0Ka9ICaAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCgSJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCgSA0pBThIk+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoKBIDRkVCEgUKA2RmMhgFIgIIBQplCmMKVMoLUQoDc3VtEiYKIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCgSAXQQARoGUgQKAggFIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoKBIFCgNkZjIYBiICCAYKXwpdCk6aCUsSIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCgSAWsYASIHggIECgIIBioaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCgSBQoDZGYyGAciAggHEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 10000
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "JAN"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 400
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "JAN"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 4500
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "JAN"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 35000
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "JAN"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 5000
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "FEB"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 3000
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "FEB"
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: 200
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "FEB"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__list {
+            vs: "k"
+            vs: "t"
+            vs: "mo"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_pivot {
+        default_on_null {
+          null_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 38
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        pivot_col {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 38
+            }
+            v: "mo"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 38
+        }
+        values {
+          sp_pivot_value__expr {
+            v {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 38
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 38
+                    }
+                    v: "JAN"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 38
+                    }
+                    v: "FEB"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_relational_grouped_dataframe_builtin {
+        agg_name: "sum"
+        cols {
+          args {
+            string_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 38
+              }
+              v: "t"
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          sp_relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 38
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_sort {
+        cols {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 38
+            }
+            v: "k"
+          }
+        }
+        cols_variadic: true
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 38
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_pivot {
+        default_on_null {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 40
+            }
+            v: "Nothing"
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        pivot_col {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 40
+            }
+            v: "mo"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 40
+        }
+        values {
+          sp_pivot_value__expr {
+            v {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 40
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 40
+                    }
+                    v: "JAN"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 40
+                    }
+                    v: "FEB"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_relational_grouped_dataframe_builtin {
+        agg_name: "sum"
+        cols {
+          args {
+            string_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 40
+              }
+              v: "t"
+            }
+          }
+          variadic: true
+        }
+        grouped_df {
+          sp_relational_grouped_dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 40
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_sort {
+        cols {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 40
+            }
+            v: "k"
+          }
+        }
+        cols_variadic: true
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 40
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
