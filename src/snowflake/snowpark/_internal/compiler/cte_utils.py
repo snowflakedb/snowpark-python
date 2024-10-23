@@ -48,7 +48,7 @@ def find_duplicate_subtrees(
     """
     id_count_map = defaultdict(int)
     id_parents_map = defaultdict(set)
-    id_complexity_map = defaultdict(list[int])
+    id_complexity_map = defaultdict(list)
 
     def traverse(root: "TreeNode") -> None:
         """
