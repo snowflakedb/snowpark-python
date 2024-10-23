@@ -4,6 +4,7 @@
 
 import sys
 from typing import Any, Dict, List, Literal, Optional, Union, overload
+from typing_extensions import Unpack
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -17,7 +18,7 @@ from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     dfw_collect_api_telemetry,
 )
-from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExpr
+from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExpr, CopyOptions
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     get_aliased_option_name,
@@ -331,7 +332,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[True] = True,
-        **copy_options: Optional[Dict[str, Any]],
+        **copy_options: Unpack[CopyOptions],
     ) -> List[Row]:
         ...  # pragma: no cover
 
@@ -347,8 +348,24 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[False] = False,
-        **copy_options: Optional[Dict[str, Any]],
+        **copy_options: Unpack[CopyOptions],
     ) -> AsyncJob:
+        ...  # pragma: no cover
+
+    @overload
+    def copy_into_location(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        file_format_name: Optional[str] = None,
+        file_format_type: Optional[str] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        **copy_options: Unpack[CopyOptions],
+    ) -> Union[List[Row], AsyncJob]:
         ...  # pragma: no cover
 
     def copy_into_location(
@@ -362,7 +379,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        **copy_options: Optional[Dict[str, Any]],
+        **copy_options: Unpack[CopyOptions],
     ) -> Union[List[Row], AsyncJob]:
         """Executes a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more files in a stage or external stage.
 
@@ -459,7 +476,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        **copy_options: Optional[str],
+        **copy_options: Unpack[CopyOptions],
     ) -> Union[List[Row], AsyncJob]:
         """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into one or more CSV files in a stage or external stage.
 
@@ -505,7 +522,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        **copy_options: Optional[str],
+        **copy_options: Unpack[CopyOptions],
     ) -> Union[List[Row], AsyncJob]:
         """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into a JSON file in a stage or external stage.
 
@@ -552,7 +569,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        **copy_options: Optional[str],
+        **copy_options: Unpack[CopyOptions],
     ) -> Union[List[Row], AsyncJob]:
         """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into a PARQUET file in a stage or external stage.
 
