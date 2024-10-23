@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING, Dict
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 
+_logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
-
 
 DROP_TABLE_STATEMENT_PARAM_NAME = "auto_clean_up_temp_table"
 
@@ -53,13 +54,13 @@ class TempTableAutoCleaner:
             ):
                 self.drop_table(name)
         elif self.ref_count_map[name] < 0:
-            logging.debug(
+            _logger.debug(
                 f"Unexpected reference count {self.ref_count_map[name]} for table {name}"
             )
 
     def drop_table(self, name: str) -> None:  # pragma: no cover
         common_log_text = f"temp table {name} in session {self.session.session_id}"
-        logging.debug(f"Ready to drop {common_log_text}")
+        _logger.debug(f"Ready to drop {common_log_text}")
         query_id = None
         try:
             async_job = self.session.sql(
@@ -68,10 +69,10 @@ class TempTableAutoCleaner:
                 block=False, statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name}
             )
             query_id = async_job.query_id
-            logging.debug(f"Dropping {common_log_text} with query id {query_id}")
+            _logger.debug(f"Dropping {common_log_text} with query id {query_id}")
         except Exception as ex:  # pragma: no cover
             warning_message = f"Failed to drop {common_log_text}, exception: {ex}"
-            logging.warning(warning_message)
+            _logger.warning(warning_message)
             if query_id is None:
                 # If no query_id is available, it means the query haven't been accepted by gs,
                 # and it won't occur in our job_etl_view, send a separate telemetry for recording.
