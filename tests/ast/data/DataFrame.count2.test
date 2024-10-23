@@ -23,7 +23,130 @@ df.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 ## EXPECTED ENCODED AST
 
-CoYBCoMBCnX6BXIKKBImCiQKIgogCh5TTk9XUEFSS19URU1QX1RBQkxFXzIzSkU0MEdCNk4SKhIoCiYKFQoFCgMiQSISCpoBBwoFCICAgAgYAQoNCgUKAyJCIhICaAEYARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBwSBAoCZGYYASICCAEKMQovCiXiBiIIARICCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgeEgAYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
-Ci8KLQoj4gYgEgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCASABgEIgIIBAoIEgYIBRICCAQQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
-CksKSQo/4gY8EgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCIiGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYBiICCAYKCBIGCAcSAggGEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
-EAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__pandas {
+            v {
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  name: "\"A\""
+                }
+                data_type {
+                  sp_string_type {
+                    length {
+                      value: 16777216
+                    }
+                  }
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  name: "\"B\""
+                }
+                data_type {
+                  sp_long_type: true
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 28
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_count {
+        block: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 30
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  eval {
+    uid: 3
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_count {
+        id {
+          bitfield1: 1
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  eval {
+    uid: 5
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
