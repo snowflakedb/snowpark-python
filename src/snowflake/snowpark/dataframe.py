@@ -1432,8 +1432,10 @@ class DataFrame:
                             join_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
-                    ).select(names)
+                    ).select(names),
+                    _ast_stmt=stmt,
                 )
+
             return self._with_plan(self._select_statement.select(names), _ast_stmt=stmt)
 
         return self._with_plan(Project(names, join_plan or self._plan), _ast_stmt=stmt)
