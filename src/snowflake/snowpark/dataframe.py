@@ -870,6 +870,7 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
+        """Implements shallow copy protocol for copy.copy(...)."""
         if self._select_statement:
             new_plan = copy.copy(self._select_statement)
             new_plan.column_states = self._select_statement.column_states
@@ -878,7 +879,9 @@ class DataFrame:
             new_plan._query_params = self._select_statement.query_params
         else:
             new_plan = copy.copy(self._plan)
-        return DataFrame(self._session, new_plan)
+        df = DataFrame(self._session, new_plan)
+        df._ast_id = self._ast_id
+        return df
 
     if installed_pandas:
         import pandas  # pragma: no cover
