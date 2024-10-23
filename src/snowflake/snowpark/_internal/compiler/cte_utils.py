@@ -22,7 +22,10 @@ def find_duplicate_subtrees(
     root: "TreeNode", propagate_complexity_hist: bool = False
 ) -> Tuple[Set[str], Optional[List[int]]]:
     """
-    Returns a set of TreeNode encoded_id that indicates all duplicate subtrees in query plan tree.
+    Returns a set of TreeNode encoded_id that indicates all duplicate subtrees in query plan tree,
+    and the distribution of duplicated node complexity in the tree if propagate_complexity_hist is true.
+
+
     The root of a duplicate subtree is defined as a duplicate node, if
         - it appears more than once in the tree, AND
         - one of its parent is unique (only appear once) in the tree, OR
@@ -92,13 +95,15 @@ def find_duplicate_subtrees(
     if propagate_complexity_hist:
         return (
             duplicated_node_ids,
-            get_repeated_node_complexity_hist(duplicated_node_ids, id_complexity_map),
+            get_duplicated_node_complexity_distribution(
+                duplicated_node_ids, id_complexity_map
+            ),
         )
     else:
         return (duplicated_node_ids, None)
 
 
-def get_repeated_node_complexity_hist(
+def get_duplicated_node_complexity_distribution(
     duplicated_node_id_set: Set[str], id_complexity_map: Dict[str, List[int]]
 ) -> List[int]:
     """
@@ -113,25 +118,25 @@ def get_repeated_node_complexity_hist(
     Returns:
         A list with size 7, each element corresponds number of repeated nodes with complexity falls into the bin.
     """
-    repeated_node_complexity_hist = [0] * 7
+    node_complexity_dist = [0] * 7
     for node_id in duplicated_node_id_set:
         for complexity_score in id_complexity_map[node_id]:
             if complexity_score <= 10000:
-                repeated_node_complexity_hist[0] += 1
+                node_complexity_dist[0] += 1
             elif 10000 < complexity_score <= 100000:
-                repeated_node_complexity_hist[1] += 1
+                node_complexity_dist[1] += 1
             elif 100000 < complexity_score <= 500000:
-                repeated_node_complexity_hist[2] += 1
+                node_complexity_dist[2] += 1
             elif 500000 < complexity_score <= 1000000:
-                repeated_node_complexity_hist[3] += 1
+                node_complexity_dist[3] += 1
             elif 1000000 < complexity_score <= 5000000:
-                repeated_node_complexity_hist[4] += 1
+                node_complexity_dist[4] += 1
             elif 5000000 < complexity_score <= 10000000:
-                repeated_node_complexity_hist[5] += 1
+                node_complexity_dist[5] += 1
             elif complexity_score > 10000000:
-                repeated_node_complexity_hist[6] += 1
+                node_complexity_dist[6] += 1
 
-    return repeated_node_complexity_hist
+    return node_complexity_dist
 
 
 def encode_query_id(node) -> Optional[str]:
