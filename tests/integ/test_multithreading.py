@@ -714,6 +714,7 @@ def test_temp_name_placeholder_for_sync(threadsafe_session):
     reason="local testing does not execute sql queries",
     run=False,
 )
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Skip file IO tests in localfs")
 def test_temp_name_placeholder_for_async(
     threadsafe_session, resources_path, threadsafe_temp_stage
 ):
