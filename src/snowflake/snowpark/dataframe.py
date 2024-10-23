@@ -1615,6 +1615,10 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+
+        # This code performs additional type checks, run first.
+        filter_col_expr = _to_col_if_sql_expr(expr, "filter/where")._expression
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -1628,14 +1632,12 @@ class DataFrame:
 
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.filter(
-                    _to_col_if_sql_expr(expr, "filter/where")._expression
-                ),
+                self._select_statement.filter(filter_col_expr),
                 _ast_stmt=stmt,
             )
         return self._with_plan(
             Filter(
-                _to_col_if_sql_expr(expr, "filter/where")._expression,
+                filter_col_expr,
                 self._plan,
             ),
             _ast_stmt=stmt,
