@@ -27,6 +27,8 @@ def test_case1():
         node.source_plan = None
         if i == 5:
             node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 80000}
+        elif i == 2:
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 600000}
         else:
             node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 3}
     nodes[0].children_plan_nodes = [nodes[1], nodes[3]]
@@ -38,7 +40,7 @@ def test_case1():
     nodes[6].children_plan_nodes = []
 
     expected_duplicate_subtree_ids = {2, 5}
-    expected_repeated_node_complexity = [2, 3, 0, 0, 0, 0, 0]
+    expected_repeated_node_complexity = [0, 3, 0, 2, 0, 0, 0]
     return nodes[0], expected_duplicate_subtree_ids, expected_repeated_node_complexity
 
 
@@ -47,8 +49,10 @@ def test_case2():
     for i, node in enumerate(nodes):
         node.encoded_node_id_with_query = i
         node.source_plan = None
-        if i == 4:
-            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 280000}
+        if i == 2:
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 2000000}
+        elif i == 4:
+            node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 7000000}
         elif i == 6:
             node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 15000000}
         else:
@@ -62,7 +66,7 @@ def test_case2():
     nodes[6].children_plan_nodes = [nodes[4], nodes[4]]
 
     expected_duplicate_subtree_ids = {2, 4, 6}
-    expected_repeated_node_complexity = [2, 0, 8, 0, 0, 0, 2]
+    expected_repeated_node_complexity = [0, 0, 0, 0, 2, 8, 2]
     return nodes[0], expected_duplicate_subtree_ids, expected_repeated_node_complexity
 
 
