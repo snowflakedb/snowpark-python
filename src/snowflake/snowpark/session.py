@@ -13,7 +13,6 @@ import os
 import re
 import sys
 import tempfile
-import threading
 import warnings
 from array import array
 from functools import reduce
@@ -93,6 +92,8 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
+    create_rlock,
+    create_thread_local,
     deprecated,
     escape_quotes,
     experimental,
@@ -233,6 +234,9 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
 )
 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
     "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND"
+)
+_PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
+    "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
 )
 # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
 # in Snowflake. This is the limit where we start seeing compilation errors.
@@ -520,13 +524,6 @@ class Session:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
-        self._thread_store = threading.local()
-        self._lock = threading.RLock()
-
-        # this lock is used to protect _packages. We use introduce a new lock because add_packages
-        # launches a query to snowflake to get all version of packages available in snowflake. This
-        # query can be slow and prevent other threads from moving on waiting for _lock.
-        self._package_lock = threading.RLock()
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
@@ -618,6 +615,17 @@ class Session:
                 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
             ),
         )
+
+        self._thread_store = create_thread_local(
+            self._conn._thread_safe_session_enabled
+        )
+        self._lock = create_rlock(self._conn._thread_safe_session_enabled)
+
+        # this lock is used to protect _packages. We use introduce a new lock because add_packages
+        # launches a query to snowflake to get all version of packages available in snowflake. This
+        # query can be slow and prevent other threads from moving on waiting for _lock.
+        self._package_lock = create_rlock(self._conn._thread_safe_session_enabled)
+
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
@@ -708,28 +716,6 @@ class Session:
         :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
         The default value is ``False``.
 
-        Example::
-
-            >>> import gc
-            >>>
-            >>> def f(session: Session) -> str:
-            ...     df = session.create_dataframe(
-            ...         [[1, 2], [3, 4]], schema=["a", "b"]
-            ...     ).cache_result()
-            ...     return df.table_name
-            ...
-            >>> session.auto_clean_up_temp_table_enabled = True
-            >>> table_name = f(session)
-            >>> assert table_name
-            >>> gc.collect() # doctest: +SKIP
-            >>>
-            >>> # The temporary table created by cache_result will be dropped when the DataFrame is no longer referenced
-            >>> # outside the function
-            >>> session.sql(f"show tables like '{table_name}'").count()
-            0
-
-            >>> session.auto_clean_up_temp_table_enabled = False
-
         Note:
             Temporary tables will only be dropped if this parameter is enabled during garbage collection.
             If a temporary table is no longer referenced when the parameter is on, it will be dropped during garbage collection.
@@ -800,7 +786,9 @@ class Session:
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
-        warn_session_config_update_in_multithreaded_mode("sql_simplifier_enabled")
+        warn_session_config_update_in_multithreaded_mode(
+            "sql_simplifier_enabled", self._conn._thread_safe_session_enabled
+        )
 
         with self._lock:
             self._conn._telemetry_client.send_sql_simplifier_telemetry(
@@ -817,7 +805,9 @@ class Session:
     @cte_optimization_enabled.setter
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
-        warn_session_config_update_in_multithreaded_mode("cte_optimization_enabled")
+        warn_session_config_update_in_multithreaded_mode(
+            "cte_optimization_enabled", self._conn._thread_safe_session_enabled
+        )
 
         with self._lock:
             if value:
@@ -831,7 +821,8 @@ class Session:
     def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
         """Set the value for eliminate_numeric_sql_value_cast_enabled"""
         warn_session_config_update_in_multithreaded_mode(
-            "eliminate_numeric_sql_value_cast_enabled"
+            "eliminate_numeric_sql_value_cast_enabled",
+            self._conn._thread_safe_session_enabled,
         )
 
         if value in [True, False]:
@@ -850,7 +841,7 @@ class Session:
     def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
         """Set the value for auto_clean_up_temp_table_enabled"""
         warn_session_config_update_in_multithreaded_mode(
-            "auto_clean_up_temp_table_enabled"
+            "auto_clean_up_temp_table_enabled", self._conn._thread_safe_session_enabled
         )
 
         if value in [True, False]:
@@ -873,7 +864,7 @@ class Session:
         overall performance.
         """
         warn_session_config_update_in_multithreaded_mode(
-            "large_query_breakdown_enabled"
+            "large_query_breakdown_enabled", self._conn._thread_safe_session_enabled
         )
 
         if value in [True, False]:
@@ -891,7 +882,8 @@ class Session:
     def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
         """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
         warn_session_config_update_in_multithreaded_mode(
-            "large_query_breakdown_complexity_bounds"
+            "large_query_breakdown_complexity_bounds",
+            self._conn._thread_safe_session_enabled,
         )
 
         if len(value) != 2:
@@ -2636,16 +2628,20 @@ class Session:
             0   1  Jane
 
         Note:
-            Unless ``auto_create_table`` is ``True``, you must first create a table in
+            1. Unless ``auto_create_table`` is ``True``, you must first create a table in
             Snowflake that the passed in pandas DataFrame can be written to. If
             your pandas DataFrame cannot be written to the specified table, an
             exception will be raised.
 
-            If the dataframe is Snowpark pandas :class:`~modin.pandas.DataFrame`
+            2. If the dataframe is Snowpark pandas :class:`~modin.pandas.DataFrame`
             or :class:`~modin.pandas.Series`, it will call
             :func:`modin.pandas.DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
             or :func:`modin.pandas.Series.to_snowflake <modin.pandas.Series.to_snowflake>`
             internally to write a Snowpark pandas DataFrame into a Snowflake table.
+
+            3. If the input pandas DataFrame has `datetime64[ns, tz]` columns and `auto_create_table` is set to `True`,
+            they will be converted to `TIMESTAMP_LTZ` in the output Snowflake table by default.
+            If `TIMESTAMP_TZ` is needed for those columns instead, please manually create the table before loading data.
         """
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
