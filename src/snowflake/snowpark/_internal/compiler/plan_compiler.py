@@ -29,6 +29,7 @@ from snowflake.snowpark._internal.compiler.utils import (
     plot_plan_if_enabled,
 )
 from snowflake.snowpark._internal.telemetry import TelemetryField
+from snowflake.snowpark._internal.utils import random_name_for_temp_object
 from snowflake.snowpark.mock._connection import MockServerConnection
 
 
@@ -162,10 +163,60 @@ class PlanCompiler:
                 plan_uuid=self._plan.uuid,
                 compilation_stage_summary=summary_value,
             )
-            return queries
         else:
             final_plan = self._plan
-            return {
+            queries = {
                 PlanQueryType.QUERIES: final_plan.queries,
                 PlanQueryType.POST_ACTIONS: final_plan.post_actions,
             }
+
+        return self.replace_temp_obj_placeholders(queries)
+
+    def replace_temp_obj_placeholders(
+        self, queries: Dict[PlanQueryType, List[Query]]
+    ) -> Dict[PlanQueryType, List[Query]]:
+        """
+        When thread-safe session is enabled, we use temporary object name placeholders instead of a temporary name
+        when generating snowflake plan. We replace the temporary object name placeholders with actual temporary object
+        names here. This is done to prevent the following scenario:
+
+        1. A dataframe is created and resolved in main thread.
+        2. The resolve plan contains queries that create and drop temp objects.
+        3. If the plan with same temp object names is executed my multiple threads, the temp object names will conflict.
+           One thread can drop the object before another thread finished using it.
+
+        To prevent this, we generate queries with temp object name placeholders and replace them with actual temp object
+        here.
+        """
+        session = self._plan.session
+        if session._conn._thread_safe_session_enabled:
+            # This dictionary will store the mapping between placeholder name and actual temp object name.
+            placeholders = {}
+            # Final execution queries
+            execution_queries = {}
+            for query_type, query_list in queries.items():
+                execution_queries[query_type] = []
+                for query in query_list:
+                    # If the query contains a temp object name placeholder, we generate a random
+                    # name for the temp object and add it to the placeholders dictionary.
+                    if query.temp_obj_name_placeholder:
+                        (
+                            placeholder_name,
+                            temp_obj_type,
+                        ) = query.temp_obj_name_placeholder
+                        placeholders[placeholder_name] = random_name_for_temp_object(
+                            temp_obj_type
+                        )
+
+                    copied_query = copy.copy(query)
+                    for placeholder_name, target_temp_name in placeholders.items():
+                        # Copy the original query and replace all the placeholder names with the
+                        # actual temp object names.
+                        copied_query.sql = copied_query.sql.replace(
+                            placeholder_name, target_temp_name
+                        )
+
+                    execution_queries[query_type].append(copied_query)
+            return execution_queries
+
+        return queries

@@ -153,16 +153,9 @@ class LargeQueryBreakdown:
         self._skipped_summary: dict = defaultdict(int)
 
     def apply(self) -> LargeQueryBreakdownResult:
-        if is_active_transaction(self.session):
-            # Skip optimization if the session is in an active transaction.
-            _logger.debug(
-                "Skipping large query breakdown optimization due to active transaction."
-            )
-            return LargeQueryBreakdownResult(
-                self.logical_plans,
-                [],
-                {SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION.value: 1},
-            )
+        reason = self._should_skip_optimization_for_session()
+        if reason is not None:
+            return LargeQueryBreakdownResult(self.logical_plans, [], {reason.value: 1})
 
         resulting_plans = []
         for logical_plan in self.logical_plans:
@@ -176,6 +169,62 @@ class LargeQueryBreakdown:
         return LargeQueryBreakdownResult(
             resulting_plans, self._breakdown_summary, self._skipped_summary
         )
+
+    def _should_skip_optimization_for_session(
+        self,
+    ) -> Optional[SkipLargeQueryBreakdownCategory]:
+        """Method to check if the optimization should be skipped based on the session state.
+
+        Returns:
+            SkipLargeQueryBreakdownCategory: enum indicating the reason for skipping the optimization.
+                if the optimization should be skipped, otherwise None.
+        """
+        if self.session.get_current_database() is None:
+            # Skip optimization if there is no active database.
+            _logger.debug(
+                "Skipping large query breakdown optimization since there is no active database."
+            )
+            return SkipLargeQueryBreakdownCategory.NO_ACTIVE_DATABASE
+
+        if self.session.get_current_schema() is None:
+            # Skip optimization if there is no active schema.
+            _logger.debug(
+                "Skipping large query breakdown optimization since there is no active schema."
+            )
+            return SkipLargeQueryBreakdownCategory.NO_ACTIVE_SCHEMA
+
+        if is_active_transaction(self.session):
+            # Skip optimization if the session is in an active transaction.
+            _logger.debug(
+                "Skipping large query breakdown optimization due to active transaction."
+            )
+            return SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION
+
+        return None
+
+    def _should_skip_optimization_for_root(
+        self, root: TreeNode
+    ) -> Optional[SkipLargeQueryBreakdownCategory]:
+        """Method to check if the optimization should be skipped based on the root node type.
+
+        Returns:
+            SkipLargeQueryBreakdownCategory enum indicating the reason for skipping the optimization
+                if the optimization should be skipped, otherwise None.
+        """
+        if (
+            isinstance(root, SnowflakePlan)
+            and root.source_plan is not None
+            and isinstance(
+                root.source_plan, (CreateViewCommand, CreateDynamicTableCommand)
+            )
+        ):
+            # Skip optimization if the root is a view or a dynamic table.
+            _logger.debug(
+                "Skipping large query breakdown optimization for view/dynamic table plan."
+            )
+            return SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE
+
+        return None
 
     def _try_to_breakdown_plan(self, root: TreeNode) -> List[LogicalPlan]:
         """Method to breakdown a single plan into smaller partitions based on
@@ -193,20 +242,9 @@ class LargeQueryBreakdown:
         _logger.debug(
             f"Applying large query breakdown optimization for root of type {type(root)}"
         )
-        if (
-            isinstance(root, SnowflakePlan)
-            and root.source_plan is not None
-            and isinstance(
-                root.source_plan, (CreateViewCommand, CreateDynamicTableCommand)
-            )
-        ):
-            # Skip optimization if the root is a view or a dynamic table.
-            _logger.debug(
-                "Skipping large query breakdown optimization for view/dynamic table plan."
-            )
-            self._skipped_summary[
-                SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE.value
-            ] += 1
+        reason = self._should_skip_optimization_for_root(root)
+        if reason is not None:
+            self._skipped_summary[reason.value] += 1
             return [root]
 
         complexity_score = get_complexity_score(root)
