@@ -96,6 +96,7 @@ class TestDefaultParameters:
             lambda df: df.compare(df.copy()),
             check_index_type=False,
             check_column_type=False,
+            test_attrs=False,  # native pandas propagates here while we do not
         )
 
     @sql_count_checker(

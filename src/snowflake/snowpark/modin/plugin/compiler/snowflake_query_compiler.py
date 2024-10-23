@@ -3,6 +3,7 @@
 #
 import calendar
 import collections
+import copy
 import functools
 import inspect
 import itertools
@@ -14,7 +15,7 @@ import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from functools import reduce
-from typing import Any, Callable, List, Literal, Optional, Union, get_args
+from typing import Any, Callable, List, Literal, Optional, TypeVar, Union, get_args
 
 import modin.pandas as pd
 import numpy as np
@@ -411,7 +412,95 @@ _TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED = (
     "ops for Rolling for this dtype timedelta64[ns] are not implemented"
 )
 
+# List of query compiler methods where attrs on the result should always be empty.
+_RESET_ATTRS_METHODS = [
+    "compare",
+    "merge",
+    "value_counts",
+    "dataframe_to_datetime",
+    "series_to_datetime",
+    "to_numeric",
+    "dt_isocalendar",
+    "groupby_all",
+    "groupby_any",
+    "groupby_cumcount",
+    "groupby_cummax",
+    "groupby_cummin",
+    "groupby_cumsum",
+    "groupby_nunique",
+    "groupby_rank",
+    "groupby_size",
+    # expanding and rolling methods also do not propagate; we check them by prefix matching
+    # agg, crosstab, and concat depend on their inputs, and are handled separately
+]
 
+
+T = TypeVar("T", bound=Callable[..., Any])
+
+
+def _propagate_attrs_on_methods(cls):  # type: ignore
+    """
+    Decorator that modifies all methods on the class to copy `_attrs` from `self`
+    to the output of the method, if the output is another query compiler.
+    """
+
+    def propagate_attrs_decorator(method: T) -> T:
+        @functools.wraps(method)
+        def wrap(self, *args, **kwargs):  # type: ignore
+            result = method(self, *args, **kwargs)
+            if isinstance(result, SnowflakeQueryCompiler) and len(self._attrs):
+                result._attrs = copy.deepcopy(self._attrs)
+            return result
+
+        return typing.cast(T, wrap)
+
+    def reset_attrs_decorator(method: T) -> T:
+        @functools.wraps(method)
+        def wrap(self, *args, **kwargs):  # type: ignore
+            result = method(self, *args, **kwargs)
+            if isinstance(result, SnowflakeQueryCompiler) and len(self._attrs):
+                result._attrs = {}
+            return result
+
+        return typing.cast(T, wrap)
+
+    for attr_name, attr_value in cls.__dict__.items():
+        # concat is handled explicitly because it checks all of its arguments
+        # agg is handled explicitly because it sometimes resets and sometimes propagates
+        if attr_name.startswith("_") or attr_name in ["concat", "agg"]:
+            continue
+        if attr_name in _RESET_ATTRS_METHODS or any(
+            attr_name.startswith(prefix) for prefix in ["expanding", "rolling"]
+        ):
+            setattr(cls, attr_name, reset_attrs_decorator(attr_value))
+        elif isinstance(attr_value, property):
+            setattr(
+                cls,
+                attr_name,
+                property(
+                    propagate_attrs_decorator(
+                        attr_value.fget
+                        if attr_value.fget is not None
+                        else attr_value.__get__
+                    ),
+                    propagate_attrs_decorator(
+                        attr_value.fset
+                        if attr_value.fset is not None
+                        else attr_value.__set__
+                    ),
+                    propagate_attrs_decorator(
+                        attr_value.fdel
+                        if attr_value.fdel is not None
+                        else attr_value.__delete__
+                    ),
+                ),
+            )
+        elif inspect.isfunction(attr_value):
+            setattr(cls, attr_name, propagate_attrs_decorator(attr_value))
+    return cls
+
+
+@_propagate_attrs_on_methods
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
@@ -429,6 +518,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
+        self._attrs: dict[Any, Any] = {}
 
     def _raise_not_implemented_error_for_timedelta(
         self, frame: InternalFrame = None
@@ -854,7 +944,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The QueryCompiler converted to pandas.
 
         """
-        return self._modin_frame.to_pandas(statement_params, **kwargs)
+        result = self._modin_frame.to_pandas(statement_params, **kwargs)
+        if self._attrs:
+            result.attrs = self._attrs
+        return result
 
     def finalize(self) -> None:
         pass
@@ -6065,6 +6158,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         query_compiler = self
+        initial_attrs = self._attrs
         if numeric_only:
             # drop off the non-numeric data columns if the data column if numeric_only is configured to be True
             query_compiler = drop_non_numeric_data_columns(
@@ -6481,6 +6575,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             result = result.transpose_single_row()
             # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
             result = result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
+        # native pandas clears attrs if the aggregation was a list, but propagates it otherwise
+        if is_list_like(func):
+            result._attrs = {}
+        else:
+            result._attrs = copy.deepcopy(initial_attrs)
         return result
 
     def insert(
@@ -7336,6 +7435,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         raise ValueError(
                             f"Indexes have overlapping values. Few of them are: {overlap}. Please run df1.index.intersection(df2.index) to see complete list"
                         )
+        # If each input's `attrs` was identical and not empty, then copy it to the output.
+        # Otherwise, leave `attrs` empty.
+        if len(self._attrs) > 0 and all(self._attrs == o._attrs for o in other):
+            qc._attrs = copy.deepcopy(self._attrs)
         return qc
 
     def cumsum(
