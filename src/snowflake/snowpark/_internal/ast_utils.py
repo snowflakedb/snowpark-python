@@ -1342,24 +1342,31 @@ def ClearTempTables(message: proto.Request) -> None:
 
 def base64_str_to_request(base64_str: str) -> proto.Request:
     message = proto.Request()
+    message.ParseFromString(base64.b64decode(base64_str))
+    return message
 
-    proto_strs = [base64.b64decode(s) for s in base64_str.split("\n")]
 
+def merge_requests(messages: List[proto.Request]) -> proto.Request:
     message = proto.Request()
-    message.ParseFromString(proto_strs[0])
 
-    for proto_str in proto_strs[1:]:
-        temp_msg = proto.Request()
-        temp_msg.ParseFromString(proto_str)
-        for temp_stmt in temp_msg.body:
+    # Copy the client_version, etc as part of first message.
+    message.CopyFrom(messages[0])
+
+    for next_message in messages[1:]:
+        for next_stmt in next_message.body:
             stmt = message.body.add()
-            stmt.CopyFrom(temp_stmt)
+            stmt.CopyFrom(next_stmt)
 
     return message
 
 
-def base64_str_to_textproto(base64_str: str) -> str:
-    request = base64_str_to_request(base64_str)
+def base64_lines_to_request(base64_lines: str) -> proto.Request:
+    messages = [base64_str_to_request(s) for s in base64_lines.split("\n")]
+    return merge_requests(messages)
+
+
+def base64_lines_to_textproto(base64_str: str) -> str:
+    request = base64_lines_to_request(base64_str)
 
     # Force a fixed python version to avoid unnecessary diffs
     request.client_language.python_language.version.major = 3
