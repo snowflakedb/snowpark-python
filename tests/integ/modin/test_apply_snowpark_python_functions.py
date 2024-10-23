@@ -78,6 +78,7 @@ def test_apply_snowpark_python_function_not_implemented():
 
 
 @sql_count_checker(query_count=1)
+@pytest.mark.skip("SNOW-1758914 snowflake.cortex.summarize error on GCP")
 def test_apply_snowflake_cortex_summarize():
     from snowflake.snowpark.functions import snowflake_cortex_summarize
 
