@@ -30,11 +30,6 @@ body {
         data {
           sp_dataframe_data__pandas {
             v {
-              temp_table {
-                sp_table_name_flat {
-                  name: "SNOWPARK_TEMP_TABLE_0000000001"
-                }
-              }
             }
           }
         }

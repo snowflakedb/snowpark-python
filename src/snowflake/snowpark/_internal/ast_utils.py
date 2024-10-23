@@ -9,7 +9,6 @@ import inspect
 import logging
 import os
 import platform
-import re
 import sys
 import typing
 from functools import reduce
@@ -43,7 +42,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, str_to_enum
+from snowflake.snowpark._internal.utils import str_to_enum
 from snowflake.snowpark.types import DataType, StructType
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
@@ -1330,21 +1329,15 @@ def build_expr_from_dict_str_str(
         t._2 = v
 
 
-def reset_snowpark_temp_ids(textproto: str) -> str:
-    id_lookup = {}
-    cnt = 0
-    for prefix, object_type, orig_id in re.findall(
-        rf"\"(SNOWPARK_TEMP_)({'|'.join([e.value for e in TempObjectType])})_(.*)\"",
-        textproto,
-    ):
-        if orig_id not in id_lookup:
-            cnt = cnt + 1
-            id_lookup[orig_id] = f"{cnt:010x}"
-        sub_id = id_lookup[orig_id]
-        textproto = textproto.replace(
-            f"{prefix}{object_type}_{orig_id}", f"{prefix}{object_type}_{sub_id}"
-        )
-    return textproto
+def ClearTempTables(message: proto.Request) -> None:
+    """Removes temp table when passing pandas data."""
+    for stmt in message.body:
+        if str(
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
+        ):
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
+                "temp_table"
+            )
 
 
 def base64_str_to_request(base64_str: str) -> proto.Request:
@@ -1362,8 +1355,10 @@ def base64_str_to_textproto(base64_str: str) -> str:
     request.client_language.python_language.version.patch = 1
     request.client_language.python_language.version.label = "final"
 
+    ClearTempTables(request)
+
     message = MessageToString(request)
-    message = reset_snowpark_temp_ids(message)
+
     return message
 
 

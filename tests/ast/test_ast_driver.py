@@ -21,8 +21,8 @@ import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
 
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.ast_utils import (
+    ClearTempTables,
     base64_str_to_request,
     base64_str_to_textproto,
     textproto_to_request,
@@ -197,17 +197,6 @@ def run_test(session, tables):
         raise Exception("Generated AST test failed") from e
     finally:
         os.unlink(test_file.name)
-
-
-def ClearTempTables(message: proto.Request) -> None:
-    """Removes temp table when passing pandas data."""
-    for stmt in message.body:
-        if str(
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
-        ):
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
-                "temp_table"
-            )
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
