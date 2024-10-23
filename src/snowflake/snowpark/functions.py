@@ -166,6 +166,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
+from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
     FunctionExpression,
@@ -8722,8 +8723,11 @@ def map(
     dataframe: "snowflake.snowpark.DataFrame",
     func: Callable,
     output_types: List[StructType],
+    *,
     output_column_names: Optional[List[str]] = None,
-    wrap_row=True,
+    wrap_row: bool = True,
+    partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
+    vectorized: bool = False,
     **kwargs: Dict[str, Any],
 ):
     """Returns a new DataFrame with the result of applying `func` to each of the
@@ -8805,7 +8809,6 @@ def map(
     if len(output_types) == 0:
         raise ValueError("output_types cannot be empty.")
     input_types = [field.datatype for field in dataframe.schema.fields]
-    num_fields = len(dataframe.schema.fields)
 
     if output_column_names is None:
         output_column_names = [f"c_{i+1}" for i in range(len(output_types))]
@@ -8819,28 +8822,25 @@ def map(
         for name, type_ in zip(output_column_names, output_types)
     ]
 
-    output_cols = [
-        col(f"${i + num_fields + 1}").alias(
-            col_name
-        )  # this is done to avoid collision with original table columns
-        for i, col_name in enumerate(output_column_names)
-    ]
     input_row_obj = snowflake.snowpark.Row(*dataframe.columns) if wrap_row else None
 
     def wrap_result(result):
         if isinstance(result, list) or isinstance(result, snowflake.snowpark.Row):
             return tuple(result)
-        elif isinstance(result, tuple):
+        elif isinstance(result, tuple) or vectorized:
             return result
         else:
             return (result,)
 
     class _MapFunc:
         def process(self, *argv):
-            if wrap_row:
+            if wrap_row and not vectorized:
                 argv = [input_row_obj(*argv)]
             result = func(*argv)
             yield wrap_result(result)
+
+    if vectorized:
+        _MapFunc.process._sf_vectorized_input = pandas.DataFrame
 
     map_udtf = dataframe._session.udtf.register(
         _MapFunc,
@@ -8849,6 +8849,6 @@ def map(
         **kwargs,
     )
 
-    return dataframe.join_table_function(map_udtf(*dataframe.columns)).select(
-        *output_cols
+    return dataframe.select(
+        map_udtf(*dataframe.columns).over(partition_by=partition_by)
     )
