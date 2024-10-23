@@ -76,14 +76,14 @@ from snowflake.snowpark.window import Window, WindowSpec
 _deprecation_warning_msg = (
     "Python Runtime 3.8 reached its End-Of-Life (EOL) on October 14, 2024, there will be no further bug fixes "
     "or security updates for this runtime. We recommend that you upgrade your existing Python 3.8 objects to "
-    "Python 3.9 or greater before March 31, 2025. Please note that end of support does not impact execution, "
+    "Python 3.9, 3.10 or 3.11 before March 31, 2025. Please note that end of support does not impact execution, "
     "and you will still be able to update and invoke existing objects. "
     "However, they will be running on an unsupported runtime which will no longer be maintained or patched by "
     "the Snowflake team. For more details, please refer "
     "to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy."
 )
 warnings.filterwarnings(
-    "once",
+    "once",  # ensure the warning is only shown once to avoid warning explosion
     message=_deprecation_warning_msg,
 )
 
