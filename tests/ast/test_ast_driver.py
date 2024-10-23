@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import base64
 import datetime
 import importlib.util
 import logging
@@ -22,7 +21,12 @@ import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
 
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.snowpark._internal.ast_utils import (
+    ClearTempTables,
+    base64_str_to_request,
+    base64_str_to_textproto,
+    textproto_to_request,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -35,7 +39,7 @@ DATA_DIR = TEST_DIR / "data"
 class TestCase:
     filename: str
     source: str
-    expected_ast_base64: str
+    expected_ast_encoded: str
     expected_ast_unparsed: str
     __test__: bool = False  # Add this to suppress pytest collection warning.
 
@@ -63,7 +67,7 @@ def parse_file(file):
         )
 
     try:
-        expected_ast_base64_start = src.index("## EXPECTED ENCODED AST\n")
+        expected_ast_encoded_start = src.index("## EXPECTED ENCODED AST\n")
     except ValueError:
         raise ValueError(
             "Required header ## EXPECTED ENCODED AST missing in the file: " + file.name
@@ -71,14 +75,14 @@ def parse_file(file):
 
     test_case = "".join(src[test_case_start + 1 : expected_ast_unparsed_start])
     expected_ast_unparsed = "".join(
-        src[expected_ast_unparsed_start + 1 : expected_ast_base64_start]
+        src[expected_ast_unparsed_start + 1 : expected_ast_encoded_start]
     )
-    expected_ast_base64 = "".join(src[expected_ast_base64_start + 1 :])
+    expected_ast_encoded = "".join(src[expected_ast_encoded_start + 1 :])
 
     return TestCase(
         os.path.basename(file.name),
         test_case,
-        expected_ast_base64,
+        expected_ast_encoded,
         expected_ast_unparsed,
     )
 
@@ -197,17 +201,6 @@ def run_test(session, tables):
         os.unlink(test_file.name)
 
 
-def ClearTempTables(message: proto.Request) -> None:
-    """Removes temp table when passing pandas data."""
-    for stmt in message.body:
-        if str(
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
-        ):
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
-                "temp_table"
-            )
-
-
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, tables, test_case):
     _logger.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
@@ -228,7 +221,7 @@ def test_ast(session, tables, test_case):
                     "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
                     "\n\n## EXPECTED ENCODED AST\n\n",
-                    base64_str.strip(),
+                    base64_str_to_textproto(base64_str.strip()),
                     "\n",
                 ]
             )
@@ -236,12 +229,9 @@ def test_ast(session, tables, test_case):
         try:
             # Protobuf serialization is non-deterministic (cf. https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510)
             # Therefore unparse from base64, and then check equality using deterministic (python) protobuf serialization.
-            actual_message = proto.Request()
-            actual_message.ParseFromString(base64.b64decode(base64_str.strip()))
-
-            expected_message = proto.Request()
-            expected_message.ParseFromString(
-                base64.b64decode(test_case.expected_ast_base64.strip())
+            actual_message = base64_str_to_request(base64_str.strip())
+            expected_message = textproto_to_request(
+                test_case.expected_ast_encoded.strip()
             )
 
             # Actual and expected may have been encoded by different client language versions, e.g. Python 3.8.10 and

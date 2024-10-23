@@ -24,8 +24,104 @@ df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=Fals
 
 ## EXPECTED ENCODED AST
 
-Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKMQovCiXiCSIIARICCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbEgAYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
-Ci8KLQoj4gkgEgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SABgEIgIIBAoIEgYIBRICCAQQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
-Ck0KSwpB4gk+CAESAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHyIaCgpTRl9QQVJUTkVSEgxGQUtFX1BBUlRORVISABgGIgIIBgoIEgYIBxICCAYQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
-CksKSQo/4gk8EgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCEiGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYCCICCAgKCBIGCAkSAggIEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
-EAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_pandas_batches {
+        block: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  eval {
+    uid: 3
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_pandas_batches {
+        id {
+          bitfield1: 1
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  eval {
+    uid: 5
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

@@ -16,4 +16,116 @@ ans2 = session.write_pandas(pandas.DataFrame(<not shown>)), "test", database="b"
 
 ## EXPECTED ENCODED AST
 
-CmsKaQpa2gxXGgRnemlwKhISEAoOCgwKCgoIInRhYmxlMSI6D2Fib3J0X3N0YXRlbWVudEgEUAFaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdYgoKCAoGdGFibGUxEgUKA2FucxgBIgIIAQqsAQqpAQqYAdoMlAEIARICCAcaBmJyb3RsaSABKhISEAoOCgwKCgoIYi5hLnRlc3QyKwoGcmFuZG9tEiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfEFo6Bmlnbm9yZUABSApaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfYg4SDAoBYgoBYQoEdGVzdGoJdGVtcG9yYXJ5EgYKBGFuczIYAiICCAIQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
+body {
+  assign {
+    expr {
+      sp_write_pandas {
+        compression: "gzip"
+        df {
+          sp_dataframe_data__pandas {
+            v {
+              temp_table {
+                sp_table_name_flat {
+                  name: "\"table1\""
+                }
+              }
+            }
+          }
+        }
+        on_error: "abort_statement"
+        parallel: 4
+        quote_identifiers: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        table_name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+      }
+    }
+    symbol {
+      value: "ans"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_pandas {
+        auto_create_table: true
+        chunk_size {
+          value: 7
+        }
+        compression: "brotli"
+        create_temp_table: true
+        df {
+          sp_dataframe_data__pandas {
+            v {
+              temp_table {
+                sp_table_name_flat {
+                  name: "b.a.test"
+                }
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "random"
+          _2 {
+            int64_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 31
+              }
+              v: 90
+            }
+          }
+        }
+        on_error: "ignore"
+        overwrite: true
+        parallel: 10
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+        table_name {
+          sp_table_name_structured {
+            name: "b"
+            name: "a"
+            name: "test"
+          }
+        }
+        table_type: "temporary"
+      }
+    }
+    symbol {
+      value: "ans2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

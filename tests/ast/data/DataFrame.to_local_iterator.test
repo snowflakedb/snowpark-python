@@ -37,10 +37,76 @@ df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensi
 
 ## EXPECTED ENCODED AST
 
-Cj8KPQovggwsEgoKCAoGdGFibGUxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSICCAESBAoCZGYYASICCAEKMwoxCifSCSQIARABGgIIASIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsSABgCIgIIAgoIEgYIAxICCAIQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
-CjEKLwol0gkiEAEaAggBIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHRIAGAQiAggECggSBggFEgIIBBABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
-CmAKXgpOgglLCiKqBR8SASoaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfEgeCAgQKAggBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHyABEgYKBHJvd3MYBiICCAYKMwoxCifSCSQIARABGgIIBiIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB8SABgHIgIIBwoIEgYICBICCAcQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
-Ck8KTQpD0glACAEQARoCCAEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSghKhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGAkiAggJCggSBggKEgIICRABGhESDwoNCgVmaW5hbBADGAkgEiIEEAEYFw==
-CrABCq0BCpwBsgeYAQpxmgJuCi3KBioKA251bRIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCMSIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCMQARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCMSB4ICBAoCCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgjEgYKBHJvd3MYCyICCAsKMQovCiXSCSIQARoCCAsiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgjEgAYDCICCAwKCBIGCA0SAggMEAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
-Ck0KSwpB0gk+CAEaAggBIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoJSoaCgpTRl9QQVJUTkVSEgxGQUtFX1BBUlRORVISABgOIgIIDgoIEgYIDxICCA4QARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
-EAEaERIPCg0KBWZpbmFsEAMYCSASIgQQARgX
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_local_iterator {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  eval {
+    uid: 3
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

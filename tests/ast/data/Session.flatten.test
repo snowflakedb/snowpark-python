@@ -12,4 +12,135 @@ df2 = session.flatten(col("NUM"), None, False, True, "ARRAY")
 
 ## EXPECTED ENCODED AST
 
-CtABCs0BCr0Bwgq5AQqRAZIBjQEKEhoQCg4KDAoKcGFyc2VfanNvbhpbkgFYCgsaCQoHCgUKA2xpdBot+gwqChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRIMeyJhIjogWzEsMl19IhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGSIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkSAhABIgMKAWEyGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgZEgUKA2RmMRgBIgIIAQqLAQqIAQp5wgp2ClKSAU8KCxoJCgcKBQoDY29sGiT6DCEKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbEgNOVU0iGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbEgIIASgBMhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIFCgNkZjIYAiICCAIQARoREg8KDQoFZmluYWwQAxgJIBIiBBABGBc=
+body {
+  assign {
+    expr {
+      sp_flatten {
+        input {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "parse_json"
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 25
+                    }
+                    v: "{\"a\": [1,2]}"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 25
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 25
+            }
+          }
+        }
+        mode {
+          sp_flatten_mode_both: true
+        }
+        path {
+          value: "a"
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_flatten {
+        input {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 27
+                }
+                v: "NUM"
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+          }
+        }
+        mode {
+          sp_flatten_mode_array: true
+        }
+        recursive: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
