@@ -692,6 +692,7 @@ def test_agg_with_no_column_raises(pandas_df):
     "func",
     [
         lambda df: df.aggregate(min),
+        lambda df: df.aggregate("size"),
         lambda df: df.max(),
         lambda df: df.count(),
         lambda df: df.corr(),
@@ -857,6 +858,7 @@ def test_agg_valid_variant_col(session, test_table_name):
         np.min,
         np.max,
         np.sum,
+        "size",
         ["max", "min", "count", "sum"],
         ["min"],
         ["idxmax", "max", "idxmin", "min"],
@@ -867,7 +869,12 @@ def test_agg_axis_1_simple(agg_func):
     data = [[1, 2, 3], [2, 4, -1], [3, 0, 6]]
     native_df = native_pd.DataFrame(data)
     df = pd.DataFrame(data)
-    eval_snowpark_pandas_result(df, native_df, lambda df: df.agg(agg_func, axis=1))
+    eval_snowpark_pandas_result(
+        df,
+        native_df,
+        lambda df: df.agg(agg_func, axis=1),
+        test_attrs=agg_func != "size",
+    )  # native pandas does not propagate attrs for size, but snowpark pandas does
 
 
 @pytest.mark.parametrize(

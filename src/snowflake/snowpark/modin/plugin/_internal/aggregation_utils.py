@@ -396,6 +396,15 @@ def _columns_count(*cols: SnowparkColumn) -> Callable:
     return sum(builtin("nvl2")(col, pandas_lit(1), pandas_lit(0)) for col in cols)
 
 
+def _columns_count_keep_nulls(*cols: SnowparkColumn) -> Callable:
+    """
+    Counts the number of values (including NULL) in each row.
+    """
+    # IMPORTANT: count and sum use python builtin sum to invoke __add__ on each column rather than Snowpark
+    # sum_, since Snowpark sum_ gets the sum of all rows within a single column.
+    return sum(pandas_lit(1) for _ in cols)
+
+
 def _columns_coalescing_sum(*cols: SnowparkColumn) -> Callable:
     """
     Sums all non-NaN elements in each row. If all elements are NaN, returns 0.
@@ -445,6 +454,13 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
         "count": _SnowparkPandasAggregation(
             axis_0_aggregation=count,
             axis_1_aggregation_skipna=_columns_count,
+            preserves_snowpark_pandas_types=False,
+        ),
+        "size": _SnowparkPandasAggregation(
+            # We must count the total number of rows regardless of if they're null.
+            axis_0_aggregation=lambda _: builtin("count_if")(pandas_lit(True)),
+            axis_1_aggregation_keepna=_columns_count_keep_nulls,
+            axis_1_aggregation_skipna=_columns_count_keep_nulls,
             preserves_snowpark_pandas_types=False,
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
