@@ -4,6 +4,8 @@
 
 ### Snowpark Python API Updates
 
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
+
 #### New Features
 
 - Added support for 'Service' domain to `session.lineage.trace` API.
@@ -27,7 +29,6 @@
 
 ### Snowpark pandas API Updates
 
-- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 #### New Features
 
 - Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
