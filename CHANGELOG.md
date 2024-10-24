@@ -25,6 +25,11 @@
 - Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
 - Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
 
+#### Dependency Updates
+
+- Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.
+- Added a dependency on `protoc-wheel-0` for the development profile.
+
 ### Snowpark pandas API Updates
 
 #### New Features
