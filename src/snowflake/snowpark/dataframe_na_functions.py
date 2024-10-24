@@ -70,7 +70,7 @@ def _check_subset_parameter(subset: Optional[Union[str, Iterable[str]]]) -> None
         and not isinstance(subset, str)
         and not isinstance(subset, (list, tuple))
     ):
-        raise TypeError("subset should be a list or tuple of column names")
+        raise TypeError("subset should be a single column name, list or tuple of column names")
 
 
 class DataFrameNaFunctions:
