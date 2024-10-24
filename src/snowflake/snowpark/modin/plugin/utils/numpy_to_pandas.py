@@ -127,7 +127,13 @@ def full_like_mapper(
     if dtype is not None:
         return NotImplemented
 
-    result_shape = shape or a.shape
+    result_shape = shape
+    if isinstance(result_shape, tuple) and len(result_shape) == 0:
+        result_shape = (1,)
+    if isinstance(result_shape, int):
+        result_shape = (result_shape,)
+    if result_shape is None:
+        result_shape = a.shape
     if len(result_shape) == 2:
         height, width = result_shape  # type: ignore
         return pd.DataFrame(fill_value, index=range(height), columns=range(width))

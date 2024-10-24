@@ -86,6 +86,17 @@ def test_full_like():
         pandas_result = np.full_like(pandas_df, "numpy is the best")
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
+    with SqlCounter(query_count=1):
+        pandas_result = np.full_like(pandas_df, fill_value=4, shape=())
+        # breakpoint()
+        snow_result = np.full_like(snow_df, fill_value=4, shape=())
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        snow_result = np.full_like(snow_df, fill_value=4, shape=(4))
+        pandas_result = np.full_like(pandas_df, fill_value=4, shape=(4))
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
     with pytest.raises(TypeError):
         np.full_like(snow_df, 1234, subok=False)
 
