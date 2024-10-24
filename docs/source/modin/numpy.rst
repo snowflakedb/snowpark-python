@@ -25,6 +25,9 @@ NumPy ufuncs called with Snowpark pandas arguments will ignore kwargs.
 |                             | dispatcher at all, and the normal NumPy behavior   |
 |                             | will occur.)                                       |
 +-----------------------------+----------------------------------------------------+
+| ``np.full_like``            | Mapped to pd.DataFrame(value, index=range(height), |
+|                             |                        columns=range(width))       |
++-----------------------------+----------------------------------------------------+
 | ``np.may_share_memory``     | Returns False                                      |
 +-----------------------------+----------------------------------------------------+
 | ``np.add``                  | Mapped to df.__add__(df2)                          |
