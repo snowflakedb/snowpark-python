@@ -405,15 +405,12 @@ def test_in_with_subquery(session):
 
 
 def test_in_with_subquery_multiple_query(session):
-    if session._sql_simplifier_enabled:
-        pytest.skip(
-            "SNOW-1678419 pre and post actions are not propagated properly for SelectStatement"
-        )
     # multiple queries
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
-        with SqlCounter(query_count=0, describe_count=2):
+        expected_describe_count = 3 if session.sql_simplifier_enabled else 2
+        with SqlCounter(query_count=0, describe_count=expected_describe_count):
             df0 = session.create_dataframe([[1], [2], [5], [7]], schema=["a"])
             df = session.create_dataframe(
                 [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [5, "c", 21, 18]],

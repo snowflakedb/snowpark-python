@@ -14,6 +14,10 @@
   - `partition_by`
 - Added support for `snowflake_cortex_summarize`.
 
+#### Bug Fixes
+
+- Fixed a bug where in expression values created using a dataframe would throw errors like `Object 'SNOWPARK_TEMP_TABLE_ABCDXYZ123' does not exist or not authorized`.
+
 #### Improvements
 
 - Disables sql simplification when sort is performed after limit.
