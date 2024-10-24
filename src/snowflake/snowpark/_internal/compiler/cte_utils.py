@@ -5,8 +5,9 @@
 import hashlib
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING, Optional, Set
+from typing import TYPE_CHECKING, Dict, Optional, Set
 
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 if TYPE_CHECKING:
@@ -131,3 +132,16 @@ def encode_node_id_with_query(node: "TreeNode") -> str:
         return f"{query_id}_{node_type_name}"
     else:
         return str(id(node))
+
+
+def merge_referenced_ctes(
+    ref1: Dict[WithQueryBlock, int], ref2: Dict[WithQueryBlock, int]
+) -> Dict[WithQueryBlock, int]:
+    """Utility function to merge two referenced_cte dictionaries"""
+    merged = ref1.copy()
+    for with_query_block, value in ref2.items():
+        if with_query_block in merged:
+            merged[with_query_block] += value
+        else:
+            merged[with_query_block] = value
+    return merged
