@@ -391,6 +391,139 @@ body {
     }
   }
 }
+body {
+  assign {
+    expr {
+      udaf {
+        comment {
+          value: "test udaf"
+        }
+        external_access_integrations: "s3"
+        handler {
+          id: 1
+          name: "PythonTopK"
+        }
+        immutable: true
+        imports {
+          sp_table_name_flat {
+            name: "numpy"
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+        }
+        is_permanent: true
+        kwargs {
+          _1: "source_code_display"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 105
+              }
+              v: true
+            }
+          }
+        }
+        name {
+          fn_name_flat {
+            name: "top_k"
+          }
+        }
+        packages: "numpy"
+        parallel: 8
+        replace: true
+        return_type {
+          sp_integer_type: true
+        }
+        secrets {
+          _1: "a"
+          _2: "c"
+        }
+        secrets {
+          _1: "e"
+          _2: "f"
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 105
+        }
+        stage_location {
+          value: "@"
+        }
+        statement_params {
+          _1: "a"
+          _2: "b"
+        }
+        statement_params {
+          _1: "d"
+          _2: "e"
+        }
+      }
+    }
+    symbol {
+      value: "u2"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_agg {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        exprs {
+          args {
+            apply_expr {
+              fn {
+                sp_fn_ref {
+                  id {
+                    bitfield1: 7
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 110
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 110
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 110
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {

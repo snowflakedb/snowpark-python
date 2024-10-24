@@ -135,6 +135,39 @@ body {
     }
   }
 }
+body {
+  assign {
+    expr {
+      sp_dataframe_count {
+        id {
+          bitfield1: 1
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 34
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  eval {
+    uid: 7
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
