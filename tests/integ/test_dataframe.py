@@ -34,6 +34,7 @@ from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.dataframe_na_functions import _SUBSET_CHECK_ERROR_MESSAGE
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateDynamicTableException,
@@ -2219,7 +2220,7 @@ def test_dropna(session, local_testing_mode):
 
     with pytest.raises(TypeError) as ex_info:
         TestData.double3(session, local_testing_mode).dropna(subset={1: "a"})
-    assert "subset should be a list or tuple of column names" in str(ex_info)
+    assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
 
 def test_dropna_large_num_of_columns(session):
@@ -2314,7 +2315,7 @@ def test_fillna(session, local_testing_mode):
     # negative case
     with pytest.raises(TypeError) as ex_info:
         df.fillna(1, subset={1: "a"})
-    assert "subset should be a list or tuple of column names" in str(ex_info)
+    assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
 
 def test_replace_with_coercion(session):
@@ -2384,7 +2385,7 @@ def test_replace_with_coercion(session):
     assert "The DataFrame does not contain the column named" in str(ex_info)
     with pytest.raises(TypeError) as ex_info:
         df.replace({1: 2}, subset={1: "a"})
-    assert "subset should be a list or tuple of column names" in str(ex_info)
+    assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
@@ -3372,6 +3373,10 @@ def test_call_with_statement_params(session):
         "DATE_INPUT_FORMAT": "MM-DD-YYYY",
         "SF_PARTNER": "FAKE_PARTNER",
     }
+
+    # Note: When testing, pass statement_params as copy().
+    # Some operations may define the reference which leads to test failure in AST mode.
+
     schema = StructType([StructField("A", DateType())])
     df = session.create_dataframe(["01-01-1970", "12-31-2000"], schema=schema)
     pandas_df = PandasDF(
@@ -3385,7 +3390,7 @@ def test_call_with_statement_params(session):
 
     # collect
     with pytest.raises(SnowparkSQLException) as exc:
-        df.collect(statement_params=statement_params_wrong_date_format)
+        df.collect(statement_params=statement_params_wrong_date_format.copy())
     assert "is not recognized" in str(exc)
     assert (
         df.collect(statement_params=statement_params_correct_date_format)
@@ -3394,21 +3399,27 @@ def test_call_with_statement_params(session):
 
     # to_local_iterator
     with pytest.raises(SnowparkSQLException) as exc:
-        list(df.to_local_iterator(statement_params=statement_params_wrong_date_format))
+        list(
+            df.to_local_iterator(
+                statement_params=statement_params_wrong_date_format.copy()
+            )
+        )
     assert "is not recognized" in str(exc)
     assert (
         list(
-            df.to_local_iterator(statement_params=statement_params_correct_date_format)
+            df.to_local_iterator(
+                statement_params=statement_params_correct_date_format.copy()
+            )
         )
         == expected_rows
     )
 
     # to_pandas
     with pytest.raises(SnowparkSQLException) as exc:
-        df.to_pandas(statement_params=statement_params_wrong_date_format)
+        df.to_pandas(statement_params=statement_params_wrong_date_format.copy())
     assert "is not recognized" in str(exc)
     assert_frame_equal(
-        df.to_pandas(statement_params=statement_params_correct_date_format),
+        df.to_pandas(statement_params=statement_params_correct_date_format.copy()),
         pandas_df,
         check_dtype=False,
     )
@@ -3418,7 +3429,7 @@ def test_call_with_statement_params(session):
         pd.concat(
             list(
                 df.to_pandas_batches(
-                    statement_params=statement_params_wrong_date_format
+                    statement_params=statement_params_wrong_date_format.copy()
                 )
             ),
             ignore_index=True,
@@ -3428,7 +3439,7 @@ def test_call_with_statement_params(session):
         pd.concat(
             list(
                 df.to_pandas_batches(
-                    statement_params=statement_params_correct_date_format
+                    statement_params=statement_params_correct_date_format.copy()
                 )
             ),
             ignore_index=True,
@@ -3438,15 +3449,15 @@ def test_call_with_statement_params(session):
 
     # count
     # passing statement_params_wrong_date_format does not trigger error
-    assert df.count(statement_params=statement_params_correct_date_format) == 2
+    assert df.count(statement_params=statement_params_correct_date_format.copy()) == 2
 
     # copy_into_table test is covered in test_datafrom_copy_into as it requires complex config
 
     # show
     with pytest.raises(SnowparkSQLException) as exc:
-        df.show(statement_params=statement_params_wrong_date_format)
+        df.show(statement_params=statement_params_wrong_date_format.copy())
     assert "is not recognized" in str(exc)
-    df.show(statement_params=statement_params_correct_date_format)
+    df.show(statement_params=statement_params_correct_date_format.copy())
 
     # create_or_replace_view
     # passing statement_params_wrong_date_format does not trigger error
@@ -3454,7 +3465,7 @@ def test_call_with_statement_params(session):
         "successfully created"
         in df.create_or_replace_view(
             Utils.random_view_name(),
-            statement_params=statement_params_correct_date_format,
+            statement_params=statement_params_correct_date_format.copy(),
         )[0]["status"]
     )
 
@@ -3464,41 +3475,46 @@ def test_call_with_statement_params(session):
         "successfully created"
         in df.create_or_replace_temp_view(
             Utils.random_view_name(),
-            statement_params=statement_params_correct_date_format,
+            statement_params=statement_params_correct_date_format.copy(),
         )[0]["status"]
     )
 
     # first
     with pytest.raises(SnowparkSQLException) as exc:
-        df.first(statement_params=statement_params_wrong_date_format)
+        df.first(statement_params=statement_params_wrong_date_format.copy())
     assert "is not recognized" in str(exc)
 
     assert (
-        df.first(statement_params=statement_params_correct_date_format)
+        df.first(statement_params=statement_params_correct_date_format.copy())
         == expected_rows[0]
     )
 
     # cache_result
     with pytest.raises(SnowparkSQLException) as exc:
-        df.cache_result(statement_params=statement_params_wrong_date_format).collect()
+        df.cache_result(
+            statement_params=statement_params_wrong_date_format.copy()
+        ).collect()
     assert "is not recognized" in str(exc)
 
     assert (
-        df.cache_result(statement_params=statement_params_correct_date_format).collect()
+        df.cache_result(
+            statement_params=statement_params_correct_date_format.copy()
+        ).collect()
         == expected_rows
     )
 
     # random_split
     with pytest.raises(SnowparkSQLException) as exc:
         df.random_split(
-            weights=[0.5, 0.5], statement_params=statement_params_wrong_date_format
+            weights=[0.5, 0.5],
+            statement_params=statement_params_wrong_date_format.copy(),
         )
     assert "is not recognized" in str(exc)
     assert (
         len(
             df.random_split(
                 weights=[0.5, 0.5],
-                statement_params=statement_params_correct_date_format,
+                statement_params=statement_params_correct_date_format.copy(),
             )
         )
         == 2
@@ -3513,7 +3529,7 @@ def test_call_with_statement_params(session):
             table_name,
             mode="append",
             table_type="temporary",
-            statement_params=statement_params_correct_date_format,
+            statement_params=statement_params_correct_date_format.copy(),
         )
         Utils.check_answer(session.table(table_name), df, True)
         table_info = session.sql(f"show tables like '{table_name}'").collect()
@@ -3527,7 +3543,7 @@ def test_call_with_statement_params(session):
     Utils.create_stage(session, temp_stage, is_temporary=True)
     df = session.create_dataframe(["01-01-1970", "12-31-2000"]).toDF("a")
     df.write.copy_into_location(
-        temp_stage, statement_params=statement_params_correct_date_format
+        temp_stage, statement_params=statement_params_correct_date_format.copy()
     )
     copied_files = session.sql(f"list @{temp_stage}").collect()
     assert len(copied_files) == 1

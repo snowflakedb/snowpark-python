@@ -421,9 +421,7 @@ class RelationalGroupedDataFrame:
             _emit_ast=_emit_ast,
             **kwargs,
         )
-        partition_by = [
-            functions.col(expr, _emit_ast=False) for expr in self._grouping_exprs
-        ]
+        partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
 
         df = self._df.select(
             _apply_in_pandas_udtf(*self._df.columns).over(

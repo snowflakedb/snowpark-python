@@ -870,6 +870,7 @@ class DataFrame:
         )
 
     def __copy__(self) -> "DataFrame":
+        """Implements shallow copy protocol for copy.copy(...)."""
         if self._select_statement:
             new_plan = copy.copy(self._select_statement)
             new_plan.column_states = self._select_statement.column_states
@@ -878,7 +879,12 @@ class DataFrame:
             new_plan._query_params = self._select_statement.query_params
         else:
             new_plan = copy.copy(self._plan)
-        return DataFrame(self._session, new_plan)
+
+        # TODO SNOW-1762416: Clarify copy-behavior in AST. For now, done as weak-copy always. Yet, we may want to consider
+        # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
+        df = DataFrame(self._session, new_plan)
+        df._ast_id = self._ast_id
+        return df
 
     if installed_pandas:
         import pandas  # pragma: no cover
@@ -1429,8 +1435,10 @@ class DataFrame:
                             join_plan, analyzer=self._session._analyzer
                         ),
                         analyzer=self._session._analyzer,
-                    ).select(names)
+                    ).select(names),
+                    _ast_stmt=stmt,
                 )
+
             return self._with_plan(self._select_statement.select(names), _ast_stmt=stmt)
 
         return self._with_plan(Project(names, join_plan or self._plan), _ast_stmt=stmt)
@@ -1610,6 +1618,10 @@ class DataFrame:
 
         :meth:`where` is an alias of :meth:`filter`.
         """
+
+        # This code performs additional type checks, run first.
+        filter_col_expr = _to_col_if_sql_expr(expr, "filter/where")._expression
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -1623,14 +1635,12 @@ class DataFrame:
 
         if self._select_statement:
             return self._with_plan(
-                self._select_statement.filter(
-                    _to_col_if_sql_expr(expr, "filter/where")._expression
-                ),
+                self._select_statement.filter(filter_col_expr),
                 _ast_stmt=stmt,
             )
         return self._with_plan(
             Filter(
-                _to_col_if_sql_expr(expr, "filter/where")._expression,
+                filter_col_expr,
                 self._plan,
             ),
             _ast_stmt=stmt,
@@ -1692,6 +1702,7 @@ class DataFrame:
         """
         if not cols:
             raise ValueError("sort() needs at least one sort expression.")
+        # This code performs additional type checks, run first.
         exprs = self._convert_cols_to_exprs("sort()", *cols)
         if not exprs:
             raise ValueError("sort() needs at least one sort expression.")
@@ -1939,6 +1950,11 @@ class DataFrame:
         Args:
             cols: The columns to group by rollup.
         """
+
+        # This code performs additional type checks, run first.
+        rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
+
+        # AST.
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
@@ -1948,7 +1964,6 @@ class DataFrame:
             for c in col_list:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
-        rollup_exprs = self._convert_cols_to_exprs("rollup()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             rollup_exprs,
@@ -1998,6 +2013,10 @@ class DataFrame:
             >>> df.group_by("a").function("avg")("b").collect()
             [Row(A=1, AVG(B)=Decimal('1.500000')), Row(A=2, AVG(B)=Decimal('1.500000')), Row(A=3, AVG(B)=Decimal('1.500000'))]
         """
+        # This code performs additional type checks, run first.
+        grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
+
+        # AST.
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
@@ -2013,7 +2032,6 @@ class DataFrame:
             else:
                 stmt = _ast_stmt
 
-        grouping_exprs = self._convert_cols_to_exprs("group_by()", *cols)
         df = snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             grouping_exprs,
@@ -2100,6 +2118,9 @@ class DataFrame:
             cols: The columns to group by cube.
         """
 
+        # This code performs additional type checks, run first.
+        cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -2110,7 +2131,6 @@ class DataFrame:
             for c in col_list:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
-        cube_exprs = self._convert_cols_to_exprs("cube()", *cols)
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             cube_exprs,
@@ -2339,6 +2359,9 @@ class DataFrame:
             ---------------------------------------------
             <BLANKLINE>
         """
+        # This code performs additional type checks, run first.
+        column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -2350,7 +2373,6 @@ class DataFrame:
             for c in column_list:
                 build_expr_from_snowpark_column_or_col_name(ast.column_list.add(), c)
 
-        column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
         unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
 
         # TODO: Support unpivot in MockServerConnection.
@@ -5287,7 +5309,7 @@ class DataFrame:
             if seed:
                 ast.seed.value = seed
             if statement_params:
-                ast.statement_params = statement_params
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
             self._set_ast_ref(ast.df)
 
         if len(weights) == 1:
