@@ -13,6 +13,9 @@ class CompilationStageTelemetryField(Enum):
         "query_plan_num_selects_with_complexity_merged"
     )
     QUERY_PLAN_NUM_DUPLICATE_NODES = "query_plan_num_duplicate_nodes"
+    QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION = (
+        "query_plan_duplicated_node_complexity_distribution"
+    )
     QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
 
     # types
