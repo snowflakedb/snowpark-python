@@ -104,7 +104,7 @@ class TestCacheResultReducesQueryCount:
         native_series = perform_chained_operations(
             native_pd.Series(np.arange(50)), native_pd
         )
-        with SqlCounter(query_count=1, union_count=99):
+        with SqlCounter(query_count=1, union_count=18):
             snow_series = perform_chained_operations(snow_series, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_series, native_series
