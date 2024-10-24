@@ -591,7 +591,7 @@ class DataFrame:
         """
         Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
         """
-        # TODO: remove once we generate the correct AST.
+        # TODO SNOW-1762262: remove once we generate the correct AST.
         debug_check_missing_ast(self._ast_id, self)
         sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
 
@@ -1806,7 +1806,7 @@ class DataFrame:
             <BLANKLINE>
 
             Self join:
-            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show() # doctest: +SKIP
+            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show()
             --------------------
             |"COL1"  |"COL2R"  |
             --------------------
@@ -1819,8 +1819,6 @@ class DataFrame:
         Args:
             name: The alias as :class:`str`.
         """
-
-        # TODO: Last doctest seems broken, this is an experimental feature. Should we remove it?
 
         # AST.
         stmt = None
@@ -3137,8 +3135,10 @@ class DataFrame:
             -----------------------------------------------
             <BLANKLINE>
         """
+
         using_columns = kwargs.get("using_columns") or on
-        join_type_arg = kwargs.get("join_type") or how or "inner"
+        original_join_type = kwargs.get("join_type") or how
+        join_type_arg = original_join_type or "inner"
         join_type = create_join_type(join_type_arg)
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
@@ -3163,7 +3163,7 @@ class DataFrame:
             else:
                 if match_condition is not None:
                     raise ValueError(
-                        f"match_condition is only accepted with join type 'asof' given: '{join_type_arg}'"
+                        f"match_condition is only accepted with join type 'asof' given: '{original_join_type}'"
                     )
 
             # Parse using_columns arg
