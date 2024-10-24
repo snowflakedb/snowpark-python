@@ -13,8 +13,6 @@ SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 MODIN_DEPENDENCY_VERSION = (
     "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
 )
-# Use HEAD of main branch in connector. This doesn't work with [pandas] extra.
-# CONNECTOR_DEPENDENCY = "snowflake-connector-python @ git+https://github.com/snowflakedb/snowflake-connector-python@main#egg=snowflake-connector-python"
 CONNECTOR_DEPENDENCY_VERSION = ">=3.12.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
@@ -55,6 +53,15 @@ DEVELOPMENT_REQUIREMENTS = [
     "openpyxl",  # used in read_excel test, not a requirement for distribution
     "matplotlib",  # used in plot tests
     "pre-commit",
+    "protoc-wheel-0",
+    "aiohttp",  # vcrpy requirements.
+    "boto",  # vcrpy requirements.
+    "httplib2",  # vcrpy requirements.
+    "httpx",  # vcrpy requirements.
+    "tornado",  # vcrpy requirements.
+    "graphviz",  # used in plot tests
+    "pytest-assume",  # sql counter check
+    "decorator",  # sql counter check
     "protoc-wheel-0",
     "aiohttp",  # vcrpy requirements.
     "boto",  # vcrpy requirements.
