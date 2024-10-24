@@ -989,6 +989,7 @@ class DataFrameGroupBy:
         """
 
     def apply():
+        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Apply function ``func`` group-wise and combine the results together.
 
@@ -1050,7 +1051,7 @@ class DataFrameGroupBy:
         its argument and returns a DataFrame. `apply` combines the result for
         each group together into a new DataFrame:
 
-        >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
+        >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +SKIP
                     B    C
         0.0  0.333333  0.4
         1.0  0.666667  0.6
@@ -1059,7 +1060,7 @@ class DataFrameGroupBy:
         In the above, the groups are not part of the index. We can have them included
         by using ``g2`` where ``group_keys=True``:
 
-        >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
+        >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +SKIP
                     B    C
         A
         a 0.0  0.333333  0.4
@@ -1942,6 +1943,7 @@ class DataFrameGroupBy:
         pass
 
     def transform():
+        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Call function producing a same-indexed DataFrame on each group.
 
@@ -2011,7 +2013,7 @@ class DataFrameGroupBy:
         i     X     9    90    -9
         j     Y    10    10   -10
 
-        >>> df.groupby("col1", dropna=True).transform(lambda df, n: df.head(n), n=2)
+        >>> df.groupby("col1", dropna=True).transform(lambda df, n: df.head(n), n=2)  # doctest: +SKIP
            col2  col3  col4
         a   1.0  40.0  -1.0
         b   NaN   NaN   NaN
@@ -2024,7 +2026,7 @@ class DataFrameGroupBy:
         i   NaN   NaN   NaN
         j  10.0  10.0 -10.0
 
-        >>> df.groupby("col1", dropna=False).transform("mean")
+        >>> df.groupby("col1", dropna=False).transform("mean")  # doctest: +SKIP
            col2  col3  col4
         a  2.50  25.0 -2.50
         b  5.00  65.0 -5.00
