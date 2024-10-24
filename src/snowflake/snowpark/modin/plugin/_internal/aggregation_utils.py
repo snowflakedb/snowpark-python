@@ -460,6 +460,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             # We must count the total number of rows regardless of if they're null.
             axis_0_aggregation=lambda _: builtin("count_if")(pandas_lit(True)),
             axis_1_aggregation_keepna=_columns_count_keep_nulls,
+            axis_1_aggregation_skipna=_columns_count_keep_nulls,
             preserves_snowpark_pandas_types=False,
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
