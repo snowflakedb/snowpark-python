@@ -27,9 +27,9 @@
 
 ### Snowpark pandas API Updates
 
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 #### New Features
 
-- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 - Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
 - Added support for tracking usages of `__array_ufunc__`.
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
