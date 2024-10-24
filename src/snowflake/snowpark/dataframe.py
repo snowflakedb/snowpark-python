@@ -879,6 +879,9 @@ class DataFrame:
             new_plan._query_params = self._select_statement.query_params
         else:
             new_plan = copy.copy(self._plan)
+
+        # TODO SNOW-1762416: Clarify copy-behavior in AST. For now, done as weak-copy always. Yet, we may want to consider
+        # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
         df = DataFrame(self._session, new_plan)
         df._ast_id = self._ast_id
         return df

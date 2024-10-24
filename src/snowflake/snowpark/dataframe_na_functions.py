@@ -63,6 +63,11 @@ def _is_value_type_matching_for_na_function(
     )
 
 
+_SUBSET_CHECK_ERROR_MESSAGE = (
+    "subset should be a single column name, list or tuple of column names"
+)
+
+
 def _check_subset_parameter(subset: Optional[Union[str, Iterable[str]]]) -> None:
     """Produces exception when invalid subset parameter was passed."""
     if (
@@ -70,7 +75,7 @@ def _check_subset_parameter(subset: Optional[Union[str, Iterable[str]]]) -> None
         and not isinstance(subset, str)
         and not isinstance(subset, (list, tuple))
     ):
-        raise TypeError("subset should be a list or tuple of column names")
+        raise TypeError(_SUBSET_CHECK_ERROR_MESSAGE)
 
 
 class DataFrameNaFunctions:
@@ -197,7 +202,7 @@ class DataFrameNaFunctions:
         # if subset is not provided, drop will be applied to all columns
         if subset is None:
             subset = self._dataframe.columns
-        if isinstance(subset, str):
+        elif isinstance(subset, str):
             subset = [subset]
 
         # if thresh is not provided,
@@ -388,7 +393,7 @@ class DataFrameNaFunctions:
 
         if subset is None:
             subset = self._dataframe.columns
-        if isinstance(subset, str):
+        elif isinstance(subset, str):
             subset = [subset]
 
         if isinstance(value, dict):

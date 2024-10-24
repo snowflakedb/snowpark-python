@@ -34,6 +34,7 @@ from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.dataframe_na_functions import _SUBSET_CHECK_ERROR_MESSAGE
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateDynamicTableException,
@@ -2219,7 +2220,7 @@ def test_dropna(session, local_testing_mode):
 
     with pytest.raises(TypeError) as ex_info:
         TestData.double3(session, local_testing_mode).dropna(subset={1: "a"})
-    assert "subset should be a list or tuple of column names" in str(ex_info)
+    assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
 
 def test_dropna_large_num_of_columns(session):
@@ -2314,7 +2315,7 @@ def test_fillna(session, local_testing_mode):
     # negative case
     with pytest.raises(TypeError) as ex_info:
         df.fillna(1, subset={1: "a"})
-    assert "subset should be a list or tuple of column names" in str(ex_info)
+    assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
 
 def test_replace_with_coercion(session):
@@ -2384,7 +2385,7 @@ def test_replace_with_coercion(session):
     assert "The DataFrame does not contain the column named" in str(ex_info)
     with pytest.raises(TypeError) as ex_info:
         df.replace({1: 2}, subset={1: "a"})
-    assert "subset should be a list or tuple of column names" in str(ex_info)
+    assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
