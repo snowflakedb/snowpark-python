@@ -248,6 +248,393 @@ body {
     }
   }
 }
+body {
+  assign {
+    expr {
+      udf {
+        func {
+          id: 1
+          name: "<lambda [1]>"
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+        }
+        name {
+          fn_name_flat {
+            name: "add_two"
+          }
+        }
+        parallel: 4
+        replace: true
+        return_type {
+          sp_integer_type: true
+        }
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 37
+        }
+      }
+    }
+    symbol {
+      value: "add_two"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_alias {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "call_udf"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 39
+                    }
+                    v: "add_two"
+                  }
+                }
+                pos_args {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          fn_name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 39
+                        }
+                        v: "A"
+                      }
+                    }
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 39
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 39
+                }
+              }
+            }
+            name: "a_Ans"
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 39
+            }
+            variant_is_as {
+              value: true
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+        variadic: true
+      }
+    }
+    symbol {
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 7
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  eval {
+    uid: 9
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      udf {
+        comment {
+          value: "some udf"
+        }
+        external_access_integrations: "s3"
+        func {
+          id: 2
+          name: "<lambda [2]>"
+        }
+        immutable: true
+        imports {
+          sp_table_name_flat {
+            name: "numpy"
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_float_type: true
+          }
+        }
+        is_permanent: true
+        max_batch_size {
+          value: 2
+        }
+        name {
+          fn_name_flat {
+            name: "param_udf"
+          }
+        }
+        packages: "bla"
+        parallel: 8
+        replace: true
+        return_type {
+          sp_variant_type: true
+        }
+        secrets {
+          _1: "a"
+          _2: "b"
+        }
+        secrets {
+          _1: "c"
+          _2: "d"
+        }
+        secure: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 41
+        }
+        stage_location: "@"
+        strict: true
+      }
+    }
+    symbol {
+      value: "param_udf"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      udf {
+        comment {
+          value: "some udf"
+        }
+        external_access_integrations: "s3"
+        func {
+          id: 3
+          name: "<lambda [3]>"
+        }
+        if_not_exists: true
+        immutable: true
+        imports {
+          sp_table_name_flat {
+            name: "numpy"
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_float_type: true
+          }
+        }
+        is_permanent: true
+        max_batch_size {
+          value: 2
+        }
+        name {
+          fn_name_flat {
+            name: "param_udf2"
+          }
+        }
+        packages: "bla"
+        parallel: 8
+        return_type {
+          sp_variant_type: true
+        }
+        secrets {
+          _1: "a"
+          _2: "b"
+        }
+        secrets {
+          _1: "c"
+          _2: "d"
+        }
+        secure: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 48
+        }
+        stage_location: "@"
+        strict: true
+      }
+    }
+    symbol {
+      value: "param_udf2"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              sp_fn_ref {
+                id {
+                  bitfield1: 10
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 54
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 54
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 54
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 54
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 54
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 54
+        }
+        variadic: true
+      }
+    }
+    symbol {
+    }
+    uid: 12
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
