@@ -10,8 +10,18 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
 )
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
+)
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # Native pandas does not propagate attrs for bfill/ffill, while Snowpark pandas does. We cannot easily
+    # match this behavior because these use the query compiler method groupby_fillna, and the native
+    # pandas GroupBy.fillna method does propagate attrs.
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
+
 
 TEST_DF_DATA = {
     "A": [None, 99, None, None, None, 98, 98, 98, None, 97],
