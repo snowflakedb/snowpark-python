@@ -13,6 +13,8 @@
   - `options`
   - `partition_by`
 - Added support for `snowflake_cortex_summarize`.
+- Added the following new functions in `snowflake.snowpark.functions`:
+  - `map`
 
 #### Improvements
 
