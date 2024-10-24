@@ -4,10 +4,10 @@
 
 ### Snowpark Python API Updates
 
-- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 
 #### New Features
 
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 - Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
@@ -77,6 +77,9 @@
 ### Snowpark Python API Updates
 
 #### New Features
+
+- Added the following new functions in `snowflake.snowpark.functions`:
+  - `make_interval`
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
 - Added support for file writes. This feature is currently in private preview.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
