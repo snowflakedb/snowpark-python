@@ -5125,7 +5125,23 @@ class DataFrame(BasePandasDataset):
 
     @property
     def style():
-        pass
+        """
+        Returns a Styler object.
+
+        Contains methods for building a styled HTML representation of the DataFrame.
+
+        See Also
+        --------
+        io.formats.style.Styler
+        Helps style a DataFrame or Series according to the data with HTML and CSS.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'A': [1, 2, 3]})
+        >>> df.style
+
+        Please see `Table Visualization <https://pandas.pydata.org/docs/user_guide/style.html>`_ for more examples.
+        """
 
     def isin():
         """
