@@ -1275,9 +1275,9 @@ class DataFrame:
             self._set_ast_ref(col_expr_ast.df)
             col_expr_ast.col_name = col_name
         if col_name == "*":
-            return Column(Star(self._output), ast=expr)
+            return Column(Star(self._output), _ast=expr)
         else:
-            return Column(self._resolve(col_name), ast=expr)
+            return Column(self._resolve(col_name), _ast=expr)
 
     @df_api_usage
     @publicapi
@@ -1366,7 +1366,7 @@ class DataFrame:
                     col_expr_ast = ast.cols.add() if ast else proto.Expr()
                     fill_ast_for_column(col_expr_ast, e, None)
 
-                col = Column(e, ast=col_expr_ast)
+                col = Column(e, _ast=col_expr_ast)
                 names.append(col._named())
 
             elif isinstance(e, TableFunctionCall):
