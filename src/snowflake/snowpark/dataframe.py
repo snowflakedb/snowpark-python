@@ -5306,7 +5306,7 @@ class DataFrame:
             if seed:
                 ast.seed.value = seed
             if statement_params:
-                for k, v in statement_params.items():
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
                     t = ast.statement_params.add()
                     t._1 = k
                     t._2 = v
