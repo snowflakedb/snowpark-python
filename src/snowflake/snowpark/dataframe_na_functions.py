@@ -63,6 +63,21 @@ def _is_value_type_matching_for_na_function(
     )
 
 
+_SUBSET_CHECK_ERROR_MESSAGE = (
+    "subset should be a single column name, list or tuple of column names"
+)
+
+
+def _check_subset_parameter(subset: Optional[Union[str, Iterable[str]]]) -> None:
+    """Produces exception when invalid subset parameter was passed."""
+    if (
+        subset is not None
+        and not isinstance(subset, str)
+        and not isinstance(subset, (list, tuple))
+    ):
+        raise TypeError(_SUBSET_CHECK_ERROR_MESSAGE)
+
+
 class DataFrameNaFunctions:
     """Provides functions for handling missing values in a :class:`DataFrame`."""
 
@@ -168,6 +183,8 @@ class DataFrameNaFunctions:
         if how is not None and how not in ["any", "all"]:
             raise ValueError(f"how ('{how}') should be 'any' or 'all'")
 
+        _check_subset_parameter(subset)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -187,8 +204,6 @@ class DataFrameNaFunctions:
             subset = self._dataframe.columns
         elif isinstance(subset, str):
             subset = [subset]
-        elif not isinstance(subset, (list, tuple)):
-            raise TypeError("subset should be a list or tuple of column names")
 
         # if thresh is not provided,
         # drop a row if it contains any nulls when how == 'any',
@@ -354,6 +369,8 @@ class DataFrameNaFunctions:
         # select col, iff(float_col = 'NaN' or float_col is null, replacement, float_col)
         # iff(non_float_col is null, replacement, non_float_col) from table where
 
+        _check_subset_parameter(subset)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -378,8 +395,6 @@ class DataFrameNaFunctions:
             subset = self._dataframe.columns
         elif isinstance(subset, str):
             subset = [subset]
-        elif not isinstance(subset, (list, tuple)):
-            raise TypeError("subset should be a list or tuple of column names")
 
         if isinstance(value, dict):
             if not all([isinstance(k, str) for k in value.keys()]):
@@ -467,7 +482,7 @@ class DataFrameNaFunctions:
             Dict[LiteralType, LiteralType],
         ],
         value: Optional[Union[LiteralType, Iterable[LiteralType]]] = None,
-        subset: Optional[Iterable[str]] = None,
+        subset: Optional[Union[str, Iterable[str]]] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         """
@@ -556,6 +571,9 @@ class DataFrameNaFunctions:
         See Also:
             :func:`DataFrame.replace`
         """
+
+        _check_subset_parameter(subset)
+
         # AST.
         stmt = None
         if _emit_ast:
@@ -585,14 +603,13 @@ class DataFrameNaFunctions:
             if subset is not None:
                 ast.subset.list.extend(subset)
 
-        # Validate arguments.
+        # Modify subset.
         if subset is None:
             subset = self._dataframe.columns
         elif isinstance(subset, str):
             subset = [subset]
-        elif not isinstance(subset, (list, tuple)):
-            raise TypeError("subset should be a list or tuple of column names")
-        elif len(subset) == 0:
+
+        if len(subset) == 0:
             new_df = copy.copy(self._dataframe)
             add_api_call(new_df, "DataFrameNaFunctions.replace")
             if _emit_ast:
