@@ -323,10 +323,6 @@ class Selectable(LogicalPlan, ABC):
         return self.snowflake_plan.plan_state
 
     @property
-    def num_duplicate_nodes(self) -> int:
-        return self.snowflake_plan.num_duplicate_nodes
-
-    @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self._cumulative_node_complexity is None:
             self._cumulative_node_complexity = sum_node_complexities(
