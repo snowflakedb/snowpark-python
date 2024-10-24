@@ -11,6 +11,7 @@ import os
 import platform
 import sys
 import typing
+from array import array
 from functools import reduce
 from logging import getLogger
 from pathlib import Path
@@ -274,7 +275,13 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
         ast = with_src_position(expr_builder.list_val)
         for v in obj:
             build_expr_from_python_val(ast.vs.add(), v)
-
+    elif isinstance(obj, array):
+        # Encode for now as List, this removes the type information
+        # that the origin is an array (https://docs.python.org/3/library/array.html).
+        # If need be, introduce new array type closer to python type.
+        ast = with_src_position(expr_builder.list_val)
+        for v in obj:
+            build_expr_from_python_val(ast.vs.add(), v)
     elif isinstance(obj, tuple):
         ast = with_src_position(expr_builder.tuple_val)
         for v in obj:
