@@ -9761,6 +9761,7 @@ def locate(
     return builtin("charindex", _emit_ast=_emit_ast)(_substr, _str, lit(start_pos))
 
 
+@publicapi
 def make_interval(
     years: Optional[int] = None,
     quarters: Optional[int] = None,
@@ -9775,6 +9776,7 @@ def make_interval(
     nanoseconds: Optional[int] = None,
     mins: Optional[int] = None,
     secs: Optional[int] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Creates an interval column with the specified years, quarters, months, weeks, days, hours,
@@ -9802,6 +9804,10 @@ def make_interval(
     You can also find some examples to use interval constants with :meth:`~snowflake.snowpark.Window.range_between`
     method.
     """
+
+    if _emit_ast:
+        raise NotImplementedError("TODO SNOW-1690923: Add interval support to IR.")
+
     # for migration purpose
     minutes = minutes or mins
     seconds = seconds or secs
