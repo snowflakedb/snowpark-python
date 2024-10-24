@@ -5130,6 +5130,8 @@ class DataFrame(BasePandasDataset):
 
         Contains methods for building a styled HTML representation of the DataFrame.
 
+        Snowpark pandas uses native pandas for this functionality.
+
         See Also
         --------
         io.formats.style.Styler
@@ -5138,7 +5140,8 @@ class DataFrame(BasePandasDataset):
         Examples
         --------
         >>> df = pd.DataFrame({'A': [1, 2, 3]})
-        >>> df.style
+        >>> df.style.to_string()
+        ' A\n0 1\n1 2\n2 3\n'
 
         Please see `Table Visualization <https://pandas.pydata.org/docs/user_guide/style.html>`_ for more examples.
         """
