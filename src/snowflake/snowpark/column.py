@@ -295,8 +295,9 @@ class Column:
 
         assert self._expression is not None
 
-    def __emit_ast_for_binary(self, other: Any) -> bool:
-        """Helper function to determine without a session whether AST should be generated or not."""
+    def __should_emit_ast_for_binary(self, other: Any) -> bool:
+        """Helper function to determine without a session whether AST should be generated or not based on
+        checking whether self and other have an AST."""
         if isinstance(other, (Column, Expression)) and other._ast is None:
             return False
         return self._ast is not None
@@ -330,7 +331,7 @@ class Column:
     def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Equal to."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.eq)
             ast.lhs.CopyFrom(self._ast)
@@ -342,7 +343,7 @@ class Column:
     def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Not equal to."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.neq)
             ast.lhs.CopyFrom(self._ast)
@@ -356,7 +357,7 @@ class Column:
     def __gt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.gt)
             ast.lhs.CopyFrom(self._ast)
@@ -370,7 +371,7 @@ class Column:
     def __lt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.lt)
             ast.lhs.CopyFrom(self._ast)
@@ -384,7 +385,7 @@ class Column:
     def __ge__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than or equal to."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.geq)
             ast.lhs.CopyFrom(self._ast)
@@ -398,7 +399,7 @@ class Column:
     def __le__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than or equal to."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.leq)
             ast.lhs.CopyFrom(self._ast)
@@ -412,7 +413,7 @@ class Column:
     def __add__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Plus."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.add)
             ast.lhs.CopyFrom(self._ast)
@@ -425,7 +426,7 @@ class Column:
 
     def __radd__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.add)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
@@ -439,7 +440,7 @@ class Column:
     def __sub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Minus."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.sub)
             ast.lhs.CopyFrom(self._ast)
@@ -452,7 +453,7 @@ class Column:
 
     def __rsub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.sub)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
@@ -466,7 +467,7 @@ class Column:
     def __mul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Multiply."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.mul)
             ast.lhs.CopyFrom(self._ast)
@@ -479,7 +480,7 @@ class Column:
 
     def __rmul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.mul)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
@@ -493,7 +494,7 @@ class Column:
     def __truediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Divide."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.div)
             ast.lhs.CopyFrom(self._ast)
@@ -506,7 +507,7 @@ class Column:
 
     def __rtruediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.div)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
@@ -520,7 +521,7 @@ class Column:
     def __mod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Remainder."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.mod)
             ast.lhs.CopyFrom(self._ast)
@@ -533,7 +534,7 @@ class Column:
 
     def __rmod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.mod)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
@@ -547,7 +548,7 @@ class Column:
     def __pow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Power."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.pow)
             ast.lhs.CopyFrom(self._ast)
@@ -560,7 +561,7 @@ class Column:
 
     def __rpow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.pow)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
@@ -803,7 +804,7 @@ class Column:
     def equal_null(self, other: "Column", _emit_ast: bool = True) -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
         expr = None
-        if _emit_ast := _emit_ast and self.__emit_ast_for_binary(other):
+        if _emit_ast := _emit_ast and self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_equal_null)
             ast.lhs.CopyFrom(self._ast)
@@ -848,7 +849,7 @@ class Column:
     def __and__(self, other: Union["Column", Any]) -> "Column":
         """And."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(getattr(expr, "and"))
             ast.lhs.CopyFrom(self._ast)
@@ -862,7 +863,7 @@ class Column:
 
     def __rand__(self, other: Union["Column", Any]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(getattr(expr, "and"))
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
@@ -876,7 +877,7 @@ class Column:
     def __or__(self, other: Union["Column", Any]) -> "Column":
         """Or."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(getattr(expr, "or"))
             ast.lhs.CopyFrom(self._ast)
@@ -887,7 +888,7 @@ class Column:
 
     def __ror__(self, other: Union["Column", Any]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(getattr(expr, "or"))
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
