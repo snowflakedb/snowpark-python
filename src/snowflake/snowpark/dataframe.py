@@ -591,7 +591,7 @@ class DataFrame:
         """
         Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
         """
-        # TODO: remove once we generate the correct AST.
+        # TODO SNOW-1762262: remove once we generate the correct AST.
         debug_check_missing_ast(self._ast_id, self)
         sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
 
@@ -1808,8 +1808,6 @@ class DataFrame:
         Args:
             name: The alias as :class:`str`.
         """
-
-        # TODO: Last doctest seems broken, this is an experimental feature. Should we remove it?
 
         # AST.
         stmt = None
