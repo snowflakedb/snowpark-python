@@ -1417,11 +1417,9 @@ class CaseExpr(Column):
     """
 
     def __init__(
-        self,
-        expr: CaseWhen,
-        _ast: Optional[proto.Expr] = None,
+        self, expr: CaseWhen, _ast: Optional[proto.Expr] = None, _emit_ast: bool = True
     ) -> None:
-        super().__init__(expr, _ast=_ast)
+        super().__init__(expr, _ast=_ast, _emit_ast=_emit_ast)
         self._branches = expr.branches
 
     @publicapi
@@ -1453,6 +1451,7 @@ class CaseExpr(Column):
                 ]
             ),
             _ast=self._ast,
+            _emit_ast=_emit_ast,
         )
 
     @publicapi
