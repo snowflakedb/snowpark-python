@@ -7,16 +7,17 @@ import sys
 
 import pytest
 
+import snowflake.snowpark
 
-def test_py38_deprecation(monkeypatch):
+
+def test_py38_deprecation():
     if not (sys.version_info.major == 3 and sys.version_info.minor == 8):
         pytest.skip("This test is for Python 3.8 only")
 
-    monkeypatch.delitem(sys.modules, "snowflake.snowpark", raising=False)
     with pytest.warns(
         DeprecationWarning, match="Python Runtime 3.8 reached its End-Of-Life"
     ) as record:
-        importlib.import_module("snowflake.snowpark")
+        importlib.reload(snowflake.snowpark)
 
     assert len(record) == 1
 
