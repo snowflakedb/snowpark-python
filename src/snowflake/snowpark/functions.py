@@ -5377,11 +5377,22 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
         -------------
         <BLANKLINE>
 
+        >>> df.select(array_remove(array_remove(df.data, 1), "2").alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  3.1      |
+        |]          |
+        -------------
+        <BLANKLINE>
+
     See Also:
         - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
     """
     a = _to_col_if_str(array, "array_remove")
-    return builtin("array_remove")(a, element)
+    e = lit(element).cast("VARIANT") if isinstance(element, str) else element
+    return builtin("array_remove")(a, e)
 
 
 def array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
