@@ -36,7 +36,7 @@ def setup(request, session):
 # Create from SQL
 create_from_sql_funcs = [
     lambda session: session.sql("SELECT 1 AS a, 2 AS b"),
-    lambda session: session.sql("SELECT 1 AS a, 2 AS b").select("b"),
+    lambda session: session.sql("SELECT 1 AS a, 2 AS b").select("a"),
     lambda session: session.sql("SELECT 1 AS a, 2 AS b").select(
         "a", lit("2").alias("c")
     ),
@@ -47,7 +47,7 @@ create_from_values_funcs = [
     lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]),
     lambda session: session.create_dataframe(
         [[1, 2], [3, 4]], schema=["a", "b"]
-    ).select("b"),
+    ).select("a"),
     lambda session: session.create_dataframe(
         [[1, 2], [3, 4]], schema=["a", "b"]
     ).select("a", lit("2").alias("c")),
@@ -60,7 +60,7 @@ create_from_table_funcs = [
     ).cache_result(),
     lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     .cache_result()
-    .select("b"),
+    .select("a"),
     lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     .cache_result()
     .select("a", lit("2").alias("c")),
@@ -72,7 +72,7 @@ create_from_snowflake_plan_funcs = [
     .group_by("a")
     .count(),
     lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).join(
-        session.sql("SELECT 1 AS a, 2 AS b")
+        session.sql("SELECT 1 AS a, 2 AS b1"), "a"
     ),
     lambda session: session.create_dataframe(
         [[1, 2], [3, 4]], schema=["a", "b"]
@@ -100,7 +100,7 @@ create_from_unions_funcs = [
     ),
     lambda session: session.sql("SELECT 1 AS a, 2 AS b")
     .union(session.sql("SELECT 3 AS a, 4 AS b"))
-    .select("b"),
+    .select("a"),
     lambda session: session.sql("SELECT 1 AS a, 2 AS b")
     .union(session.sql("SELECT 3 AS a, 4 AS b"))
     .select("a", lit("2").alias("c")),

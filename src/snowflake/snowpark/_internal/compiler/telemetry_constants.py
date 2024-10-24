@@ -31,17 +31,31 @@ class CompilationStageTelemetryField(Enum):
     TIME_TAKEN_FOR_DEEP_COPY_PLAN = "time_taken_for_deep_copy_plan_sec"
     TIME_TAKEN_FOR_CTE_OPTIMIZATION = "time_taken_for_cte_optimization_sec"
     TIME_TAKEN_FOR_LARGE_QUERY_BREAKDOWN = "time_taken_for_large_query_breakdown_sec"
-    COMPLEXITY_SCORE_BOUNDS = "complexity_score_bounds"
-    COMPLEXITY_SCORE_BEFORE_COMPILATION = "complexity_score_before_compilation"
+
+    # keys for repeated subquery elimination
+    CTE_NODE_CREATED = "cte_node_created"
+
+    # keys for large query breakdown
+    BREAKDOWN_FAILURE_SUMMARY = "breakdown_failure_summary"
     COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION = "complexity_score_after_cte_optimization"
     COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN = (
         "complexity_score_after_large_query_breakdown"
     )
+    COMPLEXITY_SCORE_BEFORE_COMPILATION = "complexity_score_before_compilation"
+    COMPLEXITY_SCORE_BOUNDS = "complexity_score_bounds"
+    NUM_PARTITIONS_MADE = "num_partitions_made"
 
-    # keys for repeated subquery elimination
-    CTE_NODE_CREATED = "cte_node_created"
+
+class InvalidNodesInBreakdownCategory(Enum):
+    SCORE_BELOW_LOWER_BOUND = "num_nodes_below_lower_bound"
+    SCORE_ABOVE_UPPER_BOUND = "num_nodes_above_upper_bound"
+    NON_PIPELINE_BREAKER = "num_non_pipeline_breaker_nodes"
+    EXTERNAL_CTE_REF = "num_external_cte_ref_nodes"
+    VALID_NODE = "num_valid_nodes"
 
 
 class SkipLargeQueryBreakdownCategory(Enum):
     ACTIVE_TRANSACTION = "active transaction"
     VIEW_DYNAMIC_TABLE = "view or dynamic table command"
+    NO_ACTIVE_DATABASE = "no active database"
+    NO_ACTIVE_SCHEMA = "no active schema"
