@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeCreateTable,
     SnowflakeTable,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -63,7 +64,8 @@ def mock_snowflake_plan() -> SnowflakePlan:
     fake_snowflake_plan.is_ddl_on_temp_object = False
     fake_snowflake_plan._output_dict = []
     fake_snowflake_plan.placeholder_query = None
-    fake_snowflake_plan.referenced_ctes = {"TEST_CTE"}
+    with_query_block = WithQueryBlock(name="TEST_CTE", child=LogicalPlan())
+    fake_snowflake_plan.referenced_ctes = {with_query_block: 1}
     fake_snowflake_plan._cumulative_node_complexity = {}
     return fake_snowflake_plan
 
@@ -123,7 +125,13 @@ def verify_snowflake_plan(plan: SnowflakePlan, expected_plan: SnowflakePlan) -> 
         plan.df_aliased_col_name_to_real_col_name
         == expected_plan.df_aliased_col_name_to_real_col_name
     )
-    assert plan.referenced_ctes == expected_plan.referenced_ctes
+    current_referenced_ctes_name_map = {
+        cte.name: count for cte, count in plan.referenced_ctes.items()
+    }
+    expected_referenced_ctes_name_map = {
+        cte.name: count for cte, count in expected_plan.referenced_ctes.items()
+    }
+    assert current_referenced_ctes_name_map == expected_referenced_ctes_name_map
     assert plan._cumulative_node_complexity == expected_plan._cumulative_node_complexity
     assert plan.source_plan is not None
 
