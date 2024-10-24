@@ -603,6 +603,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -628,6 +629,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -653,6 +655,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -678,6 +681,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -703,6 +707,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -857,6 +862,7 @@ def test_dataframe_stat_functions_api_calls(session):
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         },
         {
@@ -879,6 +885,7 @@ def test_dataframe_stat_functions_api_calls(session):
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         }
     ]
