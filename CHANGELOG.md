@@ -76,15 +76,13 @@
 
 #### New Features
 
-- Added the following new functions in `snowflake.snowpark.functions.array_remove`:
-  - `make_interval`
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
 - Added support for file writes. This feature is currently in private preview.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
 - Added support for `Session.stored_procedure_profiler`.
 
 #### Improvements
-- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use it with a string.
 
 #### Bug Fixes
 
