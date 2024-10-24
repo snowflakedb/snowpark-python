@@ -3113,8 +3113,10 @@ class DataFrame:
             -----------------------------------------------
             <BLANKLINE>
         """
+
         using_columns = kwargs.get("using_columns") or on
-        join_type_arg = kwargs.get("join_type") or how or "inner"
+        original_join_type = kwargs.get("join_type") or how
+        join_type_arg = original_join_type or "inner"
         join_type = create_join_type(join_type_arg)
         if isinstance(right, DataFrame):
             if self is right or self._plan is right._plan:
@@ -3139,7 +3141,7 @@ class DataFrame:
             else:
                 if match_condition is not None:
                     raise ValueError(
-                        f"match_condition is only accepted with join type 'asof' given: '{join_type_arg}'"
+                        f"match_condition is only accepted with join type 'asof' given: '{original_join_type}'"
                     )
 
             # Parse using_columns arg
