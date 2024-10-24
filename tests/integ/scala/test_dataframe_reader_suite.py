@@ -594,12 +594,10 @@ def test_read_csv_with_format_type_options(session, mode, local_testing_mode):
     assert res == [Row(1, "one", 1.2), Row(2, "two", 2.2)]
 
     # test when user does not input a right option:
-    df2 = get_reader(session, mode).schema(user_schema).csv(test_file_csv_colon)
-    with pytest.raises(SnowparkSQLException) as ex_info:
-        df2.collect()
-    assert (
-        "SQL compilation error" if not local_testing_mode else "Invalid stage"
-    ) in str(ex_info)
+    with pytest.raises(
+        ValueError, match="DataFrameReader can only read files from stage locations."
+    ):
+        get_reader(session, mode).schema(user_schema).csv(test_file_csv_colon)
 
     # test for multiple formatTypeOptions
     df3 = (
@@ -987,7 +985,7 @@ def test_read_metadata_column_from_stage(session, file_format):
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_json_with_no_schema(session, mode):
+def test_read_json_with_no_schema(session, mode, resources_path):
     json_path = f"@{tmp_stage_name1}/{test_file_json}"
 
     df1 = get_reader(session, mode).json(json_path)
@@ -1040,6 +1038,12 @@ def test_read_json_with_no_schema(session, mode):
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
         get_reader(session, mode).schema(user_schema).json(json_path)
+
+    # assert local directory is invalid
+    with pytest.raises(
+        ValueError, match="DataFrameReader can only read files from stage locations."
+    ):
+        get_reader(session, mode).json(resources_path)
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1340,7 +1344,7 @@ def test_read_parquet_with_special_characters_in_column_names(session, mode):
     reason="FEAT: orc not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_orc_with_no_schema(session, mode):
+def test_read_orc_with_no_schema(session, mode, resources_path):
     path = f"@{tmp_stage_name1}/{test_file_orc}"
 
     df1 = get_reader(session, mode).orc(path)
@@ -1358,6 +1362,12 @@ def test_read_orc_with_no_schema(session, mode):
     with pytest.raises(ValueError):
         get_reader(session, mode).schema(user_schema).orc(path)
 
+    # assert local directory is invalid
+    with pytest.raises(
+        ValueError, match="DataFrameReader can only read files from stage locations."
+    ):
+        get_reader(session, mode).orc(resources_path)
+
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("TRIM_SPACE", False).orc(path)
     res = df2.collect()
@@ -1372,7 +1382,7 @@ def test_read_orc_with_no_schema(session, mode):
     reason="FEAT: xml not supported",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_xml_with_no_schema(session, mode):
+def test_read_xml_with_no_schema(session, mode, resources_path):
     path = f"@{tmp_stage_name1}/{test_file_xml}"
 
     df1 = get_reader(session, mode).xml(path)
@@ -1389,6 +1399,12 @@ def test_read_xml_with_no_schema(session, mode):
     # assert user cannot input a schema to read json
     with pytest.raises(ValueError):
         get_reader(session, mode).schema(user_schema).xml(path)
+
+    # assert local directory is invalid
+    with pytest.raises(
+        ValueError, match="DataFrameReader can only read files from stage locations."
+    ):
+        get_reader(session, mode).xml(resources_path)
 
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("COMPRESSION", "NONE").xml(path)
