@@ -29,6 +29,7 @@
 
 - Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.
 - Added a dependency on `protoc-wheel-0` for the development profile.
+- Require `snowflake-connector-python>=3.12.0, <4.0.0` (was `>=3.10.0`).
 
 ### Snowpark pandas API Updates
 
