@@ -290,9 +290,9 @@ def col(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Colu
         ast = create_ast_for_column(name1, name2, "col")
 
     if name2 is None:
-        return Column(name1, ast=ast)
+        return Column(name1, _ast=ast)
     else:
-        return Column(name1, name2, ast=ast)
+        return Column(name1, name2, _ast=ast)
 
 
 @overload
@@ -328,9 +328,9 @@ def column(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> C
     ast = create_ast_for_column(name1, name2, "column") if _emit_ast else None
 
     if name2 is None:
-        return Column(name1, ast=ast)
+        return Column(name1, _ast=ast)
     else:
-        return Column(name1, name2, ast=ast)
+        return Column(name1, name2, _ast=ast)
 
 
 @publicapi
@@ -365,7 +365,7 @@ def lit(literal: LiteralType, _emit_ast: bool = True) -> Column:
     return (
         literal
         if isinstance(literal, Column)
-        else Column(Literal(literal), ast=ast, _emit_ast=_emit_ast)
+        else Column(Literal(literal), _ast=ast, _emit_ast=_emit_ast)
     )
 
 
@@ -869,7 +869,7 @@ def count_distinct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
         FunctionExpression("count", [c._expression for c in cs], is_distinct=True),
-        ast=ast,
+        _ast=ast,
         _emit_ast=_emit_ast,
     )
 
@@ -7699,7 +7699,7 @@ def when(
                 )
             ]
         ),
-        ast=ast,
+        _ast=ast,
     )
 
 
@@ -9477,7 +9477,7 @@ def _call_function(
             api_call_source=api_call_source,
             is_data_generator=is_data_generator,
         ),
-        ast=ast,
+        _ast=ast,
         _emit_ast=_emit_ast,
     )
 
