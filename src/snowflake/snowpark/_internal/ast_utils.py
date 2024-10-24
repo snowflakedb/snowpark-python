@@ -148,9 +148,15 @@ def fill_timezone(
                 ast.tz.offset_seconds = int(tzlocal().utcoffset(obj).total_seconds())
                 tz_name = datetime.datetime.now(tzlocal()).tzname()
         else:
-            ast.tz.offset_seconds = int(
-                tzlocal().utcoffset(datetime_val).total_seconds()
-            )
+            try:
+                ast.tz.offset_seconds = int(
+                    tzlocal().utcoffset(datetime_val).total_seconds()
+                )
+            except OverflowError:
+                # This happens when e.g. using datetime.datetime.min. Use instead tzlocal() and offset to now.
+                ast.tz.offset_seconds = int(
+                    tzlocal().utcoffset(datetime.datetime.now()).total_seconds()
+                )
             tz_name = datetime.datetime.now(tzlocal()).tzname()
         ast.tz.name.value = tz_name
 
