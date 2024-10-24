@@ -171,6 +171,10 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     repr_aggregate_function,
     using_named_aggregations_for_func,
 )
+from snowflake.snowpark.modin.plugin._internal.align_utils import (
+    align_axis_0_left,
+    align_axis_0_right,
+)
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
     APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
@@ -8466,53 +8470,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         left_result, right_result = self._modin_frame, self._modin_frame
         left_frame, right_frame = self._modin_frame, self._modin_frame
+        left_frame_data_ids, left_index_ids, right_frame_data_ids, right_index_ids = (
+            None,
+            None,
+            None,
+            None,
+        )
         if axis == 0:
-            if join == "right":
-                left_result, left_column_mapper = join_utils.align_on_index(
-                    other_frame, frame, how=join
-                )
-                left_frame_data_ids = left_column_mapper.map_right_quoted_identifiers(
-                    frame.data_column_snowflake_quoted_identifiers
-                )
-                left_index_ids = left_result.index_column_snowflake_quoted_identifiers
-                left_frame = left_result.ordered_dataframe.select(
-                    left_frame_data_ids + left_index_ids
-                )
-
-            else:
-                left_result, left_column_mapper = join_utils.align_on_index(
-                    frame, other_frame, how=join
-                )
-                left_frame_data_ids = left_column_mapper.map_left_quoted_identifiers(
-                    frame.data_column_snowflake_quoted_identifiers
-                )
-                left_index_ids = left_result.index_column_snowflake_quoted_identifiers
-                left_frame = left_result.ordered_dataframe.select(
-                    left_frame_data_ids + left_index_ids
-                )
-
-            if join == "left":
-                right_result, right_column_mapper = join_utils.align_on_index(
-                    frame, other_frame, how=join
-                )
-                right_frame_data_ids = right_column_mapper.map_right_quoted_identifiers(
-                    other_frame.data_column_snowflake_quoted_identifiers
-                )
-                right_index_ids = right_result.index_column_snowflake_quoted_identifiers
-                right_frame = right_result.ordered_dataframe.select(
-                    right_frame_data_ids + right_index_ids
-                )
-            else:
-                right_result, right_column_mapper = join_utils.align_on_index(
-                    other_frame, frame, how=join
-                )
-                right_frame_data_ids = right_column_mapper.map_left_quoted_identifiers(
-                    other_frame.data_column_snowflake_quoted_identifiers
-                )
-                right_index_ids = right_result.index_column_snowflake_quoted_identifiers
-                right_frame = right_result.ordered_dataframe.select(
-                    right_frame_data_ids + right_index_ids
-                )
+            (
+                left_result,
+                left_frame,
+                left_frame_data_ids,
+                left_index_ids,
+            ) = align_axis_0_left(frame, other_frame, join)
+            (
+                right_result,
+                right_frame,
+                right_frame_data_ids,
+                right_index_ids,
+            ) = align_axis_0_right(frame, other_frame, join)
 
         left_qc = SnowflakeQueryCompiler(
             InternalFrame.create(

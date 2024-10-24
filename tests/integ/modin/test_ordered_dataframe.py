@@ -397,7 +397,7 @@ def test_join_with_column_conflict(session, df1, df2, how):
 
 @pytest.mark.parametrize(
     "how",
-    ["left", "outer"],
+    ["left", "outer", "inner"],
 )
 @sql_count_checker(query_count=1, join_count=1)
 def test_align_on_matching_columns(session, how):
@@ -415,45 +415,58 @@ def test_align_on_matching_columns(session, how):
         row_position_column='"row_pos_2"',
     )
 
-    aligned_ordered_df = ordered_df1.align(
-        ordered_df2,
-        left_on_cols=['"B"', '"row_pos"'],
-        right_on_cols=['"B_2"', '"row_pos_2"'],
-        how=how,
-    )
+    if how == "right":
+        with pytest.raises(
+            ValueError,
+            match=f"how={how} is not valid argument for ordered_dataframe.align.",
+        ):
+            ordered_df1.align(
+                ordered_df2,
+                left_on_cols=['"B"', '"row_pos"'],
+                right_on_cols=['"B_2"', '"row_pos_2"'],
+                how=how,
+            )
 
-    # verify the aligned result have projected columns started with left and right
-    expected_columns = [
-        '"A"',
-        '"B"',
-        '"row_pos"',
-        '"A_2"',
-        '"B_2"',
-        '"row_pos_2"',
-    ]
-    assert (
-        aligned_ordered_df.projected_column_snowflake_quoted_identifiers[:6]
-        == expected_columns
-    )
+    else:
+        aligned_ordered_df = ordered_df1.align(
+            ordered_df2,
+            left_on_cols=['"B"', '"row_pos"'],
+            right_on_cols=['"B_2"', '"row_pos_2"'],
+            how=how,
+        )
 
-    # verify the aligned result doesn't share the same dataframe reference with original dataframe
-    _verify_dataframe_reference(aligned_ordered_df, ordered_df1, should_match=False)
-    _verify_dataframe_reference(aligned_ordered_df, ordered_df2, should_match=False)
-    _verify_dataframe_reference_quoted_identifiers(aligned_ordered_df)
+        # verify the aligned result have projected columns started with left and right
+        expected_columns = [
+            '"A"',
+            '"B"',
+            '"row_pos"',
+            '"A_2"',
+            '"B_2"',
+            '"row_pos_2"',
+        ]
+        assert (
+            aligned_ordered_df.projected_column_snowflake_quoted_identifiers[:6]
+            == expected_columns
+        )
 
-    # drop off the ordering columns from the projected columns for result comparison
-    projected_result = aligned_ordered_df.select(expected_columns)
-    expected_df = native_pd.DataFrame(
-        {
-            "A": [3, 2, 3],
-            "B": [2, 2, 1],
-            "row_pos": [0, 1, 2],
-            "A_2": [2, 3, 3],
-            "B_2": [2, 2, 1],
-            "row_pos_2": [0, 1, 2],
-        }
-    )
-    assert_frame_equal(projected_result, expected_df, check_dtype=False)
+        # verify the aligned result doesn't share the same dataframe reference with original dataframe
+        _verify_dataframe_reference(aligned_ordered_df, ordered_df1, should_match=False)
+        _verify_dataframe_reference(aligned_ordered_df, ordered_df2, should_match=False)
+        _verify_dataframe_reference_quoted_identifiers(aligned_ordered_df)
+
+        # drop off the ordering columns from the projected columns for result comparison
+        projected_result = aligned_ordered_df.select(expected_columns)
+        expected_df = native_pd.DataFrame(
+            {
+                "A": [3, 2, 3],
+                "B": [2, 2, 1],
+                "row_pos": [0, 1, 2],
+                "A_2": [2, 3, 3],
+                "B_2": [2, 2, 1],
+                "row_pos_2": [0, 1, 2],
+            }
+        )
+        assert_frame_equal(projected_result, expected_df, check_dtype=False)
 
 
 @pytest.mark.parametrize(
@@ -497,6 +510,35 @@ def test_align_on_mismatch_columns(session, df1, df2, how):
         how=how,
         sort=sort,
     )
+
+
+@sql_count_checker(query_count=0)
+def test_align_on_matching_columns_right_negative(session):
+    how = "right"
+    df1 = native_pd.DataFrame({"A": [3, 2, 3], "B": [2, 2, 1], "row_pos": [0, 1, 2]})
+    df2 = native_pd.DataFrame(
+        {"A_2": [2, 3, 3], "B_2": [2, 2, 1], "row_pos_2": [0, 1, 2]}
+    )
+    ordered_df1 = _create_ordered_dataframe(
+        session, df1, ordering_columns=['"row_pos"'], row_position_column='"row_pos"'
+    )
+    ordered_df2 = _create_ordered_dataframe(
+        session,
+        df2,
+        ordering_columns=['"row_pos_2"'],
+        row_position_column='"row_pos_2"',
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=f"how={how} is not valid argument for ordered_dataframe.align.",
+    ):
+        ordered_df1.align(
+            ordered_df2,
+            left_on_cols=['"B"', '"row_pos"'],
+            right_on_cols=['"B_2"', '"row_pos_2"'],
+            how=how,
+        )
 
 
 @pytest.mark.parametrize("how", ["inner", "left", "right", "outer"])

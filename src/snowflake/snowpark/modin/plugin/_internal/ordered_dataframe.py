@@ -1673,6 +1673,9 @@ class OrderedDataFrame:
         elif how == "left":
             filter_expression = filter_expression & left_row_pos.is_not_null()
             select_list = result_projected_column_snowflake_quoted_identifiers
+        # elif how == "right":
+        #     filter_expression = filter_expression & right_row_pos.is_not_null()
+        #     select_list = result_projected_column_snowflake_quoted_identifiers
         elif how == "inner":
             filter_expression = (
                 filter_expression
@@ -1680,9 +1683,12 @@ class OrderedDataFrame:
                 & right_row_pos.is_not_null()
             )
             select_list = result_projected_column_snowflake_quoted_identifiers
-        else:  # outer
+        elif how == "outer":
             select_list = result_projected_column_snowflake_quoted_identifiers
-
+        else:
+            raise ValueError(
+                f"how={how} is not valid argument for ordered_dataframe.align."
+            )
         joined_ordered_frame = joined_ordered_frame.filter(filter_expression).sort(
             ordering_columns
         )
