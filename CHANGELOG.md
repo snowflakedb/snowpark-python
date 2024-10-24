@@ -4,10 +4,8 @@
 
 ### Snowpark Python API Updates
 
-
 #### New Features
 
-- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 - Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
@@ -18,6 +16,7 @@
 
 #### Improvements
 
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 - Disables sql simplification when sort is performed after limit.
   - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
   - Improve performance of generated query for `df.limit().sort()`, because limit stops table scanning as soon as the number of records is satisfied.
