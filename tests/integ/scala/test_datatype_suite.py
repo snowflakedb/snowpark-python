@@ -476,6 +476,104 @@ def test_structured_dtypes_iceberg(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
+def test_iceberg_nested_fields(
+    structured_type_session, local_testing_mode, structured_type_support
+):
+    if not (
+        structured_type_support
+        and iceberg_supported(structured_type_session, local_testing_mode)
+    ):
+        pytest.skip("Test requires iceberg support and structured type support.")
+
+    table_name = Utils.random_table_name()
+    transformed_table_name = Utils.random_table_name()
+
+    expected_schema = StructType(
+        [
+            StructField(
+                "NESTED_DATA",
+                StructType(
+                    [
+                        StructField('"camelCase"', StringType(), nullable=True),
+                        StructField('"snake_case"', StringType(), nullable=True),
+                        StructField('"PascalCase"', StringType(), nullable=True),
+                        StructField(
+                            '"nested_map"',
+                            MapType(
+                                StringType(),
+                                StructType(
+                                    [
+                                        StructField(
+                                            '"inner_camelCase"',
+                                            StringType(),
+                                            nullable=True,
+                                        ),
+                                        StructField(
+                                            '"inner_snake_case"',
+                                            StringType(),
+                                            nullable=True,
+                                        ),
+                                        StructField(
+                                            '"inner_PascalCase"',
+                                            StringType(),
+                                            nullable=True,
+                                        ),
+                                    ],
+                                    structured=True,
+                                ),
+                                structured=True,
+                            ),
+                            nullable=True,
+                        ),
+                    ],
+                    structured=True,
+                ),
+                nullable=True,
+            )
+        ],
+        structured=False,
+    )
+
+    try:
+        structured_type_session.sql(
+            f"""
+        CREATE OR REPLACE ICEBERG TABLE {table_name} (
+            "NESTED_DATA" OBJECT(
+                camelCase STRING,
+                snake_case STRING,
+                PascalCase STRING,
+                nested_map MAP(
+                    STRING,
+                    OBJECT(
+                        inner_camelCase STRING,
+                        inner_snake_case STRING,
+                        inner_PascalCase STRING
+                    )
+                )
+            )
+        ) EXTERNAL_VOLUME = 'python_connector_iceberg_exvol' CATALOG = 'SNOWFLAKE' BASE_LOCATION = 'python_connector_merge_gate';
+        """
+        ).collect()
+        df = structured_type_session.table(table_name)
+        assert df.schema == expected_schema
+
+        # Round tripping will fail if the inner fields has incorrect names.
+        df.write.mode("overwrite").save_as_table(
+            table_name=transformed_table_name, iceberg_config=ICEBERG_CONFIG
+        )
+        assert (
+            structured_type_session.table(transformed_table_name).schema
+            == expected_schema
+        )
+    finally:
+        Utils.drop_table(structured_type_session, table_name)
+        Utils.drop_table(structured_type_session, transformed_table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
 def test_structured_dtypes_iceberg_create_from_values(
     structured_type_session, local_testing_mode, structured_type_support
 ):
