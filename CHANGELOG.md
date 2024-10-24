@@ -29,6 +29,7 @@
 
 #### New Features
 
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 - Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
 - Added support for tracking usages of `__array_ufunc__`.
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
@@ -75,8 +76,6 @@
 ### Snowpark Python API Updates
 
 #### New Features
-
-- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 - Added support for using Snowflake Interval constants with `Window.range_between()` when the order by column is TIMESTAMP or DATE type.
 - Added support for file writes. This feature is currently in private preview.
 - Added `thread_id` to `QueryRecord` to track the thread id submitting the query history.
