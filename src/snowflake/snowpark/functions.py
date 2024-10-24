@@ -241,6 +241,19 @@ else:
     from collections.abc import Iterable
 
 
+# check function to allow test_dataframe_alias_negative to pass in AST mode.
+def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
+    if not isinstance(name1, str):
+        raise ValueError(
+            f"Expects first argument to be of type str, got {type(name1)}."
+        )
+
+    if name2 is not None and not isinstance(name2, str):
+        raise ValueError(
+            f"Expects second argument to be of type str or None, got {type(name1)}."
+        )
+
+
 @overload
 @publicapi
 def col(col_name: str, _emit_ast: bool = True) -> Column:
@@ -269,6 +282,9 @@ def col(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
 
 @publicapi
 def col(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Column:
+
+    _check_column_parameters(name1, name2)
+
     ast = None
     if _emit_ast:
         ast = create_ast_for_column(name1, name2, "col")
@@ -307,6 +323,8 @@ def column(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
 
 @publicapi
 def column(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Column:
+    _check_column_parameters(name1, name2)
+
     ast = create_ast_for_column(name1, name2, "column") if _emit_ast else None
 
     if name2 is None:
@@ -9761,6 +9779,7 @@ def locate(
     return builtin("charindex", _emit_ast=_emit_ast)(_substr, _str, lit(start_pos))
 
 
+@publicapi
 def make_interval(
     years: Optional[int] = None,
     quarters: Optional[int] = None,
@@ -9775,6 +9794,7 @@ def make_interval(
     nanoseconds: Optional[int] = None,
     mins: Optional[int] = None,
     secs: Optional[int] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Creates an interval column with the specified years, quarters, months, weeks, days, hours,
@@ -9802,6 +9822,10 @@ def make_interval(
     You can also find some examples to use interval constants with :meth:`~snowflake.snowpark.Window.range_between`
     method.
     """
+
+    if _emit_ast:
+        raise NotImplementedError("TODO SNOW-1690923: Add interval support to IR.")
+
     # for migration purpose
     minutes = minutes or mins
     seconds = seconds or secs
