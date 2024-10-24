@@ -1795,7 +1795,7 @@ class DataFrame:
             <BLANKLINE>
 
             Self join:
-            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show() # doctest: +SKIP
+            >>> df1.alias("L").join(df1.alias("R"), on="col1").select(col("L", "col1"), col("R", "col2")).show()
             --------------------
             |"COL1"  |"COL2R"  |
             --------------------
