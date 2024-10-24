@@ -26,6 +26,10 @@
 - Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
 - Fixed a bug that created inconsistent casing in field names of structured objects in iceberg schemas.
 
+#### Deprecations:
+
+- Deprecated warnings will be triggered when using snowpark-python with Python 3.8. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
+
 ### Snowpark pandas API Updates
 
 #### New Features
