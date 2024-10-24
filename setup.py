@@ -54,14 +54,6 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
     "protoc-wheel-0",
-    "aiohttp",  # vcrpy requirements.
-    "boto",  # vcrpy requirements.
-    "httplib2",  # vcrpy requirements.
-    "httpx",  # vcrpy requirements.
-    "tornado",  # vcrpy requirements.
-    "graphviz",  # used in plot tests
-    "pytest-assume",  # sql counter check
-    "decorator",  # sql counter check
 ]
 
 # read the version
