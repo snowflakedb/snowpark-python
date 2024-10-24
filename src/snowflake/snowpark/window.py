@@ -465,7 +465,7 @@ class WindowSpec:
     ) -> "snowflake.snowpark.column.Column":
         spec = WindowSpecDefinition(self.partition_spec, self.order_spec, self.frame)
         return snowflake.snowpark.column.Column(
-            WindowExpression(aggregate, spec), ast=ast, _emit_ast=_emit_ast
+            WindowExpression(aggregate, spec), _ast=ast, _emit_ast=_emit_ast
         )
 
     orderBy = order_by
