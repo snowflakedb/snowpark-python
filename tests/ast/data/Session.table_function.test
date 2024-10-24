@@ -6,11 +6,17 @@ df2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
 
 df3 = session.table_function(["foo", "bar"])
 
-fn1 = table_function("my_fn")
-df4 = session.table_function(fn1)
+fn1 = table_function("my_fn1")
+df4 = session.table_function(fn1())
 
-fn2 = call_table_function("my_fn")
-df5 = session.table_function(fn2)
+fn2 = table_function("my_fn2")
+df5 = session.table_function(fn2("foo"))
+
+fn3 = call_table_function("my_fn3")
+df6 = session.table_function(fn3)
+
+fn4 = call_table_function("my_fn4", "foo")
+df7 = session.table_function(fn4)
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -20,9 +26,13 @@ df2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
 
 df3 = session.table_function(["foo", "bar"])
 
-df4 = session.table_function(table_function("my_fn"))
+df4 = session.table_function(call_table_function("my_fn1"))
 
-df5 = session.table_function(call_table_function("my_fn"))
+df5 = session.table_function(call_table_function("my_fn2", "foo"))
+
+df6 = session.table_function(call_table_function("my_fn3"))
+
+df7 = session.table_function(call_table_function("my_fn4", "foo"))
 
 ## EXPECTED ENCODED AST
 
@@ -250,26 +260,17 @@ body {
     expr {
       apply_expr {
         fn {
-          builtin_fn {
+          call_table_function_expr {
             name {
               fn_name_flat {
-                name: "table_function"
+                name: "my_fn1"
               }
             }
           }
         }
-        pos_args {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "my_fn"
-          }
-        }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 31
+          start_line: 32
         }
       }
     }
@@ -323,14 +324,23 @@ body {
           call_table_function_expr {
             name {
               fn_name_flat {
-                name: "my_fn"
+                name: "my_fn2"
               }
             }
           }
         }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 35
+            }
+            v: "foo"
+          }
+        }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 34
+          start_line: 35
         }
       }
     }
@@ -373,6 +383,137 @@ body {
     uid: 7
     var_id {
       bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              fn_name_flat {
+                name: "my_fn3"
+              }
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 37
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 8
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 38
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 38
+        }
+      }
+    }
+    symbol {
+      value: "df6"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              fn_name_flat {
+                name: "my_fn4"
+              }
+            }
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 40
+            }
+            v: "foo"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 40
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 10
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 41
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 41
+        }
+      }
+    }
+    symbol {
+      value: "df7"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
     }
   }
 }
