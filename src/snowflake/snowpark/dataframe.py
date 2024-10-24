@@ -5309,10 +5309,7 @@ class DataFrame:
             if seed:
                 ast.seed.value = seed
             if statement_params:
-                for k, v in statement_params.items():
-                    t = ast.statement_params.add()
-                    t._1 = k
-                    t._2 = v
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
             self._set_ast_ref(ast.df)
 
         if len(weights) == 1:
