@@ -706,7 +706,7 @@ def test_series_loc_set_series_row_key_and_series_item(row_key):
             s.loc[pd.Series(row_key)] = pd.Series(item)
 
     expected_join_count = (
-        2 if len(row_key) > 0 and all(isinstance(i, bool) for i in row_key) else 4
+        2 if len(row_key) > 0 and all(isinstance(i, bool) for i in row_key) else 3
     )
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
@@ -736,12 +736,12 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
     series = native_pd.Series([1, 2, 3], name="abc")
     item = [10, 20, 30]
 
-    expected_join_count = 4
+    expected_join_count = 3
     if all(isinstance(i, bool) for i in row_key):
         if item_type.startswith("series"):
             expected_join_count = 2
         else:
-            expected_join_count = 6
+            expected_join_count = 4
 
     # With a boolean key, the number of items provided must match the number of True values in the key in pandas.
     if is_bool(row_key[0]):
@@ -964,7 +964,7 @@ def test_series_loc_set_key_slice_with_series(start, stop, step):
 @pytest.mark.parametrize(
     "start, stop, step, pandas_fail", [[1, -1, None, True], [10, None, None, False]]
 )
-@sql_count_checker(query_count=2, join_count=4)
+@sql_count_checker(query_count=2, join_count=3)
 def test_series_loc_set_key_slice_with_series_item_pandas_bug(
     start, stop, step, pandas_fail
 ):
@@ -1056,7 +1056,7 @@ def test_series_loc_set_with_empty_key_and_empty_item_negative(
         assert_series_equal(snowpark_ser, native_ser)
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 @pytest.mark.parametrize("key", EMPTY_LIST_LIKE_VALUES)
 def test_series_loc_set_with_empty_key_and_empty_series_item(
     key,
@@ -1177,7 +1177,7 @@ def test_series_loc_set_with_empty_key_and_list_like_item_negative(
         assert_series_equal(snowpark_ser, native_ser)
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 @pytest.mark.parametrize("key", EMPTY_LIST_LIKE_VALUES)
 @pytest.mark.parametrize(
     "item", [native_pd.Series([random.randint(0, 6) for _ in range(7)])]
@@ -1486,7 +1486,7 @@ def test_series_loc_set_lambda_key(key, item):
 
     # Join is performed when the item is list-like - join index and list-like item for assignment.
     # If item is scalar, no join is performed.
-    with SqlCounter(query_count=1, join_count=4 if isinstance(item, list) else 0):
+    with SqlCounter(query_count=1, join_count=3 if isinstance(item, list) else 0):
         assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
 
 
