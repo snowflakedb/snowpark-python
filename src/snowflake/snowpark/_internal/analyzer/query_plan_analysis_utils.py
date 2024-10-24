@@ -55,6 +55,12 @@ class PlanState(Enum):
     # the number of SelectStatement nodes in the plan that have
     # _merge_projection_complexity_with_subquery set to True
     NUM_SELECTS_WITH_COMPLEXITY_MERGED = "num_selects_with_complexity_merged"
+    # number of cte nodes detected
+    NUM_CTE_NODES = "num_cte_nodes"
+    # node complexity distribution for the duplicated nodes that detected as cte
+    # NOTE: this is not the cte node complexity distribution, in other words, if a
+    #   node occurs twice, it will be counted twice
+    DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION = "duplicated_node_distribution"
 
 
 def sum_node_complexities(
