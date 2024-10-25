@@ -8858,6 +8858,7 @@ def map(
         as specified in the `output_types` argument.
         - When using the `vectorized` option, the `func` function must accept a pandas DataFrame as input and return either
         a pandas DataFrame, or a tuple of pandas Series/arrays.
+
     """
     if len(output_types) == 0:
         raise ValueError("output_types cannot be empty.")
@@ -8870,30 +8871,25 @@ def map(
         )
 
     df_columns = dataframe.columns
-    num_cols = len(df_columns)
-
     packages = packages or list(dataframe._session.get_packages().values())
     packages = add_package_to_existing_packages(packages, "snowflake-snowpark-python")
+
     input_types = [field.datatype for field in dataframe.schema.fields]
+    udtf_output_cols = [f"c{i}" for i in range(len(output_types))]
+    output_schema = StructType(
+        [StructField(col, type_) for col, type_ in zip(udtf_output_cols, output_types)]
+    )
 
     if vectorized:
+        # If the map is vectorized, we need to add pandas to packages if not
+        # already added. Also update the input_types and output_schema to
+        # be PandasDataFrameType.
         packages = add_package_to_existing_packages(packages, pandas)
         input_types = [PandasDataFrameType(input_types)]
-        table_func_col_names = [f"c{i}" for i in range(len(output_types))]
-        if isinstance(output_types, PandasDataFrameType):
-            output_types.col_names = table_func_col_names
-            output_schema = output_types
-        else:
-            output_schema = PandasDataFrameType(output_types, table_func_col_names)
-    else:
-        output_schema = StructType(
-            [
-                StructField(f"c{i}", type_) for i, type_ in enumerate(output_types)
-            ]  # this is done to avoid collision with reserved keywords as column names
-        )
+        output_schema = PandasDataFrameType(output_types, udtf_output_cols)
 
     output_columns = [
-        col(f"${i + num_cols + 1}").alias(
+        col(f"${i + len(df_columns) + 1}").alias(
             col_name
         )  # this is done to avoid collision with original table columns
         for i, col_name in enumerate(output_column_names)
