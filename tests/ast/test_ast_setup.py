@@ -5,6 +5,6 @@
 from snowflake.snowpark.mock._connection import MockServerConnection
 
 
-def test_session(session):
+def test_ensure_valid_test_setup(session):
     assert session.ast_enabled
     assert isinstance(session._conn, MockServerConnection)
