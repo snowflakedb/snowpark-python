@@ -3397,10 +3397,6 @@ class Series(BasePandasDataset):
         -----
         The returned array will be the same up to equality (values equal in self will be equal in the returned array; likewise for values that are not equal). When self contains an ExtensionArray, the dtype may be different. For example, for a category-dtype Series, to_numpy() will return a NumPy array and the categorical dtype will be lost.
 
-        For NumPy dtypes, this will be a reference to the actual data stored in this Series or Index (assuming copy=False). Modifying the result in place will modify the data stored in the Series or Index (not that we recommend doing that).
-
-        For extension types, to_numpy() may require copying data and coercing the result to a NumPy type (possibly object), which may be expensive. When you need a no-copy reference to the underlying data, Series.array should be used instead.
-
         This table lays out the different dtypes and default return types of to_numpy() for various dtypes within pandas.
 
         ---------------------------------------------------------
@@ -3429,8 +3425,8 @@ class Series(BasePandasDataset):
 
         >>> ser = pd.Series(pd.date_range('2000', periods=2, tz="CET"))
         >>> ser.to_numpy(dtype=object)
-        array([Timestamp('2000-01-01 00:00:00+0100', tz='CET'),
-            Timestamp('2000-01-02 00:00:00+0100', tz='CET')],
+        array([Timestamp('2000-01-01 00:00:00+0100', tz='UTC+01:00'),
+            Timestamp('2000-01-02 00:00:00+0100', tz='UTC+01:00')],
             dtype=object)
 
         Or dtype='datetime64[ns]' to return an ndarray of native datetime64 values. The values are converted to UTC and the timezone info is dropped.

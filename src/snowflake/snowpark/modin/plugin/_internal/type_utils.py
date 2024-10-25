@@ -384,8 +384,12 @@ def column_astype(
             new_col = cast(curr_col, LongType())
     else:
         new_col = cast(curr_col, to_sf_type)
-    # astype should not have any effect on NULL values
-    return iff(curr_col.is_null(), None, new_col)
+    # astype should not have any effect on NULL values except when casting to boolean
+    if isinstance(to_sf_type, BooleanType):
+        # treat NULL values in boolean columns as False to match pandas behavior
+        return iff(curr_col.is_null(), pandas_lit(False), new_col)
+    else:
+        return iff(curr_col.is_null(), None, new_col)
 
 
 def is_astype_type_error(

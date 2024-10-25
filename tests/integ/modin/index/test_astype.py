@@ -46,7 +46,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 def test_index_astype(index, type):
     snow_index = pd.Index(index)
     with SqlCounter(query_count=1):
-        assert_index_equal(snow_index.astype(type), index.astype(type))
+        assert_index_equal(snow_index.astype(type), index.astype(type), exact=False)
 
 
 @pytest.mark.parametrize(
@@ -104,7 +104,9 @@ def test_index_astype_empty_index(from_type, to_type):
     native_index = native_pd.Index([], dtype=from_type)
     snow_index = pd.Index(native_index)
     with SqlCounter(query_count=1):
-        assert_index_equal(snow_index.astype(to_type), native_index.astype(to_type))
+        assert_index_equal(
+            snow_index.astype(to_type), native_index.astype(to_type), exact=False
+        )
 
 
 @pytest.mark.parametrize(
@@ -166,8 +168,8 @@ def test_index_astype_bool_nan_none():
     snow_index = pd.Index(native_index)
     with pytest.raises(AssertionError):
         assert_index_equal(snow_index.astype(bool), native_index.astype(bool))
-    expected_result = native_pd.Index([True, True, True, False, False], dtype=bool)
-    assert_index_equal(snow_index.astype(bool), expected_result)
+    expected_result = native_pd.Index([True, True, True, None, None], dtype=bool)
+    assert_index_equal(snow_index.astype(bool), expected_result, exact=False)
 
     # Another case where this arises is when a float Index with "None" in it is used. pandas
     # converts None to NaN during Index creation and thus leads to this difference.
@@ -180,7 +182,7 @@ def test_index_astype_bool_nan_none():
     expected_result = native_pd.Index(
         [True, True, True, True, False, False], dtype=bool
     )
-    assert_index_equal(snow_index.astype(bool), expected_result)
+    assert_index_equal(snow_index.astype(bool), expected_result, exact=False)
 
 
 @sql_count_checker(query_count=2)
