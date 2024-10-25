@@ -60,7 +60,7 @@ def test_assign_basic_series_mismatched_index(index):
 
 @pytest.mark.parametrize("new_col_value", [2, [10, 11, 12], "x"])
 def test_assign_basic_non_pandas_object(new_col_value):
-    join_count = 4 if isinstance(new_col_value, list) else 1
+    join_count = 3 if isinstance(new_col_value, list) else 1
     with SqlCounter(query_count=1, join_count=join_count):
         snow_df, native_df = create_test_dfs(
             [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -74,7 +74,7 @@ def test_assign_basic_non_pandas_object(new_col_value):
         )
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 def test_assign_invalid_long_column_length_negative():
     # pandas errors out in this test, since we are attempting to assign a column of length 5 to a DataFrame with length 3.
     # Snowpark pandas on the other hand, just truncates the last element of the new column so that it is the correct length. If we wanted
@@ -98,7 +98,7 @@ def test_assign_invalid_long_column_length_negative():
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 def test_assign_invalid_short_column_length_negative():
     # pandas errors out in this test, since we are attempting to assign a column of length 2 to a DataFrame with length 3.
     # Snowpark pandas on the other hand, just broadcasts the last element of the new column so that it is filled. If we wanted
@@ -226,7 +226,7 @@ def test_assign_self_columns():
     )
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 def test_overwrite_columns_via_assign():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
