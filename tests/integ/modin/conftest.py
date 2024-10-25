@@ -15,6 +15,7 @@ from pytest import fail
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
+import snowflake.snowpark.modin.plugin._internal.utils
 from tests.integ.utils.sql_counter import (
     SqlCounter,
     clear_sql_counter_called,
@@ -732,3 +733,9 @@ def timedelta_native_df() -> pandas.DataFrame:
             "D": pandas.to_timedelta([pd.NaT] * 4),
         }
     )
+
+@pytest.fixture(autouse=True)
+def make_to_pandas_cause_error():
+    snowflake.snowpark.modin.plugin._internal.utils._raise_exception_for_internal_to_pandas_usage = True
+    yield
+    snowflake.snowpark.modin.plugin._internal.utils._raise_exception_for_internal_to_pandas_usage = False    

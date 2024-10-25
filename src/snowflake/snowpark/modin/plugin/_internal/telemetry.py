@@ -8,6 +8,7 @@ import re
 from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast
+from snowflake.snowpark.modin.plugin._internal.utils import wrap_internal_to_pandas_method
 
 from typing_extensions import ParamSpec
 
@@ -576,5 +577,6 @@ class TelemetryMeta(type):
                 The modified class with decorated methods.
         """
         for attr_name, attr_value in attrs.items():
-            attrs[attr_name] = try_add_telemetry_to_attribute(attr_name, attr_value)
+            maybe_with_telemetry = try_add_telemetry_to_attribute(attr_name, attr_value)            
+            attrs[attr_name] = wrap_internal_to_pandas_method(maybe_with_telemetry ) if attr_name == "to_pandas" else maybe_with_telemetry
         return type.__new__(cls, name, bases, attrs)
