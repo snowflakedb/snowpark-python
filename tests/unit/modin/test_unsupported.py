@@ -92,7 +92,6 @@ def test_unsupported_general(general_method, kwargs):
         ["reorder_levels", {"order": ""}],
         ["sem", {}],
         ["set_flags", {}],
-        ["style", {}],
         ["swapaxes", {"axis1": "", "axis2": ""}],
         ["swaplevel", {}],
         ["to_clipboard", {}],

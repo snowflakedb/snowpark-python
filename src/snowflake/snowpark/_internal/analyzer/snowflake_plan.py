@@ -18,7 +18,6 @@ from typing import (
     List,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
 )
@@ -96,6 +95,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark._internal.compiler.cte_utils import (
     encode_node_id_with_query,
     find_duplicate_subtrees,
+    merge_referenced_ctes,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
@@ -216,10 +216,10 @@ class SnowflakePlan(LogicalPlan):
         df_aliased_col_name_to_real_col_name: Optional[
             DefaultDict[str, Dict[str, str]]
         ] = None,
-        # This field records all the CTE tables that are referred by the
-        # current SnowflakePlan tree. This is needed for the final query
+        # This field records all the WithQueryBlocks and their reference count that are
+        # referred by the current SnowflakePlan tree. This is needed for the final query
         # generation to generate the correct sql query with CTE definition.
-        referenced_ctes: Optional[Set[WithQueryBlock]] = None,
+        referenced_ctes: Optional[Dict[WithQueryBlock, int]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
     ) -> None:
@@ -248,8 +248,8 @@ class SnowflakePlan(LogicalPlan):
         # query, query parameters and the node type. We use this id for equality
         # comparison to determine if two plans are the same.
         self.encoded_node_id_with_query = encode_node_id_with_query(self)
-        self.referenced_ctes: Set[WithQueryBlock] = (
-            referenced_ctes.copy() if referenced_ctes else set()
+        self.referenced_ctes: Dict[WithQueryBlock, int] = (
+            referenced_ctes.copy() if referenced_ctes else dict()
         )
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
@@ -363,16 +363,12 @@ class SnowflakePlan(LogicalPlan):
         return self._output_dict
 
     @cached_property
-    def num_duplicate_nodes(self) -> int:
-        duplicated_nodes = find_duplicate_subtrees(self)
-        return len(duplicated_nodes)
-
-    @cached_property
     def plan_state(self) -> Dict[PlanState, Any]:
         from snowflake.snowpark._internal.analyzer.select_statement import (
             SelectStatement,
         )
 
+        # calculate plan height and num_selects_with_complexity_merged
         height = 0
         num_selects_with_complexity_merged = 0
         current_level = [self]
@@ -387,9 +383,16 @@ class SnowflakePlan(LogicalPlan):
                     num_selects_with_complexity_merged += 1
             height += 1
             current_level = next_level
+        # calculate the repeated node status
+        cte_nodes, duplicated_node_complexity_distribution = find_duplicate_subtrees(
+            self, propagate_complexity_hist=True
+        )
+
         return {
             PlanState.PLAN_HEIGHT: height,
             PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: num_selects_with_complexity_merged,
+            PlanState.NUM_CTE_NODES: len(cte_nodes),
+            PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: duplicated_node_complexity_distribution,
         }
 
     @property
@@ -588,7 +591,7 @@ class SnowflakePlanBuilder:
             if post_action not in post_actions:
                 post_actions.append(copy.copy(post_action))
 
-        referenced_ctes: Set[WithQueryBlock] = set()
+        referenced_ctes: Dict[WithQueryBlock, int] = dict()
         if (
             self.session.cte_optimization_enabled
             and self.session._query_compilation_stage_enabled
@@ -597,8 +600,9 @@ class SnowflakePlanBuilder:
             # the referred cte tables are propagated from left and right can have
             # duplicated queries if there is a common CTE block referenced by
             # both left and right.
-            referenced_ctes.update(select_left.referenced_ctes)
-            referenced_ctes.update(select_right.referenced_ctes)
+            referenced_ctes = merge_referenced_ctes(
+                select_left.referenced_ctes, select_right.referenced_ctes
+            )
 
         queries = merged_queries + [
             Query(
@@ -1610,8 +1614,10 @@ class SnowflakePlanBuilder:
         # the query parameter will be propagate along with the definition during
         # query generation stage.
         queries = child.queries[:-1] + [Query(sql=new_query)]
-        # propagate the cte table
-        referenced_ctes = {with_query_block}.union(child.referenced_ctes)
+        # propagate the WithQueryBlock references
+        referenced_ctes = merge_referenced_ctes(
+            child.referenced_ctes, {with_query_block: 1}
+        )
 
         return SnowflakePlan(
             queries,

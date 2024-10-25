@@ -116,6 +116,77 @@ def test_no_valid_nodes_found(session, caplog):
     assert "Could not find a valid node for partitioning" in caplog.text
 
 
+def test_large_query_breakdown_external_cte_ref(session):
+    session._cte_optimization_enabled = True
+    if not session.sql_simplifier_enabled:
+        set_bounds(session, 50, 90)
+
+    base_select = session.sql("select 1 as A, 2 as B")
+    df1 = base_select.with_column("A", col("A") + lit(1))
+    df2 = base_select.with_column("B", col("B") + lit(1))
+    base_df = df1.union_all(df2)
+
+    df1 = base_df.with_column("A", col("A") + 1)
+    df2 = base_df.with_column("B", col("B") + 1)
+    for i in range(6):
+        df1 = df1.with_column("A", col("A") + i + col("A"))
+        df2 = df2.with_column("B", col("B") + i + col("B"))
+
+    df1 = df1.group_by("A").agg(sum_distinct(col("B")).alias("B"))
+    df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    final_df = df1.union_all(df2)
+
+    with SqlCounter(query_count=3, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
+
+    with patch.object(
+        session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
+    ) as patch_send:
+        queries = final_df.queries
+
+    # assert that we did not break the plan
+    assert len(queries["queries"]) == 1
+
+    patch_send.assert_called_once()
+    _, kwargs = patch_send.call_args
+    summary_value = kwargs["compilation_stage_summary"]
+    assert summary_value["breakdown_failure_summary"] == [
+        {
+            "num_external_cte_ref_nodes": 2,
+            "num_non_pipeline_breaker_nodes": 4,
+            "num_nodes_below_lower_bound": 28,
+            "num_nodes_above_upper_bound": 1,
+            "num_valid_nodes": 0,
+            "num_partitions_made": 0,
+        }
+    ]
+
+
+def test_breakdown_at_with_query_node(session):
+    session._cte_optimization_enabled = True
+    if not session.sql_simplifier_enabled:
+        pass
+
+    df0 = session.sql("select 1 as A, 2 as B")
+    for i in range(7):
+        df0 = df0.with_column("A", col("A") + i + col("A"))
+
+    union_df = df0.union_all(df0)
+    final_df = union_df.with_column("A", col("A") + 1)
+    for i in range(5):
+        final_df = final_df.with_column("A", col("A") + i + col("A"))
+
+    with SqlCounter(query_count=5, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
+
+    queries = final_df.queries
+    assert len(queries["queries"]) == 2
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    # SNOW-1734385: Remove it when the issue is fixed
+    assert "WITH SNOWPARK_TEMP_CTE_" in queries["queries"][0]
+    assert len(queries["post_actions"]) == 1
+
+
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
     if not session.sql_simplifier_enabled:
@@ -128,7 +199,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
     df1 = df1.join(df0, on=["b"], how="inner")
 
     df2 = df1.filter(col("b") == 2).union_all(df1)
-    df3 = df1.with_column("a", col("a") + 1)
+    df3 = session.sql("select 3 as b, 4 as c").with_column("a", col("b") + 1)
     for i in range(7):
         df2 = df2.with_column("a", col("a") + i + col("a"))
         df3 = df3.with_column("b", col("b") + i + col("b"))
@@ -146,13 +217,26 @@ def test_large_query_breakdown_with_cte_optimization(session):
     with SqlCounter(query_count=5, describe_count=0):
         check_result_with_and_without_breakdown(session, df4)
 
-    queries = df4.queries
+    with patch.object(
+        session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
+    ) as patch_send:
+        queries = df4.queries
+
     assert len(queries["queries"]) == 2
     assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
     assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
 
     assert len(queries["post_actions"]) == 1
     assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+
+    patch_send.assert_called_once()
+    _, kwargs = patch_send.call_args
+    summary_value = kwargs["compilation_stage_summary"]
+    assert summary_value["breakdown_failure_summary"] == [
+        {
+            "num_partitions_made": 1,
+        }
+    ]
 
 
 def test_save_as_table(session, large_query_df):
@@ -406,7 +490,17 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
     with caplog.at_level(logging.DEBUG):
         with session.query_history() as history:
             with SqlCounter(query_count=2, describe_count=0):
-                large_query_df.collect()
+                with patch.object(
+                    session._conn._telemetry_client,
+                    "send_query_compilation_summary_telemetry",
+                ) as patch_send:
+                    large_query_df.collect()
+
+    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+        "active transaction": 1,
+    }
+
     assert len(history.queries) == 2, history.queries
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
     assert "Skipping large query breakdown" in caplog.text
@@ -424,27 +518,39 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
         session.sql("select 1 as a, 2 as b").write.save_as_table(source_table)
         df = session.table(source_table)
         with caplog.at_level(logging.DEBUG):
-            df.create_or_replace_dynamic_table(
-                table_name, warehouse=session.get_current_warehouse(), lag="20 minutes"
-            )
+            with patch.object(
+                session._conn._telemetry_client,
+                "send_query_compilation_summary_telemetry",
+            ) as patch_send:
+                df.create_or_replace_dynamic_table(
+                    table_name,
+                    warehouse=session.get_current_warehouse(),
+                    lag="20 minutes",
+                )
         assert (
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
+        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+            "view or dynamic table command": 1,
+        }
 
-        with patch.object(
-            session._conn._telemetry_client,
-            "send_large_query_optimization_skipped_telemetry",
-        ) as patched_send_telemetry:
-            with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.DEBUG):
+            with patch.object(
+                session._conn._telemetry_client,
+                "send_query_compilation_summary_telemetry",
+            ) as patch_send:
                 df.create_or_replace_view(view_name)
         assert (
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
-        patched_send_telemetry.assert_called_once
-        called_with_reason = patched_send_telemetry.call_args[0][1]
-        assert called_with_reason == "view or dynamic table command"
+        patch_send.assert_called_once()
+        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+            "view or dynamic table command": 1,
+        }
     finally:
         Utils.drop_dynamic_table(session, table_name)
         Utils.drop_view(session, view_name)
@@ -458,14 +564,14 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
 def test_optimization_skipped_with_no_active_db_or_schema(
     session, db_or_schema, caplog
 ):
-    df = session.sql("select 1 as a, 2 as b")
+    df = session.sql("select 1 as a, 2 as b").select("a", "b")
 
     # no database check
-    with patch.object(
-        session._conn._telemetry_client,
-        "send_large_query_optimization_skipped_telemetry",
-    ) as patched_send_telemetry:
-        with patch.object(session, f"get_current_{db_or_schema}", return_value=None):
+    with patch.object(session, f"get_current_{db_or_schema}", return_value=None):
+        with patch.object(
+            session._conn._telemetry_client,
+            "send_query_compilation_summary_telemetry",
+        ) as patch_send:
             with caplog.at_level(logging.DEBUG):
                 with SqlCounter(query_count=0, describe_count=0):
                     df.queries
@@ -473,9 +579,11 @@ def test_optimization_skipped_with_no_active_db_or_schema(
         f"Skipping large query breakdown optimization since there is no active {db_or_schema}"
         in caplog.text
     )
-    patched_send_telemetry.assert_called_once
-    called_with_reason = patched_send_telemetry.call_args[0][1]
-    assert called_with_reason == f"no active {db_or_schema}"
+    patch_send.assert_called_once()
+    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+        f"no active {db_or_schema}": 1,
+    }
 
 
 def test_async_job_with_large_query_breakdown(large_query_df):
