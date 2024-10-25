@@ -4429,7 +4429,7 @@ def map(
 
     Example 4::
 
-        >>> new_df = map(df, lambda pdf: pdf['COL1']*3, output_types=[IntegerType()], vectorized=True)
+        >>> new_df = map(df, lambda pdf: pdf['COL1']*3, output_types=[IntegerType()], vectorized=True, packages=["pandas"])
         >>> new_df.order_by("c_1").show()
         ---------
         |"C_1"  |
@@ -4446,7 +4446,8 @@ def map(
         ...     lambda pdf: (pdf['COL1']*3, pdf['COL2']+"b"),
         ...     output_types=[IntegerType(), StringType()],
         ...     output_column_names=['A', 'B'],
-        ...     vectorized=True
+        ...     vectorized=True,
+        ...     packages=["pandas"],
         ... )
         >>> new_df.order_by("A").show()
         -------------
@@ -4466,6 +4467,7 @@ def map(
         ...     output_column_names=['rows', 'cols'],
         ...     partition_by="col3",
         ...     vectorized=True,
+        ...     packages=["pandas"],
         ... )
         >>> new_df.show()
         -------------------
@@ -4477,11 +4479,13 @@ def map(
         <BLANKLINE>
 
     Note:
-        - The result of the `func` function must be either a scalar value or a tuple containing the same number of elements
-        as specified in the `output_types` argument.
-        - When using the `vectorized` option, the `func` function must accept a pandas DataFrame as input and return either
-        a pandas DataFrame, or a tuple of pandas Series/arrays.
+        1. The result of the `func` function must be either a scalar value or
+        a tuple containing the same number of elements as specified in the
+        `output_types` argument.
 
+        2. When using the `vectorized` option, the `func` function must accept
+        a pandas DataFrame as input and return either a pandas DataFrame, or a
+        tuple of pandas Series/arrays.
     """
     if len(output_types) == 0:
         raise ValueError("output_types cannot be empty.")
