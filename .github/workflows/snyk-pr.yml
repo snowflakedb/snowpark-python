@@ -12,6 +12,7 @@ permissions:
 jobs:
   snyk:
     runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.user.login == 'sfc-gh-snyk-sca-sa' }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
