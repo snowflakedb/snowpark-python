@@ -13,9 +13,11 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
+from functools import wraps
 from pandas.core.dtypes.base import ExtensionDtype
 from pandas.core.dtypes.common import is_integer_dtype, is_object_dtype, is_scalar
 from pandas.core.dtypes.inference import is_list_like
+import inspect
 
 import snowflake.snowpark.modin.plugin._internal.statement_params_constants as STATEMENT_PARAMS
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -114,6 +116,8 @@ _MAX_NUM_RETRIES = 3
 _MAX_IDENTIFIER_LENGTH = 32
 
 _logger = logging.getLogger(__name__)
+
+_raise_exception_for_internal_to_pandas_usage = False
 
 
 # This is the default statement parameters for queries from Snowpark pandas API. It provides the fine grain metric for
@@ -2157,3 +2161,15 @@ def add_extra_columns_and_select_required_columns(
     # explicitly drop the unwanted columns. This also ensures that the columns in the resultant DataFrame are in the
     # same order as the columns in the `columns` parameter.
     return query_compiler.take_2d_labels(slice(None), columns)
+
+
+def wrap_internal_to_pandas_method(method):
+    @wraps(method)
+    def wrapped_method(*args, **kwargs):
+        if _raise_exception_for_internal_to_pandas_usage:
+            stack = inspect.stack()
+            caller_frame = stack[1]
+            module = inspect.getmodule(caller_frame[0])
+            assert not module.__name__.startswith('snowflake'), f"to_pandas() called by internal function {caller_frame.function}() in module {module.__name__}" 
+        return method(*args, **kwargs)
+    return wrapped_method
