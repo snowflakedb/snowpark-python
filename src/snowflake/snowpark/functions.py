@@ -8739,11 +8739,10 @@ def map(
     """Returns a new DataFrame with the result of applying `func` to each of the
     rows of the specified DataFrame.
 
-    This function registers an `UDTF
-    <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ . When
-    the `wrap_row` argument is `True` the UDTF is invoked with a :class:`Row` instance containing
-    all the values of the current row. If the `wrap_row` argument is `False` the UDTF is invoked using
-    the values of all columns of the DataFrame as separate arguments.
+    This function registers a temporary `UDTF
+    <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ and
+    returns a new DataFrame with the result of applying the `func` function to each row of the
+    given DataFrame.
 
     Args:
         dataframe: The DataFrame instance.
