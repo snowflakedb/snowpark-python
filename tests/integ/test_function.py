@@ -175,13 +175,6 @@ from snowflake.snowpark.types import (
 )
 from tests.utils import TestData, Utils
 
-try:
-    import pandas as pd  # noqa: F401
-
-    is_pandas_available = True
-except ImportError:
-    is_pandas_available = False
-
 
 def test_order(session):
     null_data1 = TestData.null_data1(session)
