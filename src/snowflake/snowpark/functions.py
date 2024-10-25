@@ -162,7 +162,7 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -8758,49 +8758,107 @@ def map(
         partition_by: Specify the partitioning column(s) for the UDTF.
         vectorized: A flag to determine if the UDTF process should be vectorized. See
             `vectorized UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-vectorized#udtfs-with-a-vectorized-process-method>`_.
-        kwargs: Additional arguments to register the UDTF used to apply the Python function.
+        max_batch_size: The maximum number of rows per input pandas DataFrame when using vectorized option.
 
     Example 1::
 
         >>> from snowflake.snowpark.types import IntegerType
         >>> from snowflake.snowpark.functions import map
-        >>> df = session.create_dataframe([[10, "a"]], schema=["col1", "col2"])
+        >>> import pandas as pd
+        >>> df = session.create_dataframe([[10, "a", 22], [20, "b", 22]], schema=["col1", "col2", "col3"])
         >>> new_df = map(df, lambda row: row[0] * row[0], output_types=[IntegerType()])
-        >>> new_df.show()
+        >>> new_df.order_by("c_1").show()
         ---------
         |"C_1"  |
         ---------
         |100    |
+        |400    |
         ---------
         <BLANKLINE>
 
     Example 2::
 
         >>> new_df = map(df, lambda row: (row[1], row[0] * 3), output_types=[StringType(), IntegerType()])
-        >>> new_df.show()
+        >>> new_df.order_by("c_1").show()
         -----------------
         |"C_1"  |"C_2"  |
         -----------------
         |a      |30     |
+        |b      |60     |
         -----------------
         <BLANKLINE>
 
     Example 3::
 
-        >>> new_df = map(df, lambda row: (row[1], row[0] * 3), output_types=[StringType(), IntegerType()], output_column_names=['col1', 'col2'])
-        >>> new_df.show()
+        >>> new_df = map(
+        ...     df,
+        ...     lambda row: (row[1], row[0] * 3),
+        ...     output_types=[StringType(), IntegerType()],
+        ...     output_column_names=['col1', 'col2']
+        ... )
+        >>> new_df.order_by("col1").show()
         -------------------
         |"COL1"  |"COL2"  |
         -------------------
         |a       |30      |
+        |b       |60      |
         -------------------
         <BLANKLINE>
 
     Example 4::
 
+        >>> new_df = map(df, lambda pdf: pdf['COL1']*3, output_types=[IntegerType()], vectorized=True)
+        >>> new_df.order_by("c_1").show()
+        ---------
+        |"C_1"  |
+        ---------
+        |30     |
+        |60     |
+        ---------
+        <BLANKLINE>
+
+    Example 5::
+
+        >>> new_df = map(
+        ...     df,
+        ...     lambda pdf: (pdf['COL1']*3, pdf['COL2']+"b"),
+        ...     output_types=[IntegerType(), StringType()],
+        ...     output_column_names=['A', 'B'],
+        ...     vectorized=True
+        ... )
+        >>> new_df.order_by("A").show()
+        -------------
+        |"A"  |"B"  |
+        -------------
+        |30   |ab   |
+        |60   |bb   |
+        -------------
+        <BLANKLINE>
+
+    Example 6::
+
+        >>> new_df = map(
+        ...     df,
+        ...     lambda pdf: ((pdf.shape[0],) * len(pdf), (pdf.shape[1],) * len(pdf)),
+        ...     output_types=[IntegerType(), IntegerType()],
+        ...     output_column_names=['rows', 'cols'],
+        ...     partition_by="col3",
+        ...     vectorized=True,
+        ... )
+        >>> new_df.show()
+        -------------------
+        |"ROWS"  |"COLS"  |
+        -------------------
+        |2       |3       |
+        |2       |3       |
+        -------------------
+        <BLANKLINE>
+
     Note:
-        The result of the `func` function must be either a scalar value or a tuple containing the same number of elements
+        - The result of the `func` function must be either a scalar value or a tuple containing the same number of elements
         as specified in the `output_types` argument.
+        - When using the `vectorized` option, the `func` function must accept a pandas DataFrame as input and return either
+        a pandas DataFrame, or a tuple of pandas Series/arrays.
     """
     if len(output_types) == 0:
         raise ValueError("output_types cannot be empty.")
@@ -8822,17 +8880,17 @@ def map(
     if vectorized:
         packages = add_package_to_existing_packages(packages, pandas)
         input_types = [PandasDataFrameType(input_types)]
+        table_func_col_names = [f"c{i}" for i in range(len(output_types))]
         if isinstance(output_types, PandasDataFrameType):
-            output_types.col_names = output_column_names
+            output_types.col_names = table_func_col_names
             output_schema = output_types
         else:
-            output_schema = PandasDataFrameType(output_types, output_column_names)
+            output_schema = PandasDataFrameType(output_types, table_func_col_names)
     else:
         output_schema = StructType(
             [
-                StructField(name, type_)
-                for name, type_ in zip(output_column_names, output_types)
-            ]
+                StructField(f"c{i}", type_) for i, type_ in enumerate(output_types)
+            ]  # this is done to avoid collision with reserved keywords as column names
         )
 
     output_columns = [
@@ -8844,7 +8902,7 @@ def map(
 
     def wrap_result(result):
         if vectorized:
-            if isinstance(result, pandas.DataFrame):
+            if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
                 return result
             return (result,)
 
