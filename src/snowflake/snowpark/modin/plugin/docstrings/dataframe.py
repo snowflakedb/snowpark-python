@@ -5141,7 +5141,7 @@ class DataFrame(BasePandasDataset):
         --------
         >>> df = pd.DataFrame({'A': [1, 2, 3]})
         >>> df.style.to_string()
-        ' A\n0 1\n1 2\n2 3\n'
+        ' A\\n0 1\\n1 2\\n2 3\\n'
 
         Please see `Table Visualization <https://pandas.pydata.org/docs/user_guide/style.html>`_ for more examples.
         """
