@@ -484,6 +484,9 @@ class PandasDataFrameType(_PandasType):
         self.col_types = col_types
         self.col_names = col_names or []
 
+    def __len__(self) -> int:
+        return len(self.col_types)
+
     def get_snowflake_col_datatypes(self):
         """Get the column types of the dataframe as the input/output of a vectorized UDTF."""
         return [

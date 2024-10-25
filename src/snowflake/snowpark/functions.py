@@ -8803,14 +8803,8 @@ def map(
         The result of the `func` function must be either a scalar value or a tuple containing the same number of elements
         as specified in the `output_types` argument.
     """
-    packages = packages or list(dataframe._session.get_packages().values())
-    packages = add_package_to_existing_packages(packages, "snowflake-snowpark-python")
-
     if len(output_types) == 0:
         raise ValueError("output_types cannot be empty.")
-    input_types = [field.datatype for field in dataframe.schema.fields]
-    df_columns = dataframe.columns
-    num_cols = len(df_columns)
 
     if output_column_names is None:
         output_column_names = [f"c_{i+1}" for i in range(len(output_types))]
@@ -8819,17 +8813,28 @@ def map(
             "'output_column_names' and 'output_types' must be of the same size."
         )
 
-    output_schema = StructType(
-        [
-            StructField(name, type_)
-            for name, type_ in zip(output_column_names, output_types)
-        ]
-    )
+    df_columns = dataframe.columns
+    num_cols = len(df_columns)
+
+    packages = packages or list(dataframe._session.get_packages().values())
+    packages = add_package_to_existing_packages(packages, "snowflake-snowpark-python")
+    input_types = [field.datatype for field in dataframe.schema.fields]
 
     if vectorized:
         packages = add_package_to_existing_packages(packages, pandas)
         input_types = [PandasDataFrameType(input_types)]
-        output_schema = PandasDataFrameType(output_types, output_column_names)
+        if isinstance(output_types, PandasDataFrameType):
+            output_types.col_names = output_column_names
+            output_schema = output_types
+        else:
+            output_schema = PandasDataFrameType(output_types, output_column_names)
+    else:
+        output_schema = StructType(
+            [
+                StructField(name, type_)
+                for name, type_ in zip(output_column_names, output_types)
+            ]
+        )
 
     output_columns = [
         col(f"${i + num_cols + 1}").alias(
@@ -8857,14 +8862,12 @@ def map(
             def process(self, pdf: pandas.DataFrame):
                 return wrap_result(func(pdf))
 
-            process._sf_vectorized_input = pandas.DataFrame
-
     else:
 
         class _MapFunc:
             def process(self, *argv):
                 input_args_to_row = Row(*df_columns)
-                return wrap_result(func(input_args_to_row(*argv)))
+                yield wrap_result(func(input_args_to_row(*argv)))
 
     map_udtf = dataframe._session.udtf.register(
         _MapFunc,
