@@ -2831,88 +2831,81 @@ def test_array_append(session):
 def test_array_remove(session):
     actual = session.createDataFrame([([1, 2, 4, 4, 3],), ([],)], ["data"])
     actual = actual.select(array_remove(actual.data, 4))
-    expected = session.createDataFrame(
+    Utils.check_answer(
+        actual,
         [
             Row("[\n  1,\n  2,\n  3\n]"),
             Row("[]"),
         ],
-        ["data"],
     )
-    Utils.check_answer(actual, expected)
 
     actual = session.createDataFrame([(["a", "b", "c", "a", "a"],), ([],)], ["data"])
     actual = actual.select(array_remove(actual.data, "a"))
-    expected = session.createDataFrame(
+    Utils.check_answer(
+        actual,
         [
             Row('[\n  "b",\n  "c"\n]'),
             Row("[]"),
         ],
-        ["data"],
     )
-    Utils.check_answer(actual, expected)
 
     actual = session.createDataFrame(
         [(["apple", "banana", "apple", "orange"],), ([],)], ["data"]
     )
     actual = actual.select(array_remove(actual.data, "apple"))
-    expected = session.createDataFrame(
+    Utils.check_answer(
+        actual,
         [
             Row('[\n  "banana",\n  "orange"\n]'),
             Row("[]"),
         ],
-        ["data"],
     )
-    Utils.check_answer(actual, expected)
 
     actual = session.createDataFrame([([1, "2", 3.1, 1, 3],), ([],)], ["data"])
     actual = actual.select(array_remove(actual.data, 1))
-    expected = session.createDataFrame(
+    Utils.check_answer(
+        actual,
         [
             Row('[\n  "2",\n  3.1,\n  3\n]'),
             Row("[]"),
         ],
-        ["data"],
     )
-    Utils.check_answer(actual, expected)
 
     actual = session.createDataFrame([(["@", ";", "3.1", 1, 5 / 3],), ([],)], ["data"])
     actual = actual.select(array_remove(actual.data, 1))
-    expected = session.createDataFrame(
+    Utils.check_answer(
+        actual,
         [
             Row('[\n  "@",\n  ";",\n  "3.1",\n  1.6666666666666667\n]'),
             Row("[]"),
         ],
-        ["data"],
     )
-    Utils.check_answer(actual, expected)
 
     actual = session.createDataFrame([([-1, -2, -4, -4, -3],), ([],)], ["data"])
     actual = actual.select(array_remove(actual.data, 1))
-    expected = session.createDataFrame(
+    Utils.check_answer(
+        actual,
         [
             Row("[\n  -1,\n  -2,\n  -4,\n  -4,\n  -3\n]"),
             Row("[]"),
         ],
-        ["data"],
     )
-    Utils.check_answer(actual, expected)
 
     actual = session.createDataFrame([([4.4, 5.5, 1.1],), ([],)], ["data"])
     actual = actual.select(array_remove(actual.data, 5.5))
-    expected = session.createDataFrame(
+    Utils.check_answer(
+        actual,
         [
             Row("[\n  4.4,\n  1.1\n]"),
             Row("[]"),
         ],
-        ["data"],
     )
-    Utils.check_answer(actual, expected)
 
     actual = TestData.array1(session).select(
         array_remove(array_remove(col("arr1"), lit(1)), lit(8))
     )
 
-    expected = session.createDataFrame(
+    Utils.check_answer(
         [
             Row("[\n  2,\n  3\n]"),
             Row("[\n  6,\n  7\n]"),
