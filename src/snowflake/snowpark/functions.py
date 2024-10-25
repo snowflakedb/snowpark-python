@@ -8797,7 +8797,6 @@ def map(
         <BLANKLINE>
 
     Example 4::
-        <BLANKLINE>
 
     Note:
         The result of the `func` function must be either a scalar value or a tuple containing the same number of elements
