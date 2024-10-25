@@ -4,6 +4,7 @@
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
 from sklearn.cluster import KMeans
 from sklearn.feature_selection import SelectKBest, f_classif
@@ -13,36 +14,54 @@ from sklearn.model_selection import RandomizedSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 
 @pytest.fixture(scope="module")
-def df():
+def test_dfs():
     data = {
         "feature1": [1, 5, 3, 4, 4, 6, 7, 2, 9, 70],
         "feature2": [2, 4, 1, 3, 5, 7, 6, 3, 10, 9],
         "target": [0, 0, 1, 0, 1, 1, 1, 0, 1, 0],
     }
-    return pd.DataFrame(data)
+    return pd.DataFrame(data), native_pd.DataFrame(data)
 
 
-def test_train_test_split(df):
+def assert_sklearn_equal(got, expect, method):
+    if method == "test_train_test_split":
+        assert_snowpark_pandas_equal_to_pandas(got, expect, check_dtype=False)
+    else:
+        assert type(expect) == type(got)
+        np.testing.assert_allclose(expect, got)
+
+
+def test_train_test_split(test_dfs):
+    df = test_dfs[0]
     X = df[["feature1", "feature2"]]
     y = df["target"]
-
     # Data Splitting
     (X_train, X_test, y_train, y_test) = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
-    assert isinstance(X_train, pd.DataFrame)
-    assert isinstance(X_test, pd.DataFrame)
-    assert isinstance(y_train, pd.Series)
-    assert isinstance(y_test, pd.Series)
+
+    native_df = test_dfs[1]
+    native_X = native_df[["feature1", "feature2"]]
+    native_y = native_df["target"]
+    # Data Splitting
+    (native_X_train, native_X_test, native_y_train, native_y_test) = train_test_split(
+        native_X, native_y, test_size=0.2, random_state=42
+    )
+    assert_sklearn_equal(X_train, native_X_train, "test_train_test_split")
+    assert_sklearn_equal(X_test, native_X_test, "test_train_test_split")
+    assert_sklearn_equal(y_train, native_y_train, "test_train_test_split")
+    assert_sklearn_equal(y_test, native_y_test, "test_train_test_split")
 
 
-def test_classification(df):
+def test_classification(test_dfs):
     from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
     from sklearn.pipeline import make_pipeline
 
+    df = test_dfs[0]
     lda = LinearDiscriminantAnalysis(solver="svd", store_covariance=True)
     X = df[["feature1", "feature2"]]
     y = df["target"]
@@ -51,15 +70,23 @@ def test_classification(df):
     (X_train, X_test, y_train, y_test) = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
-
+    native_X_train, native_X_test, native_y_train, native_y_test = (
+        X_train._to_pandas(),
+        X_test._to_pandas(),
+        y_train._to_pandas(),
+        y_test._to_pandas(),
+    )
     clf = make_pipeline(StandardScaler(), lda)
     clf.fit(X_train, y_train)
     score = clf.score(X_test, y_test)
-    assert isinstance(score, float)
+    native_score = clf.fit(native_X_train, native_y_train).score(
+        native_X_test, native_y_test
+    )
+    assert_sklearn_equal(score, native_score, "scalar_function")
 
 
-def test_regression(df):
-
+def test_regression(test_dfs):
+    df = test_dfs[0]
     X = df[["feature1", "feature2"]]
     y = df["target"]
 
@@ -83,11 +110,16 @@ def test_clustering():
     nsamps = 300
     X = rng.random((nsamps, 2))
     data = pd.DataFrame(X, columns=["x", "y"])
+    native_data = native_pd.DataFrame(X, columns=["x", "y"])
 
     # Create and fit a KMeans clustering model
     kmeans = KMeans(n_clusters=3, random_state=42)
     kmeans.fit(data)
-    return kmeans.cluster_centers_
+
+    native_kmeans_clusters = kmeans.fit(native_data).cluster_centers_
+    assert_sklearn_equal(
+        kmeans.cluster_centers_, native_kmeans_clusters, "scalar_function"
+    )
 
 
 def test_feature_selection():
@@ -112,7 +144,8 @@ def test_feature_selection():
     return sorted(features.columns.tolist())
 
 
-def test_model_selection(df):
+def test_model_selection(test_dfs):
+    df = test_dfs[0]
     X = df[["feature1", "feature2"]]
     y = df["target"]
 
