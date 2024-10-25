@@ -5125,7 +5125,26 @@ class DataFrame(BasePandasDataset):
 
     @property
     def style():
-        pass
+        """
+        Returns a Styler object.
+
+        Contains methods for building a styled HTML representation of the DataFrame.
+
+        Snowpark pandas uses native pandas for this functionality.
+
+        See Also
+        --------
+        io.formats.style.Styler
+        Helps style a DataFrame or Series according to the data with HTML and CSS.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'A': [1, 2, 3]})
+        >>> df.style.to_string()
+        ' A\\n0 1\\n1 2\\n2 3\\n'
+
+        Please see `Table Visualization <https://pandas.pydata.org/docs/user_guide/style.html>`_ for more examples.
+        """
 
     def isin():
         """
