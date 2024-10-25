@@ -167,6 +167,7 @@ from snowflake.snowpark.types import (
     FloatType,
     IntegerType,
     MapType,
+    PandasDataFrameType,
     StringType,
     StructField,
     StructType,
@@ -175,6 +176,13 @@ from snowflake.snowpark.types import (
     VariantType,
 )
 from tests.utils import TestData, Utils
+
+try:
+    import pandas as pd  # noqa: F401
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
 
 
 def test_order(session):
@@ -2303,63 +2311,129 @@ The next sections explain these steps in more detail.
     reason="Table function is not supported in Local Testing",
 )
 @pytest.mark.udf
-def test_map(session):
-    """Test `map`"""
-
-    df1 = session.create_dataframe(
-        [[True, i, f"w{i}"] for i in range(15)], schema=["A", "B", "C"]
+@pytest.mark.parametrize("overlapping_columns", [True, False])
+@pytest.mark.parametrize(
+    "func,output_types,output_col_names,expected",
+    [
+        (lambda row: row[1] + 1, [IntegerType()], ["A"], [(i + 1,) for i in range(5)]),
+        (
+            lambda row: (row.B * 2, row.C),
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [
+                (
+                    i * 2,
+                    f"w{i}",
+                )
+                for i in range(5)
+            ],
+        ),
+        (
+            lambda row: Row(row.B * row.B, f"-{row.C}"),
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [(i * i, f"-w{i}") for i in range(5)],
+        ),
+    ],
+)
+def test_map_basic(
+    session, func, output_types, output_col_names, expected, overlapping_columns
+):
+    df = session.create_dataframe(
+        [
+            (
+                True,
+                i,
+                f"w{i}",
+            )
+            for i in range(5)
+        ],
+        schema=["A", "B", "C"],
     )
 
-    # map call with a function accesing row columns by index
-    new_df = map(df1, lambda row: row[1] + 10, output_types=[IntegerType()])
-    res = sorted(new_df.collect(), key=lambda r: r[0])
-    expected = [Row(i + 10) for i in range(15)]
-    assert res == expected
+    if overlapping_columns:
+        row = Row(*output_col_names)
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(
+            map(df, func, output_types, output_column_names=output_col_names), expected
+        )
+    else:
+        row = Row(*[f"c_{i+1}" for i in range(len(output_types))])
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(map(df, func, output_types), expected)
 
-    # map call with a function that uses column names
-    new_df = map(
-        df1, lambda row: (row.B * 2, row.C), output_types=[IntegerType(), StringType()]
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
+@pytest.mark.udf
+@pytest.mark.parametrize(
+    "func,output_types,expected",
+    [
+        (lambda df: df["B"] + 1, [IntegerType()], [(i + 1,) for i in range(5)]),
+        (
+            lambda df: pd.concat([df["B"] * 2, df["C"]], axis=1),
+            [IntegerType(), StringType()],
+            [
+                (
+                    i * 2,
+                    f"w{i}",
+                )
+                for i in range(5)
+            ],
+        ),
+    ],
+)
+def test_map_vectorized(session, func, output_types, expected):
+    df = session.create_dataframe(
+        [
+            (
+                True,
+                i,
+                f"w{i}",
+            )
+            for i in range(5)
+        ],
+        schema=["A", "B", "C"],
     )
-    res = sorted(new_df.collect(), key=lambda r: r[0])
-    expected = [Row(i * 2, f"w{i}") for i in range(15)]
-    assert res == expected
 
-    # map call with a function that uses column names and returns a list
-    new_df = map(
-        df1, lambda row: (row.B, row.C), output_types=[IntegerType(), StringType()]
+    Utils.check_answer(map(df, func, output_types, vectorized=True), expected)
+
+    # Test when output_types are PandasDataFrameType
+    Utils.check_answer(
+        map(df, func, PandasDataFrameType(output_types), vectorized=True), expected
     )
-    res = sorted(new_df.collect(), key=lambda r: r[0])
-    expected = [Row(i, f"w{i}") for i in range(15)]
-    assert res == expected
 
-    # map with a function that returns a Row instance
-    new_df = map(
-        df1,
-        lambda x: Row(x.B * x.B, f"-{x.C}"),
-        output_types=[IntegerType(), StringType()],
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.udf
+def test_map_chained(session):
+    df = session.create_dataframe(
+        [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
     )
-    res = sorted(new_df.collect(), key=lambda r: r[0])
-    expected = [Row(C_1=i * i, C_2=f"-w{i}") for i in range(15)]
-    assert res == expected
 
-    # chained map calls
     new_df = map(
         map(
-            df1,
+            df,
             lambda x: (x.B * x.B, f"_{x.C}_"),
             output_types=[IntegerType(), StringType()],
         ),
         lambda x: len(x[1]) + x[0],
         output_types=[IntegerType()],
     )
-    res = [r[0] for r in sorted(new_df.collect(), key=lambda r: r[0])]
-    expected = [len(f"_w{i}_") + i * i for i in range(15)]
-    assert res == expected
+    expected = [(len(f"_w{i}_") + i * i,) for i in range(5)]
+
+    Utils.check_answer(new_df, expected)
 
     # chained calls with repeated column names
     new_df = map(
         map(
-            df1,
+            df,
             lambda x: Row(x.B * x.B, f"_{x.C}_"),
             output_types=[IntegerType(), StringType()],
             output_column_names=["A", "B"],
@@ -2369,14 +2443,21 @@ def test_map(session):
         output_column_names=["A"],
         packages=["snowflake-snowpark-python"],
     )
-    res = [r[0] for r in sorted(new_df.collect(), key=lambda r: r[0])]
-    expected = [len(f"_w{i}_") + i * i for i in range(15)]
-    assert res == expected
+    Utils.check_answer(new_df, expected)
 
-    with pytest.raises(ValueError):
+
+def test_map_negative(session):
+    df1 = session.create_dataframe(
+        [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
+    )
+
+    with pytest.raises(ValueError, match="output_types cannot be empty."):
         map(df1, lambda row: [row.B, row.C], output_types=[])
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError,
+        match="'output_column_names' and 'output_types' must be of the same size.",
+    ):
         map(
             df1,
             lambda row: [row.B, row.C],
