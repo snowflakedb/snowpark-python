@@ -8,8 +8,8 @@
 
 - Updated `Session` class to be thread-safe. This allows concurrent dataframe transformations, dataframe actions, UDF and store procedure registration, and concurrent file uploads.
   - This is disabled by default and can be enabled by setting `PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION` to `True`.
-  - Updating session configuration when multiple threads are using the session may lead to unexpected behavior.
-  - When enabled, running `DataFrame.queries`, the temporary tables names returned are not deterministic and may be different when dataframe actions are executed.
+  - Updating session configurations, like change database or schema, when multiple threads are using the session may lead to unexpected behavior.
+  - When enabled, the temporary tables names returned from `DataFrame.queries` API are not deterministic, and may be different when dataframe actions are executed.
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 - Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
