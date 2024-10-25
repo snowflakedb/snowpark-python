@@ -21,11 +21,11 @@ INSTALL_REQ_LIST = [
     CONNECTOR_DEPENDENCY,
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
-    "protobuf>=5.28",
-    "tzlocal",
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+    "protobuf>=5.28",  # Server-side Snowpark
+    "tzlocal",  # Server-side Snowpark
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
@@ -53,7 +53,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
-    "protoc-wheel-0",
+    "protoc-wheel-0",  # Protocol buffer compiler, for server-side Snowpark
 ]
 
 # read the version
