@@ -3426,14 +3426,14 @@ class Series(BasePandasDataset):
         >>> ser = pd.Series(pd.date_range('2000', periods=2, tz="CET"))
         >>> ser.to_numpy(dtype=object)
         array([Timestamp('2000-01-01 00:00:00+0100', tz='UTC+01:00'),
-            Timestamp('2000-01-02 00:00:00+0100', tz='UTC+01:00')],
-            dtype=object)
+               Timestamp('2000-01-02 00:00:00+0100', tz='UTC+01:00')],
+              dtype=object)
 
         Or dtype='datetime64[ns]' to return an ndarray of native datetime64 values. The values are converted to UTC and the timezone info is dropped.
 
         >>> ser.to_numpy(dtype="datetime64[ns]")
         array(['1999-12-31T23:00:00.000000000', '2000-01-01T23:00:00...'],
-            dtype='datetime64[ns]')
+              dtype='datetime64[ns]')
         """
 
     tolist = to_list
