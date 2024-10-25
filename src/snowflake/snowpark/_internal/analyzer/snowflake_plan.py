@@ -83,7 +83,10 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     SetOperation,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.metadata_utils import infer_metadata
+from snowflake.snowpark._internal.analyzer.metadata_utils import (
+    PlanMetadata,
+    infer_metadata,
+)
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
@@ -255,10 +258,12 @@ class SnowflakePlan(LogicalPlan):
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
         # to UUID track queries that are generated from the same plan.
         self._uuid = str(uuid.uuid4())
-        # Metadata/Attributes for the plan
-        self._attributes: Optional[List[Attribute]] = None
-        if session.reduce_describe_query_enabled and self.source_plan is not None:
-            self._attributes = infer_metadata(self.source_plan)
+        # Metadata for the plan
+        self._metadata: PlanMetadata = infer_metadata(
+            self.source_plan,
+            self.session._analyzer,
+            self.df_aliased_col_name_to_real_col_name,
+        )
 
     @property
     def uuid(self) -> str:
@@ -328,27 +333,39 @@ class SnowflakePlan(LogicalPlan):
         )
 
     @property
+    def quoted_identifiers(self) -> List[str]:
+        # If self._metadata.quoted_identifiers is not None (self._metadata.attributes must be None),
+        # retrieve quoted identifiers from self._metadata.quoted_identifiers.
+        # otherwise, retrieve quoted identifiers from self.attributes
+        # (which may trigger a describe query).
+        if self._metadata.quoted_identifiers is not None:
+            return self._metadata.quoted_identifiers
+        else:
+            return [attr.name for attr in self.attributes]
+
+    @property
     def attributes(self) -> List[Attribute]:
         from snowflake.snowpark._internal.analyzer.select_statement import (
             SelectStatement,
         )
 
-        if self._attributes is not None:
-            return self._attributes
+        if self._metadata.attributes is not None:
+            return self._metadata.attributes
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        self._attributes = analyze_attributes(self.schema_query, self.session)
+        attributes = analyze_attributes(self.schema_query, self.session)
+        self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
         if self.session.reduce_describe_query_enabled and isinstance(
             self.source_plan, SelectStatement
         ):
-            self.source_plan._attributes = self._attributes
+            self.source_plan._attributes = attributes
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
-            self.schema_query = schema_value_statement(self._attributes)
-        return self._attributes
+            self.schema_query = schema_value_statement(attributes)
+        return attributes
 
     @cached_property
     def output(self) -> List[Attribute]:

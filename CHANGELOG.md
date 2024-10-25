@@ -16,6 +16,7 @@
 
 #### Improvements
 
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 - Disables sql simplification when sort is performed after limit.
   - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
   - Improve performance of generated query for `df.limit().sort()`, because limit stops table scanning as soon as the number of records is satisfied.
@@ -24,6 +25,7 @@
 
 - Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
 - Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
+- Fixed a bug that created inconsistent casing in field names of structured objects in iceberg schemas.
 
 #### Deprecations:
 
