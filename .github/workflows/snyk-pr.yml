@@ -29,7 +29,7 @@ jobs:
     - name: Snyk Pull Request Scan Check
       uses: ./whitesource-actions/snyk-pr
       env:
-        PR_TITLE: ${{ github.event.pull_request.title }}
+        pr_title: ${{ github.event.pull_request.title }}
       with:
         jira_token: ${{ secrets.jira_token_public_repo }}
         gh_token: ${{ secrets.github_token }}
