@@ -71,9 +71,6 @@ def generate_base_oob_telemetry_data_dict(
             TELEMETRY_KEY_OS_VERSION: OS_VERSION,
             TELEMETRY_KEY_PYTHON_VERSION: PYTHON_VERSION,
         },
-        TELEMETRY_KEY_PROPERTIES: {
-            TELEMETRY_KEY_LOWER_TYPE: TELEMETRY_VALUE_SNOWPARK_EVENT_TYPE
-        },
     }
 
 
