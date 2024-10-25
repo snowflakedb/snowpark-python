@@ -214,12 +214,9 @@ class MockExecutionPlan(LogicalPlan):
         return {
             PlanState.PLAN_HEIGHT: -1,
             PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: -1,
+            PlanState.NUM_CTE_NODES: -1,
+            PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: [],
         }
-
-    @cached_property
-    def num_duplicate_nodes(self) -> int:
-        # dummy return
-        return -1
 
     @property
     def post_actions(self):
