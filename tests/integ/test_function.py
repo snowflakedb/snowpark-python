@@ -167,7 +167,6 @@ from snowflake.snowpark.types import (
     FloatType,
     IntegerType,
     MapType,
-    PandasDataFrameType,
     StringType,
     StructField,
     StructType,
@@ -2399,11 +2398,8 @@ def test_map_vectorized(session, func, output_types, expected):
         schema=["A", "B", "C"],
     )
 
-    Utils.check_answer(map(df, func, output_types, vectorized=True), expected)
-
-    # Test when output_types are PandasDataFrameType
     Utils.check_answer(
-        map(df, func, PandasDataFrameType(output_types), vectorized=True), expected
+        map(df, func, output_types, vectorized=True, packages=["pandas"]), expected
     )
 
 
