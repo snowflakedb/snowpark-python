@@ -1,6 +1,6 @@
 # Release History
 
-## 1.24.0 (TBD)
+## 1.24.0 (2024-10-28)
 
 ### Snowpark Python API Updates
 
@@ -27,7 +27,7 @@
 - Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
 - Fixed a bug that created inconsistent casing in field names of structured objects in iceberg schemas.
 
-#### Deprecations:
+#### Deprecations
 
 - Deprecated warnings will be triggered when using snowpark-python with Python 3.8. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
 
@@ -73,8 +73,6 @@
 #### Bug Fixes
 
 - Fixed a bug where `DataFrame.alias` raises `KeyError` for input column name.
-
-#### Bug Fixes
 - Fixed a bug where `to_csv` on Snowflake stage fails when data contains empty strings.
 
 ## 1.23.0 (2024-10-09)
