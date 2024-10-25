@@ -115,6 +115,7 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lag
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
+    map
 
 
 

@@ -203,7 +203,6 @@ Functions
     lpad
     ltrim
     make_interval
-    map
     max
     md5
     mean
