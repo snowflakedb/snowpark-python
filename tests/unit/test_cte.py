@@ -23,7 +23,7 @@ from snowflake.snowpark._internal.compiler.cte_utils import (
 def test_case1():
     nodes = [mock.create_autospec(SnowflakePlan) for _ in range(7)]
     for i, node in enumerate(nodes):
-        node.encoded_node_id_with_query = i
+        node.encoded_node_id_with_query = f"{i}_{i}"
         node.source_plan = None
         if i == 5:
             node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 80000}
@@ -39,7 +39,7 @@ def test_case1():
     nodes[5].children_plan_nodes = []
     nodes[6].children_plan_nodes = []
 
-    expected_duplicate_subtree_ids = {2, 5}
+    expected_duplicate_subtree_ids = {"2_2", "5_5"}
     expected_repeated_node_complexity = [0, 3, 0, 2, 0, 0, 0]
     return nodes[0], expected_duplicate_subtree_ids, expected_repeated_node_complexity
 
@@ -47,7 +47,7 @@ def test_case1():
 def test_case2():
     nodes = [mock.create_autospec(SnowflakePlan) for _ in range(7)]
     for i, node in enumerate(nodes):
-        node.encoded_node_id_with_query = i
+        node.encoded_node_id_with_query = f"{i}_{i}"
         node.source_plan = None
         if i == 2:
             node.cumulative_node_complexity = {PlanNodeCategory.COLUMN: 2000000}
@@ -65,7 +65,7 @@ def test_case2():
     nodes[5].children_plan_nodes = []
     nodes[6].children_plan_nodes = [nodes[4], nodes[4]]
 
-    expected_duplicate_subtree_ids = {2, 4, 6}
+    expected_duplicate_subtree_ids = {"2_2", "4_4", "6_6"}
     expected_repeated_node_complexity = [0, 0, 0, 0, 2, 8, 2]
     return nodes[0], expected_duplicate_subtree_ids, expected_repeated_node_complexity
 
