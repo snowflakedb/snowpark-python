@@ -146,13 +146,24 @@ def test_variant_data_to_numpy(pandas_obj):
 
 
 @sql_count_checker(query_count=1)
-def test_to_numpy_copy_true(caplog):
+def test_to_numpy_copy_true_series(caplog):
     series = pd.Series([1])
 
     caplog.clear()
     WarningMessage.printed_warnings.clear()
     with caplog.at_level(logging.WARNING):
         assert_array_equal(series.to_numpy(copy=True), native_pd.Series([1]).to_numpy())
+        assert "has been ignored by Snowpark pandas" in caplog.text
+
+
+@sql_count_checker(query_count=1)
+def test_to_numpy_copy_true_index(caplog):
+    idx = pd.Index([1])
+
+    caplog.clear()
+    WarningMessage.printed_warnings.clear()
+    with caplog.at_level(logging.WARNING):
+        assert_array_equal(idx.to_numpy(copy=True), native_pd.Index([1]).to_numpy())
         assert "has been ignored by Snowpark pandas" in caplog.text
 
 
