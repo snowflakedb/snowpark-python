@@ -757,8 +757,7 @@ def test_temp_name_placeholder_for_async(
             assert match is not None, query
             file_format_name = match.group()
             unique_create_file_format_queries.add(file_format_name)
-        else:
-            assert query.startswith("DROP  FILE  FORMAT")
+        elif query.startswith("DROP  FILE  FORMAT"):
             match = re.search(r"SNOWPARK_TEMP_FILE_FORMAT_[\w]+", query)
             assert match is not None, query
             file_format_name = match.group()
