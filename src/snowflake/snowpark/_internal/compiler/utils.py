@@ -98,7 +98,6 @@ def resolve_and_update_snowflake_plan(
     node.df_aliased_col_name_to_real_col_name.update(
         new_snowflake_plan.df_aliased_col_name_to_real_col_name
     )
-    node.placeholder_query = new_snowflake_plan.placeholder_query
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
     node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
 

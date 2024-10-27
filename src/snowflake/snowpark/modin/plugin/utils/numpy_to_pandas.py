@@ -7,6 +7,7 @@ import modin.pandas as pd
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 
+from snowflake.snowpark import functions as sp_func
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
@@ -103,6 +104,14 @@ def where_mapper(
     return NotImplemented
 
 
+def may_share_memory_mapper(a: Any, b: Any, max_work: Optional[int] = None) -> bool:
+    """
+    Maps and executes the numpy may_share_memory signature and always
+    returns False
+    """
+    return False
+
+
 # We also need to convert everything to booleans, since numpy will
 # do this implicitly on logical operators and pandas does not.
 def map_to_bools(inputs: Any) -> Any:
@@ -113,7 +122,10 @@ def map_to_bools(inputs: Any) -> Any:
 # an associated pandas function (pd.where) using a mapping function
 # (where_mapper) which can adapt differing function signatures. These
 # functions are called by numpy
-numpy_to_pandas_func_map = {"where": where_mapper}
+numpy_to_pandas_func_map = {
+    "where": where_mapper,
+    "may_share_memory": may_share_memory_mapper,
+}
 
 # Map that associates a numpy universal function name that operates on
 # ndarrays in an element by element fashion with a lambda which performs
@@ -154,9 +166,9 @@ numpy_to_pandas_universal_func_map = {
     "conjugate": NotImplemented,
     "exp": NotImplemented,
     "exp2": NotImplemented,
-    "log": NotImplemented,
-    "log2": NotImplemented,
-    "log10": NotImplemented,
+    "log": lambda obj, inputs: obj.apply(sp_func.ln),  # use built-in function
+    "log2": lambda obj, inputs: obj.apply(sp_func.log, base=2),
+    "log10": lambda obj, inputs: obj.apply(sp_func.log, base=10),
     "expm1": NotImplemented,
     "log1p": NotImplemented,
     "sqrt": NotImplemented,

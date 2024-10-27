@@ -82,29 +82,23 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
     SetOperation,
 )
-from snowflake.snowpark._internal.analyzer.cte_utils import (
-    create_cte_query,
-    encode_node_id_with_query,
-    encoded_query_id,
-    find_duplicate_subtrees,
-    merge_referenced_ctes,
-)
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.metadata_utils import infer_metadata
+from snowflake.snowpark._internal.analyzer.metadata_utils import (
+    PlanMetadata,
+    infer_metadata,
+)
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
-    CopyIntoLocationNode,
-    CopyIntoTableNode,
     DynamicTableCreateMode,
     LogicalPlan,
     SaveMode,
-    SnowflakeCreateTable,
     TableCreationSource,
     WithQueryBlock,
 )
-from snowflake.snowpark._internal.analyzer.unary_plan_node import (
-    CreateDynamicTableCommand,
-    CreateViewCommand,
+from snowflake.snowpark._internal.compiler.cte_utils import (
+    encode_node_id_with_query,
+    find_duplicate_subtrees,
+    merge_referenced_ctes,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
@@ -225,9 +219,6 @@ class SnowflakePlan(LogicalPlan):
         df_aliased_col_name_to_real_col_name: Optional[
             DefaultDict[str, Dict[str, str]]
         ] = None,
-        # TODO (SNOW-1541096): Remove placeholder_query once CTE is supported with the
-        #               new compilation step.
-        placeholder_query: Optional[str] = None,
         # This field records all the WithQueryBlocks and their reference count that are
         # referred by the current SnowflakePlan tree. This is needed for the final query
         # generation to generate the correct sql query with CTE definition.
@@ -256,15 +247,10 @@ class SnowflakePlan(LogicalPlan):
             self.df_aliased_col_name_to_real_col_name = defaultdict(dict)
         # In the placeholder query, subquery (child) is held by the ID of query plan
         # It is used for optimization, by replacing a subquery with a CTE
-        self.placeholder_query = placeholder_query
         # encode an id for CTE optimization. This is generated based on the main
         # query, query parameters and the node type. We use this id for equality
         # comparison to determine if two plans are the same.
         self.encoded_node_id_with_query = encode_node_id_with_query(self)
-        # encode id for the main query and query parameters, this is currently only used
-        # by the create_cte_query process.
-        # TODO (SNOW-1541096) remove this filed along removing the old cte implementation
-        self.encoded_query_id = encoded_query_id(self)
         self.referenced_ctes: Dict[WithQueryBlock, int] = (
             referenced_ctes.copy() if referenced_ctes else dict()
         )
@@ -272,10 +258,12 @@ class SnowflakePlan(LogicalPlan):
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
         # to UUID track queries that are generated from the same plan.
         self._uuid = str(uuid.uuid4())
-        # Metadata/Attributes for the plan
-        self._attributes: Optional[List[Attribute]] = None
-        if session.reduce_describe_query_enabled and self.source_plan is not None:
-            self._attributes = infer_metadata(self.source_plan)
+        # Metadata for the plan
+        self._metadata: PlanMetadata = infer_metadata(
+            self.source_plan,
+            self.session._analyzer,
+            self.df_aliased_col_name_to_real_col_name,
+        )
 
     @property
     def uuid(self) -> str:
@@ -312,54 +300,6 @@ class SnowflakePlan(LogicalPlan):
         else:
             return []
 
-    def replace_repeated_subquery_with_cte(self) -> "SnowflakePlan":
-        # parameter protection
-        # the common subquery elimination will be applied if cte_optimization is not enabled
-        # and the new compilation stage is not enabled. When new compilation stage is enabled,
-        # the common subquery elimination will be done through the new plan transformation.
-        if (
-            not self.session._cte_optimization_enabled
-            or self.session._query_compilation_stage_enabled
-        ):
-            return self
-
-        # if source_plan or placeholder_query is none, it must be a leaf node,
-        # no optimization is needed
-        if self.source_plan is None or self.placeholder_query is None:
-            return self
-
-        # When the source plan node is an instance of nodes in pre_handled_logical_node,
-        # the cte optimization has been pre-handled during the plan build step, skip the
-        # optimization step for now.
-        # TODO: Once SNOW-1541094 is done, we will be able to unify all the optimization steps, and
-        #       there is no need for such check anymore.
-        pre_handled_logical_node = (
-            CreateDynamicTableCommand,
-            CreateViewCommand,
-            SnowflakeCreateTable,
-            CopyIntoTableNode,
-            CopyIntoLocationNode,
-        )
-        if isinstance(self.source_plan, pre_handled_logical_node):
-            return self
-
-        # only select statement can be converted to CTEs
-        if not is_sql_select_statement(self.queries[-1].sql):
-            return self
-
-        # if there is no duplicate node, no optimization will be performed
-        duplicate_plan_set = find_duplicate_subtrees(self)
-        if not duplicate_plan_set:
-            return self
-
-        # create CTE query
-        final_query = create_cte_query(self, duplicate_plan_set)
-
-        # all other parts of query are unchanged, but just replace the original query
-        plan = copy.copy(self)
-        plan.queries[-1].sql = final_query
-        return plan
-
     def with_subqueries(self, subquery_plans: List["SnowflakePlan"]) -> "SnowflakePlan":
         pre_queries = self.queries[:-1]
         new_schema_query = self.schema_query
@@ -393,27 +333,39 @@ class SnowflakePlan(LogicalPlan):
         )
 
     @property
+    def quoted_identifiers(self) -> List[str]:
+        # If self._metadata.quoted_identifiers is not None (self._metadata.attributes must be None),
+        # retrieve quoted identifiers from self._metadata.quoted_identifiers.
+        # otherwise, retrieve quoted identifiers from self.attributes
+        # (which may trigger a describe query).
+        if self._metadata.quoted_identifiers is not None:
+            return self._metadata.quoted_identifiers
+        else:
+            return [attr.name for attr in self.attributes]
+
+    @property
     def attributes(self) -> List[Attribute]:
         from snowflake.snowpark._internal.analyzer.select_statement import (
             SelectStatement,
         )
 
-        if self._attributes is not None:
-            return self._attributes
+        if self._metadata.attributes is not None:
+            return self._metadata.attributes
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        self._attributes = analyze_attributes(self.schema_query, self.session)
+        attributes = analyze_attributes(self.schema_query, self.session)
+        self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
         if self.session.reduce_describe_query_enabled and isinstance(
             self.source_plan, SelectStatement
         ):
-            self.source_plan._attributes = self._attributes
+            self.source_plan._attributes = attributes
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
-            self.schema_query = schema_value_statement(self._attributes)
-        return self._attributes
+            self.schema_query = schema_value_statement(attributes)
+        return attributes
 
     @cached_property
     def output(self) -> List[Attribute]:
@@ -428,16 +380,12 @@ class SnowflakePlan(LogicalPlan):
         return self._output_dict
 
     @cached_property
-    def num_duplicate_nodes(self) -> int:
-        duplicated_nodes = find_duplicate_subtrees(self)
-        return len(duplicated_nodes)
-
-    @cached_property
     def plan_state(self) -> Dict[PlanState, Any]:
         from snowflake.snowpark._internal.analyzer.select_statement import (
             SelectStatement,
         )
 
+        # calculate plan height and num_selects_with_complexity_merged
         height = 0
         num_selects_with_complexity_merged = 0
         current_level = [self]
@@ -452,9 +400,16 @@ class SnowflakePlan(LogicalPlan):
                     num_selects_with_complexity_merged += 1
             height += 1
             current_level = next_level
+        # calculate the repeated node status
+        cte_nodes, duplicated_node_complexity_distribution = find_duplicate_subtrees(
+            self, propagate_complexity_hist=True
+        )
+
         return {
             PlanState.PLAN_HEIGHT: height,
             PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: num_selects_with_complexity_merged,
+            PlanState.NUM_CTE_NODES: len(cte_nodes),
+            PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: duplicated_node_complexity_distribution,
         }
 
     @property
@@ -497,7 +452,6 @@ class SnowflakePlan(LogicalPlan):
                 copy.deepcopy(self.api_calls) if self.api_calls else None,
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
-                placeholder_query=self.placeholder_query,
                 referenced_ctes=self.referenced_ctes,
             )
         else:
@@ -511,7 +465,6 @@ class SnowflakePlan(LogicalPlan):
                 self.api_calls.copy() if self.api_calls else None,
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
-                placeholder_query=self.placeholder_query,
                 referenced_ctes=self.referenced_ctes,
             )
 
@@ -538,7 +491,6 @@ class SnowflakePlan(LogicalPlan):
             )
             if self.df_aliased_col_name_to_real_col_name
             else None,
-            placeholder_query=self.placeholder_query,
             # note that there is no copy of the session object, be careful when using the
             # session object after deepcopy
             session=self.session,
@@ -600,13 +552,6 @@ class SnowflakePlanBuilder:
             ), "No schema query is available in child SnowflakePlan"
             new_schema_query = schema_query or sql_generator(child.schema_query)
 
-        placeholder_query = (
-            sql_generator(select_child.encoded_query_id)
-            if self.session._cte_optimization_enabled
-            and select_child.encoded_query_id is not None
-            else None
-        )
-
         return SnowflakePlan(
             queries,
             new_schema_query,
@@ -617,7 +562,6 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
-            placeholder_query=placeholder_query,
             referenced_ctes=child.referenced_ctes
             if propagate_referenced_ctes
             else None,
@@ -639,14 +583,6 @@ class SnowflakePlanBuilder:
             left_schema_query = schema_value_statement(select_left.attributes)
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
-
-        placeholder_query = (
-            sql_generator(select_left.encoded_query_id, select_right.encoded_query_id)
-            if self.session._cte_optimization_enabled
-            and select_left.encoded_query_id is not None
-            and select_right.encoded_query_id is not None
-            else None
-        )
 
         common_columns = set(select_left.expr_to_alias.keys()).intersection(
             select_right.expr_to_alias.keys()
@@ -705,7 +641,6 @@ class SnowflakePlanBuilder:
             source_plan,
             api_calls=api_calls,
             session=self.session,
-            placeholder_query=placeholder_query,
             referenced_ctes=referenced_ctes,
         )
 
@@ -732,7 +667,12 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str],
     ) -> SnowflakePlan:
-        temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
+        temp_table_name = (
+            f"temp_name_placeholder_{generate_random_alphanumeric()}"
+            if thread_safe_session_enabled
+            else random_name_for_temp_object(TempObjectType.TABLE)
+        )
         attributes = [
             Attribute(attr.name, attr.datatype, attr.nullable) for attr in output
         ]
@@ -756,7 +696,13 @@ class SnowflakePlanBuilder:
         else:
             schema_query = schema_query or schema_value_statement(attributes)
         queries = [
-            Query(create_table_stmt, is_ddl_on_temp_object=True),
+            Query(
+                create_table_stmt,
+                is_ddl_on_temp_object=True,
+                temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
+                if thread_safe_session_enabled
+                else None,
+            ),
             BatchInsertQuery(insert_stmt, data),
             Query(select_stmt),
         ]
@@ -969,8 +915,6 @@ class SnowflakePlanBuilder:
                 column_definition_with_hidden_columns,
             )
 
-        child = child.replace_repeated_subquery_with_cte()
-
         def get_create_table_as_select_plan(child: SnowflakePlan, replace, error):
             return self.build(
                 lambda x: create_table_as_select_statement(
@@ -1159,7 +1103,6 @@ class SnowflakePlanBuilder:
         if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
-        child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
@@ -1202,7 +1145,6 @@ class SnowflakePlanBuilder:
             # should never reach here
             raise ValueError(f"Unknown create mode: {create_mode}")  # pragma: no cover
 
-        child = child.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: create_or_replace_dynamic_table_statement(
                 name=name,
@@ -1274,6 +1216,7 @@ class SnowflakePlanBuilder:
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
     ):
+        thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
         format_type_options, copy_options = get_copy_into_table_options(options)
         format_type_options = self._merge_file_format_options(
             format_type_options, options
@@ -1304,7 +1247,9 @@ class SnowflakePlanBuilder:
             queries: List[Query] = []
             post_queries: List[Query] = []
             format_name = self.session.get_fully_qualified_name_if_possible(
-                random_name_for_temp_object(TempObjectType.FILE_FORMAT)
+                f"temp_name_placeholder_{generate_random_alphanumeric()}"
+                if thread_safe_session_enabled
+                else random_name_for_temp_object(TempObjectType.FILE_FORMAT)
             )
             queries.append(
                 Query(
@@ -1318,6 +1263,9 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT)
+                    if thread_safe_session_enabled
+                    else None,
                 )
             )
             post_queries.append(
@@ -1375,7 +1323,9 @@ class SnowflakePlanBuilder:
             )
 
             temp_table_name = self.session.get_fully_qualified_name_if_possible(
-                random_name_for_temp_object(TempObjectType.TABLE)
+                f"temp_name_placeholder_{generate_random_alphanumeric()}"
+                if thread_safe_session_enabled
+                else random_name_for_temp_object(TempObjectType.TABLE)
             )
             queries = [
                 Query(
@@ -1388,6 +1338,9 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
+                    if thread_safe_session_enabled
+                    else None,
                 ),
                 Query(
                     copy_into_table(
@@ -1505,7 +1458,6 @@ class SnowflakePlanBuilder:
         header: bool = False,
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
-        query = query.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: copy_into_location(
                 query=x,
@@ -1532,7 +1484,6 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
-            source_data = source_data.replace_repeated_subquery_with_cte()
             return self.build(
                 lambda x: update_statement(
                     table_name,
@@ -1563,7 +1514,6 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if source_data:
-            source_data = source_data.replace_repeated_subquery_with_cte()
             return self.build(
                 lambda x: delete_statement(
                     table_name,
@@ -1592,7 +1542,6 @@ class SnowflakePlanBuilder:
         clauses: List[str],
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        source_data = source_data.replace_repeated_subquery_with_cte()
         return self.build(
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,
@@ -1714,6 +1663,7 @@ class Query:
         *,
         query_id_place_holder: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
+        temp_obj_name_placeholder: Optional[Tuple[str, TempObjectType]] = None,
         params: Optional[Sequence[Any]] = None,
     ) -> None:
         self.sql = sql
@@ -1722,6 +1672,16 @@ class Query:
             if query_id_place_holder
             else f"query_id_place_holder_{generate_random_alphanumeric()}"
         )
+        # This is to handle the case when a snowflake plan is created in the following way
+        # in a multi-threaded environment:
+        #   1. Create a temp object
+        #   2. Use the temp object in a query
+        #   3. Drop the temp object
+        # When step 3 in thread A is executed before step 2 in thread B, the query in thread B will fail with
+        # temp object not found. To handle this, we replace temp object names with placeholders in the query
+        # and track the temp object placeholder name and temp object type here. During query execution, we replace
+        # the placeholders with the actual temp object names for the given execution.
+        self.temp_obj_name_placeholder = temp_obj_name_placeholder
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         self.params = params or []
 
@@ -1740,6 +1700,7 @@ class Query:
             self.sql == other.sql
             and self.query_id_place_holder == other.query_id_place_holder
             and self.is_ddl_on_temp_object == other.is_ddl_on_temp_object
+            and self.temp_obj_name_placeholder == other.temp_obj_name_placeholder
             and self.params == other.params
         )
 

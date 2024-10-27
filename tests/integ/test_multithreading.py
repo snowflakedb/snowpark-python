@@ -6,7 +6,9 @@ import gc
 import hashlib
 import logging
 import os
+import re
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Tuple  # noqa: F401
 from unittest.mock import patch
@@ -17,7 +19,14 @@ from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION,
     Session,
 )
-from snowflake.snowpark.types import IntegerType
+from snowflake.snowpark.types import (
+    DoubleType,
+    IntegerType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+)
 from tests.integ.test_temp_table_cleanup import wait_for_drop_table_sql_done
 
 try:
@@ -32,22 +41,34 @@ except ImportError:
 
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.row import Row
-from tests.utils import IS_IN_STORED_PROC, IS_LINUX, IS_WINDOWS, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC_LOCALFS,
+    IS_LINUX,
+    IS_WINDOWS,
+    TestFiles,
+    Utils,
+)
 
 
 @pytest.fixture(scope="module")
 def threadsafe_session(
-    db_parameters, sql_simplifier_enabled, cte_optimization_enabled, local_testing_mode
+    db_parameters,
+    session,
+    sql_simplifier_enabled,
+    local_testing_mode,
 ):
-    new_db_parameters = db_parameters.copy()
-    new_db_parameters["local_testing"] = local_testing_mode
-    new_db_parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: True
-    }
-    with Session.builder.configs(new_db_parameters).create() as session:
-        session._sql_simplifier_enabled = sql_simplifier_enabled
-        session._cte_optimization_enabled = cte_optimization_enabled
+    if IS_IN_STORED_PROC:
         yield session
+    else:
+        new_db_parameters = db_parameters.copy()
+        new_db_parameters["local_testing"] = local_testing_mode
+        new_db_parameters["session_parameters"] = {
+            _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: True
+        }
+        with Session.builder.configs(new_db_parameters).create() as session:
+            session._sql_simplifier_enabled = sql_simplifier_enabled
+            yield session
 
 
 @pytest.fixture(scope="function")
@@ -63,6 +84,13 @@ def threadsafe_temp_stage(threadsafe_session, resources_path, local_testing_mode
     yield tmp_stage_name
     if not local_testing_mode:
         Utils.drop_stage(threadsafe_session, tmp_stage_name)
+
+
+def test_threadsafe_session_uses_locks(threadsafe_session):
+    rlock_class = threading.RLock().__class__
+    assert isinstance(threadsafe_session._lock, rlock_class)
+    assert isinstance(threadsafe_session._temp_table_auto_cleaner.lock, rlock_class)
+    assert isinstance(threadsafe_session._conn._lock, rlock_class)
 
 
 def test_concurrent_select_queries(threadsafe_session):
@@ -183,6 +211,7 @@ def test_action_ids_are_unique(threadsafe_session):
     assert len(action_ids) == 10
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Skip file IO tests in localfs")
 @pytest.mark.parametrize("use_stream", [True, False])
 def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_stream):
     stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
@@ -256,30 +285,28 @@ def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_
 def test_concurrent_add_packages(threadsafe_session):
     # this is a list of packages available in snowflake anaconda. If this
     # test fails due to packages not being available, please update the list
+    existing_packages = threadsafe_session.get_packages()
     package_list = {
-        "graphviz",
+        "cloudpickle",
         "numpy",
         "pandas",
         "scipy",
         "scikit-learn",
-        "matplotlib",
+        "pyyaml",
     }
 
     try:
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = [
+            for package in package_list:
                 executor.submit(threadsafe_session.add_packages, package)
-                for package in package_list
-            ]
 
-            for future in as_completed(futures):
-                future.result()
-
-            assert threadsafe_session.get_packages() == {
-                package: package for package in package_list
-            }
+        final_packages = threadsafe_session.get_packages()
+        for package in package_list:
+            assert package in final_packages
     finally:
-        threadsafe_session.clear_packages()
+        for package in package_list:
+            if package not in existing_packages:
+                threadsafe_session.remove_package(package)
 
 
 def test_concurrent_remove_package(threadsafe_session):
@@ -317,6 +344,7 @@ def test_concurrent_remove_package(threadsafe_session):
 @pytest.mark.skipif(not is_dateutil_available, reason="dateutil is not available")
 def test_concurrent_add_import(threadsafe_session, resources_path):
     test_files = TestFiles(resources_path)
+    existing_imports = set(threadsafe_session.get_imports())
     import_files = [
         test_files.test_udf_py_file,
         os.path.relpath(test_files.test_udf_py_file),
@@ -336,7 +364,7 @@ def test_concurrent_add_import(threadsafe_session, resources_path):
 
         assert set(threadsafe_session.get_imports()) == {
             os.path.abspath(file) for file in import_files
-        }
+        }.union(existing_imports)
     finally:
         threadsafe_session.clear_imports()
 
@@ -556,6 +584,9 @@ class OffsetSumUDAFHandler:
     reason="session.sql is not supported in local testing mode",
     run=False,
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
 def test_auto_temp_table_cleaner(threadsafe_session, caplog):
     threadsafe_session._temp_table_auto_cleaner.ref_count_map.clear()
     original_auto_clean_up_temp_table_enabled = (
@@ -633,6 +664,112 @@ def test_concurrent_update_on_sensitive_configs(
     )
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not execute sql queries",
+    run=False,
+)
+def test_temp_name_placeholder_for_sync(threadsafe_session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_value = analyzer.ARRAY_BIND_THRESHOLD
+
+    def process_data(df_, thread_id):
+        df_cleaned = df_.filter(df.A == thread_id)
+        return df_cleaned.collect()
+
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 4
+        df = threadsafe_session.create_dataframe([[1, 2], [3, 4]], ["A", "B"])
+
+        with threadsafe_session.query_history() as history:
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                for i in range(10):
+                    executor.submit(process_data, df, i)
+
+        queries_sent = [query.sql_text for query in history.queries]
+        unique_create_table_queries = set()
+        unique_drop_table_queries = set()
+        for query in queries_sent:
+            assert "temp_name_placeholder" not in query
+            if query.startswith("CREATE  OR  REPLACE"):
+                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
+                assert match is not None, query
+                table_name = match.group()
+                unique_create_table_queries.add(table_name)
+            elif query.startswith("DROP  TABLE"):
+                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
+                assert match is not None, query
+                table_name = match.group()
+                unique_drop_table_queries.add(table_name)
+        assert len(unique_create_table_queries) == 10, queries_sent
+        assert len(unique_drop_table_queries) == 10, queries_sent
+
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_value
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not execute sql queries",
+    run=False,
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Skip file IO tests in localfs")
+def test_temp_name_placeholder_for_async(
+    threadsafe_session, resources_path, threadsafe_temp_stage
+):
+    stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
+    stage_with_prefix = f"@{threadsafe_temp_stage}/{stage_prefix}/"
+    test_files = TestFiles(resources_path)
+    threadsafe_session.file.put(
+        test_files.test_file_csv, stage_with_prefix, auto_compress=False
+    )
+    filename = os.path.basename(test_files.test_file_csv)
+
+    def process_data(df_, thread_id):
+        df_cleaned = df_.filter(df.A == thread_id)
+        job = df_cleaned.collect(block=False)
+        job.result()
+
+    df = threadsafe_session.read.schema(
+        StructType(
+            [
+                StructField("A", LongType()),
+                StructField("B", StringType()),
+                StructField("C", DoubleType()),
+            ]
+        )
+    ).csv(f"{stage_with_prefix}/{filename}")
+
+    with threadsafe_session.query_history() as history:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            for i in range(10):
+                executor.submit(process_data, df, i)
+
+    queries_sent = [query.sql_text for query in history.queries]
+
+    unique_create_file_format_queries = set()
+    unique_drop_file_format_queries = set()
+    for query in queries_sent:
+        assert "temp_name_placeholder" not in query
+        if query.startswith(" CREATE SCOPED TEMPORARY FILE  FORMAT"):
+            match = re.search(r"SNOWPARK_TEMP_FILE_FORMAT_[\w]+", query)
+            assert match is not None, query
+            file_format_name = match.group()
+            unique_create_file_format_queries.add(file_format_name)
+        elif query.startswith("DROP  FILE  FORMAT"):
+            match = re.search(r"SNOWPARK_TEMP_FILE_FORMAT_[\w]+", query)
+            assert match is not None, query
+            file_format_name = match.group()
+            unique_drop_file_format_queries.add(file_format_name)
+
+    assert len(unique_create_file_format_queries) == 10
+    assert len(unique_drop_file_format_queries) == 10
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Cannot create new session inside stored proc"
+)
 @pytest.mark.parametrize("is_enabled", [True, False])
 def test_num_cursors_created(db_parameters, is_enabled, local_testing_mode):
     if is_enabled and local_testing_mode:

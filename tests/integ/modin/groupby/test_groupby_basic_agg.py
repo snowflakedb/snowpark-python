@@ -25,7 +25,7 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_snow_df_with_table_and_data,
     create_test_dfs,
-    eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
@@ -56,6 +56,11 @@ def eval_groupby_result(
     )
 
     return snowpark_pandas_groupby, pandas_groupby
+
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
 
 
 @pytest.mark.parametrize("by", ["col1", ["col3"], ["col5"]])

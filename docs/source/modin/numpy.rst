@@ -25,6 +25,8 @@ NumPy ufuncs called with Snowpark pandas arguments will ignore kwargs.
 |                             | dispatcher at all, and the normal NumPy behavior   |
 |                             | will occur.)                                       |
 +-----------------------------+----------------------------------------------------+
+| ``np.may_share_memory``     | Returns False                                      |
++-----------------------------+----------------------------------------------------+
 | ``np.add``                  | Mapped to df.__add__(df2)                          |
 +-----------------------------+----------------------------------------------------+
 | ``np.subtract``             | Mapped to df.__sub__(df2)                          |
@@ -36,6 +38,12 @@ NumPy ufuncs called with Snowpark pandas arguments will ignore kwargs.
 | ``np.true_divide``          | Mapped to df.__truediv__(df2)                      |
 +-----------------------------+----------------------------------------------------+
 | ``np.float_power``          | Mapped to df.__pow__(df2)                          |
++-----------------------------+----------------------------------------------------+
+| ``np.log``                  | Mapped to df.apply(snowpark.functions.ln)          |
++-----------------------------+----------------------------------------------------+
+| ``np.log2``                 | Mapped to df.apply(snowpark.functions.log, base=2) |
++-----------------------------+----------------------------------------------------+
+| ``np.log10``                | Mapped to df.apply(snowpark.functions.log, base=10)|
 +-----------------------------+----------------------------------------------------+
 | ``np.mod``                  | Mapped to df.__mod__(df2)                          |
 +-----------------------------+----------------------------------------------------+

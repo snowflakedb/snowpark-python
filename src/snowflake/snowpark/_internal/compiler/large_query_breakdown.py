@@ -69,14 +69,18 @@ class LargeQueryBreakdownResult:
     logical_plans: List[LogicalPlan]
     # breakdown summary for each root plan
     breakdown_summary: List[Dict[str, int]]
+    # skipped summary for each root plan
+    skipped_summary: Dict[str, int]
 
     def __init__(
         self,
         logical_plans: List[LogicalPlan],
         breakdown_summary: List[dict],
+        skipped_summary: Dict[str, int],
     ) -> None:
         self.logical_plans = logical_plans
         self.breakdown_summary = breakdown_summary
+        self.skipped_summary = skipped_summary
 
 
 class LargeQueryBreakdown:
@@ -144,18 +148,14 @@ class LargeQueryBreakdown:
         # partition could not proceed, it contains how the nodes in this partitions
         # were classified.
         self._breakdown_summary: list = list()
+        # This is used to track the summary of reason why the optimization was skipped
+        # on a root plan.
+        self._skipped_summary: dict = defaultdict(int)
 
     def apply(self) -> LargeQueryBreakdownResult:
-        if is_active_transaction(self.session):
-            # Skip optimization if the session is in an active transaction.
-            _logger.debug(
-                "Skipping large query breakdown optimization due to active transaction."
-            )
-            self.session._conn._telemetry_client.send_large_query_optimization_skipped_telemetry(
-                self.session.session_id,
-                SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION.value,
-            )
-            return LargeQueryBreakdownResult(self.logical_plans, [])
+        reason = self._should_skip_optimization_for_session()
+        if reason is not None:
+            return LargeQueryBreakdownResult(self.logical_plans, [], {reason.value: 1})
 
         resulting_plans = []
         for logical_plan in self.logical_plans:
@@ -166,7 +166,65 @@ class LargeQueryBreakdown:
             partition_plans = self._try_to_breakdown_plan(resolved_plan)
             resulting_plans.extend(partition_plans)
 
-        return LargeQueryBreakdownResult(resulting_plans, self._breakdown_summary)
+        return LargeQueryBreakdownResult(
+            resulting_plans, self._breakdown_summary, self._skipped_summary
+        )
+
+    def _should_skip_optimization_for_session(
+        self,
+    ) -> Optional[SkipLargeQueryBreakdownCategory]:
+        """Method to check if the optimization should be skipped based on the session state.
+
+        Returns:
+            SkipLargeQueryBreakdownCategory: enum indicating the reason for skipping the optimization.
+                if the optimization should be skipped, otherwise None.
+        """
+        if self.session.get_current_database() is None:
+            # Skip optimization if there is no active database.
+            _logger.debug(
+                "Skipping large query breakdown optimization since there is no active database."
+            )
+            return SkipLargeQueryBreakdownCategory.NO_ACTIVE_DATABASE
+
+        if self.session.get_current_schema() is None:
+            # Skip optimization if there is no active schema.
+            _logger.debug(
+                "Skipping large query breakdown optimization since there is no active schema."
+            )
+            return SkipLargeQueryBreakdownCategory.NO_ACTIVE_SCHEMA
+
+        if is_active_transaction(self.session):
+            # Skip optimization if the session is in an active transaction.
+            _logger.debug(
+                "Skipping large query breakdown optimization due to active transaction."
+            )
+            return SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION
+
+        return None
+
+    def _should_skip_optimization_for_root(
+        self, root: TreeNode
+    ) -> Optional[SkipLargeQueryBreakdownCategory]:
+        """Method to check if the optimization should be skipped based on the root node type.
+
+        Returns:
+            SkipLargeQueryBreakdownCategory enum indicating the reason for skipping the optimization
+                if the optimization should be skipped, otherwise None.
+        """
+        if (
+            isinstance(root, SnowflakePlan)
+            and root.source_plan is not None
+            and isinstance(
+                root.source_plan, (CreateViewCommand, CreateDynamicTableCommand)
+            )
+        ):
+            # Skip optimization if the root is a view or a dynamic table.
+            _logger.debug(
+                "Skipping large query breakdown optimization for view/dynamic table plan."
+            )
+            return SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE
+
+        return None
 
     def _try_to_breakdown_plan(self, root: TreeNode) -> List[LogicalPlan]:
         """Method to breakdown a single plan into smaller partitions based on
@@ -184,21 +242,9 @@ class LargeQueryBreakdown:
         _logger.debug(
             f"Applying large query breakdown optimization for root of type {type(root)}"
         )
-        if (
-            isinstance(root, SnowflakePlan)
-            and root.source_plan is not None
-            and isinstance(
-                root.source_plan, (CreateViewCommand, CreateDynamicTableCommand)
-            )
-        ):
-            # Skip optimization if the root is a view or a dynamic table.
-            _logger.debug(
-                "Skipping large query breakdown optimization for view/dynamic table plan."
-            )
-            self.session._conn._telemetry_client.send_large_query_optimization_skipped_telemetry(
-                self.session.session_id,
-                SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE.value,
-            )
+        reason = self._should_skip_optimization_for_root(root)
+        if reason is not None:
+            self._skipped_summary[reason.value] += 1
             return [root]
 
         complexity_score = get_complexity_score(root)
@@ -215,13 +261,7 @@ class LargeQueryBreakdown:
             if child is None:
                 final_partition_breakdown_summary = {
                     k.value: validity_statistics.get(k, 0)
-                    for k in [
-                        InvalidNodesInBreakdownCategory.SCORE_BELOW_LOWER_BOUND,
-                        InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND,
-                        InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER,
-                        InvalidNodesInBreakdownCategory.EXTERNAL_CTE_REF,
-                        InvalidNodesInBreakdownCategory.VALID_NODE,
-                    ]
+                    for k in InvalidNodesInBreakdownCategory
                 }
                 _logger.debug(
                     f"Could not find a valid node for partitioning. "
@@ -421,9 +461,13 @@ class LargeQueryBreakdown:
         if isinstance(node, SnowflakePlan) and isinstance(
             node.source_plan, WithQueryBlock
         ):
-            return False
+            ignore_with_query_block = node.source_plan
+        else:
+            ignore_with_query_block = None
 
         for with_query_block, node_count in node.referenced_ctes.items():
+            if with_query_block is ignore_with_query_block:
+                continue
             root_count = root.referenced_ctes[with_query_block]
             if node_count != root_count:
                 return True

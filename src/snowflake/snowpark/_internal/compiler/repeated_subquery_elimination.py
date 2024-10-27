@@ -5,12 +5,12 @@
 from collections import defaultdict
 from typing import Dict, List, Optional, Set
 
-from snowflake.snowpark._internal.analyzer.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     WithQueryBlock,
 )
+from snowflake.snowpark._internal.compiler.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
@@ -89,7 +89,7 @@ class RepeatedSubqueryElimination:
             logical_plan = self._query_generator.resolve(logical_plan)
 
             # apply the CTE optimization on the resolved plan
-            duplicated_node_ids = find_duplicate_subtrees(logical_plan)
+            duplicated_node_ids, _ = find_duplicate_subtrees(logical_plan)
             if len(duplicated_node_ids) > 0:
                 deduplicated_plan = self._replace_duplicate_node_with_cte(
                     logical_plan, duplicated_node_ids
