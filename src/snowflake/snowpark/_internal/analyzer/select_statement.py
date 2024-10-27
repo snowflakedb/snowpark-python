@@ -353,8 +353,17 @@ class Selectable(LogicalPlan, ABC):
         Refer to class ColumnStateDict.
         """
         if self._column_states is None:
+            if self.analyzer.session.reduce_describe_query_enabled:
+                # data types are not needed in SQL simplifier, so we
+                # just create dummy data types here.
+                column_attrs = [
+                    Attribute(q, DataType())
+                    for q in self.snowflake_plan.quoted_identifiers
+                ]
+            else:
+                column_attrs = self.snowflake_plan.attributes
             self._column_states = initiate_column_states(
-                self.snowflake_plan.attributes,
+                column_attrs,
                 self.analyzer,
                 self.df_aliased_col_name_to_real_col_name,
             )

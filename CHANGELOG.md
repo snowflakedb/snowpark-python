@@ -13,6 +13,8 @@
   - `options`
   - `partition_by`
 - Added support for `snowflake_cortex_summarize`.
+- Added the following new functions in `snowflake.snowpark.dataframe`:
+  - `map`
 
 #### Improvements
 
@@ -25,6 +27,7 @@
 
 - Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
 - Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
+- Fixed a bug that created inconsistent casing in field names of structured objects in iceberg schemas.
 
 #### Deprecations:
 
