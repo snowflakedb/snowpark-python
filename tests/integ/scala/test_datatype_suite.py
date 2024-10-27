@@ -559,7 +559,8 @@ def test_struct_dtype_iceberg_lqb(
         union_df = union_df.select(
             array_sort("ARR", sort_ascending=False).alias("ARR"), "MAP", "A", "B"
         )
-        queries = union_df.queries
+
+        assert union_df.schema == expected_schema
 
         union_df.write.save_as_table(
             write_table,
@@ -568,6 +569,7 @@ def test_struct_dtype_iceberg_lqb(
             iceberg_config=ICEBERG_CONFIG,
         )
 
+        queries = union_df.queries
         # assert that the queries are broken down into 2 queries and 1 post action
         assert len(queries["queries"]) == 2, queries["queries"]
         assert len(queries["post_actions"]) == 1
