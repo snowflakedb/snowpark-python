@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import (
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     PlanQueryType,
+    Query,
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -459,6 +460,7 @@ class ServerConnection:
         params: Optional[Sequence[Any]] = None,
         num_statements: Optional[int] = None,
         ignore_results: bool = False,
+        async_post_actions: Optional[List[Query]] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -502,7 +504,7 @@ class ServerConnection:
                 query,
                 async_job_plan.session,
                 data_type,
-                async_job_plan.post_actions,
+                async_post_actions,
                 log_on_exception,
                 case_sensitive=case_sensitive,
                 num_statements=num_statements,
@@ -633,6 +635,7 @@ class ServerConnection:
         kwargs["_statement_params"] = statement_params
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
+            post_actions = plan_queries[PlanQueryType.POST_ACTIONS]
             placeholders = {}
             is_batch_insert = False
             for q in main_queries:
@@ -666,6 +669,7 @@ class ServerConnection:
                     num_statements=len(main_queries),
                     params=params,
                     ignore_results=ignore_results,
+                    async_post_actions=post_actions,
                     **kwargs,
                 )
 
@@ -695,6 +699,7 @@ class ServerConnection:
                             case_sensitive=case_sensitive,
                             params=query.params,
                             ignore_results=ignore_results,
+                            async_post_actions=post_actions,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -706,7 +711,7 @@ class ServerConnection:
         finally:
             # delete created tmp object
             if block:
-                for action in plan_queries[PlanQueryType.POST_ACTIONS]:
+                for action in post_actions:
                     self.run_query(
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,

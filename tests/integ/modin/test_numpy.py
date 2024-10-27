@@ -40,6 +40,23 @@ def test_np_where(cond, query_count):
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
 
+def test_np_may_share_memory():
+    data = {
+        "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],
+    }
+    snow_df_A = pd.DataFrame(data)
+    snow_df_B = pd.DataFrame(data)
+    native_df_A = native_pd.DataFrame(data)
+
+    # np.may_share_memory always returns False
+    with SqlCounter(query_count=0):
+        assert not np.may_share_memory(snow_df_A, snow_df_B)
+    with SqlCounter(query_count=0):
+        assert not np.may_share_memory(native_df_A, snow_df_B)
+    with SqlCounter(query_count=0):
+        assert not np.may_share_memory(snow_df_A, native_df_A)
+
+
 def test_logical_operators():
     data = {
         "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],
@@ -117,6 +134,29 @@ def test_np_ufunc_binop_operators(np_ufunc):
             np_ufunc(pandas_df["A"], pandas_df["A"]),
         )
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+
+@pytest.mark.parametrize(
+    "np_ufunc",
+    [
+        np.log,
+        np.log2,
+        np.log10,
+    ],
+)
+def test_np_ufunc_unary_operators(np_ufunc):
+    data = {
+        "A": [3, 1, 2, 2, 1, 2, 5, 1, 2],
+        "B": [1, 2, 3, 4, 1, 2, 3, 4, 1],
+    }
+    snow_df = pd.DataFrame(data)
+    pandas_df = native_pd.DataFrame(data)
+
+    with SqlCounter(query_count=1):
+        # Test numpy ufunc with scalar
+        snow_result = np_ufunc(snow_df["A"])
+        pandas_result = np_ufunc(pandas_df["A"])
+        assert_almost_equal(np.array(snow_result), np.array(pandas_result))
 
 
 # The query count here is from the argument logging performed by numpy on error

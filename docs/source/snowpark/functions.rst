@@ -258,6 +258,7 @@ Functions
     sin
     sinh
     skew
+    snowflake_cortex_summarize
     sort_array
     soundex
     split
