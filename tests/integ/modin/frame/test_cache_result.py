@@ -131,7 +131,7 @@ class TestCacheResultReducesQueryCount:
         native_df = perform_chained_operations(
             native_pd.DataFrame(np.arange(15).reshape((3, 5))), native_pd
         )
-        with SqlCounter(query_count=1, union_count=29):
+        with SqlCounter(query_count=1, union_count=11):
             snow_df = perform_chained_operations(snow_df, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_df, native_df
@@ -161,7 +161,7 @@ class TestCacheResultReducesQueryCount:
         native_df = perform_chained_operations(
             native_df.pivot_table(**pivot_kwargs), native_pd
         )
-        with SqlCounter(query_count=1, join_count=10, union_count=9):
+        with SqlCounter(query_count=1, join_count=1, union_count=9):
             snow_df = perform_chained_operations(snow_df, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_df, native_df
@@ -222,7 +222,7 @@ class TestCacheResultReducesQueryCount:
         with SqlCounter(
             query_count=11,
             union_count=9,
-            udf_count=2,
+            udf_count=1,
             high_count_expected=True,
             high_count_reason="applymap requires additional queries to setup the UDF.",
         ):

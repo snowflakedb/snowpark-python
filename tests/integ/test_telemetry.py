@@ -12,10 +12,6 @@ from typing import Any, Dict, Tuple
 
 import pytest
 
-from snowflake.snowpark._internal.compiler.telemetry_constants import (
-    SkipLargeQueryBreakdownCategory,
-)
-
 try:
     import pandas as pd  # noqa: F401
 
@@ -607,6 +603,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -632,6 +629,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -657,6 +655,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -682,6 +681,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -707,6 +707,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
             "query_plan_height": query_plan_height,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {
                 "filter": filter,
                 "low_impact": low_impact,
@@ -861,6 +862,7 @@ def test_dataframe_stat_functions_api_calls(session):
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         },
         {
@@ -883,6 +885,7 @@ def test_dataframe_stat_functions_api_calls(session):
             "query_plan_height": 4,
             "query_plan_num_duplicate_nodes": 0,
             "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
             "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         }
     ]
@@ -1170,32 +1173,6 @@ def test_sql_simplifier_enabled(session):
         }
     finally:
         session.sql_simplifier_enabled = original_value
-
-
-@pytest.mark.parametrize(
-    "reason",
-    [
-        SkipLargeQueryBreakdownCategory.ACTIVE_TRANSACTION,
-        SkipLargeQueryBreakdownCategory.VIEW_DYNAMIC_TABLE,
-    ],
-)
-def test_large_query_breakdown_skipped_telemetry(reason, session):
-    client = session._conn._telemetry_client
-
-    def send_large_query_optimization_skipped_telemetry():
-        client.send_large_query_optimization_skipped_telemetry(
-            session.session_id, reason.value
-        )
-
-    telemetry_tracker = TelemetryDataTracker(session)
-
-    expected_data = {"session_id": session.session_id, "reason": reason.value}
-
-    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(
-        -1, send_large_query_optimization_skipped_telemetry
-    )
-    assert data == expected_data
-    assert type_ == "snowpark_large_query_breakdown_optimization_skipped"
 
 
 def test_post_compilation_stage_telemetry(session):

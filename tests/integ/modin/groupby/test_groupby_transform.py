@@ -148,7 +148,7 @@ def test_dataframe_groupby_transform_conflicting_labels_negative():
 
 @sql_count_checker(
     query_count=11,
-    join_count=10,
+    join_count=8,
     udtf_count=2,
     high_count_expected=True,
     high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",

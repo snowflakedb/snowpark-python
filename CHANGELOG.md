@@ -13,10 +13,13 @@
   - `options`
   - `partition_by`
 - Added support for `snowflake_cortex_summarize`.
+- Added the following new functions in `snowflake.snowpark.dataframe`:
+  - `map`
 
 #### Improvements
 
-- Disables sql simplification when sort is performed after limit. 
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
+- Disables sql simplification when sort is performed after limit.
   - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
   - Improve performance of generated query for `df.limit().sort()`, because limit stops table scanning as soon as the number of records is satisfied.
 
@@ -24,6 +27,17 @@
 
 - Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
 - Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
+- Fixed a bug that created inconsistent casing in field names of structured objects in iceberg schemas.
+
+#### Deprecations:
+
+- Deprecated warnings will be triggered when using snowpark-python with Python 3.8. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
+
+#### Dependency Updates
+
+- Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.
+- Added a dependency on `protoc-wheel-0` for the development profile.
+- Require `snowflake-connector-python>=3.12.0, <4.0.0` (was `>=3.10.0`).
 
 ### Snowpark pandas API Updates
 
@@ -42,7 +56,9 @@
 - Added support for `on` parameter with `Resampler`.
 - Added support for timedelta inputs in `value_counts()`.
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
-- Added support for `DataFrame`/`Series.attrs`
+- Added support for `DataFrame.attrs` and `Series.attrs`.
+- Added support for `DataFrame.style`.
+- Added support for `Index.to_numpy`.
 
 #### Improvements
 

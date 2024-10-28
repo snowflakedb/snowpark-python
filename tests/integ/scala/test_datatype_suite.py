@@ -13,10 +13,13 @@ from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
+    any_value,
     array_construct,
+    array_sort,
     col,
     lit,
     object_construct,
+    sum_distinct,
     udf,
 )
 from snowflake.snowpark.types import (
@@ -470,6 +473,221 @@ def test_structured_dtypes_iceberg(
 
     finally:
         Utils.drop_table(structured_type_session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_iceberg_nested_fields(
+    structured_type_session, local_testing_mode, structured_type_support
+):
+    if not (
+        structured_type_support
+        and iceberg_supported(structured_type_session, local_testing_mode)
+    ):
+        pytest.skip("Test requires iceberg support and structured type support.")
+
+    table_name = Utils.random_table_name()
+    transformed_table_name = Utils.random_table_name()
+
+    expected_schema = StructType(
+        [
+            StructField(
+                "NESTED_DATA",
+                StructType(
+                    [
+                        StructField('"camelCase"', StringType(), nullable=True),
+                        StructField('"snake_case"', StringType(), nullable=True),
+                        StructField('"PascalCase"', StringType(), nullable=True),
+                        StructField(
+                            '"nested_map"',
+                            MapType(
+                                StringType(),
+                                StructType(
+                                    [
+                                        StructField(
+                                            '"inner_camelCase"',
+                                            StringType(),
+                                            nullable=True,
+                                        ),
+                                        StructField(
+                                            '"inner_snake_case"',
+                                            StringType(),
+                                            nullable=True,
+                                        ),
+                                        StructField(
+                                            '"inner_PascalCase"',
+                                            StringType(),
+                                            nullable=True,
+                                        ),
+                                    ],
+                                    structured=True,
+                                ),
+                                structured=True,
+                            ),
+                            nullable=True,
+                        ),
+                    ],
+                    structured=True,
+                ),
+                nullable=True,
+            )
+        ],
+        structured=False,
+    )
+
+    try:
+        structured_type_session.sql(
+            f"""
+        CREATE OR REPLACE ICEBERG TABLE {table_name} (
+            "NESTED_DATA" OBJECT(
+                camelCase STRING,
+                snake_case STRING,
+                PascalCase STRING,
+                nested_map MAP(
+                    STRING,
+                    OBJECT(
+                        inner_camelCase STRING,
+                        inner_snake_case STRING,
+                        inner_PascalCase STRING
+                    )
+                )
+            )
+        ) EXTERNAL_VOLUME = 'python_connector_iceberg_exvol' CATALOG = 'SNOWFLAKE' BASE_LOCATION = 'python_connector_merge_gate';
+        """
+        ).collect()
+        df = structured_type_session.table(table_name)
+        assert df.schema == expected_schema
+
+        # Round tripping will fail if the inner fields has incorrect names.
+        df.write.mode("overwrite").save_as_table(
+            table_name=transformed_table_name, iceberg_config=ICEBERG_CONFIG
+        )
+        assert (
+            structured_type_session.table(transformed_table_name).schema
+            == expected_schema
+        )
+    finally:
+        Utils.drop_table(structured_type_session, table_name)
+        Utils.drop_table(structured_type_session, transformed_table_name)
+
+
+@pytest.mark.skip(
+    reason="SNOW-1748140: Need to handle structured types in datatype_mapper"
+)
+def test_struct_dtype_iceberg_lqb(
+    structured_type_session, local_testing_mode, structured_type_support
+):
+    if not (
+        structured_type_support
+        and iceberg_supported(structured_type_session, local_testing_mode)
+    ):
+        pytest.skip("Test requires iceberg support and structured type support.")
+
+    read_table = f"snowpark_structured_dtypes_lqb_read_{uuid.uuid4().hex[:5]}"
+    write_table = f"snowpark_structured_dtypes_lqb_write_{uuid.uuid4().hex[:5]}"
+    query = """select
+                [1, 2, 3] :: array(bigint) as arr,
+                object_construct('k1', 1, 'k2', 2) :: map(varchar, bigint) as map,
+                1 as a,
+                2 as b
+    """
+    expected_dtypes = [
+        ("ARR", "array<bigint>"),
+        ("MAP", "map<string(16777216),bigint>"),
+        ("A", "bigint"),
+        ("B", "bigint"),
+    ]
+    expected_schema = StructType(
+        [
+            StructField("ARR", ArrayType(LongType(), structured=True), nullable=True),
+            StructField(
+                "MAP",
+                MapType(StringType(), LongType(), structured=True),
+                nullable=True,
+            ),
+            StructField("A", LongType(), nullable=True),
+            StructField("B", LongType(), nullable=True),
+        ]
+    )
+    is_query_compilation_stage_enabled = (
+        structured_type_session._query_compilation_stage_enabled
+    )
+    is_large_query_breakdown_enabled = (
+        structured_type_session._large_query_breakdown_enabled
+    )
+    original_bounds = structured_type_session._large_query_breakdown_complexity_bounds
+    try:
+        structured_type_session._query_compilation_stage_enabled = True
+        structured_type_session._large_query_breakdown_enabled = True
+        structured_type_session._large_query_breakdown_complexity_bounds = (300, 600)
+
+        create_df = structured_type_session.create_dataframe([], schema=expected_schema)
+        create_df.write.save_as_table(read_table, iceberg_config=ICEBERG_CONFIG)
+        structured_type_session.sql(
+            f"""
+        insert into {read_table}
+        {query}
+        """
+        ).collect()
+
+        base_df = structured_type_session.table(read_table)
+        assert base_df.schema == expected_schema
+        assert base_df.dtypes == expected_dtypes
+
+        df1 = base_df.with_column("A", col("A") + lit(1))
+        df2 = base_df.with_column("B", col("B") + lit(1))
+
+        for i in range(6):
+            df1 = df1.with_column("A", col("A") + lit(i) + col("A"))
+            df2 = df2.with_column("B", col("B") + lit(i) + col("B"))
+
+        df1 = df1.group_by(col("A")).agg(
+            sum_distinct(col("B")).alias("B"),
+            any_value(col("ARR")).alias("ARR"),
+            any_value(col("MAP")).alias("MAP"),
+        )
+        df2 = df2.group_by(col("B")).agg(
+            sum_distinct(col("A")).alias("A"),
+            any_value(col("ARR")).alias("ARR"),
+            any_value(col("MAP")).alias("MAP"),
+        )
+        union_df = df1.union_all(df2)
+        union_df = union_df.select(
+            array_sort("ARR", sort_ascending=False).alias("ARR"), "MAP", "A", "B"
+        )
+
+        assert union_df.schema == expected_schema
+
+        union_df.write.save_as_table(
+            write_table,
+            column_order="name",
+            mode="overwrite",
+            iceberg_config=ICEBERG_CONFIG,
+        )
+
+        queries = union_df.queries
+        # assert that the queries are broken down into 2 queries and 1 post action
+        assert len(queries["queries"]) == 2, queries["queries"]
+        assert len(queries["post_actions"]) == 1
+        final_df = structured_type_session.table(write_table)
+
+        # assert that
+        assert final_df.schema == expected_schema
+        assert final_df.dtypes == expected_dtypes
+    finally:
+        structured_type_session._query_compilation_stage_enabled = (
+            is_query_compilation_stage_enabled
+        )
+        structured_type_session._large_query_breakdown_enabled = (
+            is_large_query_breakdown_enabled
+        )
+        structured_type_session._large_query_breakdown_complexity_bounds = (
+            original_bounds
+        )
+        Utils.drop_table(structured_type_session, read_table)
+        Utils.drop_table(structured_type_session, write_table)
 
 
 @pytest.mark.skipif(
