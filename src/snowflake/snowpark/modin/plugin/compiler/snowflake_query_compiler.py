@@ -8468,7 +8468,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas doesn't support `align` with MultiIndex"
             )
 
-        # convert frames to variant type if index is compatible for join
+        # convert frames to variant type if index is incompatible for join
         frame, other_frame = join_utils.convert_incompatible_types_to_variant(
             frame,
             other_frame,
