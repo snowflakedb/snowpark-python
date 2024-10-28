@@ -305,7 +305,7 @@ class LargeQueryBreakdown:
                 for child in node.children_plan_nodes:
                     self._parent_map[child].add(node)
                     validity_status, score = self._is_node_valid_to_breakdown(
-                        child, root, relaxed=False
+                        child, root, allow_select_statement=False
                     )
                     if validity_status == InvalidNodesInBreakdownCategory.VALID_NODE:
                         # If the score for valid node is higher than the last candidate,
@@ -318,7 +318,7 @@ class LargeQueryBreakdown:
                         next_level.append(child)
 
                     relaxed_validity_status, _ = self._is_node_valid_to_breakdown(
-                        child, root, relaxed=True
+                        child, root, allow_select_statement=True
                     )
                     if (
                         relaxed_validity_status
@@ -374,7 +374,7 @@ class LargeQueryBreakdown:
         return temp_table_plan
 
     def _is_node_valid_to_breakdown(
-        self, node: TreeNode, root: TreeNode, relaxed: bool
+        self, node: TreeNode, root: TreeNode, allow_select_statement: bool
     ) -> Tuple[InvalidNodesInBreakdownCategory, int]:
         """Method to check if a node is valid to breakdown based on complexity score and node type.
 
@@ -388,7 +388,7 @@ class LargeQueryBreakdown:
         is_valid = True
         validity_status = (
             InvalidNodesInBreakdownCategory.VALID_NODE
-            if not relaxed
+            if not allow_select_statement
             else InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
         )
         if score < self.complexity_score_lower_bound:
@@ -399,7 +399,9 @@ class LargeQueryBreakdown:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
 
-        if is_valid and not self._is_node_pipeline_breaker(node, relaxed):
+        if is_valid and not self._is_node_pipeline_breaker(
+            node, allow_select_statement
+        ):
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
 
