@@ -1673,9 +1673,6 @@ class OrderedDataFrame:
         elif how == "left":
             filter_expression = filter_expression & left_row_pos.is_not_null()
             select_list = result_projected_column_snowflake_quoted_identifiers
-        # elif how == "right":
-        #     filter_expression = filter_expression & right_row_pos.is_not_null()
-        #     select_list = result_projected_column_snowflake_quoted_identifiers
         elif how == "inner":
             filter_expression = (
                 filter_expression

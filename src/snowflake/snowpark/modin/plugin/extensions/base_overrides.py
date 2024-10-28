@@ -880,28 +880,17 @@ def align(
     broadcast_axis: Axis = None,
 ):  # noqa: PR01, RT01, D200
     if method is not None or limit is not None or fill_axis != 0:
-        if isinstance(self, pd.DataFrame):
-            raise NotImplementedError(
-                "The 'method', 'limit', and 'fill_axis' keywords in DataFrame.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead."
-            )
-        elif isinstance(self, pd.Series):
-            raise NotImplementedError(
-                "The 'method', 'limit', and 'fill_axis' keywords in Series.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead."
-            )
+        raise NotImplementedError(
+            f"The 'method', 'limit', and 'fill_axis' keywords in {self.__class__.__name__}.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead."
+        )
     if broadcast_axis is not None:
-        if isinstance(self, pd.DataFrame):
-            raise NotImplementedError(
-                "The 'broadcast_axis' keyword in DataFrame.align is deprecated and will be removed in a future version."
-            )
-        elif isinstance(self, pd.Series):
-            raise NotImplementedError(
-                "The 'broadcast_axis' keyword in Series.align is deprecated and will be removed in a future version."
-            )
+        raise NotImplementedError(
+            f"The 'broadcast_axis' keyword in {self.__class__.__name__}.align is deprecated and will be removed in a future version."
+        )
     if axis not in [0, 1, None]:
-        if isinstance(self, pd.Series):
-            raise ValueError(f"No axis named {axis} for object type Series")
-        elif isinstance(self, pd.DataFrame):
-            raise ValueError(f"No axis named {axis} for object type DataFrame")
+        raise ValueError(
+            f"No axis named {axis} for object type {self.__class__.__name__}"
+        )
     query_compiler1, query_compiler2 = self._query_compiler.align(
         other, join=join, axis=axis, level=level, copy=copy, fill_value=fill_value
     )

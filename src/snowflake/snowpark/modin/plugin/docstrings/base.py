@@ -455,12 +455,16 @@ class BasePandasDataset:
                 outer: use union of keys from both frames, sort keys lexicographically.
             axis: allowed axis of the other object, default None
                 Align on index (0), columns (1), or both (None).
+                ``axis = 1 or None`` is not supported yet.
             level: int or level name, default None
                 Broadcast across a level, matching Index values on the passed MultiIndex level.
+                Not supported yet.
             copy: bool, default True
                 Always returns new objects. If copy=False and no reindexing is required then original objects are returned.
+                Not supported.
             fill_value: scalar, default np.nan
                 Always returns new objects. If copy=False and no reindexing is required then original objects are returned.
+                Not supported yet.
 
         Returns:
             tuple of (Series/DataFrame, type of other)

@@ -9,7 +9,10 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.utils import assert_series_equal
+from tests.integ.modin.utils import (
+    assert_series_equal,
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+)
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
@@ -51,6 +54,34 @@ def test_align_series_with_nulls_axis0(join):
     left, right = ser.align(other_ser, join=join, axis=0)
     assert_series_equal(left, native_left)
     assert_series_equal(right, native_right)
+
+
+@sql_count_checker(query_count=2, join_count=2)
+@pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
+def test_align_basic_series_reorder_index_axis0(join):
+    native_ser = native_pd.Series([1, 2, 3], index=["Z", "V", "W"])
+    native_other_ser = native_pd.Series(
+        [
+            60,
+            70,
+            80,
+            90,
+        ],
+        index=["G", "H", "M", "A"],
+    )
+    native_left, native_right = native_ser.align(
+        native_other_ser,
+        join=join,
+        axis=0,
+        limit=None,
+        fill_axis=0,
+        broadcast_axis=None,
+    )
+    ser = pd.Series(native_ser)
+    other_ser = pd.Series(native_other_ser)
+    left, right = ser.align(other_ser, join=join, axis=0)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(left, native_left)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(right, native_right)
 
 
 @sql_count_checker(query_count=0)
@@ -110,15 +141,15 @@ def test_align_series_invalid_axis_negative():
 
 
 @sql_count_checker(query_count=0)
-@pytest.mark.parametrize("method", ["backfill", "bfill", "pad", "ffill"])
-def test_align_series_deprecated_negative(method):
+def test_align_series_deprecated_negative():
     ser = pd.Series([1, 2, 3])
     other_ser = pd.Series([60, 70, 80, 90, 100, np.nan])
-    with pytest.raises(
-        NotImplementedError,
-        match="The 'method', 'limit', and 'fill_axis' keywords in Series.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead.",
-    ):
-        left, right = ser.align(other_ser, join="outer", method=method)
+    for method in ["backfill", "bfill", "pad", "ffill"]:
+        with pytest.raises(
+            NotImplementedError,
+            match="The 'method', 'limit', and 'fill_axis' keywords in Series.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead.",
+        ):
+            left, right = ser.align(other_ser, join="outer", method=method)
     with pytest.raises(
         NotImplementedError,
         match="The 'method', 'limit', and 'fill_axis' keywords in Series.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead.",

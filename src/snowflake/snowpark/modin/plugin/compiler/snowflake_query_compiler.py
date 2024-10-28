@@ -8468,27 +8468,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas doesn't support `align` with MultiIndex"
             )
 
-        left_result, right_result = self._modin_frame, self._modin_frame
-        left_frame, right_frame = self._modin_frame, self._modin_frame
-        left_frame_data_ids, left_index_ids, right_frame_data_ids, right_index_ids = (
-            None,
-            None,
-            None,
-            None,
+        # convert frames to variant type if index is compatible for join
+        frame, other_frame = join_utils.convert_incompatible_types_to_variant(
+            frame,
+            other_frame,
+            frame.index_column_snowflake_quoted_identifiers,
+            other_frame.index_column_snowflake_quoted_identifiers,
         )
-        if axis == 0:
-            (
-                left_result,
-                left_frame,
-                left_frame_data_ids,
-                left_index_ids,
-            ) = align_axis_0_left(frame, other_frame, join)
-            (
-                right_result,
-                right_frame,
-                right_frame_data_ids,
-                right_index_ids,
-            ) = align_axis_0_right(frame, other_frame, join)
+
+        (
+            left_result,
+            left_frame,
+            left_frame_data_ids,
+            left_index_ids,
+        ) = align_axis_0_left(frame, other_frame, join)
+        (
+            right_result,
+            right_frame,
+            right_frame_data_ids,
+            right_index_ids,
+        ) = align_axis_0_right(frame, other_frame, join)
 
         left_qc = SnowflakeQueryCompiler(
             InternalFrame.create(
