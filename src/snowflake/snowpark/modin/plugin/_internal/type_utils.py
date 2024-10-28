@@ -306,6 +306,10 @@ def column_astype(
     if to_dtype == np.object_:
         return to_variant(curr_col)
     if from_sf_type == to_sf_type:
+        if isinstance(to_sf_type, BooleanType):
+            new_col = to_variant(curr_col)
+            # treat NULL values in boolean columns as False to match pandas behavior
+            return iff(curr_col.is_null(), False, curr_col)
         return curr_col
 
     if isinstance(to_sf_type, _IntegralType) and "int64" not in str(to_dtype).lower():
@@ -384,8 +388,12 @@ def column_astype(
             new_col = cast(curr_col, LongType())
     else:
         new_col = cast(curr_col, to_sf_type)
-    # astype should not have any effect on NULL values
-    return iff(curr_col.is_null(), None, new_col)
+    # astype should not have any effect on NULL values except when casting to boolean
+    if isinstance(to_sf_type, BooleanType):
+        # treat NULL values in boolean columns as False to match pandas behavior
+        return iff(curr_col.is_null(), False, new_col)
+    else:
+        return iff(curr_col.is_null(), None, new_col)
 
 
 def is_astype_type_error(
