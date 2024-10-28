@@ -74,6 +74,12 @@ def find_duplicate_subtrees(
             current_level = next_level
 
     def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
+        # when a sql query is a select statement, its encoded_node_id_with_query
+        # contains _, which is used to separate the query id and node type name.
+        is_valid_candidate = "_" in encoded_node_id_with_query
+        if not is_valid_candidate:
+            return False
+
         is_duplicate_node = id_count_map[encoded_node_id_with_query] > 1
         if is_duplicate_node:
             is_any_parent_unique_node = any(
