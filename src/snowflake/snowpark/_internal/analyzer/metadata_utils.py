@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression, Star
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import Limit, LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    Limit,
+    LogicalPlan,
+    SnowflakeValues,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 
 if TYPE_CHECKING:
@@ -90,6 +94,9 @@ def infer_metadata(
             if isinstance(source_plan.child, SnowflakePlan):
                 attributes = source_plan.child._metadata.attributes
                 quoted_identifiers = source_plan.child._metadata.quoted_identifiers
+        # When source_plan is a SnowflakeValues, metadata is already defined locally
+        elif isinstance(source_plan, SnowflakeValues):
+            attributes = source_plan.output
         elif isinstance(source_plan, Project):
             quoted_identifiers = infer_quoted_identifiers_from_expressions(
                 source_plan.project_list,  # type: ignore
