@@ -64,7 +64,7 @@ def _validate_stage_path(path: str) -> str:
     stripped_path = path.strip("\"'")
     if not any(stripped_path.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
         raise ValueError(
-            f"'{path}' is an invalid path. DataFrameReader can only read files from stage locations."
+            f"'{path}' is an invalid Snowflake stage location. DataFrameReader can only read files from stage locations."
         )
     return path
 
