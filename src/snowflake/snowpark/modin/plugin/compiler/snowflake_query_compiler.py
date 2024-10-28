@@ -1784,7 +1784,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if self.is_multiindex():
             # Lazy multiindex is not supported
-            logging.warning(
+            _logger.warning(
                 "Lazy MultiIndex is not supported. MultiIndex values are evaluated eagerly and pulled out of Snowflake."
             )
             return self._modin_frame.index_columns_pandas_index()
@@ -3375,7 +3375,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 raise ValueError(f"sort kind must be 'stable' or None (got '{kind}')")
             # Do not show warning for 'quicksort' as this the default option.
             if kind not in ("stable", "quicksort"):
-                logging.warning(
+                _logger.warning(
                     f"choice of sort algorithm '{kind}' is ignored. sort kind must be 'stable', 'quicksort', or None"
                 )
 
@@ -13689,7 +13689,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         else:
             sampled_odf = frame.ordered_dataframe.sample(n=n, frac=frac)
-        logging.warning(
+        _logger.warning(
             "Snowpark pandas `sample` will create a temp table for sampled results to keep it deterministic."
         )
         res = SnowflakeQueryCompiler(

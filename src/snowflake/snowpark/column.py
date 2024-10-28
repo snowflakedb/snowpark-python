@@ -248,10 +248,10 @@ class Column:
         self,
         expr1: Union[str, Expression],
         expr2: Optional[str] = None,
-        ast: Optional[proto.Expr] = None,
+        _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
     ) -> None:
-        self._ast = ast
+        self._ast = _ast
 
         if expr2 is not None:
             if not (isinstance(expr1, str) and isinstance(expr2, str)):
@@ -295,8 +295,9 @@ class Column:
 
         assert self._expression is not None
 
-    def __emit_ast_for_binary(self, other: Any) -> bool:
-        """Helper function to determine without a session whether AST should be generated or not."""
+    def __should_emit_ast_for_binary(self, other: Any) -> bool:
+        """Helper function to determine without a session whether AST should be generated or not based on
+        checking whether self and other have an AST."""
         if isinstance(other, (Column, Expression)) and other._ast is None:
             return False
         return self._ast is not None
@@ -313,7 +314,7 @@ class Column:
                 ast.col.CopyFrom(self._ast)
                 ast.field = field
             return Column(
-                SubfieldString(self._expression, field), ast=expr, _emit_ast=_emit_ast
+                SubfieldString(self._expression, field), _ast=expr, _emit_ast=_emit_ast
             )
         elif isinstance(field, int):
             if _emit_ast:
@@ -322,7 +323,7 @@ class Column:
                 ast.col.CopyFrom(self._ast)
                 ast.idx = field
             return Column(
-                SubfieldInt(self._expression, field), ast=expr, _emit_ast=_emit_ast
+                SubfieldInt(self._expression, field), _ast=expr, _emit_ast=_emit_ast
             )
         else:
             raise TypeError(f"Unexpected item type: {type(field)}")
@@ -330,19 +331,19 @@ class Column:
     def __eq__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Equal to."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.eq)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
 
         right = Column._to_expr(other)
-        return Column(EqualTo(self._expression, right), ast=expr, _emit_ast=_emit_ast)
+        return Column(EqualTo(self._expression, right), _ast=expr, _emit_ast=_emit_ast)
 
     def __ne__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Not equal to."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.neq)
             ast.lhs.CopyFrom(self._ast)
@@ -350,217 +351,225 @@ class Column:
 
         right = Column._to_expr(other)
         return Column(
-            NotEqualTo(self._expression, right), ast=expr, _emit_ast=_emit_ast
+            NotEqualTo(self._expression, right), _ast=expr, _emit_ast=_emit_ast
         )
 
     def __gt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.gt)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             GreaterThan(self._expression, Column._to_expr(other)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __lt__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.lt)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             LessThan(self._expression, Column._to_expr(other)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __ge__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Greater than or equal to."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.geq)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             GreaterThanOrEqual(self._expression, Column._to_expr(other)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __le__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Less than or equal to."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.leq)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             LessThanOrEqual(self._expression, Column._to_expr(other)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __add__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Plus."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.add)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
-            Add(self._expression, Column._to_expr(other)), ast=expr, _emit_ast=_emit_ast
+            Add(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )
 
     def __radd__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.add)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
             ast.rhs.CopyFrom(self._ast)
         return Column(
-            Add(Column._to_expr(other), self._expression), ast=expr, _emit_ast=_emit_ast
+            Add(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )
 
     def __sub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Minus."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.sub)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             Subtract(self._expression, Column._to_expr(other)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __rsub__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.sub)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
             ast.rhs.CopyFrom(self._ast)
         return Column(
             Subtract(Column._to_expr(other), self._expression),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __mul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Multiply."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.mul)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             Multiply(self._expression, Column._to_expr(other)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __rmul__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.mul)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
             ast.rhs.CopyFrom(self._ast)
         return Column(
             Multiply(Column._to_expr(other), self._expression),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __truediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Divide."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.div)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             Divide(self._expression, Column._to_expr(other)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __rtruediv__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.div)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
             ast.rhs.CopyFrom(self._ast)
         return Column(
             Divide(Column._to_expr(other), self._expression),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __mod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Remainder."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.mod)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             Remainder(self._expression, Column._to_expr(other)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __rmod__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.mod)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
             ast.rhs.CopyFrom(self._ast)
         return Column(
             Remainder(Column._to_expr(other), self._expression),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
     def __pow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         """Power."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.pow)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
-            Pow(self._expression, Column._to_expr(other)), ast=expr, _emit_ast=_emit_ast
+            Pow(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )
 
     def __rpow__(self, other: Union[ColumnOrLiteral, Expression]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.pow)
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
             ast.rhs.CopyFrom(self._ast)
         return Column(
-            Pow(Column._to_expr(other), self._expression), ast=expr, _emit_ast=_emit_ast
+            Pow(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )
 
     def __bool__(self) -> bool:
@@ -637,7 +646,7 @@ class Column:
                 proto_ast = ast.sp_column_in__seq
                 proto_ast.col.CopyFrom(self._ast)
 
-            return Column(Literal(False), ast=ast, _emit_ast=_emit_ast)
+            return Column(Literal(False), _ast=ast, _emit_ast=_emit_ast)
 
         cols = [_to_col_if_lit(col, "in_") for col in cols]
 
@@ -700,7 +709,7 @@ class Column:
 
         return Column(
             InExpression(self._expression, value_expressions),
-            ast=ast,
+            _ast=ast,
             _emit_ast=_emit_ast,
         )
 
@@ -739,7 +748,7 @@ class Column:
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             BitwiseAnd(Column._to_expr(other), self._expression),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -756,7 +765,7 @@ class Column:
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             BitwiseOr(Column._to_expr(other), self._expression),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -773,7 +782,7 @@ class Column:
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             BitwiseXor(Column._to_expr(other), self._expression),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -789,20 +798,20 @@ class Column:
             ast = with_src_position(expr.neg)
             ast.operand.CopyFrom(self._ast)
 
-        return Column(UnaryMinus(self._expression), ast=expr, _emit_ast=_emit_ast)
+        return Column(UnaryMinus(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     @publicapi
     def equal_null(self, other: "Column", _emit_ast: bool = True) -> "Column":
         """Equal to. You can use this for comparisons against a null value."""
         expr = None
-        if _emit_ast := _emit_ast and self.__emit_ast_for_binary(other):
+        if _emit_ast := _emit_ast and self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_equal_null)
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
             EqualNullSafe(self._expression, Column._to_expr(other)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -814,7 +823,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_equal_nan)
             ast.col.CopyFrom(self._ast)
-        return Column(IsNaN(self._expression), ast=expr, _emit_ast=_emit_ast)
+        return Column(IsNaN(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     @publicapi
     def is_null(self, _emit_ast: bool = True) -> "Column":
@@ -824,7 +833,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_is_null)
             ast.col.CopyFrom(self._ast)
-        return Column(IsNull(self._expression), ast=expr, _emit_ast=_emit_ast)
+        return Column(IsNull(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     @publicapi
     def is_not_null(self, _emit_ast: bool = True) -> "Column":
@@ -834,54 +843,60 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_is_not_null)
             ast.col.CopyFrom(self._ast)
-        return Column(IsNotNull(self._expression), ast=expr, _emit_ast=_emit_ast)
+        return Column(IsNotNull(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     # `and, or, not` cannot be overloaded in Python, so use bitwise operators as boolean operators
     def __and__(self, other: Union["Column", Any]) -> "Column":
         """And."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(getattr(expr, "and"))
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
 
         return Column(
-            And(self._expression, Column._to_expr(other)), ast=expr, _emit_ast=_emit_ast
+            And(self._expression, Column._to_expr(other)),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )
 
     def __rand__(self, other: Union["Column", Any]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(getattr(expr, "and"))
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
             ast.rhs.CopyFrom(self._ast)
         return Column(
-            And(Column._to_expr(other), self._expression), ast=expr, _emit_ast=_emit_ast
+            And(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )  # pragma: no cover
 
     def __or__(self, other: Union["Column", Any]) -> "Column":
         """Or."""
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(getattr(expr, "or"))
             ast.lhs.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.rhs, other)
         return Column(
-            Or(self._expression, Column._to_expr(other)), ast=expr, _emit_ast=_emit_ast
+            Or(self._expression, Column._to_expr(other)), _ast=expr, _emit_ast=_emit_ast
         )
 
     def __ror__(self, other: Union["Column", Any]) -> "Column":
         expr = None
-        if _emit_ast := self.__emit_ast_for_binary(other):
+        if _emit_ast := self.__should_emit_ast_for_binary(other):
             expr = proto.Expr()
             ast = with_src_position(getattr(expr, "or"))
             build_expr_from_snowpark_column_or_python_val(ast.lhs, other)
             ast.rhs.CopyFrom(self._ast)
         return Column(
-            And(Column._to_expr(other), self._expression), ast=expr, _emit_ast=_emit_ast
+            And(Column._to_expr(other), self._expression),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )  # pragma: no cover
 
     def __invert__(self) -> "Column":
@@ -893,7 +908,7 @@ class Column:
             ast = with_src_position(getattr(expr, "not"))
             ast.operand.CopyFrom(self._ast)
 
-        return Column(Not(self._expression), ast=expr, _emit_ast=_emit_ast)
+        return Column(Not(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     def _cast(
         self, to: Union[str, DataType], try_: bool = False, _emit_ast: bool = True
@@ -912,7 +927,7 @@ class Column:
             )
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
-        return Column(Cast(self._expression, to, try_), ast=expr, _emit_ast=_emit_ast)
+        return Column(Cast(self._expression, to, try_), _ast=expr, _emit_ast=_emit_ast)
 
     @publicapi
     def cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
@@ -937,7 +952,7 @@ class Column:
             ast = with_src_position(expr.sp_column_desc)
             ast.col.CopyFrom(self._ast)
         return Column(
-            SortOrder(self._expression, Descending()), ast=expr, _emit_ast=_emit_ast
+            SortOrder(self._expression, Descending()), _ast=expr, _emit_ast=_emit_ast
         )
 
     @publicapi
@@ -952,7 +967,7 @@ class Column:
             ast.nulls_first.value = True
         return Column(
             SortOrder(self._expression, Descending(), NullsFirst()),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -968,7 +983,7 @@ class Column:
             ast.nulls_first.value = False
         return Column(
             SortOrder(self._expression, Descending(), NullsLast()),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -981,7 +996,7 @@ class Column:
             ast = with_src_position(expr.sp_column_asc)
             ast.col.CopyFrom(self._ast)
         return Column(
-            SortOrder(self._expression, Ascending()), ast=expr, _emit_ast=_emit_ast
+            SortOrder(self._expression, Ascending()), _ast=expr, _emit_ast=_emit_ast
         )
 
     @publicapi
@@ -996,7 +1011,7 @@ class Column:
             ast.nulls_first.value = True
         return Column(
             SortOrder(self._expression, Ascending(), NullsFirst()),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -1012,7 +1027,7 @@ class Column:
             ast.nulls_first.value = False
         return Column(
             SortOrder(self._expression, Ascending(), NullsLast()),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -1035,7 +1050,7 @@ class Column:
             build_expr_from_snowpark_column_or_python_val(ast.pattern, pattern)
         return Column(
             Like(self._expression, Column._to_expr(pattern)),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -1075,7 +1090,7 @@ class Column:
                 Column._to_expr(pattern),
                 None if parameters is None else Column._to_expr(parameters),
             ),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -1096,7 +1111,7 @@ class Column:
         other = snowflake.snowpark.functions.lit(other)
         return Column(
             snowflake.snowpark.functions.startswith(self, other)._expression,
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -1118,7 +1133,7 @@ class Column:
         other = snowflake.snowpark.functions.lit(other)
         return Column(
             snowflake.snowpark.functions.endswith(self, other)._expression,
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -1147,7 +1162,7 @@ class Column:
 
         return Column(
             snowflake.snowpark.functions.substring(self, start_pos, length)._expression,
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -1168,7 +1183,7 @@ class Column:
                 ast.collation_spec, collation_spec
             )
         return Column(
-            Collate(self._expression, collation_spec), ast=expr, _emit_ast=_emit_ast
+            Collate(self._expression, collation_spec), _ast=expr, _emit_ast=_emit_ast
         )
 
     @publicapi
@@ -1186,7 +1201,7 @@ class Column:
             build_expr_from_snowpark_column_or_python_val(ast.pattern, string)
         return Column(
             snowflake.snowpark.functions.contains(self, string)._expression,
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -1228,7 +1243,7 @@ class Column:
             if variant_is_as is not None:
                 ast.variant_is_as.value = variant_is_as
         return Column(
-            Alias(self._expression, quote_name(alias)), ast=expr, _emit_ast=_emit_ast
+            Alias(self._expression, quote_name(alias)), _ast=expr, _emit_ast=_emit_ast
         )
 
     @publicapi
@@ -1334,7 +1349,7 @@ class Column:
                 self._expression,
                 [order_by_col._expression for order_by_col in order_by_cols],
             ),
-            ast=expr,
+            _ast=expr,
             _emit_ast=_emit_ast,
         )
 
@@ -1362,7 +1377,7 @@ class Column:
 
     @classmethod
     def _expr(cls, e: str, ast: Optional[proto.Expr] = None) -> "Column":
-        return cls(UnresolvedAttribute(e, is_sql_text=True), ast=ast)
+        return cls(UnresolvedAttribute(e, is_sql_text=True), _ast=ast)
 
     # Add these alias for user code migration
     isin = in_
@@ -1402,11 +1417,9 @@ class CaseExpr(Column):
     """
 
     def __init__(
-        self,
-        expr: CaseWhen,
-        ast: Optional[proto.Expr] = None,
+        self, expr: CaseWhen, _ast: Optional[proto.Expr] = None, _emit_ast: bool = True
     ) -> None:
-        super().__init__(expr, ast=ast)
+        super().__init__(expr, _ast=_ast, _emit_ast=_emit_ast)
         self._branches = expr.branches
 
     @publicapi
@@ -1437,7 +1450,8 @@ class CaseExpr(Column):
                     ),
                 ]
             ),
-            ast=self._ast,
+            _ast=self._ast,
+            _emit_ast=_emit_ast,
         )
 
     @publicapi
@@ -1449,7 +1463,9 @@ class CaseExpr(Column):
         if _emit_ast:
             case_expr = with_src_position(self._ast.sp_column_case_when.cases.add())
             build_expr_from_snowpark_column_or_python_val(case_expr.value, value)
-        return CaseExpr(CaseWhen(self._branches, Column._to_expr(value)), ast=self._ast)
+        return CaseExpr(
+            CaseWhen(self._branches, Column._to_expr(value)), _ast=self._ast
+        )
 
     # This alias is to sync with snowpark scala
     else_ = otherwise

@@ -36,11 +36,13 @@ def pytest_configure(config):
     pytest.unparser_jar = config.getoption("--unparser-jar")
     if not os.path.exists(pytest.unparser_jar):
         pytest.unparser_jar = None
-        logging.error(
+    pytest.update_expectations = config.getoption("--update-expectations")
+
+    if pytest.unparser_jar is None and pytest.update_expectations:
+        raise RuntimeError(
             f"Unparser JAR not found at {pytest.unparser_jar}. "
             f"Please set the correct path with --unparser-jar or SNOWPARK_UNPARSER_JAR."
         )
-    pytest.update_expectations = config.getoption("--update-expectations")
 
 
 class TestTables:

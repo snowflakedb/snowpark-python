@@ -406,7 +406,7 @@ class Table(DataFrame):
                     ),
                     analyzer=self._session._analyzer,
                 ),
-                ast_stmt=stmt,
+                _ast_stmt=stmt,
             )
 
         # The analyzer will generate a sql with subquery. So we build the sql directly without using the analyzer.
@@ -414,7 +414,7 @@ class Table(DataFrame):
         frac_or_rowcount_text = str(frac * 100.0) if frac is not None else f"{n} ROWS"
         seed_text = f" SEED ({seed})" if seed is not None else ""
         sql_text = f"SELECT * FROM {self.table_name} SAMPLE {sampling_method_text} ({frac_or_rowcount_text}) {seed_text}"
-        return self._session.sql(sql_text, ast_stmt=stmt)
+        return self._session.sql(sql_text, _ast_stmt=stmt)
 
     @overload
     @publicapi
@@ -544,7 +544,7 @@ class Table(DataFrame):
                 if source
                 else None,
             ),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
         add_api_call(new_df, "Table.update")
@@ -667,7 +667,7 @@ class Table(DataFrame):
                 if source
                 else None,
             ),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
         add_api_call(new_df, "Table.delete")
         result = new_df._internal_collect_with_tag(
@@ -852,7 +852,7 @@ class Table(DataFrame):
                 join_expr._expression,
                 merge_exprs,
             ),
-            ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
         add_api_call(new_df, "Table.update")
         result = new_df._internal_collect_with_tag(

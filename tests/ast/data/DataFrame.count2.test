@@ -13,17 +13,164 @@ df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
 
 ## EXPECTED UNPARSER OUTPUT
 
+df = session.write_pandas(pandas.DataFrame(<not shown>)), "SNOWPARK_TEMP_TABLE_xxx", database="OPLATON_SVC_TDB", schema="AST_20241028_175215450010_TOG2748P_TEST", auto_create_table=True, table_type="temporary", use_logical_type=True)
+
 df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
 
 df.count()
 
-df.count(block=False)
-
-df.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
-
 ## EXPECTED ENCODED AST
 
-CoYBCoMBCnX6BXIKKBImCiQKIgogCh5TTk9XUEFSS19URU1QX1RBQkxFX1lOQ0tKWVg3Sk0SKhIoCiYKFQoFCgMiQSISCpoBBwoFCICAgAgYAQoNCgUKAyJCIhICaAEYARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBwSBAoCZGYYASICCAEKMQovCiXiBiIIARICCAEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgeEgAYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-Ci8KLQoj4gYgEgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCASABgEIgIIBAoIEgYIBRICCAQQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=
-CksKSQo/4gY8EgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCIiGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYBiICCAYKCBIGCAcSAggGEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+body {
+  assign {
+    expr {
+      sp_write_pandas {
+        auto_create_table: true
+        compression: "gzip"
+        df {
+          sp_dataframe_data__pandas {
+            v {
+              temp_table {
+                sp_table_name_flat {
+                  name: "\"OPLATON_SVC_TDB\".\"AST_20241028_175215450010_TOG2748P_TEST\".\"SNOWPARK_TEMP_TABLE_3QUMWEDVJI\""
+                }
+              }
+            }
+          }
+        }
+        kwargs {
+          _1: "use_logical_type"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 28
+              }
+              v: true
+            }
+          }
+        }
+        on_error: "abort_statement"
+        parallel: 4
+        quote_identifiers: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 28
+        }
+        table_name {
+          sp_table_name_structured {
+            name: "OPLATON_SVC_TDB"
+            name: "AST_20241028_175215450010_TOG2748P_TEST"
+            name: "SNOWPARK_TEMP_TABLE_3QUMWEDVJI"
+          }
+        }
+        table_type: "temporary"
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__pandas {
+            v {
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  name: "\"A\""
+                }
+                data_type {
+                  sp_string_type {
+                    length {
+                      value: 16777216
+                    }
+                  }
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  name: "\"B\""
+                }
+                data_type {
+                  sp_long_type: true
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 28
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_count {
+        block: true
+        id {
+          bitfield1: 2
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 30
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  eval {
+    uid: 4
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
