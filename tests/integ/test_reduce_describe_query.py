@@ -168,7 +168,7 @@ select_df_ops_expected_quoted_identifiers = [
 
 agg_df_ops_expected_quoted_identifiers = [
     (lambda df: df.agg(avg("a").as_("a"), count("b")), ['"A"', '"COUNT(B)"']),
-    (lambda df: df.agg(avg("a").as_("a"), count("b")).select("a"), ['"A"']),
+    (lambda df: df.agg(avg("a").as_('"a"'), count("b")).select('"a"'), ['"a"']),
     (lambda df: df.group_by("a").agg(avg("b")), ['"A"', '"AVG(B)"']),
     (lambda df: df.rollup("a").agg(min_("b")), ['"A"', '"MIN(B)"']),
     (lambda df: df.cube("a").agg(max_("b")), ['"A"', '"MAX(B)"']),
