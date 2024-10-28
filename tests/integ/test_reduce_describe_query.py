@@ -14,7 +14,16 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import col, count, lit, seq2, table_function
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    count,
+    lit,
+    max as max_,
+    min as min_,
+    seq2,
+    table_function,
+)
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
     Session,
@@ -157,6 +166,15 @@ select_df_ops_expected_quoted_identifiers = [
     ),
 ]
 
+agg_df_ops_expected_quoted_identifiers = [
+    (lambda df: df.agg(avg("a").as_("a"), count("b")), ['"A"', '"COUNT(B)"']),
+    (lambda df: df.agg(avg("a").as_("a"), count("b")).select("a"), ['"A"']),
+    (lambda df: df.group_by("a").agg(avg("b")), ['"A"', '"AVG(B)"']),
+    (lambda df: df.rollup("a").agg(min_("b")), ['"A"', '"MIN(B)"']),
+    (lambda df: df.cube("a").agg(max_("b")), ['"A"', '"MAX(B)"']),
+    (lambda df: df.distinct(), ['"A"', '"B"']),
+]
+
 
 def check_attributes_equality(attrs1: List[Attribute], attrs2: List[Attribute]) -> None:
     for attr1, attr2 in zip(attrs1, attrs2):
@@ -251,6 +269,23 @@ def test_select_quoted_identifiers(
 def test_snowflake_values(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     expected_quoted_identifiers = ['"A"', '"B"']
+    if session.reduce_describe_query_enabled:
+        with SqlCounter(query_count=0, describe_count=0):
+            assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+    else:
+        with SqlCounter(query_count=0, describe_count=1):
+            assert df._plan._metadata.quoted_identifiers is None
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+
+
+@pytest.mark.parametrize(
+    "action,expected_quoted_identifiers",
+    agg_df_ops_expected_quoted_identifiers,
+)
+def test_aggregate(session, action, expected_quoted_identifiers):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df = action(df)
     if session.reduce_describe_query_enabled:
         with SqlCounter(query_count=0, describe_count=0):
             assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
