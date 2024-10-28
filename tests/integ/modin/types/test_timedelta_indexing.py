@@ -78,7 +78,7 @@ def test_series_indexing_get_timedelta(
         [
             (2, ["b", "a"]),
             2,
-            3,
+            2,
             True,
         ],  # require transpose and keep result column type as timedelta
         [(2, ...), 1, 0, False],  # require transpose but lose the type
@@ -466,7 +466,7 @@ def test_index_get_timedelta(key, join_count):
     [
         [2, "iat", 1, 1],
         [native_pd.Timedelta("1 days 1 hour"), "at", 2, 4],
-        [[2, 1], "iloc", 1, 4],
+        [[2, 1], "iloc", 1, 3],
         [
             [
                 native_pd.Timedelta("1 days 1 hour"),
@@ -510,7 +510,7 @@ def test_series_with_timedelta_index(key, api, query_count, join_count):
     [
         [2, "iat", 1, 1],
         [native_pd.Timedelta("1 days 1 hour"), "at", 2, 4],
-        [[2, 1], "iloc", 1, 4],
+        [[2, 1], "iloc", 1, 3],
         [
             [
                 native_pd.Timedelta("1 days 1 hour"),

@@ -10,10 +10,16 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
+    PANDAS_VERSION_PREDICATE,
     create_test_dfs,
     eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+pytestmark = pytest.mark.skipif(
+    PANDAS_VERSION_PREDICATE,
+    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+)
 
 
 def eval_snowpark_pandas_result(*args, **kwargs):
@@ -142,7 +148,7 @@ def test_dataframe_groupby_transform_conflicting_labels_negative():
 
 @sql_count_checker(
     query_count=11,
-    join_count=10,
+    join_count=8,
     udtf_count=2,
     high_count_expected=True,
     high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",
