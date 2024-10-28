@@ -39,7 +39,7 @@ try:
 except ImportError:
     is_dateutil_available = False
 
-from snowflake.snowpark.functions import lit
+from snowflake.snowpark.functions import col, lit, sum_distinct
 from snowflake.snowpark.row import Row
 from tests.utils import (
     IS_IN_STORED_PROC,
@@ -662,6 +662,89 @@ def test_concurrent_update_on_sensitive_configs(
         f"You might have more than one threads sharing the Session object trying to update {config}"
         in caplog.text
     )
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="large query breakdown is not supported in local testing mode",
+    run=False,
+)
+def test_large_query_breakdown_with_cte(threadsafe_session):
+    bounds = (300, 600) if threadsafe_session.sql_simplifier_enabled else (60, 90)
+    try:
+        original_query_compilation_stage_enabled = (
+            threadsafe_session._query_compilation_stage_enabled
+        )
+        original_cte_optimization_enabled = threadsafe_session._cte_optimization_enabled
+        original_large_query_breakdown_enabled = (
+            threadsafe_session._large_query_breakdown_enabled
+        )
+        original_complexity_bounds = (
+            threadsafe_session._large_query_breakdown_complexity_bounds
+        )
+        threadsafe_session._query_compilation_stage_enabled = True
+        threadsafe_session._cte_optimization_enabled = True
+        threadsafe_session._large_query_breakdown_enabled = True
+        threadsafe_session._large_query_breakdown_complexity_bounds = bounds
+
+        df0 = threadsafe_session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
+        df1 = threadsafe_session.sql("select 2 as b, 3 as c")
+        df_join = df0.join(df1, on=["b"], how="inner")
+
+        df2 = df_join.filter(col("b") == 2).union_all(df_join)
+        df3 = threadsafe_session.sql("select 3 as b, 4 as c").with_column(
+            "a", col("b") + 1
+        )
+        for i in range(7):
+            df2 = df2.with_column("a", col("a") + i + col("a"))
+            df3 = df3.with_column("b", col("b") + i + col("b"))
+
+        df2 = df2.group_by("a").agg(sum_distinct(col("b")).alias("b"))
+        df3 = df3.group_by("b").agg(sum_distinct(col("a")).alias("a"))
+
+        df4 = df2.union_all(df3)
+
+        def apply_filter_and_collect(df, thread_id):
+            final_df = df.filter(col("a") > thread_id * 5)
+            queries = final_df.queries
+            result = final_df.collect()
+            return (queries, result)
+
+        results = []
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [
+                executor.submit(apply_filter_and_collect, df4, i) for i in range(10)
+            ]
+
+            for future in futures:
+                results.append(future.result())
+
+        threadsafe_session._query_compilation_stage_enabled = False
+        threadsafe_session._cte_optimization_enabled = False
+        for i, result in enumerate(results):
+            queries, optimized_collect = result
+            _, non_optimized_collect = apply_filter_and_collect(df4, i)
+            Utils.check_answer(optimized_collect, non_optimized_collect)
+
+            assert len(queries["queries"]) == 2
+            assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+            if threadsafe_session.sql_simplifier_enabled:
+                assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
+
+            assert len(queries["post_actions"]) == 1
+            assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+
+    finally:
+        threadsafe_session._query_compilation_stage_enabled = (
+            original_query_compilation_stage_enabled
+        )
+        threadsafe_session._cte_optimization_enabled = original_cte_optimization_enabled
+        threadsafe_session._large_query_breakdown_enabled = (
+            original_large_query_breakdown_enabled
+        )
+        threadsafe_session._large_query_breakdown_complexity_bounds = (
+            original_complexity_bounds
+        )
 
 
 @pytest.mark.xfail(
