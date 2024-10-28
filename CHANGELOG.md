@@ -13,6 +13,8 @@
   - `options`
   - `partition_by`
 - Added support for `snowflake_cortex_summarize`.
+- Added the following new functions in `snowflake.snowpark.dataframe`:
+  - `map`
 
 #### Improvements
 
@@ -51,6 +53,7 @@
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 - Added support for `DataFrame.attrs` and `Series.attrs`.
 - Added support for `DataFrame.style`.
+- Added support for `Index.to_numpy`.
 
 #### Improvements
 
