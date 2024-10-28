@@ -169,6 +169,7 @@ def test_large_query_breakdown_external_cte_ref(session):
             "num_nodes_below_lower_bound": 28,
             "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
             "num_valid_nodes": 0,
+            "num_valid_nodes_relaxed": 0,
             "num_partitions_made": 0,
         }
     ]
