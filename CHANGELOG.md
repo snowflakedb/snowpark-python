@@ -6,10 +6,10 @@
 
 #### New Features
 
-- Updated `Session` class to be thread-safe. This allows concurrent dataframe transformations, dataframe actions, UDF and stored procedure registration, and concurrent file uploads when using the same `Session` object.
+- Updated `Session` class to be thread-safe. This allows concurrent DataFrame transformations, DataFrame actions, UDF and stored procedure registration, and concurrent file uploads when using the same `Session` object.
   - The feature is disabled by default and can be enabled by setting `FEATURE_THREAD_SAFE_PYTHON_SESSION` to `True` for account.
   - Updating session configurations, like changing database or schema, when multiple threads are using the session may lead to unexpected behavior.
-  - When enabled, some internally created temporary table names returned from `DataFrame.queries` API are not deterministic, and may be different when dataframe actions are executed. This does not affect explicit user-created temporary tables.
+  - When enabled, some internally created temporary table names returned from `DataFrame.queries` API are not deterministic, and may be different when DataFrame actions are executed. This does not affect explicit user-created temporary tables.
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 - Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
