@@ -96,7 +96,7 @@ def check_summary_breakdown_value(patch_send, expected_summary):
 
 
 def test_no_pipeline_breaker_nodes(session):
-    """Test large query breakdown works with default bounds"""
+    """Test large query breakdown breaks select statement when no pipeline breaker nodes found"""
     if not session.sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
@@ -118,7 +118,13 @@ def test_no_pipeline_breaker_nodes(session):
         # there is one query count in large query breakdown to check there
         # is active transaction
         with SqlCounter(query_count=1, describe_count=0):
-            final_df.queries
+            queries = final_df.queries
+
+    assert len(queries["queries"]) == 2
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+
+    assert len(queries["post_actions"]) == 1
+    assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
     patch_send.assert_called_once()
     expected_summary = [
@@ -404,6 +410,36 @@ def test_pivot_unpivot(session):
         check_result_with_and_without_breakdown(session, final_df)
 
     plan_queries = final_df.queries
+    assert len(plan_queries["queries"]) == 2
+    assert plan_queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+
+    assert len(plan_queries["post_actions"]) == 1
+    assert plan_queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+
+
+def test_sort(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip(
+            "without sql simplifier, the plan is too large and hits max recursion depth"
+        )
+    base_df = session.sql("select 1 as A, 2 as B")
+    df1 = base_df.with_column("A", col("A") + lit(1))
+    df2 = base_df.with_column("B", col("B") + lit(1))
+
+    for i in range(160):
+        df1 = df1.with_column("A", col("A") + lit(i))
+        df2 = df2.with_column("B", col("B") + lit(i))
+
+    # when sort is applied on the final dataframe, the final result should be the same
+    # it will now be broken down at select statement
+    union_df = df1.union_all(df2)
+    final_df = union_df.with_column("A", col("A") + lit(1)).order_by("A")
+
+    with SqlCounter(query_count=5, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
+
+    with SqlCounter(query_count=1, describe_count=0):
+        plan_queries = final_df.queries
     assert len(plan_queries["queries"]) == 2
     assert plan_queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
 
