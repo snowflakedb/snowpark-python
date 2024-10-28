@@ -949,6 +949,36 @@ def test_select_with_column_expr_alias(session):
     )
 
 
+def test_time_series_aggregation_grouping(session):
+    data = [
+        ["2024-02-01 00:00:00", "product_A", "transaction_1", 10],
+        ["2024-02-15 00:00:00", "product_A", "transaction_2", 15],
+        ["2024-02-15 08:00:00", "product_A", "transaction_3", 7],
+        ["2024-02-17 00:00:00", "product_A", "transaction_4", 3],
+    ]
+    df = session.create_dataframe(data).to_df(
+        "TS", "PRODUCT_ID", "TRANSACTION_ID", "QUANTITY"
+    )
+
+    res = df.analytics.time_series_agg(
+        time_col="TS",
+        group_by=["PRODUCT_ID"],
+        aggs={"QUANTITY": ["SUM"]},
+        windows=["-1D", "-7D"],
+        sliding_interval="1D",
+    )
+    check_result(
+        session,
+        res,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=0,
+        join_count=8,
+        cte_join_count=4,
+    )
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
