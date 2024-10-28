@@ -430,8 +430,9 @@ def test_sort(session):
         df1 = df1.with_column("A", col("A") + lit(i))
         df2 = df2.with_column("B", col("B") + lit(i))
 
-    # when sort is applied on the final dataframe, the final result should be the same
-    # it will now be broken down at select statement
+    # when sort is applied on the final dataframe, the final result should be the same as
+    # when no optimization is applied.
+    # A cut will be made at SelectStatement
     union_df = df1.union_all(df2)
     final_df = union_df.with_column("A", col("A") + lit(1)).order_by("A")
 
