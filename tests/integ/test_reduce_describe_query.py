@@ -248,6 +248,19 @@ def test_select_quoted_identifiers(
         assert quoted_identifiers == expected_quoted_identifiers
 
 
+def test_snowflake_values(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    expected_quoted_identifiers = ['"A"', '"B"']
+    if session.reduce_describe_query_enabled:
+        with SqlCounter(query_count=0, describe_count=0):
+            assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+    else:
+        with SqlCounter(query_count=0, describe_count=1):
+            assert df._plan._metadata.quoted_identifiers is None
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
 def test_reduce_describe_query_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
