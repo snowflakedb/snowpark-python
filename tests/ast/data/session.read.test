@@ -42,4 +42,424 @@ df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE
 
 ## EXPECTED ENCODED AST
 
-CmQKYgpTigtQChJyZXNvdXJjZXMvaXJpcy5jc3YSHgocChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkSBQoDZGYxGAEiAggBCmkKZwpYkgtVChdyZXNvdXJjZXMvdGVzdEpzb24uanNvbhIeChwKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIFCgNkZjIYAiICCAIKZQpjClSCC1EKE3Jlc291cmNlcy90ZXN0LmF2cm8SHgocChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB0SBQoDZGYzGAMiAggDCmgKZgpXogtUChZyZXNvdXJjZXMvdGVzdC5wYXJxdWV0Eh4KHAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB8aGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfEgUKA2RmNBgEIgIIBApkCmIKU7ILUAoScmVzb3VyY2VzL3Rlc3QueG1sEh4KHAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCEaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSghEgUKA2RmNRgFIgIIBQpkCmIKU5oLUAoScmVzb3VyY2VzL3Rlc3Qub3JjEh4KHAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCMaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgjEgUKA2RmNhgGIgIIBgqKAgqHAgr3AYoL8wEKEXRlc3RDU1ZoZWFkZXIuY3N2EsEBEr4BCgxQQVJTRV9IRUFERVISbxJtCgxJTkZFUl9TQ0hFTUESHgocChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoJRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCUiIcoBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCUQARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCUiIcoBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCUQARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCUSBQoDZGY3GAciAggHCu4BCusBCtsBigvXAQoRdGVzdENTVmhlYWRlci5jc3YSpQEaogEKMQoMSU5GRVJfU0NIRU1BEiHKAR4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgnEAEKMQoMUEFSU0VfSEVBREVSEiHKAR4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgnEAESHgocChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoJxoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCcaGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgnEgUKA2RmOBgIIgIICAqCAwr/AgrvAooL6wIKEXRlc3RDU1ZoZWFkZXIuY3N2ErkCIrYCCusBKugBCqkBCmeSAWQKCxoJCgcKBQoDY29sGjn6DDYKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgrEhhNRVRBREFUQSRGSUxFX1JPV19OVU1CRVIiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgrCjz6DDkKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgrEhtNRVRBREFUQSRGSUxFX0xBU1RfTU9ESUZJRUQQARIeChwKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgrGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoKxIqCgsKAwoBYRICYAEYAQoOCgMKAWISBZoBAgoAGAEKCwoDCgFjEgJIARgBGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoKxoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCsSBQoDZGY5GAkiAggJEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+body {
+  assign {
+    expr {
+      sp_read_csv {
+        path: "resources/iris.csv"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 25
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_json {
+        path: "resources/testJson.json"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_avro {
+        path: "resources/test.avro"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_parquet {
+        path: "resources/test.parquet"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 31
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_xml {
+        path: "resources/test.xml"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 33
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+      value: "df5"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_orc {
+        path: "resources/test.orc"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 35
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+      value: "df6"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_csv {
+        path: "testCSVheader.csv"
+        reader {
+          sp_dataframe_reader_option {
+            key: "PARSE_HEADER"
+            reader {
+              sp_dataframe_reader_option {
+                key: "INFER_SCHEMA"
+                reader {
+                  sp_dataframe_reader_init {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 37
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 37
+                }
+                value {
+                  bool_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 37
+                    }
+                    v: true
+                  }
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 37
+            }
+            value {
+              bool_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 37
+                }
+                v: true
+              }
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 37
+        }
+      }
+    }
+    symbol {
+      value: "df7"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_csv {
+        path: "testCSVheader.csv"
+        reader {
+          sp_dataframe_reader_options {
+            configs {
+              _1: "INFER_SCHEMA"
+              _2 {
+                bool_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 39
+                  }
+                  v: true
+                }
+              }
+            }
+            configs {
+              _1: "PARSE_HEADER"
+              _2 {
+                bool_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 39
+                  }
+                  v: true
+                }
+              }
+            }
+            reader {
+              sp_dataframe_reader_init {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 39
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 39
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+      value: "df8"
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_csv {
+        path: "testCSVheader.csv"
+        reader {
+          sp_dataframe_reader_schema {
+            reader {
+              sp_dataframe_reader_with_metadata {
+                metadata_columns {
+                  args {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 43
+                          }
+                          v: "METADATA$FILE_ROW_NUMBER"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                    }
+                  }
+                  args {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "METADATA$FILE_LAST_MODIFIED"
+                    }
+                  }
+                  variadic: true
+                }
+                reader {
+                  sp_dataframe_reader_init {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 43
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 43
+                }
+              }
+            }
+            schema {
+              fields {
+                column_identifier {
+                  name: "a"
+                }
+                data_type {
+                  sp_integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  name: "b"
+                }
+                data_type {
+                  sp_string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  name: "c"
+                }
+                data_type {
+                  sp_float_type: true
+                }
+                nullable: true
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 43
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+      value: "df9"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

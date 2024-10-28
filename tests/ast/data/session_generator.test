@@ -18,4 +18,373 @@ df3 = session.generator(seq8(0), uniform(lit(1), lit(10), lit(2)), rowcount=0, t
 
 ## EXPECTED ENCODED AST
 
-CtkBCtYBCsYB0grCAQpQkgFNCgsaCQoHCgUKA2NvbBoi+gwfChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGxIBQSIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsKUJIBTQoLGgkKBwoFCgNjb2waIvoMHwoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsSAUIiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgbGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoGygBEgUKA2RmMRgBIgIIAQqwAwqtAwqdA9IKmQMKUJIBTQoMGgoKCAoGCgRzZXExGiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEAEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdCqQCkgGgAgoPGg0KCwoJCgd1bmlmb3JtGk+SAUwKCxoJCgcKBQoDbGl0GiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEAEiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdGk+SAUwKCxoJCgcKBQoDbGl0GiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEAoiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdGk+SAUwKCxoJCgcKBQoDbGl0GiHCAh4KGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEAIiGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHRADGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHSgBEgUKA2RmMhgCIgIIAgquAwqrAwqbA9IKlwMKTpIBSwoMGgoKCAoGCgRzZXE4Gh/CAhwKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHwqkApIBoAIKDxoNCgsKCQoHdW5pZm9ybRpPkgFMCgsaCQoHCgUKA2xpdBohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxABIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxpPkgFMCgsaCQoHCgUKA2xpdBohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxAKIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxpPkgFMCgsaCQoHCgUKA2xpdBohwgIeChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHxACIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHyIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB8aGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgfIAEoARIFCgNkZjMYAyICCAMQARoREg8KDQoFZmluYWwQAxgJIBQiBBABGBc=
+body {
+  assign {
+    expr {
+      sp_generator {
+        columns {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 27
+                }
+                v: "A"
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+          }
+        }
+        columns {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 27
+                }
+                v: "B"
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_generator {
+        columns {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "seq1"
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 29
+                }
+                v: 1
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+          }
+        }
+        columns {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "uniform"
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 29
+                    }
+                    v: 1
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 29
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 29
+                    }
+                    v: 10
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 29
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 29
+                    }
+                    v: 2
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 29
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+          }
+        }
+        row_count: 3
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_generator {
+        columns {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "seq8"
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 31
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 31
+            }
+          }
+        }
+        columns {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "uniform"
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 31
+                    }
+                    v: 1
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 31
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 31
+                    }
+                    v: 10
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 31
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 31
+                    }
+                    v: 2
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 31
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 31
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+        time_limit_seconds: 1
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

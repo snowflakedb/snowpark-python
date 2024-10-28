@@ -17,6 +17,8 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 
+_logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -155,5 +157,5 @@ def encode_id(
     try:
         return hashlib.sha256(string.encode()).hexdigest()[:10]
     except Exception as ex:
-        logging.warning(f"Encode SnowflakePlan ID failed: {ex}")
+        _logger.warning(f"Encode SnowflakePlan ID failed: {ex}")
         return None

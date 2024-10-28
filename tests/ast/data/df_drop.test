@@ -16,5 +16,155 @@ session.table("throwaway1").drop_table()
 
 ## EXPECTED ENCODED AST
 
-CkMKQQozggwwEg4KDAoKdGhyb3dhd2F5MRoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBkiAggBEgQKAmRmGAEiAggBCpIBCo8BCoABmgd9ClYKUpIBTwoLGgkKBwoFCgNjb2waJPoMIQoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsSA05VTSIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsQARIHggIECgIIARoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKBsSBAoCZGYYAiICCAIKPwo9CjOCDDASDgoMCgp0aHJvd2F3YXkxGhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoHSICCAESABgDIgIIAwovCi0KI5IMIAoCCAMSGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgdEgAYBCICCAQKCBIGCAUSAggEEAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
-EAEaERIPCg0KBWZpbmFsEAMYCSAUIgQQARgX
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "throwaway1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    fn_name_flat {
+                      name: "col"
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 27
+                  }
+                  v: "NUM"
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 27
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "throwaway1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table_drop_table {
+        id {
+          bitfield1: 3
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  eval {
+    uid: 5
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

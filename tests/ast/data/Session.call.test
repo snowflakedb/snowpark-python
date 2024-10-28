@@ -15,14 +15,420 @@ df2 = session.call("my_sproc", 2, "one", dict(), False)
 
 my_sproc_sp = sproc(my_sproc, name="my_sproc", replace=True, comment="The parameters are useless.")
 
+my_sproc_sp = session.table("information_schema.packages")
+
+res1 = session.sql("drop table if exists information_schema.packages /* internal query to drop unused temp table */")
+
+my_sproc_sp = session.sql("ls '@\"OPLATON_SVC_TDB\".\"AST_20241028_175351615925_WP4ILQ2M_TEST\".SNOWPARK_TEMP_STAGE_KPIP8L7MLS'")
+
+my_sproc_sp = my_sproc_sp.select(col("\"name\""))
+
 df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
 
-my_sproc_sp(1, "two", {"param1": 10, "param2": "twenty"}, True)
+df.collect()
 
 df2 = session.call("my_sproc", 2, "one", {}, False)
 
-my_sproc_sp(2, "one", {}, False)
+df2.collect()
 
 ## EXPECTED ENCODED AST
 
-CoABCn4KZ/IMZAodChtUaGUgcGFyYW1ldGVycyBhcmUgdXNlbGVzcy4SBW93bmVyIgoSCG15X3Nwcm9jWgwKCgoIbXlfc3Byb2NoBHABiAEBkgEaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKB4SDQoLbXlfc3Byb2Nfc3AYASICCAEK9wIK9AIK5QKSAeECChJCEFIAWgwKCgoIbXlfc3Byb2MaIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCAQARok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIBIDdHdvGsIBkgS+AQpMEif6DCQKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSggEgZwYXJhbTESIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCAQCgpSEif6DCQKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSggEgZwYXJhbTISJ/oMJAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCASBnR3ZW50eRIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCAaIcoBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCAQASIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCASBAoCZGYYAiICCAIK5wIK5AIK2QKSAdUCCgY6BAoCCAEaIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCAQARok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIBIDdHdvGsIBkgS+AQpMEif6DCQKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSggEgZwYXJhbTESIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCAQCgpSEif6DCQKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSggEgZwYXJhbTISJ/oMJAoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCASBnR3ZW50eRIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCAaIcoBHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCAQASIaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCASABgDIgIIAwoIEgYIBBICCAMK0gEKzwEKvwGSAbsBChJCEFIAWgwKCgoIbXlfc3Byb2MaIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCIQAhok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhIDb25lGh+SBBwSGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgiGh/KARwKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgiIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhIFCgNkZjIYBSICCAUKwQEKvgEKswGSAa8BCgY6BAoCCAEaIcICHgoaGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFKCIQAhok+gwhChoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhIDb25lGh+SBBwSGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgiGh/KARwKGhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSgiIhoaFlNSQ19QT1NJVElPTl9URVNUX01PREUoIhIAGAYiAggGCggSBggHEgIIBhABGhESDwoNCgVmaW5hbBADGAkgFCIEEAEYFw==
+body {
+  assign {
+    expr {
+      stored_procedure {
+        comment {
+          value: "The parameters are useless."
+        }
+        execute_as: "owner"
+        func {
+          name: "my_sproc"
+        }
+        name {
+          fn_name_flat {
+            name: "my_sproc"
+          }
+        }
+        parallel: 4
+        replace: true
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 30
+        }
+      }
+    }
+    symbol {
+      value: "my_sproc_sp"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "information_schema.packages"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 30
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "my_sproc_sp"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "drop table if exists information_schema.packages /* internal query to drop unused temp table */"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 591
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "ls \'@\"OPLATON_SVC_TDB\".\"AST_20241028_175351615925_WP4ILQ2M_TEST\".SNOWPARK_TEMP_STAGE_KPIP8L7MLS\'"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 30
+        }
+      }
+    }
+    symbol {
+      value: "my_sproc_sp"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 30
+                }
+                v: "\"name\""
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 30
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 4
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 30
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "my_sproc_sp"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          stored_procedure {
+            log_on_exception {
+            }
+            name {
+              fn_name_flat {
+                name: "my_sproc"
+              }
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+            v: 1
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+            v: "two"
+          }
+        }
+        pos_args {
+          seq_map_val {
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: "param1"
+                }
+              }
+              vs {
+                int64_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: 10
+                }
+              }
+            }
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: "param2"
+                }
+              }
+              vs {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: "twenty"
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+          }
+        }
+        pos_args {
+          bool_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+            v: true
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 6
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  eval {
+    uid: 8
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          stored_procedure {
+            log_on_exception {
+            }
+            name {
+              fn_name_flat {
+                name: "my_sproc"
+              }
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+            v: 2
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+            v: "one"
+          }
+        }
+        pos_args {
+          seq_map_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+          }
+        }
+        pos_args {
+          bool_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 34
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 9
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 34
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  eval {
+    uid: 11
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

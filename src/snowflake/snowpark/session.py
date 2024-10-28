@@ -8,7 +8,6 @@ import datetime
 import decimal
 import inspect
 import json
-import logging
 import os
 import re
 import sys
@@ -1558,7 +1557,7 @@ class Session:
                             f"but not on your local environment."
                         )
                     except Exception as ex:  # pragma: no cover
-                        logging.warning(
+                        _logger.warning(
                             "Failed to get the local distribution of package %s: %s",
                             package_name,
                             ex,
@@ -3020,7 +3019,7 @@ class Session:
                     )
                     schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
                 except ProgrammingError as e:
-                    logging.debug(
+                    _logger.debug(
                         f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
                         f"string from select query. Exception: {str(e)}"
                     )
