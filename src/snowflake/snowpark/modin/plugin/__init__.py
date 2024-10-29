@@ -97,6 +97,22 @@ inherit_modules = [
 for (doc_module, target_object) in inherit_modules:
     _inherit_docstrings(doc_module, overwrite_existing=True)(target_object)
 
+# _inherit_docstrings needs a function or class as argument, so we must explicitly iterate over
+# all members of io and general
+for name in dir(modin.pandas.io):
+    doc_obj = getattr(docstrings.io, name, None)
+    if not name.startswith("_") and doc_obj is not None:
+        _inherit_docstrings(doc_obj, overwrite_existing=True)(
+            getattr(modin.pandas.io, name)
+        )
+
+for name in dir(modin.pandas.general):
+    doc_obj = getattr(docstrings.general, name, None)
+    if not name.startswith("_") and doc_obj is not None:
+        _inherit_docstrings(doc_obj, overwrite_existing=True)(
+            getattr(modin.pandas.general, name)
+        )
+
 
 # === SET UP I/O ===
 # Configure Modin engine so it detects our Snowflake I/O classes.
