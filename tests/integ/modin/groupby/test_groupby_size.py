@@ -150,6 +150,9 @@ def test_groupby_agg_size(by, as_index):
             lambda df: df.groupby(by, as_index=as_index).agg(
                 new_col=pd.NamedAgg("col5_int16", "size")
             ),
+            # This is a bug in pandas - the attrs are not propagated for
+            # size, but are propagated for other functions.
+            test_attrs=False,
         )
 
     # DataFrame with __getitem__
@@ -160,6 +163,9 @@ def test_groupby_agg_size(by, as_index):
             lambda df: df.groupby(by, as_index=as_index)["col5_int16"].agg(
                 new_col="size"
             ),
+            # This is a bug in pandas - the attrs are not propagated for
+            # size, but are propagated for other functions.
+            test_attrs=False,
         )
 
 
@@ -209,4 +215,7 @@ def test_timedelta_agg(by):
         snow_df,
         native_df,
         lambda df: df.groupby(by).agg(d=pd.NamedAgg("A" if by != "A" else "C", "size")),
+        # This is a bug in pandas - the attrs are not propagated for
+        # size, but are propagated for other functions.
+        test_attrs=False,
     )

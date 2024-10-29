@@ -689,21 +689,23 @@ def test_agg_with_no_column_raises(pandas_df):
 
 
 @pytest.mark.parametrize(
-    "func",
+    "func, test_attrs",
     [
-        lambda df: df.aggregate(min),
-        lambda df: df.aggregate("size"),
-        lambda df: df.max(),
-        lambda df: df.count(),
-        lambda df: df.corr(),
-        lambda df: df.aggregate(x=("A", "min")),
+        (lambda df: df.aggregate(min), True),
+        # This is a bug in pandas - the attrs are not propagated for
+        # size, but are propagated for other functions.
+        (lambda df: df.aggregate("size"), False),
+        (lambda df: df.max(), True),
+        (lambda df: df.count(), True),
+        (lambda df: df.corr(), True),
+        (lambda df: df.aggregate(x=("A", "min")), True),
     ],
 )
 @sql_count_checker(query_count=1)
-def test_agg_with_single_col(func):
+def test_agg_with_single_col(func, test_attrs):
     native_df = native_pd.DataFrame({"A": [1, 2, 3]})
     snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(snow_df, native_df, func)
+    eval_snowpark_pandas_result(snow_df, native_df, func, test_attrs=test_attrs)
 
 
 @pytest.mark.parametrize(
