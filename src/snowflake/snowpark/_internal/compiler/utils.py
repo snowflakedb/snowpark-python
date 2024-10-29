@@ -127,7 +127,13 @@ def replace_child(
         raise ValueError(f"parent node {parent} is not valid for replacement.")
 
     if old_child not in getattr(parent, "children_plan_nodes", parent.children):
-        raise ValueError(f"old_child {old_child} is not a child of parent {parent}.")
+        if new_child in getattr(parent, "children_plan_nodes", parent.children):
+            # the child has already been updated
+            return
+        else:
+            raise ValueError(
+                f"old_child {old_child} is not a child of parent {parent}."
+            )
 
     if isinstance(parent, SnowflakePlan):
         assert parent.source_plan is not None

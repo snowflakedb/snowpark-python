@@ -118,7 +118,8 @@ def test_no_valid_nodes_found(session, caplog):
 
 def test_large_query_breakdown_external_cte_ref(session):
     session._cte_optimization_enabled = True
-    if not session.sql_simplifier_enabled:
+    sql_simplifier_enabled = session.sql_simplifier_enabled
+    if not sql_simplifier_enabled:
         set_bounds(session, 50, 90)
 
     base_select = session.sql("select 1 as A, 2 as B")
@@ -153,9 +154,9 @@ def test_large_query_breakdown_external_cte_ref(session):
     assert summary_value["breakdown_failure_summary"] == [
         {
             "num_external_cte_ref_nodes": 2,
-            "num_non_pipeline_breaker_nodes": 4,
+            "num_non_pipeline_breaker_nodes": 4 if sql_simplifier_enabled else 2,
             "num_nodes_below_lower_bound": 28,
-            "num_nodes_above_upper_bound": 1,
+            "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
             "num_valid_nodes": 0,
             "num_partitions_made": 0,
         }
@@ -165,7 +166,7 @@ def test_large_query_breakdown_external_cte_ref(session):
 def test_breakdown_at_with_query_node(session):
     session._cte_optimization_enabled = True
     if not session.sql_simplifier_enabled:
-        pass
+        set_bounds(session, 40, 80)
 
     df0 = session.sql("select 1 as A, 2 as B")
     for i in range(7):
@@ -189,6 +190,9 @@ def test_breakdown_at_with_query_node(session):
 
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
+    if not session.cte_optimization_enabled:
+        pytest.skip("CTE optimization is not enabled")
+
     if not session.sql_simplifier_enabled:
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled

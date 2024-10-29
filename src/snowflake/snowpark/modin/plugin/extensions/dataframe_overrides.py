@@ -382,10 +382,9 @@ def __delitem__(self, key):
 
 
 @register_dataframe_accessor("style")
-@dataframe_not_implemented()
 @property
 def style(self):  # noqa: RT01, D200
-    pass  # pragma: no cover
+    return self._to_pandas().style
 
 
 @register_dataframe_not_implemented()
@@ -1478,46 +1477,6 @@ def mask(
         inplace=inplace,
         axis=axis,
         level=level,
-    )
-
-
-# Snowpark pandas has a fix for a pandas behavior change. It is available in Modin 0.30.1 (SNOW-1552497).
-@register_dataframe_accessor("melt")
-def melt(
-    self,
-    id_vars=None,
-    value_vars=None,
-    var_name=None,
-    value_name="value",
-    col_level=None,
-    ignore_index=True,
-):  # noqa: PR01, RT01, D200
-    """
-    Unpivot a ``DataFrame`` from wide to long format, optionally leaving identifiers set.
-    """
-    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    if id_vars is None:
-        id_vars = []
-    if not is_list_like(id_vars):
-        id_vars = [id_vars]
-    if value_vars is None:
-        # Behavior of Index.difference changed in 2.2.x
-        # https://github.com/pandas-dev/pandas/pull/55113
-        # This change needs upstream to Modin:
-        # https://github.com/modin-project/modin/issues/7206
-        value_vars = self.columns.drop(id_vars)
-    if var_name is None:
-        columns_name = self._query_compiler.get_index_name(axis=1)
-        var_name = columns_name if columns_name is not None else "variable"
-    return self.__constructor__(
-        query_compiler=self._query_compiler.melt(
-            id_vars=id_vars,
-            value_vars=value_vars,
-            var_name=var_name,
-            value_name=value_name,
-            col_level=col_level,
-            ignore_index=ignore_index,
-        )
     )
 
 
