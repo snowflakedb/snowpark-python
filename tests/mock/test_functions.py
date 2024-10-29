@@ -4,6 +4,7 @@
 import datetime
 import math
 import unittest.mock
+from typing import Iterable
 
 import pytest
 
@@ -14,6 +15,7 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
     abs,
     asc,
     builtin,
+    call_function,
     col,
     contains,
     count,
@@ -29,7 +31,9 @@ from snowflake.snowpark.functions import (  # count,; is_null,;
     to_date,
 )
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, patch
-from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
+from snowflake.snowpark.types import IntegerType
 
 
 def test_col(session):
@@ -341,3 +345,35 @@ def test_current_time(session):
         assert df.select(
             current_timestamp(), current_date(), current_time()
         ).collect() == [Row(now_datetime, now_datetime.date(), now_datetime.time())]
+
+
+def test_patch_unsupported_function(session):
+    df = session.create_dataframe([[3, 1], [3, 2], [4, 3]], schema=["a", "b"])
+    with pytest.raises(NotImplementedError):
+        df.select(
+            call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+        ).collect()
+
+    @patch("greatest_ignore_nulls")
+    def mock_greatest_ignore_nulls(
+        *columns: Iterable[ColumnEmulator],
+    ) -> ColumnEmulator:
+        return ColumnEmulator(
+            [1] * len(columns[0]), sf_type=ColumnType(IntegerType(), False)
+        )
+
+    assert df.select(
+        call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+    ).collect() == [Row(1), Row(1), Row(1)]
+
+    @patch("greatest_ignore_nulls")
+    def mock_wrong_patch(columns: Iterable[ColumnEmulator]) -> ColumnEmulator:
+        return ColumnEmulator(
+            [1] * len(columns[0]), sf_type=ColumnType(IntegerType(), False)
+        )
+
+    with pytest.raises(SnowparkLocalTestingException) as exc:
+        df.select(
+            call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+        ).collect()
+    assert "Please ensure the implementation follows specifications" in str(exc.value)
