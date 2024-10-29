@@ -1,37 +1,13 @@
 # Release History
 
-## 1.24.0 (TBD)
+## 1.25.0 (TBD)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
-- Added support for 'Service' domain to `session.lineage.trace` API.
-- Added support for `copy_grants` parameter when registering UDxF and stored procedures.
-- Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
-  - `option`
-  - `options`
-  - `partition_by`
-- Added support for `snowflake_cortex_summarize`.
 - Added the following new functions in `snowflake.snowpark.dataframe`:
   - `map`
-
-#### Improvements
-
-- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
-- Disables sql simplification when sort is performed after limit.
-  - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
-  - Improve performance of generated query for `df.limit().sort()`, because limit stops table scanning as soon as the number of records is satisfied.
-
-#### Bug Fixes
-
-- Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
-- Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
-- Fixed a bug that created inconsistent casing in field names of structured objects in iceberg schemas.
-
-#### Deprecations:
-
-- Deprecated warnings will be triggered when using snowpark-python with Python 3.8. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
 
 #### Dependency Updates
 
@@ -48,6 +24,50 @@
 
 #### New Features
 
+- Added support for `Index.to_numpy`.
+- Added support for `DataFrame.align` and `Series.align` for `axis=0`.
+
+### Snowpark Local Testing Updates
+
+## 1.24.0 (2024-10-28)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Updated `Session` class to be thread-safe. This allows concurrent DataFrame transformations, DataFrame actions, UDF and stored procedure registration, and concurrent file uploads when using the same `Session` object.
+  - The feature is disabled by default and can be enabled by setting `FEATURE_THREAD_SAFE_PYTHON_SESSION` to `True` for account.
+  - Updating session configurations, like changing database or schema, when multiple threads are using the session may lead to unexpected behavior.
+  - When enabled, some internally created temporary table names returned from `DataFrame.queries` API are not deterministic, and may be different when DataFrame actions are executed. This does not affect explicit user-created temporary tables.
+- Added support for 'Service' domain to `session.lineage.trace` API.
+- Added support for `copy_grants` parameter when registering UDxF and stored procedures.
+- Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
+  - `option`
+  - `options`
+  - `partition_by`
+- Added support for `snowflake_cortex_summarize`.
+
+#### Improvements
+
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
+- Disables sql simplification when sort is performed after limit.
+  - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
+  - Improve performance of generated query for `df.limit().sort()`, because limit stops table scanning as soon as the number of records is satisfied.
+
+#### Bug Fixes
+
+- Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
+- Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
+- Fixed a bug that created inconsistent casing in field names of structured objects in iceberg schemas.
+
+#### Deprecations
+
+- Deprecated warnings will be triggered when using snowpark-python with Python 3.8. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
 - Added support for `np.subtract`, `np.multiply`, `np.divide`, and `np.true_divide`.
 - Added support for tracking usages of `__array_ufunc__`.
 - Added numpy compatibility support for `np.float_power`, `np.mod`, `np.remainder`, `np.greater`, `np.greater_equal`, `np.less`, `np.less_equal`, `np.not_equal`, and `np.equal`.
@@ -58,8 +78,6 @@
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 - Added support for `DataFrame.attrs` and `Series.attrs`.
 - Added support for `DataFrame.style`.
-- Added support for `Index.to_numpy`.
-- Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 
 #### Improvements
 
@@ -88,8 +106,6 @@
 #### Bug Fixes
 
 - Fixed a bug where `DataFrame.alias` raises `KeyError` for input column name.
-
-#### Bug Fixes
 - Fixed a bug where `to_csv` on Snowflake stage fails when data contains empty strings.
 
 ## 1.23.0 (2024-10-09)
