@@ -398,11 +398,11 @@ def handle_function_expression(
             raise_error=NotImplementedError if func is None else None,
         )
 
-    to_func = original_func or func.impl
-    signatures = inspect.signature(to_func)
-    spec = inspect.getfullargspec(to_func)
+    to_mock_func = original_func or func.impl
+    signatures = inspect.signature(to_mock_func)
+    spec = inspect.getfullargspec(to_mock_func)
     to_pass_args = []
-    type_hints = typing.get_type_hints(to_func)
+    type_hints = typing.get_type_hints(to_mock_func)
     for idx, key in enumerate(signatures.parameters):
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
