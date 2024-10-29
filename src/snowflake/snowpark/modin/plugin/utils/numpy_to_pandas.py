@@ -6,6 +6,7 @@ from typing import Any, Hashable, Optional, Union
 import modin.pandas as pd
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
+from pandas.core.dtypes.common import is_list_like
 
 from snowflake.snowpark import functions as sp_func
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
@@ -128,7 +129,7 @@ def full_like_mapper(
         return NotImplemented
 
     result_shape = shape
-    if isinstance(result_shape, tuple) and len(result_shape) == 0:
+    if is_list_like(result_shape) and len(result_shape) == 0:
         result_shape = (1,)
     if isinstance(result_shape, int):
         result_shape = (result_shape,)
