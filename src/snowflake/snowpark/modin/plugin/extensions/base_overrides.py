@@ -144,23 +144,6 @@ def register_base_not_implemented():
 
 
 @register_base_not_implemented()
-def align(
-    self,
-    other,
-    join="outer",
-    axis=None,
-    level=None,
-    copy=None,
-    fill_value=None,
-    method=lib.no_default,
-    limit=lib.no_default,
-    fill_axis=lib.no_default,
-    broadcast_axis=lib.no_default,
-):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def asof(self, where, subset=None):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
@@ -882,6 +865,41 @@ def _get_attrs(self) -> dict:  # noqa: RT01, D200
 register_base_override("attrs")(property(_get_attrs, _set_attrs))
 
 
+@register_base_override("align")
+def align(
+    self,
+    other: BasePandasDataset,
+    join: str = "outer",
+    axis: Axis = None,
+    level: Level = None,
+    copy: bool = True,
+    fill_value: Scalar = None,
+    method: str = None,
+    limit: int = None,
+    fill_axis: Axis = 0,
+    broadcast_axis: Axis = None,
+):  # noqa: PR01, RT01, D200
+    if method is not None or limit is not None or fill_axis != 0:
+        raise NotImplementedError(
+            f"The 'method', 'limit', and 'fill_axis' keywords in {self.__class__.__name__}.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead."
+        )
+    if broadcast_axis is not None:
+        raise NotImplementedError(
+            f"The 'broadcast_axis' keyword in {self.__class__.__name__}.align is deprecated and will be removed in a future version."
+        )
+    if axis not in [0, 1, None]:
+        raise ValueError(
+            f"No axis named {axis} for object type {self.__class__.__name__}"
+        )
+    query_compiler1, query_compiler2 = self._query_compiler.align(
+        other, join=join, axis=axis, level=level, copy=copy, fill_value=fill_value
+    )
+    return (
+        self._create_or_update_from_compiler(query_compiler1, False),
+        self._create_or_update_from_compiler(query_compiler2, False),
+    )
+
+
 # Modin does not provide `MultiIndex` support and will default to pandas when `level` is specified,
 # and allows binary ops against native pandas objects that Snowpark pandas prohibits.
 @register_base_override("_binary_op")
@@ -1550,6 +1568,37 @@ def __getitem__(self, key):
 
     # In all other cases, use .loc[:, key] to filter columns.
     return self.loc[:, key]
+
+
+# Modin uses the unique() query compiler method instead of aliasing the duplicated frontend method as of 0.30.1.
+# TODO SNOW-1758721: use the more efficient implementation
+@register_base_override("drop_duplicates")
+def drop_duplicates(
+    self, keep="first", inplace=False, **kwargs
+):  # noqa: PR01, RT01, D200
+    """
+    Return `BasePandasDataset` with duplicate rows removed.
+    """
+    inplace = validate_bool_kwarg(inplace, "inplace")
+    ignore_index = kwargs.get("ignore_index", False)
+    subset = kwargs.get("subset", None)
+    if subset is not None:
+        if is_list_like(subset):
+            if not isinstance(subset, list):
+                subset = list(subset)  # pragma: no cover
+        else:
+            subset = [subset]
+        df = self[subset]
+    else:
+        df = self
+    duplicated = df.duplicated(keep=keep)
+    result = self[~duplicated]
+    if ignore_index:
+        result.index = pandas.RangeIndex(stop=len(result))
+    if inplace:
+        self._update_inplace(result._query_compiler)  # pragma: no cover
+    else:
+        return result
 
 
 # Snowpark pandas does extra argument validation, which may need to be upstreamed.

@@ -17,6 +17,8 @@
   - `options`
   - `partition_by`
 - Added support for `snowflake_cortex_summarize`.
+- Added the following new functions in `snowflake.snowpark.dataframe`:
+  - `map`
 
 #### Improvements
 
@@ -35,7 +37,18 @@
 
 - Deprecated warnings will be triggered when using snowpark-python with Python 3.8. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
 
+#### Dependency Updates
+
+- Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.
+- Added a dependency on `protoc-wheel-0` for the development profile.
+- Require `snowflake-connector-python>=3.12.0, <4.0.0` (was `>=3.10.0`).
+
 ### Snowpark pandas API Updates
+
+### Dependency Updates
+
+- Updated `modin` from 0.28.1 to 0.30.1.
+- Added support for all `pandas` 2.2.x versions.
 
 #### New Features
 
@@ -49,6 +62,8 @@
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 - Added support for `DataFrame.attrs` and `Series.attrs`.
 - Added support for `DataFrame.style`.
+- Added support for `Index.to_numpy`.
+- Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 
 #### Improvements
 
