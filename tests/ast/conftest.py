@@ -147,11 +147,10 @@ class TestTables:
 # For test performance (especially integration tests), it would be very valuable to create the Snowpark session and the
 # temporary tables only once per test session. Unfortunately, the local testing features don't work well with any scope
 # setting above "function" (e.g. "module" or "session").
+# TODO: SNOW-1748311 use scope="module"
 @pytest.fixture(scope="function")
-def session():
-    # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
-    # Need to use the Session.builder to properly register this as active session etc.
-    with Session.builder.config("local_testing", True).create() as s:
+def session(local_testing_mode):
+    with Session.builder.config("local_testing", local_testing_mode).create() as s:
         s.ast_enabled = True
         yield s
 
@@ -159,7 +158,3 @@ def session():
 @pytest.fixture(scope="function")
 def tables(session):
     return TestTables(session)
-
-
-def pytest_sessionstart(session):
-    os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
