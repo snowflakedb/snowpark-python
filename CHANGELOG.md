@@ -30,6 +30,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### New Features
+
+- Added support for patching functions that are unavailable in the `snowflake.snowpark.functions` module.
+
 ## 1.24.0 (2024-10-28)
 
 ### Snowpark Python API Updates
