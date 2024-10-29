@@ -1,3 +1,5 @@
+[comment]: <> (TODO SNOW-1764181 update readme to match with current test pratice)
+
 ## AST Tests
 
 This driver enables testing of the AST generation that will be used in the server-side Snowpark implementation, starting with Phase 0.
