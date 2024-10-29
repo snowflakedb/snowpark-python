@@ -7,6 +7,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from packaging.version import Version
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
@@ -1337,13 +1338,16 @@ def test_create_series_with_df_index_negative():
 
 @sql_count_checker(query_count=0)
 def test_create_series_with_df_data_negative():
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
+    if Version(native_pd.__version__) > Version("2.2.1"):
+        expected_message = re.escape(
+            "Data must be 1-dimensional, got ndarray of shape (3, 2) instead"
+        )
+    else:
+        expected_message = re.escape(
             "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool()"
             ", a.item(), a.any() or a.all()."
-        ),
-    ):
+        )
+    with pytest.raises(ValueError, match=expected_message):
         native_pd.Series(native_pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
     with pytest.raises(ValueError, match="Data cannot be a DataFrame"):
         pd.Series(pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
