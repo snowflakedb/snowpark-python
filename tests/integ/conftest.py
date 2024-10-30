@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import logging
 import os
 from typing import Dict
 
@@ -14,8 +13,6 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import TEST_SCHEMA, Utils, running_on_jenkins, running_on_public_ci
-
-_logger = logging.getLogger(__name__)
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
@@ -238,7 +235,6 @@ def session(
     session.sql_simplifier_enabled = sql_simplifier_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
     session.ast_enabled = ast_enabled
-
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
