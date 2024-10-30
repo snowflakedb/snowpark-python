@@ -691,11 +691,13 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
         df1 = threadsafe_session.sql("select 2 as b, 3 as c")
         df_join = df0.join(df1, on=["b"], how="inner")
 
+        # this will trigger repeated subquery elimination
         df2 = df_join.filter(col("b") == 2).union_all(df_join)
         df3 = threadsafe_session.sql("select 3 as b, 4 as c").with_column(
             "a", col("b") + 1
         )
         for i in range(7):
+            # this will increase the complexity of the query and trigger large query breakdown
             df2 = df2.with_column("a", col("a") + i + col("a"))
             df3 = df3.with_column("b", col("b") + i + col("b"))
 
@@ -711,13 +713,32 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
             return (queries, result)
 
         results = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [
-                executor.submit(apply_filter_and_collect, df4, i) for i in range(10)
-            ]
+        with threadsafe_session.query_history() as history:
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [
+                    executor.submit(apply_filter_and_collect, df4, i) for i in range(10)
+                ]
 
-            for future in futures:
-                results.append(future.result())
+                for future in futures:
+                    results.append(future.result())
+
+        unique_temp_tables_created = set()
+        unique_ctes_created = set()
+        for query in history.queries:
+            query_text = query.sql_text
+            if query_text.startswith("CREATE  SCOPED TEMPORARY  TABLE"):
+                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query_text)
+                assert match is not None, query_text
+                table_name = match.group()
+                unique_temp_tables_created.add(table_name)
+            elif query_text.startswith("WITH SNOWPARK_TEMP_CTE_"):
+                match = re.search(r"SNOWPARK_TEMP_CTE_[\w]+", query_text)
+                assert match is not None, query_text
+                cte_name = match.group()
+                unique_ctes_created.add(cte_name)
+
+        assert len(unique_temp_tables_created) == 10, unique_temp_tables_created
+        assert len(unique_ctes_created) == 10, unique_ctes_created
 
         threadsafe_session._query_compilation_stage_enabled = False
         threadsafe_session._cte_optimization_enabled = False
