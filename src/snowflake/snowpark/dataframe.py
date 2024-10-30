@@ -4097,8 +4097,7 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
-        # Add Eval and pass as part of kwargs. TODO.
-
+        # TODO SNOW-1776638: Add Eval and pass dataframeAst as part of kwargs.
         return df._internal_collect_with_tag_no_telemetry(
             statement_params=statement_params
         )
