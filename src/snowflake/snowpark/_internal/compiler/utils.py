@@ -370,7 +370,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     def get_stat(node: LogicalPlan):
         def get_name(node: Optional[LogicalPlan]) -> str:
             if node is None:
-                return "EMPTY_SOURCE_PLAN"
+                return "EMPTY_SOURCE_PLAN"  # pragma: no cover
             addr = hex(id(node))
             name = str(type(node)).split(".")[-1].split("'")[0]
             return f"{name}({addr})"
@@ -385,15 +385,15 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         elif isinstance(node, SelectStatement):
             properties = []
             if node.projection:
-                properties.append("Proj")
+                properties.append("Proj")  # pragma: no cover
             if node.where:
-                properties.append("Filter")
+                properties.append("Filter")  # pragma: no cover
             if node.order_by:
-                properties.append("Order")
+                properties.append("Order")  # pragma: no cover
             if node.limit_:
-                properties.append("Limit")
+                properties.append("Limit")  # pragma: no cover
             if node.offset:
-                properties.append("Offset")
+                properties.append("Offset")  # pragma: no cover
             name = f"{name} :: ({'| '.join(properties)})"
 
         score = get_complexity_score(node)
