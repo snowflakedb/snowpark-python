@@ -489,6 +489,22 @@ class BasePandasDataset:
             2   10   20   30   40
             3   60   70   80   90
             4  600  700  800  900
+
+            Align on columns:
+
+            >>> left, right = df.align(other, join="outer", axis=1)
+            >>> left
+               A  B   C  D  E
+            1  4  2 NaN  1  3
+            2  9  7 NaN  6  8
+            >>> right
+                A    B    C    D   E
+            2   10   20   30   40 NaN
+            3   60   70   80   90 NaN
+            4  600  700  800  900 NaN
+
+            We can also align on the index:
+
             >>> left, right = df.align(other, join="outer", axis=0)
             >>> left
                  D    B    E    A
@@ -502,6 +518,22 @@ class BasePandasDataset:
             2   10.0   20.0   30.0   40.0
             3   60.0   70.0   80.0   90.0
             4  600.0  700.0  800.0  900.0
+
+            Finally, the default axis=None will align on both index and columns:
+
+            >>> left, right = df.align(other, join="outer", axis=None)
+            >>> left
+                 A    B   C    D    E
+            1  4.0  2.0 NaN  1.0  3.0
+            2  9.0  7.0 NaN  6.0  8.0
+            3  NaN  NaN NaN  NaN  NaN
+            4  NaN  NaN NaN  NaN  NaN
+            >>> right
+                   A      B      C      D   E
+            1    NaN    NaN    NaN    NaN NaN
+            2   10.0   20.0   30.0   40.0 NaN
+            3   60.0   70.0   80.0   90.0 NaN
+            4  600.0  700.0  800.0  900.0 NaN
         """
 
     @doc(

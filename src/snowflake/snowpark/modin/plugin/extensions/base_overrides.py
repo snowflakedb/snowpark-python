@@ -879,6 +879,8 @@ def align(
     fill_axis: Axis = 0,
     broadcast_axis: Axis = None,
 ):  # noqa: PR01, RT01, D200
+    from modin.pandas.dataframe import DataFrame
+
     if method is not None or limit is not None or fill_axis != 0:
         raise NotImplementedError(
             f"The 'method', 'limit', and 'fill_axis' keywords in {self.__class__.__name__}.align are deprecated and will be removed in a future version. Call fillna directly on the returned objects instead."
@@ -891,13 +893,45 @@ def align(
         raise ValueError(
             f"No axis named {axis} for object type {self.__class__.__name__}"
         )
+    if isinstance(self, Series) and axis == 1:
+        raise ValueError("No axis named 1 for object type Series")
+    is_lhs_dataframe_and_rhs_series = (
+        True
+        if isinstance(self, pd.DataFrame) and isinstance(other, pd.Series)
+        else False
+    )
+    is_lhs_series_and_rhs_dataframe = (
+        True
+        if isinstance(self, pd.Series) and isinstance(other, pd.DataFrame)
+        else False
+    )
+
+    if is_lhs_dataframe_and_rhs_series and axis is None:
+        raise ValueError("Must specify axis=0 or 1")
+    if (is_lhs_dataframe_and_rhs_series and axis == 1) or (
+        is_lhs_series_and_rhs_dataframe and axis is None
+    ):
+        raise NotImplementedError(
+            f"The Snowpark pandas {self.__class__.__name__}.align with {other.__class__.__name__} other does not "
+            f"support axis={axis}."
+        )
+
     query_compiler1, query_compiler2 = self._query_compiler.align(
         other, join=join, axis=axis, level=level, copy=copy, fill_value=fill_value
     )
-    return (
-        self._create_or_update_from_compiler(query_compiler1, False),
-        self._create_or_update_from_compiler(query_compiler2, False),
-    )
+    if is_lhs_dataframe_and_rhs_series:
+        return DataFrame(query_compiler=query_compiler1), Series(
+            query_compiler=query_compiler2
+        )
+    elif is_lhs_series_and_rhs_dataframe:
+        return Series(query_compiler=query_compiler1), DataFrame(
+            query_compiler=query_compiler2
+        )
+    else:
+        return (
+            self._create_or_update_from_compiler(query_compiler1, False),
+            self._create_or_update_from_compiler(query_compiler2, False),
+        )
 
 
 # Modin does not provide `MultiIndex` support and will default to pandas when `level` is specified,
