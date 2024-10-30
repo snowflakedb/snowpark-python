@@ -174,7 +174,7 @@ def read_html(
         attrs = {"id": "table"}
         is a valid attribute dictionary because the ‘id’ HTML tag attribute is a valid HTML attribute for any HTML tag as per `this document <https://html.spec.whatwg.org/multipage/dom.html#global-attributes>`_.
         attrs = {"asdf": "table"}
-        is not a valid attribute dictionary because ‘asdf’ is not a valid HTML attribute even if it is a valid XML attribute. Valid HTML 4.01 table attributes can be found `here
+        is not a valid attribute dictionary because ‘asdf’ is not a valid HTML attribute even if it is a valid XML attribute. Valid HTML 4.01 table attributes can be `found here
         <http://www.w3.org/TR/REC-html40/struct/tables.html#h-11.2>`_. A working draft of the HTML 5 spec can be found `here
         <https://html.spec.whatwg.org/multipage/tables.html>`_. It contains the latest information on table attributes for the modern web.
     parse_dates : bool, optional
@@ -268,7 +268,7 @@ def read_xml(
     path_or_buffer : str, path object, or file-like object
         String, path object (implementing ``os.PathLike[str]``), or file-like object implementing a ``read()`` function. The string can be a path. The string can further be a URL. Valid URL schemes include http, ftp, s3, and file.
 
-    xpath : str, optional, default ‘./*’
+    xpath : str, optional, default ‘./\*’
         The XPath to parse required set of nodes for migration to DataFrame.``XPath`` should return a collection of elements and not a single element. Note: The etree parser supports limited XPath expressions. For more complex XPath, use lxml which requires installation.
     namespaces : dict, optional
         The namespaces defined in XML document as dicts with key being namespace prefix and value the URI. There is no need to include all namespaces in XML, only the ones used in xpath expression. Note: if XML document uses default namespace denoted as xmlns=’<URI>’ without a prefix, you must assign any temporary namespace prefix such as ‘doc’ to the URI in order to parse underlying nodes and/or attributes.
@@ -446,7 +446,7 @@ def read_xml(
     ... )
     >>> df
        index    a    b      c  d          e
-    0      0    1  2.5   True  a 2019-12-31
+    0      0  1.0  2.5   True  a 2019-12-31
     1      1  NaN  4.5  False  b 2019-12-31
     """
     # TODO(https://github.com/modin-project/modin/issues/7104):
