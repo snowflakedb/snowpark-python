@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import inspect
 from collections import OrderedDict
+from re import Pattern
 from typing import TYPE_CHECKING, Any, Callable, Hashable, Iterable, Literal, Sequence
 
 import modin.pandas as pd
@@ -50,8 +51,196 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
 # TODO: SNOW-1265551: add inherit_docstrings decorators once docstring overrides are available
 
 
+@_inherit_docstrings(native_pd.read_pickle, apilink="pandas.read_pickle")
+@register_pd_accessor("read_pickle")
+@expanduser_path_arg("filepath_or_buffer")
+def read_pickle(
+    filepath_or_buffer,
+    compression: CompressionOptions = "infer",
+    storage_options: StorageOptions = None,
+) -> pd.DataFrame:
+    """
+    Load pickled pandas object (or any object) from file and return unpickled object.
+
+    Warning
+    -------
+    Loading pickled data received from untrusted sources can be unsafe. See `here <https://docs.python.org/3/library/pickle.html>`_.
+
+    Parameters
+    ----------
+    filepath_or_buffer : str, path object, or file-like object
+        String, path object (implementing os.PathLike[str]), or file-like object implementing a binary readlines() function. Also accepts URL. URL is not limited to S3 and GCS.
+    compression : str or dict, default ‘infer’
+        For on-the-fly decompression of on-disk data. If ‘infer’ and ‘filepath_or_buffer’ is path-like, then detect compression from the following extensions: ‘.gz’, ‘.bz2’, ‘.zip’, ‘.xz’, ‘.zst’, ‘.tar’, ‘.tar.gz’, ‘.tar.xz’ or ‘.tar.bz2’ (otherwise no compression). If using ‘zip’ or ‘tar’, the ZIP file must contain only one data file to be read in. Set to None for no decompression. Can also be a dict with key 'method' set to one of {'zip', 'gzip', 'bz2', 'zstd', 'xz', 'tar'} and other key-value pairs are forwarded to zipfile.ZipFile, gzip.GzipFile, bz2.BZ2File, zstandard.ZstdDecompressor, lzma.LZMAFile or tarfile.TarFile, respectively. As an example, the following could be passed for Zstandard decompression using a custom compression dictionary: compression={'method': 'zstd', 'dict_data': my_compression_dict}.
+    storage_options : dict, optional
+        Extra options that make sense for a particular storage connection, e.g. host, port, username, password, etc. For HTTP(S) URLs the key-value pairs are forwarded to urllib.request.Request as header options. For other URLs (e.g. starting with “s3://”, and “gcs://”) the key-value pairs are forwarded to fsspec.open. Please see fsspec and urllib for more details, and for more examples on storage options refer here.
+
+    Returns
+    -------
+    object
+        The unpickled pandas object (or any object) that was stored in file.
+
+    See also
+    --------
+    DataFrame.to_pickle
+        Pickle (serialize) DataFrame object to file.
+    Series.to_pickle
+        Pickle (serialize) Series object to file.
+    read_hdf
+        Read HDF5 file into a DataFrame.
+    read_sql
+        Read SQL query or database table into a DataFrame.
+    read_parquet
+        Load a parquet object, returning a DataFrame.
+
+    Notes
+    -----
+    read_pickle is only guaranteed to be backwards compatible to pandas 1.0 provided the object was serialized with to_pickle.
+
+    Examples
+    --------
+    >>> original_df = pd.DataFrame(
+    ...     {"foo": range(5), "bar": range(5, 10)}
+    ... )
+    >>> original_df
+       foo  bar
+    0    0    5
+    1    1    6
+    2    2    7
+    3    3    8
+    4    4    9
+    >>> pd.to_pickle(original_df, "./dummy.pkl")  # doctest: +SKIP
+
+    >>> unpickled_df = pd.read_pickle("./dummy.pkl")  # doctest: +SKIP
+    >>> unpickled_df  # doctest: +SKIP
+       foo  bar
+    0    0    5
+    1    1    6
+    2    2    7
+    3    3    8
+    4    4    9
+    """
+    _pd_read_pickle_signature = {
+        val.name for val in inspect.signature(native_pd.read_pickle).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_pickle_signature}
+
+    return pd.DataFrame(query_compiler=PandasOnSnowflakeIO.read_pickle(**kwargs))
+
+
+@_inherit_docstrings(native_pd.read_html, apilink="pandas.read_html")
+@register_pd_accessor("read_html")
+def read_html(
+    io,
+    *,
+    match: str | Pattern = ".+",
+    flavor: str | None = None,
+    header: int | Sequence[int] | None = None,
+    index_col: int | Sequence[int] | None = None,
+    skiprows: int | Sequence[int] | slice | None = None,
+    attrs: dict[str, str] | None = None,
+    parse_dates: bool = False,
+    thousands: str | None = ",",
+    encoding: str | None = None,
+    decimal: str = ".",
+    converters: dict | None = None,
+    na_values: Iterable[object] | None = None,
+    keep_default_na: bool = True,
+    displayed_only: bool = True,
+    extract_links: Literal[None, "header", "footer", "body", "all"] = None,
+    dtype_backend: DtypeBackend | NoDefault = no_default,
+    storage_options: StorageOptions = None,
+) -> pd.DataFrame:
+    """
+    Read HTML tables into a list of DataFrame objects.
+
+    Parameters
+    ----------
+    io : str, path object, or file-like object
+        String, path object (implementing os.PathLike[str]), or file-like object implementing a string read() function. The string can represent a URL. Note that lxml only accepts the http, ftp and file url protocols. If you have a URL that starts with 'https' you might try removing the 's'.
+    match : str or compiled regular expression, optional
+        The set of tables containing text matching this regex or string will be returned. Unless the HTML is extremely simple you will probably need to pass a non-empty string here. Defaults to ‘.+’ (match any non-empty string). The default value will return all tables contained on a page. This value is converted to a regular expression so that there is consistent behavior between Beautiful Soup and lxml.
+    flavor : {“lxml”, “html5lib”, “bs4”} or list-like, optional
+        The parsing engine (or list of parsing engines) to use. ‘bs4’ and ‘html5lib’ are synonymous with each other, they are both there for backwards compatibility. The default of None tries to use lxml to parse and if that fails it falls back on bs4 + html5lib.
+    header : int or list-like, optional
+        The row (or list of rows for a MultiIndex) to use to make the columns headers.
+    index_col : int or list-like, optional
+        The column (or list of columns) to use to create the index.
+    skiprows : int, list-like or slice, optional
+        Number of rows to skip after parsing the column integer. 0-based. If a sequence of integers or a slice is given, will skip the rows indexed by that sequence. Note that a single element sequence means ‘skip the nth row’ whereas an integer means ‘skip n rows’.
+    attrs : dict, optional
+        This is a dictionary of attributes that you can pass to use to identify the table in the HTML. These are not checked for validity before being passed to lxml or Beautiful Soup. However, these attributes must be valid HTML table attributes to work correctly. For example,
+        attrs = {"id": "table"}
+        is a valid attribute dictionary because the ‘id’ HTML tag attribute is a valid HTML attribute for any HTML tag as per `this document <https://html.spec.whatwg.org/multipage/dom.html#global-attributes>`_.
+        attrs = {"asdf": "table"}
+        is not a valid attribute dictionary because ‘asdf’ is not a valid HTML attribute even if it is a valid XML attribute. Valid HTML 4.01 table attributes can be found `here
+        <http://www.w3.org/TR/REC-html40/struct/tables.html#h-11.2>`_. A working draft of the HTML 5 spec can be found `here
+        <https://html.spec.whatwg.org/multipage/tables.html>`_. It contains the latest information on table attributes for the modern web.
+    parse_dates : bool, optional
+        See read_csv() for more details.
+    thousands : str, optional
+        Separator to use to parse thousands. Defaults to ','.
+    encoding : str, optional
+        The encoding used to decode the web page. Defaults to ``None``.``None`` preserves the previous encoding behavior, which depends on the underlying parser library (e.g., the parser library will try to use the encoding provided by the document).
+    decimal : str, default ‘.’
+        Character to recognize as decimal point (e.g. use ‘,’ for European data).
+    converters : dict, default None
+        Dict of functions for converting values in certain columns. Keys can either be integers or column labels, values are functions that take one input argument, the cell (not column) content, and return the transformed content.
+    na_values : iterable, default None
+        Custom NA values.
+    keep_default_na : bool, default True
+        If na_values are specified and keep_default_na is False the default NaN values are overridden, otherwise they’re appended to.
+    displayed_only : bool, default True
+        Whether elements with “display: none” should be parsed.
+    extract_links : {None, “all”, “header”, “body”, “footer”}
+        Table elements in the specified section(s) with <a> tags will have their href extracted.
+    dtype_backend : {‘numpy_nullable’, ‘pyarrow’}
+        Back-end data type applied to the resultant DataFrame (still experimental). If not specified, the default behavior is to not use nullable data types. If specified, the behavior is as follows:
+        - "numpy_nullable": returns nullable-dtype-backed DataFrame
+        - "pyarrow": returns pyarrow-backed nullable ArrowDtype DataFrame
+    storage_options : dict, optional
+        Extra options that make sense for a particular storage connection, e.g. host, port, username, password, etc. For HTTP(S) URLs the key-value pairs are forwarded to urllib.request.Request as header options. For other URLs (e.g. starting with “s3://”, and “gcs://”) the key-value pairs are forwarded to fsspec.open. Please see fsspec and urllib for more details, and for more examples on storage options refer here.
+
+    Returns
+    -------
+    dfs
+        A list of DataFrames.
+
+    See also
+    --------
+    read_csv
+        Read a comma-separated values (csv) file into DataFrame.
+
+    Notes
+    -----
+    Before using this function you should read the `gotchas about the HTML parsing libraries <https://pandas.pydata.org/docs/dev/user_guide/io.html#io-html-gotchas>`_.
+
+    Expect to do some cleanup after you call this function. For example, you might need to manually assign column names if the column names are converted to NaN when you pass the header=0 argument. We try to assume as little as possible about the structure of the table and push the idiosyncrasies of the HTML contained in the table to the user.
+
+    This function searches for <table> elements and only for <tr> and <th> rows and <td> elements within each <tr> or <th> element in the table. <td> stands for “table data”. This function attempts to properly handle colspan and rowspan attributes. If the function has a <thead> argument, it is used to construct the header, otherwise the function attempts to find the header within the body (by putting rows with only <th> elements into the header).
+
+    Similar to read_csv() the header argument is applied after skiprows is applied.
+
+    This function will always return a list of DataFrame or it will fail, i.e., it will not return an empty list, save for some rare cases. It might return an empty list in case of inputs with single row and <td> containing only whitespaces.
+
+    Examples
+    --------
+        See the `read_html documentation in the IO section of the docs <https://pandas.pydata.org/docs/dev/user_guide/io.html#io-read-html>`_ for some examples of reading in HTML tables.
+    """
+    _pd_read_html_signature = {
+        val.name for val in inspect.signature(native_pd.read_html).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_html_signature}
+
+    qcs = PandasOnSnowflakeIO.read_html(**kwargs)
+    return [pd.DataFrame(query_compiler=qc) for qc in qcs]
+
+
+@_inherit_docstrings(native_pd.read_xml, apilink="pandas.read_xml")
 @register_pd_accessor("read_xml")
-@pandas_module_level_function_not_implemented()
+@expanduser_path_arg("path_or_buffer")
 def read_xml(
     path_or_buffer: FilePath | ReadBuffer[bytes] | ReadBuffer[str],
     *,
@@ -71,9 +260,204 @@ def read_xml(
     storage_options: StorageOptions = None,
     dtype_backend: DtypeBackend | NoDefault = no_default,
 ) -> pd.DataFrame:
+    r"""
+    Read XML document into a DataFrame object.
+
+    Parameters
+    ----------
+    path_or_buffer : str, path object, or file-like object
+        String, path object (implementing ``os.PathLike[str]``), or file-like object implementing a ``read()`` function. The string can be a path. The string can further be a URL. Valid URL schemes include http, ftp, s3, and file.
+
+    xpath : str, optional, default ‘./*’
+        The XPath to parse required set of nodes for migration to DataFrame.``XPath`` should return a collection of elements and not a single element. Note: The etree parser supports limited XPath expressions. For more complex XPath, use lxml which requires installation.
+    namespaces : dict, optional
+        The namespaces defined in XML document as dicts with key being namespace prefix and value the URI. There is no need to include all namespaces in XML, only the ones used in xpath expression. Note: if XML document uses default namespace denoted as xmlns=’<URI>’ without a prefix, you must assign any temporary namespace prefix such as ‘doc’ to the URI in order to parse underlying nodes and/or attributes.
+    elems_only : bool, optional, default False
+        Parse only the child elements at the specified xpath. By default, all child elements and non-empty text nodes are returned.
+    attrs_only : bool, optional, default False
+        Parse only the attributes at the specified xpath. By default, all attributes are returned.
+    names : list-like, optional
+        Column names for DataFrame of parsed XML data. Use this parameter to rename original element names and distinguish same named elements and attributes.
+    dtype : Type name or dict of column -> type, optional
+        Data type for data or columns. E.g. {‘a’: np.float64, ‘b’: np.int32, ‘c’: ‘Int64’} Use str or object together with suitable na_values settings to preserve and not interpret dtype. If converters are specified, they will be applied INSTEAD of dtype conversion.
+
+    converters : dict, optional
+        Dict of functions for converting values in certain columns. Keys can either be integers or column labels.
+
+    parse_dates : bool or list of int or names or list of lists or dict, default False
+        Identifiers to parse index or columns to datetime. The behavior is as follows:
+        - boolean. If True -> try parsing the index.
+        - list of int or names. e.g. If [1, 2, 3] -> try parsing columns 1, 2, 3 each as a separate date column.
+        - list of lists. e.g. If [[1, 3]] -> combine columns 1 and 3 and parse as a single date column.
+        - dict, e.g. {‘foo’ : [1, 3]} -> parse columns 1, 3 as date and call result ‘foo’
+
+    encoding : str, optional, default ‘utf-8’
+        Encoding of XML document.
+    parser : {‘lxml’,’etree’}, default ‘lxml’
+        Parser module to use for retrieval of data. Only ‘lxml’ and ‘etree’ are supported. With ‘lxml’ more complex XPath searches and ability to use XSLT stylesheet are supported.
+    stylesheet : str, path object or file-like object
+        A URL, file-like object, or a string path containing an XSLT script. This stylesheet should flatten complex, deeply nested XML documents for easier parsing. To use this feature you must have lxml module installed and specify ‘lxml’ as parser. The xpath must reference nodes of transformed XML document generated after XSLT transformation and not the original XML document. Only XSLT 1.0 scripts and not later versions is currently supported.
+    iterparse : dict, optional
+        The nodes or attributes to retrieve in iterparsing of XML document as a dict with key being the name of repeating element and value being list of elements or attribute names that are descendants of the repeated element. Note: If this option is used, it will replace xpath parsing and unlike xpath, descendants do not need to relate to each other but can exist any where in document under the repeating element. This memory- efficient method should be used for very large XML files (500MB, 1GB, or 5GB+). For example, {"row_element": ["child_elem", "attr", "grandchild_elem"]}.
+
+    compression : str or dict, default ‘infer’
+        For on-the-fly decompression of on-disk data. If ‘infer’ and ‘path_or_buffer’ is path-like, then detect compression from the following extensions: ‘.gz’, ‘.bz2’, ‘.zip’, ‘.xz’, ‘.zst’, ‘.tar’, ‘.tar.gz’, ‘.tar.xz’ or ‘.tar.bz2’ (otherwise no compression). If using ‘zip’ or ‘tar’, the ZIP file must contain only one data file to be read in. Set to None for no decompression. Can also be a dict with key 'method' set to one of {'zip', 'gzip', 'bz2', 'zstd', 'xz', 'tar'} and other key-value pairs are forwarded to zipfile.ZipFile, gzip.GzipFile, bz2.BZ2File, zstandard.ZstdDecompressor, lzma.LZMAFile or tarfile.TarFile, respectively. As an example, the following could be passed for Zstandard decompression using a custom compression dictionary: compression={'method': 'zstd', 'dict_data': my_compression_dict}.
+
+    storage_options : dict, optional
+        Extra options that make sense for a particular storage connection, e.g. host, port, username, password, etc. For HTTP(S) URLs the key-value pairs are forwarded to urllib.request.Request as header options. For other URLs (e.g. starting with “s3://”, and “gcs://”) the key-value pairs are forwarded to fsspec.open. Please see fsspec and urllib for more details, and for more examples on storage options refer here.
+    dtype_backend : {‘numpy_nullable’, ‘pyarrow’}
+        Back-end data type applied to the resultant DataFrame (still experimental). If not specified, the default behavior is to not use nullable data types. If specified, the behavior is as follows:
+        - "numpy_nullable": returns nullable-dtype-backed DataFrame
+        - "pyarrow": returns pyarrow-backed nullable ArrowDtype DataFrame
+
+    Returns
+    -------
+    df
+        A DataFrame.
+
+    See also
+    --------
+    read_json
+        Convert a JSON string to pandas object.
+    read_html
+        Read HTML tables into a list of DataFrame objects.
+
+    Notes
+    -----
+    This method is best designed to import shallow XML documents in following format which is the ideal fit for the two-dimensions of a DataFrame (row by column). ::
+
+            <root>
+                <row>
+                  <column1>data</column1>
+                  <column2>data</column2>
+                  <column3>data</column3>
+                  ...
+               </row>
+               <row>
+                  ...
+               </row>
+               ...
+            </root>
+
+
+    As a file format, XML documents can be designed any way including layout of elements and attributes as long as it conforms to W3C specifications. Therefore, this method is a convenience handler for a specific flatter design and not all possible XML structures.
+
+    However, for more complex XML documents, stylesheet allows you to temporarily redesign original document with XSLT (a special purpose language) for a flatter version for migration to a DataFrame.
+
+    This function will always return a single DataFrame or raise exceptions due to issues with XML document, xpath, or other parameters.
+
+    See the read_xml documentation in the IO section of the docs for more information in using this method to parse XML files to DataFrames.
+
+    Examples
+    --------
+    >>> from io import StringIO
+    >>> xml = '''<?xml version='1.0' encoding='utf-8'?>
+    ... <data xmlns="http://example.com">
+    ... <row>
+    ... <shape>square</shape>
+    ... <degrees>360</degrees>
+    ... <sides>4.0</sides>
+    ... </row>
+    ... <row>
+    ... <shape>circle</shape>
+    ... <degrees>360</degrees>
+    ... <sides/>
+    ... </row>
+    ... <row>
+    ... <shape>triangle</shape>
+    ... <degrees>180</degrees>
+    ... <sides>3.0</sides>
+    ... </row>
+    ... </data>'''
+
+    >>> df = pd.read_xml(StringIO(xml))
+    >>> df
+          shape  degrees  sides
+    0    square      360    4.0
+    1    circle      360    NaN
+    2  triangle      180    3.0
+
+    >>> xml = '''<?xml version='1.0' encoding='utf-8'?>
+    ... <data>
+    ... <row shape="square" degrees="360" sides="4.0"/>
+    ... <row shape="circle" degrees="360"/>
+    ... <row shape="triangle" degrees="180" sides="3.0"/>
+    ... </data>'''
+
+    >>> df = pd.read_xml(StringIO(xml), xpath=".//row")
+    >>> df
+          shape  degrees  sides
+    0    square      360    4.0
+    1    circle      360    NaN
+    2  triangle      180    3.0
+
+    >>> xml = '''<?xml version='1.0' encoding='utf-8'?>
+    ... <doc:data xmlns:doc="https://example.com">
+    ... <doc:row>
+    ...     <doc:shape>square</doc:shape>
+    ...     <doc:degrees>360</doc:degrees>
+    ...     <doc:sides>4.0</doc:sides>
+    ... </doc:row>
+    ... <doc:row>
+    ...     <doc:shape>circle</doc:shape>
+    ...     <doc:degrees>360</doc:degrees>
+    ...     <doc:sides/>
+    ... </doc:row>
+    ... <doc:row>
+    ...     <doc:shape>triangle</doc:shape>
+    ...     <doc:degrees>180</doc:degrees>
+    ...     <doc:sides>3.0</doc:sides>
+    ... </doc:row>
+    ... </doc:data>'''
+
+    >>> df = pd.read_xml(
+    ...     StringIO(xml),
+    ...     xpath="//doc:row",
+    ...     namespaces={"doc": "https://example.com"},
+    ... )
+    >>> df
+          shape  degrees  sides
+    0    square      360    4.0
+    1    circle      360    NaN
+    2  triangle      180    3.0
+
+    >>> xml_data = '''
+    ...         <data>
+    ...         <row>
+    ...             <index>0</index>
+    ...             <a>1</a>
+    ...             <b>2.5</b>
+    ...             <c>True</c>
+    ...             <d>a</d>
+    ...             <e>2019-12-31 00:00:00</e>
+    ...         </row>
+    ...         <row>
+    ...             <index>1</index>
+    ...             <b>4.5</b>
+    ...             <c>False</c>
+    ...             <d>b</d>
+    ...             <e>2019-12-31 00:00:00</e>
+    ...         </row>
+    ...         </data>
+    ...         '''
+
+    >>> df = pd.read_xml(
+    ...     StringIO(xml_data), dtype_backend="numpy_nullable", parse_dates=["e"]
+    ... )
+    >>> df
+       index    a    b      c  d          e
+    0      0    1  2.5   True  a 2019-12-31
+    1      1  NaN  4.5  False  b 2019-12-31
+    """
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    pass  # pragma: no cover
+    _pd_read_xml_signature = {
+        val.name for val in inspect.signature(native_pd.read_xml).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_xml_signature}
+
+    return pd.DataFrame(query_compiler=PandasOnSnowflakeIO.read_xml(**kwargs))
 
 
 @_inherit_docstrings(native_pd.json_normalize, apilink="pandas.json_normalize")
