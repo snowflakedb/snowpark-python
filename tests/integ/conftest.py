@@ -239,13 +239,6 @@ def session(
     session._cte_optimization_enabled = cte_optimization_enabled
     session.ast_enabled = ast_enabled
 
-    if session.ast_enabled:
-        _logger.warning(
-            "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
-            " Disabling auto temp cleaner for full test suite due to buggy behavior."
-        )
-        session.auto_clean_up_temp_table_enabled = False
-
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
