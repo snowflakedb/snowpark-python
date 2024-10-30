@@ -4522,26 +4522,26 @@ def map(
         for i, col_name in enumerate(output_column_names)
     ]
 
-    def wrap_result(result):
-        if vectorized:
+    if vectorized:
+
+        def wrap_result(result):
             if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
                 return result
             return (result,)
-
-        if isinstance(result, Row):
-            return tuple(result)
-        elif isinstance(result, tuple):
-            return result
-        else:
-            return (result,)
-
-    if vectorized:
 
         class _MapFunc:
             def process(self, pdf):
                 return wrap_result(func(pdf))
 
     else:
+
+        def wrap_result(result):
+            if isinstance(result, Row):
+                return tuple(result)
+            elif isinstance(result, tuple):
+                return result
+            else:
+                return (result,)
 
         class _MapFunc:
             def process(self, *argv):
