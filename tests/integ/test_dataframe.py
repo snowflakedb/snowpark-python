@@ -1278,6 +1278,11 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="schema_query is not supported in Local Testing",
+    run=False,
+)
 def test_in_with_subquery_multiple_query(session):
     from snowflake.snowpark._internal.analyzer import analyzer
 
