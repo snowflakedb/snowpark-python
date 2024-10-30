@@ -18856,13 +18856,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 new_col = new_col.as_(inner_quoted_identifier)
                 new_columns.append(new_col)
 
-            new_ordered_data_frame = OrderedDataFrame(
-                dataframe_ref=DataFrameReference(
-                    frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.agg(
-                        new_columns
-                    )
-                )
-            )
+            new_ordered_data_frame = frame.ordered_dataframe.agg(*new_columns)
 
             new_frame = InternalFrame.create(
                 ordered_dataframe=new_ordered_data_frame,

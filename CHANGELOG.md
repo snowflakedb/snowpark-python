@@ -1,11 +1,45 @@
 # Release History
 
-## 1.24.0 (TBD)
+## 1.25.0 (TBD)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
+- Added the following new functions in `snowflake.snowpark.dataframe`:
+  - `map`
+
+#### Dependency Updates
+
+- Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.
+- Added a dependency on `protoc-wheel-0` for the development profile.
+- Require `snowflake-connector-python>=3.12.0, <4.0.0` (was `>=3.10.0`).
+
+### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Updated `modin` from 0.28.1 to 0.30.1.
+- Added support for all `pandas` 2.2.x versions.
+
+#### New Features
+
+- Added support for `Index.to_numpy`.
+- Added support for `DataFrame.align` and `Series.align` for `axis=0`.
+- Added support for `size` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+
+### Snowpark Local Testing Updates
+
+## 1.24.0 (2024-10-28)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Updated `Session` class to be thread-safe. This allows concurrent DataFrame transformations, DataFrame actions, UDF and stored procedure registration, and concurrent file uploads when using the same `Session` object.
+  - The feature is disabled by default and can be enabled by setting `FEATURE_THREAD_SAFE_PYTHON_SESSION` to `True` for account.
+  - Updating session configurations, like changing database or schema, when multiple threads are using the session may lead to unexpected behavior.
+  - When enabled, some internally created temporary table names returned from `DataFrame.queries` API are not deterministic, and may be different when DataFrame actions are executed. This does not affect explicit user-created temporary tables.
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 - Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
@@ -13,8 +47,6 @@
   - `options`
   - `partition_by`
 - Added support for `snowflake_cortex_summarize`.
-- Added the following new functions in `snowflake.snowpark.dataframe`:
-  - `map`
 
 #### Improvements
 
@@ -29,22 +61,11 @@
 - Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
 - Fixed a bug that created inconsistent casing in field names of structured objects in iceberg schemas.
 
-#### Deprecations:
+#### Deprecations
 
 - Deprecated warnings will be triggered when using snowpark-python with Python 3.8. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
 
-#### Dependency Updates
-
-- Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.
-- Added a dependency on `protoc-wheel-0` for the development profile.
-- Require `snowflake-connector-python>=3.12.0, <4.0.0` (was `>=3.10.0`).
-
 ### Snowpark pandas API Updates
-
-### Dependency Updates
-
-- Updated `modin` from 0.28.1 to 0.30.1.
-- Added support for all `pandas` 2.2.x versions.
 
 #### New Features
 
@@ -58,8 +79,6 @@
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 - Added support for `DataFrame.attrs` and `Series.attrs`.
 - Added support for `DataFrame.style`.
-- Added support for `Index.to_numpy`.
-- Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 
 #### Improvements
 
@@ -88,8 +107,6 @@
 #### Bug Fixes
 
 - Fixed a bug where `DataFrame.alias` raises `KeyError` for input column name.
-
-#### Bug Fixes
 - Fixed a bug where `to_csv` on Snowflake stage fails when data contains empty strings.
 
 ## 1.23.0 (2024-10-09)
