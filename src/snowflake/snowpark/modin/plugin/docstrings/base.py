@@ -498,7 +498,7 @@ class BasePandasDataset:
             1  4  2 NaN  1  3
             2  9  7 NaN  6  8
             >>> right
-                A    B    C    D   E
+                 A    B    C    D   E
             2   10   20   30   40 NaN
             3   60   70   80   90 NaN
             4  600  700  800  900 NaN
