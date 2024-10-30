@@ -395,7 +395,7 @@ class Selectable(LogicalPlan, ABC):
         if post_action not in self.post_actions:
             self.post_actions.append(copy(post_action))
 
-    def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "SelectStatement":
+    def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "Selectable":
         """Update pre-actions, post-actions and schema to capture necessary subquery_plans
         encountered during plan resolution."""
         for plan in subquery_plans:
