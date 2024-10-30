@@ -267,8 +267,7 @@ def test_dataframe_close_session(session, db_parameters):
     run=False,
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
-def test_create_temp_table_no_commit(session):
-    # test large local relation
+def test_large_local_relation_no_commit(session):
     session.sql("begin").collect()
     assert Utils.is_active_transaction(session)
     session.range(1000000).to_df("id").collect()
@@ -276,7 +275,15 @@ def test_create_temp_table_no_commit(session):
     session.sql("commit").collect()
     assert not Utils.is_active_transaction(session)
 
-    # test cache result
+
+@multithreaded_run()
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="transactions not supported by local testing.",
+    run=False,
+)
+def test_create_temp_table_no_commit(session):
+    # cache_result creates a temp table
     test_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, test_table, "c1 int", is_temporary=True)

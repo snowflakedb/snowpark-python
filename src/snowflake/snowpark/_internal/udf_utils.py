@@ -984,10 +984,22 @@ def add_snowpark_package_to_sproc_packages(
             with session._package_lock:
                 if package_name not in session._packages:
                     packages = list(session._packages.values()) + [this_package]
-    else:
-        package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
-        if not any(p.startswith(package_name) for p in package_names):
-            packages.append(this_package)
+        return packages
+
+    return add_package_to_existing_packages(packages, package_name, this_package)
+
+
+def add_package_to_existing_packages(
+    packages: Optional[List[Union[str, ModuleType]]],
+    package: Union[str, ModuleType],
+    package_spec: Optional[str] = None,
+) -> List[Union[str, ModuleType]]:
+    if packages is None:
+        return [package]
+    package_name = package if isinstance(package, str) else package.__name__
+    package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
+    if not any(p.startswith(package_name) for p in package_names):
+        packages.append(package_spec or package)
     return packages
 
 

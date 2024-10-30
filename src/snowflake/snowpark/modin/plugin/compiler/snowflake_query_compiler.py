@@ -3,6 +3,7 @@
 #
 import calendar
 import collections
+import copy
 import functools
 import inspect
 import itertools
@@ -14,7 +15,7 @@ import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from functools import reduce
-from typing import Any, Callable, List, Literal, Optional, Union, get_args
+from typing import Any, Callable, List, Literal, Optional, TypeVar, Union, get_args
 
 import modin.pandas as pd
 import numpy as np
@@ -169,6 +170,10 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     get_snowflake_agg_func,
     repr_aggregate_function,
     using_named_aggregations_for_func,
+)
+from snowflake.snowpark.modin.plugin._internal.align_utils import (
+    align_axis_0_left,
+    align_axis_0_right,
 )
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
@@ -411,7 +416,95 @@ _TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED = (
     "ops for Rolling for this dtype timedelta64[ns] are not implemented"
 )
 
+# List of query compiler methods where attrs on the result should always be empty.
+_RESET_ATTRS_METHODS = [
+    "compare",
+    "merge",
+    "value_counts",
+    "dataframe_to_datetime",
+    "series_to_datetime",
+    "to_numeric",
+    "dt_isocalendar",
+    "groupby_all",
+    "groupby_any",
+    "groupby_cumcount",
+    "groupby_cummax",
+    "groupby_cummin",
+    "groupby_cumsum",
+    "groupby_nunique",
+    "groupby_rank",
+    "groupby_size",
+    # expanding and rolling methods also do not propagate; we check them by prefix matching
+    # agg, crosstab, and concat depend on their inputs, and are handled separately
+]
 
+
+T = TypeVar("T", bound=Callable[..., Any])
+
+
+def _propagate_attrs_on_methods(cls):  # type: ignore
+    """
+    Decorator that modifies all methods on the class to copy `_attrs` from `self`
+    to the output of the method, if the output is another query compiler.
+    """
+
+    def propagate_attrs_decorator(method: T) -> T:
+        @functools.wraps(method)
+        def wrap(self, *args, **kwargs):  # type: ignore
+            result = method(self, *args, **kwargs)
+            if isinstance(result, SnowflakeQueryCompiler) and len(self._attrs):
+                result._attrs = copy.deepcopy(self._attrs)
+            return result
+
+        return typing.cast(T, wrap)
+
+    def reset_attrs_decorator(method: T) -> T:
+        @functools.wraps(method)
+        def wrap(self, *args, **kwargs):  # type: ignore
+            result = method(self, *args, **kwargs)
+            if isinstance(result, SnowflakeQueryCompiler) and len(self._attrs):
+                result._attrs = {}
+            return result
+
+        return typing.cast(T, wrap)
+
+    for attr_name, attr_value in cls.__dict__.items():
+        # concat is handled explicitly because it checks all of its arguments
+        # agg is handled explicitly because it sometimes resets and sometimes propagates
+        if attr_name.startswith("_") or attr_name in ["concat", "agg"]:
+            continue
+        if attr_name in _RESET_ATTRS_METHODS or any(
+            attr_name.startswith(prefix) for prefix in ["expanding", "rolling"]
+        ):
+            setattr(cls, attr_name, reset_attrs_decorator(attr_value))
+        elif isinstance(attr_value, property):
+            setattr(
+                cls,
+                attr_name,
+                property(
+                    propagate_attrs_decorator(
+                        attr_value.fget
+                        if attr_value.fget is not None
+                        else attr_value.__get__
+                    ),
+                    propagate_attrs_decorator(
+                        attr_value.fset
+                        if attr_value.fset is not None
+                        else attr_value.__set__
+                    ),
+                    propagate_attrs_decorator(
+                        attr_value.fdel
+                        if attr_value.fdel is not None
+                        else attr_value.__delete__
+                    ),
+                ),
+            )
+        elif inspect.isfunction(attr_value):
+            setattr(cls, attr_name, propagate_attrs_decorator(attr_value))
+    return cls
+
+
+@_propagate_attrs_on_methods
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
@@ -429,6 +522,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
+        self._attrs: dict[Any, Any] = {}
 
     def _raise_not_implemented_error_for_timedelta(
         self, frame: InternalFrame = None
@@ -854,7 +948,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The QueryCompiler converted to pandas.
 
         """
-        return self._modin_frame.to_pandas(statement_params, **kwargs)
+        result = self._modin_frame.to_pandas(statement_params, **kwargs)
+        if self._attrs:
+            result.attrs = self._attrs
+        return result
 
     def finalize(self) -> None:
         pass
@@ -6065,6 +6162,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         query_compiler = self
+        initial_attrs = self._attrs
         if numeric_only:
             # drop off the non-numeric data columns if the data column if numeric_only is configured to be True
             query_compiler = drop_non_numeric_data_columns(
@@ -6481,6 +6579,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             result = result.transpose_single_row()
             # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
             result = result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
+        # native pandas clears attrs if the aggregation was a list, but propagates it otherwise
+        if is_list_like(func):
+            result._attrs = {}
+        else:
+            result._attrs = copy.deepcopy(initial_attrs)
         return result
 
     def insert(
@@ -7336,6 +7439,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         raise ValueError(
                             f"Indexes have overlapping values. Few of them are: {overlap}. Please run df1.index.intersection(df2.index) to see complete list"
                         )
+        # If each input's `attrs` was identical and not empty, then copy it to the output.
+        # Otherwise, leave `attrs` empty.
+        if len(self._attrs) > 0 and all(self._attrs == o._attrs for o in other):
+            qc._attrs = copy.deepcopy(self._attrs)
         return qc
 
     def cumsum(
@@ -8296,6 +8403,117 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_types=None,
         )
         return SnowflakeQueryCompiler(new_frame)
+
+    def align(
+        self,
+        other: SnowparkDataFrame = None,
+        join: str = "outer",
+        axis: int = 0,
+        level: Level = None,
+        copy: bool = True,
+        fill_value: Scalar = None,
+    ) -> tuple["SnowflakeQueryCompiler", "SnowflakeQueryCompiler"]:
+        """
+        Align two objects on their axes with the specified join method.
+
+        Join method is specified for each axis Index.
+
+        Args:
+            other: DataFrame or Series
+            join: {‘outer’, ‘inner’, ‘left’, ‘right’}, default ‘outer’
+                Type of alignment to be performed.
+                left: use only keys from left frame, preserve key order.
+                right: use only keys from right frame, preserve key order.
+                outer: use union of keys from both frames, sort keys lexicographically.
+                inner: use intersection of keys from both frames, preserve the order of the left keys.
+            axis: allowed axis of the other object, default None
+                Align on index (0), columns (1), or both (None).
+            level: int or level name, default None
+                Broadcast across a level, matching Index values on the passed MultiIndex level.
+            copy: bool, default True
+                Always returns new objects. If copy=False and no reindexing is required then original objects are returned.
+            fill_value: scalar, default np.nan
+                Always returns new objects. If copy=False and no reindexing is required then original objects are returned.
+
+        Returns:
+            tuple of SnowflakeQueryCompilers
+            Aligned objects.
+
+        """
+        if copy is not True:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'copy=False'"
+            )
+        if level is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'level'"
+            )
+        if fill_value is not None:
+            # TODO: SNOW-1752860
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'fill_value'"
+            )
+        if axis != 0:
+            # TODO: SNOW-1752856
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'align' method doesn't support 'axis={axis}'"
+            )
+        frame = self._modin_frame
+        other_frame = other._query_compiler._modin_frame
+
+        if self.is_multiindex(axis=axis) or other._query_compiler.is_multiindex(
+            axis=axis
+        ):
+            raise NotImplementedError(
+                "Snowpark pandas doesn't support `align` with MultiIndex"
+            )
+
+        # convert frames to variant type if index is incompatible for join
+        frame, other_frame = join_utils.convert_incompatible_types_to_variant(
+            frame,
+            other_frame,
+            frame.index_column_snowflake_quoted_identifiers,
+            other_frame.index_column_snowflake_quoted_identifiers,
+        )
+
+        (
+            left_result,
+            left_frame,
+            left_frame_data_ids,
+            left_index_ids,
+        ) = align_axis_0_left(frame, other_frame, join)
+        (
+            right_result,
+            right_frame,
+            right_frame_data_ids,
+            right_index_ids,
+        ) = align_axis_0_right(frame, other_frame, join)
+
+        left_qc = SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=left_frame,
+                data_column_snowflake_quoted_identifiers=left_frame_data_ids,
+                data_column_pandas_labels=frame.data_column_pandas_labels,
+                data_column_pandas_index_names=frame.data_column_pandas_index_names,
+                data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                index_column_snowflake_quoted_identifiers=left_index_ids,
+                index_column_pandas_labels=left_result.index_column_pandas_labels,
+                index_column_types=left_result.cached_index_column_snowpark_pandas_types,
+            )
+        )
+        right_qc = SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=right_frame,
+                data_column_snowflake_quoted_identifiers=right_frame_data_ids,
+                data_column_pandas_labels=other_frame.data_column_pandas_labels,
+                data_column_pandas_index_names=other_frame.data_column_pandas_index_names,
+                data_column_types=other_frame.cached_data_column_snowpark_pandas_types,
+                index_column_snowflake_quoted_identifiers=right_index_ids,
+                index_column_pandas_labels=right_result.index_column_pandas_labels,
+                index_column_types=right_result.cached_index_column_snowpark_pandas_types,
+            )
+        )
+        return left_qc, right_qc
 
     def apply(
         self,
@@ -18587,13 +18805,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 new_col = new_col.as_(inner_quoted_identifier)
                 new_columns.append(new_col)
 
-            new_ordered_data_frame = OrderedDataFrame(
-                dataframe_ref=DataFrameReference(
-                    frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.agg(
-                        new_columns
-                    )
-                )
-            )
+            new_ordered_data_frame = frame.ordered_dataframe.agg(*new_columns)
 
             new_frame = InternalFrame.create(
                 ordered_dataframe=new_ordered_data_frame,

@@ -59,6 +59,7 @@ def validate_scalar_result(res1, res2):
         (lambda df: df.max(), True, False, 0),
         (lambda df: df.max(skipna=False), True, False, 0),
         (lambda df: df.count(), True, False, 0),
+        (lambda df: df.aggregate("size"), True, False, 0),
         (lambda df: df.agg({"x": "min", "y": "max"}), False, False, 1),
         (lambda df: df.agg({"x": "min"}, y="max"), False, False, 0),
     ],
@@ -399,6 +400,8 @@ class TestTimedelta:
                 comparator=validate_scalar_result
                 if is_scalar
                 else assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+                # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+                test_attrs=False,
             )
 
     @sql_count_checker(query_count=0)

@@ -183,20 +183,25 @@ def df_collect_api_telemetry(func):
             0
         ]._session.sql_simplifier_enabled
         try:
+            plan_state = plan.plan_state
             api_calls[0][
                 CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value
-            ] = plan.plan_state[PlanState.PLAN_HEIGHT]
+            ] = plan_state[PlanState.PLAN_HEIGHT]
             api_calls[0][
                 CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
-            ] = plan.plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
+            ] = plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
+            api_calls[0][
+                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+            ] = plan_state[PlanState.NUM_CTE_NODES]
+            api_calls[0][
+                CompilationStageTelemetryField.QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION.value
+            ] = plan_state[PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION]
+
             # The uuid for df._select_statement can be different from df._plan. Since plan
             # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
             # to track the queries.
             uuid = args[0]._plan.uuid
             api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
-            ] = plan.num_duplicate_nodes
             api_calls[0][CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
                 key.value: value
                 for key, value in plan.cumulative_node_complexity.items()
@@ -470,20 +475,6 @@ class TelemetryClient:
                 TelemetryField.SESSION_ID.value: session_id,
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
                 **compilation_stage_summary,
-            },
-        }
-        self.send(message)
-
-    def send_large_query_optimization_skipped_telemetry(
-        self, session_id: int, reason: str
-    ) -> None:
-        message = {
-            **self._create_basic_telemetry_data(
-                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value
-            ),
-            TelemetryField.KEY_DATA.value: {
-                TelemetryField.SESSION_ID.value: session_id,
-                CompilationStageTelemetryField.KEY_REASON.value: reason,
             },
         }
         self.send(message)
