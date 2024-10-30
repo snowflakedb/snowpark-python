@@ -383,6 +383,32 @@ class Selectable(LogicalPlan, ABC):
         reference count of the cte. Includes itself and its children"""
         pass
 
+    def merge_pre_action(self, pre_action: "Query") -> None:
+        if self.pre_actions is None:
+            self.pre_actions = []
+        if pre_action not in self.pre_actions:
+            self.pre_actions.append(copy(pre_action))
+
+    def merge_post_action(self, post_action: "Query") -> None:
+        if self.post_actions is None:
+            self.post_actions = []
+        if post_action not in self.post_actions:
+            self.post_actions.append(copy(post_action))
+
+    def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "SelectStatement":
+        """Update pre-actions, post-actions and schema to capture necessary subquery_plans
+        encountered during plan resolution."""
+        for plan in subquery_plans:
+            for query in plan.queries[:-1]:
+                self.merge_pre_action(query)
+            for query in plan.post_actions:
+                self.merge_post_action(query)
+
+        if self._snowflake_plan is not None:
+            self._snowflake_plan = self._snowflake_plan.with_subqueries(subquery_plans)
+
+        return self
+
 
 class SelectableEntity(Selectable):
     """Query from a table, view, or any other Snowflake objects.
@@ -755,31 +781,6 @@ class SelectStatement(Selectable):
                 else analyzer_utils.STAR
             )
         return self._projection_in_str
-
-    def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "SelectStatement":
-        """Update pre-actions, post-actions and schema to capture necessary subquery_plans
-        encountered during plan resolution."""
-        for plan in subquery_plans:
-            for query in plan.queries[:-1]:
-                if self.pre_actions is None:
-                    self.pre_actions = []
-                if query not in self.pre_actions:
-                    self.pre_actions.append(query)
-            for query in plan.post_actions:
-                if self.post_actions is None:
-                    self.post_actions = []
-                if query not in self.post_actions:
-                    self.post_actions.append(query)
-
-            if (self._schema_query is not None) and (plan.schema_query is not None):
-                self._schema_query = self._schema_query.replace(
-                    plan.queries[-1].sql, plan.schema_query
-                )
-
-        if self._snowflake_plan is not None:
-            self._snowflake_plan = self._snowflake_plan.with_subqueries(subquery_plans)
-
-        return self
 
     @property
     def sql_query(self) -> str:
@@ -1264,6 +1265,16 @@ class SelectStatement(Selectable):
 
         return new
 
+    def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "SelectStatement":
+        super().with_subqueries(subquery_plans)
+        for plan in subquery_plans:
+            if (self._schema_query is not None) and (plan.schema_query is not None):
+                self._schema_query = self._schema_query.replace(
+                    plan.queries[-1].sql, plan.schema_query
+                )
+
+        return self
+
 
 class SelectTableFunction(Selectable):
     """Wrap table function related plan to a subclass of Selectable."""
@@ -1364,17 +1375,11 @@ class SetStatement(Selectable):
         self._nodes = []
         for operand in set_operands:
             if operand.selectable.pre_actions:
-                if not self.pre_actions:
-                    self.pre_actions = []
                 for action in operand.selectable.pre_actions:
-                    if action not in self.pre_actions:
-                        self.pre_actions.append(copy(action))
+                    self.merge_pre_action(action)
             if operand.selectable.post_actions:
-                if not self.post_actions:
-                    self.post_actions = []
                 for action in operand.selectable.post_actions:
-                    if action not in self.post_actions:
-                        self.post_actions.append(copy(action))
+                    self.merge_post_action(action)
             self._nodes.append(operand.selectable)
 
     def __deepcopy__(self, memodict={}) -> "SetStatement":  # noqa: B006

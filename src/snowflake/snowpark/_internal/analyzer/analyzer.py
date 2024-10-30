@@ -779,7 +779,7 @@ class Analyzer:
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
-            if isinstance(logical_plan, SelectStatement):
+            if isinstance(logical_plan, Selectable):
                 logical_plan.with_subqueries(self.subquery_plans)
 
         return result
