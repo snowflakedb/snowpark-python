@@ -145,7 +145,7 @@ def test_df_setitem_slice_key_df_value(key, dtype):
         else:
             df[key] = val
 
-    expected_join_count = 3 if isinstance(key.start, int) else 4
+    expected_join_count = 3
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(snow_df, native_df, setitem, inplace=True)
@@ -246,7 +246,7 @@ def test_df_setitem_array_value_duplicate_index():
 
 
 # matching_item_row_by_label is False here.
-@sql_count_checker(query_count=2, join_count=8)
+@sql_count_checker(query_count=2, join_count=6)
 def test_df_setitem_array_value():
     # Case: setting an array as a new column (df[col] = arr) copies that data
     data = {"a": [1, 2, 3], "b": [4, 5, 6]}
@@ -376,7 +376,7 @@ def test_df_setitem_replace_column_with_single_column(column, key):
     elif isinstance(column, native_pd.Index) and not isinstance(
         column, native_pd.DatetimeIndex
     ):
-        expected_join_count = 4
+        expected_join_count = 3
 
     if (
         key == "a"
@@ -672,7 +672,7 @@ def test_df_setitem_optimized():
     def helper(df):
         df["x"] = df.loc[df.b < 0, "b"]
 
-    with SqlCounter(query_count=1, join_count=3):
+    with SqlCounter(query_count=1, join_count=2):
         eval_snowpark_pandas_result(snow_df, native_df, helper, inplace=True)
 
 

@@ -16,6 +16,7 @@ from snowflake.snowpark import (
 )
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.metadata_utils import PlanMetadata
 from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
@@ -118,6 +119,7 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     fake_session._cte_optimization_enabled = False
     fake_session._query_compilation_stage_enabled = False
     fake_session._conn = mock.create_autospec(ServerConnection)
+    fake_session._conn._thread_safe_session_enabled = False
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
     fake_session._use_scoped_temp_objects = True
@@ -288,10 +290,13 @@ def test_statement_params():
 def test_dataFrame_printSchema(capfd, mock_server_connection):
     session = snowflake.snowpark.session.Session(mock_server_connection)
     df = session.create_dataframe([[1, ""], [3, None]])
-    df._plan._attributes = [
-        Attribute("A", IntegerType(), False),
-        Attribute("B", StringType()),
-    ]
+    df._plan._metadata = PlanMetadata(
+        attributes=[
+            Attribute("A", IntegerType(), False),
+            Attribute("B", StringType()),
+        ],
+        quoted_identifiers=None,
+    )
     df.printSchema()
     out, err = capfd.readouterr()
     assert (

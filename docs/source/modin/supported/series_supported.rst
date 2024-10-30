@@ -21,9 +21,7 @@ Attributes
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``at``                      | P                               | ``N`` for set with MultiIndex                      |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``attrs``                   | N                               | Reading ``attrs`` always returns an empty dict,    |
-|                             |                                 | and attempting to modify or set ``attrs`` will     |
-|                             |                                 | fail.                                              |
+| ``attrs``                   | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``axes``                    | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
@@ -79,14 +77,18 @@ Methods
 | ``add_suffix``              | Y                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``agg``                     | P                               |                                  | ``Y`` when  function is one of ``count``,          |
-|                             |                                 |                                  | ``mean``, ``min``, ``max``, ``sum``, ``median``;   |
-|                             |                                 |                                  | ``std`` and ``var`` supported with ``ddof=0`` or   |
-|                             |                                 |                                  | ``ddof=1``; ``quantile`` is supported when ``q``   |
-|                             |                                 |                                  | is the default value or a scalar.                  |
+|                             |                                 |                                  | ``mean``, ``min``, ``max``, ``sum``, ``median``,   |
+|                             |                                 |                                  | ``size``; ``std`` and ``var`` supported with       |
+|                             |                                 |                                  | ``ddof=0`` or ``ddof=1``; ``quantile`` is          |
+|                             |                                 |                                  | supported when ``q`` is the default value          |
+|                             |                                 |                                  | or a scalar.                                       |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``aggregate``               | P                               |                                  | See ``agg``                                        |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``align``                   | N                               |                                  |                                                    |
+| ``align``                   | P                               | ``copy``, ``level``,             | ``N`` for MultiIndex, for deprecated parameters    |
+|                             |                                 | ``fill_value``                   | ``method``, ``limit``, ``fill_axis``,              |
+|                             |                                 |                                  | ``broadcast_axis``, if ``axis`` == 1 or None, or   |
+|                             |                                 |                                  | if ``fill_value`` is not default of np.nan         |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``all``                     | P                               |                                  | ``N`` for non-integer/boolean types                |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
@@ -214,8 +216,9 @@ Methods
 |                             |                                 | Categoricals are not implemented | label or Series from the current DataFrame;        |
 |                             |                                 | yet                              | otherwise ``N``;                                   |
 |                             |                                 |                                  | Note that supported functions are agg, count,      |
-|                             |                                 |                                  | cumcount, cummax, cummin, cumsum, max, mean,       |
-|                             |                                 |                                  | median, min, quantile, shift, std, sum, and var.   |
+|                             |                                 |                                  | cumcount, cummax, cummin, cumsum, first, last,     |
+|                             |                                 |                                  | max, mean, median, min, quantile, shift, size,     |
+|                             |                                 |                                  | std, sum, and var.                                 |
 |                             |                                 |                                  | Otherwise ``N``                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``gt``                      | P                               | ``level``                        |                                                    |
