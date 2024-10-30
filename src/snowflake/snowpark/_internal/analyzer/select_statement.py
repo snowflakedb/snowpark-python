@@ -383,13 +383,13 @@ class Selectable(LogicalPlan, ABC):
         reference count of the cte. Includes itself and its children"""
         pass
 
-    def merge_pre_action(self, pre_action: "Query") -> None:
+    def merge_into_pre_action(self, pre_action: "Query") -> None:
         if self.pre_actions is None:
             self.pre_actions = []
         if pre_action not in self.pre_actions:
             self.pre_actions.append(copy(pre_action))
 
-    def merge_post_action(self, post_action: "Query") -> None:
+    def merge_into_post_action(self, post_action: "Query") -> None:
         if self.post_actions is None:
             self.post_actions = []
         if post_action not in self.post_actions:
@@ -400,9 +400,9 @@ class Selectable(LogicalPlan, ABC):
         encountered during plan resolution."""
         for plan in subquery_plans:
             for query in plan.queries[:-1]:
-                self.merge_pre_action(query)
+                self.merge_into_pre_action(query)
             for query in plan.post_actions:
-                self.merge_post_action(query)
+                self.merge_into_post_action(query)
 
         if self._snowflake_plan is not None:
             self._snowflake_plan = self._snowflake_plan.with_subqueries(subquery_plans)
@@ -1376,10 +1376,10 @@ class SetStatement(Selectable):
         for operand in set_operands:
             if operand.selectable.pre_actions:
                 for action in operand.selectable.pre_actions:
-                    self.merge_pre_action(action)
+                    self.merge_into_pre_action(action)
             if operand.selectable.post_actions:
                 for action in operand.selectable.post_actions:
-                    self.merge_post_action(action)
+                    self.merge_into_post_action(action)
             self._nodes.append(operand.selectable)
 
     def __deepcopy__(self, memodict={}) -> "SetStatement":  # noqa: B006

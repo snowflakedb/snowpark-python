@@ -269,11 +269,11 @@ def update_resolvable_node(
         for operand in node.set_operands:
             if operand.selectable.pre_actions:
                 for action in operand.selectable.pre_actions:
-                    node.merge_pre_action(action)
+                    node.merge_into_pre_action(action)
 
             if operand.selectable.post_actions:
                 for action in operand.selectable.post_actions:
-                    node.merge_post_action(action)
+                    node.merge_into_post_action(action)
 
     elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
         assert node.snowflake_plan is not None
