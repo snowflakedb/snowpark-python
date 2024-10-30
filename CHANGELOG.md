@@ -11,7 +11,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug where `In` expression used in dataframe select operation would not propagate queries correctly. This surfaces errors like `Object 'SNOWPARK_TEMP_TABLE_ABCDXYZ123' does not exist or not authorized`.
+- Fixed the pre-action and post-action query propagation when `In` expression were used in selects.
 
 #### Dependency Updates
 
