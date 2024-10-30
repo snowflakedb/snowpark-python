@@ -27,6 +27,7 @@
 - Added support for `Index.to_numpy`.
 - Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 - Added support for `size` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for `DataFrame.align` and `Series.align` for `axis=1 and None`.
 
 ### Snowpark Local Testing Updates
 
