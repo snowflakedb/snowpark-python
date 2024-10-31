@@ -67,10 +67,10 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``agg``                     | P                               | ``margins``, ``observed``,       | If ``axis == 0``: ``Y`` when  function is one of   |
 |                             |                                 | ``sort``                         | ``count``, ``mean``, ``min``, ``max``, ``sum``,    |
-|                             |                                 |                                  | ``median``; ``std`` and ``var`` supported with     |
-|                             |                                 |                                  | ``ddof=0`` or ``ddof=1``; ``quantile`` is          |
-|                             |                                 |                                  | supported when ``q`` is the default value or a     |
-|                             |                                 |                                  | scalar.                                            |
+|                             |                                 |                                  | ``median``, ``size``; ``std`` and ``var``          |
+|                             |                                 |                                  | supported with ``ddof=0`` or ``ddof=1``;           |
+|                             |                                 |                                  | ``quantile`` is supported when ``q`` is the        |
+|                             |                                 |                                  | default value or a scalar.                         |
 |                             |                                 |                                  | If ``axis == 1``: ``Y`` when function is           |
 |                             |                                 |                                  | ``count``, ``min``, ``max``, or ``sum`` and the    |
 |                             |                                 |                                  | index is not a MultiIndex.                         |
@@ -205,8 +205,9 @@ Methods
 |                             |                                 | Categoricals are not implemented | label or Series from the current DataFrame;        |
 |                             |                                 | yet                              | otherwise ``N``;                                   |
 |                             |                                 |                                  | Note that supported functions are agg, count,      |
-|                             |                                 |                                  | cumcount, cummax, cummin, cumsum, max, mean,       |
-|                             |                                 |                                  | median, min, quantile, shift, std, sum, and var.   |
+|                             |                                 |                                  | cumcount, cummax, cummin, cumsum, first, last,     |
+|                             |                                 |                                  | max, mean, median, min, quantile, shift, size,     |
+|                             |                                 |                                  | std, sum, and var.                                 |
 |                             |                                 |                                  | Otherwise ``N``                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``gt``                      | P                               | ``level``                        |                                                    |
