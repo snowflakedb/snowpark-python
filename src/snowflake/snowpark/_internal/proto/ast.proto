@@ -154,7 +154,11 @@ message SpWindowRelativePosition {
 
 // expr-window.ir:10
 message SpWindowRelativePosition_Position {
+<<<<<<< HEAD
   Expr n = 1;
+=======
+  int64 n = 1;
+>>>>>>> 117c71b59 (cherry-pick #2549)
 }
 
 // pd-indexing.ir:2
