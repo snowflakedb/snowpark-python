@@ -38,6 +38,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     TimestampType,
     TimeType,
+    VariantType,
 )
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
 
@@ -695,4 +696,76 @@ def test_snow_1694649_repro_merge_with_equal_null(session):
     assert session.table(df1.table_name).order_by("A").collect() == [
         Row(0, "a"),
         Row(1, "b"),
+    ]
+
+
+def test_update_with_variant_type(session):
+    # map type
+    df1 = session.create_dataframe(
+        [(1, 1, {}), (2, 1, {}), (2, 2, {})], schema=["a", "b", "c"]
+    )
+    df1.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
+
+    target.update({"c": {1: 2}}, target["a"] == 1)
+    assert target.collect() == [
+        Row(1, 1, '{\n  "1": 2\n}'),
+        Row(2, 1, "{}"),
+        Row(2, 2, "{}"),
+    ]
+
+    target.update({"c": {"a": "b"}}, target["c"] == {})
+    assert target.collect() == [
+        Row(1, 1, '{\n  "1": 2\n}'),
+        Row(2, 1, '{\n  "a": "b"\n}'),
+        Row(2, 2, '{\n  "a": "b"\n}'),
+    ]
+
+    # array type
+    df2 = session.create_dataframe(
+        [(1, 1, []), (2, 1, []), (2, 2, [])], schema=["a", "b", "c"]
+    )
+    df2.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
+
+    target.update({"c": [1, "a"]}, target["a"] == 1)
+    assert target.collect() == [
+        Row(1, 1, '[\n  1,\n  "a"\n]'),
+        Row(2, 1, "[]"),
+        Row(2, 2, "[]"),
+    ]
+
+    target.update({"c": [1, "a"]}, target["c"] == [])
+    assert target.collect() == [
+        Row(1, 1, '[\n  1,\n  "a"\n]'),
+        Row(2, 1, '[\n  1,\n  "a"\n]'),
+        Row(2, 2, '[\n  1,\n  "a"\n]'),
+    ]
+
+    # variant type
+    df3 = session.create_dataframe(
+        [(1, 1, []), (2, 1, {}), (2, 2, [])],
+        schema=StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", IntegerType()),
+                StructField("c", VariantType()),
+            ]
+        ),
+    )
+    df3.write.save_as_table(table_name, mode="overwrite", table_type="temporary")
+    target = session.table(table_name)
+
+    target.update({"c": [1, "a"]}, target["a"] == 1)
+    assert target.collect() == [
+        Row(1, 1, '[\n  1,\n  "a"\n]'),
+        Row(2, 1, "{}"),
+        Row(2, 2, "[]"),
+    ]
+
+    target.update({"c": {"a": "b"}}, target["c"] == [])
+    assert target.collect() == [
+        Row(1, 1, '[\n  1,\n  "a"\n]'),
+        Row(2, 1, "{}"),
+        Row(2, 2, '{\n  "a": "b"\n}'),
     ]

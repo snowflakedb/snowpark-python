@@ -30,6 +30,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### Bug Fixes
+
+- Fixed a bug where `Table.update` could not handle `VariantType`, `MapType`, and `ArrayType` data types.
+
 ## 1.24.0 (2024-10-28)
 
 ### Snowpark Python API Updates
