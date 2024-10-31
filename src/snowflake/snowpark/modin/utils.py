@@ -24,9 +24,12 @@
 
 import functools
 import importlib
+import inspect
+import os
 import re
 import types
 from collections.abc import Hashable, Sequence
+from pathlib import Path
 from textwrap import dedent, indent
 from typing import (
     Any,
@@ -549,6 +552,45 @@ def _inherit_docstrings(
 
 
 DocModule.subscribe(_update_inherited_docstrings)
+
+
+def expanduser_path_arg(argname: str) -> Callable[[Fn], Fn]:
+    """
+    Decorate a function replacing its path argument with "user-expanded" value.
+
+    Parameters
+    ----------
+    argname : str
+        Name of the argument which is containing a path to be expanded.
+
+    Returns
+    -------
+    callable
+        Decorator which performs the replacement.
+    """
+
+    def decorator(func: Fn) -> Fn:
+        signature = inspect.signature(func)
+        assert (
+            getattr(signature.parameters.get(argname), "name", None) == argname
+        ), f"Function {func} does not take '{argname}' as argument"
+
+        @functools.wraps(func)
+        def wrapped(*args: tuple, **kw: dict) -> Any:
+            params = signature.bind(*args, **kw)
+            if patharg := params.arguments.get(argname, None):
+                if isinstance(patharg, str) and patharg.startswith(
+                    "~"
+                ):  # pragma: no cover
+                    params.arguments[argname] = os.path.expanduser(patharg)
+                elif isinstance(patharg, Path):  # pragma: no cover
+                    params.arguments[argname] = patharg.expanduser()
+                return func(*params.args, **params.kwargs)
+            return func(*args, **kw)
+
+        return wrapped  # type: ignore[return-value]
+
+    return decorator
 
 
 def extract_sections(text: str) -> list[dict[str, str]]:

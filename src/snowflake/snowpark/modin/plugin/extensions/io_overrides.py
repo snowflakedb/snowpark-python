@@ -4,7 +4,8 @@
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Any, Callable, Hashable, Literal, Sequence
+from re import Pattern
+from typing import TYPE_CHECKING, Any, Callable, Hashable, Iterable, Literal, Sequence
 
 import modin.pandas as pd
 import pandas as native_pd
@@ -29,7 +30,7 @@ from snowflake.snowpark.modin.plugin.io.snow_io import (
     READ_CSV_DEFAULTS,
     PandasOnSnowflakeIO,
 )
-from snowflake.snowpark.modin.utils import _inherit_docstrings
+from snowflake.snowpark.modin.utils import _inherit_docstrings, expanduser_path_arg
 
 if TYPE_CHECKING:  # pragma: no cover
     import csv
@@ -45,11 +46,61 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     pandas_module_level_function_not_implemented,
 )
 
-# TODO: SNOW-1265551: add inherit_docstrings decorators once docstring overrides are available
+
+@_inherit_docstrings(native_pd.read_pickle, apilink="pandas.read_pickle")
+@register_pd_accessor("read_pickle")
+@expanduser_path_arg("filepath_or_buffer")
+def read_pickle(
+    filepath_or_buffer,
+    compression: CompressionOptions = "infer",
+    storage_options: StorageOptions = None,
+) -> pd.DataFrame:
+    _pd_read_pickle_signature = {
+        val.name for val in inspect.signature(native_pd.read_pickle).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_pickle_signature}
+
+    return pd.DataFrame(query_compiler=PandasOnSnowflakeIO.read_pickle(**kwargs))
 
 
+@_inherit_docstrings(native_pd.read_html, apilink="pandas.read_html")
+@register_pd_accessor("read_html")
+def read_html(
+    io,
+    *,
+    match: str | Pattern = ".+",
+    flavor: str | None = None,
+    header: int | Sequence[int] | None = None,
+    index_col: int | Sequence[int] | None = None,
+    skiprows: int | Sequence[int] | slice | None = None,
+    attrs: dict[str, str] | None = None,
+    parse_dates: bool = False,
+    thousands: str | None = ",",
+    encoding: str | None = None,
+    decimal: str = ".",
+    converters: dict | None = None,
+    na_values: Iterable[object] | None = None,
+    keep_default_na: bool = True,
+    displayed_only: bool = True,
+    extract_links: Literal[None, "header", "footer", "body", "all"] = None,
+    dtype_backend: DtypeBackend | NoDefault = no_default,
+    storage_options: StorageOptions = None,
+) -> pd.DataFrame:
+
+    _pd_read_html_signature = {
+        val.name for val in inspect.signature(native_pd.read_html).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_html_signature}
+
+    qcs = PandasOnSnowflakeIO.read_html(**kwargs)
+    return [pd.DataFrame(query_compiler=qc) for qc in qcs]
+
+
+@_inherit_docstrings(native_pd.read_xml, apilink="pandas.read_xml")
 @register_pd_accessor("read_xml")
-@pandas_module_level_function_not_implemented()
+@expanduser_path_arg("path_or_buffer")
 def read_xml(
     path_or_buffer: FilePath | ReadBuffer[bytes] | ReadBuffer[str],
     *,
@@ -71,7 +122,13 @@ def read_xml(
 ) -> pd.DataFrame:
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    pass  # pragma: no cover
+    _pd_read_xml_signature = {
+        val.name for val in inspect.signature(native_pd.read_xml).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_xml_signature}
+
+    return pd.DataFrame(query_compiler=PandasOnSnowflakeIO.read_xml(**kwargs))
 
 
 @_inherit_docstrings(native_pd.json_normalize, apilink="pandas.json_normalize")
