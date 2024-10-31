@@ -709,6 +709,15 @@ class Session:
         #     pass
         self._ast_enabled = value
 
+        # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
+        # This feature should get moved server-side anyways.
+        if self._ast_enabled:
+            _logger.warning(
+                "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
+                " Disabling auto temp cleaner for full test suite due to buggy behavior."
+            )
+            self.auto_clean_up_temp_table_enabled = False
+
     @property
     def cte_optimization_enabled(self) -> bool:
         """Set to ``True`` to enable the CTE optimization (defaults to ``False``).
