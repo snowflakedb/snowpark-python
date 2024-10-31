@@ -77,6 +77,7 @@ def infer_metadata(
     )
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
     from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+        Aggregate,
         Filter,
         Project,
         Sample,
@@ -97,6 +98,13 @@ def infer_metadata(
         # When source_plan is a SnowflakeValues, metadata is already defined locally
         elif isinstance(source_plan, SnowflakeValues):
             attributes = source_plan.output
+        # When source_plan is Aggregate or Project, we already have quoted_identifiers
+        elif isinstance(source_plan, Aggregate):
+            quoted_identifiers = infer_quoted_identifiers_from_expressions(
+                source_plan.aggregate_expressions,  # type: ignore
+                analyzer,
+                df_aliased_col_name_to_real_col_name,
+            )
         elif isinstance(source_plan, Project):
             quoted_identifiers = infer_quoted_identifiers_from_expressions(
                 source_plan.project_list,  # type: ignore
