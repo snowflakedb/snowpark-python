@@ -472,7 +472,7 @@ jobs:
             .tox/coverage.xml
 
   test-snowpark-disable-multithreading-mode:
-    name: Test Snowpark Multithreading py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    name: Test Snowpark Multithreading Disabled py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
