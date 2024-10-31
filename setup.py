@@ -52,6 +52,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
     "protoc-wheel-0",  # Protocol buffer compiler, for Snowpark IR
+    "lxml",  # used in read_xml tests
 ]
 
 # read the version
