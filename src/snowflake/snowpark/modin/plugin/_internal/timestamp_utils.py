@@ -25,6 +25,7 @@ from snowflake.snowpark.functions import (
     dayofmonth,
     hour,
     iff,
+    make_interval,
     max as max_,
     minute,
     month,
@@ -455,7 +456,7 @@ def convert_dateoffset_to_interval(
     # Handle case where the DateOffset has no argument or an integer argument
     # Ex. pd.DateOffset() -> Timedelta 1 Day, pd.DateOffset(5) -> Timedelta 5 Days
     if not dateoffset_dict:
-        return Interval(day=value.n)
+        return make_interval(days=value.n)
     # Handle case where DateOffset offset value is treated as a timedelta
     param_mapping = {
         "years": "year",
@@ -478,7 +479,7 @@ def convert_dateoffset_to_interval(
                 "DateOffset with parameters that replace the offset value are not yet supported."
             )
         interval_kwargs[new_param] = offset
-    return Interval(**interval_kwargs)
+    return make_interval(**interval_kwargs)
 
 
 def tz_localize_column(column: Column, tz: Union[str, dt.tzinfo]) -> Column:
