@@ -316,7 +316,7 @@ def test_df_agg_invalid_args_in_list_negative(session):
         ["first", "second"]
     )
 
-    assert df.agg(("first", "count")).collect() == [Row(4)]
+    assert df.agg([("first", "count")]).collect() == [Row(4)]
 
     # invalid type
     with pytest.raises(TypeError) as ex_info:

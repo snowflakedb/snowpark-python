@@ -1171,6 +1171,8 @@ def check_agg_exprs(
     """Helper function to raise exceptions when invalid exprs have been passed."""
     from snowflake.snowpark import Column
 
+    exprs, _ = parse_positional_args_to_list_variadic(*exprs)
+
     # special case for single list or tuple
     if is_valid_tuple_for_agg(exprs):
         exprs = [exprs]
