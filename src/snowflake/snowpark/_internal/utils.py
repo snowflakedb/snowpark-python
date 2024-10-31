@@ -277,7 +277,7 @@ def unalias_datetime_part(part):
         raise ValueError(f"{part} is not a recognized date or time part.")
 
 
-def parse_duration_string(duration: str) -> tuple[int, str]:
+def parse_duration_string(duration: str) -> Tuple[int, str]:
     length, unit = duration.split(" ")
     length = int(length)
     unit = unalias_datetime_part(unit)
