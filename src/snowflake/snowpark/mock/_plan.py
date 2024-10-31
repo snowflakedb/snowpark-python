@@ -1221,14 +1221,21 @@ def execute_mock_plan(
             multi_joins = matched_count.where(lambda x: x > 1).count()
 
             # Select rows that match the condition to be updated
-            rows_to_update = intermediate
-
+            # rows_to_update = intermediate
+            pd_index = (
+                intermediate.map(
+                    lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x
+                )
+                .drop_duplicates(subset=matched_rows.columns, keep="first")
+                .index
+            )
+            rows_to_update = intermediate.loc[pd_index].reset_index(drop=True)
             # rows_to_update = intermediate.drop_duplicates(
             #     subset=matched_rows.columns, keep="first"
             # ).reset_index(  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
             #     drop=True
             # )
-            # rows_to_update.sf_types = intermediate.sf_types
+            rows_to_update.sf_types = intermediate.sf_types
 
             # Update rows in place
             for attr, new_expr in source_plan.assignments.items():
