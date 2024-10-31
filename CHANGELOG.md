@@ -27,6 +27,9 @@
 - Added support for `Index.to_numpy`.
 - Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 - Added support for `size` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for `pd.read_pickle` (Uses native pandas for processing).
+- Added support for `pd.read_html` (Uses native pandas for processing).
+- Added support for `pd.read_xml` (Uses native pandas for processing).
 
 ### Snowpark Local Testing Updates
 
