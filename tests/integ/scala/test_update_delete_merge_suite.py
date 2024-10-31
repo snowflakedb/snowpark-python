@@ -715,8 +715,4 @@ def test_snow_1707286_repro_merge_with_(session):
         condition=table["A"] == df2["A"],
         source=df2,
     )
-    assert table.order_by("A").collect() == [
-        Row(0, "9"),
-        Row(1, "9"),
-        Row(2, "5"),
-    ]
+    assert table.to_pandas().eq(pd.DataFrame({"A": [9, 9, 5]})).all().item()

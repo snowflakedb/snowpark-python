@@ -2069,16 +2069,6 @@ def calculate_expression(
                 isinstance(upper, UnboundedFollowing),
             )
 
-        # Reorder windows to match the index order in res_index
-        reordered_windows = []
-        for idx in res_index:
-            for w in windows:
-                if idx in w.index:
-                    reordered_windows.append(w)
-                    break
-
-        windows = reordered_windows
-
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []

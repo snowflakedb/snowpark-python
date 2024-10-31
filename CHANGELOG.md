@@ -117,13 +117,6 @@
 
 - Fixed a bug where `DataFrame.alias` raises `KeyError` for input column name.
 - Fixed a bug where `to_csv` on Snowflake stage fails when data contains empty strings.
-- Fixed a bug where nullable columns were annotated wrongly.
-- Fixed a bug where the `date_add` and `date_sub` functions failed for `NULL` values.
-- Fixed a bug where `equal_null` could fail inside a merge statement.
-- Fixed a bug where `row_number` could fail inside a Window function.
-- Fixed a bug where `Table.update` and `Table.merge` could fail if the target table's
-  index was not the default `RangeIndex`.
-
 
 ## 1.23.0 (2024-10-09)
 
@@ -190,6 +183,16 @@
 - Fixed a bug where `Resampler` methods on timedelta columns would produce integer results.
 - Fixed a bug where `pd.to_numeric()` would leave `Timedelta` inputs as `Timedelta` instead of converting them to integers.
 - Fixed `loc` set when setting a single row, or multiple rows, of a DataFrame with a Series value.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug where nullable columns were annotated wrongly.
+- Fixed a bug where the `date_add` and `date_sub` functions failed for `NULL` values.
+- Fixed a bug where `equal_null` could fail inside a merge statement.
+- Fixed a bug where `row_number` could fail inside a Window function.
+- Fixed a bug where updates could fail when the source is the result of a join.
 
 
 ## 1.22.1 (2024-09-11)
