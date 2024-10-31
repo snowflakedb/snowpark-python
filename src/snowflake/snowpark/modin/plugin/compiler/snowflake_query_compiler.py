@@ -6573,7 +6573,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             result = single_agg_func_query_compilers[0].concat(
                 axis=0, other=single_agg_func_query_compilers[1:]
             )
-        if axis == 0 and (should_squeeze or is_scalar(func)):
+
+        if axis == 0 and (should_squeeze or (is_scalar(func) or callable(func))):
             # In this branch, the concatenated frame is a 1-row frame, but needs to be converted
             # into a 1-column frame so the frontend can wrap it as a Series
             result = result.transpose_single_row()

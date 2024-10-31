@@ -695,6 +695,7 @@ def test_agg_with_no_column_raises(pandas_df):
         # This is a bug in pandas - the attrs are not propagated for
         # size, but are propagated for other functions.
         (lambda df: df.aggregate("size"), False),
+        (lambda df: df.aggregate(len), False),
         (lambda df: df.max(), True),
         (lambda df: df.count(), True),
         (lambda df: df.corr(), True),
@@ -861,6 +862,7 @@ def test_agg_valid_variant_col(session, test_table_name):
         np.max,
         np.sum,
         "size",
+        len,
         ["max", "min", "count", "sum"],
         ["min"],
         ["idxmax", "max", "idxmin", "min"],
@@ -875,7 +877,7 @@ def test_agg_axis_1_simple(agg_func):
         df,
         native_df,
         lambda df: df.agg(agg_func, axis=1),
-        test_attrs=agg_func != "size",
+        test_attrs=agg_func not in ("size", len),
     )  # native pandas does not propagate attrs for size, but snowpark pandas does
 
 
