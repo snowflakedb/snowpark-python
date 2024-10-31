@@ -89,10 +89,16 @@ def where_mapper(
 
         if is_scalar(x):
             # broadcast scalar x to size of cond
-            object_shape = cond.shape
-            if len(object_shape) == 1:
-                df_scalar = pd.Series(x, index=range(object_shape[0]))
-            elif len(object_shape) == 2:
+            n_dim = cond.ndim
+            if n_dim == 1:
+                df_cond = cond.to_frame()
+                df_cond["new_value"] = x
+                df_scalar = df_cond["new_value"]
+                original_cond_column = df_cond.columns[0]
+                cond = df_cond[original_cond_column]
+                # df_scalar = pd.Series(x, index=range(object_shape[0]))
+            elif n_dim == 2:
+                object_shape = cond.shape
                 df_scalar = pd.DataFrame(
                     x, index=range(object_shape[0]), columns=range(object_shape[1])
                 )
