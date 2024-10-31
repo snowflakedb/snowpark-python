@@ -6,7 +6,6 @@ import copy
 import uuid
 from typing import TYPE_CHECKING, AbstractSet, Any, Dict, List, Optional, Tuple
 
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
 import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
@@ -380,10 +379,7 @@ class Interval(Expression):
         millisecond: Optional[int] = None,
         microsecond: Optional[int] = None,
         nanosecond: Optional[int] = None,
-        _emit_ast: bool = True,
     ) -> None:
-        from snowflake.snowpark._internal.ast_utils import with_src_position
-
         super().__init__()
         self.values_dict = {}
         if year is not None:
@@ -408,33 +404,6 @@ class Interval(Expression):
             self.values_dict["MICROSECOND"] = microsecond
         if nanosecond is not None:
             self.values_dict["NANOSECOND"] = nanosecond
-
-        if self._ast is None and _emit_ast:
-            expr = proto.Expr()
-            ast = with_src_position(expr.sp_interval)
-            if year is not None:
-                ast.year.value = year
-            if quarter is not None:
-                ast.quarter.value = quarter
-            if month is not None:
-                ast.month.value = month
-            if week is not None:
-                ast.week.value = week
-            if day is not None:
-                ast.day.value = day
-            if hour is not None:
-                ast.hour.value = hour
-            if minute is not None:
-                ast.minute.value = minute
-            if second is not None:
-                ast.second.value = second
-            if millisecond is not None:
-                ast.millisecond.value = millisecond
-            if microsecond is not None:
-                ast.microsecond.value = microsecond
-            if nanosecond is not None:
-                ast.nanosecond.value = nanosecond
-            self._ast = expr
 
     @property
     def sql(self) -> str:

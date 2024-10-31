@@ -10,7 +10,6 @@ import statistics
 import typing
 import uuid
 from collections.abc import Iterable
-from datetime import timedelta
 from enum import Enum
 from functools import cached_property, partial, reduce
 from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
@@ -2041,15 +2040,27 @@ def calculate_expression(
         left = fix_drift_between_column_sf_type_and_dtype(
             calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
         )
-        right = fix_drift_between_column_sf_type_and_dtype(
-            calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
-        )
+        if not isinstance(exp.right, Interval):
+            right = fix_drift_between_column_sf_type_and_dtype(
+                calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
+            )
+        else:
+            # INTERVAL is syntactic sugar for DATEADD.
+            right = exp.right
         if isinstance(exp, Multiply):
             new_column = left * right
         elif isinstance(exp, Divide):
             new_column = left / right
         elif isinstance(exp, Add):
-            new_column = left + right
+            if isinstance(right, Interval):
+                # The expression `select to_date ('2019-02-28') + INTERVAL '1 day, 1 year';`
+                # is rewritten to `select dateadd(DAY, 1, dateadd(YEAR, 1, to_date ('2019-02-28')))`.
+                new_column = left
+                for k, v in right.values_dict.items():
+                    new_column = registry.get_function("dateadd")(k, v, left)
+                    left = new_column
+            else:
+                new_column = left + right
         elif isinstance(exp, Subtract):
             new_column = left - right
         elif isinstance(exp, Remainder):
@@ -2663,17 +2674,6 @@ def calculate_expression(
             return handle_udaf_expression(exp, input_data, analyzer, expr_to_alias)
         else:
             return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
-    elif isinstance(exp, Interval):
-        if not keep_literal:
-            return ColumnEmulator(
-                data=[exp.values_dict for _ in range(len(input_data))],
-                sf_type=ColumnType(exp.datatype, nullable=True),
-            )
-        else:
-            # In Snowflake, Interval fields use "singular" names, e.g. "day" instead of "days",
-            # while Python uses the plural form.
-            plural_values_dict = {k + "s": v for k, v in exp.values_dict.items()}
-            return timedelta(*plural_values_dict)
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking Expression {type(exp).__name__}",
