@@ -4602,7 +4602,7 @@ def window(
     startTime: Optional[str] = None,
 ) -> Column:
     """
-    Converts a time column into a window object with start and end times. Window start times areinclusive
+    Converts a time column into a window object with start and end times. Window start times are
     inclusive while end times are exclusive. For example 9:30 is in the window [9:30, 10:00), but not [9:00, 9:30).
 
     Args:
