@@ -309,14 +309,14 @@ def test_df_agg_dict_arg(session):
     )
 
 
-def test_df_agg_invalid_args_in_list(session):
+def test_df_agg_invalid_args_in_list_negative(session):
     """Test for making sure when a list passed to agg() produces correct errors."""
 
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
         ["first", "second"]
     )
 
-    assert df.agg([("first", "count")]).collect() == [Row(4)]
+    assert df.agg(("first", "count")).collect() == [Row(4)]
 
     # invalid type
     with pytest.raises(TypeError) as ex_info:

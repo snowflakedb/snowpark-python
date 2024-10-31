@@ -128,6 +128,7 @@ from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
     SKIP_LEVELS_TWO,
     TempObjectType,
+    check_agg_exprs,
     check_flatten_mode,
     check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
@@ -1917,6 +1918,9 @@ class DataFrame:
             - :meth:`RelationalGroupedDataFrame.agg`
             - :meth:`DataFrame.group_by`
         """
+
+        # Check exprs arguments.
+        check_agg_exprs(exprs)
 
         # AST.
         stmt = None

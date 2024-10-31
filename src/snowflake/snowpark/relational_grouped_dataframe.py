@@ -37,6 +37,8 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import (
+    check_agg_exprs,
+    is_valid_tuple_for_agg,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
     prepare_pivot_arguments,
@@ -257,17 +259,14 @@ class RelationalGroupedDataFrame:
             - :meth:`DataFrame.group_by`
         """
 
-        def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
-            return (
-                len(e) == 2
-                and isinstance(e[0], (Column, str))
-                and isinstance(e[1], str)
-            )
-
         exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
+
         # special case for single list or tuple
         if is_valid_tuple_for_agg(exprs):
             exprs = [exprs]
+
+        # Check exprs parameter.
+        check_agg_exprs(exprs)
 
         # AST.
         stmt = None
@@ -287,11 +286,6 @@ class RelationalGroupedDataFrame:
         agg_exprs = []
         if len(exprs) > 0 and isinstance(exprs[0], dict):
             for k, v in exprs[0].items():
-                if not (isinstance(k, str) and isinstance(v, str)):
-                    raise TypeError(
-                        "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() "
-                        f"should contain only strings: got key-value pair with types {type(k), type(v)}"
-                    )
                 agg_exprs.append(_str_to_expr(v)(Column(k)._expression))
         else:
             for e in exprs:
@@ -304,11 +298,6 @@ class RelationalGroupedDataFrame:
                         else Column(e[0])._expression
                     )
                     agg_exprs.append(_str_to_expr(e[1])(col_expr))
-                else:
-                    raise TypeError(
-                        "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should "
-                        "contain only Column objects, or pairs of Column object (or column name) and strings."
-                    )
 
         df = self._to_df(agg_exprs, _emit_ast=False)
 
