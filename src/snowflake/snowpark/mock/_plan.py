@@ -4,6 +4,7 @@
 
 import importlib
 import inspect
+import json
 import math
 import re
 import statistics
@@ -1203,18 +1204,31 @@ def execute_mock_plan(
                 matched_rows = target
 
             # Calculate multi_join
-            matched_count = intermediate[target.columns].value_counts(dropna=False)[
-                matched_rows.apply(tuple, 1)
-            ]
+
+            rows_value_counts = (
+                intermediate[target.columns]
+                .map(lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x)
+                .value_counts(dropna=False)
+            )
+            key_index = matched_rows.map(
+                lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x
+            ).apply(tuple, 1)
+            matched_count = rows_value_counts[key_index]
+
+            # matched_count = intermediate[target.columns].value_counts(dropna=False)[
+            #     matched_rows.apply(tuple, 1)
+            # ]
             multi_joins = matched_count.where(lambda x: x > 1).count()
 
             # Select rows that match the condition to be updated
-            rows_to_update = intermediate.drop_duplicates(
-                subset=matched_rows.columns, keep="first"
-            ).reset_index(  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
-                drop=True
-            )
-            rows_to_update.sf_types = intermediate.sf_types
+            rows_to_update = intermediate
+
+            # rows_to_update = intermediate.drop_duplicates(
+            #     subset=matched_rows.columns, keep="first"
+            # ).reset_index(  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
+            #     drop=True
+            # )
+            # rows_to_update.sf_types = intermediate.sf_types
 
             # Update rows in place
             for attr, new_expr in source_plan.assignments.items():
