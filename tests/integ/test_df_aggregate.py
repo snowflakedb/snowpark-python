@@ -12,7 +12,6 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     approx_percentile_combine,
-    ascii,
     avg,
     col,
     count,
@@ -29,6 +28,7 @@ from snowflake.snowpark.functions import (
     stddev,
     stddev_pop,
     sum as sum_,
+    upper,
 )
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.types import DoubleType
@@ -678,11 +678,11 @@ def test_agg_column_naming(session):
     )
 
     # DF with automatic naming
-    df2 = df.group_by(ascii(df.a)).agg(max_(df.b))
+    df2 = df.group_by(upper(df.a)).agg(max_(df.b))
 
     # DF with specific naming
-    df3 = df.group_by(ascii(df.a).alias("ord")).agg(max_(df.b).alias("max"))
+    df3 = df.group_by(upper(df.a).alias("UPPER")).agg(max_(df.b).alias("max"))
 
-    assert df2.columns == ['"ASCII(A)"', '"MAX(B)"']
-    assert df3.columns == ["ORD", "MAX"]
-    assert df2.collect() == df3.collect() == [Row(120, 2), Row(121, 1)]
+    assert df2.columns == ['"UPPER(A)"', '"MAX(B)"']
+    assert df3.columns == ["UPPER", "MAX"]
+    assert df2.collect() == df3.collect() == [Row("X", 2), Row("Y", 1)]

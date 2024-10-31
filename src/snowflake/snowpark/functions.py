@@ -4651,7 +4651,7 @@ def window(
         <BLANKLINE>
     """
     if slideDuration:
-        # SNOW- : slideDuration changes this function from a 1:1 mapping to a 1:N mapping. That
+        # SNOW-1063685: slideDuration changes this function from a 1:1 mapping to a 1:N mapping. That
         # currently would require a udtf which may have significantly different performance.
         raise NotImplementedError(
             "snowflake.snowpark.functions.window does not support slideDuration parameter yet."
