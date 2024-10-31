@@ -1,11 +1,53 @@
 # Release History
 
-## 1.24.0 (TBD)
+## 1.25.0 (TBD)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
+- Added the following new functions in `snowflake.snowpark.dataframe`:
+  - `map`
+
+#### Dependency Updates
+
+- Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.
+- Added a dependency on `protoc-wheel-0` for the development profile.
+- Require `snowflake-connector-python>=3.12.0, <4.0.0` (was `>=3.10.0`).
+
+### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Updated `modin` from 0.28.1 to 0.30.1.
+- Added support for all `pandas` 2.2.x versions.
+
+#### New Features
+
+- Added support for `Index.to_numpy`.
+- Added support for `DataFrame.align` and `Series.align` for `axis=0`.
+- Added support for `size` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for `pd.read_pickle` (Uses native pandas for processing).
+- Added support for `pd.read_html` (Uses native pandas for processing).
+- Added support for `pd.read_xml` (Uses native pandas for processing).
+- Added support for aggregation functions `"size"` and `len` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+
+#### Bug Fixes
+
+- Fixed a bug where aggregating a single-column dataframe with a single callable function (e.g. `pd.DataFrame([0]).agg(np.mean)`) would fail to transpose the result.
+
+### Snowpark Local Testing Updates
+
+## 1.24.0 (2024-10-28)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Updated `Session` class to be thread-safe. This allows concurrent DataFrame transformations, DataFrame actions, UDF and stored procedure registration, and concurrent file uploads when using the same `Session` object.
+  - The feature is disabled by default and can be enabled by setting `FEATURE_THREAD_SAFE_PYTHON_SESSION` to `True` for account.
+  - Updating session configurations, like changing database or schema, when multiple threads are using the session may lead to unexpected behavior.
+  - When enabled, some internally created temporary table names returned from `DataFrame.queries` API are not deterministic, and may be different when DataFrame actions are executed. This does not affect explicit user-created temporary tables.
 - Added support for 'Service' domain to `session.lineage.trace` API.
 - Added support for `copy_grants` parameter when registering UDxF and stored procedures.
 - Added support for the following methods in `DataFrameWriter` to support daisy-chaining:
@@ -16,14 +58,21 @@
 
 #### Improvements
 
+- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use in python.
 - Disables sql simplification when sort is performed after limit.
   - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
   - Improve performance of generated query for `df.limit().sort()`, because limit stops table scanning as soon as the number of records is satisfied.
+- Added a client side error message for when an invalid stage location is passed to DataFrame read functions.
 
 #### Bug Fixes
 
 - Fixed a bug where the automatic cleanup of temporary tables could interfere with the results of async query execution.
 - Fixed a bug in `DataFrame.analytics.time_series_agg` function to handle multiple data points in same sliding interval.
+- Fixed a bug that created inconsistent casing in field names of structured objects in iceberg schemas.
+
+#### Deprecations
+
+- Deprecated warnings will be triggered when using snowpark-python with Python 3.8. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
 
 ### Snowpark pandas API Updates
 
@@ -37,7 +86,8 @@
 - Added support for `on` parameter with `Resampler`.
 - Added support for timedelta inputs in `value_counts()`.
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
-- Added support for `DataFrame`/`Series.attrs`
+- Added support for `DataFrame.attrs` and `Series.attrs`.
+- Added support for `DataFrame.style`.
 
 #### Improvements
 
