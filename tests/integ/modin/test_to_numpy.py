@@ -61,9 +61,8 @@ def test_to_numpy_basic(data, pandas_obj, func):
             assert_array_equal(df.values, native_df.values)
     if pandas_obj == "Series":
         with SqlCounter(query_count=1):
-            # SNOW-1652384 use to_numpy here and test to_list separately
-            res = df.to_list()
-        expected_res = native_df.to_list()
+            res = df.to_numpy()
+        expected_res = native_df.to_numpy()
         for r1, r2 in zip(res, expected_res):
             # native pandas series returns a list of pandas Timestamp,
             # but Snowpark pandas returns a list of integers in ms.
