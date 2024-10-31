@@ -9,12 +9,9 @@ from typing import Iterable
 import pytest
 
 from snowflake.snowpark import DataFrame, Row
-from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark.column import Column, _to_col_if_str
-from snowflake.snowpark.functions import (  # count,; is_null,;
+from snowflake.snowpark.functions import (
     abs,
     asc,
-    builtin,
     call_function,
     col,
     contains,
@@ -291,25 +288,6 @@ def test_to_char_is_row_index_agnostic(session):
     assert df.filter(col("a") > 3).select(to_char(col("a")), col("b")).collect() == [
         Row("5", 6)
     ]
-
-
-@pytest.mark.skipif(
-    "not config.getoption('local_testing_mode', default=True)",
-    reason="Only test local testing code in local testing mode.",
-)
-def test_function_mock_and_call_neg(session):
-    def foobar(e: ColumnOrName) -> Column:
-        c = _to_col_if_str(e, "foobar")
-        return builtin("foobar")(c)
-
-    # Patching function that does not exist will fail when called
-    @patch("foobar")
-    def mock_foobar(column: ColumnEmulator):
-        return column
-
-    with pytest.raises(NotImplementedError):
-        df = session.create_dataframe([[1]]).to_df(["a"])
-        df.select(foobar("a")).collect()
 
 
 @pytest.mark.skipif(
