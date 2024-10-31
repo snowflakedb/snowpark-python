@@ -43,6 +43,12 @@ except ModuleNotFoundError:
     opentelemetry_installed = False
 
 
+def default_unparser_path():
+    explicit = os.getenv("SNOWPARK_UNPARSER_JAR")
+    default_default = f"{os.getenv('HOME')}/Snowflake/trunk/Snowpark/unparser/target/scala-2.13/unparser-assembly-0.1.jar"
+    return explicit or default_default
+
+
 def is_excluded_frontend_file(path):
     for excluded in excluded_frontend_files:
         if str(path).endswith(excluded):
@@ -55,7 +61,15 @@ def pytest_addoption(parser, pluginmanager):
     parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_cte_optimization", action="store_true", default=False)
     parser.addoption("--skip_sql_count_check", action="store_true", default=False)
-    parser.addoption("--enable-ast", action="store_true", default=False)
+    parser.addoption("--enable_ast", action="store_true", default=False)
+    parser.addoption("--full_ast_validation", action="store_true", default=False)
+    parser.addoption(
+        "--unparser_jar",
+        action="store",
+        default=default_unparser_path(),
+        type=str,
+        help="Path to the Unparser JAR built in the monorepo. To build it, run `sbt assembly` from the unparser directory.",
+    )
 
 
 def pytest_ignore_collect(collection_path, path, config):
@@ -125,8 +139,27 @@ def ast_enabled(pytestconfig):
 
 
 @pytest.fixture(scope="session")
+def full_ast_validation(pytestconfig):
+    return pytestconfig.getoption("full_ast_validation")
+
+
+@pytest.fixture(scope="session")
 def cte_optimization_enabled(pytestconfig):
     return pytestconfig.getoption("enable_cte_optimization")
+
+
+@pytest.fixture(scope="session")
+def unparser_jar(pytestconfig):
+    unparser_jar = pytestconfig.getoption("--unparser_jar")
+    if unparser_jar is not None and not os.path.exists(unparser_jar):
+        unparser_jar = None
+
+    if unparser_jar is None and pytestconfig.getoption("--full_ast_validation"):
+        raise RuntimeError(
+            f"Unparser JAR not found at {unparser_jar}. "
+            f"Please set the correct path with --unparser_jar or SNOWPARK_UNPARSER_JAR."
+        )
+    return unparser_jar
 
 
 def pytest_sessionstart(session):
