@@ -277,6 +277,7 @@ Functions
     sum
     sum_distinct
     sysdate
+    system_reference
     table_function
     tan
     tanh
