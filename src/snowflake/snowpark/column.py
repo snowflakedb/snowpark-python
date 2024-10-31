@@ -285,7 +285,7 @@ class Column:
             self._expression = expr1
 
             if self._ast is None and _emit_ast:
-                if hasattr(expr1, "_ast"):
+                if hasattr(expr1, "_ast") and expr1._ast is not None:
                     self._ast = expr1._ast
                 else:
                     self._ast = snowpark_expression_to_ast(expr1)

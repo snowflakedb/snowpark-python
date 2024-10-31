@@ -838,9 +838,17 @@ def count(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         ------------
         <BLANKLINE>
     """
+
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "count", e)
+
     c = _to_col_if_str(e, "count")
     expr = Literal(1) if isinstance(c._expression, Star) else c._expression
-    return builtin("count", _emit_ast=_emit_ast)(expr)
+    ans = builtin("count", _emit_ast=False)(expr)
+    ans._ast = ast
+    return ans
 
 
 @publicapi

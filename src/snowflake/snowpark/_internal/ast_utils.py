@@ -501,6 +501,8 @@ def build_fn_apply_args(
             ):
                 build_expr_from_python_val(expr.pos_args.add(), arg._expression.value)
             elif arg._ast is None and isinstance(arg, snowflake.snowpark.Column):
+                if snowpark_expression_to_ast(arg._expression) is None:
+                    raise Exception
                 expr.pos_args.append(snowpark_expression_to_ast(arg._expression))
             else:
                 assert (
@@ -853,8 +855,10 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
         # we don't need an AST.
         return None
     elif isinstance(expr, Star):
-        # Comes up in count(), handled there.
-        return None
+        # Be compatible with whatever AST col('*') produces.
+        from snowflake.snowpark.functions import col
+
+        return col("*")._ast
     elif isinstance(expr, FunctionExpression):
         # Snowpark pandas API has some usage where injecting the publicapi decorator would lead to issues.
         # Directly translate here.

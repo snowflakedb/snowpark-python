@@ -58,20 +58,24 @@ def _alias(expr: Expression) -> NamedExpression:
         return Alias(expr, expr.sql.upper().replace('"', ""))
 
 
-def _expr_to_func(expr: str, input_expr: Expression) -> Expression:
+def _expr_to_func(expr: str, input_expr: Expression, _emit_ast: bool) -> Expression:
     lowered = expr.lower()
+
+    def create_column(input_expr):
+        return Column(input_expr, _emit_ast=_emit_ast)
+
     if lowered in ["avg", "average", "mean"]:
-        return functions.avg(Column(input_expr))._expression
+        return functions.avg(create_column(input_expr))._expression
     elif lowered in ["stddev", "std"]:
-        return functions.stddev(Column(input_expr))._expression
+        return functions.stddev(create_column(input_expr))._expression
     elif lowered in ["count", "size"]:
-        return functions.count(Column(input_expr))._expression
+        return functions.count(create_column(input_expr))._expression
     else:
-        return functions.function(expr)(input_expr)._expression
+        return functions.function(expr, _emit_ast=_emit_ast)(input_expr)._expression
 
 
-def _str_to_expr(expr: str) -> Callable:
-    return lambda input_expr: _expr_to_func(expr, input_expr)
+def _str_to_expr(expr: str, _emit_ast: bool) -> Callable:
+    return lambda input_expr: _expr_to_func(expr, input_expr, _emit_ast)
 
 
 class _GroupType:
@@ -297,7 +301,7 @@ class RelationalGroupedDataFrame:
                         if isinstance(e[0], Column)
                         else Column(e[0])._expression
                     )
-                    agg_exprs.append(_str_to_expr(e[1])(col_expr))
+                    agg_exprs.append(_str_to_expr(e[1], _emit_ast)(col_expr))
 
         df = self._to_df(agg_exprs, _emit_ast=False)
 
