@@ -754,6 +754,25 @@ def test_sql_non_select(session):
     )
 
 
+def test_sql_with(session):
+    df1 = session.sql("with t as (select 1 as A) select * from t")
+    df2 = session.sql("with t as (select 1 as A) select * from t")
+
+    df_result = df1.union(df2).select("A").filter(lit(True))
+
+    check_result(
+        session,
+        df_result,
+        # with ... select is also treated as a select query
+        # see is_sql_select_statement() function
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=1,
+        join_count=0,
+    )
+
+
 @pytest.mark.parametrize(
     "action",
     [
