@@ -321,5 +321,6 @@ Functions
     when
     when_matched
     when_not_matched
+    window
     xmlget
     year

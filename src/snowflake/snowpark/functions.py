@@ -191,6 +191,7 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import check_decorator_args
 from snowflake.snowpark._internal.utils import (
+    parse_duration_string,
     parse_positional_args_to_list,
     validate_object_name,
 )
@@ -4592,6 +4593,90 @@ def dayofyear(e: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(e, "dayofyear")
     return builtin("dayofyear")(c)
+
+
+def window(
+    timeColumn: ColumnOrName,
+    windowDuration: str,
+    slideDuration: Optional[str] = None,
+    startTime: Optional[str] = None,
+) -> Column:
+    """
+    Converts a time column into a window object with start and end times. Window start times areinclusive
+    inclusive while end times are exclusive. For example 9:30 is in the window [9:30, 10:00), but not [9:00, 9:30).
+
+    Args:
+        timeColumn: The column to apply the window transformation to.
+        windowDuration: An interval string that determines the length of each window.
+        slideDuration: An interval string representing the amount of time in-between the start of
+            each window. Note that this parameter is not supported yet. Specifying it will raise a
+            NotImplementedError exception.
+        startTime: An interval string representing the amount of time the start of each window is
+            offset. eg. a five minute window with startTime of '2 minutes' will be from [9:02, 9:07)
+            instead of [9:00, 9:05)
+
+    Note:
+        Interval strings are of the form 'quantity unit' where quantity is an integer and unitis
+        is a supported time unit. This function supports the same time units as dateadd. see
+        `supported time units <https://docs.snowflake.com/en/sql-reference/functions-date-time#label-supported-date-time-parts>`_
+        for more information.
+
+    Example::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.functions import window
+        >>> df = session.createDataFrame(
+        ...      [(datetime.datetime.strptime("2024-10-31 09:05:00.000", "%Y-%m-%d %H:%M:%S.%f"),)],
+        ...      schema=["time"]
+        ... )
+        >>> df.select(window(df.time, "5 minutes")).show()
+        ----------------------------------------
+        |"WINDOW"                              |
+        ----------------------------------------
+        |{                                     |
+        |  "end": "2024-10-31 09:10:00.000",   |
+        |  "start": "2024-10-31 09:05:00.000"  |
+        |}                                     |
+        ----------------------------------------
+        <BLANKLINE>
+        >>> df.select(window(df.time, "5 minutes", startTime="2 minutes")).show()
+        ----------------------------------------
+        |"WINDOW"                              |
+        ----------------------------------------
+        |{                                     |
+        |  "end": "2024-10-31 09:07:00.000",   |
+        |  "start": "2024-10-31 09:02:00.000"  |
+        |}                                     |
+        ----------------------------------------
+        <BLANKLINE>
+    """
+    if slideDuration:
+        # SNOW- : slideDuration changes this function from a 1:1 mapping to a 1:N mapping. That
+        # currently would require a udtf which may have significantly different performance.
+        raise NotImplementedError(
+            "snowflake.snowpark.functions.window does not support slideDuration parameter yet."
+        )
+
+    epoch = lit("1970-01-01 00:00:00").cast(TimestampType())
+    time = _to_col_if_str(timeColumn, "window")
+
+    window_duration, window_unit = parse_duration_string(windowDuration)
+    window_duration = lit(window_duration)
+    window_unit = f"{window_unit}s"
+
+    base = epoch
+    if startTime:
+        start_duration, start_unit = parse_duration_string(startTime)
+        base += make_interval(**{f"{start_unit}s": start_duration})
+
+    window = floor(datediff(window_unit, base, time) / window_duration)
+    window_start = dateadd(window_unit, window * window_duration, base)
+    return object_construct_keep_null(
+        lit("start"),
+        window_start,
+        lit("end"),
+        dateadd(window_unit, window_duration, window_start),
+    ).alias("window")
 
 
 def is_array(col: ColumnOrName) -> Column:

@@ -12,6 +12,7 @@ from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     approx_percentile_combine,
+    ascii,
     avg,
     col,
     count,
@@ -664,3 +665,24 @@ def test_agg(session, local_testing_mode):
     Utils.check_answer(
         origin_df.select(stddev("n"), stddev_pop("m")).collect(), Row(123.0, 456.0)
     )
+
+
+def test_agg_column_naming(session):
+    df = session.create_dataframe(
+        [
+            ("x", 1),
+            ("x", 2),
+            ("y", 1),
+        ],
+        schema=["a", "b"],
+    )
+
+    # DF with automatic naming
+    df2 = df.group_by(ascii(df.a)).agg(max_(df.b))
+
+    # DF with specific naming
+    df3 = df.group_by(ascii(df.a).alias("ord")).agg(max_(df.b).alias("max"))
+
+    assert df2.columns == ['"ASCII(A)"', '"MAX(B)"']
+    assert df3.columns == ["ORD", "MAX"]
+    assert df2.collect() == df3.collect() == [Row(120, 2), Row(121, 1)]
