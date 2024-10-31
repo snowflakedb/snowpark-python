@@ -28,6 +28,14 @@
 - Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 - Added support for `size` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
 - Added partial support for `snowflake.snowpark.functions.window`
+- Added support for `pd.read_pickle` (Uses native pandas for processing).
+- Added support for `pd.read_html` (Uses native pandas for processing).
+- Added support for `pd.read_xml` (Uses native pandas for processing).
+- Added support for aggregation functions `"size"` and `len` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+
+#### Bug Fixes
+
+- Fixed a bug where aggregating a single-column dataframe with a single callable function (e.g. `pd.DataFrame([0]).agg(np.mean)`) would fail to transpose the result.
 
 ### Snowpark Local Testing Updates
 
