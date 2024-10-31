@@ -831,16 +831,16 @@ class OrderedDataFrame:
         See detailed docstring in Snowpark DataFrame's pivot.
         """
         snowpark_dataframe = self.to_projected_snowpark_dataframe()
+        pivot_snowpark_dataframe = snowpark_dataframe.pivot(
+            pivot_col=pivot_col,
+            values=values,
+            default_on_null=default_on_null,
+        ).agg(*agg_exprs)
+        cached_snowpark_dataframe = pivot_snowpark_dataframe.cache_result()
         return OrderedDataFrame(
             # the pivot result columns for dynamic pivot are data dependent, a schema call is required
             # to know all the quoted identifiers for the pivot result.
-            DataFrameReference(
-                snowpark_dataframe.pivot(
-                    pivot_col=pivot_col,
-                    values=values,
-                    default_on_null=default_on_null,
-                ).agg(*agg_exprs)
-            )
+            DataFrameReference(cached_snowpark_dataframe)
         )
 
     def unpivot(
