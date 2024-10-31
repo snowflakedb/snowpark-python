@@ -501,8 +501,6 @@ def build_fn_apply_args(
             ):
                 build_expr_from_python_val(expr.pos_args.add(), arg._expression.value)
             elif arg._ast is None and isinstance(arg, snowflake.snowpark.Column):
-                if snowpark_expression_to_ast(arg._expression) is None:
-                    raise Exception
                 expr.pos_args.append(snowpark_expression_to_ast(arg._expression))
             else:
                 assert (
@@ -855,7 +853,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
         # we don't need an AST.
         return None
     elif isinstance(expr, Star):
-        # Be compatible with whatever AST col('*') produces.
+        # Be compatible with whichever AST col('*') produces.
         from snowflake.snowpark.functions import col
 
         return col("*")._ast
