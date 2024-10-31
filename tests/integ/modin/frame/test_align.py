@@ -9,6 +9,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.plugin._internal.align_utils import _select_columns
+from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equal_to_pandas,
@@ -323,3 +325,12 @@ def test_align_frame_deprecated_negative():
         match="The 'broadcast_axis' keyword in DataFrame.align is deprecated and will be removed in a future version.",
     ):
         left, right = df.align(other_df, join="outer", broadcast_axis=0)
+
+
+@sql_count_checker(query_count=0)
+def test_align_util_select_columns():
+    snow_df = pd.DataFrame({"A": [0, 1, 0, 1, 2], "B": [1, 2, 3, 4, 5]})
+    internal_frame: InternalFrame = snow_df._query_compiler._modin_frame
+    data_column_labels = ["A"]
+    frame1 = _select_columns(internal_frame, data_column_labels)
+    assert frame1.data_column_pandas_labels == data_column_labels
