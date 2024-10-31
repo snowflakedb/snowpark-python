@@ -290,7 +290,7 @@ class RelationalGroupedDataFrame:
         agg_exprs = []
         if len(exprs) > 0 and isinstance(exprs[0], dict):
             for k, v in exprs[0].items():
-                agg_exprs.append(_str_to_expr(v)(Column(k)._expression))
+                agg_exprs.append(_str_to_expr(v, _emit_ast)(Column(k)._expression))
         else:
             for e in exprs:
                 if isinstance(e, Column):
