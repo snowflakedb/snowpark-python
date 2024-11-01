@@ -98,7 +98,6 @@ def resolve_and_update_snowflake_plan(
     node.df_aliased_col_name_to_real_col_name.update(
         new_snowflake_plan.df_aliased_col_name_to_real_col_name
     )
-    node.placeholder_query = new_snowflake_plan.placeholder_query
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
     node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
 
@@ -128,7 +127,13 @@ def replace_child(
         raise ValueError(f"parent node {parent} is not valid for replacement.")
 
     if old_child not in getattr(parent, "children_plan_nodes", parent.children):
-        raise ValueError(f"old_child {old_child} is not a child of parent {parent}.")
+        if new_child in getattr(parent, "children_plan_nodes", parent.children):
+            # the child has already been updated
+            return
+        else:
+            raise ValueError(
+                f"old_child {old_child} is not a child of parent {parent}."
+            )
 
     if isinstance(parent, SnowflakePlan):
         assert parent.source_plan is not None

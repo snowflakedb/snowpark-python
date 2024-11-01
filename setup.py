@@ -10,19 +10,20 @@ from setuptools import setup
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-MODIN_DEPENDENCY_VERSION = (
-    "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
-)
-CONNECTOR_DEPENDENCY_VERSION = ">=3.10.0, <4.0.0"
+MODIN_DEPENDENCY_VERSION = "==0.30.1"  # Snowpark pandas requires modin 0.30.1, which is compatible with pandas 2.2.x
+CONNECTOR_DEPENDENCY_VERSION = ">=3.12.0, <4.0.0"
+CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
     "wheel",
-    f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}",
+    CONNECTOR_DEPENDENCY,
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+    "protobuf>=5.28",  # Snowpark IR
+    "tzlocal",  # Snowpark IR
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
@@ -50,6 +51,8 @@ DEVELOPMENT_REQUIREMENTS = [
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
+    "protoc-wheel-0",  # Protocol buffer compiler, for Snowpark IR
+    "lxml",  # used in read_xml tests
 ]
 
 # read the version
@@ -120,6 +123,7 @@ setup(
             *DEVELOPMENT_REQUIREMENTS,
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
+            "scikit-learn==1.5.2",  # snowpandas scikit-learn tests
         ],
         "localtest": [
             "pandas",

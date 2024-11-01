@@ -54,7 +54,11 @@ def test_groupby_series_count_with_nan():
     index.names = ["grp_col"]
     series = pd.Series([1.2, np.nan, np.nan, np.nan, np.nan], index=index)
     eval_snowpark_pandas_result(
-        series, series.to_pandas(), lambda se: se.groupby("grp_col").count()
+        series,
+        series.to_pandas(),
+        lambda se: se.groupby("grp_col").count(),
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 
@@ -92,6 +96,8 @@ def test_groupby_agg_series(agg_func, sort):
         series,
         series.to_pandas(),
         perform_groupby,
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 
@@ -149,6 +155,8 @@ def test_groupby_agg_series_named_agg(aggs, sort):
         series,
         series.to_pandas(),
         lambda se: se.groupby(by="grp_col", sort=sort).agg(**aggs),
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 

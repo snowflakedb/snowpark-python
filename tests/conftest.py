@@ -27,9 +27,13 @@ def is_excluded_frontend_file(path):
 
 def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
-    parser.addoption("--local_testing_mode", action="store_true", default=False)
-    parser.addoption("--enable_cte_optimization", action="store_true", default=False)
+    parser.addoption("--disable_cte_optimization", action="store_true", default=False)
+    parser.addoption("--multithreading_mode", action="store_true", default=False)
     parser.addoption("--skip_sql_count_check", action="store_true", default=False)
+    if not any(
+        "--local_testing_mode" in opt.names() for opt in parser._anonymous.options
+    ):
+        parser.addoption("--local_testing_mode", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -83,7 +87,18 @@ def local_testing_telemetry_setup():
 
 @pytest.fixture(scope="session")
 def cte_optimization_enabled(pytestconfig):
-    return pytestconfig.getoption("enable_cte_optimization")
+    return not pytestconfig.getoption("disable_cte_optimization")
+
+
+MULTITHREADING_TEST_MODE_ENABLED = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def multithreading_mode_enabled(pytestconfig):
+    enabled = pytestconfig.getoption("multithreading_mode")
+    global MULTITHREADING_TEST_MODE_ENABLED
+    MULTITHREADING_TEST_MODE_ENABLED = enabled
+    return enabled
 
 
 def pytest_sessionstart(session):

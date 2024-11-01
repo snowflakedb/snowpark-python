@@ -19,7 +19,17 @@ from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import builtin, col, dense_rank, sin, udf, udtf
+from snowflake.snowpark.functions import (
+    builtin,
+    col,
+    dense_rank,
+    ln,
+    log,
+    sin,
+    snowflake_cortex_summarize,
+    udf,
+    udtf,
+)
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
@@ -62,7 +72,10 @@ DEFAULT_UDTF_PARTITION_SIZE = 1000
 cloudpickle.register_pickle_by_value(sys.modules[__name__])
 
 SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
+    ln,
+    log,
     sin,
+    snowflake_cortex_summarize,
 }
 
 

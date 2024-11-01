@@ -29,12 +29,13 @@ from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
 import modin
 import numpy as np
+import numpy.typing as npt
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
 from modin.pandas.base import BasePandasDataset
 from pandas import get_option
 from pandas._libs import lib
-from pandas._libs.lib import is_list_like, is_scalar
+from pandas._libs.lib import is_list_like, is_scalar, no_default
 from pandas._typing import ArrayLike, DateTimeErrorChoices, DtypeObj, NaPosition, Scalar
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.base import ExtensionDtype
@@ -2079,6 +2080,102 @@ class Index(metaclass=TelemetryMeta):
 
         return DataFrame(query_compiler=new_qc)
 
+    def to_numpy(
+        self,
+        dtype: npt.DTypeLike | None = None,
+        copy: bool = False,
+        na_value: object = no_default,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """
+        A NumPy ndarray representing the values in this Series or Index.
+
+        Parameters
+        ----------
+        dtype : str or numpy.dtype, optional
+            The dtype to pass to :meth:`numpy.asarray`.
+        copy : bool, default False
+            This argument is ignored in Snowflake backend. The data from Snowflake
+            will be retrieved into the client, and a numpy array containing this
+            data will be returned.
+        na_value : Any, optional
+            The value to use for missing values. The default value depends
+            on `dtype` and the type of the array.
+        **kwargs
+            Additional keywords passed through to the ``to_numpy`` method
+            of the underlying array (for extension arrays).
+
+        Returns
+        -------
+        numpy.ndarray
+
+        See Also
+        --------
+        Series.array
+            Get the actual data stored within.
+        Index.array
+            Get the actual data stored within.
+        DataFrame.to_numpy
+            Similar method for DataFrame.
+
+        Notes
+        -----
+        The returned array will be the same up to equality (values equal in self will be equal in the returned array; likewise for values that are not equal). When self contains an ExtensionArray, the dtype may be different. For example, for a category-dtype Series, to_numpy() will return a NumPy array and the categorical dtype will be lost.
+
+        This table lays out the different dtypes and default return types of to_numpy() for various dtypes within pandas.
+
+        +--------------------+----------------------------------+
+        | dtype              | array type                       |
+        +--------------------+----------------------------------+
+        | category[T]        | ndarray[T] (same dtype as input) |
+        +--------------------+----------------------------------+
+        | period             | ndarray[object] (Periods)        |
+        +--------------------+----------------------------------+
+        | interval           | ndarray[object] (Intervals)      |
+        +--------------------+----------------------------------+
+        | IntegerNA          | ndarray[object]                  |
+        +--------------------+----------------------------------+
+        | datetime64[ns]     | datetime64[ns]                   |
+        +--------------------+----------------------------------+
+        | datetime64[ns, tz] | ndarray[object] (Timestamps)     |
+        +--------------------+----------------------------------+
+
+        Examples
+        --------
+        >>> ser = pd.Series(pd.Categorical(['a', 'b', 'a']))  # doctest: +SKIP
+        >>> ser.to_numpy()  # doctest: +SKIP
+        array(['a', 'b', 'a'], dtype=object)
+
+        Specify the dtype to control how datetime-aware data is represented. Use dtype=object to return an ndarray of pandas Timestamp objects, each with the correct tz.
+
+        >>> ser = pd.Series(pd.date_range('2000', periods=2, tz="CET"))
+        >>> ser.to_numpy(dtype=object)
+        array([Timestamp('2000-01-01 00:00:00+0100', tz='UTC+01:00'),
+               Timestamp('2000-01-02 00:00:00+0100', tz='UTC+01:00')],
+              dtype=object)
+
+        Or dtype='datetime64[ns]' to return an ndarray of native datetime64 values. The values are converted to UTC and the timezone info is dropped.
+
+        >>> ser.to_numpy(dtype="datetime64[ns]")
+        array(['1999-12-31T23:00:00.000000000', '2000-01-01T23:00:00...'],
+              dtype='datetime64[ns]')
+        """
+        if copy:
+            WarningMessage.ignored_argument(
+                operation="to_numpy",
+                argument="copy",
+                message="copy is ignored in Snowflake backend",
+            )
+        return (
+            self.to_pandas()
+            .to_numpy(
+                dtype=dtype,
+                na_value=na_value,
+                **kwargs,
+            )
+            .flatten()
+        )
+
     @index_not_implemented()
     def fillna(self) -> None:
         """
@@ -2601,12 +2698,18 @@ class Index(metaclass=TelemetryMeta):
         """
         The array interface, return the values.
         """
+        # Ensure that the existing index dtype is preserved in the returned array
+        # if no other dtype is given.
+        if dtype is None:
+            dtype = self.dtype
         return self.to_pandas().__array__(dtype=dtype)
-    
 
     from pandas._libs.lib import no_default
+
     def to_numpy(self, dtype=None, copy=False, na_value=no_default, **kwargs):
-        return self.to_pandas().to_numpy(dtype=dtype, copy=copy, na_value=na_value, **kwargs)
+        return self.to_pandas().to_numpy(
+            dtype=dtype, copy=copy, na_value=na_value, **kwargs
+        )
 
     def __repr__(self) -> str:
         """

@@ -18,6 +18,7 @@ from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
@@ -106,14 +107,92 @@ def test_no_valid_nodes_found(session, caplog):
     final_df = union_df.with_column("A", col("A") + lit(1))
 
     with caplog.at_level(logging.DEBUG):
-        queries = final_df.queries
+        # there is one query count in large query breakdown to check there
+        # is active transaction
+        with SqlCounter(query_count=1, describe_count=0):
+            queries = final_df.queries
     assert len(queries["queries"]) == 1, queries["queries"]
     assert len(queries["post_actions"]) == 0, queries["post_actions"]
     assert "Could not find a valid node for partitioning" in caplog.text
 
 
+def test_large_query_breakdown_external_cte_ref(session):
+    session._cte_optimization_enabled = True
+    sql_simplifier_enabled = session.sql_simplifier_enabled
+    if not sql_simplifier_enabled:
+        set_bounds(session, 50, 90)
+
+    base_select = session.sql("select 1 as A, 2 as B")
+    df1 = base_select.with_column("A", col("A") + lit(1))
+    df2 = base_select.with_column("B", col("B") + lit(1))
+    base_df = df1.union_all(df2)
+
+    df1 = base_df.with_column("A", col("A") + 1)
+    df2 = base_df.with_column("B", col("B") + 1)
+    for i in range(6):
+        df1 = df1.with_column("A", col("A") + i + col("A"))
+        df2 = df2.with_column("B", col("B") + i + col("B"))
+
+    df1 = df1.group_by("A").agg(sum_distinct(col("B")).alias("B"))
+    df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    final_df = df1.union_all(df2)
+
+    with SqlCounter(query_count=3, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
+
+    with patch.object(
+        session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
+    ) as patch_send:
+        queries = final_df.queries
+
+    # assert that we did not break the plan
+    assert len(queries["queries"]) == 1
+
+    patch_send.assert_called_once()
+    _, kwargs = patch_send.call_args
+    summary_value = kwargs["compilation_stage_summary"]
+    assert summary_value["breakdown_failure_summary"] == [
+        {
+            "num_external_cte_ref_nodes": 2,
+            "num_non_pipeline_breaker_nodes": 4 if sql_simplifier_enabled else 2,
+            "num_nodes_below_lower_bound": 28,
+            "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
+            "num_valid_nodes": 0,
+            "num_partitions_made": 0,
+        }
+    ]
+
+
+def test_breakdown_at_with_query_node(session):
+    session._cte_optimization_enabled = True
+    if not session.sql_simplifier_enabled:
+        set_bounds(session, 40, 80)
+
+    df0 = session.sql("select 1 as A, 2 as B")
+    for i in range(7):
+        df0 = df0.with_column("A", col("A") + i + col("A"))
+
+    union_df = df0.union_all(df0)
+    final_df = union_df.with_column("A", col("A") + 1)
+    for i in range(5):
+        final_df = final_df.with_column("A", col("A") + i + col("A"))
+
+    with SqlCounter(query_count=5, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
+
+    queries = final_df.queries
+    assert len(queries["queries"]) == 2
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    # SNOW-1734385: Remove it when the issue is fixed
+    assert "WITH SNOWPARK_TEMP_CTE_" in queries["queries"][0]
+    assert len(queries["post_actions"]) == 1
+
+
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
+    if not session.cte_optimization_enabled:
+        pytest.skip("CTE optimization is not enabled")
+
     if not session.sql_simplifier_enabled:
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled
@@ -124,7 +203,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
     df1 = df1.join(df0, on=["b"], how="inner")
 
     df2 = df1.filter(col("b") == 2).union_all(df1)
-    df3 = df1.with_column("a", col("a") + 1)
+    df3 = session.sql("select 3 as b, 4 as c").with_column("a", col("b") + 1)
     for i in range(7):
         df2 = df2.with_column("a", col("a") + i + col("a"))
         df3 = df3.with_column("b", col("b") + i + col("b"))
@@ -133,9 +212,20 @@ def test_large_query_breakdown_with_cte_optimization(session):
     df3 = df3.group_by("b").agg(sum_distinct(col("a")).alias("a"))
 
     df4 = df2.union_all(df3).filter(col("a") > 2).with_column("a", col("a") + 1)
-    check_result_with_and_without_breakdown(session, df4)
+    # without large query breakdown, there is only 1 query
+    # with large query breakdown, there are 4 queries:
+    #   1 SELECT CURRENT_TRANSACTION()
+    #   1 CREATE TEMP TABLE QUERY
+    #   the actual query
+    #   1 drop temp table query
+    with SqlCounter(query_count=5, describe_count=0):
+        check_result_with_and_without_breakdown(session, df4)
 
-    queries = df4.queries
+    with patch.object(
+        session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
+    ) as patch_send:
+        queries = df4.queries
+
     assert len(queries["queries"]) == 2
     assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
     assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
@@ -143,11 +233,22 @@ def test_large_query_breakdown_with_cte_optimization(session):
     assert len(queries["post_actions"]) == 1
     assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
+    patch_send.assert_called_once()
+    _, kwargs = patch_send.call_args
+    summary_value = kwargs["compilation_stage_summary"]
+    assert summary_value["breakdown_failure_summary"] == [
+        {
+            "num_partitions_made": 1,
+        }
+    ]
+
 
 def test_save_as_table(session, large_query_df):
     table_name = Utils.random_table_name()
     with session.query_history() as history:
-        large_query_df.write.save_as_table(table_name, mode="overwrite")
+        # one describe call coming from the save_as_table resolve at frontend dataframe layer
+        with SqlCounter(query_count=4, describe_count=1):
+            large_query_df.write.save_as_table(table_name, mode="overwrite")
 
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
@@ -158,6 +259,31 @@ def test_save_as_table(session, large_query_df):
     assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
 
 
+def test_variable_binding(session):
+    if not session.sql_simplifier_enabled:
+        set_bounds(session, 40, 80)
+
+    df1 = session.sql(
+        "select $1 as A, $2 as B from values (?,?), (?,?)", params=[1, "a", 2, "b"]
+    )
+    df2 = session.sql(
+        "select $1 as A, $2 as B from values (?,?), (?,?)", params=[3, "c", 4, "d"]
+    )
+
+    for i in range(7):
+        df1 = df1.with_column("A", col("A") + i + col("A"))
+        df2 = df2.with_column("A", col("A") + i + col("A"))
+    df1 = df1.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    final_df = df1.union_all(df2)
+
+    check_result_with_and_without_breakdown(session, final_df)
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = final_df.queries
+    assert len(queries["queries"]) == 2
+    assert len(queries["post_actions"]) == 1
+
+
 def test_update_delete_merge(session, large_query_df):
     if not session.sql_simplifier_enabled:
         pytest.skip(
@@ -165,13 +291,19 @@ def test_update_delete_merge(session, large_query_df):
         )
     session._large_query_breakdown_enabled = True
     table_name = Utils.random_table_name()
-    df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
-    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    t = session.table(table_name)
+    # There is one SELECT CURRENT_TRANSACTION() query and one save_as_table query since large
+    # query breakdown is not triggered.
+    # There are two describe queries triggered, one from save_as_table, one from session.table
+    with SqlCounter(query_count=2, describe_count=2):
+        df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+        df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+        t = session.table(table_name)
 
     # update
     with session.query_history() as history:
-        t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
+        # 3 describe call triggered due to column state extraction
+        with SqlCounter(query_count=4, describe_count=3):
+            t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
     assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
@@ -180,7 +312,8 @@ def test_update_delete_merge(session, large_query_df):
 
     # delete
     with session.query_history() as history:
-        t.delete(t.a == large_query_df.a, large_query_df)
+        with SqlCounter(query_count=4, describe_count=0):
+            t.delete(t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
     assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
@@ -189,11 +322,12 @@ def test_update_delete_merge(session, large_query_df):
 
     # merge
     with session.query_history() as history:
-        t.merge(
-            large_query_df,
-            t.a == large_query_df.a,
-            [when_matched().update({"b": large_query_df.b})],
-        )
+        with SqlCounter(query_count=4, describe_count=0):
+            t.merge(
+                large_query_df,
+                t.a == large_query_df.a,
+                [when_matched().update({"b": large_query_df.b})],
+            )
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
     assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
@@ -204,13 +338,14 @@ def test_update_delete_merge(session, large_query_df):
 def test_copy_into_location(session, large_query_df):
     remote_file_path = f"{session.get_session_stage()}/df.parquet"
     with session.query_history() as history:
-        large_query_df.write.copy_into_location(
-            remote_file_path,
-            file_format_type="parquet",
-            header=True,
-            overwrite=True,
-            single=True,
-        )
+        with SqlCounter(query_count=4, describe_count=0):
+            large_query_df.write.copy_into_location(
+                remote_file_path,
+                file_format_type="parquet",
+                header=True,
+                overwrite=True,
+                single=True,
+            )
     assert len(history.queries) == 4, history.queries
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
     assert history.queries[1].sql_text.startswith("CREATE  SCOPED TEMPORARY  TABLE")
@@ -252,7 +387,8 @@ def test_pivot_unpivot(session):
     join_df = df_pivot.join(df_unpivot, "A")
     final_df = join_df.with_column("A", col("A") + lit(1))
 
-    check_result_with_and_without_breakdown(session, final_df)
+    with SqlCounter(query_count=5, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
 
     plan_queries = final_df.queries
     assert len(plan_queries["queries"]) == 2
@@ -278,9 +414,12 @@ def test_sort(session):
 
     union_df = df1_with_sort.union_all(df2)
     final_df = union_df.with_column("A", col("A") + lit(1))
-    check_result_with_and_without_breakdown(session, final_df)
 
-    plan_queries = final_df.queries
+    with SqlCounter(query_count=5, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
+
+    with SqlCounter(query_count=1, describe_count=0):
+        plan_queries = final_df.queries
     assert len(plan_queries["queries"]) == 2
     assert plan_queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
 
@@ -291,9 +430,12 @@ def test_sort(session):
     union_df = df1.union_all(df2)
     final_df = union_df.with_column("A", col("A") + lit(1)).order_by("A")
 
-    check_result_with_and_without_breakdown(session, final_df)
+    # large query breakdown not in effect
+    with SqlCounter(query_count=3, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
 
-    plan_queries = final_df.queries
+    with SqlCounter(query_count=1, describe_count=0):
+        plan_queries = final_df.queries
     assert len(plan_queries["queries"]) == 1
     assert len(plan_queries["post_actions"]) == 0
 
@@ -320,9 +462,16 @@ def test_multiple_query_plan(session):
         union_df = df1.union_all(df2)
         final_df = union_df.with_column("A", col("A") + lit(1))
 
-        check_result_with_and_without_breakdown(session, final_df)
+        with SqlCounter(
+            query_count=15,
+            describe_count=0,
+            high_count_expected=True,
+            high_count_reason="low array bind threshold",
+        ):
+            check_result_with_and_without_breakdown(session, final_df)
 
-        plan_queries = final_df.queries
+        with SqlCounter(query_count=1, describe_count=0):
+            plan_queries = final_df.queries
         assert len(plan_queries["queries"]) == 4
         assert plan_queries["queries"][0].startswith(
             "CREATE  OR  REPLACE  SCOPED TEMPORARY  TABLE"
@@ -344,7 +493,18 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
     assert Utils.is_active_transaction(session)
     with caplog.at_level(logging.DEBUG):
         with session.query_history() as history:
-            large_query_df.collect()
+            with SqlCounter(query_count=2, describe_count=0):
+                with patch.object(
+                    session._conn._telemetry_client,
+                    "send_query_compilation_summary_telemetry",
+                ) as patch_send:
+                    large_query_df.collect()
+
+    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+        "active transaction": 1,
+    }
+
     assert len(history.queries) == 2, history.queries
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
     assert "Skipping large query breakdown" in caplog.text
@@ -362,31 +522,88 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
         session.sql("select 1 as a, 2 as b").write.save_as_table(source_table)
         df = session.table(source_table)
         with caplog.at_level(logging.DEBUG):
-            df.create_or_replace_dynamic_table(
-                table_name, warehouse=session.get_current_warehouse(), lag="20 minutes"
-            )
+            with patch.object(
+                session._conn._telemetry_client,
+                "send_query_compilation_summary_telemetry",
+            ) as patch_send:
+                df.create_or_replace_dynamic_table(
+                    table_name,
+                    warehouse=session.get_current_warehouse(),
+                    lag="20 minutes",
+                )
         assert (
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
+        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+            "view or dynamic table command": 1,
+        }
 
         with caplog.at_level(logging.DEBUG):
-            df.create_or_replace_view(view_name)
+            with patch.object(
+                session._conn._telemetry_client,
+                "send_query_compilation_summary_telemetry",
+            ) as patch_send:
+                df.create_or_replace_view(view_name)
         assert (
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
+        patch_send.assert_called_once()
+        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+            "view or dynamic table command": 1,
+        }
     finally:
         Utils.drop_dynamic_table(session, table_name)
         Utils.drop_view(session, view_name)
         Utils.drop_table(session, source_table)
 
 
-def test_async_job_with_large_query_breakdown(session, large_query_df):
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="cannot create a new session in stored procedure"
+)
+@pytest.mark.parametrize("db_or_schema", ["database", "schema"])
+def test_optimization_skipped_with_no_active_db_or_schema(
+    session, db_or_schema, caplog
+):
+    df = session.sql("select 1 as a, 2 as b").select("a", "b")
+
+    # no database check
+    with patch.object(session, f"get_current_{db_or_schema}", return_value=None):
+        with patch.object(
+            session._conn._telemetry_client,
+            "send_query_compilation_summary_telemetry",
+        ) as patch_send:
+            with caplog.at_level(logging.DEBUG):
+                with SqlCounter(query_count=0, describe_count=0):
+                    df.queries
+    assert (
+        f"Skipping large query breakdown optimization since there is no active {db_or_schema}"
+        in caplog.text
+    )
+    patch_send.assert_called_once()
+    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+        f"no active {db_or_schema}": 1,
+    }
+
+
+def test_async_job_with_large_query_breakdown(large_query_df):
     """Test large query breakdown gives same result for async and non-async jobs"""
-    job = large_query_df.collect(block=False)
-    result = job.result()
-    assert result == large_query_df.collect()
+    with SqlCounter(query_count=3):
+        # 1 for current transaction
+        # 1 for created temp table; main query submitted as multi-statement query
+        # 1 for post action
+        job = large_query_df.collect(block=False)
+        result = job.result()
+    with SqlCounter(query_count=4):
+        # 1 for current transaction
+        # 1 for created temp table
+        # 1 for main query
+        # 1 for post action
+        assert result == large_query_df.collect()
     assert len(large_query_df.queries["queries"]) == 2
     assert large_query_df.queries["queries"][0].startswith(
         "CREATE  SCOPED TEMPORARY  TABLE"
@@ -426,43 +643,42 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     else:
         set_bounds(session, 400, 600)
 
-    assert len(large_query_df.queries["queries"]) == 2
-    assert len(large_query_df.queries["post_actions"]) == 1
-    assert large_query_df.queries["queries"][0].startswith(
-        "CREATE  SCOPED TEMPORARY  TABLE"
-    )
-    assert large_query_df.queries["post_actions"][0].startswith(
-        "DROP  TABLE  If  EXISTS"
-    )
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = large_query_df.queries
+
+        assert len(queries["queries"]) == 2
+        assert len(queries["post_actions"]) == 1
+        assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+        assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
     if session.sql_simplifier_enabled:
         set_bounds(session, 300, 455)
     else:
         set_bounds(session, 400, 450)
-    assert len(large_query_df.queries["queries"]) == 3
-    assert len(large_query_df.queries["post_actions"]) == 2
-    assert large_query_df.queries["queries"][0].startswith(
-        "CREATE  SCOPED TEMPORARY  TABLE"
-    )
-    assert large_query_df.queries["queries"][1].startswith(
-        "CREATE  SCOPED TEMPORARY  TABLE"
-    )
-    assert large_query_df.queries["post_actions"][0].startswith(
-        "DROP  TABLE  If  EXISTS"
-    )
-    assert large_query_df.queries["post_actions"][1].startswith(
-        "DROP  TABLE  If  EXISTS"
-    )
+
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = large_query_df.queries
+        assert len(queries["queries"]) == 3
+        assert len(queries["post_actions"]) == 2
+        assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+        assert queries["queries"][1].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+        assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+        assert queries["post_actions"][1].startswith("DROP  TABLE  If  EXISTS")
 
     set_bounds(session, 0, 300)
-    assert len(large_query_df.queries["queries"]) == 1
-    assert len(large_query_df.queries["post_actions"]) == 0
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = large_query_df.queries
+        assert len(queries["queries"]) == 1
+        assert len(queries["post_actions"]) == 0
 
     reset_bounds(session)
-    assert len(large_query_df.queries["queries"]) == 1
-    assert len(large_query_df.queries["post_actions"]) == 0
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = large_query_df.queries
+        assert len(queries["queries"]) == 1
+        assert len(queries["post_actions"]) == 0
 
 
+@sql_count_checker(query_count=0)
 def test_large_query_breakdown_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
         session.large_query_breakdown_enabled = True
@@ -483,9 +699,10 @@ def test_plotter(session, large_query_df, enabled):
             if not enabled:
                 return
 
-            assert mock_render.call_count == 4
+            assert mock_render.call_count == 5
             expected_files = [
                 "original_plan",
+                "deep_copied_plan",
                 "cte_optimized_plan_0",
                 "large_query_breakdown_plan_0",
                 "large_query_breakdown_plan_1",
