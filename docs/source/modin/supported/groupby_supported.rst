@@ -31,7 +31,7 @@ Function application
 | GroupBy method              | Snowpark implemented? (Y/N/P/D) | Missing parameters               | Notes for current implementation                   |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``agg``                     | P                               | ``axis`` other than 0 is not     | ``Y``, support functions are count, mean, min, max,|
-|                             |                                 | implemented.                     | sum, median, std, size, and var                    |
+|                             |                                 | implemented.                     | sum, median, std, size, len, and var               |
 |                             |                                 |                                  | (including both Python and NumPy functions)        |
 |                             |                                 |                                  | otherwise ``N``.                                   |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
