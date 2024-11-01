@@ -1241,7 +1241,9 @@ def execute_mock_plan(
                 subset=matched_rows.columns, keep="first"
             ).index
             # 2. get the rows to update
-            rows_to_update = intermediate.loc[pd_index].reset_index(drop=True)
+            rows_to_update = intermediate.loc[pd_index].reset_index(
+                drop=True  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
+            )
             rows_to_update.sf_types = intermediate.sf_types
 
             # 3. Update rows in place
