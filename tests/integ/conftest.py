@@ -223,7 +223,7 @@ def session(
     local_testing_mode,
     cte_optimization_enabled,
     ast_enabled,
-    full_ast_validation,
+    validate_ast,
     unparser_jar,
 ):
     rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
@@ -247,14 +247,14 @@ def session(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
 
-    if full_ast_validation:
+    if validate_ast:
         full_ast_validation_listener = setup_full_ast_validation_mode(
             session, db_parameters, unparser_jar
         )
 
     yield session
 
-    if full_ast_validation:
+    if validate_ast:
         close_full_ast_validation_mode(full_ast_validation_listener)
 
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:

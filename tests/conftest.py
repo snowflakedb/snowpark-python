@@ -62,7 +62,7 @@ def pytest_addoption(parser, pluginmanager):
     parser.addoption("--enable_cte_optimization", action="store_true", default=False)
     parser.addoption("--skip_sql_count_check", action="store_true", default=False)
     parser.addoption("--enable_ast", action="store_true", default=False)
-    parser.addoption("--full_ast_validation", action="store_true", default=False)
+    parser.addoption("--validate_ast", action="store_true", default=False)
     parser.addoption(
         "--unparser_jar",
         action="store",
@@ -139,8 +139,8 @@ def ast_enabled(pytestconfig):
 
 
 @pytest.fixture(scope="session")
-def full_ast_validation(pytestconfig):
-    return pytestconfig.getoption("full_ast_validation")
+def validate_ast(pytestconfig):
+    return pytestconfig.getoption("validate_ast")
 
 
 @pytest.fixture(scope="session")
@@ -154,7 +154,7 @@ def unparser_jar(pytestconfig):
     if unparser_jar is not None and not os.path.exists(unparser_jar):
         unparser_jar = None
 
-    if unparser_jar is None and pytestconfig.getoption("--full_ast_validation"):
+    if unparser_jar is None and pytestconfig.getoption("--validate_ast"):
         raise RuntimeError(
             f"Unparser JAR not found at {unparser_jar}. "
             f"Please set the correct path with --unparser_jar or SNOWPARK_UNPARSER_JAR."

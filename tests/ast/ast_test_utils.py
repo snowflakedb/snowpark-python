@@ -106,6 +106,19 @@ def notify_full_ast_validation_with_listener(
     *args,
     **kwargs,
 ):
+    """
+    The full ast validation mode works by using the query listener to capture the AST that would be sent with the query.
+    The captured AST is run through the AST -> python code unparser.  The generated python code is then executed in a
+    separate validation snowpark session.  The results of the two query executions are compared to see if they are
+    equal.  Any failure during this process (other than an intentional bad api call) or different in results indicates
+    a failure in the end to end query => AST => unparser => execution path.
+
+    Args:
+        full_ast_validation_listener: The query listener object that contains the contextual information for session.
+        query_record: The query record containing the AST payload.
+        args, kwargs: Extra arguments that may be passed throuhg to the underlying listener's notify method.
+    """
+
     # For tests that contain multiple actions, it's possible a later action depends on some dataframe code that
     # was provided as part of an earlier action.  Therefore we must keep all the previous statements and replay
     # them (excluding prior actions that already executed) in case there is a dependency.  This ensures the unparser
@@ -119,7 +132,7 @@ def notify_full_ast_validation_with_listener(
 
     # If this is part of the setup then we can skip, as we don't want to run twice in validation mode.  Some setup
     # code directly calls internal functions that circumvent the AST path.
-    if "(setup)" in test_name:
+    if test_name is not None and "(setup)" in test_name:
         return
 
     base64_batches = full_ast_validation_listener.base64_batches
