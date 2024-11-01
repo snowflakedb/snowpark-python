@@ -20,7 +20,7 @@ import dateutil
 from dateutil.tz import tzlocal
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
+import snowflake.snowpark._internal.generated.proto.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
