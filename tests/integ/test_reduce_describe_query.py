@@ -44,6 +44,11 @@ temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
 
 @pytest.fixture(params=param_list, autouse=True, scope="module")
 def setup(request, session):
+    # set eliminate_numeric_sql_value_cast_enabled to True for quoted identifier comparison
+    is_eliminate_numeric_sql_value_cast_enabled = (
+        session.eliminate_numeric_sql_value_cast_enabled
+    )
+    session.eliminate_numeric_sql_value_cast_enabled = True
     is_reduce_describe_query_enabled = session.reduce_describe_query_enabled
     session.reduce_describe_query_enabled = request.param
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
@@ -51,6 +56,9 @@ def setup(request, session):
     )
     yield
     session.reduce_describe_query_enabled = is_reduce_describe_query_enabled
+    session.eliminate_numeric_sql_value_cast_enabled = (
+        is_eliminate_numeric_sql_value_cast_enabled
+    )
 
 
 # Create from SQL
