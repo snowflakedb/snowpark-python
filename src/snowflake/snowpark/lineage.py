@@ -589,13 +589,13 @@ class Lineage:
             object_domain (str): The domain of the Snowflake object to start trace. e.g., "table", "view".
             object_version (Optional[str]):Version of the versioned Snowflake object (e.g., model or dataset) to begin tracing. Defaults to None.
             direction (LineageDirection): The direction to trace (UPSTREAM, DOWNSTREAM, BOTH), defaults to BOTH.
-            distance (int): Trace distance, defaults to 2, with a maximum of 10.
+            distance (int): Trace distance, defaults to 2, with a maximum of 5.
 
         Returns:
             snowflake.snowpark.DataFrame: A DataFrame representing the traced lineage with the following schema:
                 - source (str): The source of the lineage.
                 - target (str): The target of the lineage.
-                - direction (str): The direction of the lineage ('FORWARD', 'BACKWARD', or 'BOTH').
+                - direction (str): The direction of the lineage ('upstream', 'downstream', or 'both').
                 - distance (int): The distance of the lineage tracing from given object.
 
             Example:
