@@ -269,7 +269,6 @@ class RelationalGroupedDataFrame:
         if is_valid_tuple_for_agg(exprs):
             exprs = [exprs]
 
-        # Check exprs parameter.
         check_agg_exprs(exprs)
 
         # AST.

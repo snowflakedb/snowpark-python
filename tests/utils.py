@@ -357,7 +357,7 @@ class Utils:
         float_equality_threshold=0.0,
     ) -> None:
 
-        # Check that statement_params are passed as Dict[str,str]
+        # Check that statement_params are passed as Dict[str, str].
         assert statement_params is None or (
             isinstance(statement_params, dict)
             and all(

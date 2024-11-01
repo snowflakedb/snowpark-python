@@ -1919,7 +1919,6 @@ class DataFrame:
             - :meth:`DataFrame.group_by`
         """
 
-        # Check exprs arguments.
         check_agg_exprs(exprs)
 
         # AST.
