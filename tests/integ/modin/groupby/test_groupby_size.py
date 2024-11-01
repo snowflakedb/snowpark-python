@@ -102,7 +102,8 @@ def test_groupby_size(by, as_index):
     ],
 )
 @pytest.mark.parametrize("as_index", [True, False])
-def test_groupby_agg_size(by, as_index):
+@pytest.mark.parametrize("size_func", ["size", len])
+def test_groupby_agg_size(by, as_index, size_func):
     pandas_df = native_pd.DataFrame(
         {
             "col1_grp": ["g1", "g2", "g0", "g0", "g2", "g3", "g0", "g2", "g3"],
@@ -148,7 +149,7 @@ def test_groupby_agg_size(by, as_index):
             snowpark_pandas_df,
             pandas_df,
             lambda df: df.groupby(by, as_index=as_index).agg(
-                new_col=pd.NamedAgg("col5_int16", "size")
+                new_col=pd.NamedAgg("col5_int16", size_func)
             ),
             # This is a bug in pandas - the attrs are not propagated for
             # size, but are propagated for other functions.
@@ -161,7 +162,7 @@ def test_groupby_agg_size(by, as_index):
             snowpark_pandas_df,
             pandas_df,
             lambda df: df.groupby(by, as_index=as_index)["col5_int16"].agg(
-                new_col="size"
+                new_col=size_func
             ),
             # This is a bug in pandas - the attrs are not propagated for
             # size, but are propagated for other functions.
@@ -198,8 +199,9 @@ def test_timedelta(by):
 
 
 @pytest.mark.parametrize("by", ["A", "B"])
+@pytest.mark.parametrize("size_func", ["size", len])
 @sql_count_checker(query_count=1)
-def test_timedelta_agg(by):
+def test_timedelta_agg(by, size_func):
     native_df = native_pd.DataFrame(
         {
             "A": native_pd.to_timedelta(
@@ -214,7 +216,9 @@ def test_timedelta_agg(by):
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: df.groupby(by).agg(d=pd.NamedAgg("A" if by != "A" else "C", "size")),
+        lambda df: df.groupby(by).agg(
+            d=pd.NamedAgg("A" if by != "A" else "C", size_func)
+        ),
         # This is a bug in pandas - the attrs are not propagated for
         # size, but are propagated for other functions.
         test_attrs=False,
