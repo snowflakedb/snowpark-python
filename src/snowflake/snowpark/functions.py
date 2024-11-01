@@ -9831,6 +9831,7 @@ def make_interval(
     method.
     """
 
+
     if _emit_ast:
         raise NotImplementedError("TODO SNOW-1690923: Add interval support to IR.")
 
