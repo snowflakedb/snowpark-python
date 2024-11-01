@@ -104,7 +104,11 @@ def test_index_astype_empty_index(from_type, to_type):
     native_index = native_pd.Index([], dtype=from_type)
     snow_index = pd.Index(native_index)
     with SqlCounter(query_count=1):
-        assert_index_equal(snow_index.astype(to_type), native_index.astype(to_type))
+        # exact=False is used because of a discrepancy in the "inferred_type" attribute
+        # when to_type is bool between Snowpark pandas (empty) and native pandas (bool).
+        assert_index_equal(
+            snow_index.astype(to_type), native_index.astype(to_type), exact=False
+        )
 
 
 @pytest.mark.parametrize(

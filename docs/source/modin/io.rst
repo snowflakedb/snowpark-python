@@ -14,6 +14,9 @@ Input/Output
     read_json
     read_parquet
     read_sas
+    read_pickle
+    read_html
+    read_xml
 
 .. rubric:: SQL
 

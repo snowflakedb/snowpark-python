@@ -80,6 +80,8 @@ def test_idxmax_idxmin_df(data, index, func, axis, skipna):
             index=index,
         ),
         lambda df: getattr(df, func)(axis=axis, skipna=skipna),
+        # pandas doesn't propagate attrs if the frame is empty, but Snowpark pandas does.
+        test_attrs=len(native_pd.DataFrame(data).index) != 0,
     )
 
 
@@ -251,6 +253,8 @@ def test_idxmax_idxmin_empty_df_with_index(func, axis):
                     index=["hello"],
                 ),
                 lambda df: getattr(df, func)(axis=axis),
+                # pandas doesn't propagate attrs if the frame is empty, but Snowpark pandas does.
+                test_attrs=False,
             )
     else:
         with SqlCounter(query_count=0):

@@ -19,7 +19,7 @@ Attributes
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``at``                      | P                               | ``N`` for set with MultiIndex                      |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``attrs``                   | N                               |                                                    |
+| ``attrs``                   | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``axes``                    | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
@@ -46,7 +46,7 @@ Attributes
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``size``                    | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
-| ``style``                   | N                               |                                                    |
+| ``style``                   | Y                               | Performed locally on the client                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``values``                  | Y                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
@@ -67,10 +67,10 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``agg``                     | P                               | ``margins``, ``observed``,       | If ``axis == 0``: ``Y`` when  function is one of   |
 |                             |                                 | ``sort``                         | ``count``, ``mean``, ``min``, ``max``, ``sum``,    |
-|                             |                                 |                                  | ``median``; ``std`` and ``var`` supported with     |
-|                             |                                 |                                  | ``ddof=0`` or ``ddof=1``; ``quantile`` is          |
-|                             |                                 |                                  | supported when ``q`` is the default value or a     |
-|                             |                                 |                                  | scalar.                                            |
+|                             |                                 |                                  | ``median``, ``size``; ``std`` and ``var``          |
+|                             |                                 |                                  | supported with ``ddof=0`` or ``ddof=1``;           |
+|                             |                                 |                                  | ``quantile`` is supported when ``q`` is the        |
+|                             |                                 |                                  | default value or a scalar.                         |
 |                             |                                 |                                  | If ``axis == 1``: ``Y`` when function is           |
 |                             |                                 |                                  | ``count``, ``min``, ``max``, or ``sum`` and the    |
 |                             |                                 |                                  | index is not a MultiIndex.                         |
@@ -78,7 +78,10 @@ Methods
 | ``aggregate``               | P                               | ``margins``, ``observed``,       | See ``agg``                                        |
 |                             |                                 | ``sort``                         |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``align``                   | N                               |                                  |                                                    |
+| ``align``                   | P                               | ``copy``, ``level``,             | ``N`` for MultiIndex, for deprecated parameters    |
+|                             |                                 | ``fill_value``                   |  ``method``, ``limit``, ``fill_axis``,             |
+|                             |                                 |                                  |  ``broadcast_axis``, if ``axis`` == 1 or None, or  |
+|                             |                                 |                                  |  if ``fill_value`` is not default of np.nan        |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``all``                     | P                               |                                  | ``N`` for non-integer/boolean types                |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
@@ -202,8 +205,9 @@ Methods
 |                             |                                 | Categoricals are not implemented | label or Series from the current DataFrame;        |
 |                             |                                 | yet                              | otherwise ``N``;                                   |
 |                             |                                 |                                  | Note that supported functions are agg, count,      |
-|                             |                                 |                                  | cumcount, cummax, cummin, cumsum, max, mean,       |
-|                             |                                 |                                  | median, min, quantile, shift, std, sum, and var.   |
+|                             |                                 |                                  | cumcount, cummax, cummin, cumsum, first, last,     |
+|                             |                                 |                                  | max, mean, median, min, quantile, shift, size,     |
+|                             |                                 |                                  | std, sum, and var.                                 |
 |                             |                                 |                                  | Otherwise ``N``                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``gt``                      | P                               | ``level``                        |                                                    |
@@ -349,7 +353,7 @@ Methods
 |                             |                                 | ``limit``                        |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``resample``                | P                               | ``axis``, ``label``,             | Only DatetimeIndex is supported and its ``freq``   |
-|                             |                                 | ``convention``, ``kind``, ``on`` | will be lost. ``rule`` frequencies 's', 'min',     |
+|                             |                                 | ``convention``, ``kind``,        | will be lost. ``rule`` frequencies 's', 'min',     |
 |                             |                                 | , ``level``, ``origin``,         | 'h', and 'D' are supported. ``rule`` frequencies   |
 |                             |                                 | , ``offset``, ``group_keys``     | 'W', 'ME', and 'YE' are supported with             |
 |                             |                                 |                                  | `closed = "left"`                                  |
@@ -481,10 +485,17 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``truncate``                | N                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``tz_convert``              | P                               | ``axis``, ``level``, ``copy``    |                                                    |
+| ``tz_convert``              | P                               | ``axis``, ``level``, ``copy``    | ``N`` if timezone format is not supported.         |
+|                             |                                 |                                  | Only timezones listed in ``pytz.all_timezones`` are|
+|                             |                                 |                                  | supported. For example, ``UTC`` is supported but   |
+|                             |                                 |                                  | ``UTC+/-<offset>``, such as ``UTC+09:00``, is not  |
+|                             |                                 |                                  | supported.                                         |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``tz_localize``             | P                               | ``axis``, ``level``, ``copy``,   |                                                    |
-|                             |                                 | ``ambiguous``, ``nonexistent``   |                                                    |
+| ``tz_localize``             | P                               | ``axis``, ``level``, ``copy``    | ``N`` if timezone format is not supported.         |
+|                             |                                 | ``ambiguous``, ``nonexistent``   | Only timezones listed in ``pytz.all_timezones`` are|
+|                             |                                 |                                  | supported. For example, ``UTC`` is supported but   |
+|                             |                                 |                                  | ``UTC+/-<offset>``, such as ``UTC+09:00``, is not  |
+|                             |                                 |                                  | supported.                                         |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``unstack``                 | P                               | ``sort``                         | ``N`` for non-integer ``level``.                   |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+

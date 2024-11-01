@@ -10,6 +10,7 @@ import platform
 import random
 import string
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import date, datetime, time
 from decimal import Decimal
@@ -133,6 +134,26 @@ def running_on_public_ci() -> bool:
 def running_on_jenkins() -> bool:
     """Whether tests are currently running on a Jenkins node."""
     return RUNNING_ON_JENKINS
+
+
+def multithreaded_run(num_threads: int = 5) -> None:
+    """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
+    from tests.conftest import MULTITHREADING_TEST_MODE_ENABLED
+
+    def decorator(func):
+        @pytest.mark.multithreaded_run
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if MULTITHREADING_TEST_MODE_ENABLED:
+                with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                    for _ in range(num_threads):
+                        executor.submit(func, *args, **kwargs)
+            else:
+                func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class Utils:

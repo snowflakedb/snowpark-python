@@ -593,28 +593,18 @@ class PandasOnSnowflakeIO(BaseIO):
         pass  # pragma: no cover
 
     @classmethod
-    @pandas_module_level_function_not_implemented()
-    def read_html(
-        cls,
-        io,
-        *,
-        match=".+",
-        flavor=None,
-        header=None,
-        index_col=None,
-        skiprows=None,
-        attrs=None,
-        parse_dates=False,
-        thousands=",",
-        encoding=None,
-        decimal=".",
-        converters=None,
-        na_values=None,
-        keep_default_na=True,
-        displayed_only=True,
-        **kwargs,
-    ):
-        pass  # pragma: no cover
+    def read_html(cls, **kwargs) -> list[SnowflakeQueryCompiler]:
+        """
+        Read HTML tables into a list of query compilers.
+        """
+        return [cls.from_pandas(df) for df in pandas.read_html(**kwargs)]
+
+    @classmethod
+    def read_xml(cls, **kwargs) -> SnowflakeQueryCompiler:
+        """
+        Read XML document into a query compiler.
+        """
+        return cls.from_pandas(pandas.read_xml(**kwargs))
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -665,13 +655,11 @@ class PandasOnSnowflakeIO(BaseIO):
         return cls.from_pandas(pandas.read_sas(**kwargs))
 
     @classmethod
-    @pandas_module_level_function_not_implemented()
-    def read_pickle(
-        cls,
-        filepath_or_buffer,
-        **kwargs,
-    ):
-        pass  # pragma: no cover
+    def read_pickle(cls, **kwargs) -> SnowflakeQueryCompiler:
+        """
+        Load pickled pandas object (or any object) from file into a query compiler.
+        """
+        return cls.from_pandas(pandas.read_pickle(**kwargs))
 
     @classmethod
     @pandas_module_level_function_not_implemented()

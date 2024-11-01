@@ -34,6 +34,7 @@ import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
+from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -156,7 +157,8 @@ def convert_metadata_to_sp_type(
             return StructType(
                 [
                     StructField(
-                        field.name, convert_metadata_to_sp_type(field, max_string_size)
+                        quote_name(field.name, keep_case=True),
+                        convert_metadata_to_sp_type(field, max_string_size),
                     )
                     for field in metadata.fields
                 ],
@@ -289,7 +291,7 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, StructType):
         if datatype.structured:
             fields = ", ".join(
-                f"{field.name.upper()} {convert_sp_to_sf_type(field.datatype)}"
+                f"{field.name} {convert_sp_to_sf_type(field.datatype)}"
                 for field in datatype.fields
             )
             return f"OBJECT({fields})"

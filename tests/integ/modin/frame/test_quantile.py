@@ -22,6 +22,12 @@ TEST_QUANTILE_DATA = {
     "b": [-5, -2, -1, 0],
     "c": [89, np.nan, -540, 0.1],
     "d": [0, 0, 0, 0],
+    "timedelta": [
+        pd.NaT,
+        pd.Timedelta(10),
+        pd.Timedelta(-5),
+        pd.Timedelta(7),
+    ],
 }
 
 TEST_QUANTILES = [

@@ -24,6 +24,7 @@ from pandas._libs.lib import NoDefault, is_integer, no_default
 from pandas._typing import (
     AggFuncType,
     AnyArrayLike,
+    ArrayLike,
     Axis,
     FillnaOptions,
     IgnoreRaise,
@@ -1000,12 +1001,15 @@ def map(
     self,
     arg: Callable | Mapping | Series,
     na_action: Literal["ignore"] | None = None,
+    **kwargs: Any,
 ) -> Series:
     """
     Map values of Series according to input correspondence.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    return self.__constructor__(query_compiler=self._query_compiler.map(arg, na_action))
+    return self.__constructor__(
+        query_compiler=self._query_compiler.map(arg, na_action, **kwargs)
+    )
 
 
 # Snowpark pandas does different validation than upstream Modin.
@@ -1591,6 +1595,19 @@ def rename(
             self_cp = self.copy()
             self_cp.name = index
             return self_cp
+
+
+# In some cases, modin after 0.30.1 returns a DatetimeArray instead of a numpy array. This
+# still differs from the expected pandas behavior, which would return DatetimeIndex
+# (see SNOW-1019312).
+@register_series_accessor("unique")
+def unique(self) -> ArrayLike:  # noqa: RT01, D200
+    """
+    Return unique values of Series object.
+    """
+    # `values` can't be used here because it performs unnecessary conversion,
+    # after which the result type does not match the pandas
+    return self.__constructor__(query_compiler=self._query_compiler.unique()).to_numpy()
 
 
 # Modin defaults to pandas for some arguments for unstack

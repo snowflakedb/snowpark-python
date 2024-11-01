@@ -25,7 +25,7 @@ from snowflake.snowpark.types import (
     StructType,
     TimestampType,
 )
-from tests.utils import Utils
+from tests.utils import Utils, multithreaded_run
 
 
 def test_join_using(session):
@@ -68,6 +68,7 @@ def test_full_outer_join_followed_by_inner_join(session):
     assert abc.collect() == [Row(3, None, 4, 1)]
 
 
+@multithreaded_run()
 def test_limit_with_join(session):
     df = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]

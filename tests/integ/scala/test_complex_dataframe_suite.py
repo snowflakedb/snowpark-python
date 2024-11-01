@@ -14,9 +14,10 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils, multithreaded_run
 
 
+@multithreaded_run()
 def test_combination_of_multiple_operators(session):
     df1 = session.create_dataframe([1, 2]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in [1, 2]]).to_df("a", "b")
@@ -92,6 +93,7 @@ def test_join_on_top_of_unions(session):
     assert res == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
+@multithreaded_run()
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_combination_of_multiple_data_sources(
     session, resources_path, local_testing_mode

@@ -4,6 +4,7 @@
 import re
 
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 
@@ -12,9 +13,14 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
-    eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
+
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
 
 
 @sql_count_checker(query_count=0)
@@ -127,3 +133,32 @@ def test_named_agg_with_invalid_function_raises_not_implemented(
         pd.DataFrame(basic_df_data).groupby("col1").agg(
             c1=("col2", "min"), c2=("col2", "random_function")
         )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("size_func", ["size", len])
+def test_named_agg_count_vs_size(size_func):
+    data = [[1, 2, 3], [1, 5, np.nan], [7, np.nan, 9]]
+    native_df = native_pd.DataFrame(
+        data, columns=["a", "b", "c"], index=["owl", "toucan", "eagle"]
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby("a").agg(
+            l=("b", size_func), j=("c", size_func), m=("c", "count"), n=("b", "count")
+        ),
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("size_func", ["size", len])
+def test_named_agg_size_on_series(size_func):
+    native_series = native_pd.Series([1, 2, 3, 3], index=["a", "a", "b", "c"])
+    snow_series = pd.Series(native_series)
+    eval_snowpark_pandas_result(
+        snow_series,
+        native_series,
+        lambda series: series.groupby(level=0).agg(new_col=size_func),
+    )

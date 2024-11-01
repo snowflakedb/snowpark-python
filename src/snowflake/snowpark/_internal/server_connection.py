@@ -44,11 +44,14 @@ from snowflake.snowpark._internal.analyzer.schema_utils import (
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     PlanQueryType,
+    Query,
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
+    create_rlock,
+    create_thread_local,
     escape_quotes,
     get_application_name,
     get_version,
@@ -169,9 +172,15 @@ class ServerConnection:
             except TypeError:
                 pass
 
+        # thread safe param protection
+        self._thread_safe_session_enabled = self._get_client_side_session_parameter(
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
+        )
+        self._lock = create_rlock(self._thread_safe_session_enabled)
+        self._thread_store = create_thread_local(self._thread_safe_session_enabled)
+
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
-        self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
         self._query_listener: Set[QueryHistory] = set()
         # The session in this case refers to a Snowflake session, not a
@@ -183,6 +192,15 @@ class ServerConnection:
         self._supports_skip_upload_on_content_match = (
             "_skip_upload_on_content_match" in signature.parameters
         )
+
+    @property
+    def _cursor(self) -> SnowflakeCursor:
+        if not hasattr(self._thread_store, "cursor"):
+            self._thread_store.cursor = self._conn.cursor()
+            self._telemetry_client.send_cursor_created_telemetry(
+                self.get_session_id(), threading.get_ident()
+            )
+        return self._thread_store.cursor
 
     def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
@@ -211,10 +229,12 @@ class ServerConnection:
             ] = get_version()
 
     def add_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.add(listener)
+        with self._lock:
+            self._query_listener.add(listener)
 
     def remove_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.remove(listener)
+        with self._lock:
+            self._query_listener.remove(listener)
 
     def close(self) -> None:
         if self._conn:
@@ -253,17 +273,21 @@ class ServerConnection:
     ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
         result_metadata = run_new_describe(cursor, query)
 
-        for listener in filter(
-            lambda listener: hasattr(listener, "include_describe")
-            and listener.include_describe,
-            self._query_listener,
-        ):
-            query_record = QueryRecord(cursor.sfqid, query, True)
-            if getattr(listener, "include_thread_id", False):
-                query_record = QueryRecord(
-                    cursor.sfqid, query, True, threading.get_ident()
+        with self._lock:
+            for listener in filter(
+                lambda listener: hasattr(listener, "include_describe")
+                and listener.include_describe,
+                self._query_listener,
+            ):
+                thread_id = (
+                    threading.get_ident()
+                    if getattr(listener, "include_thread_id", False)
+                    else None
                 )
-            listener._add_query(query_record)
+                query_record = QueryRecord(
+                    cursor.sfqid, query, True, thread_id=thread_id
+                )
+                listener._add_query(query_record)
 
         return result_metadata
 
@@ -380,17 +404,18 @@ class ServerConnection:
                 raise ex
 
     def notify_query_listeners(self, query_record: QueryRecord) -> None:
-        for listener in self._query_listener:
-            if getattr(listener, "include_thread_id", False):
-                new_record = QueryRecord(
-                    query_record.query_id,
-                    query_record.sql_text,
-                    query_record.is_describe,
-                    thread_id=threading.get_ident(),
-                )
-                listener._add_query(new_record)
-            else:
-                listener._add_query(query_record)
+        with self._lock:
+            for listener in self._query_listener:
+                if getattr(listener, "include_thread_id", False):
+                    new_record = QueryRecord(
+                        query_record.query_id,
+                        query_record.sql_text,
+                        query_record.is_describe,
+                        thread_id=threading.get_ident(),
+                    )
+                    listener._add_query(new_record)
+                else:
+                    listener._add_query(query_record)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
@@ -435,6 +460,7 @@ class ServerConnection:
         params: Optional[Sequence[Any]] = None,
         num_statements: Optional[int] = None,
         ignore_results: bool = False,
+        async_post_actions: Optional[List[Query]] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -478,7 +504,7 @@ class ServerConnection:
                 query,
                 async_job_plan.session,
                 data_type,
-                async_job_plan.post_actions,
+                async_post_actions,
                 log_on_exception,
                 case_sensitive=case_sensitive,
                 num_statements=num_statements,
@@ -609,6 +635,7 @@ class ServerConnection:
         kwargs["_statement_params"] = statement_params
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
+            post_actions = plan_queries[PlanQueryType.POST_ACTIONS]
             placeholders = {}
             is_batch_insert = False
             for q in main_queries:
@@ -642,6 +669,7 @@ class ServerConnection:
                     num_statements=len(main_queries),
                     params=params,
                     ignore_results=ignore_results,
+                    async_post_actions=post_actions,
                     **kwargs,
                 )
 
@@ -671,6 +699,7 @@ class ServerConnection:
                             case_sensitive=case_sensitive,
                             params=query.params,
                             ignore_results=ignore_results,
+                            async_post_actions=post_actions,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -682,7 +711,7 @@ class ServerConnection:
         finally:
             # delete created tmp object
             if block:
-                for action in plan_queries[PlanQueryType.POST_ACTIONS]:
+                for action in post_actions:
                     self.run_query(
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,

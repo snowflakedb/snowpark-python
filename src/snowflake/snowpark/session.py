@@ -92,6 +92,8 @@ from snowflake.snowpark._internal.utils import (
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
+    create_rlock,
+    create_thread_local,
     deprecated,
     escape_quotes,
     experimental,
@@ -114,6 +116,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
+    warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
 )
@@ -220,6 +223,9 @@ _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
     "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED"
 )
+_PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED = (
+    "PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED"
+)
 _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION = (
     "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION"
 )
@@ -228,6 +234,9 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
 )
 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
     "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND"
+)
+_PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
+    "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
 )
 # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
 # in Snowflake. This is the limit where we start seeing compilation errors.
@@ -340,38 +349,44 @@ class Session:
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
             }  # For config that's temporary/to be removed soon
+            self._lock = self._session._lock
             for key, val in conf.items():
                 if self.is_mutable(key):
                     self.set(key, val)
 
         def get(self, key: str, default=None) -> Any:
-            if hasattr(Session, key):
-                return getattr(self._session, key)
-            if hasattr(self._session._conn._conn, key):
-                return getattr(self._session._conn._conn, key)
-            return self._conf.get(key, default)
+            with self._lock:
+                if hasattr(Session, key):
+                    return getattr(self._session, key)
+                if hasattr(self._session._conn._conn, key):
+                    return getattr(self._session._conn._conn, key)
+                return self._conf.get(key, default)
 
         def is_mutable(self, key: str) -> bool:
-            if hasattr(Session, key) and isinstance(getattr(Session, key), property):
-                return getattr(Session, key).fset is not None
-            if hasattr(SnowflakeConnection, key) and isinstance(
-                getattr(SnowflakeConnection, key), property
-            ):
-                return getattr(SnowflakeConnection, key).fset is not None
-            return key in self._conf
+            with self._lock:
+                if hasattr(Session, key) and isinstance(
+                    getattr(Session, key), property
+                ):
+                    return getattr(Session, key).fset is not None
+                if hasattr(SnowflakeConnection, key) and isinstance(
+                    getattr(SnowflakeConnection, key), property
+                ):
+                    return getattr(SnowflakeConnection, key).fset is not None
+                return key in self._conf
 
         def set(self, key: str, value: Any) -> None:
-            if self.is_mutable(key):
-                if hasattr(Session, key):
-                    setattr(self._session, key, value)
-                if hasattr(SnowflakeConnection, key):
-                    setattr(self._session._conn._conn, key, value)
-                if key in self._conf:
-                    self._conf[key] = value
-            else:
-                raise AttributeError(
-                    f'Configuration "{key}" does not exist or is not mutable in runtime'
-                )
+            with self._lock:
+                if self.is_mutable(key):
+                    if hasattr(Session, key):
+                        setattr(self._session, key, value)
+                    if hasattr(SnowflakeConnection, key):
+                        setattr(self._session._conn._conn, key, value)
+                    if key in self._conf:
+                        self._conf[key] = value
+                else:
+                    raise AttributeError(
+                        f'Configuration "{key}" does not exist or is not mutable in runtime'
+                    )
 
     class SessionBuilder:
         """
@@ -547,9 +562,6 @@ class Session:
         )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
-        self._analyzer = (
-            Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
-        )
         self._sql_simplifier_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
@@ -575,7 +587,11 @@ class Session:
                 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED, False
             )
         )
-
+        self._reduce_describe_query_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, False
+            )
+        )
         self._query_compilation_stage_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
@@ -599,6 +615,17 @@ class Session:
                 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
             ),
         )
+
+        self._thread_store = create_thread_local(
+            self._conn._thread_safe_session_enabled
+        )
+        self._lock = create_rlock(self._conn._thread_safe_session_enabled)
+
+        # this lock is used to protect _packages. We use introduce a new lock because add_packages
+        # launches a query to snowflake to get all version of packages available in snowflake. This
+        # query can be slow and prevent other threads from moving on waiting for _lock.
+        self._package_lock = create_rlock(self._conn._thread_safe_session_enabled)
+
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
@@ -622,8 +649,19 @@ class Session:
         )
 
     def _generate_new_action_id(self) -> int:
-        self._last_action_id += 1
-        return self._last_action_id
+        with self._lock:
+            self._last_action_id += 1
+            return self._last_action_id
+
+    @property
+    def _analyzer(self) -> Analyzer:
+        if not hasattr(self._thread_store, "analyzer"):
+            self._thread_store.analyzer = (
+                Analyzer(self)
+                if isinstance(self._conn, ServerConnection)
+                else MockAnalyzer(self)
+            )
+        return self._thread_store.analyzer
 
     def close(self) -> None:
         """Close this session."""
@@ -678,28 +716,6 @@ class Session:
         :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
         The default value is ``False``.
 
-        Example::
-
-            >>> import gc
-            >>>
-            >>> def f(session: Session) -> str:
-            ...     df = session.create_dataframe(
-            ...         [[1, 2], [3, 4]], schema=["a", "b"]
-            ...     ).cache_result()
-            ...     return df.table_name
-            ...
-            >>> session.auto_clean_up_temp_table_enabled = True
-            >>> table_name = f(session)
-            >>> assert table_name
-            >>> gc.collect() # doctest: +SKIP
-            >>>
-            >>> # The temporary table created by cache_result will be dropped when the DataFrame is no longer referenced
-            >>> # outside the function
-            >>> session.sql(f"show tables like '{table_name}'").count()
-            0
-
-            >>> session.auto_clean_up_temp_table_enabled = False
-
         Note:
             Temporary tables will only be dropped if this parameter is enabled during garbage collection.
             If a temporary table is no longer referenced when the parameter is on, it will be dropped during garbage collection.
@@ -715,6 +731,18 @@ class Session:
     @property
     def large_query_breakdown_complexity_bounds(self) -> Tuple[int, int]:
         return self._large_query_breakdown_complexity_bounds
+
+    @property
+    def reduce_describe_query_enabled(self) -> bool:
+        """
+        When setting this parameter to ``True``, Snowpark will infer the schema of DataFrame locally if possible,
+        instead of issuing an internal `describe query
+        <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#retrieving-column-metadata>`_
+        to get the schema from the Snowflake server. This optimization improves the performance of your workloads by
+        reducing the number of describe queries issued to the server.
+        The default value is ``False``.
+        """
+        return self._reduce_describe_query_enabled
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -758,36 +786,51 @@ class Session:
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
-        self._conn._telemetry_client.send_sql_simplifier_telemetry(
-            self._session_id, value
+        warn_session_config_update_in_multithreaded_mode(
+            "sql_simplifier_enabled", self._conn._thread_safe_session_enabled
         )
-        try:
-            self._conn._cursor.execute(
-                f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+
+        with self._lock:
+            self._conn._telemetry_client.send_sql_simplifier_telemetry(
+                self._session_id, value
             )
-        except Exception:
-            pass
-        self._sql_simplifier_enabled = value
+            try:
+                self._conn._cursor.execute(
+                    f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
+                )
+            except Exception:
+                pass
+            self._sql_simplifier_enabled = value
 
     @cte_optimization_enabled.setter
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
-        if value:
-            self._conn._telemetry_client.send_cte_optimization_telemetry(
-                self._session_id
-            )
-        self._cte_optimization_enabled = value
+        warn_session_config_update_in_multithreaded_mode(
+            "cte_optimization_enabled", self._conn._thread_safe_session_enabled
+        )
+
+        with self._lock:
+            if value:
+                self._conn._telemetry_client.send_cte_optimization_telemetry(
+                    self._session_id
+                )
+            self._cte_optimization_enabled = value
 
     @eliminate_numeric_sql_value_cast_enabled.setter
     @experimental_parameter(version="1.20.0")
     def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
         """Set the value for eliminate_numeric_sql_value_cast_enabled"""
+        warn_session_config_update_in_multithreaded_mode(
+            "eliminate_numeric_sql_value_cast_enabled",
+            self._conn._thread_safe_session_enabled,
+        )
 
         if value in [True, False]:
-            self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
-                self._session_id, value
-            )
-            self._eliminate_numeric_sql_value_cast_enabled = value
+            with self._lock:
+                self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
+                    self._session_id, value
+                )
+                self._eliminate_numeric_sql_value_cast_enabled = value
         else:
             raise ValueError(
                 "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
@@ -797,11 +840,16 @@ class Session:
     @experimental_parameter(version="1.21.0")
     def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
         """Set the value for auto_clean_up_temp_table_enabled"""
+        warn_session_config_update_in_multithreaded_mode(
+            "auto_clean_up_temp_table_enabled", self._conn._thread_safe_session_enabled
+        )
+
         if value in [True, False]:
-            self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
-                self._session_id, value
-            )
-            self._auto_clean_up_temp_table_enabled = value
+            with self._lock:
+                self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
+                    self._session_id, value
+                )
+                self._auto_clean_up_temp_table_enabled = value
         else:
             raise ValueError(
                 "value for auto_clean_up_temp_table_enabled must be True or False!"
@@ -815,12 +863,16 @@ class Session:
         materialize the partitions, and then combine them to execute the query to improve
         overall performance.
         """
+        warn_session_config_update_in_multithreaded_mode(
+            "large_query_breakdown_enabled", self._conn._thread_safe_session_enabled
+        )
 
         if value in [True, False]:
-            self._conn._telemetry_client.send_large_query_breakdown_telemetry(
-                self._session_id, value
-            )
-            self._large_query_breakdown_enabled = value
+            with self._lock:
+                self._conn._telemetry_client.send_large_query_breakdown_telemetry(
+                    self._session_id, value
+                )
+                self._large_query_breakdown_enabled = value
         else:
             raise ValueError(
                 "value for large_query_breakdown_enabled must be True or False!"
@@ -829,6 +881,10 @@ class Session:
     @large_query_breakdown_complexity_bounds.setter
     def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
         """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
+        warn_session_config_update_in_multithreaded_mode(
+            "large_query_breakdown_complexity_bounds",
+            self._conn._thread_safe_session_enabled,
+        )
 
         if len(value) != 2:
             raise ValueError(
@@ -838,16 +894,34 @@ class Session:
             raise ValueError(
                 f"Expecting a tuple of lower and upper bound with the lower bound less than the upper bound. Got (lower, upper) = ({value[0], value[1]})"
             )
-        self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
-            self._session_id, value[0], value[1]
-        )
+        with self._lock:
+            self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
+                self._session_id, value[0], value[1]
+            )
 
-        self._large_query_breakdown_complexity_bounds = value
+            self._large_query_breakdown_complexity_bounds = value
+
+    @reduce_describe_query_enabled.setter
+    @experimental_parameter(version="1.24.0")
+    def reduce_describe_query_enabled(self, value: bool) -> None:
+        """Set the value for reduce_describe_query_enabled"""
+        if value in [True, False]:
+            self._conn._telemetry_client.send_reduce_describe_query_telemetry(
+                self._session_id, value
+            )
+            self._reduce_describe_query_enabled = value
+        else:
+            raise ValueError(
+                "value for reduce_describe_query_enabled must be True or False!"
+            )
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
     def custom_package_usage_config(self, config: Dict) -> None:
-        self._custom_package_usage_config = {k.lower(): v for k, v in config.items()}
+        with self._lock:
+            self._custom_package_usage_config = {
+                k.lower(): v for k, v in config.items()
+            }
 
     def cancel_all(self) -> None:
         """
@@ -855,7 +929,8 @@ class Session:
         This does not affect any action methods called in the future.
         """
         _logger.info("Canceling all running queries")
-        self._last_canceled_id = self._last_action_id
+        with self._lock:
+            self._last_canceled_id = self._last_action_id
         if not isinstance(self._conn, MockServerConnection):
             self._conn.run_query(
                 f"select system$cancel_all_queries({self._session_id})"
@@ -866,7 +941,8 @@ class Session:
         Returns a list of imports added for user defined functions (UDFs).
         This list includes any Python or zip files that were added automatically by the library.
         """
-        return list(self._import_paths.keys())
+        with self._lock:
+            return list(self._import_paths.keys())
 
     def add_import(
         self,
@@ -947,7 +1023,8 @@ class Session:
         path, checksum, leading_path = self._resolve_import_path(
             path, import_path, chunk_size, whole_file_hash
         )
-        self._import_paths[path] = (checksum, leading_path)
+        with self._lock:
+            self._import_paths[path] = (checksum, leading_path)
 
     def remove_import(self, path: str) -> None:
         """
@@ -974,10 +1051,11 @@ class Session:
             if not trimmed_path.startswith(STAGE_PREFIX)
             else trimmed_path
         )
-        if abs_path not in self._import_paths:
-            raise KeyError(f"{abs_path} is not found in the existing imports")
-        else:
-            self._import_paths.pop(abs_path)
+        with self._lock:
+            if abs_path not in self._import_paths:
+                raise KeyError(f"{abs_path} is not found in the existing imports")
+            else:
+                self._import_paths.pop(abs_path)
 
     def clear_imports(self) -> None:
         """
@@ -986,10 +1064,11 @@ class Session:
         if isinstance(self._conn, MockServerConnection):
             self.udf._clear_session_imports()
             self.sproc._clear_session_imports()
-        self._import_paths.clear()
+        with self._lock:
+            self._import_paths.clear()
 
+    @staticmethod
     def _resolve_import_path(
-        self,
         path: str,
         import_path: Optional[str] = None,
         chunk_size: int = 8192,
@@ -1077,7 +1156,8 @@ class Session:
             upload_and_import_stage
         )
 
-        import_paths = udf_level_import_paths or self._import_paths
+        with self._lock:
+            import_paths = udf_level_import_paths or self._import_paths.copy()
         for path, (prefix, leading_path) in import_paths.items():
             # stage file
             if path.startswith(STAGE_PREFIX):
@@ -1159,7 +1239,8 @@ class Session:
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
         """
-        return self._packages.copy()
+        with self._package_lock:
+            return self._packages.copy()
 
     def add_packages(
         self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
@@ -1250,16 +1331,18 @@ class Session:
             0
         """
         package_name = pkg_resources.Requirement.parse(package).key
-        if package_name in self._packages:
-            self._packages.pop(package_name)
-        else:
-            raise ValueError(f"{package_name} is not in the package list")
+        with self._package_lock:
+            if package_name in self._packages:
+                self._packages.pop(package_name)
+            else:
+                raise ValueError(f"{package_name} is not in the package list")
 
     def clear_packages(self) -> None:
         """
         Clears all third-party packages of a user-defined function (UDF).
         """
-        self._packages.clear()
+        with self._package_lock:
+            self._packages.clear()
 
     def add_requirements(self, file_path: str) -> None:
         """
@@ -1437,7 +1520,8 @@ class Session:
             statement_params=statement_params,
         )
 
-        custom_package_usage_config = self._custom_package_usage_config.copy()
+        with self._lock:
+            custom_package_usage_config = self._custom_package_usage_config.copy()
 
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
@@ -1607,23 +1691,26 @@ class Session:
         if isinstance(self._conn, MockServerConnection):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
-            result_dict = self._packages.copy()
-            for pkg_name, _, pkg_req in package_dict.values():
-                if pkg_name in result_dict and str(pkg_req) != result_dict[pkg_name]:
-                    errors.append(
-                        ValueError(
-                            f"Cannot add package '{str(pkg_req)}' because {result_dict[pkg_name]} "
-                            "is already added."
+            with self._package_lock:
+                result_dict = self._packages
+                for pkg_name, _, pkg_req in package_dict.values():
+                    if (
+                        pkg_name in result_dict
+                        and str(pkg_req) != result_dict[pkg_name]
+                    ):
+                        errors.append(
+                            ValueError(
+                                f"Cannot add package '{str(pkg_req)}' because {result_dict[pkg_name]} "
+                                "is already added."
+                            )
                         )
-                    )
-                else:
-                    result_dict[pkg_name] = str(pkg_req)
-            if len(errors) == 1:
-                raise errors[0]
-            elif len(errors) > 0:
-                raise RuntimeError(errors)
+                    else:
+                        result_dict[pkg_name] = str(pkg_req)
+                if len(errors) == 1:
+                    raise errors[0]
+                elif len(errors) > 0:
+                    raise RuntimeError(errors)
 
-            self._packages.update(result_dict)
             return list(result_dict.values())
 
         package_table = "information_schema.packages"
@@ -1638,46 +1725,47 @@ class Session:
         #  'python-dateutil': 'python-dateutil==2.8.2'}
         # Add to packages dictionary. Make a copy of existing packages
         # dictionary to avoid modifying it during intermediate steps.
-        result_dict = (
-            existing_packages_dict.copy() if existing_packages_dict is not None else {}
-        )
+        with self._package_lock:
+            result_dict = (
+                existing_packages_dict if existing_packages_dict is not None else {}
+            )
 
-        # Retrieve list of dependencies that need to be added
-        dependency_packages = self._get_dependency_packages(
-            package_dict,
-            validate_package,
-            package_table,
-            result_dict,
-            statement_params=statement_params,
-        )
+            # Retrieve list of dependencies that need to be added
+            dependency_packages = self._get_dependency_packages(
+                package_dict,
+                validate_package,
+                package_table,
+                result_dict,
+                statement_params=statement_params,
+            )
 
-        # Add dependency packages
-        for package in dependency_packages:
-            name = package.name
-            version = package.specs[0][1] if package.specs else None
+            # Add dependency packages
+            for package in dependency_packages:
+                name = package.name
+                version = package.specs[0][1] if package.specs else None
 
-            if name in result_dict:
-                if version is not None:
-                    added_package_has_version = "==" in result_dict[name]
-                    if added_package_has_version and result_dict[name] != str(package):
-                        raise ValueError(
-                            f"Cannot add dependency package '{name}=={version}' "
-                            f"because {result_dict[name]} is already added."
-                        )
+                if name in result_dict:
+                    if version is not None:
+                        added_package_has_version = "==" in result_dict[name]
+                        if added_package_has_version and result_dict[name] != str(
+                            package
+                        ):
+                            raise ValueError(
+                                f"Cannot add dependency package '{name}=={version}' "
+                                f"because {result_dict[name]} is already added."
+                            )
+                        result_dict[name] = str(package)
+                else:
                     result_dict[name] = str(package)
-            else:
-                result_dict[name] = str(package)
 
-        # Always include cloudpickle
-        extra_modules = [cloudpickle]
-        if include_pandas:
-            extra_modules.append("pandas")
+            # Always include cloudpickle
+            extra_modules = [cloudpickle]
+            if include_pandas:
+                extra_modules.append("pandas")
 
-        if existing_packages_dict is not None:
-            existing_packages_dict.update(result_dict)
-        return list(result_dict.values()) + self._get_req_identifiers_list(
-            extra_modules, result_dict
-        )
+            return list(result_dict.values()) + self._get_req_identifiers_list(
+                extra_modules, result_dict
+            )
 
     def _upload_unsupported_packages(
         self,
@@ -1957,11 +2045,12 @@ class Session:
 
     @query_tag.setter
     def query_tag(self, tag: str) -> None:
-        if tag:
-            self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
-        else:
-            self._conn.run_query("alter session unset query_tag")
-        self._query_tag = tag
+        with self._lock:
+            if tag:
+                self._conn.run_query(f"alter session set query_tag = {str_to_sql(tag)}")
+            else:
+                self._conn.run_query("alter session unset query_tag")
+            self._query_tag = tag
 
     def _get_remote_query_tag(self) -> None:
         """
@@ -2354,18 +2443,19 @@ class Session:
             Therefore, if you switch database or schema during the session, the stage will not be re-created
             in the new database or schema, and still references the stage in the old database or schema.
         """
-        if not self._session_stage:
-            full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
-                random_name_for_temp_object(TempObjectType.STAGE)
-            )
-            self._run_query(
-                f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
-                stage if not exists {full_qualified_stage_name}",
-                is_ddl_on_temp_object=True,
-                statement_params=statement_params,
-            )
-            # set the value after running the query to ensure atomicity
-            self._session_stage = full_qualified_stage_name
+        with self._lock:
+            if not self._session_stage:
+                full_qualified_stage_name = self.get_fully_qualified_name_if_possible(
+                    random_name_for_temp_object(TempObjectType.STAGE)
+                )
+                self._run_query(
+                    f"create {get_temp_type_for_object(self._use_scoped_temp_objects, True)} \
+                    stage if not exists {full_qualified_stage_name}",
+                    is_ddl_on_temp_object=True,
+                    statement_params=statement_params,
+                )
+                # set the value after running the query to ensure atomicity
+                self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
 
     def _write_modin_pandas_helper(
@@ -2538,16 +2628,20 @@ class Session:
             0   1  Jane
 
         Note:
-            Unless ``auto_create_table`` is ``True``, you must first create a table in
+            1. Unless ``auto_create_table`` is ``True``, you must first create a table in
             Snowflake that the passed in pandas DataFrame can be written to. If
             your pandas DataFrame cannot be written to the specified table, an
             exception will be raised.
 
-            If the dataframe is Snowpark pandas :class:`~modin.pandas.DataFrame`
+            2. If the dataframe is Snowpark pandas :class:`~modin.pandas.DataFrame`
             or :class:`~modin.pandas.Series`, it will call
             :func:`modin.pandas.DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
             or :func:`modin.pandas.Series.to_snowflake <modin.pandas.Series.to_snowflake>`
             internally to write a Snowpark pandas DataFrame into a Snowflake table.
+
+            3. If the input pandas DataFrame has `datetime64[ns, tz]` columns and `auto_create_table` is set to `True`,
+            they will be converted to `TIMESTAMP_LTZ` in the output Snowflake table by default.
+            If `TIMESTAMP_TZ` is needed for those columns instead, please manually create the table before loading data.
         """
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
@@ -3067,8 +3161,9 @@ class Session:
         """
         Returns the fully qualified object name if current database/schema exists, otherwise returns the object name
         """
-        database = self.get_current_database()
-        schema = self.get_current_schema()
+        with self._lock:
+            database = self.get_current_database()
+            schema = self.get_current_schema()
         if database and schema:
             return f"{database}.{schema}.{name}"
 

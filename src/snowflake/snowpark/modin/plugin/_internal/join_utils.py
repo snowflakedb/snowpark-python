@@ -1154,6 +1154,29 @@ def join_on_index_columns(
     return JoinOrAlignInternalFrameResult(joined_frame, result_column_mapper)
 
 
+def convert_index_type_to_variant(
+    frame: InternalFrame,
+) -> InternalFrame:
+    """
+    Converts types of given index identifier if it is not Variant or Timestamp type.
+    Args:
+        frame: InternalFrame whose type needs to be converted.
+    Returns:
+        Frame with updated columns.
+    """
+    frame_ids = frame.data_column_snowflake_quoted_identifiers
+    frame_id_to_type_map = frame.quoted_identifier_to_snowflake_type(frame_ids)
+    frame_to_variant = {}
+    for frame_id in frame_ids:
+        frame_type = frame_id_to_type_map[frame_id]
+        if not isinstance(frame_type, VariantType):
+            frame_to_variant[frame_id] = to_variant(frame_id)
+    frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+        frame_to_variant
+    ).frame
+    return frame
+
+
 def convert_incompatible_types_to_variant(
     left: InternalFrame,
     right: InternalFrame,
@@ -1224,6 +1247,7 @@ def align(
             * coalesce: use only index from left frame, preserve left order. If left
               frame is empty left_on columns are coalesced with right_on columns.
             * outer: use union of index from both frames, sort index lexicographically.
+            * inner: use intersection of index from both frames, preserve left order.
     Returns:
         New aligned InternalFrame by aligning left frame with right frame.
     """
@@ -1307,12 +1331,13 @@ def align_on_index(
     Args:
         left: Left DataFrame.
         right: right DataFrame.
-        how: the align method {{'left', 'coalesce', 'outer'}}, by default is outer
+        how: the align method {{'left', 'coalesce', 'outer', 'inner'}}, by default is outer
             * left: use only index from left frame, preserve left order.
             * coalesce: if left frame has non-zero rows use only index from left
                 frame, preserve left order otherwise use only right index and preserver
                 right order.
             * outer: use union of index from both frames, sort index lexicographically.
+            * inner: use intersection of index from both frames, preserve left order.
     Returns:
         An InternalFrame for the aligned result.
         A JoinOrAlignResultColumnMapper that provides quoted identifiers mapping from the

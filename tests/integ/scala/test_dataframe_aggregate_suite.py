@@ -44,7 +44,7 @@ from snowflake.snowpark.functions import (
     var_samp,
     variance,
 )
-from tests.utils import IS_IN_STORED_PROC, TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils, multithreaded_run
 
 
 def test_pivot(session):
@@ -187,6 +187,7 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
+@multithreaded_run()
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)

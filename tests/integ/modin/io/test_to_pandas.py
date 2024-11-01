@@ -33,3 +33,13 @@ def test_pd_to_pandas():
         pd.to_pandas(pd.Series(data["c"])),
         native_pd.Series(data["c"]),
     )
+
+
+@sql_count_checker(query_count=2)
+def test_to_pandas_with_attrs():
+    df = pd.DataFrame([[1, 2]])
+    df.attrs = {"k": "v"}
+    assert df.to_pandas().attrs == df.attrs
+    s = pd.Series([1])
+    s.attrs = {"k": "v"}
+    assert s.to_pandas().attrs == s.attrs

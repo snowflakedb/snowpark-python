@@ -4,6 +4,7 @@
 
 import functools
 import logging
+import re
 
 import modin.pandas as pd
 import pandas as native_pd
@@ -11,14 +12,17 @@ import pytest
 from modin.pandas.utils import is_scalar
 
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.utils import assert_series_equal, eval_snowpark_pandas_result
+from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
+    _LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR,
+)
+from tests.integ.modin.utils import eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize(
     "key, iloc_join_count, loc_query_count, loc_join_count",
     [
-        [2, 2, 2, 2],
+        [2, 0, 2, 2],
         [[2, 1], 2, 1, 1],
         [slice(1, None), 0, 1, 0],
         [[True, False, False, True], 1, 1, 1],
@@ -56,16 +60,16 @@ def test_series_indexing_get_timedelta(
 @pytest.mark.parametrize(
     "key, query_count, join_count, type_preserved",
     [
-        [(1, 1), 1, 2, True],
-        [(2, 2), 1, 2, True],
+        [(1, 1), 1, 0, True],
+        [(2, 2), 1, 0, True],
         [([2, 1], 1), 1, 2, True],
         [
             (2, [1, 0]),
             1,
-            4,
+            0,
             True,
         ],  # require transpose and keep result column type as timedelta
-        [(2, ...), 1, 4, False],  # require transpose but lose the type
+        [(2, ...), 1, 0, False],  # require transpose but lose the type
         [(slice(1, None), 0), 1, 0, True],
         [([True, False, False, True], 1), 1, 1, True],
         [(1, "a"), 2, 2, True],
@@ -74,10 +78,10 @@ def test_series_indexing_get_timedelta(
         [
             (2, ["b", "a"]),
             2,
-            3,
+            2,
             True,
         ],  # require transpose and keep result column type as timedelta
-        [(2, ...), 1, 4, False],  # require transpose but lose the type
+        [(2, ...), 1, 0, False],  # require transpose but lose the type
         [(slice(1, None), "a"), 1, 0, True],
         [([True, False, False, True], "b"), 1, 1, True],
     ],
@@ -341,18 +345,22 @@ def test_df_indexing_set_timedelta_with_other_type():
         # single value
         key = (1, "a")
         with pytest.raises(
-            SnowparkSQLException, match="Numeric value 'string' is not recognized"
+            NotImplementedError,
+            match=re.escape(_LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR),
         ):
             run_test(key, item, api=loc_set)
 
     item = 1000
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=0):
         # single value
         key = (1, "b")
         td_int = td.copy()
         td_int["b"] = td_int["b"].astype("int64")
-        # timedelta type is not preserved in this case
-        run_test(key, item, native_df=td_int, api=loc_set)
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(_LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR),
+        ):
+            run_test(key, item, native_df=td_int, api=loc_set)
 
 
 @pytest.mark.parametrize("item", [None, pd.Timedelta("1 hour")])
@@ -412,22 +420,28 @@ def test_df_indexing_enlargement_timedelta(item):
     # single row
     key = (10, slice(None, None, None))
 
-    with SqlCounter(query_count=1, join_count=1):
-        if pd.isna(item):
+    if pd.isna(item):
+        with SqlCounter(query_count=1, join_count=1):
             eval_snowpark_pandas_result(
                 snow_td.copy(), td.copy(), functools.partial(loc_enlargement, key, item)
             )
-        else:
-            # dtypes does not change while in native pandas, col "c"'s type will change to object
-            assert_series_equal(
-                loc_enlargement(key, item, snow_td.copy()).to_pandas().dtypes,
-                snow_td.dtypes,
+    else:
+        with (
+            SqlCounter(query_count=0),
+            pytest.raises(
+                NotImplementedError,
+                match=re.escape(_LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR),
+            ),
+        ):
+            # Reason for failure is SNOW-1738952
+            eval_snowpark_pandas_result(
+                snow_td.copy(), td.copy(), functools.partial(loc_enlargement, key, item)
             )
 
 
 @pytest.mark.parametrize(
     "key, join_count",
-    [(2, 2), ([2, 1], 2), (slice(1, None), 0), ([True, False, False, True], 1)],
+    [(2, 0), ([2, 1], 2), (slice(1, None), 0), ([True, False, False, True], 1)],
 )
 def test_index_get_timedelta(key, join_count):
     td_idx = native_pd.TimedeltaIndex(
@@ -450,9 +464,9 @@ def test_index_get_timedelta(key, join_count):
 @pytest.mark.parametrize(
     "key, api, query_count, join_count",
     [
-        [2, "iat", 1, 4],
+        [2, "iat", 1, 1],
         [native_pd.Timedelta("1 days 1 hour"), "at", 2, 4],
-        [[2, 1], "iloc", 1, 4],
+        [[2, 1], "iloc", 1, 3],
         [
             [
                 native_pd.Timedelta("1 days 1 hour"),
@@ -494,9 +508,9 @@ def test_series_with_timedelta_index(key, api, query_count, join_count):
 @pytest.mark.parametrize(
     "key, api, query_count, join_count",
     [
-        [2, "iat", 1, 4],
+        [2, "iat", 1, 1],
         [native_pd.Timedelta("1 days 1 hour"), "at", 2, 4],
-        [[2, 1], "iloc", 1, 4],
+        [[2, 1], "iloc", 1, 3],
         [
             [
                 native_pd.Timedelta("1 days 1 hour"),

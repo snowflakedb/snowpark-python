@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeCreateTable,
     SnowflakeTable,
+    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -63,7 +64,8 @@ def mock_snowflake_plan() -> SnowflakePlan:
     fake_snowflake_plan.is_ddl_on_temp_object = False
     fake_snowflake_plan._output_dict = []
     fake_snowflake_plan.placeholder_query = None
-    fake_snowflake_plan.referenced_ctes = {"TEST_CTE"}
+    with_query_block = WithQueryBlock(name="TEST_CTE", child=LogicalPlan())
+    fake_snowflake_plan.referenced_ctes = {with_query_block: 1}
     fake_snowflake_plan._cumulative_node_complexity = {}
     return fake_snowflake_plan
 
@@ -123,14 +125,21 @@ def verify_snowflake_plan(plan: SnowflakePlan, expected_plan: SnowflakePlan) -> 
         plan.df_aliased_col_name_to_real_col_name
         == expected_plan.df_aliased_col_name_to_real_col_name
     )
-    assert plan.placeholder_query == expected_plan.placeholder_query
-    assert plan.referenced_ctes == expected_plan.referenced_ctes
+    current_referenced_ctes_name_map = {
+        cte.name: count for cte, count in plan.referenced_ctes.items()
+    }
+    expected_referenced_ctes_name_map = {
+        cte.name: count for cte, count in expected_plan.referenced_ctes.items()
+    }
+    assert current_referenced_ctes_name_map == expected_referenced_ctes_name_map
     assert plan._cumulative_node_complexity == expected_plan._cumulative_node_complexity
     assert plan.source_plan is not None
 
 
 @pytest.mark.parametrize("using_snowflake_plan", [True, False])
-def test_logical_plan(using_snowflake_plan, mock_query, new_plan, mock_query_generator):
+def test_logical_plan(
+    using_snowflake_plan, mock_query, mock_session, new_plan, mock_query_generator
+):
     def get_children(plan):
         if isinstance(plan, SnowflakePlan):
             return plan.children_plan_nodes
@@ -155,8 +164,7 @@ def test_logical_plan(using_snowflake_plan, mock_query, new_plan, mock_query_gen
             source_plan=src_join_plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
-            session=None,
+            session=mock_session,
         )
     else:
         join_plan = src_join_plan
@@ -284,7 +292,6 @@ def test_selectable_entity(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
@@ -316,7 +323,6 @@ def test_select_sql(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
@@ -353,7 +359,6 @@ def test_select_snowflake_plan(
         source_plan=project_plan,
         api_calls=None,
         df_aliased_col_name_to_real_col_name=None,
-        placeholder_query=None,
         session=mock_session,
     )
 
@@ -368,7 +373,6 @@ def test_select_snowflake_plan(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
@@ -419,7 +423,6 @@ def test_select_statement(
             source_plan=None,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         ),
         analyzer=mock_analyzer,
@@ -435,13 +438,12 @@ def test_select_statement(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
     assert_precondition(plan, new_plan, mock_query_generator, using_deep_copy=True)
     plan = copy.deepcopy(plan)
-    replace_child(plan, from_, new_plan, mock_query_generator)
+    replace_child(plan, plan.children_plan_nodes[0], new_plan, mock_query_generator)
     assert len(plan.children_plan_nodes) == 1
 
     new_replaced_plan = plan.children_plan_nodes[0]
@@ -484,7 +486,6 @@ def test_select_table_function(
         source_plan=project_plan,
         api_calls=None,
         df_aliased_col_name_to_real_col_name=None,
-        placeholder_query=None,
         session=mock_session,
     )
     plan = SelectTableFunction(
@@ -501,7 +502,6 @@ def test_select_table_function(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
@@ -559,18 +559,17 @@ def test_set_statement(
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
-            placeholder_query=None,
             session=mock_session,
         )
 
     assert_precondition(plan, new_plan, mock_analyzer, using_deep_copy=True)
     plan = copy.deepcopy(plan)
 
-    replace_child(plan, selectable1, new_plan, mock_query_generator)
+    replace_child(plan, plan.children_plan_nodes[0], new_plan, mock_query_generator)
     assert len(plan.children_plan_nodes) == 2
     new_replaced_plan = plan.children_plan_nodes[0]
-    assert isinstance(new_replaced_plan, SelectSnowflakePlan)
-    assert plan.children_plan_nodes[1] == selectable2
+    assert isinstance(plan.children_plan_nodes[0], SelectSnowflakePlan)
+    assert isinstance(plan.children_plan_nodes[1], SelectSQL)
 
     mocked_snowflake_plan = mock_snowflake_plan()
     verify_snowflake_plan(new_replaced_plan.snowflake_plan, mocked_snowflake_plan)

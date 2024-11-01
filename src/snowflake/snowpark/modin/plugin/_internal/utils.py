@@ -14,7 +14,12 @@ import numpy as np
 import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
 from pandas.core.dtypes.base import ExtensionDtype
-from pandas.core.dtypes.common import is_integer_dtype, is_object_dtype, is_scalar
+from pandas.core.dtypes.common import (
+    is_bool_dtype,
+    is_integer_dtype,
+    is_object_dtype,
+    is_scalar,
+)
 from pandas.core.dtypes.inference import is_list_like
 
 import snowflake.snowpark.modin.plugin._internal.statement_params_constants as STATEMENT_PARAMS
@@ -1557,7 +1562,14 @@ def snowpark_to_pandas_helper(
             # example, an empty dataframe will be object dtype by default, or a variant, or a timestamp column with
             # multiple timezones. So here we cast the index to the index_type when ret = pd.Index(...) above cannot
             # figure out a non-object dtype. Note that the index_type is a logical type may not be 100% accurate.
-            if is_object_dtype(ret.dtype) and not is_object_dtype(index_type):
+            # We exclude the case where ret.dtype is object dtype while index_dtype is bool dtype. This is because
+            # casting None values to bool converts them to False, which results in a descripency with the pandas
+            # behavior.
+            if (
+                is_object_dtype(ret.dtype)
+                and not is_object_dtype(index_type)
+                and not is_bool_dtype(index_type)
+            ):
                 # TODO: SNOW-1657460 fix index_type for timestamp_tz
                 try:
                     ret = ret.astype(index_type)

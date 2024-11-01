@@ -13,7 +13,13 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.parameters import CONNECTION_PARAMETERS
-from tests.utils import TEST_SCHEMA, Utils, running_on_jenkins, running_on_public_ci
+from tests.utils import (
+    TEST_SCHEMA,
+    TestFiles,
+    Utils,
+    running_on_jenkins,
+    running_on_public_ci,
+)
 
 
 def print_help() -> None:
@@ -193,6 +199,7 @@ def session(
     sql_simplifier_enabled,
     local_testing_mode,
     cte_optimization_enabled,
+    multithreading_mode_enabled,
 ):
     rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
     rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
@@ -203,6 +210,10 @@ def session(
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
+        .config(
+            "session_parameters",
+            {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled},
+        )
         .create()
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
@@ -268,3 +279,18 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
+
+
+@pytest.fixture(scope="module")
+def temp_stage(session, resources_path, local_testing_mode):
+    tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, tmp_stage_name, test_files.test_file_parquet, compress=False
+    )
+    yield tmp_stage_name
+    if not local_testing_mode:
+        Utils.drop_stage(session, tmp_stage_name)

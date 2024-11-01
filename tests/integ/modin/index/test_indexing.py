@@ -7,6 +7,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from modin.pandas.utils import is_scalar
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import assert_index_equal
@@ -31,7 +32,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
     ],
 )
 def test_index_indexing(index, key):
-    if isinstance(key, slice) or key is ...:
+    if isinstance(key, slice) or key is ... or is_scalar(key):
         join_count = 0  # because slice key uses filter not join
     elif isinstance(key, list) and isinstance(key[0], bool):
         join_count = 1  # because need to join key

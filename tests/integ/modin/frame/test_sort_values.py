@@ -21,12 +21,20 @@ def native_df_simple():
             "B": [321, 312, 123, 132, 231, 213],
             "a": ["abc", " ", "", "ABC", "_", "XYZ"],
             "b": ["1", "10", "xyz", "0", "2", "abc"],
+            "timedelta": [
+                pd.Timedelta(10),
+                pd.Timedelta(1),
+                pd.NaT,
+                pd.Timedelta(-1),
+                pd.Timedelta(100),
+                pd.Timedelta(-11),
+            ],
         },
         index=native_pd.Index([1, 2, 3, 4, 5, 6], name="ind"),
     )
 
 
-@pytest.mark.parametrize("by", ["A", "B", "a", "b", "ind"])
+@pytest.mark.parametrize("by", ["A", "B", "a", "b", "ind", "timedelta"])
 @pytest.mark.parametrize("ascending", [True, False])
 @sql_count_checker(query_count=3)
 def test_sort_values(native_df_simple, by, ascending):
@@ -108,7 +116,7 @@ def test_sort_values_empty_by(native_df_simple):
     )
 
 
-@pytest.mark.parametrize("by", [["B", "a"], ["A", "ind"]])
+@pytest.mark.parametrize("by", [["B", "a"], ["A", "ind"], ["A", "timedelta"]])
 @sql_count_checker(query_count=3)
 def test_sort_values_multiple_by(native_df_simple, by):
     snow_df = pd.DataFrame(native_df_simple)

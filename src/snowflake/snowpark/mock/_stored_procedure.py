@@ -212,6 +212,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         force_inline_code: bool = False,
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
+        copy_grants: bool = False,
     ) -> StoredProcedure:
 
         if is_permanent:

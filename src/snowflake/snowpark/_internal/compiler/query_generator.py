@@ -8,7 +8,6 @@ from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
-    CreateViewCommand,
     PlanQueryType,
     Query,
     SnowflakePlan,
@@ -26,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableMerge,
     TableUpdate,
 )
+from snowflake.snowpark._internal.analyzer.unary_plan_node import CreateViewCommand
 from snowflake.snowpark.session import Session
 
 

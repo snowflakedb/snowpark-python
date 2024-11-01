@@ -713,6 +713,7 @@ class DataFrame(BasePandasDataset):
     agg = aggregate
 
     def apply():
+        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Apply a function along an axis of the DataFrame.
 
@@ -821,7 +822,7 @@ class DataFrame(BasePandasDataset):
 
         Using a reducing function on ``axis=1``:
 
-        >>> df.apply(np.sum, axis=1)
+        >>> df.apply(np.sum, axis=1)  # doctest: +SKIP
         0     2
         1    10
         2    13
@@ -829,7 +830,7 @@ class DataFrame(BasePandasDataset):
 
         Returning a list-like object will result in a Series:
 
-        >>> df.apply(lambda x: [1, 2], axis=1)
+        >>> df.apply(lambda x: [1, 2], axis=1)  # doctest: +SKIP
         0    [1, 2]
         1    [1, 2]
         2    [1, 2]
@@ -1022,6 +1023,7 @@ class DataFrame(BasePandasDataset):
         """
 
     def transform():
+        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Call ``func`` on self producing a Snowpark pandas DataFrame with the same axis shape as self.
 
@@ -1055,7 +1057,7 @@ class DataFrame(BasePandasDataset):
         0     1     3
         1     2     4
         2     3     5
-        >>> df.transform(lambda x: x + 1, axis=1)
+        >>> df.transform(lambda x: x + 1, axis=1)  # doctest: +SKIP
            col1  col2
         0     2     4
         1     3     5
@@ -1063,7 +1065,7 @@ class DataFrame(BasePandasDataset):
 
         Apply a numpy ufunc to every value in the DataFrame.
 
-        >>> df.transform(np.square, axis=1)
+        >>> df.transform(np.square, axis=1)  # doctest: +SKIP
            col1  col2
         0     1     9
         1     4    16
@@ -5125,7 +5127,26 @@ class DataFrame(BasePandasDataset):
 
     @property
     def style():
-        pass
+        """
+        Returns a Styler object.
+
+        Contains methods for building a styled HTML representation of the DataFrame.
+
+        Snowpark pandas uses native pandas for this functionality.
+
+        See Also
+        --------
+        io.formats.style.Styler
+        Helps style a DataFrame or Series according to the data with HTML and CSS.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'A': [1, 2, 3]})
+        >>> df.style.to_string()
+        ' A\\n0 1\\n1 2\\n2 3\\n'
+
+        Please see `Table Visualization <https://pandas.pydata.org/docs/user_guide/style.html>`_ for more examples.
+        """
 
     def isin():
         """

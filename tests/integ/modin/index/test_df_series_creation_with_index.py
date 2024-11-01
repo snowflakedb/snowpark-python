@@ -7,6 +7,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from packaging.version import Version
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
@@ -323,17 +324,19 @@ def test_create_with_index_as_data_and_series_as_index(
 
 
 @pytest.mark.parametrize(
-    "native_series, native_index",
+    "native_series, native_index, check_index_type",
     [
         (
             native_pd.Series(
                 ["A", "B", "C", "D"], index=[1.1, 2.2, 3, 4], name="index series name"
             ),
             native_pd.Index([1, 2, 3, 4], name="some name"),
+            True,
         ),  # some index values are missing
         (
             native_pd.Series(list(range(100))),
             native_pd.Index(list(range(-50, 100, 4)), name="skip numbers"),
+            True,
         ),  # some index values are missing
         (
             native_pd.Series(
@@ -342,31 +345,42 @@ def test_create_with_index_as_data_and_series_as_index(
                 name="mixed series as index",
             ),
             native_pd.Index(["B", 0, None, 3.14]),
+            True,
         ),  # rearranged index values
         (
             native_pd.Series(["A", "B", "C", "D", "E"], name="series"),
             native_pd.Index([3, 4], name="index"),
+            True,
         ),  # subset of index values
         (
             native_pd.Series(
                 list(range(20)), index=native_pd.Index(list(range(20)), name=20)
             ),
             native_pd.Index(list(range(20))),
+            True,
         ),  # all index values match
         (
             native_pd.Series(["A", "V", "D", "R"]),
             native_pd.Index([10, 20, 30, 40], name="none"),
+            True,
         ),  # no index values match
         (
             native_pd.Series([], name="empty series", dtype="int64"),
+            native_pd.Index([], name="empty index"),
+            True,
+        ),  # empty series and index
+        (
+            native_pd.Series([], name="empty series", dtype="int64"),
             native_pd.Index([], name="empty index", dtype="int64"),
+            # TODO: SNOW-1740545: Reindex with an empty index has empty dtype instead of specified dtype
+            False,
         ),  # empty series and index
     ],
 )
 @pytest.mark.parametrize("obj_type", ["series", "df"])
 @sql_count_checker(query_count=1, join_count=1)
 def test_create_with_series_as_data_and_index_as_index(
-    native_series, native_index, obj_type
+    native_series, native_index, obj_type, check_index_type
 ):
     """
     Creating a Series/DataFrame where the data is a Series and the index is an Index.
@@ -380,6 +394,7 @@ def test_create_with_series_as_data_and_index_as_index(
         snow_obj(data=snow_series, index=snow_index),
         native_obj(data=native_series, index=native_index),
         check_dtype=False,
+        check_index_type=check_index_type,
     )
 
 
@@ -501,6 +516,7 @@ def test_create_df_with_empty_df_as_data_and_index_as_index(native_df, native_in
         pd.DataFrame(snow_df, index=snow_index),
         native_pd.DataFrame(native_df, index=native_index),
         check_column_type=False,
+        check_index_type=False,
     )
 
 
@@ -912,12 +928,7 @@ def test_create_df_with_index_and_columns(index, index_type, index_name, columns
     "index_type",
     [
         "index",
-        pytest.param(
-            "series",
-            marks=pytest.mark.xfail(
-                reason="SNOW-1675191 reindex does not work with tuple series"
-            ),
-        ),
+        "series",
     ],
 )
 @pytest.mark.parametrize("index_name", [None, ("A", "B")])
@@ -1018,18 +1029,20 @@ def test_create_df_with_mixed_series_index_dict_data():
 
 
 @pytest.mark.parametrize(
-    "native_df, native_index, columns",
+    "native_df, native_index, columns, check_index_type",
     [
         # Single column DataFrames.
         (
             native_pd.DataFrame(list(range(20))),
             native_pd.Index(list(range(20))),
             [1],
+            True,
         ),  # all index values match
         (
             native_pd.DataFrame(["A", "V", "D", "R"]),
             native_pd.Index([10, 20, 30, 40], name="none"),
             ["A"],
+            True,
         ),  # no index values match, column missing
         # Multi-column DataFrames.
         (
@@ -1039,6 +1052,7 @@ def test_create_df_with_mixed_series_index_dict_data():
             ),
             native_pd.Index([1, 2, 3, 4], name="some name"),
             ["col1"],
+            True,
         ),  # some index values are missing, subset of columns
         (
             native_pd.DataFrame(
@@ -1048,6 +1062,7 @@ def test_create_df_with_mixed_series_index_dict_data():
             ),
             native_pd.Index(["B", 0, None, 3.14]),
             [3, 1],
+            True,
         ),  # rearranged index and column values
         (
             native_pd.DataFrame(
@@ -1056,11 +1071,13 @@ def test_create_df_with_mixed_series_index_dict_data():
             ),
             native_pd.Index([3, 4], name="index"),
             ["A", "V", "C"],
+            True,
         ),  # subset of index values
         (
             native_pd.DataFrame([list(range(20)), list(range(20))]),
             native_pd.Index(list(range(20))),
             [1],
+            True,
         ),  # all index values match
         (
             native_pd.DataFrame(
@@ -1073,16 +1090,19 @@ def test_create_df_with_mixed_series_index_dict_data():
             ),
             native_pd.Index([10, 20, 30, 40], name="none"),
             ["A", "X", "D", "R"],
+            True,
         ),  # no index values match
         (
             native_pd.DataFrame([]),
             native_pd.Index([], name="empty index", dtype="int64"),
             [],
+            False,
         ),  # empty data, index, and columns
         (
             native_pd.DataFrame([]),
             native_pd.Index(["A", "V"], name="non-empty index"),
             ["A", "V"],
+            True,
         ),  # empty data, non-empty index and columns
         (
             {
@@ -1091,12 +1111,13 @@ def test_create_df_with_mixed_series_index_dict_data():
             },  # dict data should behave similar to DataFrame data
             native_pd.Index([10, 0, 1], name="non-empty index"),
             ["A", "C"],
+            True,
         ),
     ],
 )
 @pytest.mark.parametrize("column_type", ["list", "index"])
 def test_create_df_with_df_as_data_and_index_as_index_and_different_columns(
-    native_df, native_index, columns, column_type
+    native_df, native_index, columns, column_type, check_index_type
 ):
     """
     Creating a DataFrame where the data is a DataFrame, the index is an Index, and non-existent columns.
@@ -1121,6 +1142,7 @@ def test_create_df_with_df_as_data_and_index_as_index_and_different_columns(
             pd.DataFrame(snow_df, index=snow_index, columns=native_columns),
             native_pd.DataFrame(native_df, index=native_index, columns=snow_columns),
             check_dtype=False,
+            check_index_type=check_index_type,
         )
 
 
@@ -1316,13 +1338,16 @@ def test_create_series_with_df_index_negative():
 
 @sql_count_checker(query_count=0)
 def test_create_series_with_df_data_negative():
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
+    if Version(native_pd.__version__) > Version("2.2.1"):
+        expected_message = re.escape(
+            "Data must be 1-dimensional, got ndarray of shape (3, 2) instead"
+        )
+    else:
+        expected_message = re.escape(
             "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool()"
             ", a.item(), a.any() or a.all()."
-        ),
-    ):
+        )
+    with pytest.raises(ValueError, match=expected_message):
         native_pd.Series(native_pd.DataFrame([[1, 2], [3, 4], [5, 6]]))
     with pytest.raises(ValueError, match="Data cannot be a DataFrame"):
         pd.Series(pd.DataFrame([[1, 2], [3, 4], [5, 6]]))

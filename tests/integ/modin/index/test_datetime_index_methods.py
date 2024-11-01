@@ -293,6 +293,19 @@ def test_tz_convert(tz):
     )
 
 
+@sql_count_checker(query_count=0)
+def test_tz_convert_negative():
+    native_index = native_pd.date_range(
+        start="2021-01-01", periods=5, freq="7h", tz="US/Eastern"
+    )
+    native_index = native_index.append(
+        native_pd.DatetimeIndex([pd.NaT], tz="US/Eastern")
+    )
+    snow_index = pd.DatetimeIndex(native_index)
+    with pytest.raises(NotImplementedError):
+        snow_index.tz_convert(tz="UTC+09:00")
+
+
 @sql_count_checker(query_count=1, join_count=1)
 @timezones
 def test_tz_localize(tz):
@@ -316,20 +329,21 @@ def test_tz_localize(tz):
 
 
 @pytest.mark.parametrize(
-    "ambiguous, nonexistent",
+    "tz, ambiguous, nonexistent",
     [
-        ("infer", "raise"),
-        ("NaT", "raise"),
-        (np.array([True, True, False]), "raise"),
-        ("raise", "shift_forward"),
-        ("raise", "shift_backward"),
-        ("raise", "NaT"),
-        ("raise", pd.Timedelta("1h")),
-        ("infer", "shift_forward"),
+        (None, "infer", "raise"),
+        (None, "NaT", "raise"),
+        (None, np.array([True, True, False]), "raise"),
+        (None, "raise", "shift_forward"),
+        (None, "raise", "shift_backward"),
+        (None, "raise", "NaT"),
+        (None, "raise", pd.Timedelta("1h")),
+        (None, "infer", "shift_forward"),
+        ("UTC+09:00", "raise", "raise"),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_tz_localize_negative(ambiguous, nonexistent):
+def test_tz_localize_negative(tz, ambiguous, nonexistent):
     native_index = native_pd.DatetimeIndex(
         [
             "2014-04-04 23:56:01.000000001",
@@ -341,7 +355,7 @@ def test_tz_localize_negative(ambiguous, nonexistent):
     )
     snow_index = pd.DatetimeIndex(native_index)
     with pytest.raises(NotImplementedError):
-        snow_index.tz_localize(tz=None, ambiguous=ambiguous, nonexistent=nonexistent)
+        snow_index.tz_localize(tz=tz, ambiguous=ambiguous, nonexistent=nonexistent)
 
 
 @pytest.mark.parametrize(

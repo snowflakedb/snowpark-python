@@ -249,10 +249,6 @@ def validate_resample_supported_by_snowflake(
     if kind is not None:  # pragma: no cover
         _argument_not_implemented("kind", kind)
 
-    on = resample_kwargs.get("on")
-    if on is not None:  # pragma: no cover
-        _argument_not_implemented("on", on)
-
     level = resample_kwargs.get("level")
     if level is not None:  # pragma: no cover
         _argument_not_implemented("level", level)
@@ -304,7 +300,7 @@ def get_snowflake_quoted_identifier_for_resample_index_col(frame: InternalFrame)
     sf_type = frame.get_snowflake_type(index_col)
 
     if not isinstance(sf_type, (TimestampType, DateType)):
-        raise TypeError("Only valid with DatetimeIndex.")
+        raise TypeError("Only valid with DatetimeIndex or TimedeltaIndex")
 
     return index_col
 
@@ -347,7 +343,11 @@ def time_slice(
 
 
 def perform_resample_binning_on_frame(
-    frame: InternalFrame, start_date: str, bin_size: str
+    frame: InternalFrame,
+    datetime_index_col_identifier: str,
+    start_date: str,
+    slice_width: int,
+    slice_unit: str,
 ) -> InternalFrame:
     """
     Returns a new dataframe where each item of the index column
@@ -359,21 +359,25 @@ def perform_resample_binning_on_frame(
         The internal frame with a single DatetimeIndex column
         to perform resample binning on.
 
+    datetime_index_col_identifier : str
+        The datetime-like column snowflake quoted identifier to use for resampling.
+
     start_date : str
         The earliest date in the Datetime index column of
         `frame`.
 
-    bin_size : str
-        The offset string or object representing target conversion.
+    slice_width : int
+        Width of the slice (i.e. how many units of time are contained in the slice).
+
+    slice_unit : str
+        Time unit for the slice length.
 
     Returns
     -------
     frame : InternalFrame
         A new internal frame where items in the index column are
-        placed in a bin based on `bin_length` and `bin_unit`
+        placed in a bin based on `slice_width` and `slice_unit`
     """
-
-    slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(bin_size)
     # Consider the following example:
     # frame:
     #             data_col
@@ -387,9 +391,7 @@ def perform_resample_binning_on_frame(
     # 2023-08-15         7
     # 2023-08-16         8
     # 2023-08-17         9
-    # start_date = 2023-08-07, bin_size = 3D (3 days)
-
-    datetime_index_col = get_snowflake_quoted_identifier_for_resample_index_col(frame)
+    # start_date = 2023-08-07, rule = 3D (3 days)
 
     # Time slices in Snowflake are aligned to snowflake_timeslice_alignment_date,
     # so we must normalize input datetimes.
@@ -399,7 +401,11 @@ def perform_resample_binning_on_frame(
 
     # Subtract the normalization amount in seconds from the input datetime.
     normalized_dates = to_timestamp_ntz(
-        datediff("second", to_timestamp_ntz(lit(normalization_amt)), datetime_index_col)
+        datediff(
+            "second",
+            to_timestamp_ntz(lit(normalization_amt)),
+            datetime_index_col_identifier,
+        )
     )
     # frame:
     #             data_col
@@ -460,7 +466,7 @@ def perform_resample_binning_on_frame(
     # 2023-08-16         9
 
     return frame.update_snowflake_quoted_identifiers_with_expressions(
-        {datetime_index_col: unnormalized_dates_set_to_bins}
+        {datetime_index_col_identifier: unnormalized_dates_set_to_bins}
     ).frame
 
 

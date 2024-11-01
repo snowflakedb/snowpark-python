@@ -1091,7 +1091,7 @@ def test_series_setitem_series_key_and_scalar_item(
     "item",
     SERIES_AND_LIST_LIKE_KEY_AND_ITEM_VALUES_WITH_DUPLICATES,
 )
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 def test_series_setitem_series_list_like_item_key_and_item_with_duplicates(
     key, item, default_index_native_series
 ):
@@ -1124,7 +1124,7 @@ def test_series_setitem_series_list_like_item_key_and_item_with_duplicates(
     "item",
     SERIES_AND_LIST_LIKE_KEY_AND_ITEM_VALUES_NO_DUPLICATES,
 )
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 def test_series_setitem_series_list_like_item_key_and_item_no_duplicates(
     key, item, default_index_native_series
 ):
