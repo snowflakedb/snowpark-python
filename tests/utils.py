@@ -13,7 +13,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
-from typing import List, NamedTuple, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union
 
 import pytest
 import pytz
@@ -353,9 +353,19 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
-        statement_params=None,
+        statement_params: Optional[Dict[str, str]] = None,
         float_equality_threshold=0.0,
     ) -> None:
+
+        # Check that statement_params are passed as Dict[str, str].
+        assert statement_params is None or (
+            isinstance(statement_params, dict)
+            and all(
+                isinstance(k, str) and isinstance(v, str)
+                for k, v in statement_params.items()
+            )
+        )
+
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data

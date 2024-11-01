@@ -853,8 +853,10 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:
         # we don't need an AST.
         return None
     elif isinstance(expr, Star):
-        # Comes up in count(), handled there.
-        return None
+        # Be compatible with whichever AST col('*') produces.
+        from snowflake.snowpark.functions import col
+
+        return col("*")._ast
     elif isinstance(expr, FunctionExpression):
         # Snowpark pandas API has some usage where injecting the publicapi decorator would lead to issues.
         # Directly translate here.
