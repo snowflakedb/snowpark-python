@@ -136,7 +136,8 @@ def test_named_agg_with_invalid_function_raises_not_implemented(
 
 
 @sql_count_checker(query_count=1)
-def test_named_agg_count_vs_size():
+@pytest.mark.parametrize("size_func", ["size", len])
+def test_named_agg_count_vs_size(size_func):
     data = [[1, 2, 3], [1, 5, np.nan], [7, np.nan, 9]]
     native_df = native_pd.DataFrame(
         data, columns=["a", "b", "c"], index=["owl", "toucan", "eagle"]
@@ -146,17 +147,18 @@ def test_named_agg_count_vs_size():
         snow_df,
         native_df,
         lambda df: df.groupby("a").agg(
-            l=("b", "size"), j=("c", "size"), m=("c", "count"), n=("b", "count")
+            l=("b", size_func), j=("c", size_func), m=("c", "count"), n=("b", "count")
         ),
     )
 
 
 @sql_count_checker(query_count=1)
-def test_named_agg_size_on_series():
+@pytest.mark.parametrize("size_func", ["size", len])
+def test_named_agg_size_on_series(size_func):
     native_series = native_pd.Series([1, 2, 3, 3], index=["a", "a", "b", "c"])
     snow_series = pd.Series(native_series)
     eval_snowpark_pandas_result(
         snow_series,
         native_series,
-        lambda series: series.groupby(level=0).agg(new_col="size"),
+        lambda series: series.groupby(level=0).agg(new_col=size_func),
     )

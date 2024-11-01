@@ -696,3 +696,23 @@ def test_snow_1694649_repro_merge_with_equal_null(session):
         Row(0, "a"),
         Row(1, "b"),
     ]
+
+
+@pytest.mark.skipif(
+    not installed_pandas,
+    reason="Test requires pandas.",
+)
+def test_snow_1707286_repro_merge_with_(session):
+    import pandas as pd
+
+    df1 = session.create_dataframe(pd.DataFrame({"A": [1, 2, 3, 4, 5]}))
+    df2 = session.create_dataframe(pd.DataFrame({"A": [3, 4]}))
+
+    table = df1.where(col("A") > 2).cache_result()
+
+    table.update(
+        assignments={"A": lit(9)},
+        condition=table["A"] == df2["A"],
+        source=df2,
+    )
+    assert table.to_pandas().eq(pd.DataFrame({"A": [9, 9, 5]})).all().item()

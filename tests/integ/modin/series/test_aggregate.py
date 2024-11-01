@@ -60,6 +60,7 @@ def validate_scalar_result(res1, res2):
         (lambda df: df.max(skipna=False), True, False, 0),
         (lambda df: df.count(), True, False, 0),
         (lambda df: df.aggregate("size"), True, False, 0),
+        (lambda df: df.aggregate(len), True, False, 0),
         (lambda df: df.agg({"x": "min", "y": "max"}), False, False, 1),
         (lambda df: df.agg({"x": "min"}, y="max"), False, False, 0),
     ],
