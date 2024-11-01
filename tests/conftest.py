@@ -28,7 +28,9 @@ def is_excluded_frontend_file(path):
 def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
     parser.addoption("--disable_cte_optimization", action="store_true", default=False)
-    parser.addoption("--multithreading_mode", action="store_true", default=False)
+    parser.addoption(
+        "--disable_multithreading_mode", action="store_true", default=False
+    )
     parser.addoption("--skip_sql_count_check", action="store_true", default=False)
     if not any(
         "--local_testing_mode" in opt.names() for opt in parser._anonymous.options
@@ -95,7 +97,7 @@ MULTITHREADING_TEST_MODE_ENABLED = False
 
 @pytest.fixture(scope="session", autouse=True)
 def multithreading_mode_enabled(pytestconfig):
-    enabled = pytestconfig.getoption("multithreading_mode")
+    enabled = not pytestconfig.getoption("disable_multithreading_mode")
     global MULTITHREADING_TEST_MODE_ENABLED
     MULTITHREADING_TEST_MODE_ENABLED = enabled
     return enabled
