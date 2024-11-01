@@ -309,7 +309,7 @@ def test_df_agg_dict_arg(session):
     )
 
 
-def test_df_agg_invalid_args_in_list(session):
+def test_df_agg_invalid_args_in_list_negative(session):
     """Test for making sure when a list passed to agg() produces correct errors."""
 
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(

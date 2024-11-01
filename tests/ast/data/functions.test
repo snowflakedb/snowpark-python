@@ -664,7 +664,7 @@ df32 = df.select(avg(col("A")), avg(col("B")))
 
 df33 = df.select(corr(col("A"), col("B")))
 
-df34 = df.select(count(1), count("\"A\""), count("\"A\""))
+df34 = df.select(count("*"), count("A"), count(col("A")))
 
 df35 = df.select(count_distinct(), count_distinct("*"), count_distinct("A", "B", "C", "D", col("E")))
 
@@ -4492,12 +4492,12 @@ body {
               }
             }
             pos_args {
-              int64_val {
+              string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 95
                 }
-                v: 1
+                v: "*"
               }
             }
             src {
@@ -4518,12 +4518,12 @@ body {
               }
             }
             pos_args {
-              sp_column_sql_expr {
-                sql: "\"A\""
+              string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 95
                 }
+                v: "A"
               }
             }
             src {
@@ -4544,8 +4544,25 @@ body {
               }
             }
             pos_args {
-              sp_column_sql_expr {
-                sql: "\"A\""
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 95
+                    }
+                    v: "A"
+                  }
+                }
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 95

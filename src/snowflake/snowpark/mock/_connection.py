@@ -348,8 +348,9 @@ class MockServerConnection:
     def notify_query_listeners(
         self, query_record: "snowflake.snowpark.query_history.QueryRecord", **kwargs
     ) -> None:
-        for listener in self._query_listeners:
-            listener._notify(query_record, **kwargs)
+        with self._lock:
+            for listener in self._query_listeners:
+                listener._notify(query_record, **kwargs)
 
     def log_not_supported_error(
         self,
