@@ -120,7 +120,9 @@ class MockServerConnection:
                     name, current_schema, current_database
                 )
                 if qualified_name in self.table_registry:
-                    return copy(self.table_registry[qualified_name])
+                    return copy(
+                        self.table_registry[qualified_name].reset_index(drop=True)
+                    )
                 else:
                     raise SnowparkLocalTestingException(
                         f"Object '{name}' does not exist or not authorized."
