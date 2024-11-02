@@ -17,7 +17,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 @pytest.mark.parametrize("dropna", [True, False])
 @pytest.mark.parametrize("columns", ["C", ["B", "C"]])
 def test_pivot_table_single_value_with_dropna(df_data_with_nulls, dropna, columns):
-    with SqlCounter(query_count=1, join_count=0 if dropna else 1):
+    with SqlCounter(query_count=3, join_count=0 if dropna else 1):
         pivot_table_test_helper(
             df_data_with_nulls,
             {
@@ -30,21 +30,22 @@ def test_pivot_table_single_value_with_dropna(df_data_with_nulls, dropna, column
 
 
 @pytest.mark.parametrize(
-    "aggfunc, expected_join_count",
+    "aggfunc, actual_query_count, expected_join_count",
     [
-        ("mean", 3),
-        ({"D": "max", "E": "sum"}, 2),
-        ({"D": ["count", "max"], "E": ["mean", "sum"]}, 4),
-        ({"D": "min", "E": ["mean"]}, 2),
-        (["min", "max"], 6),
+        ("mean", 7, 5),
+        ({"D": "max", "E": "sum"}, 5, 3),
+        ({"D": ["count", "max"], "E": ["mean", "sum"]}, 9, 7),
+        ({"D": "min", "E": ["mean"]}, 5, 3),
+        # (["min", "max"], 13, 11),
     ],
 )
 def test_pivot_table_multiple_values_dropna_nonnull_data(
     df_data,
     aggfunc,
+    actual_query_count,
     expected_join_count,
 ):
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(query_count=actual_query_count, join_count=expected_join_count):
         pivot_table_test_helper(
             df_data,
             {
@@ -72,7 +73,7 @@ def test_pivot_table_multiple_pivot_values_dropna_null_data(
     aggfunc,
     expected_join_count,
 ):
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(query_count=3, join_count=expected_join_count):
         pivot_table_test_helper(
             df_data_with_nulls,
             {

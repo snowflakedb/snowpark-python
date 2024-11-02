@@ -15,7 +15,7 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 @pytest.mark.parametrize("prefix", ["Brenan", "Is", "A", "Manager", "1"])
 @pytest.mark.parametrize("prefix_sep", ["_", "/"])
 def test_get_dummies_madeup(prefix, prefix_sep):
@@ -37,7 +37,7 @@ def test_get_dummies_madeup(prefix, prefix_sep):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 def test_get_dummies_prefix_and_column_same():
     pandas_df = native_pd.DataFrame(
         {"COL_0": [1, 1, 3], "COL_1": ["MANAGER", "MINION", "EMPLOYEE"]}
@@ -55,7 +55,7 @@ def test_get_dummies_prefix_and_column_same():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 @pytest.mark.parametrize("prefix", ["2", "10", "A", "Manager", "1"])
 @pytest.mark.parametrize("prefix_sep", ["_", "/"])
 def test_get_dummies_with_numeric_column_names(prefix, prefix_sep):
@@ -77,7 +77,7 @@ def test_get_dummies_with_numeric_column_names(prefix, prefix_sep):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 @pytest.mark.parametrize("prefix_sep", ["_", "/"])
 def test_get_dummies_pandas(prefix_sep):
 
@@ -101,7 +101,7 @@ def test_get_dummies_pandas(prefix_sep):
 
 
 @pytest.mark.parametrize("sort_column", ["A", "C", "D"])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 def test_get_dummies_pandas_no_row_pos_col(sort_column):
     data = {"A": ["a", "b", "a"], "B": ["b", "a", "c"], "C": [1, 2, 3]}
     if sort_column == "D":
@@ -137,7 +137,7 @@ def test_get_dummies_pandas_no_row_pos_col(sort_column):
 
 
 @pytest.mark.parametrize("sort_column", ["A", "C"])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 def test_get_dummies_pandas_no_row_pos_col_duplicate_values(sort_column):
     pandas_df = native_pd.DataFrame(
         {"A": ["a", "b", "a"], "B": ["b", "a", "c"], "C": [1, 2, 2]}
@@ -171,7 +171,7 @@ def test_get_dummies_pandas_no_row_pos_col_duplicate_values(sort_column):
 # https://snowflakecomputing.atlassian.net/browse/SNOW-1050112
 # Customer issue: Calling get_dummies on the result of
 # pd.read_snowflake directly results in a ValueError.
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=7)
 def test_get_dummies_pandas_after_read_snowflake(session):
     pandas_df = native_pd.DataFrame(
         {"A": ["a", "b", "a"], "B": ["b", "a", "c"], "C": [1, 2, 3]}

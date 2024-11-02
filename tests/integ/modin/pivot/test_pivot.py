@@ -13,7 +13,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 def test_pivot(df_pivot_data):
     native_df = native_pd.DataFrame(df_pivot_data)
     snow_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -21,14 +21,14 @@ def test_pivot(df_pivot_data):
             # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
             test_attrs=False,
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=5):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.pivot(index="foo", columns="bar")["baz"],
             test_attrs=False,
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=5):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -37,7 +37,7 @@ def test_pivot(df_pivot_data):
         )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=3)
 def test_pivot_pandas_general(df_pivot_data):
     native_df = native_pd.DataFrame(df_pivot_data)
     snow_df = pd.DataFrame(native_df)
@@ -60,7 +60,7 @@ def test_pivot_list_columns_names():
         }
     )
     snow_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=3):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,

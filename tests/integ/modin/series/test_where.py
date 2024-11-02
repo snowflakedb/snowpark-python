@@ -316,7 +316,23 @@ def test_series_where_long_series_cond(index):
 
 
 def test_scalar():
-    df = pd.DataFrame({"A": [True, False, True], "B": [1, 2, 3]})
-    print("\n\n")
-    result = np.where(df["A"], 1, 2)
-    print(result)
+    snow_df = pd.DataFrame({"A": [True, False, True], "B": [1, 2, 3]})
+
+    def compare_result(snow_result, native_result):
+        assert isinstance(snow_result, pd.Series)
+        assert isinstance(native_result, np.ndarray)
+        assert np.array_equal(snow_result.to_numpy(), native_result)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        snow_df.to_pandas(),
+        lambda df: np.where(df["A"], 1, 2),
+        comparator=compare_result,
+        test_attrs=False,
+    )
+
+
+def test_df_cond_frame():
+    snow_df = pd.DataFrame({"A": [True, False, True], "B": [1, 2, 3]})
+    snow_df[["new_value1", "new_value2"]] = 2
+    print(snow_df)

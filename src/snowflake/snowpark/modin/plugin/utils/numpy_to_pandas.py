@@ -89,16 +89,30 @@ def where_mapper(
 
         if is_scalar(x):
             # broadcast scalar x to size of cond
-            n_dim = cond.ndim
-            if n_dim == 1:
-                df_cond = cond.to_frame()
-                df_cond["new_value"] = x
-                df_scalar = df_cond["new_value"]
-                original_cond_column = df_cond.columns[0]
-                cond = df_cond[original_cond_column]
-                # df_scalar = pd.Series(x, index=range(object_shape[0]))
-            elif n_dim == 2:
-                object_shape = cond.shape
+            if hasattr(cond, "_query_compiler"):
+                if cond.ndim == 1:
+                    df_cond = cond.to_frame()
+                else:
+                    df_cond = cond
+
+                origin_columns = df_cond.columns
+                new_columns: Union[str, list[str]] = [
+                    f"new_value_{i}" for i in range(len(origin_columns))
+                ]
+                df_cond[new_columns] = x
+
+                if cond.ndim == 1:
+                    new_columns = new_columns[0]
+                    origin_columns = origin_columns[0]
+
+                df_scalar = df_cond[new_columns]
+                cond = df_cond[origin_columns]
+                return df_scalar.where(cond, y)
+
+            object_shape = cond.shape
+            if len(object_shape) == 1:
+                df_scalar = pd.Series(x, index=range(object_shape[0]))
+            elif len(object_shape) == 2:
                 df_scalar = pd.DataFrame(
                     x, index=range(object_shape[0]), columns=range(object_shape[1])
                 )
