@@ -141,7 +141,6 @@ def multithreaded_run(num_threads: int = 5) -> None:
     from tests.conftest import MULTITHREADING_TEST_MODE_ENABLED
 
     def decorator(func):
-        @pytest.mark.multithreaded_run
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if MULTITHREADING_TEST_MODE_ENABLED:
