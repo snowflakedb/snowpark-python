@@ -84,7 +84,7 @@ class QueryHistory(QueryListener):
 class AstListener(QueryListener):
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
-        self._ast_batches: List[bytes] = []
+        self._ast_batches: List[str] = []
 
     def __enter__(self):
         return self
@@ -97,5 +97,5 @@ class AstListener(QueryListener):
             self._ast_batches.append(kwargs["dataframeAst"])
 
     @property
-    def base64_batches(self) -> List[QueryRecord]:
+    def base64_batches(self) -> List[str]:
         return self._ast_batches

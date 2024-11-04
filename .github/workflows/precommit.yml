@@ -345,7 +345,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable-ast
+          PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
 
@@ -391,7 +391,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable-ast
+          PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
 

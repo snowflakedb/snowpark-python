@@ -11,6 +11,10 @@ import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
+from tests.ast.ast_test_utils import (
+    close_full_ast_validation_mode,
+    setup_full_ast_validation_mode,
+)
 from tests.parameters import CONNECTION_PARAMETERS
 from tests.utils import TEST_SCHEMA, Utils, running_on_jenkins, running_on_public_ci
 
@@ -219,6 +223,8 @@ def session(
     local_testing_mode,
     cte_optimization_enabled,
     ast_enabled,
+    validate_ast,
+    unparser_jar,
 ):
     rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
     rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
@@ -235,11 +241,22 @@ def session(
     session.sql_simplifier_enabled = sql_simplifier_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
     session.ast_enabled = ast_enabled
+
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
+
+    if validate_ast:
+        full_ast_validation_listener = setup_full_ast_validation_mode(
+            session, db_parameters, unparser_jar
+        )
+
     yield session
+
+    if validate_ast:
+        close_full_ast_validation_mode(full_ast_validation_listener)
+
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         clean_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2

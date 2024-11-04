@@ -9,12 +9,10 @@ import os
 import pathlib
 import platform
 import re
-import subprocess
 import sys
 import tempfile
 import time
 from dataclasses import dataclass
-from typing import List, Union
 
 import dateutil
 import google.protobuf
@@ -27,6 +25,7 @@ from snowflake.snowpark._internal.ast_utils import (
     base64_lines_to_textproto,
     textproto_to_request,
 )
+from tests.ast.ast_test_utils import render
 
 _logger = logging.getLogger(__name__)
 
@@ -101,33 +100,6 @@ def idfn(val):
     return val.filename
 
 
-def render(ast_base64: Union[str, List[str]]) -> str:
-    """Uses the unparser to render the AST."""
-    assert (
-        pytest.unparser_jar
-    ), "A valid Unparser JAR path must be supplied either via --unparser-jar=<path> or the environment variable SNOWPARK_UNPARSER_JAR"
-
-    if isinstance(ast_base64, str):
-        ast_base64 = [ast_base64]
-
-    res = subprocess.run(
-        [
-            "java",
-            "-cp",
-            pytest.unparser_jar,
-            "com.snowflake.snowpark.experimental.unparser.UnparserCli",
-            ",".join(
-                ast_base64
-            ),  # base64 strings will not contain , so pass multiple batches comma-separated.
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-    return res.stdout
-
-
 def indent_lines(source: str, n_indents: int = 0):
     indent = "    "
     source = source.replace("\t", indent)  # convert tabs to spaces.
@@ -190,7 +162,9 @@ def run_test(session, tables):
         sys.modules[test_name] = test_module
         spec.loader.exec_module(test_module)
         base64_batches = test_module.run_test(session, tables)
-        raw_unparser_output = render(base64_batches) if pytest.unparser_jar else ""
+        raw_unparser_output = (
+            render(base64_batches, pytest.unparser) if pytest.unparser_jar else ""
+        )
         unparser_output = re.sub(
             r"SNOWPARK_TEMP_TABLE_(\w+)", "SNOWPARK_TEMP_TABLE_xxx", raw_unparser_output
         )
