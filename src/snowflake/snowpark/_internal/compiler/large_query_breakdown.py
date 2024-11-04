@@ -317,19 +317,21 @@ class LargeQueryBreakdown:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
 
-                    relaxed_validity_status, _ = self._is_node_valid_to_breakdown(
-                        child, root, allow_select_statement=True
-                    )
-                    if (
-                        relaxed_validity_status
-                        == InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
-                    ):
-                        validity_status = relaxed_validity_status
-                        # If the score for valid node is higher than the last relaxed candidate,
-                        # update the relaxed candidate node and score.
-                        if score > relaxed_candidate_score:
-                            relaxed_candidate_score = score
-                            relaxed_candidate_node = child
+                        # If node is not a pipeline breaker, we allow select statements to be
+                        # considered as valid candidates for partitioning.
+                        relaxed_validity_status, _ = self._is_node_valid_to_breakdown(
+                            child, root, allow_select_statement=True
+                        )
+                        if (
+                            relaxed_validity_status
+                            == InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
+                        ):
+                            validity_status = relaxed_validity_status
+                            # If the score for valid node is higher than the last relaxed candidate,
+                            # update the relaxed candidate node and score.
+                            if score > relaxed_candidate_score:
+                                relaxed_candidate_score = score
+                                relaxed_candidate_node = child
 
                     # Update the statistics for the current node.
                     current_node_validity_statistics[validity_status] += 1
