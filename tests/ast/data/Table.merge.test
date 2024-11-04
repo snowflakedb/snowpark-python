@@ -43,7 +43,7 @@ target.merge(source, join_expr=(target["num"] == source["num"]), clauses=[when_m
 
 ## EXPECTED UNPARSER OUTPUT
 
-source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType([StructField("num", IntegerType(), nullable=True), StructField("str", StringType(16777216), nullable=True)], structured=False))
+source = session.create_dataframe([(1, "one"), (2, "two"), (3, "three")], schema=StructType([StructField("num", IntegerType(), nullable=True), StructField("str", StringType(), nullable=True)], structured=False))
 
 target = Table("test_table_1", session)
 
@@ -180,7 +180,6 @@ body {
                 data_type {
                   sp_string_type {
                     length {
-                      value: 16777216
                     }
                   }
                 }
