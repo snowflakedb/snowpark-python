@@ -384,15 +384,19 @@ class Selectable(LogicalPlan, ABC):
         pass
 
     def merge_into_pre_action(self, pre_action: "Query") -> None:
+        """Method to merge a pre-action into the current Selectable's pre-actions if it
+        is not already present. If pre_actions is None, new list will be initialized."""
         if self.pre_actions is None:
-            self.pre_actions = []
-        if pre_action not in self.pre_actions:
+            self.pre_actions = [copy(pre_action)]
+        elif pre_action not in self.pre_actions:
             self.pre_actions.append(copy(pre_action))
 
     def merge_into_post_action(self, post_action: "Query") -> None:
+        """Method to merge a post-action into the current Selectable's post-actions if it
+        is not already present. If post_actions is None, new list will be initialized."""
         if self.post_actions is None:
-            self.post_actions = []
-        if post_action not in self.post_actions:
+            self.post_actions = [copy(post_action)]
+        elif post_action not in self.post_actions:
             self.post_actions.append(copy(post_action))
 
     def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "Selectable":
@@ -1264,16 +1268,6 @@ class SelectStatement(Selectable):
             new._attributes = self._attributes
 
         return new
-
-    def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "SelectStatement":
-        super().with_subqueries(subquery_plans)
-        for plan in subquery_plans:
-            if (self._schema_query is not None) and (plan.schema_query is not None):
-                self._schema_query = self._schema_query.replace(
-                    plan.queries[-1].sql, plan.schema_query
-                )
-
-        return self
 
 
 class SelectTableFunction(Selectable):
