@@ -1300,6 +1300,7 @@ def test_in_with_subquery_multiple_query(session):
 
         df_in = df_in.select("a", "b")
         Utils.check_answer(df_in, [Row(3, 33)])
+        # check that schema query does not depend on temp tables
         assert "SNOWPARK_TEMP_TABLE_" not in df_in._plan.schema_query
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
