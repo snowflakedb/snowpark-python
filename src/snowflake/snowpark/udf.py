@@ -60,6 +60,29 @@ else:
     from collections.abc import Iterable
 
 
+def check_imports_type(imports: Optional[List[Union[str, Tuple[str, str]]]]) -> None:
+    """Check that import parameter adheres to type hint given, if not raises TypeError."""
+    if not (
+        imports is None
+        or (
+            isinstance(imports, list)
+            and all(
+                isinstance(imp, str)
+                or (
+                    isinstance(imp, tuple)
+                    and len(imp) == 2
+                    and isinstance(imp[0], str)
+                    and isinstance(imp[1], str)
+                )
+                for imp in imports
+            )
+        )
+    ):
+        raise TypeError(
+            "udf-level import can only be a file path (str) or a tuple of the file path (str) and the import path (str)"
+        )
+
+
 class UserDefinedFunction:
     """
     Encapsulates a user defined lambda or function that is returned by
@@ -853,6 +876,8 @@ class UDFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
+
+        check_imports_type(imports)
 
         # AST. Capture original parameters, before any pre-processing.
         ast = None
