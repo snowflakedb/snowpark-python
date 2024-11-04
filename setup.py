@@ -24,6 +24,7 @@ INSTALL_REQ_LIST = [
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
     "protobuf>=5.28",  # Snowpark IR
     "tzlocal",  # Snowpark IR
+    "snowflake>=1.0.0,<2", # Catalog
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
