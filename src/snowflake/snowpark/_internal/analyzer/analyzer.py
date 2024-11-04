@@ -779,6 +779,7 @@ class Analyzer:
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
+            # update the pre and post actions for selectable if it has subqueries
             if isinstance(logical_plan, Selectable):
                 logical_plan.with_subqueries(self.subquery_plans)
 
