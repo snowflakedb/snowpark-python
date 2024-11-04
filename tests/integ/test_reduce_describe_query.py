@@ -14,7 +14,16 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.functions import col, count, lit, seq2, table_function
+from snowflake.snowpark.functions import (
+    avg,
+    col,
+    count,
+    lit,
+    max as max_,
+    min as min_,
+    seq2,
+    table_function,
+)
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
     Session,
@@ -35,6 +44,11 @@ temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
 
 @pytest.fixture(params=param_list, autouse=True, scope="module")
 def setup(request, session):
+    # set eliminate_numeric_sql_value_cast_enabled to True for quoted identifier comparison
+    is_eliminate_numeric_sql_value_cast_enabled = (
+        session.eliminate_numeric_sql_value_cast_enabled
+    )
+    session.eliminate_numeric_sql_value_cast_enabled = True
     is_reduce_describe_query_enabled = session.reduce_describe_query_enabled
     session.reduce_describe_query_enabled = request.param
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
@@ -42,6 +56,9 @@ def setup(request, session):
     )
     yield
     session.reduce_describe_query_enabled = is_reduce_describe_query_enabled
+    session.eliminate_numeric_sql_value_cast_enabled = (
+        is_eliminate_numeric_sql_value_cast_enabled
+    )
 
 
 # Create from SQL
@@ -157,6 +174,40 @@ select_df_ops_expected_quoted_identifiers = [
     ),
 ]
 
+agg_df_ops_expected_quoted_identifiers = [
+    (lambda df: df.agg(avg("a").as_("a"), count("b")), ['"A"', '"COUNT(B)"']),
+    (lambda df: df.agg(avg("a").as_('"a"'), count("b")).select('"a"'), ['"a"']),
+    (lambda df: df.group_by("a").agg(avg("b")), ['"A"', '"AVG(B)"']),
+    (lambda df: df.rollup("a").agg(min_("b")), ['"A"', '"MIN(B)"']),
+    (lambda df: df.cube("a").agg(max_("b")), ['"A"', '"MAX(B)"']),
+    (lambda df: df.distinct(), ['"A"', '"B"']),
+]
+
+join_df_ops_expected_quoted_identifiers = [
+    (lambda df1, df2: df1.join(df2), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (
+        lambda df1, df2: df1.join(df2).select(col("a1").as_('"a2"'), "a2"),
+        ['"a2"', '"A2"'],
+    ),
+    (
+        lambda df1, df2: df1.join(df2, df1["a1"] == df2["a2"]),
+        ['"A1"', '"B1"', '"A2"', '"B2"'],
+    ),
+    (lambda df1, df2: df1.join(df2, how="left"), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (lambda df1, df2: df1.join(df2, how="right"), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (lambda df1, df2: df1.join(df2, how="outer"), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (lambda df1, df2: df1.join(df2, how="semi"), ['"A1"', '"B1"']),
+    (lambda df1, df2: df2.join(df1, how="anti"), ['"A2"', '"B2"']),
+    (lambda df1, df2: df1.cross_join(df2), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (lambda df1, df2: df1.natural_join(df2), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (
+        lambda df1, df2: df1.join(
+            df2, how="asof", match_condition=col("a1") >= col("a2")
+        ),
+        ['"A1"', '"B1"', '"A2"', '"B2"'],
+    ),
+]
+
 
 def check_attributes_equality(attrs1: List[Attribute], attrs2: List[Attribute]) -> None:
     for attr1, attr2 in zip(attrs1, attrs2):
@@ -259,6 +310,52 @@ def test_snowflake_values(session):
         with SqlCounter(query_count=0, describe_count=1):
             assert df._plan._metadata.quoted_identifiers is None
             assert df._plan.quoted_identifiers == expected_quoted_identifiers
+
+
+@pytest.mark.parametrize(
+    "action,expected_quoted_identifiers",
+    agg_df_ops_expected_quoted_identifiers,
+)
+def test_aggregate(session, action, expected_quoted_identifiers):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df = action(df)
+    if session.reduce_describe_query_enabled:
+        with SqlCounter(query_count=0, describe_count=0):
+            assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+    else:
+        with SqlCounter(query_count=0, describe_count=1):
+            assert df._plan._metadata.quoted_identifiers is None
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+
+
+@pytest.mark.parametrize(
+    "action,expected_quoted_identifiers",
+    join_df_ops_expected_quoted_identifiers,
+)
+def test_join(session, action, expected_quoted_identifiers):
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a1", "b1"])
+    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a2", "b2"])
+    df = action(df1, df2)
+    if session.reduce_describe_query_enabled:
+        with SqlCounter(query_count=0, describe_count=0):
+            assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+    else:
+        with SqlCounter(query_count=0, describe_count=1):
+            assert df._plan._metadata.quoted_identifiers is None
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+
+
+def test_join_common_quoted_identifier(session):
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b1"])
+    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b2"])
+    df = df1.join(df2, "a")
+
+    # We don't infer quoted identifiers when there is a common quoted identifier
+    with SqlCounter(query_count=0, describe_count=1):
+        assert df._plan._metadata.quoted_identifiers is None
+        assert df._plan.quoted_identifiers == ['"A"', '"B1"', '"B2"']
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")

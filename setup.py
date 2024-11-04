@@ -52,6 +52,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
     "protoc-wheel-0",  # Protocol buffer compiler, for Snowpark IR
+    "lxml",  # used in read_xml tests
 ]
 
 # read the version
@@ -93,6 +94,7 @@ setup(
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark._internal.compiler",
+        "snowflake.snowpark._internal.proto.generated",
         "snowflake.snowpark.mock",
         "snowflake.snowpark.modin",
         "snowflake.snowpark.modin.config",
