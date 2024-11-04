@@ -250,3 +250,10 @@ def test_create_temp_stage(profiler_session):
     finally:
         profiler_session.sql(f"drop database if exists {db_name}").collect()
         profiler_session.sql(f"use database {current_db}").collect()
+
+
+def test_when_sp_profiler_not_enabled(profiler_session):
+    pro = profiler_session.stored_procedure_profiler
+    # direct call get_output when profiler is not enabled
+    res = pro.get_output()
+    assert res == ""

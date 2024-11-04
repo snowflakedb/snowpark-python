@@ -15,6 +15,10 @@
 - Added a dependency on `protoc-wheel-0` for the development profile.
 - Require `snowflake-connector-python>=3.12.0, <4.0.0` (was `>=3.10.0`).
 
+### Bug Fixes
+
+- Fixed a bug that when `Session.stored_procedure_profiler` is not enabled, error is raised while calling `Session.stored_procedure_profiler.get_output`
+
 ### Snowpark pandas API Updates
 
 #### Dependency Updates
