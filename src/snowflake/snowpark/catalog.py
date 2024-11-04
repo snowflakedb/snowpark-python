@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 from snowflake.core import Root
 from snowflake.core.database import Database
@@ -196,7 +196,7 @@ class Catalog:
     def function_exists(
         self,
         name: Union[str, Function],
-        arg_types,
+        arg_types: Union[List, Tuple],
         *,
         db: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr],
@@ -206,7 +206,7 @@ class Catalog:
     def procedure_exists(
         self,
         name: Union[str, Procedure],
-        arg_types,
+        arg_types: Union[List, Tuple],
         *,
         db: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
@@ -216,7 +216,7 @@ class Catalog:
     def user_defined_function_exists(
         self,
         name: Union[str, UserDefinedFunction],
-        arg_types,
+        arg_types: Union[List, Tuple],
         *,
         db: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr],
