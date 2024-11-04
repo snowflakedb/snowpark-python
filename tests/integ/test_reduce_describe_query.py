@@ -183,6 +183,31 @@ agg_df_ops_expected_quoted_identifiers = [
     (lambda df: df.distinct(), ['"A"', '"B"']),
 ]
 
+join_df_ops_expected_quoted_identifiers = [
+    (lambda df1, df2: df1.join(df2), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (
+        lambda df1, df2: df1.join(df2).select(col("a1").as_('"a2"'), "a2"),
+        ['"a2"', '"A2"'],
+    ),
+    (
+        lambda df1, df2: df1.join(df2, df1["a1"] == df2["a2"]),
+        ['"A1"', '"B1"', '"A2"', '"B2"'],
+    ),
+    (lambda df1, df2: df1.join(df2, how="left"), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (lambda df1, df2: df1.join(df2, how="right"), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (lambda df1, df2: df1.join(df2, how="outer"), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (lambda df1, df2: df1.join(df2, how="semi"), ['"A1"', '"B1"']),
+    (lambda df1, df2: df2.join(df1, how="anti"), ['"A2"', '"B2"']),
+    (lambda df1, df2: df1.cross_join(df2), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (lambda df1, df2: df1.natural_join(df2), ['"A1"', '"B1"', '"A2"', '"B2"']),
+    (
+        lambda df1, df2: df1.join(
+            df2, how="asof", match_condition=col("a1") >= col("a2")
+        ),
+        ['"A1"', '"B1"', '"A2"', '"B2"'],
+    ),
+]
+
 
 def check_attributes_equality(attrs1: List[Attribute], attrs2: List[Attribute]) -> None:
     for attr1, attr2 in zip(attrs1, attrs2):
@@ -302,6 +327,35 @@ def test_aggregate(session, action, expected_quoted_identifiers):
         with SqlCounter(query_count=0, describe_count=1):
             assert df._plan._metadata.quoted_identifiers is None
             assert df._plan.quoted_identifiers == expected_quoted_identifiers
+
+
+@pytest.mark.parametrize(
+    "action,expected_quoted_identifiers",
+    join_df_ops_expected_quoted_identifiers,
+)
+def test_join(session, action, expected_quoted_identifiers):
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a1", "b1"])
+    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a2", "b2"])
+    df = action(df1, df2)
+    if session.reduce_describe_query_enabled:
+        with SqlCounter(query_count=0, describe_count=0):
+            assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+    else:
+        with SqlCounter(query_count=0, describe_count=1):
+            assert df._plan._metadata.quoted_identifiers is None
+            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+
+
+def test_join_common_quoted_identifier(session):
+    df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b1"])
+    df2 = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b2"])
+    df = df1.join(df2, "a")
+
+    # We don't infer quoted identifiers when there is a common quoted identifier
+    with SqlCounter(query_count=0, describe_count=1):
+        assert df._plan._metadata.quoted_identifiers is None
+        assert df._plan.quoted_identifiers == ['"A"', '"B1"', '"B2"']
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")

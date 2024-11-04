@@ -28,6 +28,7 @@ from snowflake.snowpark.functions import (
     stddev,
     stddev_pop,
     sum as sum_,
+    upper,
 )
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.types import DoubleType
@@ -664,3 +665,24 @@ def test_agg(session, local_testing_mode):
     Utils.check_answer(
         origin_df.select(stddev("n"), stddev_pop("m")).collect(), Row(123.0, 456.0)
     )
+
+
+def test_agg_column_naming(session):
+    df = session.create_dataframe(
+        [
+            ("x", 1),
+            ("x", 2),
+            ("y", 1),
+        ],
+        schema=["a", "b"],
+    )
+
+    # DF with automatic naming
+    df2 = df.group_by(upper(df.a)).agg(max_(df.b))
+
+    # DF with specific naming
+    df3 = df.group_by(upper(df.a).alias("UPPER")).agg(max_(df.b).alias("max"))
+
+    assert df2.columns == ['"UPPER(A)"', '"MAX(B)"']
+    assert df3.columns == ["UPPER", "MAX"]
+    assert df2.collect() == df3.collect() == [Row("X", 2), Row("Y", 1)]
