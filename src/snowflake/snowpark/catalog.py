@@ -122,7 +122,7 @@ class Catalog:
             view_collection.iter(
                 like=like,
                 starts_with=starts_with,
-                limit=limit,
+                show_limit=limit,
                 from_name=from_name,
                 deep=deep,
             )
@@ -131,7 +131,7 @@ class Catalog:
     def list_functions(
         self,
         *,
-        database: Optional[DatabaseOrStr],
+        database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
         like: Optional[str] = None,
     ) -> List[Function]:
@@ -146,7 +146,7 @@ class Catalog:
     def list_procedures(
         self,
         *,
-        database: Optional[DatabaseOrStr],
+        database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
         like: Optional[str] = None,
     ) -> List[Procedure]:
@@ -161,7 +161,7 @@ class Catalog:
     def list_user_defined_functions(
         self,
         *,
-        database: Optional[DatabaseOrStr],
+        database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
         like: Optional[str] = None,
     ) -> List[UserDefinedFunction]:
