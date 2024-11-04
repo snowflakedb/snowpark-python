@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple, Union
 
 from snowflake.core import Root
 from snowflake.core.database import Database
+from snowflake.core.exceptions import NotFoundError
 from snowflake.core.function import Function
 from snowflake.core.procedure import Procedure
 from snowflake.core.schema import Schema
@@ -182,13 +183,27 @@ class Catalog:
         current_schema_name = self._session.get_current_schema()
         return current_db.schemas[current_schema_name]
 
-    def get_table(self, table_name: str) -> Table:
-        if not self.table_exists(table_name):
-            raise ValueError(f"Table {table_name} does not exist.")
-        pass
+    def get_table(
+        self,
+        table_name: str,
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> Table:
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        return self._root.databases[db_name].schemas[schema_name].tables[table_name]
 
-    def get_view(self, view_name: str) -> View:
-        pass
+    def get_view(
+        self,
+        view_name: str,
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> View:
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        return self._root.databases[db_name].schemas[schema_name].views[view_name]
 
     def get_function(
         self, function_name: str, arg_types: Union[List, Tuple]
@@ -206,18 +221,33 @@ class Catalog:
         pass
 
     # set methods
-    def set_current_database(self, database: DatabaseOrStr):
-        pass
+    def set_current_database(self, database: DatabaseOrStr) -> None:
+        db_name = self._parse_database(database)
+        self._session.sql(f"USE DATABASE {db_name}")._internal_collect_with_tag()
 
     def set_current_schema(self, schema: SchemaOrStr) -> None:
-        pass
+        schema_name = self._parse_schema(schema)
+        self._session.sql(f"USE SCHEMA {schema_name}")._internal_collect_with_tag()
 
     # exists methods
     def database_exists(self, database: DatabaseOrStr) -> bool:
-        pass
+        db_name = self._parse_database(database)
+        try:
+            self._root.databases[db_name].fetch()
+            return True
+        except NotFoundError:
+            return False
 
-    def schema_exists(self, schema: SchemaOrStr) -> bool:
-        pass
+    def schema_exists(
+        self, schema: SchemaOrStr, *, database: Optional[DatabaseOrStr] = None
+    ) -> bool:
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        try:
+            self._root.databases[db_name].schemas[schema_name].fetch()
+            return True
+        except NotFoundError:
+            return False
 
     def table_exists(
         self,
@@ -226,7 +256,16 @@ class Catalog:
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> bool:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        table_name = table if isinstance(table, str) else table.name
+        try:
+            self._root.databases[db_name].schemas[schema_name].tables[
+                table_name
+            ].fetch()
+            return True
+        except NotFoundError:
+            return False
 
     def view_exists(
         self,
@@ -235,7 +274,14 @@ class Catalog:
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> bool:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        view_name = view if isinstance(view, str) else view.name
+        try:
+            self._root.databases[db_name].schemas[schema_name].views[view_name].fetch()
+            return True
+        except NotFoundError:
+            return False
 
     def function_exists(
         self,
@@ -268,6 +314,17 @@ class Catalog:
         pass
 
     # drop methods
+    def drop_database(self, database: DatabaseOrStr) -> None:
+        db_name = self._parse_database(database)
+        self._root.databases[db_name].drop()
+
+    def drop_schema(
+        self, schema: SchemaOrStr, *, database: Optional[DatabaseOrStr] = None
+    ) -> None:
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        self._root.databases[db_name].schemas[schema_name].drop()
+
     def drop_table(
         self,
         table: Union[str, Table],
@@ -275,7 +332,11 @@ class Catalog:
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> None:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        table_name = table if isinstance(table, str) else table.name
+
+        self._root.databases[db_name].schemas[schema_name].tables[table_name].drop()
 
     def drop_view(
         self,
@@ -284,7 +345,11 @@ class Catalog:
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> None:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        view_name = view if isinstance(view, str) else view.name
+
+        self._root.databases[db_name].schemas[schema_name].views[view_name].drop()
 
     def drop_function(
         self,
