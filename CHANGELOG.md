@@ -15,6 +15,9 @@
 - Added a dependency on `protoc-wheel-0` for the development profile.
 - Require `snowflake-connector-python>=3.12.0, <4.0.0` (was `>=3.10.0`).
 
+#### Bug Fixes
+- Fixed a bug that query history is not recorded if execution of that query failed.
+
 ### Snowpark pandas API Updates
 
 #### Dependency Updates
