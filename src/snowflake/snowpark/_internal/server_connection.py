@@ -28,7 +28,7 @@ from typing import (
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.errors import NotSupportedError, ProgrammingError
+from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -420,7 +420,15 @@ class ServerConnection:
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
-        results_cursor = self._cursor.execute(query, **kwargs)
+        results_cursor = None
+        error = None
+        try:
+            results_cursor = self._cursor.execute(query, **kwargs)
+        except Error as err:
+            error = err
+        if error is not None:
+            self.notify_query_listeners(QueryRecord(error.sfqid, error.query))
+            raise error
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
@@ -429,7 +437,15 @@ class ServerConnection:
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
-        results_cursor = self._cursor.execute_async(query, **kwargs)
+        results_cursor = None
+        error = None
+        try:
+            results_cursor = self._cursor.execute_async(query, **kwargs)
+        except Error as err:
+            error = err
+        if error is not None:
+            self.notify_query_listeners(QueryRecord(error.sfqid, error.query))
+            raise error
         self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
         return results_cursor
 
@@ -756,7 +772,14 @@ class ServerConnection:
             self.execute_and_notify_query_listener(
                 f"alter session set query_tag = {str_to_sql(query_tag)}"
             )
-        results_cursor = self._cursor.executemany(query, params)
+        results_cursor = None
+        error = None
+        try:
+            results_cursor = self._cursor.executemany(query, params)
+        except Error as err:
+            error = err
+        if error is not None:
+            self.notify_query_listeners(QueryRecord(error.sfqid, error.query))
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
