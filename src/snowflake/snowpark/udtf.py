@@ -64,6 +64,20 @@ else:
     from collections.abc import Iterable
 
 
+def _check_output_schema_type(
+    output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"]
+) -> None:
+    """Helper function to ensure output_schema adheres to type hint."""
+    if not (
+        isinstance(output_schema, StructType)
+        or isinstance(output_schema, PandasDataFrameType)
+        or isinstance(output_schema, Iterable)
+    ):
+        raise ValueError(
+            f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
+        )
+
+
 class UserDefinedTableFunction:
     """
     Encapsulates a user defined table function that is returned by
@@ -907,6 +921,8 @@ class UDTFRegistration:
         **kwargs,
     ) -> UserDefinedTableFunction:
 
+        _check_output_schema_type(output_schema)
+
         # Capture original parameters.
         ast, ast_id = None, None
         if _emit_ast:
@@ -952,10 +968,6 @@ class UDTFRegistration:
             output_schema = tuple(output_schema)
             _validate_output_schema_names(output_schema)
             return_type = None
-        else:
-            raise ValueError(
-                f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
-            )
 
         # get the udtf name, input types
         (
