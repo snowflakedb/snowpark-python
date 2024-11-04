@@ -8,8 +8,7 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark import Column, Row
-from snowflake.snowpark._internal.analyzer.expression import Literal
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -151,7 +150,7 @@ def test_special_literals(session):
     df = (
         session.range(2)
         .with_column("null", lit(None))
-        .with_column("literal", lit(source_literal))
+        .with_column("literal", source_literal)
     )
 
     assert (
@@ -269,7 +268,7 @@ def test_literal_variant(session):
     df = session.range(1)
 
     for i, value in enumerate(LITERAL_VALUES):
-        df = df.with_column(f"x{i}", Column(Literal(value, VariantType())))
+        df = df.with_column(f"x{i}", lit(value, VariantType()))
 
     field_str = str(df.schema.fields)
     ref_field_str = (
