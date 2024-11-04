@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    check_imports_type,
     parse_positional_args_to_list,
     publicapi,
     warning,
@@ -58,29 +59,6 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
-
-
-def check_imports_type(imports: Optional[List[Union[str, Tuple[str, str]]]]) -> None:
-    """Check that import parameter adheres to type hint given, if not raises TypeError."""
-    if not (
-        imports is None
-        or (
-            isinstance(imports, list)
-            and all(
-                isinstance(imp, str)
-                or (
-                    isinstance(imp, tuple)
-                    and len(imp) == 2
-                    and isinstance(imp[0], str)
-                    and isinstance(imp[1], str)
-                )
-                for imp in imports
-            )
-        )
-    ):
-        raise TypeError(
-            "udf-level import can only be a file path (str) or a tuple of the file path (str) and the import path (str)"
-        )
 
 
 class UserDefinedFunction:

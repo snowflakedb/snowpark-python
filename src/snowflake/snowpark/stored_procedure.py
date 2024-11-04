@@ -38,7 +38,11 @@ from snowflake.snowpark._internal.udf_utils import (
     process_registration_inputs,
     resolve_imports_and_packages,
 )
-from snowflake.snowpark._internal.utils import TempObjectType, publicapi
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    check_imports_type,
+    publicapi,
+)
 from snowflake.snowpark.types import DataType, StructType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -810,6 +814,9 @@ class StoredProcedureRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
+
+        check_imports_type(imports)
+
         # AST. Capture original parameters, before any pre-processing.
         ast = None
         stmt = None
