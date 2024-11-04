@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 
 df = df.select(-col("A"))
 
@@ -9,7 +9,7 @@ df = df.select(~col("A"))
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("test_table")
+df = session.table("table1")
 
 df = df.select(-col("A"))
 
@@ -17,4 +17,167 @@ df = df.select(~col("A"))
 
 ## EXPECTED ENCODED AST
 
-CkkKRwo56gs2Eg4KDAoKdGVzdF90YWJsZRogCCgQWhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFoiAggBEgQKAmRmGAEiAggBCsoBCscBCrgB+gi0AQqEAeoCgAEKXIoBWQoLGgkKBwoFCgNjb2waKLoMJQogCCAQXBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAYKFwSAUEiIAggEFwaFlNSQ19QT1NJVElPTl9URVNUX01PREUgGChcEiAIIBBcGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBcoXBIHggIECgIIARogCCEQXBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFwgARIECgJkZhgCIgIIAgrKAQrHAQq4AfoItAEKhAGCA4ABClyKAVkKCxoJCgcKBQoDY29sGii6DCUKIAggEF4aFlNSQ19QT1NJVElPTl9URVNUX01PREUgGCheEgFBIiAIIBBeGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBgoXhIgCCAQXhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAXKF4SB4ICBAoCCAIaIAghEF4aFlNSQ19QT1NJVElPTl9URVNUX01PREUgDSheIAESBAoCZGYYAyICCAMQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBc=
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          neg {
+            operand {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 27
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 27
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          not {
+            operand {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 29
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 29
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

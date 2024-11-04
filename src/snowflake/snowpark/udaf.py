@@ -112,7 +112,7 @@ class UserDefinedAggregateFunction:
             udaf_expr = proto.Expr()
             build_udaf_apply(udaf_expr, self._ast_id, *cols)
 
-        return Column(self._create_udaf_expression(exprs), ast=udaf_expr)
+        return Column(self._create_udaf_expression(exprs), _ast=udaf_expr)
 
     def _create_udaf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
         if len(exprs) != len(self._input_types):

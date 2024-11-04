@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 
 df = df.select(col("A").cast("string(42)"))
 
@@ -25,7 +25,7 @@ df = df.select(col("A").cast(StructType([
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("test_table")
+df = session.table("table1")
 
 df = df.select(col("A").cast(StringType(42)))
 
@@ -45,4 +45,650 @@ df = df.select(col("A").cast(StructType([StructField("test1", StringType(), null
 
 ## EXPECTED ENCODED AST
 
-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
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_cast {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 27
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 27
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            to {
+              sp_string_type {
+                length {
+                  value: 42
+                }
+              }
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_cast {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 29
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 29
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+            to {
+              sp_timestamp_type {
+                time_zone {
+                  sp_timestamp_time_zone_ntz: true
+                }
+              }
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_cast {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 31
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 31
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 31
+            }
+            to {
+              sp_timestamp_type {
+                time_zone {
+                  sp_timestamp_time_zone_ltz: true
+                }
+              }
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_cast {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 33
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 33
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 33
+            }
+            to {
+              sp_timestamp_type {
+                time_zone {
+                  sp_timestamp_time_zone_tz: true
+                }
+              }
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 4
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_cast {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 35
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 35
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 35
+            }
+            to {
+              sp_array_type {
+                structured: true
+                ty {
+                  sp_geometry_type: true
+                }
+              }
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 35
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_cast {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 37
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 37
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 37
+            }
+            to {
+              sp_map_type {
+                key_ty {
+                  sp_geography_type: true
+                }
+                structured: true
+                value_ty {
+                  sp_variant_type: true
+                }
+              }
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 37
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_cast {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 39
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 39
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 39
+            }
+            to {
+              sp_vector_type {
+                dimension: 64
+                ty {
+                  sp_integer_type: true
+                }
+              }
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 7
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_cast {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 41
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 41
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 41
+            }
+            to {
+              sp_struct_type {
+                fields {
+                  column_identifier {
+                    name: "test1"
+                  }
+                  data_type {
+                    sp_string_type {
+                      length {
+                      }
+                    }
+                  }
+                }
+                fields {
+                  column_identifier {
+                    name: "test2"
+                  }
+                  data_type {
+                    sp_integer_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    name: "test3"
+                  }
+                  data_type {
+                    sp_array_type {
+                      ty {
+                        sp_long_type: true
+                      }
+                    }
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    name: "test4"
+                  }
+                  data_type {
+                    sp_map_type {
+                      key_ty {
+                        sp_decimal_type {
+                          precision: 42
+                          scale: 23
+                        }
+                      }
+                      value_ty {
+                        sp_vector_type {
+                          dimension: 64
+                          ty {
+                            sp_float_type: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                  nullable: true
+                }
+                structured: true
+              }
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 8
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 41
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

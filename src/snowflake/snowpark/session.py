@@ -8,7 +8,6 @@ import datetime
 import decimal
 import inspect
 import json
-import logging
 import os
 import re
 import sys
@@ -164,6 +163,8 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.lineage import Lineage
 from snowflake.snowpark.mock._analyzer import MockAnalyzer
 from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.mock._nop_analyzer import NopAnalyzer
+from snowflake.snowpark.mock._nop_connection import NopConnection
 from snowflake.snowpark.mock._pandas_util import (
     _convert_dataframe_to_table,
     _extract_schema_and_data_from_pandas_df,
@@ -466,6 +467,11 @@ class Session:
                 if "password" in self._options:
                     self._options["password"] = None
                 _add_session(session)
+            elif self._options.get("nop_testing", False):
+                session = Session(NopConnection(self._options), self._options)
+                if "password" in self._options:
+                    self._options["password"] = None
+                _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
 
@@ -527,7 +533,7 @@ class Session:
 
     def __init__(
         self,
-        conn: Union[ServerConnection, MockServerConnection],
+        conn: Union[ServerConnection, MockServerConnection, NopConnection],
         options: Optional[Dict[str, Any]] = None,
     ) -> None:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
@@ -572,9 +578,12 @@ class Session:
         )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
-        self._analyzer = (
-            Analyzer(self) if isinstance(conn, ServerConnection) else MockAnalyzer(self)
-        )
+        if isinstance(self._conn, NopConnection):
+            self._analyzer = NopAnalyzer(self)
+        elif isinstance(self._conn, MockServerConnection):
+            self._analyzer = MockAnalyzer(self)
+        else:
+            self._analyzer = Analyzer(self)
         self._sql_simplifier_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
@@ -709,6 +718,15 @@ class Session:
         # except Exception:
         #     pass
         self._ast_enabled = value
+
+        # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
+        # This feature should get moved server-side anyways.
+        if self._ast_enabled:
+            _logger.warning(
+                "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
+                " Disabling auto temp cleaner for full test suite due to buggy behavior."
+            )
+            self.auto_clean_up_temp_table_enabled = False
 
     @property
     def cte_optimization_enabled(self) -> bool:
@@ -1558,7 +1576,7 @@ class Session:
                             f"but not on your local environment."
                         )
                     except Exception as ex:  # pragma: no cover
-                        logging.warning(
+                        _logger.warning(
                             "Failed to get the local distribution of package %s: %s",
                             package_name,
                             ex,
@@ -2226,7 +2244,9 @@ class Session:
             )
 
         # TODO: Support table_function in MockServerConnection.
-        if isinstance(self._conn, MockServerConnection):
+        if isinstance(self._conn, MockServerConnection) and not isinstance(
+            self._conn, NopConnection
+        ):
             if self._conn._suppress_not_implemented_error:
 
                 # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
@@ -3020,7 +3040,7 @@ class Session:
                     )
                     schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
                 except ProgrammingError as e:
-                    logging.debug(
+                    _logger.debug(
                         f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
                         f"string from select query. Exception: {str(e)}"
                     )

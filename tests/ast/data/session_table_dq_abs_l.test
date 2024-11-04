@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table(["mock_database", "mock_schema", "\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\""])
+df = session.table(["mock_database", "mock_schema", tables.double_quoted_table])
 df = df.select("num")
 
 ## EXPECTED UNPARSER OUTPUT
@@ -11,4 +11,100 @@ df = df.select(col("num"))
 
 ## EXPECTED ENCODED AST
 
-CoEBCn8KceoLbhJGEkQKDW1vY2tfZGF0YWJhc2UKC21vY2tfc2NoZW1hCiYidGhlI3F1aS5jayNicm8ud24jIiJGb3giIndvbid0I2p1bXAhIhogCGwQWhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFoiAggBEgQKAmRmGAEiAggBCqMBCqABCpEB+giNAQpeigFbCgsaCQoHCgUKA2NvbBoqugwnCiAIHRBbGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oWxIDbnVtIiAIHRBbGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oWxIHggIECgIIARogCB0QWxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFsgARIECgJkZhgCIgIIAhABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_structured {
+            name: "mock_database"
+            name: "mock_schema"
+            name: "\"the#qui.ck#bro.wn#\"\"Fox\"\"won\'t#jump!\""
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 26
+                }
+                v: "num"
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 26
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 26
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

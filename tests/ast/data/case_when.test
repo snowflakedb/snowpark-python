@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 
 df = df.select(when(col("bool_col"), "true"))
 
@@ -32,7 +32,7 @@ df = df.select(
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("test_table")
+df = session.table("table1")
 
 df = df.select(when(col("bool_col"), "true"))
 
@@ -52,4 +52,1436 @@ df = df.select(when(col("a") == 1, "one").otherwise("other_one").when(col("a") =
 
 ## EXPECTED ENCODED AST
 
-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Q19QT1NJVElPTl9URVNUX01PREUgHChiEiAIORBiGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBcoYhoqugwnCiAIORBiGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBcoYhIDb25lClASIAhMEGIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgFyhiGiy6DCkKIAhMEGIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgFyhiEgVvdGhlchIgCDkQYhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAXKGISB4ICBAoCCAQaIAhNEGIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShiIAESBAoCZGYYBSICCAUKqAYKpQYKlgb6CJIGCuIFwgTeBQqGAgqEAYIFgAEKXIoBWQoLGgkKBwoFCgNjb2waKLoMJQogCCQQZBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAcKGQSAWEiIAgkEGQaFlNSQ19QT1NJVElPTl9URVNUX01PREUgHChkEiAILhBkGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBwoZBIgCDcQZBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAXKGQaW4oBWAoLGgkKBwoFCgNsaXQaJ7oCJAogCDYQZBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAwKGQQASIgCDYQZBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAwKGQKrwIKrQHyAakBClyKAVkKCxoJCgcKBQoDY29sGii6DCUKIAhFEGQaFlNSQ19QT1NJVElPTl9URVNUX01PREUgPShkEgFhIiAIRRBkGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFID0oZBInugIkCiAIShBkGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFID0oZBABGiAIShBkGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFID0oZBIgCFMQZBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAXKGQaW4oBWAoLGgkKBwoFCgNsaXQaJ7oCJAogCFIQZBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSBMKGQQAiIgCFIQZBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSBMKGQKfxIgCGUQZBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAX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CBoQbhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSASKG4SAWEiIAgaEG4aFlNSQ19QT1NJVElPTl9URVNUX01PREUgEihuEie6AiQKIAgfEG4aFlNSQ19QT1NJVElPTl9URVNUX01PREUgEihuEAIaIAgfEG4aFlNSQ19QT1NJVElPTl9URVNUX01PREUgEihuEiAIJxBuGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0obhoqugwnCiAIJxBuGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0obhIDdHdvClQSIAgjEG8aFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShvGjC6DC0KIAgjEG8aFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShvEglvdGhlcl90d28KgAIKrQHyAakBClyKAVkKCxoJCgcKBQoDY29sGii6DCUKIAgaEHAaFlNSQ19QT1NJVElPTl9URVNUX01PREUgEihwEgFhIiAIGhBwGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBIocBInugIkCiAIHxBwGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBIocBADGiAIHxBwGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBIocBIgCCkQcBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKHAaLLoMKQogCCkQcBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKHASBXRocmVlClYSIAglEHEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShxGjK6DC8KIAglEHEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShxEgtvdGhlcl90aHJlZQr/AQqtAfIBqQEKXIoBWQoLGgkKBwoFCgNjb2waKLoMJQogCBoQchoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSASKHISAWEiIAgaEHIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgEihyEie6AiQKIAgfEHIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgEihyEAQaIAgfEHIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgEihyEiAIKBByGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0ochorugwoCiAIKBByGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0ochIEZm91cgpVEiAIJBBzGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0ocxoxugwuCiAIJBBzGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0ocxIKb3RoZXJfZm91cgr/AQqtAfIBqQEKXIoBWQoLGgkKBwoFCgNjb2waKLoMJQogCBoQdBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSASKHQSAWEiIAgaEHQaFlNSQ19QT1NJVElPTl9URVNUX01PREUgEih0Eie6AiQKIAgfEHQaFlNSQ19QT1NJVElPTl9URVNUX01PREUgEih0EAUaIAgfEHQaFlNSQ19QT1NJVElPTl9URVNUX01PREUgEih0EiAIKBB0GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odBorugwoCiAIKBB0GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odBIEZml2ZQpVEiAIJBB1GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odRoxugwuCiAIJBB1GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odRIKb3RoZXJfZml2ZRIgCCYQbBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAMKGwSB4ICBAoCCAgaIAgJEHYaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShrIAESBAoCZGYYCSICCAkQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBc=
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_case_when {
+            cases {
+              condition {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 27
+                      }
+                      v: "bool_col"
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 27
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 27
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 27
+                  }
+                  v: "true"
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_case_when {
+            cases {
+              condition {
+                eq {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 29
+                          }
+                          v: "A"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 29
+                      }
+                    }
+                  }
+                  rhs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 29
+                      }
+                      v: 1
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 29
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 29
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 29
+                  }
+                  v: "one"
+                }
+              }
+            }
+            cases {
+              condition {
+                leq {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 29
+                          }
+                          v: "A"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 29
+                      }
+                    }
+                  }
+                  rhs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 29
+                      }
+                      v: 2
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 29
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 29
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 29
+                  }
+                  v: "two"
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 29
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 29
+                  }
+                  v: "other"
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_case_when {
+            cases {
+              condition {
+                sp_column_between {
+                  col {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 31
+                          }
+                          v: "A"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 31
+                      }
+                    }
+                  }
+                  lower_bound {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 31
+                      }
+                      v: 37
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 31
+                  }
+                  upper_bound {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 31
+                      }
+                      v: 42
+                    }
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 31
+              }
+              value {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 31
+                      }
+                      v: "B"
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 31
+                  }
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 31
+              }
+              value {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 31
+                      }
+                      v: "C"
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 31
+                  }
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 31
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_case_when {
+            cases {
+              condition {
+                sp_column_equal_nan {
+                  col {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 33
+                          }
+                          v: "A"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 33
+                      }
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 33
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 33
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 33
+                  }
+                  v: "one"
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 33
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 33
+                  }
+                  v: "other"
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 33
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 4
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_case_when {
+            cases {
+              condition {
+                sp_column_is_null {
+                  col {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 35
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 35
+                      }
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 35
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 35
+              }
+              value {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 35
+                      }
+                      v: 1
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 35
+                  }
+                }
+              }
+            }
+            cases {
+              condition {
+                eq {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 35
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 35
+                      }
+                    }
+                  }
+                  rhs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 35
+                      }
+                      v: 1
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 35
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 35
+              }
+              value {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 35
+                      }
+                      v: 2
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 35
+                  }
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 35
+              }
+              value {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 35
+                      }
+                      v: 3
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 35
+                  }
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 35
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 35
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_case_when {
+            cases {
+              condition {
+                sp_column_string_contains {
+                  col {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 38
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 38
+                      }
+                    }
+                  }
+                  pattern {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 38
+                      }
+                      v: "foo"
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 38
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 38
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 38
+                  }
+                  v: "foo"
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 38
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 38
+                  }
+                  v: "null"
+                }
+              }
+            }
+            cases {
+              condition {
+                sp_column_string_contains {
+                  col {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 38
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 38
+                      }
+                    }
+                  }
+                  pattern {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 38
+                      }
+                      v: "bar"
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 38
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 38
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 38
+                  }
+                  v: "bar"
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 38
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 6
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 38
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_case_when {
+            cases {
+              condition {
+                and {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 40
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 40
+                      }
+                    }
+                  }
+                  rhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 40
+                          }
+                          v: "b"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 40
+                      }
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 40
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 40
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 40
+                  }
+                  v: "both"
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 40
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 40
+                  }
+                  v: "other"
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 40
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 7
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 40
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_case_when {
+            cases {
+              condition {
+                eq {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 43
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                    }
+                  }
+                  rhs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: 1
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "one"
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "other_one"
+                }
+              }
+            }
+            cases {
+              condition {
+                eq {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 45
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 45
+                      }
+                    }
+                  }
+                  rhs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 45
+                      }
+                      v: 2
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 45
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "two"
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "other_two"
+                }
+              }
+            }
+            cases {
+              condition {
+                eq {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 47
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 47
+                      }
+                    }
+                  }
+                  rhs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 47
+                      }
+                      v: 3
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 47
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "three"
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "other_three"
+                }
+              }
+            }
+            cases {
+              condition {
+                eq {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 49
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 49
+                      }
+                    }
+                  }
+                  rhs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 49
+                      }
+                      v: 4
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 49
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "four"
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "other_four"
+                }
+              }
+            }
+            cases {
+              condition {
+                eq {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_line: 51
+                          }
+                          v: "a"
+                        }
+                      }
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 51
+                      }
+                    }
+                  }
+                  rhs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 51
+                      }
+                      v: 5
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 51
+                  }
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "five"
+                }
+              }
+            }
+            cases {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              value {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 43
+                  }
+                  v: "other_five"
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 43
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 8
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 42
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

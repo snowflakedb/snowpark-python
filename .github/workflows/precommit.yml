@@ -247,13 +247,14 @@ jobs:
             .tox/coverage.xml
 
   test-ast-encoding:
-    name: Test AST expectations (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
+    name: Test AST Encoding py-${{ matrix.os }}-${{ matrix.python-version }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
+        # TODO SNOW-1763185 use py39 by default
         # Protobuf encoding differs per python version, use 3.8 by default.
         python-version: [ "3.8"]
         cloud-provider: [aws]
@@ -286,10 +287,12 @@ jobs:
         run: python -m pip install tox
       - name: Set up windows environment
         if: runner.os == 'Windows'
+        # windows timezone management is broken, that's why we need a special fix here
         run: |
             "TZ=EST" >> $env:GITHUB_ENV
             echo "TZ=EST" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Run tests
+        # TODO: SNOW-1763186 use pytest marker to test multiple TZs
         run: TZ=EST python -m tox -e "py${PYTHON_VERSION/\./}-ast"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -307,7 +310,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest ]
+        os: [ macos-latest ]
         python-version: [ "3.9"]
         cloud-provider: [ aws ]
     steps:
@@ -342,7 +345,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable-ast
+          PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
 
@@ -388,7 +391,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable-ast
+          PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
 

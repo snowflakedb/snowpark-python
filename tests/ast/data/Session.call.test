@@ -25,4 +25,396 @@ my_sproc_sp(2, "one", {}, False)
 
 ## EXPECTED ENCODED AST
 
-CocBCoQBCm2yDGoKHQobVGhlIHBhcmFtZXRlcnMgYXJlIHVzZWxlc3MuEgVvd25lciIKEghteV9zcHJvY1oMCgoKCG15X3Nwcm9jaARwAYgBAZIBIAh8EF8aFlNSQ19QT1NJVElPTl9URVNUX01PREUgFihfEg0KC215X3Nwcm9jX3NwGAEiAggBCq0DCqoDCpsDigGXAwoSQhBSAFoMCgoKCG15X3Nwcm9jGie6AiQKIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEAEaKroMJwogCFkQYRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKGESA3R3bxrgAYoE3AEKWBItugwqCiAIWRBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRIGcGFyYW0xEie6AiQKIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEAoKXhItugwqCiAIWRBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRIGcGFyYW0yEi26DCoKIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEgZ0d2VudHkSIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhGifCASQKIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEAEiIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEgQKAmRmGAIiAggCCp0DCpoDCo8DigGLAwoGOgQKAggBGie6AiQKIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEAEaKroMJwogCFkQYRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKGESA3R3bxrgAYoE3AEKWBItugwqCiAIWRBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRIGcGFyYW0xEie6AiQKIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEAoKXhItugwqCiAIWRBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRIGcGFyYW0yEi26DCoKIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEgZ0d2VudHkSIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhGifCASQKIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEAEiIAhZEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEgAYAyICCAMKCBIGCAQSAggDCvABCu0BCt0BigHZAQoSQhBSAFoMCgoKCG15X3Nwcm9jGie6AiQKIAg/EGMaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDihjEAIaKroMJwogCD8QYxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKGMSA29uZRoligQiEiAIPxBjGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA4oYxolwgEiCiAIPxBjGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA4oYyIgCD8QYxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKGMSBQoDZGYyGAUiAggFCt8BCtwBCtEBigHNAQoGOgQKAggBGie6AiQKIAg/EGMaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDihjEAIaKroMJwogCD8QYxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKGMSA29uZRoligQiEiAIPxBjGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA4oYxolwgEiCiAIPxBjGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA4oYyIgCD8QYxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKGMSABgGIgIIBgoIEgYIBxICCAYQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBc=
+body {
+  assign {
+    expr {
+      stored_procedure {
+        comment {
+          value: "The parameters are useless."
+        }
+        execute_as: "owner"
+        func {
+          name: "my_sproc"
+        }
+        name {
+          fn_name_flat {
+            name: "my_sproc"
+          }
+        }
+        parallel: 4
+        replace: true
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 30
+        }
+      }
+    }
+    symbol {
+      value: "my_sproc_sp"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          stored_procedure {
+            log_on_exception {
+            }
+            name {
+              fn_name_flat {
+                name: "my_sproc"
+              }
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+            v: 1
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+            v: "two"
+          }
+        }
+        pos_args {
+          seq_map_val {
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: "param1"
+                }
+              }
+              vs {
+                int64_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: 10
+                }
+              }
+            }
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: "param2"
+                }
+              }
+              vs {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: "twenty"
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+          }
+        }
+        pos_args {
+          bool_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+            v: true
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+            v: 1
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+            v: "two"
+          }
+        }
+        pos_args {
+          seq_map_val {
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: "param1"
+                }
+              }
+              vs {
+                int64_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: 10
+                }
+              }
+            }
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: "param2"
+                }
+              }
+              vs {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 32
+                  }
+                  v: "twenty"
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+          }
+        }
+        pos_args {
+          bool_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 32
+            }
+            v: true
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  eval {
+    uid: 4
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          stored_procedure {
+            log_on_exception {
+            }
+            name {
+              fn_name_flat {
+                name: "my_sproc"
+              }
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+            v: 2
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+            v: "one"
+          }
+        }
+        pos_args {
+          seq_map_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+          }
+        }
+        pos_args {
+          bool_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 34
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+            v: 2
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+            v: "one"
+          }
+        }
+        pos_args {
+          seq_map_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+          }
+        }
+        pos_args {
+          bool_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 34
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 34
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  eval {
+    uid: 7
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

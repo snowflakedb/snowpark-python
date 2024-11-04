@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import base64
 import datetime
 import importlib.util
 import logging
@@ -10,19 +9,25 @@ import os
 import pathlib
 import platform
 import re
-import subprocess
 import sys
 import tempfile
 import time
 from dataclasses import dataclass
-from typing import List, Union
 
 import dateutil
 import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
 
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
+from snowflake.snowpark._internal.ast_utils import (
+    ClearTempTables,
+    base64_lines_to_request,
+    base64_lines_to_textproto,
+    textproto_to_request,
+)
+from tests.ast.ast_test_utils import render
+
+_logger = logging.getLogger(__name__)
 
 TEST_DIR = pathlib.Path(__file__).parent
 
@@ -33,7 +38,7 @@ DATA_DIR = TEST_DIR / "data"
 class TestCase:
     filename: str
     source: str
-    expected_ast_base64: str
+    expected_ast_encoded: str
     expected_ast_unparsed: str
     __test__: bool = False  # Add this to suppress pytest collection warning.
 
@@ -61,7 +66,7 @@ def parse_file(file):
         )
 
     try:
-        expected_ast_base64_start = src.index("## EXPECTED ENCODED AST\n")
+        expected_ast_encoded_start = src.index("## EXPECTED ENCODED AST\n")
     except ValueError:
         raise ValueError(
             "Required header ## EXPECTED ENCODED AST missing in the file: " + file.name
@@ -69,14 +74,14 @@ def parse_file(file):
 
     test_case = "".join(src[test_case_start + 1 : expected_ast_unparsed_start])
     expected_ast_unparsed = "".join(
-        src[expected_ast_unparsed_start + 1 : expected_ast_base64_start]
+        src[expected_ast_unparsed_start + 1 : expected_ast_encoded_start]
     )
-    expected_ast_base64 = "".join(src[expected_ast_base64_start + 1 :])
+    expected_ast_encoded = "".join(src[expected_ast_encoded_start + 1 :])
 
     return TestCase(
         os.path.basename(file.name),
         test_case,
-        expected_ast_base64,
+        expected_ast_encoded,
         expected_ast_unparsed,
     )
 
@@ -95,33 +100,6 @@ def idfn(val):
     return val.filename
 
 
-def render(ast_base64: Union[str, List[str]]) -> str:
-    """Uses the unparser to render the AST."""
-    assert (
-        pytest.unparser_jar
-    ), "A valid Unparser JAR path must be supplied either via --unparser-jar=<path> or the environment variable SNOWPARK_UNPARSER_JAR"
-
-    if isinstance(ast_base64, str):
-        ast_base64 = [ast_base64]
-
-    res = subprocess.run(
-        [
-            "java",
-            "-cp",
-            pytest.unparser_jar,
-            "com.snowflake.snowpark.experimental.unparser.UnparserCli",
-            ",".join(
-                ast_base64
-            ),  # base64 strings will not contain , so pass multiple batches comma-separated.
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-    return res.stdout
-
-
 def indent_lines(source: str, n_indents: int = 0):
     indent = "    "
     source = source.replace("\t", indent)  # convert tabs to spaces.
@@ -129,7 +107,7 @@ def indent_lines(source: str, n_indents: int = 0):
     return "\n".join(map(lambda line: indent * n_indents + line, source.split("\n")))
 
 
-def run_test(session, test_name, test_source):
+def run_test(session, tables, test_name, test_source):
     override_time_zone()
     os.chdir(DATA_DIR)
 
@@ -148,74 +126,9 @@ AstBatch.generate_request_id = lambda: uuid.uuid5(uuid.NAMESPACE_DNS, "id-gen")
 
 ast_utils.SRC_POSITION_TEST_MODE = True
 
-def run_test(session):
+def run_test(session, tables):
     # Reset the entity ID generator.
     session._ast_batch.reset_id_gen()
-
-    # Set up mock data.
-    mock = session.create_dataframe(
-        [
-            [1, "one"],
-            [2, "two"],
-            [3, "three"],
-        ],
-        schema=['num', 'str'],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_table", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [1, "one"],
-            [2, "two"],
-            [3, "three"],
-        ],
-        schema=['num', 'Owner\\'s""opinion.s'],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("\\"the#qui.ck#bro.wn#\\"\\"Fox\\"\\"won\\'t#jump!\\"", _emit_ast=False)
-
-    # Set up data used for set operation tests.
-    mock = session.create_dataframe(
-        [
-            [1, 2],
-            [3, 4],
-        ],
-        schema=["a", "b"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df1", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [0, 1],
-            [3, 4],
-        ],
-        schema=["c", "d"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df2", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [1, 2],
-        ],
-        schema=["a", "b"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df3", _emit_ast=False)
-    mock = session.create_dataframe(
-        [
-            [2, 1],
-        ],
-        schema=["b", "a"],
-        _emit_ast=False
-    )
-    mock.write.save_as_table("test_df4", _emit_ast=False)
-
-    mock = session.create_dataframe(
-        [[1, [1, 2, 3], {{"Ashi Garami": "Single Leg X"}}, "Kimura"],
-        [2, [11, 22], {{"Sankaku": "Triangle"}}, "Coffee"],
-        [3, [], {{}}, "Tea"]],
-        schema=["idx", "lists", "maps", "strs"], _emit_ast=False)
-    mock.write.save_as_table("test_table2", _emit_ast=False)
 
     session._ast_batch.flush()  # Clear the AST.
 
@@ -248,8 +161,10 @@ def run_test(session):
         test_module = importlib.util.module_from_spec(spec)
         sys.modules[test_name] = test_module
         spec.loader.exec_module(test_module)
-        base64_batches = test_module.run_test(session)
-        raw_unparser_output = render(base64_batches) if pytest.unparser_jar else ""
+        base64_batches = test_module.run_test(session, tables)
+        raw_unparser_output = (
+            render(base64_batches, pytest.unparser) if pytest.unparser_jar else ""
+        )
         unparser_output = re.sub(
             r"SNOWPARK_TEMP_TABLE_(\w+)", "SNOWPARK_TEMP_TABLE_xxx", raw_unparser_output
         )
@@ -260,23 +175,12 @@ def run_test(session):
         os.unlink(test_file.name)
 
 
-def ClearTempTables(message: proto.Request) -> None:
-    """Removes temp table when passing pandas data."""
-    for stmt in message.body:
-        if str(
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
-        ):
-            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
-                "temp_table"
-            )
-
-
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
-def test_ast(session, test_case):
-    logging.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
+def test_ast(session, tables, test_case):
+    _logger.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
 
     actual, base64_str = run_test(
-        session, test_case.filename.replace(".", "_"), test_case.source
+        session, tables, test_case.filename.replace(".", "_"), test_case.source
     )
     if pytest.update_expectations:
         assert pytest.unparser_jar, (
@@ -291,20 +195,16 @@ def test_ast(session, test_case):
                     "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
                     "\n\n## EXPECTED ENCODED AST\n\n",
-                    base64_str.strip(),
-                    "\n",
+                    base64_lines_to_textproto(base64_str.strip()),
                 ]
             )
     else:
         try:
             # Protobuf serialization is non-deterministic (cf. https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510)
             # Therefore unparse from base64, and then check equality using deterministic (python) protobuf serialization.
-            actual_message = proto.Request()
-            actual_message.ParseFromString(base64.b64decode(base64_str.strip()))
-
-            expected_message = proto.Request()
-            expected_message.ParseFromString(
-                base64.b64decode(test_case.expected_ast_base64.strip())
+            actual_message = base64_lines_to_request(base64_str.strip())
+            expected_message = textproto_to_request(
+                test_case.expected_ast_encoded.strip()
             )
 
             # Actual and expected may have been encoded by different client language versions, e.g. Python 3.8.10 and
@@ -338,7 +238,7 @@ def test_ast(session, test_case):
                 line for line in differ.compare(actual_lines, expected_lines)
             ]
 
-            logging.error(
+            _logger.error(
                 "expected vs. actual encoded protobuf:\n" + "\n".join(diffed_lines)
             )
 
@@ -353,7 +253,7 @@ def override_time_zone(tz_name: str = "EST") -> None:
 
     tz = dateutil.tz.gettz(tz_name)
     tz_code = tz.tzname(datetime.datetime.now())
-    logging.debug(f"Overriding time zone to {tz_name} ({tz_code}).")
+    _logger.debug(f"Overriding time zone to {tz_name} ({tz_code}).")
 
     if platform.system() != "Windows":
         # This works only under Unix systems.
@@ -376,7 +276,7 @@ def override_time_zone(tz_name: str = "EST") -> None:
         # Possible modification code (not working):
         # Use direct msvcrt.dll override (only for this process, does not work for child processes).
         # cf. https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/tzset?view=msvc-170
-        logging.debug(
+        _logger.debug(
             f"Windows current time (before msvcrt set): {datetime.datetime.now()}"
         )
 
@@ -385,18 +285,18 @@ def override_time_zone(tz_name: str = "EST") -> None:
         cdll.msvcrt._putenv(f"TZ={tz_code}")
         cdll.msvcrt._tzset()
         # If working, we would expect this to show output adjusted to the timezone referred to by tz_code.
-        logging.debug(
+        _logger.debug(
             f"Windows current time (after msvcrt set): {datetime.datetime.now()}"
         )
         # Other python libraries would have been updated then as well.
         from tzlocal import get_localzone
 
-        logging.debug(
+        _logger.debug(
             f"Windows: tzlocal={get_localzone()} TZ={env_tz}, will be using TZ when encoding for AST."
         )
 
     tz_name = datetime.datetime.now(tzlocal()).tzname()
-    logging.debug(f"Local time zone is now: {tz_name}.")
+    _logger.debug(f"Local time zone is now: {tz_name}.")
 
 
 if __name__ == "__main__":

@@ -165,7 +165,7 @@ _ = sproc(<lambda [3]>, return_type=IntegerType(), input_types=[IntegerType(), I
 
 session.sql("call mul_sp(5, 6)").collect()
 
-_ = sproc(<lambda [4]>, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b"}{"c": "d"})
+_ = sproc(<lambda [4]>, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"})
 
 session.sql("call mul_sp(5, 6)").collect()
 
@@ -185,21 +185,1752 @@ session.sql("SELECT 1 as A, 2 as B").show()
 
 ## EXPECTED ENCODED AST
 
-CnwKegpksgxhChMKEVRoaXMgaXMgYSBjb21tZW50EgVvd25lciIJEgdteV9jb3B5Wg4KDAoKbXlfY29weV9zcGgEcAGIAQGSASAIchBrGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBUoaxIMCgpteV9jb3B5X3NwGAEiAggBCrsBCrgBCqoB2gumARKAAWNyZWF0ZSBvciByZXBsYWNlIHRlbXAgdGFibGUgdGVzdF9mcm9tKHRlc3Rfc3RyIHZhcmNoYXIpIGFzIHNlbGVjdCByYW5kc3RyKDIwLCByYW5kb20oKSkgZnJvbSB0YWJsZSAoZ2VuZXJhdG9yKHJvd0NvdW50ID0+IDEwMCkpGiEImwEQbBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAMKGwSAwoBXxgCIgIIAgo6CjgKLsoGKwgBEAEaAggCMiEIpQEQbBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAMKGwSABgDIgIIAwoIEgYIBBICCAMQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBc=
-CsMBCsABCqwB8gWoAQp9CnsKJ7oCJAogCEMQbxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSASKG8QAQonugIkCiAIQxBvGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBIobxACCie6AiQKIAhDEG8aFlNSQ19QT1NJVElPTl9URVNUX01PREUgEihvEAMSBQoDCgFhGiAIQxBvGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBIobxIJCgdmcm9tX2RmGAUiAggFCjoKOAouqgorCgeCAgQKAggFGiAIFRBwGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgocBIAGAYiAggGClwKWgpQqgxNCAEaBWluZGV4MgIIBjoCIAFCIAhaEHAaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCChwUg0KCwoJdGVzdF9mcm9tWgl0ZW1wb3JhcnkSABgHIgIIBwoIEgYICBICCAcQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBc=
-CqoBCqcBCpUB8gWRAQpmCmQKMLoCLQogCEAQcRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAQKHEQ////////////AQowugItCiAIQBBxGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBAocRD+//////////8BEgUKAwoBYRogCEAQcRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAQKHESBwoFdG9fZGYYCSICCAkKOgo4Ci6qCisKB4ICBAoCCAkaIAgTEHIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCChyEgAYCiICCAoKWgpYCk6qDEsIARoFaW5kZXgyAggKOgIgAUIgCFYQchoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKHJSCwoJCgd0ZXN0X3RvWgl0ZW1wb3JhcnkSABgLIgIICwoIEgYIDBICCAsQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBc=
-Cl4KXApS2gtPEitjYWxsIG15X2NvcHlfc3AoJ3Rlc3RfZnJvbScsICd0ZXN0X3RvJywgMTApGiAIQhBzGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgocxIAGA0iAggNCjkKNwotygYqCAEQARoCCA0yIAhMEHMaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCChzEgAYDiICCA4KCBIGCA8SAggOEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-CkIKQAo26gszEgsKCQoHdGVzdF90bxogCCAQdBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKHQiAggBEgAYECICCBAKNwo1CivaBigIARICCBAaIAgoEHQaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCCh0EgAYESICCBEKCBIGCBISAggREAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-ClIKUApD2gtAEhxkcm9wIHRhYmxlIGlmIGV4aXN0cyB0ZXN0X3RvGiAINxB3GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAwodxIDCgFfGBMiAggTCjkKNwotygYqCAEQARoCCBMyIAhBEHcaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDCh3EgAYFCICCBQKCBIGCBUSAggUEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-CtUBCtIBCscBigHDAQoUQhJSAFoOCgwKCm15X2NvcHlfc3AaMLoMLQogCD4QeBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKHgSCXRlc3RfZnJvbRouugwrCiAIPhB4GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgoeBIHdGVzdF90bxonugIkCiAIPhB4GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgoeBAKIiAIPhB4GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgoeBIAGBYiAggWCscBCsQBCrkBigG1AQoGOgQKAggBGjC6DC0KIAg+EHgaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCCh4Egl0ZXN0X2Zyb20aLroMKwogCD4QeBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKHgSB3Rlc3RfdG8aJ7oCJAogCD4QeBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKHgQCiIgCD4QeBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKHgSABgXIgIIFwpECkIKOOoLNRINCgsKCXRlc3RfZnJvbRogCCUQaBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAMKGgiAggBEgAYGCICCBgKPAo6CjCKCC0KB4ICBAoCCBgQCiIgCDIQaBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAMKGgSABgZIgIIGQo6CjgKLqoKKwoHggIECgIIGRogCDgQaBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAMKGgSABgaIgIIGgpaClgKTqoMSwgBGgVpbmRleDICCBo6AiABQiAIehBoGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAwoaFILCgkKB3Rlc3RfdG9aCXRlbXBvcmFyeRIAGBsiAggbCggSBggcEgIIGxABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-CggSBggdEgIIFwpCCkAKNuoLMxILCgkKB3Rlc3RfdG8aIAggEHkaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCCh5IgIIARIAGB4iAggeCjcKNQor2gYoCAESAggeGiAIKBB5GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgoeRIAGB8iAggfCggSBgggEgIIHxABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-CmgKZgpQsgxNEgZjYWxsZXIiEAgBEgw8bGFtYmRhIFsxXT46BAoCYAFoAnoCYAGIAQGSASEICRCCARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAVKHwSDAoKYWRkX29uZV9zcBghIgIIIQpmCmQKWooBVwoGOgQKAgghGim6AiYKIggVEIMBGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgogwEQASIiCBUQgwEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCCiDARIAGCIiAggiCj8KPQoz2gswEgxzZWxlY3QgMSArIDEaIAg/EH0aFlNSQ19QT1NJVElPTl9URVNUX01PREUgICh9EgAYIyICCCMKOQo3Ci3KBioIARABGgIIIzIgCEkQfRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAgKH0SABgkIgIIJAoIEgYIJRICCCQQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBc=
-CggSBggmEgIIIgpBCj8KNdoLMhIMc2VsZWN0IDEgKyAyGiIINBCHARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSATKIcBEgAYJyICCCcKOwo5Ci/KBiwIARABGgIIJzIiCD4QhwEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgEyiHARIAGCgiAggoCggSBggpEgIIKBABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-ClwKWgpN2gtKEiRjcmVhdGUgb3IgcmVwbGFjZSB0ZW1wIHN0YWdlIG15c3RhZ2UaIgg/EIsBGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAwoiwESAwoBXxgqIgIIKgo7CjkKL8oGLAgBEAEaAggqMiIISRCLARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAMKIsBEgAYKyICCCsKCBIGCCwSAggrEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-Cn4KfApvsgxsEgVvd25lciIQCAISDDxsYW1iZGEgWzJdPjoICgJgAQoCYAFAAVoKCggKBm11bF9zcGgEcAF6AmABiAEBkgEiCAkQlAEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDCiMAZoBCEBteXN0YWdlEgMKAV8YLSICCC0KRgpECjraCzcSEWNhbGwgbXVsX3NwKDUsIDYpGiIIKBCVARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKJUBEgAYLiICCC4KOwo5Ci/KBiwIARABGgIILjIiCDIQlQEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCCiVARIAGC8iAggvCggSBggwEgIILxABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-Cn4KfApvsgxsEgVvd25lciIQCAMSDDxsYW1iZGEgWzNdPigBOggKAmABCgJgAUABWgoKCAoGbXVsX3NwaAR6AmABiAEBkgEiCAkQoAEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDCiYAZoBCEBteXN0YWdlEgMKAV8YMSICCDEKRgpECjraCzcSEWNhbGwgbXVsX3NwKDUsIDYpGiIIKBChARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKKEBEgAYMiICCDIKOwo5Ci/KBiwIARABGgIIMjIiCDIQoQEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCCihARIAGDMiAggzCggSBgg0EgIIMxABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-CpoBCpcBCokBsgyFARIFb3duZXIaAnMzIhAIBBIMPGxhbWJkYSBbNF0+OggKAmABCgJgAUABWgoKCAoGbXVsX3NwaARwAXoCYAGCAQYKAWESAWKCAQYKAWMSAWSIAQGSASIICRCvARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAMKKQBmgEIQG15c3RhZ2WoAQESAwoBXxg1IgIINQpGCkQKOtoLNxIRY2FsbCBtdWxfc3AoNSwgNikaIggoELABGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgosAESABg2IgIINgo7CjkKL8oGLAgBEAEaAgg2MiIIMhCwARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKLABEgAYNyICCDcKCBIGCDgSAgg3EAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-CowBCokBCn+yDHwSBW93bmVyIgoIBRIGc2luX3NwYhlzbm93Zmxha2Utc25vd3BhcmstcHl0aG9uYgVudW1weWgEiAEBkgEiCHAQswEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCSizAaIBGgoKU0ZfUEFSVE5FUhIMRkFLRV9QQVJUTkVSEgAYOSICCDkKbQprCmGKAV4KBjoECgIIORow+gEtCiIIHRC2ARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKLYBERgtRFT7Ifk/IiIIHRC2ARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKLYBEgAYOiICCDoKCBIGCDsSAgg6CnkKdwptsgxqEgVvd25lciINCAYSCXNlbGVjdF9zcDoICgJgAQoCYAFoBHodqgEaCgsKAwoBQRICYAEYAQoLCgMKAUISAmABGAGIAQGSASMIlgEQuQEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCSi5ARIAGDwiAgg8CpQBCpEBCoYBigGCAQoGOgQKAgg8Gim6AiYKIggXELwBGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgovAEQARopugImCiIIFxC8ARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKLwBEAIiIggXELwBGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgovAESABg9IgIIPQpKCkgKPtoLOxIVU0VMRUNUIDEgYXMgQSwgMiBhcyBCGiIIPRC7ARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSATKLsBEgAYPiICCD4KEwoRCgeKCQQKAgg+EgAYPyICCD8KCBIGCEASAgg/EAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-ClsKWQpPsgxMEgVvd25lciINCAcSCXNlbGVjdF9zcDoICgJgAQoCYAFoBHoDqgEAkgEiCHsQvwEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCSi/ARIAGEEiAghBCpQBCpEBCoYBigGCAQoGOgQKAghBGim6AiYKIggXEMIBGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgowgEQARopugImCiIIFxDCARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKMIBEAIiIggXEMIBGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgowgESABhCIgIIQgpKCkgKPtoLOxIVU0VMRUNUIDEgYXMgQSwgMiBhcyBCGiIIPRDBARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSATKMEBEgAYQyICCEMKEwoRCgeKCQQKAghDEgAYRCICCEQKCBIGCEUSAghEEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-Ck8KTQpDsgxAEgVvd25lciINCAgSCXNlbGVjdF9zcGgEiAEBkgEiCA4QxQEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCSjFARIAGEYiAghGCpQBCpEBCoYBigGCAQoGOgQKAghGGim6AiYKIggXEMgBGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgoyAEQARopugImCiIIFxDIARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKMgBEAIiIggXEMgBGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgoyAESABhHIgIIRwpKCkgKPtoLOxIVU0VMRUNUIDEgYXMgQSwgMiBhcyBCGiIIPRDHARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSATKMcBEgAYSCICCEgKEwoRCgeKCQQKAghIEgAYSSICCEkKCBIGCEoSAghJEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-EAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
+body {
+  assign {
+    expr {
+      stored_procedure {
+        comment {
+          value: "This is a comment"
+        }
+        execute_as: "owner"
+        func {
+          name: "my_copy"
+        }
+        name {
+          fn_name_flat {
+            name: "my_copy_sp"
+          }
+        }
+        parallel: 4
+        replace: true
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 42
+        }
+      }
+    }
+    symbol {
+      value: "my_copy_sp"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+      value: "_"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 2
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  eval {
+    uid: 4
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              int64_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 46
+                }
+                v: 1
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 46
+                }
+                v: 2
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 46
+                }
+                v: 3
+              }
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 46
+        }
+      }
+    }
+    symbol {
+      value: "from_df"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 5
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 47
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_table {
+        block: true
+        column_order: "index"
+        id {
+          bitfield1: 6
+        }
+        mode {
+          sp_save_mode_overwrite: true
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 47
+        }
+        table_name {
+          sp_table_name_flat {
+            name: "test_from"
+          }
+        }
+        table_type: "temporary"
+      }
+    }
+    symbol {
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  eval {
+    uid: 8
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              int64_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 48
+                }
+                v: -1
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 48
+                }
+                v: -2
+              }
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 48
+        }
+      }
+    }
+    symbol {
+      value: "to_df"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 9
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 49
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_table {
+        block: true
+        column_order: "index"
+        id {
+          bitfield1: 10
+        }
+        mode {
+          sp_save_mode_overwrite: true
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 49
+        }
+        table_name {
+          sp_table_name_flat {
+            name: "test_to"
+          }
+        }
+        table_type: "temporary"
+      }
+    }
+    symbol {
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+body {
+  eval {
+    uid: 12
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "call my_copy_sp(\'test_from\', \'test_to\', 10)"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 50
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 13
+    var_id {
+      bitfield1: 13
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 13
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 50
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 14
+    var_id {
+      bitfield1: 14
+    }
+  }
+}
+body {
+  eval {
+    uid: 15
+    var_id {
+      bitfield1: 14
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "test_to"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 51
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 16
+    var_id {
+      bitfield1: 16
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_count {
+        block: true
+        id {
+          bitfield1: 16
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 51
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 17
+    var_id {
+      bitfield1: 17
+    }
+  }
+}
+body {
+  eval {
+    uid: 18
+    var_id {
+      bitfield1: 17
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "drop table if exists test_to"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 54
+        }
+      }
+    }
+    symbol {
+      value: "_"
+    }
+    uid: 19
+    var_id {
+      bitfield1: 19
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 19
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 54
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 20
+    var_id {
+      bitfield1: 20
+    }
+  }
+}
+body {
+  eval {
+    uid: 21
+    var_id {
+      bitfield1: 20
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          stored_procedure {
+            log_on_exception {
+            }
+            name {
+              fn_name_flat {
+                name: "my_copy_sp"
+              }
+            }
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 55
+            }
+            v: "test_from"
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 55
+            }
+            v: "test_to"
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 55
+            }
+            v: 10
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 55
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 22
+    var_id {
+      bitfield1: 22
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 55
+            }
+            v: "test_from"
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 55
+            }
+            v: "test_to"
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 55
+            }
+            v: 10
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 55
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 23
+    var_id {
+      bitfield1: 23
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "test_from"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 24
+    var_id {
+      bitfield1: 24
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_limit {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 24
+            }
+          }
+        }
+        n: 10
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 25
+    var_id {
+      bitfield1: 25
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 25
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 26
+    var_id {
+      bitfield1: 26
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_table {
+        block: true
+        column_order: "index"
+        id {
+          bitfield1: 26
+        }
+        mode {
+          sp_save_mode_overwrite: true
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+        table_name {
+          sp_table_name_flat {
+            name: "test_to"
+          }
+        }
+        table_type: "temporary"
+      }
+    }
+    symbol {
+    }
+    uid: 27
+    var_id {
+      bitfield1: 27
+    }
+  }
+}
+body {
+  eval {
+    uid: 28
+    var_id {
+      bitfield1: 27
+    }
+  }
+}
+body {
+  eval {
+    uid: 29
+    var_id {
+      bitfield1: 23
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "test_to"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 56
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 30
+    var_id {
+      bitfield1: 30
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_count {
+        block: true
+        id {
+          bitfield1: 30
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 56
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 31
+    var_id {
+      bitfield1: 31
+    }
+  }
+}
+body {
+  eval {
+    uid: 32
+    var_id {
+      bitfield1: 31
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "caller"
+        func {
+          id: 1
+          name: "<lambda [1]>"
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+        }
+        parallel: 2
+        return_type {
+          sp_integer_type: true
+        }
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 59
+        }
+      }
+    }
+    symbol {
+      value: "add_one_sp"
+    }
+    uid: 33
+    var_id {
+      bitfield1: 33
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 33
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 66
+            }
+            v: 1
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 66
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 34
+    var_id {
+      bitfield1: 34
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "select 1 + 1"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 60
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 35
+    var_id {
+      bitfield1: 35
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 35
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 60
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 36
+    var_id {
+      bitfield1: 36
+    }
+  }
+}
+body {
+  eval {
+    uid: 37
+    var_id {
+      bitfield1: 36
+    }
+  }
+}
+body {
+  eval {
+    uid: 38
+    var_id {
+      bitfield1: 34
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "select 1 + 2"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 70
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 39
+    var_id {
+      bitfield1: 39
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 39
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 70
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 40
+    var_id {
+      bitfield1: 40
+    }
+  }
+}
+body {
+  eval {
+    uid: 41
+    var_id {
+      bitfield1: 40
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "create or replace temp stage mystage"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 74
+        }
+      }
+    }
+    symbol {
+      value: "_"
+    }
+    uid: 42
+    var_id {
+      bitfield1: 42
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 42
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 74
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 43
+    var_id {
+      bitfield1: 43
+    }
+  }
+}
+body {
+  eval {
+    uid: 44
+    var_id {
+      bitfield1: 43
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        func {
+          id: 2
+          name: "<lambda [2]>"
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_integer_type: true
+          }
+        }
+        is_permanent: true
+        name {
+          fn_name_flat {
+            name: "mul_sp"
+          }
+        }
+        parallel: 4
+        replace: true
+        return_type {
+          sp_integer_type: true
+        }
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 75
+        }
+        stage_location: "@mystage"
+      }
+    }
+    symbol {
+      value: "_"
+    }
+    uid: 45
+    var_id {
+      bitfield1: 45
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "call mul_sp(5, 6)"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 84
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 46
+    var_id {
+      bitfield1: 46
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 46
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 84
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 47
+    var_id {
+      bitfield1: 47
+    }
+  }
+}
+body {
+  eval {
+    uid: 48
+    var_id {
+      bitfield1: 47
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        func {
+          id: 3
+          name: "<lambda [3]>"
+        }
+        if_not_exists: true
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_integer_type: true
+          }
+        }
+        is_permanent: true
+        name {
+          fn_name_flat {
+            name: "mul_sp"
+          }
+        }
+        parallel: 4
+        return_type {
+          sp_integer_type: true
+        }
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 87
+        }
+        stage_location: "@mystage"
+      }
+    }
+    symbol {
+      value: "_"
+    }
+    uid: 49
+    var_id {
+      bitfield1: 49
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "call mul_sp(5, 6)"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 96
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 50
+    var_id {
+      bitfield1: 50
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 50
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 96
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 51
+    var_id {
+      bitfield1: 51
+    }
+  }
+}
+body {
+  eval {
+    uid: 52
+    var_id {
+      bitfield1: 51
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        external_access_integrations: "s3"
+        func {
+          id: 4
+          name: "<lambda [4]>"
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_integer_type: true
+          }
+        }
+        is_permanent: true
+        name {
+          fn_name_flat {
+            name: "mul_sp"
+          }
+        }
+        parallel: 4
+        replace: true
+        return_type {
+          sp_integer_type: true
+        }
+        secrets {
+          _1: "a"
+          _2: "b"
+        }
+        secrets {
+          _1: "c"
+          _2: "d"
+        }
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 99
+        }
+        stage_location: "@mystage"
+        strict: true
+      }
+    }
+    symbol {
+      value: "_"
+    }
+    uid: 53
+    var_id {
+      bitfield1: 53
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "call mul_sp(5, 6)"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 111
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 54
+    var_id {
+      bitfield1: 54
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 54
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 111
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 55
+    var_id {
+      bitfield1: 55
+    }
+  }
+}
+body {
+  eval {
+    uid: 56
+    var_id {
+      bitfield1: 55
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        func {
+          id: 5
+          name: "sin_sp"
+        }
+        packages: "snowflake-snowpark-python"
+        packages: "numpy"
+        parallel: 4
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 115
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 57
+    var_id {
+      bitfield1: 57
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 57
+            }
+          }
+        }
+        pos_args {
+          float64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 117
+            }
+            v: 1.5707963267948966
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 117
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 58
+    var_id {
+      bitfield1: 58
+    }
+  }
+}
+body {
+  eval {
+    uid: 59
+    var_id {
+      bitfield1: 58
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        func {
+          id: 6
+          name: "select_sp"
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_integer_type: true
+          }
+        }
+        parallel: 4
+        return_type {
+          sp_struct_type {
+            fields {
+              column_identifier {
+                name: "A"
+              }
+              data_type {
+                sp_integer_type: true
+              }
+              nullable: true
+            }
+            fields {
+              column_identifier {
+                name: "B"
+              }
+              data_type {
+                sp_integer_type: true
+              }
+              nullable: true
+            }
+          }
+        }
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 121
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 60
+    var_id {
+      bitfield1: 60
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 60
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 123
+            }
+            v: 1
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 123
+            }
+            v: 2
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 123
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 61
+    var_id {
+      bitfield1: 61
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "SELECT 1 as A, 2 as B"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 122
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 62
+    var_id {
+      bitfield1: 62
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_show {
+        id {
+          bitfield1: 62
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 63
+    var_id {
+      bitfield1: 63
+    }
+  }
+}
+body {
+  eval {
+    uid: 64
+    var_id {
+      bitfield1: 63
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        func {
+          id: 7
+          name: "select_sp"
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_integer_type: true
+          }
+        }
+        parallel: 4
+        return_type {
+          sp_struct_type {
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 127
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 65
+    var_id {
+      bitfield1: 65
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 65
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 129
+            }
+            v: 1
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 129
+            }
+            v: 2
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 129
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 66
+    var_id {
+      bitfield1: 66
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "SELECT 1 as A, 2 as B"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 128
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 67
+    var_id {
+      bitfield1: 67
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_show {
+        id {
+          bitfield1: 67
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 68
+    var_id {
+      bitfield1: 68
+    }
+  }
+}
+body {
+  eval {
+    uid: 69
+    var_id {
+      bitfield1: 68
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      stored_procedure {
+        execute_as: "owner"
+        func {
+          id: 8
+          name: "select_sp"
+        }
+        parallel: 4
+        source_code_display: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 133
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 70
+    var_id {
+      bitfield1: 70
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 70
+            }
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 135
+            }
+            v: 1
+          }
+        }
+        pos_args {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 135
+            }
+            v: 2
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 135
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 71
+    var_id {
+      bitfield1: 71
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "SELECT 1 as A, 2 as B"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 134
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 72
+    var_id {
+      bitfield1: 72
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_show {
+        id {
+          bitfield1: 72
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 73
+    var_id {
+      bitfield1: 73
+    }
+  }
+}
+body {
+  eval {
+    uid: 74
+    var_id {
+      bitfield1: 73
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
