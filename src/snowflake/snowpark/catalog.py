@@ -11,6 +11,7 @@ from snowflake.core.procedure import Procedure
 from snowflake.core.schema import Schema
 from snowflake.core.table import Table
 from snowflake.core.user_defined_function import UserDefinedFunction
+from snowflake.core.view import View
 
 import snowflake.snowpark
 
@@ -101,6 +102,31 @@ class Catalog:
             )
         )
 
+    def list_views(
+        self,
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+        like: Optional[str] = None,
+        starts_with: Optional[str] = None,
+        limit: Optional[int] = None,
+        from_name: Optional[str] = None,
+        deep: bool = False,
+    ) -> List[View]:
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+
+        view_collection = self._root.databases[db_name].schemas[schema_name].views
+        return list(
+            view_collection.iter(
+                like=like,
+                starts_with=starts_with,
+                limit=limit,
+                from_name=from_name,
+                deep=deep,
+            )
+        )
+
     def list_functions(
         self,
         *,
@@ -161,6 +187,9 @@ class Catalog:
             raise ValueError(f"Table {table_name} does not exist.")
         pass
 
+    def get_view(self, view_name: str) -> View:
+        pass
+
     def get_function(self, function_name: str) -> Function:
         pass
 
@@ -171,14 +200,14 @@ class Catalog:
         pass
 
     # set methods
-    def set_current_database(self, db: DatabaseOrStr):
+    def set_current_database(self, database: DatabaseOrStr):
         pass
 
     def set_current_schema(self, schema: SchemaOrStr) -> None:
         pass
 
     # exists methods
-    def database_exists(self, db: DatabaseOrStr) -> bool:
+    def database_exists(self, database: DatabaseOrStr) -> bool:
         pass
 
     def schema_exists(self, schema: SchemaOrStr) -> bool:
@@ -188,7 +217,16 @@ class Catalog:
         self,
         name: Union[str, Table],
         *,
-        db: Optional[DatabaseOrStr] = None,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> bool:
+        pass
+
+    def view_exists(
+        self,
+        name: Union[str, View],
+        *,
+        database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> bool:
         pass
@@ -198,7 +236,7 @@ class Catalog:
         name: Union[str, Function],
         arg_types: Union[List, Tuple],
         *,
-        db: Optional[DatabaseOrStr] = None,
+        database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr],
     ) -> bool:
         pass
@@ -208,7 +246,7 @@ class Catalog:
         name: Union[str, Procedure],
         arg_types: Union[List, Tuple],
         *,
-        db: Optional[DatabaseOrStr] = None,
+        database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> bool:
         pass
@@ -218,7 +256,7 @@ class Catalog:
         name: Union[str, UserDefinedFunction],
         arg_types: Union[List, Tuple],
         *,
-        db: Optional[DatabaseOrStr] = None,
+        database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr],
     ) -> bool:
         pass
