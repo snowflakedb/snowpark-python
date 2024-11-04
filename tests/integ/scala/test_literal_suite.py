@@ -180,7 +180,7 @@ def test_special_literals(session):
 )
 def test_special_decimal_literals(session):
     normal_scale = lit(Decimal("0.1"))
-    small_scale = Column(Literal(Decimal("0.00001"), DecimalType(5, 5)))
+    small_scale = lit(Decimal("0.00001"), DecimalType(5, 5))
 
     df = session.range(2).select(normal_scale, small_scale)
 
