@@ -26,6 +26,7 @@ class StoredProcedureProfiler:
         self._query_history = None
         self._lock = threading.RLock()
         self._active_profiler_number = 0
+        self._has_target_stage = False
 
     def register_modules(self, stored_procedures: Optional[List[str]] = None) -> None:
         """
@@ -46,6 +47,8 @@ class StoredProcedureProfiler:
         Args:
             stage: String of fully qualified name of targeted stage
         """
+        with self._lock:
+            self._has_target_stage = True
         names = parse_table_name(stage)
         if len(names) != 3:
             raise ValueError(
@@ -72,6 +75,10 @@ class StoredProcedureProfiler:
             (case-sensitive). Active profiler is 'LINE' by default.
 
         """
+        if not self._has_target_stage:
+            raise ValueError(
+                "Stored procedure profiler does not have a valid target stage, please provide one in profiler.set_target_stage()."
+            )
         with self._lock:
             self._active_profiler_number += 1
         if active_profiler_type not in ["LINE", "MEMORY"]:
