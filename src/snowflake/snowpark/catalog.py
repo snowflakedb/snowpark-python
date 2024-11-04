@@ -14,13 +14,16 @@ from snowflake.core.user_defined_function import UserDefinedFunction
 
 import snowflake.snowpark
 
+DatabaseOrStr = Union[str, Database]
+SchemaOrStr = Union[str, Schema]
+
 
 class Catalog:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
         self._root = Root(session)
 
-    def _parse_database(self, database: Optional[Union[str, Database]]) -> str:
+    def _parse_database(self, database: Optional[DatabaseOrStr]) -> str:
         if isinstance(database, str):
             return database
         if isinstance(database, Database):
@@ -29,7 +32,7 @@ class Catalog:
             return self._session.get_current_database()
         raise ValueError("")
 
-    def _parse_schema(self, schema: Optional[Union[str, Schema]]) -> str:
+    def _parse_schema(self, schema: Optional[SchemaOrStr]) -> str:
         if isinstance(schema, str):
             return schema
         if isinstance(schema, Schema):
@@ -57,7 +60,7 @@ class Catalog:
     def list_schemas(
         self,
         *,
-        database: Optional[Union[str, Database]] = None,
+        database: Optional[DatabaseOrStr] = None,
         like: Optional[str] = None,
         starts_with: Optional[str] = None,
         limit: Optional[int] = None,
@@ -74,8 +77,8 @@ class Catalog:
     def list_tables(
         self,
         *,
-        database: Optional[Union[str, Database]] = None,
-        schema: Optional[Union[str, Schema]] = None,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
         like: Optional[str] = None,
         starts_with: Optional[str] = None,
         limit: Optional[int] = None,
@@ -101,8 +104,8 @@ class Catalog:
     def list_functions(
         self,
         *,
-        database: Optional[Union[str, Database]],
-        schema: Optional[Union[str, Schema]] = None,
+        database: Optional[DatabaseOrStr],
+        schema: Optional[SchemaOrStr] = None,
         like: Optional[str] = None,
     ) -> List[Function]:
         db_name = self._parse_database(database)
@@ -116,8 +119,8 @@ class Catalog:
     def list_procedures(
         self,
         *,
-        database: Optional[Union[str, Database]],
-        schema: Optional[Union[str, Schema]] = None,
+        database: Optional[DatabaseOrStr],
+        schema: Optional[SchemaOrStr] = None,
         like: Optional[str] = None,
     ) -> List[Procedure]:
         db_name = self._parse_database(database)
@@ -131,8 +134,8 @@ class Catalog:
     def list_user_defined_functions(
         self,
         *,
-        database: Optional[Union[str, Database]],
-        schema: Optional[Union[str, Schema]] = None,
+        database: Optional[DatabaseOrStr],
+        schema: Optional[SchemaOrStr] = None,
         like: Optional[str] = None,
     ) -> List[UserDefinedFunction]:
         db_name = self._parse_database(database)
@@ -158,39 +161,66 @@ class Catalog:
             raise ValueError(f"Table {table_name} does not exist.")
         pass
 
-    def get_function() -> Function:
+    def get_function(self, function_name: str) -> Function:
         pass
 
-    def get_procedure() -> Procedure:
+    def get_procedure(self, procedure_name: str) -> Procedure:
         pass
 
-    def get_user_defined_function() -> UserDefinedFunction:
+    def get_user_defined_function(self, udf_name: str) -> UserDefinedFunction:
         pass
 
     # set methods
-    def set_current_database():
+    def set_current_database(self, db: DatabaseOrStr):
         pass
 
-    def set_current_schema():
+    def set_current_schema(self, schema: SchemaOrStr) -> None:
         pass
 
     # exists methods
-    def database_exists() -> bool:
+    def database_exists(self, db: DatabaseOrStr) -> bool:
         pass
 
-    def schema_exists() -> bool:
+    def schema_exists(self, schema: SchemaOrStr) -> bool:
         pass
 
-    def table_exists() -> bool:
+    def table_exists(
+        self,
+        name: Union[str, Table],
+        *,
+        db: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> bool:
         pass
 
-    def function_exists() -> bool:
+    def function_exists(
+        self,
+        name: Union[str, Function],
+        arg_types,
+        *,
+        db: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr],
+    ) -> bool:
         pass
 
-    def procedure_exists() -> bool:
+    def procedure_exists(
+        self,
+        name: Union[str, Procedure],
+        arg_types,
+        *,
+        db: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> bool:
         pass
 
-    def user_defined_function_exists() -> bool:
+    def user_defined_function_exists(
+        self,
+        name: Union[str, UserDefinedFunction],
+        arg_types,
+        *,
+        db: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr],
+    ) -> bool:
         pass
 
     # TODO: consider if we should be added drop methods
