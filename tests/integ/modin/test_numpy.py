@@ -57,6 +57,63 @@ def test_np_may_share_memory():
         assert not np.may_share_memory(snow_df_A, native_df_A)
 
 
+def test_full_like():
+    data = {
+        "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],
+        "B": [True, False, True, True, False, True, False, False, False],
+        "C": ["a", "b", "c", "d", "a", "b", "c", "d", "e"],
+    }
+    snow_df = pd.DataFrame(data)
+    pandas_df = native_pd.DataFrame(data)
+
+    with SqlCounter(query_count=2):
+        snow_result = np.full_like(snow_df, 1234)
+        pandas_result = np.full_like(pandas_df, 1234)
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        snow_result = np.full_like(snow_df, 1234, shape=(5, 3))
+        pandas_result = np.full_like(pandas_df, 1234, shape=(5, 3))
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=2):
+        snow_result = np.full_like(snow_df["A"], 1234)
+        pandas_result = np.full_like(pandas_df["A"], 1234)
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        snow_result = np.full_like(snow_df, "numpy is the best")
+        pandas_result = np.full_like(pandas_df, "numpy is the best")
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        pandas_result = np.full_like(pandas_df, fill_value=4, shape=())
+        snow_result = np.full_like(snow_df, fill_value=4, shape=())
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        snow_result = np.full_like(snow_df, fill_value=4, shape=4)
+        pandas_result = np.full_like(pandas_df, fill_value=4, shape=4)
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        snow_result = np.full_like(snow_df, fill_value=4, shape=(4,))
+        pandas_result = np.full_like(pandas_df, fill_value=4, shape=(4,))
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with pytest.raises(TypeError):
+        np.full_like(snow_df, 1234, shape=[])
+
+    with pytest.raises(TypeError):
+        np.full_like(snow_df, 1234, subok=False)
+
+    with pytest.raises(TypeError):
+        np.full_like(snow_df, 1234, order="D")
+
+    with pytest.raises(TypeError):
+        np.full_like(snow_df, 1234, dtype=int)
+
+
 def test_logical_operators():
     data = {
         "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],
