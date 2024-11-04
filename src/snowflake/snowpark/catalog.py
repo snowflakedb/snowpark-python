@@ -190,13 +190,19 @@ class Catalog:
     def get_view(self, view_name: str) -> View:
         pass
 
-    def get_function(self, function_name: str) -> Function:
+    def get_function(
+        self, function_name: str, arg_types: Union[List, Tuple]
+    ) -> Function:
         pass
 
-    def get_procedure(self, procedure_name: str) -> Procedure:
+    def get_procedure(
+        self, procedure_name: str, arg_types: Union[List, Tuple]
+    ) -> Procedure:
         pass
 
-    def get_user_defined_function(self, udf_name: str) -> UserDefinedFunction:
+    def get_user_defined_function(
+        self, udf_name: str, arg_types: Union[List, Tuple]
+    ) -> UserDefinedFunction:
         pass
 
     # set methods
@@ -215,7 +221,7 @@ class Catalog:
 
     def table_exists(
         self,
-        name: Union[str, Table],
+        table: Union[str, Table],
         *,
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
@@ -224,7 +230,7 @@ class Catalog:
 
     def view_exists(
         self,
-        name: Union[str, View],
+        view: Union[str, View],
         *,
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
@@ -233,7 +239,7 @@ class Catalog:
 
     def function_exists(
         self,
-        name: Union[str, Function],
+        function: Union[str, Function],
         arg_types: Union[List, Tuple],
         *,
         database: Optional[DatabaseOrStr] = None,
@@ -243,7 +249,7 @@ class Catalog:
 
     def procedure_exists(
         self,
-        name: Union[str, Procedure],
+        procedure: Union[str, Procedure],
         arg_types: Union[List, Tuple],
         *,
         database: Optional[DatabaseOrStr] = None,
@@ -253,7 +259,7 @@ class Catalog:
 
     def user_defined_function_exists(
         self,
-        name: Union[str, UserDefinedFunction],
+        udf: Union[str, UserDefinedFunction],
         arg_types: Union[List, Tuple],
         *,
         database: Optional[DatabaseOrStr] = None,
@@ -261,4 +267,51 @@ class Catalog:
     ) -> bool:
         pass
 
-    # TODO: consider if we should be added drop methods
+    # drop methods
+    def drop_table(
+        self,
+        table: Union[str, Table],
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> None:
+        pass
+
+    def drop_view(
+        self,
+        view: Union[str, View],
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> None:
+        pass
+
+    def drop_function(
+        self,
+        function: Union[str, Function],
+        arg_types: Union[List, Tuple],
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> None:
+        pass
+
+    def drop_procedure(
+        self,
+        procedure: Union[str, Procedure],
+        arg_types: Union[List, Tuple],
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> None:
+        pass
+
+    def drop_user_defined_function(
+        self,
+        udf: Union[str, UserDefinedFunction],
+        arg_types: Union[List, Tuple],
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> None:
+        pass
