@@ -91,6 +91,14 @@ def verify_column_result(
         assert res == expected_rows
 
 
+def test_nested_alias(session):
+    df = session.create_dataframe(["v"], schema=["c"])
+    df2 = df.select(df.c.alias("foo").alias("bar"))
+    rows = df.collect()
+    assert df2.columns == ["BAR"]
+    assert rows == [Row(BAR="v")]
+
+
 def test_like(session):
     df1 = session.create_dataframe(["v"], schema=["c"])
     df2 = df1.select(df1["c"].like(lit("v%")))
