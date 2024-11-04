@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import threading
 from typing import List, Literal, Optional
 
@@ -10,6 +11,8 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
     strip_double_quotes_in_like_statement_in_table_name,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class StoredProcedureProfiler:
@@ -127,6 +130,9 @@ class StoredProcedureProfiler:
         """
         # return empty string when profiler is not enabled to not interrupt user's code
         if not self._is_enabled:
+            logger.warning(
+                "You are seeing this warning because you try to get profiler output while profiler is disabled. Please use profiler.set_active_profiler() to enable profiler."
+            )
             return ""
         query_id = self._get_last_query_id()
         if query_id is None:

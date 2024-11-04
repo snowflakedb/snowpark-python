@@ -17,7 +17,7 @@
 
 ### Bug Fixes
 
-- Fixed a bug that when `Session.stored_procedure_profiler` is not enabled, error is raised while calling `Session.stored_procedure_profiler.get_output`
+- Fixed a bug that raised error `AttributeError` while calling `Session.stored_procedure_profiler.get_output` when `Session.stored_procedure_profiler` is disabled.
 
 ### Snowpark pandas API Updates
 
