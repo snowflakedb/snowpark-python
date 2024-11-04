@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
     process_registration_inputs,
 )
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, check_imports_type
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -262,6 +262,9 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
+
+        check_imports_type(imports)
+
         ast = None
         stmt = None
         if _emit_ast:

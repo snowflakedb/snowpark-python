@@ -49,6 +49,8 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    check_imports_type,
+    check_output_schema_type,
     publicapi,
     validate_object_name,
 )
@@ -62,20 +64,6 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
-
-
-def _check_output_schema_type(
-    output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"]
-) -> None:
-    """Helper function to ensure output_schema adheres to type hint."""
-    if not (
-        isinstance(output_schema, StructType)
-        or isinstance(output_schema, PandasDataFrameType)
-        or isinstance(output_schema, Iterable)
-    ):
-        raise ValueError(
-            f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
-        )
 
 
 class UserDefinedTableFunction:
@@ -921,7 +909,8 @@ class UDTFRegistration:
         **kwargs,
     ) -> UserDefinedTableFunction:
 
-        _check_output_schema_type(output_schema)
+        check_output_schema_type(output_schema)
+        check_imports_type(imports)
 
         # Capture original parameters.
         ast, ast_id = None, None
