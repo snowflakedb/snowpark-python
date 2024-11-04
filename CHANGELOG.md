@@ -9,6 +9,10 @@
 - Added the following new functions in `snowflake.snowpark.dataframe`:
   - `map`
 
+#### Improvements
+
+- When target stage is not set profiler, `ValueError` with more detailed error message will be raised in stead of `SnowparkSQLException`.
+
 #### Dependency Updates
 
 - Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.

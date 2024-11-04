@@ -250,3 +250,13 @@ def test_create_temp_stage(profiler_session):
     finally:
         profiler_session.sql(f"drop database if exists {db_name}").collect()
         profiler_session.sql(f"use database {current_db}").collect()
+
+
+def test_profiler_without_target_stage(profiler_session):
+    pro = profiler_session.stored_procedure_profiler
+    with pytest.raises(ValueError) as err:
+        pro.set_active_profiler("LINE")
+        assert (
+            "Stored procedure profiler does not have a valid target stage, please provide one in profiler.set_target_stage()."
+            in str(err)
+        )
