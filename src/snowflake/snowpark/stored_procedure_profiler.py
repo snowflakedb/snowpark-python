@@ -136,6 +136,9 @@ class StoredProcedureProfiler:
             return ""
         query_id = self._get_last_query_id()
         if query_id is None:
-            raise ValueError("Last executed stored procedure does not exist")
+            logger.warning(
+                "You are seeing this warning because last executed stored procedure does not exist. Please run the store procedure before get profiler output."
+            )
+            return ""
         sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
         return self._session.sql(sql)._internal_collect_with_tag_no_telemetry()[0][0]  # type: ignore
