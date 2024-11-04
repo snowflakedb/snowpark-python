@@ -7356,7 +7356,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # both the frames.
                 # We rename index labels to make sure index columns are joined level
                 # by level.
-                result_frame, _ = join_utils.join_on_index_columns(
+                # result_frame, _ = join_utils.join_on_index_columns(
+                #   result_frame, other_frame, how=join, sort=sort
+                # )
+
+                result_frame, _ = join_utils.align_on_index(
                     result_frame, other_frame, how=join, sort=sort
                 )
 
