@@ -5,6 +5,8 @@
 
 import logging
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -90,6 +92,15 @@ def local_testing_telemetry_setup():
 @pytest.fixture(scope="session")
 def cte_optimization_enabled(pytestconfig):
     return not pytestconfig.getoption("disable_cte_optimization")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def proto_generated():
+    """Generate Protobuf Python files automatically"""
+    try:
+        from snowflake.snowpark._internal.proto.generated import ast_pb2  # noqa: F401
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "tox", "-e", "protoc"])
 
 
 MULTITHREADING_TEST_MODE_ENABLED = False
