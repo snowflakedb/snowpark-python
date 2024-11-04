@@ -780,6 +780,7 @@ class ServerConnection:
             error = err
         if error is not None:
             self.notify_query_listeners(QueryRecord(error.sfqid, error.query))
+            raise error
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
