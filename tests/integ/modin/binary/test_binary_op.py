@@ -221,7 +221,7 @@ def test_binary_arithmetic_method_null_nan_scalar(func):
         lambda x: x - "s",
     ],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_binary_arithmetic_method_string_scalar_negative(func):
     data = ["snowflake"]
     snow_df = pd.DataFrame(data)
@@ -1087,7 +1087,7 @@ def test_arithmetic_binary_division_between_series(lhs, rhs, op):
 )
 @pytest.mark.parametrize("rhs", [[0] * 18, [0.0] * 18, [0, None] * 9, [None, 0.0] * 9])
 @pytest.mark.parametrize("op", [operator.truediv, operator.floordiv])
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_arithmetic_binary_division_between_series_div_by_zero_negative(lhs, rhs, op):
     with pytest.raises(SnowparkSQLException, match="Division by zero"):
         op(
@@ -1932,7 +1932,7 @@ def test_binary_comparison_method_between_series_numeric(lhs, rhs, op):
 @pytest.mark.parametrize(
     "op", [operator.eq, operator.ne, operator.gt, operator.ge, operator.lt, operator.le]
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_binary_comparison_method_between_series_different_types(op):
     with pytest.raises(
         SnowparkSQLException, match="Numeric value .* is not recognized"
@@ -2176,7 +2176,7 @@ def test_binary_op_between_dataframe_and_series_axis0(opname, df, s):
         )
     ],
 )
-@sql_count_checker(query_count=0)
+@sql_count_checker(query_count=1)
 def test_binary_add_dataframe_and_series_axis0_with_type_mismatch_for_index_negative(
     df, s
 ):

@@ -279,7 +279,9 @@ def test_stored_proc_error(
 
     profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
 
-    with pytest.raises(SnowparkSQLException):
+    with pytest.raises(
+        SnowparkSQLException, match="Function available memory exhausted"
+    ):
         profiler_session.call(function_name)
     res = profiler_session.stored_procedure_profiler.get_output()
 

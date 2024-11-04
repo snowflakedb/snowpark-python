@@ -420,15 +420,11 @@ class ServerConnection:
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
-        results_cursor = None
-        error = None
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
         except Error as err:
-            error = err
-        if error is not None:
-            self.notify_query_listeners(QueryRecord(error.sfqid, error.query))
-            raise error
+            self.notify_query_listeners(QueryRecord(err.sfqid, err.query))
+            raise err
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
         )
@@ -437,15 +433,11 @@ class ServerConnection:
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
-        results_cursor = None
-        error = None
         try:
             results_cursor = self._cursor.execute_async(query, **kwargs)
         except Error as err:
-            error = err
-        if error is not None:
-            self.notify_query_listeners(QueryRecord(error.sfqid, error.query))
-            raise error
+            self.notify_query_listeners(QueryRecord(err.sfqid, err.query))
+            raise err
         self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
         return results_cursor
 
@@ -772,15 +764,11 @@ class ServerConnection:
             self.execute_and_notify_query_listener(
                 f"alter session set query_tag = {str_to_sql(query_tag)}"
             )
-        results_cursor = None
-        error = None
         try:
             results_cursor = self._cursor.executemany(query, params)
         except Error as err:
-            error = err
-        if error is not None:
-            self.notify_query_listeners(QueryRecord(error.sfqid, error.query))
-            raise error
+            self.notify_query_listeners(QueryRecord(err.sfqid, err.query))
+            raise err
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
         )

@@ -213,3 +213,17 @@ def test_query_history_when_execution_raise_error(session):
         record = query_listener.queries[0]
         assert record.query_id == "fake_id"
         assert record.sql_text == "fake_query"
+
+
+def test_query_history_when_async_execution_raise_error(session):
+    exception = Error(sfqid="fake_id", query="fake_query")
+    with session.query_history() as query_listener:
+        with mock.patch(
+            "snowflake.connector.cursor.SnowflakeCursor.execute", side_effect=exception
+        ):
+            with pytest.raises(Error):
+                res = session.sql("select 0").collect_nowait()
+                res.result()
+        record = query_listener.queries[0]
+        assert record.query_id == "fake_id"
+        assert record.sql_text == "fake_query"
