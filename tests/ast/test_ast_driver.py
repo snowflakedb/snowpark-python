@@ -196,7 +196,6 @@ def test_ast(session, tables, test_case):
                     actual.strip(),
                     "\n\n## EXPECTED ENCODED AST\n\n",
                     base64_lines_to_textproto(base64_str.strip()),
-                    "\n",
                 ]
             )
     else:
