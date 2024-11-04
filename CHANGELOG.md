@@ -11,7 +11,7 @@
 
 #### Improvements
 
-- When target stage is not set profiler, `ValueError` with more detailed error message will be raised in stead of `SnowparkSQLException`.
+- When target stage is not set profiler, `ValueError` with more detailed error message is raised instead of `SnowparkSQLException`.
 
 #### Dependency Updates
 
