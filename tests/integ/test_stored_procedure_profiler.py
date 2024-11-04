@@ -139,12 +139,6 @@ def test_anonymous_procedure(
 )
 def test_set_incorrect_active_profiler(profiler_session, db_parameters, tmp_stage_name):
     with pytest.raises(ValueError) as e:
-        profiler_session.stored_procedure_profiler.set_active_profiler(
-            "wrong_active_profiler"
-        )
-    assert "active_profiler expect 'LINE', 'MEMORY'" in str(e)
-
-    with pytest.raises(ValueError) as e:
         profiler_session.stored_procedure_profiler.set_target_stage(f"{tmp_stage_name}")
     assert "stage name must be fully qualified name" in str(e)
 
@@ -155,6 +149,12 @@ def test_set_incorrect_active_profiler(profiler_session, db_parameters, tmp_stag
         profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
         profiler_session.stored_procedure_profiler.get_output()
     assert "Last executed stored procedure does not exist" in str(e)
+
+    with pytest.raises(ValueError) as e:
+        profiler_session.stored_procedure_profiler.set_active_profiler(
+            "wrong_active_profiler"
+        )
+    assert "active_profiler expect 'LINE', 'MEMORY'" in str(e)
 
 
 @pytest.mark.parametrize(
