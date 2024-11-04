@@ -334,7 +334,9 @@ def column(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> C
 
 
 @publicapi
-def lit(literal: LiteralType, _emit_ast: bool = True) -> Column:
+def lit(
+    literal: LiteralType, datatype: Optional[DataType] = None, _emit_ast: bool = True
+) -> Column:
     """
     Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
     It supports basic Python data types, including ``int``, ``float``, ``str``,
@@ -358,15 +360,19 @@ def lit(literal: LiteralType, _emit_ast: bool = True) -> Column:
         ---------------------------------------------------------------------------------------
         <BLANKLINE>
     """
+
+    assert not isinstance(
+        literal, Column
+    ), "Do not use lit(Column(...)), type hint does not allow this syntax."
+
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        build_builtin_fn_apply(ast, "lit", literal)
-    return (
-        literal
-        if isinstance(literal, Column)
-        else Column(Literal(literal), _ast=ast, _emit_ast=_emit_ast)
-    )
+        if datatype is None:
+            build_builtin_fn_apply(ast, "lit", literal)
+        else:
+            build_builtin_fn_apply(ast, "lit", literal, datatype)
+    return Column(Literal(literal, datatype=datatype), _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
