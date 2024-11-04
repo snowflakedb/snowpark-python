@@ -2,7 +2,7 @@
 
 from snowflake.snowpark.functions import col
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 
 df = df.select(col("A").asc())
 
@@ -12,7 +12,7 @@ df = df.select(col("A").asc_nulls_last())
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("test_table")
+df = session.table("table1")
 
 df = df.select(col("A").asc())
 
@@ -22,4 +22,233 @@ df = df.select(col("A").asc_nulls_last())
 
 ## EXPECTED ENCODED AST
 
-CkkKRwo56gs2Eg4KDAoKdGVzdF90YWJsZRogCCgQXBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFwiAggBEgQKAmRmGAEiAggBCsoBCscBCrgB+gi0AQqEAbIEgAEKXIoBWQoLGgkKBwoFCgNjb2waKLoMJQogCB8QXhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAXKF4SAUEiIAgfEF4aFlNSQ19QT1NJVElPTl9URVNUX01PREUgFyheGiAIJRBeGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBcoXhIHggIECgIIARogCCYQXhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKF4gARIECgJkZhgCIgIIAgrOAQrLAQq8AfoIuAEKiAGyBIQBClyKAVkKCxoJCgcKBQoDY29sGii6DCUKIAgfEGAaFlNSQ19QT1NJVElPTl9URVNUX01PREUgFyhgEgFBIiAIHxBgGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBcoYBICCAEaIAgxEGAaFlNSQ19QT1NJVElPTl9URVNUX01PREUgFyhgEgeCAgQKAggCGiAIMhBgGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYCABEgQKAmRmGAMiAggDCswBCskBCroB+gi2AQqGAbIEggEKXIoBWQoLGgkKBwoFCgNjb2waKLoMJQogCB8QYhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAXKGISAUEiIAgfEGIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgFyhiEgAaIAgwEGIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgFyhiEgeCAgQKAggDGiAIMRBiGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYiABEgQKAmRmGAQiAggEEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_asc {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 29
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 29
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_asc {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 31
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 31
+                }
+              }
+            }
+            nulls_first {
+              value: true
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 31
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_asc {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 33
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 33
+                }
+              }
+            }
+            nulls_first {
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 33
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

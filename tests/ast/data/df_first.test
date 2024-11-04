@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 
 df1 = df.first(-5)
 
@@ -8,9 +8,11 @@ df2 = df.first(2)
 
 df3 = df.first()
 
+df4 = df.first(0, statement_params={'a':'b', 'c':'d'}, block=False)
+
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("test_table")
+df = session.table("table1")
 
 df1 = df.first(-5, True)
 
@@ -18,6 +20,167 @@ df2 = df.first(2, True)
 
 df3 = df.first(1, True)
 
+df4 = df.first(0, False, {"a": "b", "c": "d"})
+
 ## EXPECTED ENCODED AST
 
-CkkKRwo56gs2Eg4KDAoKdGVzdF90YWJsZRogCCgQWhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFoiAggBEgQKAmRmGAEiAggBCkwKSgo7sgc4CAESB4ICBAoCCAEY+///////////ASIgCBoQXBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKFwSBQoDZGYxGAIiAggCCkMKQQoysgcvCAESB4ICBAoCCAEYAiIgCBkQXhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKF4SBQoDZGYyGAMiAggDCkMKQQoysgcvCAESB4ICBAoCCAEYASIgCBgQYBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKGASBQoDZGYzGAQiAggEEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_first {
+        block: true
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        num: -5
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_first {
+        block: true
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        num: 2
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_first {
+        block: true
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        num: 1
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_first {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+        statement_params {
+          _1: "a"
+          _2: "b"
+        }
+        statement_params {
+          _1: "c"
+          _2: "d"
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

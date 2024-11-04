@@ -241,6 +241,19 @@ else:
     from collections.abc import Iterable
 
 
+# check function to allow test_dataframe_alias_negative to pass in AST mode.
+def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
+    if not isinstance(name1, str):
+        raise ValueError(
+            f"Expects first argument to be of type str, got {type(name1)}."
+        )
+
+    if name2 is not None and not isinstance(name2, str):
+        raise ValueError(
+            f"Expects second argument to be of type str or None, got {type(name1)}."
+        )
+
+
 @overload
 @publicapi
 def col(col_name: str, _emit_ast: bool = True) -> Column:
@@ -269,14 +282,17 @@ def col(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
 
 @publicapi
 def col(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Column:
+
+    _check_column_parameters(name1, name2)
+
     ast = None
     if _emit_ast:
         ast = create_ast_for_column(name1, name2, "col")
 
     if name2 is None:
-        return Column(name1, ast=ast)
+        return Column(name1, _ast=ast)
     else:
-        return Column(name1, name2, ast=ast)
+        return Column(name1, name2, _ast=ast)
 
 
 @overload
@@ -307,12 +323,14 @@ def column(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
 
 @publicapi
 def column(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Column:
+    _check_column_parameters(name1, name2)
+
     ast = create_ast_for_column(name1, name2, "column") if _emit_ast else None
 
     if name2 is None:
-        return Column(name1, ast=ast)
+        return Column(name1, _ast=ast)
     else:
-        return Column(name1, name2, ast=ast)
+        return Column(name1, name2, _ast=ast)
 
 
 @publicapi
@@ -347,7 +365,7 @@ def lit(literal: LiteralType, _emit_ast: bool = True) -> Column:
     return (
         literal
         if isinstance(literal, Column)
-        else Column(Literal(literal), ast=ast, _emit_ast=_emit_ast)
+        else Column(Literal(literal), _ast=ast, _emit_ast=_emit_ast)
     )
 
 
@@ -820,9 +838,17 @@ def count(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         ------------
         <BLANKLINE>
     """
+
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "count", e)
+
     c = _to_col_if_str(e, "count")
     expr = Literal(1) if isinstance(c._expression, Star) else c._expression
-    return builtin("count", _emit_ast=_emit_ast)(expr)
+    ans = builtin("count", _emit_ast=False)(expr)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -851,7 +877,7 @@ def count_distinct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
     return Column(
         FunctionExpression("count", [c._expression for c in cs], is_distinct=True),
-        ast=ast,
+        _ast=ast,
         _emit_ast=_emit_ast,
     )
 
@@ -6112,7 +6138,10 @@ def array_append(
     return builtin("array_append", _emit_ast=_emit_ast)(a, e)
 
 
-def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
+@publicapi
+def array_remove(
+    array: ColumnOrName, element: ColumnOrLiteral, _emit_ast: bool = True
+) -> Column:
     """Given a source ARRAY, returns an ARRAY with elements of the specified value removed.
 
     Args:
@@ -6158,8 +6187,17 @@ def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
     See Also:
         - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "array_remove", array, element)
+
     a = _to_col_if_str(array, "array_remove")
-    return builtin("array_remove")(a, element)
+    ans = builtin("array_remove", _emit_ast=False)(a, element)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -6811,7 +6849,8 @@ def vector_inner_product(
     return builtin("vector_inner_product", _emit_ast=_emit_ast)(v1, v2)
 
 
-def ln(c: ColumnOrLiteral) -> Column:
+@publicapi
+def ln(c: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
     """Returns the natrual logarithm of given column expression.
 
     Example::
@@ -6826,8 +6865,17 @@ def ln(c: ColumnOrLiteral) -> Column:
         ------------
         <BLANKLINE>
     """
-    c = _to_col_if_str(c, "ln")
-    return builtin("ln")(c)
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "ln", c)
+
+    c = Column(c, _emit_ast=False) if isinstance(c, str) else c
+    ans = builtin("ln", _emit_ast=False)(c)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -7659,7 +7707,7 @@ def when(
                 )
             ]
         ),
-        ast=ast,
+        _ast=ast,
     )
 
 
@@ -9437,7 +9485,7 @@ def _call_function(
             api_call_source=api_call_source,
             is_data_generator=is_data_generator,
         ),
-        ast=ast,
+        _ast=ast,
         _emit_ast=_emit_ast,
     )
 

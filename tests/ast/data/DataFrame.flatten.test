@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 
 df1 = df.flatten("STR", "path", True, False)
 
@@ -8,7 +8,7 @@ df2 = df.flatten(col("NUM"), recursive=True, mode="ARRAY")
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("test_table")
+df = session.table("table1")
 
 df1 = df.flatten("STR", Some("path"), True, False, "BOTH")
 
@@ -16,4 +16,143 @@ df2 = df.flatten(col("NUM"), None, False, True, "ARRAY")
 
 ## EXPECTED ENCODED AST
 
-CkkKRwo56gs2Eg4KDAoKdGVzdF90YWJsZRogCCgQWhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFoiAggBEgQKAmRmGAEiAggBCnkKdwpougdlCgeCAgQKAggBEiq6DCcKIAg0EFwaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDihcEgNTVFIaAhABIAEqBgoEcGF0aDogCDQQXBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKFwSBQoDZGYxGAIiAggCCqgBCqUBCpUBugeRAQoHggIECgIIARJeigFbCgsaCQoHCgUKA2NvbBoqugwnCiAIIxBeGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBkoXhIDTlVNIiAIIxBeGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIBkoXhoCCAEwATogCEIQXhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKF4SBQoDZGYyGAMiAggDEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_flatten {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        input {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            v: "STR"
+          }
+        }
+        mode {
+          sp_flatten_mode_both: true
+        }
+        outer: true
+        path {
+          value: "path"
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_flatten {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        input {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 29
+                }
+                v: "NUM"
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 29
+            }
+          }
+        }
+        mode {
+          sp_flatten_mode_array: true
+        }
+        recursive: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

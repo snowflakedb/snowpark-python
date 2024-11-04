@@ -16,4 +16,114 @@ df3 = session.sql("select 42")
 
 ## EXPECTED ENCODED AST
 
-CkAKPgow2gstEglzZWxlY3QgNDIaIAglEFoaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShaEgQKAmRmGAEiAggBCoQCCoECCvEB2gvtAQonugIkCiAIWRBcGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA4oXBABCii6DCUKIAhZEFwaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDihcEgFhCie6AiQKIAhZEFwaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDihcEAIKKLoMJQogCFkQXBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKFwSAWISI3NlbGVjdCAqIGZyb20gdmFsdWVzICg/LCA/KSwgKD8sID8pGiAIWRBcGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA4oXBIFCgNkZjIYAiICCAIKQQo/CjDaCy0SCXNlbGVjdCA0MhogCCoQXhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKF4SBQoDZGYzGAMiAggDEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "select 42"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        params {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            v: 1
+          }
+        }
+        params {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            v: "a"
+          }
+        }
+        params {
+          int64_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            v: 2
+          }
+        }
+        params {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 27
+            }
+            v: "b"
+          }
+        }
+        query: "select * from values (?, ?), (?, ?)"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "select 42"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

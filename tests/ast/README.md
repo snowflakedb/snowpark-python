@@ -1,3 +1,5 @@
+[comment]: <> (TODO SNOW-1764181 update readme to match with current test pratice)
+
 ## AST Tests
 
 This driver enables testing of the AST generation that will be used in the server-side Snowpark implementation, starting with Phase 0.
@@ -9,7 +11,7 @@ N.B. No eager evaluation is permitted, as any intermediate batches will not be o
 ```python
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 df = df.filter("STR LIKE '%e%'")
 
 ## EXPECTED ENCODED AST
@@ -18,7 +20,7 @@ df = df.filter("STR LIKE '%e%'")
 
 ## EXPECTED UNPARSER OUTPUT
 
-res1 = session.table('test_table')
+res1 = session.table('table1')
 
 res2 = res1.filter('STR LIKE '%e%'')
 ```

@@ -37,6 +37,8 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import (
+    check_agg_exprs,
+    is_valid_tuple_for_agg,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
     prepare_pivot_arguments,
@@ -56,20 +58,24 @@ def _alias(expr: Expression) -> NamedExpression:
         return Alias(expr, expr.sql.upper().replace('"', ""))
 
 
-def _expr_to_func(expr: str, input_expr: Expression) -> Expression:
+def _expr_to_func(expr: str, input_expr: Expression, _emit_ast: bool) -> Expression:
     lowered = expr.lower()
+
+    def create_column(input_expr):
+        return Column(input_expr, _emit_ast=_emit_ast)
+
     if lowered in ["avg", "average", "mean"]:
-        return functions.avg(Column(input_expr))._expression
+        return functions.avg(create_column(input_expr))._expression
     elif lowered in ["stddev", "std"]:
-        return functions.stddev(Column(input_expr))._expression
+        return functions.stddev(create_column(input_expr))._expression
     elif lowered in ["count", "size"]:
-        return functions.count(Column(input_expr))._expression
+        return functions.count(create_column(input_expr))._expression
     else:
-        return functions.function(expr)(input_expr)._expression
+        return functions.function(expr, _emit_ast=_emit_ast)(input_expr)._expression
 
 
-def _str_to_expr(expr: str) -> Callable:
-    return lambda input_expr: _expr_to_func(expr, input_expr)
+def _str_to_expr(expr: str, _emit_ast: bool) -> Callable:
+    return lambda input_expr: _expr_to_func(expr, input_expr, _emit_ast)
 
 
 class _GroupType:
@@ -257,17 +263,13 @@ class RelationalGroupedDataFrame:
             - :meth:`DataFrame.group_by`
         """
 
-        def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
-            return (
-                len(e) == 2
-                and isinstance(e[0], (Column, str))
-                and isinstance(e[1], str)
-            )
-
         exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
+
         # special case for single list or tuple
         if is_valid_tuple_for_agg(exprs):
             exprs = [exprs]
+
+        check_agg_exprs(exprs)
 
         # AST.
         stmt = None
@@ -287,12 +289,7 @@ class RelationalGroupedDataFrame:
         agg_exprs = []
         if len(exprs) > 0 and isinstance(exprs[0], dict):
             for k, v in exprs[0].items():
-                if not (isinstance(k, str) and isinstance(v, str)):
-                    raise TypeError(
-                        "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() "
-                        f"should contain only strings: got key-value pair with types {type(k), type(v)}"
-                    )
-                agg_exprs.append(_str_to_expr(v)(Column(k)._expression))
+                agg_exprs.append(_str_to_expr(v, _emit_ast)(Column(k)._expression))
         else:
             for e in exprs:
                 if isinstance(e, Column):
@@ -303,12 +300,7 @@ class RelationalGroupedDataFrame:
                         if isinstance(e[0], Column)
                         else Column(e[0])._expression
                     )
-                    agg_exprs.append(_str_to_expr(e[1])(col_expr))
-                else:
-                    raise TypeError(
-                        "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should "
-                        "contain only Column objects, or pairs of Column object (or column name) and strings."
-                    )
+                    agg_exprs.append(_str_to_expr(e[1], _emit_ast)(col_expr))
 
         df = self._to_df(agg_exprs, _emit_ast=False)
 
@@ -421,9 +413,7 @@ class RelationalGroupedDataFrame:
             _emit_ast=_emit_ast,
             **kwargs,
         )
-        partition_by = [
-            functions.col(expr, _emit_ast=False) for expr in self._grouping_exprs
-        ]
+        partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
 
         df = self._df.select(
             _apply_in_pandas_udtf(*self._df.columns).over(

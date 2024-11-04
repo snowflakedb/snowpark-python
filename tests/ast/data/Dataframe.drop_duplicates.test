@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 
 df1 = df.drop_duplicates()
 
@@ -14,7 +14,7 @@ df5 = df.drop_duplicates([])
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("test_table")
+df = session.table("table1")
 
 df1 = df.drop_duplicates([])
 
@@ -28,4 +28,182 @@ df5 = df.drop_duplicates([])
 
 ## EXPECTED ENCODED AST
 
-CkkKRwo56gs2Eg4KDAoKdGVzdF90YWJsZRogCCgQWhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFoiAggBEgQKAmRmGAEiAggBCj8KPQoumgcrEgeCAgQKAggBGiAIIhBcGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA4oXBIFCgNkZjEYAiICCAIKRgpECjWaBzIKA05VTRIHggIECgIIARogCCcQXhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKF4gARIFCgNkZjIYAyICCAMKSwpJCjqaBzcKA05VTQoDU1RSEgeCAgQKAggBGiAILhBgGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA4oYCABEgUKA2RmMxgEIgIIBApJCkcKOJoHNQoDTlVNCgNTVFISB4ICBAoCCAEaIAgwEGIaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDihiEgUKA2RmNBgFIgIIBQo/Cj0KLpoHKxIHggIECgIIARogCCQQZBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAOKGQSBQoDZGY1GAYiAggGEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        cols: "NUM"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        cols: "NUM"
+        cols: "STR"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        cols: "NUM"
+        cols: "STR"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+      value: "df5"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

@@ -11,8 +11,17 @@ df = session.create_dataframe(data).to_df(
     "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
 )
 
+df2 = df.with_column("HALF_AMOUNT", df["SALESAMOUNT"] / 2)
+
 moving_agg_res = df.analytics.moving_agg(
     aggs={"SALESAMOUNT": ["SUM", "AVG"]},
+    window_sizes=[2, 3],
+    order_by=["ORDERDATE"],
+    group_by=["PRODUCTKEY"],
+)
+
+moving_agg_res2 = df2.analytics.moving_agg(
+    aggs={"SALESAMOUNT": ["SUM"], "HALF_AMOUNT": ["MAX"]},
     window_sizes=[2, 3],
     order_by=["ORDERDATE"],
     group_by=["PRODUCTKEY"],
@@ -59,7 +68,11 @@ df = session.create_dataframe([["2023-01-01", 101, 200], ["2023-01-02", 101, 100
 
 df = df.to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
 
+df2 = df.with_column("HALF_AMOUNT", df["SALESAMOUNT"] / 2)
+
 moving_agg_res = df.analytics.moving_agg(aggs={"SALESAMOUNT": ["SUM", "AVG"]}, window_sizes=[2, 3], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=["SALESAMOUNT_SUM_2", "SALESAMOUNT_AVG_2", "SALESAMOUNT_SUM_3", "SALESAMOUNT_AVG_3"])
+
+moving_agg_res2 = df2.analytics.moving_agg(aggs={"SALESAMOUNT": ["SUM"], "HALF_AMOUNT": ["MAX"]}, window_sizes=[2, 3], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=["SALESAMOUNT_SUM_2", "SALESAMOUNT_SUM_3", "HALF_AMOUNT_MAX_2", "HALF_AMOUNT_MAX_3"])
 
 cumulative_agg_res = df.analytics.cumulative_agg(aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]}, order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], is_forward=True, formatted_col_names=["SALESAMOUNT_SUM", "SALESAMOUNT_MIN", "SALESAMOUNT_MAX"])
 
@@ -73,4 +86,572 @@ time_series_agg_res = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"
 
 ## EXPECTED ENCODED AST
 
-CvkFCvYFCucF8gXjBQq+BQq7BQqsAcoCqAEKIAgrEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEjG6DC4KIAgrEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEgoyMDIzLTAxLTAxEie6AiQKIAgrEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEGUSKLoCJQogCCsQYRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKGEQyAEKqwHKAqcBCiAIKxBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRIxugwuCiAIKxBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRIKMjAyMy0wMS0wMhInugIkCiAIKxBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRBlEie6AiQKIAgrEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEGQKrAHKAqgBCiAIKxBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRIxugwuCiAIKxBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRIKMjAyMy0wMS0wMxInugIkCiAIKxBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRBlEii6AiUKIAgrEGEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhEKwCCqwBygKoAQogCCsQYRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKGESMboMLgogCCsQYRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKGESCjIwMjMtMDEtMDQSJ7oCJAogCCsQYRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKGEQZhIougIlCiAIKxBhGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oYRD6ARogCCsQYRoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKGESBAoCZGYYASICCAEKZApiClTCCVEKCU9SREVSREFURQoKUFJPRFVDVEtFWQoLU0FMRVNBTU9VTlQSB4ICBAoCCAEaIAgJEGMaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDShhIAESBAoCZGYYAiICCAIKzQEKygEKrwGiBqsBChcKC1NBTEVTQU1PVU5UEgNTVU0SA0FWRxIHggIECgIIAhoRU0FMRVNBTU9VTlRfU1VNXzIaEVNBTEVTQU1PVU5UX0FWR18yGhFTQUxFU0FNT1VOVF9TVU1fMxoRU0FMRVNBTU9VTlRfQVZHXzMiClBST0RVQ1RLRVkqCU9SREVSREFURTIgCAkQahoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAZKGU6AgIDEhAKDm1vdmluZ19hZ2dfcmVzGAMiAggDCrsBCrgBCpkBmgaVAQocCgtTQUxFU0FNT1VOVBIDU1VNEgNNSU4SA01BWBIHggIECgIIAhoPU0FMRVNBTU9VTlRfU1VNGg9TQUxFU0FNT1VOVF9NSU4aD1NBTEVTQU1PVU5UX01BWCIKUFJPRFVDVEtFWSgBMglPUkRFUkRBVEU6IAgJEHEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgHShsEhQKEmN1bXVsYXRpdmVfYWdnX3JlcxgEIgIIBArDAQrAAQqkAYoGoAEKMroMLwogCAkQeBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAaKHMSC1NBTEVTQU1PVU5UEgeCAgQKAggCGhFTQUxFU0FNT1VOVF9MQUdfMRoRU0FMRVNBTU9VTlRfTEFHXzIiClBST0RVQ1RLRVkqAgECMglPUkRFUkRBVEU6IAgJEHgaFlNSQ19QT1NJVElPTl9URVNUX01PREUgGihzEhEKD2NvbXB1dGVfbGFnX3JlcxgFIgIIBQrGAQrDAQqmAZIGogEKMroMLwogCAkQfxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAbKHoSC1NBTEVTQU1PVU5UEgeCAgQKAggCGhJTQUxFU0FNT1VOVF9MRUFEXzEaElNBTEVTQU1PVU5UX0xFQURfMiIKUFJPRFVDVEtFWSoCAQIyCU9SREVSREFURTogCAkQfxoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAbKHoSEgoQY29tcHV0ZV9sZWFkX3JlcxgGIgIIBgrKAQrHAQq4AZIKtAEKeooBdwoUGhIKEAoOCgx0b190aW1lc3RhbXAaO8IGOAoJT1JERVJEQVRFEgeCAgQKAggCGiIIRRCBARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSA2KIEBIiIIRhCBARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSApKIEBEglPUkRFUkRBVEUaB4ICBAoCCAIiIghHEIEBGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0ogQESBAoCZGYYByICCAcK5AEK4QEKwQGqBr0BChcKC1NBTEVTQU1PVU5UEgNTVU0SA01BWBIHggIECgIIBxoSU1VNX1NBTEVTQU1PVU5UXzFEGhJNQVhfU0FMRVNBTU9VTlRfMUQaE1NVTV9TQUxFU0FNT1VOVF8tMUQaE01BWF9TQUxFU0FNT1VOVF8tMUQiClBST0RVQ1RLRVkqAzEySDIiCAkQjQEaFlNSQ19QT1NJVElPTl9URVNUX01PREUgHiiGAToJT1JERVJEQVRFQgIxREIDLTFEEhUKE3RpbWVfc2VyaWVzX2FnZ19yZXMYCCICCAgQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBc=
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 32
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: "2023-01-01"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: 101
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: 200
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 32
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: "2023-01-02"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: 101
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: 100
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 32
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: "2023-01-03"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: 101
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: 300
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 32
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: "2023-01-04"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: 102
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 32
+                    }
+                    v: 250
+                  }
+                }
+              }
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_df {
+        col_names: "ORDERDATE"
+        col_names: "PRODUCTKEY"
+        col_names: "SALESAMOUNT"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 32
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_with_column {
+        col {
+          div {
+            lhs {
+              sp_dataframe_col {
+                col_name: "SALESAMOUNT"
+                df {
+                  sp_dataframe_ref {
+                    id {
+                      bitfield1: 2
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 36
+                }
+              }
+            }
+            rhs {
+              int64_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 36
+                }
+                v: 2
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 36
+            }
+          }
+        }
+        col_name: "HALF_AMOUNT"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 36
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_analytics_moving_agg {
+        aggs {
+          _1: "SALESAMOUNT"
+          _2: "SUM"
+          _2: "AVG"
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        formatted_col_names: "SALESAMOUNT_SUM_2"
+        formatted_col_names: "SALESAMOUNT_AVG_2"
+        formatted_col_names: "SALESAMOUNT_SUM_3"
+        formatted_col_names: "SALESAMOUNT_AVG_3"
+        group_by: "PRODUCTKEY"
+        order_by: "ORDERDATE"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 38
+        }
+        window_sizes: 2
+        window_sizes: 3
+      }
+    }
+    symbol {
+      value: "moving_agg_res"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_analytics_moving_agg {
+        aggs {
+          _1: "SALESAMOUNT"
+          _2: "SUM"
+        }
+        aggs {
+          _1: "HALF_AMOUNT"
+          _2: "MAX"
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        formatted_col_names: "SALESAMOUNT_SUM_2"
+        formatted_col_names: "SALESAMOUNT_SUM_3"
+        formatted_col_names: "HALF_AMOUNT_MAX_2"
+        formatted_col_names: "HALF_AMOUNT_MAX_3"
+        group_by: "PRODUCTKEY"
+        order_by: "ORDERDATE"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 45
+        }
+        window_sizes: 2
+        window_sizes: 3
+      }
+    }
+    symbol {
+      value: "moving_agg_res2"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_analytics_cumulative_agg {
+        aggs {
+          _1: "SALESAMOUNT"
+          _2: "SUM"
+          _2: "MIN"
+          _2: "MAX"
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        formatted_col_names: "SALESAMOUNT_SUM"
+        formatted_col_names: "SALESAMOUNT_MIN"
+        formatted_col_names: "SALESAMOUNT_MAX"
+        group_by: "PRODUCTKEY"
+        is_forward: true
+        order_by: "ORDERDATE"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 52
+        }
+      }
+    }
+    symbol {
+      value: "cumulative_agg_res"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_analytics_compute_lag {
+        cols {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 59
+            }
+            v: "SALESAMOUNT"
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        formatted_col_names: "SALESAMOUNT_LAG_1"
+        formatted_col_names: "SALESAMOUNT_LAG_2"
+        group_by: "PRODUCTKEY"
+        lags: 1
+        lags: 2
+        order_by: "ORDERDATE"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 59
+        }
+      }
+    }
+    symbol {
+      value: "compute_lag_res"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_analytics_compute_lead {
+        cols {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 66
+            }
+            v: "SALESAMOUNT"
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        formatted_col_names: "SALESAMOUNT_LEAD_1"
+        formatted_col_names: "SALESAMOUNT_LEAD_2"
+        group_by: "PRODUCTKEY"
+        leads: 1
+        leads: 2
+        order_by: "ORDERDATE"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 66
+        }
+      }
+    }
+    symbol {
+      value: "compute_lead_res"
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_with_column {
+        col {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "to_timestamp"
+                  }
+                }
+              }
+            }
+            pos_args {
+              sp_dataframe_col {
+                col_name: "ORDERDATE"
+                df {
+                  sp_dataframe_ref {
+                    id {
+                      bitfield1: 2
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 73
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 73
+            }
+          }
+        }
+        col_name: "ORDERDATE"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 73
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_analytics_time_series_agg {
+        aggs {
+          _1: "SALESAMOUNT"
+          _2: "SUM"
+          _2: "MAX"
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 9
+            }
+          }
+        }
+        formatted_col_names: "SUM_SALESAMOUNT_1D"
+        formatted_col_names: "MAX_SALESAMOUNT_1D"
+        formatted_col_names: "SUM_SALESAMOUNT_-1D"
+        formatted_col_names: "MAX_SALESAMOUNT_-1D"
+        group_by: "PRODUCTKEY"
+        sliding_interval: "12H"
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 78
+        }
+        time_col: "ORDERDATE"
+        windows: "1D"
+        windows: "-1D"
+      }
+    }
+    symbol {
+      value: "time_series_agg_res"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

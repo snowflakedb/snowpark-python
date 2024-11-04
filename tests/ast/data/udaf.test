@@ -82,8 +82,8 @@ class PythonTopK:
 
 u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True,
           stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, if_not_exists=False, parallel=8,
-          statement_params={'a':'b'}, immutable=True, external_access_integrations=['s3'], secrets={'a':'c'},
-          comment='test udaf', force_inline_code=True)
+          statement_params={'a':'b', 'd':'e'}, immutable=True, external_access_integrations=['s3'],
+          secrets={'a':'c', 'e':'f'}, comment='test udaf', force_inline_code=True)
 
 df.agg(u2("a"))
 
@@ -97,11 +97,445 @@ df = df.to_df("a", "b")
 
 df.agg(sum_udaf("a")).collect()
 
-u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params=, statement_params={"a": "b"}, external_access_integrations=["s3"], secrets={"a": "c"}, immutable=True, comment="test udaf", source_code_display=True)
+u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params=, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", source_code_display=True)
 
 res3 = df.agg(u2("a"))
 
 ## EXPECTED ENCODED AST
 
-CqsBCqgBCpMB4gyPARoPEg1QeXRob25TdW1VREFGOgQKAmABSj4KE3NvdXJjZV9jb2RlX2Rpc3BsYXkSJ8IBJAogCAkQdBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSATKG4QAVILCgkKB3N1bV9pbnRgBGgBcgJgAYIBIAgJEHQaFlNSQ19QT1NJVElPTl9URVNUX01PREUgEyhuEgoKCHN1bV91ZGFmGAEiAggBCqIECp8ECpAE8gWMBArnAwrkAwp3ygJ0CiAIRxB2GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odhInugIkCiAIRxB2GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odhABEie6AiQKIAhHEHYaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDSh2EAMKd8oCdAogCEcQdhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKHYSJ7oCJAogCEcQdhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKHYQARInugIkCiAIRxB2GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odhAECnfKAnQKIAhHEHYaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDSh2Eie6AiQKIAhHEHYaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDSh2EAISJ7oCJAogCEcQdhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKHYQBQp3ygJ0CiAIRxB2GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odhInugIkCiAIRxB2GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odhACEie6AiQKIAhHEHYaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDSh2EAYaIAhHEHYaFlNSQ19QT1NJVElPTl9URVNUX01PREUgDSh2EgQKAmRmGAIiAggCCkYKRAo2wgkzCgFhCgFiEgeCAgQKAggCGiAIVxB2GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0odiABEgQKAmRmGAMiAggDCpoBCpcBCowB+gWIAQoHggIECgIIAxJbCleKAVQKBjoECgIIARoougwlCiAIHBB4GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA8oeBIBYSIgCBwQeBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAPKHgQARogCB0QeBoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAIKHgSABgEIgIIBAo5CjcKLcoGKggBEAEaAggEMiAIJxB4GhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgoeBIAGAUiAggFCggSBggGEgIIBRABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-CuQBCuEBCtIB4gzOAQoLCgl0ZXN0IHVkYWYSAnMzGg4IARIKUHl0aG9uVG9wSygBMgkKBwoFbnVtcHk6BAoCYAFAAUpAChNzb3VyY2VfY29kZV9kaXNwbGF5EinCASYKIgg+EK0BGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIA0oqgEQAVIJCgcKBXRvcF9rWgVudW1weWAIaAFyAmABegYKAWESAWOCASIIPhCtARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKKoBigEDCgFAkgEGCgFhEgFiEgQKAnUyGAciAggHCqABCp0BCpIB+gWOAQoHggIECgIIAxJfCluKAVgKBjoECgIIBxoqugwnCiIIFhCvARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAPKK8BEgFhIiIIFhCvARoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSAPKK8BEAEaIggXEK8BGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgorwESABgIIgIICBABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
+body {
+  assign {
+    expr {
+      udaf {
+        handler {
+          name: "PythonSumUDAF"
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+        }
+        kwargs {
+          _1: "source_code_display"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 45
+              }
+              v: true
+            }
+          }
+        }
+        name {
+          fn_name_flat {
+            name: "sum_int"
+          }
+        }
+        parallel: 4
+        replace: true
+        return_type {
+          sp_integer_type: true
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 45
+        }
+      }
+    }
+    symbol {
+      value: "sum_udaf"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 53
+                    }
+                    v: 3
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 53
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 53
+                    }
+                    v: 4
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 53
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 53
+                    }
+                    v: 5
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 53
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 53
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 53
+                    }
+                    v: 6
+                  }
+                }
+              }
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 53
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_df {
+        col_names: "a"
+        col_names: "b"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 53
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_agg {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        exprs {
+          args {
+            apply_expr {
+              fn {
+                sp_fn_ref {
+                  id {
+                    bitfield1: 1
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 55
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 55
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 55
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 4
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 55
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  eval {
+    uid: 6
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      udaf {
+        comment {
+          value: "test udaf"
+        }
+        external_access_integrations: "s3"
+        handler {
+          id: 1
+          name: "PythonTopK"
+        }
+        immutable: true
+        imports {
+          sp_table_name_flat {
+            name: "numpy"
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+        }
+        is_permanent: true
+        kwargs {
+          _1: "source_code_display"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 105
+              }
+              v: true
+            }
+          }
+        }
+        name {
+          fn_name_flat {
+            name: "top_k"
+          }
+        }
+        packages: "numpy"
+        parallel: 8
+        replace: true
+        return_type {
+          sp_integer_type: true
+        }
+        secrets {
+          _1: "a"
+          _2: "c"
+        }
+        secrets {
+          _1: "e"
+          _2: "f"
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 105
+        }
+        stage_location {
+          value: "@"
+        }
+        statement_params {
+          _1: "a"
+          _2: "b"
+        }
+        statement_params {
+          _1: "d"
+          _2: "e"
+        }
+      }
+    }
+    symbol {
+      value: "u2"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_agg {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 3
+            }
+          }
+        }
+        exprs {
+          args {
+            apply_expr {
+              fn {
+                sp_fn_ref {
+                  id {
+                    bitfield1: 7
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 110
+                  }
+                  v: "a"
+                }
+              }
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 110
+              }
+            }
+          }
+          variadic: true
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 110
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}

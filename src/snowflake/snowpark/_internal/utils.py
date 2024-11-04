@@ -55,7 +55,7 @@ if TYPE_CHECKING:
     except ImportError:
         ResultMetadataV2 = ResultMetadata
 
-logger = logging.getLogger("snowflake.snowpark")
+_logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
@@ -208,7 +208,7 @@ def _pandas_importer():  # noqa: E302
         # since we enable relative imports without dots this import gives us an issues when ran from test directory
         from pandas import DataFrame  # NOQA
     except ImportError as e:
-        logger.error(f"pandas is not installed {e}")
+        _logger.error(f"pandas is not installed {e}")
     return pandas
 
 
@@ -683,7 +683,7 @@ class WarningHelper:
 
     def warning(self, text: str) -> None:
         if self.count < self.warning_times:
-            logger.warning(text)
+            _logger.warning(text)
         self.count += 1
 
 
@@ -724,7 +724,7 @@ def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:
                 pass
     finally:
         if session is None:
-            logging.debug(
+            _logger.debug(
                 f"Could not retrieve default session "
                 f"for function {func.__qualname__}, capturing AST by default."
             )
@@ -973,7 +973,7 @@ def get_aliased_option_name(
     upper_key = key.strip().upper()
     aliased_key = alias_map.get(upper_key, upper_key)
     if aliased_key != upper_key:
-        logger.warning(
+        _logger.warning(
             f"Option '{key}' is aliased to '{aliased_key}'. You may see unexpected behavior."
             " Please refer to format specific options for more information"
         )
@@ -1153,6 +1153,47 @@ def prepare_pivot_arguments(
 def check_flatten_mode(mode: str) -> None:
     if not isinstance(mode, str) or mode.upper() not in ["OBJECT", "ARRAY", "BOTH"]:
         raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
+
+def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
+    from snowflake.snowpark import Column
+
+    return len(e) == 2 and isinstance(e[0], (Column, str)) and isinstance(e[1], str)
+
+
+def check_agg_exprs(
+    exprs: Union[
+        "snowflake.snowpark.Column",
+        Tuple["snowflake.snowpark.ColumnOrName", str],
+        Dict[str, str],
+    ]
+):
+    """Helper function to raise exceptions when invalid exprs have been passed."""
+    from snowflake.snowpark import Column
+
+    exprs, _ = parse_positional_args_to_list_variadic(*exprs)
+
+    # special case for single list or tuple
+    if is_valid_tuple_for_agg(exprs):
+        exprs = [exprs]
+
+    if len(exprs) > 0 and isinstance(exprs[0], dict):
+        for k, v in exprs[0].items():
+            if not (isinstance(k, str) and isinstance(v, str)):
+                raise TypeError(
+                    "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() "
+                    f"should contain only strings: got key-value pair with types {type(k), type(v)}"
+                )
+    else:
+        for e in exprs:
+            if not (
+                isinstance(e, Column)
+                or (isinstance(e, (list, tuple)) and is_valid_tuple_for_agg(e))
+            ):
+                raise TypeError(
+                    "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should "
+                    "contain only Column objects, or pairs of Column object (or column name) and strings."
+                )
 
 
 class MissingModin(MissingOptionalDependency):

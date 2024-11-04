@@ -1,6 +1,6 @@
 ## TEST CASE
 
-df = session.table("test_table")
+df = session.table(tables.table1)
 
 df.collect()
 
@@ -18,7 +18,7 @@ df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_except
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("test_table")
+df = session.table("table1")
 
 df.collect()
 
@@ -36,11 +36,276 @@ df.collect_nowait(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, log_on_except
 
 ## EXPECTED ENCODED AST
 
-CkkKRwo56gs2Eg4KDAoKdGVzdF90YWJsZRogCCgQWhoWU1JDX1BPU0lUSU9OX1RFU1RfTU9ERSANKFoiAggBEgQKAmRmGAEiAggBCjkKNwotygYqCAEQARoCCAEyIAgUEFwaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCChcEgAYAiICCAIKCBIGCAMSAggCEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-CjcKNQorygYoEAEaAggBMiAIHxBeGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgoXhIAGAQiAggECggSBggFEgIIBBABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-ClUKUwpJygZGCAEQARoCCAEyIAhDEGAaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCChgOhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGAYiAggGCggSBggHEgIIBhABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-ClMKUQpHygZEGgIIASABMiAIfRBiGhZTUkNfUE9TSVRJT05fVEVTVF9NT0RFIAgoYjoaCgpTRl9QQVJUTkVSEgxGQUtFX1BBUlRORVISABgIIgIICAoIEgYICRICCAgQARoREg8KDQoFZmluYWwQAxgLIAkiBBABGBc=
-CjkKNwotygYqEAEaAggBKAEyIAgbEGQaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCChkEgAYCiICCAoKCBIGCAsSAggKEAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
-ClUKUwpJygZGEAEaAggBKAEyIAhKEGYaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCChmOhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGAwiAggMCggSBggNEgIIDBABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-ClUKUwpJygZGGgIIASABKAEyIAh3EGgaFlNSQ19QT1NJVElPTl9URVNUX01PREUgCChoOhoKClNGX1BBUlRORVISDEZBS0VfUEFSVE5FUhIAGA4iAggOCggSBggPEgIIDhABGhESDwoNCgVmaW5hbBADGAsgCSIEEAEYFw==
-EAEaERIPCg0KBWZpbmFsEAMYCyAJIgQQARgX
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  eval {
+    uid: 3
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        case_sensitive: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  eval {
+    uid: 5
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 31
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  eval {
+    uid: 7
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        id {
+          bitfield1: 1
+        }
+        log_on_exception: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  eval {
+    uid: 9
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        case_sensitive: true
+        id {
+          bitfield1: 1
+        }
+        no_wait: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  eval {
+    uid: 11
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        case_sensitive: true
+        id {
+          bitfield1: 1
+        }
+        no_wait: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 37
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 12
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+body {
+  eval {
+    uid: 13
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        id {
+          bitfield1: 1
+        }
+        log_on_exception: true
+        no_wait: true
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 14
+    var_id {
+      bitfield1: 14
+    }
+  }
+}
+body {
+  eval {
+    uid: 15
+    var_id {
+      bitfield1: 14
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 23
+}
