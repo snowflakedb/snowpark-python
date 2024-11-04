@@ -16,7 +16,7 @@
 - Require `snowflake-connector-python>=3.12.0, <4.0.0` (was `>=3.10.0`).
 
 #### Bug Fixes
-- Fixed a bug that query history is not recorded if execution of that query failed.
+- Fixed a bug where query history is not recorded to `session.query_history` if execution of that query fails.
 
 ### Snowpark pandas API Updates
 
