@@ -4076,10 +4076,16 @@ class DataFrame:
                     table_type="temp",
                 )
             )
+            statement_params_for_cache_result = (
+                statement_params or self._statement_params
+            ).copy()
+            statement_params_for_cache_result[
+                "cache_result_temp_table"
+            ] = temp_table_name
             self._session._conn.execute(
                 df._plan,
                 _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params or self._statement_params,
+                    statement_params_for_cache_result,
                     self._session.query_tag,
                     SKIP_LEVELS_TWO,
                 ),
