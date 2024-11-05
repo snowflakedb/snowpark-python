@@ -89,7 +89,7 @@ class StoredProcedureProfiler:
         with self._lock:
             if self._query_history is None:
                 self._query_history = self._session.query_history(
-                    include_thread_id=True
+                    include_thread_id=True, record_error_queries=True
                 )
             self._is_enabled = True
 
