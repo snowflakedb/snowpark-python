@@ -22,7 +22,8 @@ INSTALL_REQ_LIST = [
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
-    "protobuf>=5.28",  # Snowpark IR
+    # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
+    "protobuf>=3.20, <6",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
@@ -52,6 +53,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
     "protoc-wheel-0",  # Protocol buffer compiler, for Snowpark IR
+    "lxml",  # used in read_xml tests
 ]
 
 # read the version

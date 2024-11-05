@@ -277,6 +277,7 @@ Functions
     sum
     sum_distinct
     sysdate
+    system_reference
     table_function
     tan
     tanh
@@ -321,5 +322,6 @@ Functions
     when
     when_matched
     when_not_matched
+    window
     xmlget
     year
