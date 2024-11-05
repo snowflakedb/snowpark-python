@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import threading
 from collections import Counter, defaultdict
 from typing import DefaultDict, Dict, List, Union
 
@@ -154,6 +154,7 @@ class MockAnalyzer:
         self.subquery_plans = []
         self.alias_maps_to_use = None
         self._conn = self.session._conn
+        self.rlock = threading.RLock()
 
     def analyze(
         self,
@@ -359,9 +360,10 @@ class MockAnalyzer:
             return f"{sql}"
 
         if isinstance(expr, Attribute):
-            assert self.alias_maps_to_use is not None
-            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
-            return quote_name(name)
+            with self.rlock:
+                assert self.alias_maps_to_use is not None
+                name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+                return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
             return expr.name
@@ -612,11 +614,12 @@ class MockAnalyzer:
         if isinstance(expr, Alias):
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
-                self.generated_alias_maps[expr.child.expr_id] = quoted_name
-                assert self.alias_maps_to_use is not None
-                for k, v in self.alias_maps_to_use.items():
-                    if v == expr.child.name:
-                        self.generated_alias_maps[k] = quoted_name
+                with self.rlock:
+                    self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                    assert self.alias_maps_to_use is not None
+                    for k, v in self.alias_maps_to_use.items():
+                        if v == expr.child.name:
+                            self.generated_alias_maps[k] = quoted_name
 
                 if df_aliased_col_name_to_real_col_name:
                     for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
@@ -745,11 +748,12 @@ class MockAnalyzer:
             )
 
     def resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
-        self.subquery_plans = []
-        self.generated_alias_maps = {}
-        result = self.do_resolve(logical_plan)
-        result.add_aliases(self.generated_alias_maps)
-        return result
+        with self.rlock:
+            self.subquery_plans = []
+            self.generated_alias_maps = {}
+            result = self.do_resolve(logical_plan)
+            result.add_aliases(self.generated_alias_maps)
+            return result
 
     def do_resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
         resolved_children = {}
@@ -763,7 +767,8 @@ class MockAnalyzer:
 
         if isinstance(logical_plan, MockSelectable):
             # Selectable doesn't have children. It already has the expr_to_alias dict.
-            self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
+            with self.rlock:
+                self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
             use_maps = {}
             # get counts of expr_to_alias keys
@@ -779,8 +784,8 @@ class MockAnalyzer:
                     use_maps.update(
                         {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
                     )
-
-            self.alias_maps_to_use = use_maps
+            with self.rlock:
+                self.alias_maps_to_use = use_maps
 
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
