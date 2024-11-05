@@ -157,7 +157,7 @@ class MockAnalyzer:
     def analyze(
         self,
         expr: Union[Expression, NamedExpression],
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]] = None,
         parse_local_name=False,
         keep_alias=True,
     ) -> Union[str, List[str]]:
@@ -617,10 +617,11 @@ class MockAnalyzer:
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
 
-                for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
-                    for k, v in df_alias_dict.items():
-                        if v == expr.child.name:
-                            df_alias_dict[k] = quoted_name
+                if df_aliased_col_name_to_real_col_name:
+                    for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
+                        for k, v in df_alias_dict.items():
+                            if v == expr.child.name:
+                                df_alias_dict[k] = quoted_name
 
             alias_exp = alias_expression(
                 self.analyze(
@@ -736,6 +737,7 @@ class MockAnalyzer:
         self.subquery_plans = []
         self.generated_alias_maps = {}
         result = self.do_resolve(logical_plan)
+        result.add_aliases(self.generated_alias_maps)
         return result
 
     def do_resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
@@ -947,6 +949,10 @@ class MockAnalyzer:
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, MockSelectable):
+            if isinstance(logical_plan, MockSelectStatement):
+                # align with the live connection behavior where the analyzer calls
+                # logical_plan.projection_in_str to resolve the alias map
+                logical_plan.projection_in_str
             return MockExecutionPlan(logical_plan, self.session)
 
     def create_select_statement(self, *args, **kwargs):
