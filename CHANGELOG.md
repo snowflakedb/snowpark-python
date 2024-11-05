@@ -38,6 +38,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### Bug Fixes
+
+- Fixed a bug where column aliases were incorrectly resolved in `DataFrame.join`, causing errors when selecting columns from a joined DataFrame.
+
 ## 1.24.0 (2024-10-28)
 
 ### Snowpark Python API Updates

@@ -142,6 +142,7 @@ from snowflake.snowpark.mock._select_statement import (
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import _NumericType
 
 
@@ -637,9 +638,19 @@ class MockAnalyzer:
             expr_str = self.analyze(
                 expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
             )
-            if parse_local_name:
-                expr_str = expr_str.upper()
-            return quote_name(expr_str.strip())
+            if isinstance(expr_str, str):
+                if parse_local_name:
+                    expr_str = expr_str.upper()
+                return quote_name(expr_str.strip())
+            elif isinstance(expr_str, list):
+                assert all(isinstance(e, str) for e in expr_str)
+                return ",".join([quote_name(e.strip()) for e in expr_str])
+            else:
+                raise SnowparkLocalTestingException(
+                    f"Invalid expression '{expr_str}' for UnresolvedAlias."
+                    f" Please ensure the alias name exists in the DataFrame."
+                )
+
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(
