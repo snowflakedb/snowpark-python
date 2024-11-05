@@ -1358,7 +1358,7 @@ class DataFrame:
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
-                if _emit_ast and ast and e._ast:
+                if _emit_ast and ast:
                     ast.cols.append(e._ast)
 
             elif isinstance(e, str):

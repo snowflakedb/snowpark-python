@@ -26,7 +26,7 @@ df2 = df1.select(
     )
 )
 
-df4 = df1.select(df1["a"] + Column(Interval(1234)))
+df4 = df1.select(df1["a"] + make_interval(1234))
 
 df5 = df1.select(
     df1["a"]
@@ -57,7 +57,7 @@ df6 = df1.select(
     )
 )
 
-df7 = df1.select(df1["a"] + make_interval(weeks=21))
+df7 = df1.select(df1["a"] + make_interval(weeks=21, mins=0))
 
 
 ## EXPECTED UNPARSER OUTPUT
@@ -66,13 +66,13 @@ df1 = session.create_dataframe([[datetime.datetime(2010, 1, 1, 0, 0, 0, 0, tzinf
 
 df2 = df1.select(df1["a"] + make_interval(quarters=1, months=1, weeks=2, days=2, hours=2, minutes=3, seconds=3, milliseconds=3, microseconds=4, nanoseconds=4))
 
-df4 = df1.select()
+df4 = df1.select(df1["a"] + make_interval(years=1234))
 
 df5 = df1.select(df1["a"] + make_interval(quarters=1, months=2, weeks=3, days=4, hours=5, minutes=6, seconds=7))
 
 df6 = df1.select(df1["a"] + make_interval(years=1, months=2, weeks=3, days=4, hours=5, minutes=6, seconds=7, milliseconds=8, microseconds=9, nanoseconds=10))
 
-df7 = df1.select(df1["a"] + make_interval(weeks=21))
+df7 = df1.select(df1["a"] + make_interval(weeks=21, mins=0))
 
 ## EXPECTED ENCODED AST
 
@@ -381,6 +381,59 @@ body {
   assign {
     expr {
       sp_dataframe_select__columns {
+        cols {
+          add {
+            lhs {
+              sp_dataframe_col {
+                col_name: "a"
+                df {
+                  sp_dataframe_ref {
+                    id {
+                      bitfield1: 1
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 51
+                }
+              }
+            }
+            rhs {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "make_interval"
+                      }
+                    }
+                  }
+                }
+                named_args {
+                  _1: "years"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 51
+                      }
+                      v: 1234
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 51
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 51
+            }
+          }
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -786,6 +839,17 @@ body {
                         start_line: 82
                       }
                       v: 21
+                    }
+                  }
+                }
+                named_args {
+                  _1: "mins"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 82
+                      }
                     }
                   }
                 }

@@ -9836,31 +9836,31 @@ def make_interval(
         # Encode the parameters as kwargs to make them more readable.
         # If any of the parameters are None, ignore them.
         kwargs = {}
-        if years:
+        if years is not None:
             kwargs["years"] = years
-        if quarters:
+        if quarters is not None:
             kwargs["quarters"] = quarters
-        if months:
+        if months is not None:
             kwargs["months"] = months
-        if weeks:
+        if weeks is not None:
             kwargs["weeks"] = weeks
-        if days:
+        if days is not None:
             kwargs["days"] = days
-        if hours:
+        if hours is not None:
             kwargs["hours"] = hours
-        if minutes:
+        if minutes is not None:
             kwargs["minutes"] = minutes
-        if seconds:
+        if seconds is not None:
             kwargs["seconds"] = seconds
-        if milliseconds:
+        if milliseconds is not None:
             kwargs["milliseconds"] = milliseconds
-        if microseconds:
+        if microseconds is not None:
             kwargs["microseconds"] = microseconds
-        if nanoseconds:
+        if nanoseconds is not None:
             kwargs["nanoseconds"] = nanoseconds
-        if mins:
+        if mins is not None:
             kwargs["mins"] = mins
-        if secs:
+        if secs is not None:
             kwargs["secs"] = secs
         build_builtin_fn_apply(ast, "make_interval", **kwargs)
 
