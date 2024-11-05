@@ -187,7 +187,7 @@ def test_value_scalar_axis_1(test_fillna_df):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_value_scalar_diff_type(test_fillna_df):
     snow_df = pd.DataFrame(test_fillna_df)
     # native pandas is able to upcast the column to object type if the type for the fillna

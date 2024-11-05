@@ -403,9 +403,16 @@ class ServerConnection:
             else:
                 raise ex
 
-    def notify_query_listeners(self, query_record: QueryRecord) -> None:
+    def notify_query_listeners(
+        self, query_record: QueryRecord, is_error: bool = False
+    ) -> None:
         with self._lock:
             for listener in self._query_listener:
+                if is_error and not (
+                    listener.session.stored_procedure_profiler._query_history
+                    == listener
+                ):
+                    continue
                 if getattr(listener, "include_thread_id", False):
                     new_record = QueryRecord(
                         query_record.query_id,
@@ -423,7 +430,9 @@ class ServerConnection:
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
         except Error as err:
-            self.notify_query_listeners(QueryRecord(err.sfqid, err.query))
+            self.notify_query_listeners(
+                QueryRecord(err.sfqid, err.query), is_error=True
+            )
             raise err
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
@@ -436,7 +445,9 @@ class ServerConnection:
         try:
             results_cursor = self._cursor.execute_async(query, **kwargs)
         except Error as err:
-            self.notify_query_listeners(QueryRecord(err.sfqid, err.query))
+            self.notify_query_listeners(
+                QueryRecord(err.sfqid, err.query), is_error=True
+            )
             raise err
         self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
         return results_cursor
@@ -767,7 +778,9 @@ class ServerConnection:
         try:
             results_cursor = self._cursor.executemany(query, params)
         except Error as err:
-            self.notify_query_listeners(QueryRecord(err.sfqid, err.query))
+            self.notify_query_listeners(
+                QueryRecord(err.sfqid, err.query), is_error=True
+            )
             raise err
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)

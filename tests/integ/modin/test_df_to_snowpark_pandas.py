@@ -110,7 +110,7 @@ def test_to_snowpark_pandas_with_operations(session, tmp_table_basic) -> None:
     assert sorted(snowpandas_index.values.tolist()) == [0]
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_to_snowpark_pandas_duplicated_columns_raises(session, tmp_table_basic) -> None:
     snowpark_df = session.table(tmp_table_basic)
     snowpark_df = snowpark_df.select(
