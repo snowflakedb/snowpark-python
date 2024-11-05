@@ -514,7 +514,7 @@ class TestInvalid:
             assert_exception_equal=False,
         )
 
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=0)
     @pytest.mark.parametrize(
         "op,error_message_type",
         [
@@ -625,14 +625,14 @@ class TestNumericEdgeCases:
         with pytest.raises(SnowparkSQLException, match=re.escape("Division by zero")):
             (snow_series / 0).to_pandas()
 
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=0)
     def test_floordiv_timedelta_by_zero_timedelta(self):
         snow_series, pandas_series = create_test_series(pd.Timedelta(1))
         assert_series_equal(pandas_series // pd.Timedelta(0), native_pd.Series(0))
         with pytest.raises(SnowparkSQLException, match=re.escape("Division by zero")):
             (snow_series // pd.Timedelta(0)).to_pandas()
 
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=0)
     def test_floordiv_timedelta_by_zero_integer(self):
         snow_series, pandas_series = create_test_series(pd.Timedelta(1))
         assert_series_equal(
