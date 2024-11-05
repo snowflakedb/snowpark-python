@@ -8,6 +8,7 @@
 
 - Added the following new functions in `snowflake.snowpark.dataframe`:
   - `map`
+- Added support for passing parameter `include_error` to `Session.query_history` to record queries that have error during execution.
 
 #### Improvements
 
@@ -17,7 +18,6 @@
 #### Bug Fixes
 
 - Fixed the pre-action and post-action query propagation when `In` expression were used in selects.
-- Fixed a bug where query history is not recorded to `session.query_history` if execution of that query fails.
 - Fixed a bug that raised error `AttributeError` while calling `Session.stored_procedure_profiler.get_output` when `Session.stored_procedure_profiler` is disabled.
 
 #### Dependency Updates
