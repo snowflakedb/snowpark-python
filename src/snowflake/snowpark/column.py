@@ -668,7 +668,10 @@ class Column:
 
     def name(self, alias: str) -> "Column":
         """Returns a new renamed Column."""
-        return Column(Alias(self._expression, quote_name(alias)))
+        expr = self._expression
+        if isinstance(expr, Alias):
+            expr = expr.child
+        return Column(Alias(expr, quote_name(alias)))
 
     def over(self, window: Optional[WindowSpec] = None) -> "Column":
         """
