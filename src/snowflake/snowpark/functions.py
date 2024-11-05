@@ -2546,7 +2546,9 @@ def lpad(
     """
     c = _to_col_if_str(e, "lpad")
     p = _to_col_if_str(pad, "lpad")
-    return builtin("lpad", _emit_ast=_emit_ast)(c, lit(len), p)
+    return builtin("lpad", _emit_ast=_emit_ast)(
+        c, len if isinstance(Column) else lit(len), p
+    )
 
 
 @publicapi
