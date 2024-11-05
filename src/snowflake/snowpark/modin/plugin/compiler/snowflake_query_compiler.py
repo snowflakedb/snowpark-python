@@ -2328,7 +2328,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # s4 = pd.Series([1, 1, 1], index=[2, 3, 2])
             # s3 + s4 -> pd.Series([NaN, 2, 2, 4, 4, NaN], index=[1, 2, 2, 2, 2, 3])
             aligned_frame, result_column_mapper = join_utils.align_on_index(
-                lhs_frame, rhs_frame, how="outer", sort=True
+                lhs_frame, rhs_frame
             )
 
             assert 2 == len(aligned_frame.data_column_snowflake_quoted_identifiers)
@@ -7356,11 +7356,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # both the frames.
                 # We rename index labels to make sure index columns are joined level
                 # by level.
-                # result_frame, _ = join_utils.join_on_index_columns(
-                #   result_frame, other_frame, how=join, sort=sort
-                # )
-
-                result_frame, _ = join_utils.align_on_index(
+                result_frame, _ = join_utils.join_on_index_columns(
                     result_frame, other_frame, how=join, sort=sort
                 )
 
@@ -14485,8 +14481,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 right=other_qc._modin_frame,
                 left_on=frame.index_column_snowflake_quoted_identifiers,
                 right_on=other_qc._modin_frame.index_column_snowflake_quoted_identifiers,
-                how="outer",
-                sort=True,
             )
 
             # columns that exist in both dfs
@@ -15664,7 +15658,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             left_on=self_frame.index_column_snowflake_quoted_identifiers,
             right_on=other_frame.index_column_snowflake_quoted_identifiers,
             how="outer",
-            sort=True,
         )
 
         left_right_pairs = prepare_binop_pairs_between_dataframe_and_dataframe(
@@ -18455,9 +18448,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         # Align (join) both dataframes on index.
-        align_result = join_utils.align_on_index(
-            self._modin_frame, other._modin_frame, how="outer", sort=True
-        )
+        align_result = join_utils.align_on_index(self._modin_frame, other._modin_frame)
 
         left_right_pairs = prepare_binop_pairs_between_dataframe_and_dataframe(
             align_result, self_frame.data_column_pandas_labels, self_frame, other_frame
@@ -18985,8 +18976,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             right=other._modin_frame,
             left_on=self._modin_frame.index_column_snowflake_quoted_identifiers,
             right_on=other._modin_frame.index_column_snowflake_quoted_identifiers,
-            how="outer",
-            sort=True,
         )
 
         # compare each column in `self` to the corresponding column in `other`.
