@@ -380,6 +380,7 @@ class DataFrameStatFunctions:
                 If a stratum is not specified in the ``dict``, the method uses 0 as the fraction.
         """
 
+        stmt = None
         if _emit_ast:
             # Add an assign node that applies SpDataframeStatsSampleBy() to the input, followed by its Eval.
             stmt = self._dataframe._session._ast_batch.assign()
@@ -400,7 +401,10 @@ class DataFrameStatFunctions:
                 res_df, "DataFrameStatFunctions.sample_by", len_subcalls=1
             )
 
+            if _emit_ast:
+                res_df._ast_id = stmt.var_id.bitfield1
             return res_df
+
         col = _to_col_if_str(col, "sample_by")
         res_df = reduce(
             lambda x, y: x.union_all(y, _emit_ast=False),
@@ -417,6 +421,9 @@ class DataFrameStatFunctions:
             precalls=self._dataframe._plan.api_calls,
             subcalls=res_df._plan.api_calls.copy(),
         )
+
+        if _emit_ast:
+            res_df._ast_id = stmt.var_id.bitfield1
 
         return res_df
 
