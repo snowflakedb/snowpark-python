@@ -4757,6 +4757,7 @@ class DataFrame:
 
         # AST.
         stmt = None
+        kwargs = {}
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_first, stmt)
@@ -4766,24 +4767,29 @@ class DataFrame:
             ast.block = block
             ast.num = 1 if n is None else n
 
+            self._session._ast_batch.eval(stmt)
+
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         if n is None:
             df = self.limit(1, _emit_ast=False)
             add_api_call(df, "DataFrame.first")
             result = df._internal_collect_with_tag(
-                statement_params=statement_params, block=block
+                statement_params=statement_params, block=block, **kwargs
             )
             if not block:
                 return result
             return result[0] if result else None
         elif n < 0:
             return self._internal_collect_with_tag(
-                statement_params=statement_params, block=block
+                statement_params=statement_params, block=block, **kwargs
             )
         else:
             df = self.limit(n, _emit_ast=False)
             add_api_call(df, "DataFrame.first")
             return df._internal_collect_with_tag(
-                statement_params=statement_params, block=block
+                statement_params=statement_params, block=block, **kwargs
             )
 
     take = first

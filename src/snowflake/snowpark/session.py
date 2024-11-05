@@ -3887,13 +3887,15 @@ class Session:
         self._conn.add_query_listener(query_listener)
         return query_listener
 
-    def ast_listener(self) -> AstListener:
+    def ast_listener(self, include_failures: bool = False) -> AstListener:
         """
         Creates an instance of :class:`AstListener` as a context manager to capture ast batches flushed.
         Returns: AstListener instance holding base64 encoded batches.
 
+        Args:
+            include_failures: Include ast objects that may have failed previous execution.
         """
-        al = AstListener(self)
+        al = AstListener(self, include_failures)
         self._conn.add_query_listener(al)
         return al
 
