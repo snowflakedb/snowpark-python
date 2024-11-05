@@ -1,6 +1,6 @@
 ## AST Protobuf
-The definition of AST is defined in Protobuf format and stored in `ast.proto` here.
-To get the AST definitions in Python, we can use `protoc` to compile them into Python files and will stored
+The Snowpark AST protocol is defined in Protobuf format and stored in `ast.proto` here.
+To get the AST definitions in Python, we can use `protoc` to compile them into Python files, and they will be stored
 under `/generated` directory.
 
 ### Protoc

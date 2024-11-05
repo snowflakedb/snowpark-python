@@ -48,7 +48,7 @@ getOSNameAndArch(){
 downloadProtoc() {
   URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP}"
 
-  echo "Gonna to download ${PROTOC_ZIP} at ${URL}"
+  echo "Downloading ${PROTOC_ZIP} at ${URL}"
 
   mkdir ${HOME}/local
 
