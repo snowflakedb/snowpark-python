@@ -91,35 +91,28 @@ def where_mapper(
             if cond.ndim == 1:
                 df_cond = cond.to_frame()
             else:
-                df_cond = cond
+                df_cond = cond.copy()
 
             origin_columns = df_cond.columns
-            new_columns: Union[str, list[str]] = [
-                f"new_value_{i}" for i in range(len(origin_columns))
-            ]
+            # rename the columns of df_cond for ensure no conflict happens when
+            # appending new columns
+            renamed_columns = [f"col_{i}" for i in range(len(origin_columns))]
+            df_cond.columns = renamed_columns
+            # broadcast scalar x to size of cond through indexing
+            new_columns = [f"new_col_{i}" for i in range(len(origin_columns))]
             df_cond[new_columns] = x
 
             if cond.ndim == 1:
-                new_columns = new_columns[0]
-                origin_columns = origin_columns[0]
+                df_scalar = df_cond[new_columns[0]]
+                df_scalar.name = cond.name
+            else:
+                df_scalar = df_cond[new_columns]
+                # use the same name as the cond dataframe to make sure
+                # pandas where happens correctly
+                df_scalar.columns = origin_columns
 
-            df_scalar = df_cond[new_columns]
-            cond = df_cond[origin_columns]
             return df_scalar.where(cond, y)
-            """
-            # broadcast scalar x to size of cond
-            object_shape = cond.shape
-            if len(object_shape) == 1:
-                df_scalar = pd.Series(x, index=range(object_shape[0]))
-            elif len(object_shape) == 2:
-                df_scalar = pd.DataFrame(
-                    x, index=range(object_shape[0]), columns=range(object_shape[1])
-                )
 
-            # handles np.where(df, scalar1, scalar2)
-            # handles np.where(df1, scalar, df2)
-            return df_scalar.where(cond, y)
-            """
     # return the sentinel NotImplemented if we do not support this function
     return NotImplemented
 

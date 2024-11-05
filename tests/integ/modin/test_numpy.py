@@ -9,6 +9,7 @@ import pytest
 from numpy.testing import assert_almost_equal, assert_array_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.integ.modin.utils import eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
@@ -258,7 +259,7 @@ def test_different_inputs(cond, x, y):
         assert_array_equal(sp_result, np_orig_result)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_broadcast_scalar_x_df():
     input_df = native_pd.DataFrame([[False, True], [False, True]])
     input_df2 = native_pd.DataFrame([[1, 0], [0, 1]])
@@ -269,7 +270,7 @@ def test_broadcast_scalar_x_df():
     assert_array_equal(snow_result, np_result)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_broadcast_scalar_x_ser():
     input_ser = native_pd.Series([False, True])
     input_ser2 = native_pd.Series([1, 0])
@@ -333,3 +334,21 @@ def test_where_with_different_columns_negative():
     sdf2 = pd.DataFrame(pdf2)
     with pytest.raises(TypeError):
         np.where(sdf1 == 0, sdf2, sdf1)
+
+
+@sql_count_checker(query_count=2, join_count=0)
+def test_scalar():
+    snow_df = pd.DataFrame({"A": [True, False, True], "B": [1, 2, 3]})
+
+    def compare_result(snow_result, native_result):
+        assert isinstance(snow_result, pd.Series)
+        assert isinstance(native_result, np.ndarray)
+        assert np.array_equal(snow_result.to_numpy(), native_result)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        snow_df.to_pandas(),
+        lambda df: np.where(df["A"], 1, 2),
+        comparator=compare_result,
+        test_attrs=False,
+    )
