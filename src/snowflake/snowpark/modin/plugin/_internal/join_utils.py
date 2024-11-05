@@ -1231,7 +1231,6 @@ def align(
     left_on: list[str],
     right_on: list[str],
     how: AlignTypeLit = "outer",
-    sort: bool = False,
 ) -> JoinOrAlignInternalFrameResult:
     """
     Align the left and the right frame on given columns 'left_on' and 'right_on' with
@@ -1308,7 +1307,7 @@ def align(
         left_on=left_on,
         right_on=right_on,
         how=how,
-        sort=sort,
+        sort=False,
         key_coalesce_config=coalesce_key_config,
         inherit_index=inherit_join_index,
     )
@@ -1319,7 +1318,6 @@ def align_on_index(
     left: InternalFrame,
     right: InternalFrame,
     how: AlignTypeLit = "outer",
-    sort: bool = False,
 ) -> JoinOrAlignInternalFrameResult:
     """
     Align the left and the right frame on the index columns with given join method (`how`).
@@ -1360,7 +1358,6 @@ def align_on_index(
         left_on=index_join_info.left_join_quoted_identifiers,
         right_on=index_join_info.right_join_quoted_identifiers,
         how=how,
-        sort=sort,
     )
     if how == "outer":
         # index reorder should only be needed for outer join since this is the only method inherent
