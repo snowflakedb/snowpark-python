@@ -918,7 +918,7 @@ body {
           string_val {
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 46
+              start_line: 43
             }
             v: "temp_c"
           }
@@ -933,7 +933,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 46
+          start_line: 43
         }
       }
     }
@@ -956,7 +956,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 46
+          start_line: 43
         }
       }
     }
