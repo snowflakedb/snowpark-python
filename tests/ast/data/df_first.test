@@ -14,13 +14,13 @@ df4 = df.first(0, statement_params={'a':'b', 'c':'d'}, block=False)
 
 df = session.table("table1")
 
-df1 = df.first(-5, True)
+df1 = df.first(n=-5)
 
-df2 = df.first(2, True)
+df2 = df.first(n=2)
 
-df3 = df.first(1, True)
+df3 = df.first(n=1)
 
-df4 = df.first(0, False, {"a": "b", "c": "d"})
+df4 = df.first(n=0, statement_params={"a": "b", "c": "d"}, block=False)
 
 ## EXPECTED ENCODED AST
 
