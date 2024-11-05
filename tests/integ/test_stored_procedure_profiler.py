@@ -3,6 +3,7 @@
 #
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from unittest import mock
 
 import pytest
 
@@ -253,6 +254,21 @@ def test_create_temp_stage(profiler_session):
     finally:
         profiler_session.sql(f"drop database if exists {db_name}").collect()
         profiler_session.sql(f"use database {current_db}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_set_active_profiler_failed(profiler_session, caplog):
+    pro = profiler_session.stored_procedure_profiler
+    with mock.patch(
+        "snowflake.snowpark.DataFrame._internal_collect_with_tag_no_telemetry",
+        side_effect=Exception,
+    ):
+        with caplog.at_level(logging.WARNING):
+            pro.set_active_profiler("Line")
+            assert "Set active profiler failed because of" in caplog.text
 
 
 def test_when_sp_profiler_not_enabled(profiler_session):
