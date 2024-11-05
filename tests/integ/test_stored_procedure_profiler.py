@@ -294,8 +294,7 @@ def test_stored_proc_error(
 
     profiler_session.stored_procedure_profiler.register_modules()
 
-    assert res is not None
-    assert "oom_sp" in res
+    assert res is not None and "oom_sp" in res
 
 
 @pytest.mark.skipif(
@@ -347,8 +346,7 @@ def test_stored_proc_error_async(
 
     profiler_session.stored_procedure_profiler.register_modules()
 
-    assert res is not None
-    assert "oom_sp" in res
+    assert res is not None and "oom_sp" in res
 
 
 @pytest.mark.skipif(
