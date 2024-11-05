@@ -9838,16 +9838,46 @@ def make_interval(
     You can also find some examples to use interval constants with :meth:`~snowflake.snowpark.Window.range_between`
     method.
     """
-
+    ast = None
     if _emit_ast:
-        raise NotImplementedError("TODO SNOW-1690923: Add interval support to IR.")
+        ast = proto.Expr()
+        # Encode the parameters as kwargs to make them more readable.
+        # If any of the parameters are None, ignore them.
+        kwargs = {}
+        if years is not None:
+            kwargs["years"] = years
+        if quarters is not None:
+            kwargs["quarters"] = quarters
+        if months is not None:
+            kwargs["months"] = months
+        if weeks is not None:
+            kwargs["weeks"] = weeks
+        if days is not None:
+            kwargs["days"] = days
+        if hours is not None:
+            kwargs["hours"] = hours
+        if minutes is not None:
+            kwargs["minutes"] = minutes
+        if seconds is not None:
+            kwargs["seconds"] = seconds
+        if milliseconds is not None:
+            kwargs["milliseconds"] = milliseconds
+        if microseconds is not None:
+            kwargs["microseconds"] = microseconds
+        if nanoseconds is not None:
+            kwargs["nanoseconds"] = nanoseconds
+        if mins is not None:
+            kwargs["mins"] = mins
+        if secs is not None:
+            kwargs["secs"] = secs
+        build_builtin_fn_apply(ast, "make_interval", **kwargs)
 
     # for migration purpose
     minutes = minutes or mins
     seconds = seconds or secs
 
     # create column
-    return Column(
+    res = Column(
         Interval(
             years,
             quarters,
@@ -9860,5 +9890,9 @@ def make_interval(
             milliseconds,
             microseconds,
             nanoseconds,
-        )
+        ),
+        _emit_ast=False,
     )
+
+    res._ast = ast
+    return res
