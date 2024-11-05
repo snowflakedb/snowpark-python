@@ -3212,12 +3212,12 @@ def regexp_replace(
     """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
-    pat = lit(pattern)
-    rep = lit(replacement)
-    pos = lit(position)
-    occ = lit(occurrences)
+    pat = pattern if isinstance(pattern, Column) else lit(pattern)
+    rep = replacement if isinstance(replacement, Column) else lit(replacement)
+    pos = position if isinstance(position, Column) else lit(position)
+    occ = occurrences if isinstance(occurrences, Column) else lit(occurrences)
 
-    params = [lit(p) for p in parameters]
+    params = [p if isinstance(p, Column) else lit(p) for p in parameters]
     return builtin(sql_func_name, _emit_ast=_emit_ast)(sub, pat, rep, pos, occ, *params)
 
 
