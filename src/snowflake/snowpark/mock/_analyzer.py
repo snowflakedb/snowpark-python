@@ -836,12 +836,16 @@ class MockAnalyzer:
             # plan_builder.join -> SnowflakePlanBuilder.build_binary which issues sql to evaluate the schema
             left.attributes
             right.attributes
+            common_columns = set(left.expr_to_alias.keys()).intersection(
+                right.expr_to_alias.keys()
+            )
             new_expr_to_alias = {
                 k: v
                 for k, v in {
                     **left.expr_to_alias,
                     **right.expr_to_alias,
                 }.items()
+                if k not in common_columns
             }
             return MockExecutionPlan(
                 logical_plan, self.session, expr_to_alias=new_expr_to_alias
