@@ -111,6 +111,8 @@ def where_mapper(
                 # pandas where happens correctly
                 df_scalar.columns = origin_columns
 
+            # handles np.where(df, scalar1, scalar2)
+            # handles np.where(df1, scalar, df2)
             return df_scalar.where(cond, y)
 
     # return the sentinel NotImplemented if we do not support this function
