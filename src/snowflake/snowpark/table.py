@@ -309,7 +309,7 @@ class Table(DataFrame):
             )
         else:
             plan = snowflake_table_plan
-        super().__init__(session, plan, _ast_stmt=_ast_stmt)
+        super().__init__(session, plan, _ast_stmt=_ast_stmt, _emit_ast=_emit_ast)
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
         self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
@@ -320,7 +320,12 @@ class Table(DataFrame):
         set_api_call_source(self, "Table.__init__")
 
     def __copy__(self) -> "Table":
-        return Table(self.table_name, self._session, self._is_temp_table_for_cleanup)
+        return Table(
+            self.table_name,
+            session=self._session,
+            is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
+            _emit_ast=self._session.ast_enabled,
+        )
 
     def __enter__(self):
         return self
