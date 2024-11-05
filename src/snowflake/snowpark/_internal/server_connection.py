@@ -408,10 +408,8 @@ class ServerConnection:
     ) -> None:
         with self._lock:
             for listener in self._query_listener:
-                if is_error and not (
-                    listener.session.stored_procedure_profiler._query_history
-                    == listener
-                ):
+                # if listener is not set to record error query, skip
+                if is_error and not listener._record_error_queries:
                     continue
                 if getattr(listener, "include_thread_id", False):
                     new_record = QueryRecord(

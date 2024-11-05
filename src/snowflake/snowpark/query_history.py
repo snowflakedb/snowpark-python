@@ -37,11 +37,13 @@ class QueryHistory:
         session: "snowflake.snowpark.session.Session",
         include_describe: bool = False,
         include_thread_id: bool = False,
+        record_error_queries: bool = False,
     ) -> None:
         self.session = session
         self._queries: List[QueryRecord] = []
         self._include_describe = include_describe
         self._include_thread_id = include_thread_id
+        self._record_error_queries = record_error_queries
 
     def __enter__(self):
         return self
