@@ -2172,7 +2172,7 @@ class Session:
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, self, stmt, _ast_stmt=stmt, _emit_ast=_emit_ast)
+        t = Table(name, session=self, _ast_stmt=stmt, _emit_ast=_emit_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
