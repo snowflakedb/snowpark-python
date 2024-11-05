@@ -37,6 +37,9 @@
 
 - Fixed a bug where aggregating a single-column dataframe with a single callable function (e.g. `pd.DataFrame([0]).agg(np.mean)`) would fail to transpose the result.
 
+#### Improvements
+- Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
+
 ### Snowpark Local Testing Updates
 
 #### Bug Fixes
