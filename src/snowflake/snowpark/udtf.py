@@ -910,7 +910,7 @@ class UDTFRegistration:
     ) -> UserDefinedTableFunction:
 
         check_output_schema_type(output_schema)
-        check_imports_type(imports)
+        check_imports_type(imports, "udtf-level")
 
         # Capture original parameters.
         ast, ast_id = None, None

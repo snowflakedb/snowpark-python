@@ -815,7 +815,7 @@ class StoredProcedureRegistration:
         **kwargs,
     ) -> StoredProcedure:
 
-        check_imports_type(imports)
+        check_imports_type(imports, "stored-proc-level")
 
         # AST. Capture original parameters, before any pre-processing.
         ast = None

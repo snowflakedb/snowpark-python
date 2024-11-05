@@ -949,7 +949,9 @@ def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
         )
 
 
-def check_imports_type(imports: Optional[List[Union[str, Tuple[str, str]]]]) -> None:
+def check_imports_type(
+    imports: Optional[List[Union[str, Tuple[str, str]]]], name=""
+) -> None:
     """Check that import parameter adheres to type hint given, if not raises TypeError."""
     if not (
         imports is None
@@ -968,7 +970,7 @@ def check_imports_type(imports: Optional[List[Union[str, Tuple[str, str]]]]) -> 
         )
     ):
         raise TypeError(
-            "udf-level import can only be a file path (str) or a tuple of the file path (str) and the import path (str)"
+            f"{name} import can only be a file path (str) or a tuple of the file path (str) and the import path (str)"
         )
 
 

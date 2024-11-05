@@ -855,7 +855,7 @@ class UDFRegistration:
         **kwargs,
     ) -> UserDefinedFunction:
 
-        check_imports_type(imports)
+        check_imports_type(imports, "udf-level")
 
         # AST. Capture original parameters, before any pre-processing.
         ast = None
