@@ -59,6 +59,7 @@
 #### New Features
 
 - Added support for patching functions that are unavailable in the `snowflake.snowpark.functions` module.
+- Added support for `snowflake.snowpark.functions.any_value`
 
 #### Bug Fixes
 
