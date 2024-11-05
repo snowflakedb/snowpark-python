@@ -13,6 +13,10 @@
 
 - When target stage is not set in profiler, a default stage from `Session.get_session_stage` is used instead of raising `SnowparkSQLException`.
 
+#### Bug Fixes
+
+- Fixed the pre-action and post-action query propagation when `In` expression were used in selects.
+
 #### Dependency Updates
 
 - Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.
