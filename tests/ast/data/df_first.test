@@ -18,23 +18,11 @@ df = session.table("table1")
 
 df1 = df.first(n=-5)
 
-df1
-
 df2 = df.first(n=2)
-
-df2
 
 df3 = df.first(n=1)
 
-df3
-
-df4 = df.first(n=1, block=False)
-
-df4
-
-df5 = df.first(n=0, statement_params={"a": "b", "c": "d"}, block=False)
-
-df5
+df4 = df.first(n=0, statement_params={"a": "b", "c": "d"}, block=False)
 
 ## EXPECTED ENCODED AST
 
