@@ -31,6 +31,10 @@ class PlanMetadata:
         # If quoted_identifiers is not None, then attributes will be None because we can't infer data types.
         assert not (self.attributes is not None and self.quoted_identifiers is not None)
 
+    @property
+    def has_cached_quoted_identifiers(self) -> bool:
+        return self.attributes is not None or self.quoted_identifiers is not None
+
 
 def infer_quoted_identifiers_from_expressions(
     expressions: List[Expression],
@@ -71,12 +75,18 @@ def infer_metadata(
     Infer metadata from the source plan.
     Returns the metadata including attributes (schema) and quoted identifiers (column names).
     """
+    from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+        Join,
+        LeftAnti,
+        LeftSemi,
+    )
     from snowflake.snowpark._internal.analyzer.select_statement import (
         Selectable,
         SelectStatement,
     )
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
     from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+        Aggregate,
         Filter,
         Project,
         Sample,
@@ -97,12 +107,39 @@ def infer_metadata(
         # When source_plan is a SnowflakeValues, metadata is already defined locally
         elif isinstance(source_plan, SnowflakeValues):
             attributes = source_plan.output
+        # When source_plan is Aggregate or Project, we already have quoted_identifiers
+        elif isinstance(source_plan, Aggregate):
+            quoted_identifiers = infer_quoted_identifiers_from_expressions(
+                source_plan.aggregate_expressions,  # type: ignore
+                analyzer,
+                df_aliased_col_name_to_real_col_name,
+            )
         elif isinstance(source_plan, Project):
             quoted_identifiers = infer_quoted_identifiers_from_expressions(
                 source_plan.project_list,  # type: ignore
                 analyzer,
                 df_aliased_col_name_to_real_col_name,
             )
+        # When source_plan is a Join, we only infer its quoted identifiers
+        # if two plans don't have any common quoted identifier
+        # This is conservative and avoids parsing join condition, but works for Snowpark pandas,
+        # because join DataFrames in Snowpark pandas guarantee that the column names are unique.
+        elif isinstance(source_plan, Join):
+            if (
+                isinstance(source_plan.left, SnowflakePlan)
+                and isinstance(source_plan.right, SnowflakePlan)
+                and source_plan.left._metadata.has_cached_quoted_identifiers
+                and source_plan.right._metadata.has_cached_quoted_identifiers
+            ):
+                quoted_identifiers = (
+                    source_plan.left.quoted_identifiers
+                    if isinstance(source_plan.join_type, (LeftAnti, LeftSemi))
+                    else source_plan.left.quoted_identifiers
+                    + source_plan.right.quoted_identifiers
+                )
+                # if there is common quoted identifier, reset it to None
+                if len(quoted_identifiers) != len(set(quoted_identifiers)):
+                    quoted_identifiers = None
         # If source_plan is a SelectStatement, SQL simplifier is enabled
         elif isinstance(source_plan, SelectStatement):
             # When attributes is cached on source_plan, just use it

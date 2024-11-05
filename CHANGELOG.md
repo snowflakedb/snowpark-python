@@ -27,12 +27,22 @@
 - Added support for `Index.to_numpy`.
 - Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 - Added support for `size` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for `snowflake.snowpark.functions.window`
+- Added support for `pd.read_pickle` (Uses native pandas for processing).
+- Added support for `pd.read_html` (Uses native pandas for processing).
+- Added support for `pd.read_xml` (Uses native pandas for processing).
+- Added support for aggregation functions `"size"` and `len` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+
+#### Bug Fixes
+
+- Fixed a bug where aggregating a single-column dataframe with a single callable function (e.g. `pd.DataFrame([0]).agg(np.mean)`) would fail to transpose the result.
 
 ### Snowpark Local Testing Updates
 
 #### Bug Fixes
 
 - Fixed a bug where `Table.update` could not handle `VariantType`, `MapType`, and `ArrayType` data types.
+- Fixed a bug where `Table.update` and `Table.merge` could fail if the target table's index was not the default `RangeIndex`.
 
 ## 1.24.0 (2024-10-28)
 
@@ -58,6 +68,7 @@
 - Disables sql simplification when sort is performed after limit.
   - Previously, `df.sort().limit()` and `df.limit().sort()` generates the same query with sort in front of limit. Now, `df.limit().sort()` will generate query that reads `df.limit().sort()`.
   - Improve performance of generated query for `df.limit().sort()`, because limit stops table scanning as soon as the number of records is satisfied.
+- Added a client side error message for when an invalid stage location is passed to DataFrame read functions.
 
 #### Bug Fixes
 
@@ -83,6 +94,7 @@
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 - Added support for `DataFrame.attrs` and `Series.attrs`.
 - Added support for `DataFrame.style`.
+- Added numpy compatibility support for `np.full_like`
 
 #### Improvements
 

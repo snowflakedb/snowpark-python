@@ -21,6 +21,7 @@ import pytz
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
+from snowflake.snowpark._internal.utils import unalias_datetime_part
 from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     _TIMESTAMP_TYPE_MAPPING,
@@ -57,7 +58,6 @@ from ._util import (
     convert_numeric_string_value_to_float_seconds,
     convert_snowflake_datetime_format,
     process_string_time_with_fractional_seconds,
-    unalias_datetime_part,
 )
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]

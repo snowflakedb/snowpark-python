@@ -872,9 +872,16 @@ def execute_mock_plan(
                     col_name = f"<local_test_internal_{str(exp.value)}>"
                     by_column_expression.append(child_rf[col_name])
                 else:
-                    by_column_expression.append(
-                        child_rf[plan.session._analyzer.analyze(exp)]
-                    )
+                    column_name = plan.session._analyzer.analyze(exp)
+                    if isinstance(exp, FunctionExpression):
+                        materialized_column = calculate_expression(
+                            exp, child_rf, plan.session._analyzer, expr_to_alias
+                        )
+                        # Only function expressions that are a mapping of existing columns can be aggregated on.
+                        # Any increase or reduction in number of rows is an invalid function expression.
+                        if len(materialized_column) == len(child_rf):
+                            child_rf[column_name] = materialized_column
+                    by_column_expression.append(child_rf[column_name])
         except KeyError as e:
             raise SnowparkLocalTestingException(
                 f"This is not a valid group by expression due to exception {e!r}"
