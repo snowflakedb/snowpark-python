@@ -409,7 +409,7 @@ class ServerConnection:
         with self._lock:
             for listener in self._query_listener:
                 # if listener is not set to record error query, skip
-                if is_error and not listener.include_error:
+                if is_error and not getattr(listener, "include_error", False):
                     continue
                 if getattr(listener, "include_thread_id", False):
                     new_record = QueryRecord(
