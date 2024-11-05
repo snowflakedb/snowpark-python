@@ -138,18 +138,20 @@ def test_anonymous_procedure(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_set_incorrect_active_profiler(profiler_session, db_parameters, tmp_stage_name):
+def test_set_incorrect_active_profiler(
+    profiler_session, db_parameters, tmp_stage_name, caplog
+):
     with pytest.raises(ValueError) as e:
         profiler_session.stored_procedure_profiler.set_target_stage(f"{tmp_stage_name}")
     assert "stage name must be fully qualified name" in str(e)
 
-    with pytest.raises(ValueError) as e:
+    with caplog.at_level(logging.WARNING):
         profiler_session.stored_procedure_profiler.set_target_stage(
             f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
         )
         profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
         profiler_session.stored_procedure_profiler.get_output()
-    assert "Last executed stored procedure does not exist" in str(e)
+    assert "last executed stored procedure does not exist" in caplog.text
 
     with pytest.raises(ValueError) as e:
         profiler_session.stored_procedure_profiler.set_active_profiler(
@@ -261,3 +263,10 @@ def test_profiler_without_target_stage(profiler_session, caplog):
             "Target stage for profiler not found, using default stage of current session."
             in str(caplog.text)
         )
+
+
+def test_when_sp_profiler_not_enabled(profiler_session):
+    pro = profiler_session.stored_procedure_profiler
+    # direct call get_output when profiler is not enabled
+    res = pro.get_output()
+    assert res == ""
