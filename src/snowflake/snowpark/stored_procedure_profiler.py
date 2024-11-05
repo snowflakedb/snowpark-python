@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import threading
 from typing import List, Literal, Optional
 
@@ -10,6 +11,8 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
     strip_double_quotes_in_like_statement_in_table_name,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class StoredProcedureProfiler:
@@ -26,6 +29,7 @@ class StoredProcedureProfiler:
         self._query_history = None
         self._lock = threading.RLock()
         self._active_profiler_number = 0
+        self._is_enabled = False
 
     def register_modules(self, stored_procedures: Optional[List[str]] = None) -> None:
         """
@@ -87,6 +91,7 @@ class StoredProcedureProfiler:
                 self._query_history = self._session.query_history(
                     include_thread_id=True
                 )
+            self._is_enabled = True
 
     def disable(self) -> None:
         """
@@ -97,6 +102,7 @@ class StoredProcedureProfiler:
             if self._active_profiler_number == 0:
                 self._session._conn.remove_query_listener(self._query_history)  # type: ignore
                 self._query_history = None
+            self._is_enabled = False
         sql_statement = "alter session set ACTIVE_PYTHON_PROFILER = ''"
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
@@ -122,8 +128,17 @@ class StoredProcedureProfiler:
         Please call this function right after the stored procedure you want to profile to avoid any error.
 
         """
+        # return empty string when profiler is not enabled to not interrupt user's code
+        if not self._is_enabled:
+            logger.warning(
+                "You are seeing this warning because you try to get profiler output while profiler is disabled. Please use profiler.set_active_profiler() to enable profiler."
+            )
+            return ""
         query_id = self._get_last_query_id()
         if query_id is None:
-            raise ValueError("Last executed stored procedure does not exist")
+            logger.warning(
+                "You are seeing this warning because last executed stored procedure does not exist. Please run the store procedure before get profiler output."
+            )
+            return ""
         sql = f"select snowflake.core.get_python_profiler_output('{query_id}')"
         return self._session.sql(sql)._internal_collect_with_tag_no_telemetry()[0][0]  # type: ignore
