@@ -9833,23 +9833,36 @@ def make_interval(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "make_interval",
-            years,
-            quarters,
-            months,
-            weeks,
-            days,
-            hours,
-            minutes,
-            seconds,
-            milliseconds,
-            microseconds,
-            nanoseconds,
-            mins,
-            secs,
-        )
+        # Encode the parameters as kwargs to make them more readable.
+        # If any of the parameters are None, ignore them.
+        kwargs = {}
+        if years:
+            kwargs["years"] = years
+        if quarters:
+            kwargs["quarters"] = quarters
+        if months:
+            kwargs["months"] = months
+        if weeks:
+            kwargs["weeks"] = weeks
+        if days:
+            kwargs["days"] = days
+        if hours:
+            kwargs["hours"] = hours
+        if minutes:
+            kwargs["minutes"] = minutes
+        if seconds:
+            kwargs["seconds"] = seconds
+        if milliseconds:
+            kwargs["milliseconds"] = milliseconds
+        if microseconds:
+            kwargs["microseconds"] = microseconds
+        if nanoseconds:
+            kwargs["nanoseconds"] = nanoseconds
+        if mins:
+            kwargs["mins"] = mins
+        if secs:
+            kwargs["secs"] = secs
+        build_builtin_fn_apply(ast, "make_interval", **kwargs)
 
     # for migration purpose
     minutes = minutes or mins
