@@ -1108,7 +1108,11 @@ class Column:
             ast = with_src_position(expr.sp_column_string_starts_with)
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.prefix, other)
-        other = snowflake.snowpark.functions.lit(other)
+        other = (
+            other
+            if isinstance(other, Column)
+            else snowflake.snowpark.functions.lit(other)
+        )
         return Column(
             snowflake.snowpark.functions.startswith(self, other)._expression,
             _ast=expr,
@@ -1130,7 +1134,11 @@ class Column:
             ast.col.CopyFrom(self._ast)
             build_expr_from_snowpark_column_or_python_val(ast.suffix, other)
 
-        other = snowflake.snowpark.functions.lit(other)
+        other = (
+            other
+            if isinstance(other, Column)
+            else snowflake.snowpark.functions.lit(other)
+        )
         return Column(
             snowflake.snowpark.functions.endswith(self, other)._expression,
             _ast=expr,
