@@ -255,6 +255,10 @@ def test_create_temp_stage(profiler_session):
         profiler_session.sql(f"use database {current_db}").collect()
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
 def test_profiler_without_target_stage(profiler_session, caplog):
     pro = profiler_session.stored_procedure_profiler
     with caplog.at_level(logging.INFO):
