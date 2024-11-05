@@ -9,6 +9,10 @@
 - Added the following new functions in `snowflake.snowpark.dataframe`:
   - `map`
 
+#### Improvements
+
+- Allowed lower case or mixed case input when calling `Session.stored_procedure_profiler.set_active_profiler`.
+
 #### Bug Fixes
 
 - Fixed the pre-action and post-action query propagation when `In` expression were used in selects.
