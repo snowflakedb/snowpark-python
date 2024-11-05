@@ -305,7 +305,7 @@ class LargeQueryBreakdown:
                 for child in node.children_plan_nodes:
                     self._parent_map[child].add(node)
                     validity_status, score = self._is_node_valid_to_breakdown(
-                        child, root, allow_select_statement=False
+                        child, root, relaxed=False
                     )
                     if validity_status == InvalidNodesInBreakdownCategory.VALID_NODE:
                         # If the score for valid node is higher than the last candidate,
@@ -324,7 +324,7 @@ class LargeQueryBreakdown:
                         # If node is not a pipeline breaker, we allow select statements to be
                         # considered as valid candidates for partitioning.
                         relaxed_validity_status, _ = self._is_node_valid_to_breakdown(
-                            child, root, allow_select_statement=True
+                            child, root, relaxed=True
                         )
                         if (
                             relaxed_validity_status
@@ -380,7 +380,7 @@ class LargeQueryBreakdown:
         return temp_table_plan
 
     def _is_node_valid_to_breakdown(
-        self, node: TreeNode, root: TreeNode, allow_select_statement: bool
+        self, node: TreeNode, root: TreeNode, relaxed: bool
     ) -> Tuple[InvalidNodesInBreakdownCategory, int]:
         """Method to check if a node is valid to breakdown based on complexity score and node type.
 
@@ -394,9 +394,11 @@ class LargeQueryBreakdown:
         is_valid = True
         validity_status = (
             InvalidNodesInBreakdownCategory.VALID_NODE
-            if not allow_select_statement
+            if not relaxed
             else InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
         )
+
+        # check score bounds
         if score < self.complexity_score_lower_bound:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.SCORE_BELOW_LOWER_BOUND
@@ -405,24 +407,17 @@ class LargeQueryBreakdown:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
 
-        if (
-            is_valid
-            and not allow_select_statement
-            and not self._is_node_pipeline_breaker(node)
-        ):
+        # check pipeline breaker condition
+        pipeline_breaker = (
+            self._is_relaxed_pipeline_breaker(node)
+            if relaxed
+            else self._is_node_pipeline_breaker(node)
+        )
+        if is_valid and not pipeline_breaker:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
 
-        if (
-            is_valid
-            and allow_select_statement
-            and not isinstance(node, SelectStatement)
-        ):
-            # If the node is not a SelectStatement, and allow_select_statement is True,
-            # then we know this node is a pipeline breaker.
-            is_valid = False
-            validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
-
+        # check external CTE ref condition
         if is_valid and self._contains_external_cte_ref(node, root):
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.EXTERNAL_CTE_REF
@@ -491,6 +486,13 @@ class LargeQueryBreakdown:
             root_count = root.referenced_ctes[with_query_block]
             if node_count != root_count:
                 return True
+
+        return False
+
+    def _is_relaxed_pipeline_breaker(self, node: LogicalPlan) -> bool:
+        """Method to check if a node is a relaxed pipeline breaker based on the node type."""
+        if isinstance(node, SelectStatement):
+            return True
 
         return False
 
