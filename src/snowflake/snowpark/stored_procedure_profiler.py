@@ -29,6 +29,7 @@ class StoredProcedureProfiler:
         self._query_history = None
         self._lock = threading.RLock()
         self._active_profiler_number = 0
+        self._has_target_stage = False
         self._is_enabled = False
 
     def register_modules(self, stored_procedures: Optional[List[str]] = None) -> None:
@@ -50,6 +51,8 @@ class StoredProcedureProfiler:
         Args:
             stage: String of fully qualified name of targeted stage
         """
+        with self._lock:
+            self._has_target_stage = True
         names = parse_table_name(stage)
         if len(names) != 3:
             raise ValueError(
@@ -62,7 +65,7 @@ class StoredProcedureProfiler:
             self._session.sql(
                 f"create temp stage if not exists {stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
             )._internal_collect_with_tag_no_telemetry()
-        sql_statement = f'alter session set PYTHON_PROFILER_TARGET_STAGE ="{stage}"'
+        sql_statement = f"alter session set PYTHON_PROFILER_TARGET_STAGE ='{stage}'"
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
     def set_active_profiler(
@@ -73,19 +76,27 @@ class StoredProcedureProfiler:
 
         Args:
             active_profiler_type: String that represent active_profiler, must be either 'LINE' or 'MEMORY'
-            (case-sensitive). Active profiler is 'LINE' by default.
+            (case-insensitive). Active profiler is 'LINE' by default.
 
         """
+        if not self._has_target_stage:
+            self.set_target_stage(self._session.get_session_stage().lstrip("@"))
+            logger.info(
+                "Target stage for profiler not found, using default stage of current session."
+            )
         with self._lock:
             self._active_profiler_number += 1
-        if active_profiler_type not in ["LINE", "MEMORY"]:
+        if active_profiler_type.upper() not in ["LINE", "MEMORY"]:
             raise ValueError(
                 f"active_profiler expect 'LINE', 'MEMORY', got {active_profiler_type} instead"
             )
-        sql_statement = (
-            f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type}'"
-        )
-        self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
+        sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type.upper()}'"
+        try:
+            self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
+        except Exception as e:
+            logger.warning(
+                f"Set active profiler failed because of {e}. Active profiler is previously set value or default 'LINE' now."
+            )
         with self._lock:
             if self._query_history is None:
                 self._query_history = self._session.query_history(
