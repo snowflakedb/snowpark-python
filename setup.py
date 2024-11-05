@@ -189,7 +189,7 @@ setup(
             *DEVELOPMENT_REQUIREMENTS,
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
-            "scikit-learn==1.5.2",  # snowpandas scikit-learn tests
+            "scikit-learn==1.5.2",  # Snowpark pandas scikit-learn tests
         ],
         "localtest": [
             "pandas",
