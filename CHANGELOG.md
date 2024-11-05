@@ -11,6 +11,7 @@
 
 #### Improvements
 
+- When target stage is not set in profiler, a default stage from `Session.get_session_stage` is used instead of raising `SnowparkSQLException`.
 - Allowed lower case or mixed case input when calling `Session.stored_procedure_profiler.set_active_profiler`.
 
 #### Bug Fixes
