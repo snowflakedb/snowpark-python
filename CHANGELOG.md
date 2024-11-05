@@ -47,6 +47,10 @@
 
 ### Snowpark Local Testing Updates
 
+#### New Features
+
+- Added support for patching functions that are unavailable in the `snowflake.snowpark.functions` module.
+
 #### Bug Fixes
 
 - Fixed a bug where `Table.update` and `Table.merge` could fail if the target table's index was not the default `RangeIndex`.
