@@ -15,9 +15,12 @@ from snowflake.core.user_defined_function import UserDefinedFunction
 from snowflake.core.view import View
 
 import snowflake.snowpark
+from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
+from snowflake.snowpark.types import DataType
 
 DatabaseOrStr = Union[str, Database]
 SchemaOrStr = Union[str, Schema]
+ArgumentType = Union[List[DataType], Tuple[DataType]]
 
 
 class Catalog:
@@ -42,6 +45,22 @@ class Catalog:
         if schema is None:
             return self._session.get_current_schema()
         raise ValueError("")
+
+    def _parse_function_or_procedure(
+        self,
+        fn: Union[str, Function, Procedure, UserDefinedFunction],
+        arg_types: Optional[ArgumentType],
+    ) -> str:
+        if isinstance(fn, str):
+            if arg_types is None:
+                raise ValueError("arg_types must be provided when function is a string")
+            arg_types_str = ", ".join(
+                [convert_sp_to_sf_type(arg_type) for arg_type in arg_types]
+            )
+            return f"{fn}({arg_types_str})"
+
+        arg_types_str = ", ".join(arg.datatype for arg in fn.arguments)
+        return f"{fn.name}({arg_types_str})"
 
     # List methods
     def list_databases(
@@ -206,19 +225,49 @@ class Catalog:
         return self._root.databases[db_name].schemas[schema_name].views[view_name]
 
     def get_function(
-        self, function_name: str, arg_types: Union[List, Tuple]
+        self,
+        function_name: str,
+        arg_types: ArgumentType,
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
     ) -> Function:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        function_id = self._parse_function_or_procedure(function_name, arg_types)
+        return self._root.databases[db_name].schemas[schema_name].functions[function_id]
 
     def get_procedure(
-        self, procedure_name: str, arg_types: Union[List, Tuple]
+        self,
+        procedure_name: str,
+        arg_types: ArgumentType,
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
     ) -> Procedure:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        procedure_id = self._parse_function_or_procedure(procedure_name, arg_types)
+        return (
+            self._root.databases[db_name].schemas[schema_name].procedures[procedure_id]
+        )
 
     def get_user_defined_function(
-        self, udf_name: str, arg_types: Union[List, Tuple]
+        self,
+        udf_name: str,
+        arg_types: ArgumentType,
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
     ) -> UserDefinedFunction:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        function_id = self._parse_function_or_procedure(udf_name, arg_types)
+        return (
+            self._root.databases[db_name]
+            .schemas[schema_name]
+            .user_defined_functions[function_id]
+        )
 
     # set methods
     def set_current_database(self, database: DatabaseOrStr) -> None:
@@ -285,33 +334,63 @@ class Catalog:
 
     def function_exists(
         self,
-        function: Union[str, Function],
-        arg_types: Union[List, Tuple],
+        func: Union[str, Function],
+        arg_types: Optional[ArgumentType] = None,
         *,
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr],
     ) -> bool:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        function_id = self._parse_function_or_procedure(func, arg_types)
+
+        try:
+            self._root.databases[db_name].schemas[schema_name].functions[
+                function_id
+            ].fetch()
+            return True
+        except NotFoundError:
+            return False
 
     def procedure_exists(
         self,
         procedure: Union[str, Procedure],
-        arg_types: Union[List, Tuple],
+        arg_types: Optional[ArgumentType] = None,
         *,
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> bool:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        procedure_id = self._parse_function_or_procedure(procedure, arg_types)
+
+        try:
+            self._root.databases[db_name].schemas[schema_name].procedures[
+                procedure_id
+            ].fetch()
+            return True
+        except NotFoundError:
+            return False
 
     def user_defined_function_exists(
         self,
         udf: Union[str, UserDefinedFunction],
-        arg_types: Union[List, Tuple],
+        arg_types: Optional[ArgumentType] = None,
         *,
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr],
     ) -> bool:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        function_id = self._parse_function_or_procedure(udf, arg_types)
+
+        try:
+            self._root.databases[db_name].schemas[schema_name].user_defined_functions[
+                function_id
+            ].fetch()
+            return True
+        except NotFoundError:
+            return False
 
     # drop methods
     def drop_database(self, database: DatabaseOrStr) -> None:
@@ -353,30 +432,43 @@ class Catalog:
 
     def drop_function(
         self,
-        function: Union[str, Function],
-        arg_types: Union[List, Tuple],
+        func: Union[str, Function],
+        arg_types: Optional[ArgumentType] = None,
         *,
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> None:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        function_id = self._parse_function_or_procedure(func, arg_types)
+        self._root.databases[db_name].schemas[schema_name].functions[function_id].drop()
 
     def drop_procedure(
         self,
         procedure: Union[str, Procedure],
-        arg_types: Union[List, Tuple],
+        arg_types: Optional[ArgumentType] = None,
         *,
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> None:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        procedure_id = self._parse_function_or_procedure(procedure, arg_types)
+        self._root.databases[db_name].schemas[schema_name].procedures[
+            procedure_id
+        ].drop()
 
     def drop_user_defined_function(
         self,
         udf: Union[str, UserDefinedFunction],
-        arg_types: Union[List, Tuple],
+        arg_types: Optional[ArgumentType] = None,
         *,
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
     ) -> None:
-        pass
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+        function_id = self._parse_function_or_procedure(udf, arg_types)
+        self._root.databases[db_name].schemas[schema_name].user_defined_functions[
+            function_id
+        ].drop()
