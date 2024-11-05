@@ -973,6 +973,10 @@ def create_map(
         <BLANKLINE>
     """
 
+    def _check_map_parameter(cols):
+        # TODO: clarify in meeting parameter type and make changes.
+        pass
+
     # Note: The type hint seems wrong here, hard to infer what the correct API here is.
 
     if len(cols) == 1 and isinstance(cols[0], (list, set)):
