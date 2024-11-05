@@ -150,11 +150,12 @@ class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self.plan_builder = MockSnowflakePlanBuilder(self.session)
-        self.generated_alias_maps = {}
-        self.subquery_plans = []
-        self.alias_maps_to_use = None
         self._conn = self.session._conn
         self.rlock = threading.RLock()
+        with self.rlock:
+            self.subquery_plans = []
+            self.generated_alias_maps = {}
+            self.alias_maps_to_use = None
 
     def analyze(
         self,
