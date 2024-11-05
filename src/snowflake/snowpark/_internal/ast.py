@@ -24,10 +24,24 @@ class TrackedCallable:
 
 
 class AstBatch:
+    """
+    A batch of AST statements. This class is used to generate AST requests.
+
+    The core statement types are:
+    - Assign: Creates a new variable and assigns a value to it.
+    - Eval: Evaluates a variable.
+    """
+
     # Function used to generate request IDs. This is overridden in some tests.
     generate_request_id = uuid.uuid4
 
     def __init__(self, session) -> None:
+        """
+        Initializes a new AST batch.
+
+        Args:
+            session: The Snowpark session.
+        """
         self._session = session
         self.reset_id_gen()
         self._init_batch()
@@ -36,9 +50,16 @@ class AstBatch:
         self._callables = {}
 
     def reset_id_gen(self):
+        """Resets the ID generator."""
         self._id_gen = itertools.count(start=1)
 
     def assign(self, symbol=None):
+        """
+        Creates a new assignment statement.
+
+        Args:
+            symbol: An optional symbol to name the new variable.
+        """
         stmt = self._request.body.add()
         # TODO: extended BindingId spec from the branch snowpark-ir.
         stmt.assign.uid = next(self._id_gen)
@@ -47,6 +68,12 @@ class AstBatch:
         return stmt.assign
 
     def eval(self, target):
+        """
+        Creates a new evaluation statement.
+
+        Args:
+            target: The variable to evaluate.
+        """
         stmt = self._request.body.add()
         stmt.eval.uid = next(self._id_gen)
         stmt.eval.var_id.CopyFrom(target.var_id)
