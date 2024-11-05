@@ -17,14 +17,6 @@ from snowflake.snowpark.version import VERSION
 CLIENT_AST_VERSION = proto.__Version__.MAX_VERSION
 
 
-# TODO: currently unused.
-def expr_to_dataframe_expr(expr):
-    dfe = proto.SpDataframeExpr()
-    variant = expr.WhichOneof("variant")
-    getattr(dfe, variant).CopyFrom(getattr(expr, variant))
-    return dfe
-
-
 @dataclass
 class TrackedCallable:
     var_id: int
