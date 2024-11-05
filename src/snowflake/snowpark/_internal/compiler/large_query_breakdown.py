@@ -518,9 +518,8 @@ class LargeQueryBreakdown:
             return True
 
         if isinstance(node, SelectStatement):
-            # If select statement are allowed to be considered as pipeline breaker, then
-            # we return True. Otherwise, we check if the select statement contains an order by
-            # clause since sorting is a pipeline breaker.
+            # SelectStatement is a pipeline breaker if it contains an order by clause since sorting
+            # is a pipeline breaker.
             return node.order_by is not None
 
         if isinstance(node, SetStatement):
