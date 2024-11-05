@@ -65,31 +65,42 @@ def notify_compare_ast_validation_with_session(
     qid_result1 = validation_session._ast_full_validation_result
     qid_result2 = query_record.query_id
 
-    # Compare the results from both queries, if 0 then equal otherwise not equal.
-    comparison_sql = f"""
-        select sum(*) from (
-            select sum(*) as result1 from (select hash(*) from table(result_scan('{qid_result1}')))
-            union all
-            select -sum(*) as result2 from (select hash(*) from table(result_scan('{qid_result2}')))
-        )
-    """
-
     error_msg = ""
     success = False
-    try:
-        results_cursor = validation_session._conn._cursor.execute(comparison_sql)
-        compare_results = validation_session._conn._to_data_or_iter(
-            results_cursor, False, False
-        )
-        compare_diff = compare_results["data"][0][0]
-        success = compare_diff == 0
-        if not success:
-            error_msg = f"Full AST validation results differed.\n\nResult 1 Query Id: {qid_result1}\nResult 2 Query Id: {qid_result2}\n"
-    except Exception as ex:
-        error_msg = str(ex) + "\n"
+
+    # If the original query failed, then we expect the validation query to also fail.  We do not bother checking
+    # the specific exception here as that is checked later.
+    if qid_result1 is None and qid_result2 is None:
+        return
+    elif qid_result1 is None or qid_result2 is None:
+        # If only one result is None, that implies that one of them failed and the other succeeded.
         success = False
+    else:
+        # Compare the results from both queries, if 0 then equal otherwise not equal.
+        comparison_sql = f"""
+            select sum(*) from (
+                select sum(*) as result1 from (select hash(*) from table(result_scan('{qid_result1}')))
+                union all
+                select -sum(*) as result2 from (select hash(*) from table(result_scan('{qid_result2}')))
+            )
+        """
+
+        try:
+            results_cursor = validation_session._conn._cursor.execute(comparison_sql)
+            compare_results = validation_session._conn._to_data_or_iter(
+                results_cursor, False, False
+            )
+            compare_diff = compare_results["data"][0][0]
+            # The results can be None if the query result is an empty set.
+            success = compare_diff is None or compare_diff == 0
+        except Exception as ex:
+            error_msg = str(ex) + "\n"
+            success = False
 
     if not success:
+        if error_msg == "":
+            error_msg = f"Full AST validation results differed.\n\nResult 1 Query Id: {qid_result1}\nResult 2 Query Id: {qid_result2}\n"
+
         error_msg = error_msg + generate_error_trace_info(
             validation_session._debug_python_code_output
         )
@@ -188,10 +199,12 @@ def notify_full_ast_validation_with_listener(
             base64_batches, full_ast_validation_listener._unparser_jar
         )
     except Exception as ex:
-        error_msg = (
-            str(ex)
-            + "\n"
-            + generate_error_trace_info("Java unparser execution failed.")
+        if isinstance(ex, subprocess.CalledProcessError):
+            error_details = "REPRO CMD:\n" + " ".join(ex.cmd)
+        else:
+            error_details = str(ex)
+        error_msg = "Java unparser execution failed.\n" + generate_error_trace_info(
+            error_details
         )
         pytest.assume(
             False,
@@ -212,11 +225,26 @@ def notify_full_ast_validation_with_listener(
     try:
         exec(python_code_output, globals_dict, globals_dict)
     except Exception as ex:
-        error_msg = str(ex) + "\n" + generate_error_trace_info(python_code_output)
-        pytest.assume(
-            False,
-            f"""Full AST validation failed, could not run unparser generated python code.\n{error_msg}""",
-        )
+        if "exception" in kwargs:
+            validation_ex = ex.conn_error if hasattr(ex, "conn_error") else ex
+            if not isinstance(kwargs["exception"], type(validation_ex)):
+                error_msg = (
+                    f"Original exception: {kwargs['exception']}\nValidation exception: {validation_ex}\n"
+                    + generate_error_trace_info(python_code_output)
+                )
+                pytest.assume(
+                    False,
+                    f"""Full AST validation failed, failure exceptions do not match.\n{error_msg}""",
+                )
+            else:
+                # The original query failed with same exception as validation query, so this is expected.
+                pass
+        else:
+            error_msg = str(ex) + "\n" + generate_error_trace_info(python_code_output)
+            pytest.assume(
+                False,
+                f"""Full AST validation failed, could not run unparser generated python code.\n{error_msg}""",
+            )
 
     # This batch has been processed so let's clear.
     full_ast_validation_listener._ast_batches.clear()
@@ -231,16 +259,19 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
     validation_session.ast_enabled = False
     validation_session.full_ast_validation = False
 
-    compare_ast_validation_listener = validation_session.ast_listener()
+    compare_ast_validation_listener = validation_session.ast_listener(True)
 
     def notify_compare_ast_with_session(query_record: QueryRecord, *args, **kwargs):
         notify_compare_ast_validation_with_session(
             validation_session, query_record, *args, **kwargs
         )
 
+    compare_ast_validation_listener._original_notify = (
+        compare_ast_validation_listener._notify
+    )
     compare_ast_validation_listener._notify = notify_compare_ast_with_session
 
-    full_ast_validation_listener = session.ast_listener()
+    full_ast_validation_listener = session.ast_listener(True)
     full_ast_validation_listener._original_notify = full_ast_validation_listener._notify
 
     def notify_full_ast_validation(query_record: QueryRecord, *args, **kwargs):
@@ -248,6 +279,9 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
             full_ast_validation_listener, query_record, *args, **kwargs
         )
 
+    full_ast_validation_listener._compare_ast_validation_listener = (
+        compare_ast_validation_listener
+    )
     full_ast_validation_listener._notify = notify_full_ast_validation
     full_ast_validation_listener._validation_session = validation_session
     full_ast_validation_listener._unparser_jar = unparser_jar
@@ -262,5 +296,11 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
 
 def close_full_ast_validation_mode(full_ast_validation_listener):
     # Remove the test hook for full ast validation so does not run for any clean up work.
+    compare_ast_validation_listener = (
+        full_ast_validation_listener._compare_ast_validation_listener
+    )
+    compare_ast_validation_listener._notify = (
+        compare_ast_validation_listener._original_notify
+    )
     full_ast_validation_listener._notify = full_ast_validation_listener._original_notify
     full_ast_validation_listener._validation_session.close()

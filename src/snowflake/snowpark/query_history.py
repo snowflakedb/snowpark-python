@@ -82,9 +82,14 @@ class QueryHistory(QueryListener):
 
 
 class AstListener(QueryListener):
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(
+        self,
+        session: "snowflake.snowpark.session.Session",
+        include_failures: bool = False,
+    ) -> None:
         self.session = session
         self._ast_batches: List[str] = []
+        self._include_failures = include_failures
 
     def __enter__(self):
         return self
@@ -95,6 +100,10 @@ class AstListener(QueryListener):
     def _notify(self, query_record: QueryRecord, *args, **kwargs) -> None:
         if "dataframeAst" in kwargs:
             self._ast_batches.append(kwargs["dataframeAst"])
+
+    @property
+    def include_failures(self) -> bool:
+        return self._include_failures
 
     @property
     def base64_batches(self) -> List[str]:
