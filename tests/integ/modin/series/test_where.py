@@ -196,7 +196,7 @@ def test_series_where_with_lambda_cond_returns_singleton_should_fail():
 
 @pytest.mark.parametrize(
     "other, sql_count, join_count",
-    [(lambda x: -x.iloc[0], 4, 6), (lambda x: x**2, 3, 6)],
+    [(lambda x: -x.iloc[0], 4, 7), (lambda x: x**2, 3, 8)],
 )
 def test_series_where_with_lambda_other(other, sql_count, join_count):
     # High join count due to creatinga  Series with non-Snowpark pandas data
@@ -312,4 +312,22 @@ def test_series_where_long_series_cond(index):
         snow_ser,
         native_ser,
         perform_where,
+    )
+
+
+@sql_count_checker(query_count=2, join_count=0)
+def test_scalar():
+    snow_df = pd.DataFrame({"A": [True, False, True], "B": [1, 2, 3]})
+
+    def compare_result(snow_result, native_result):
+        assert isinstance(snow_result, pd.Series)
+        assert isinstance(native_result, np.ndarray)
+        assert np.array_equal(snow_result.to_numpy(), native_result)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        snow_df.to_pandas(),
+        lambda df: np.where(df["A"], 1, 2),
+        comparator=compare_result,
+        test_attrs=False,
     )

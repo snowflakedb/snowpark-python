@@ -88,6 +88,25 @@ def where_mapper(
             return x.where(cond, y)  # type: ignore
 
         if is_scalar(x):
+            if cond.ndim == 1:
+                df_cond = cond.to_frame()
+            else:
+                df_cond = cond
+
+            origin_columns = df_cond.columns
+            new_columns: Union[str, list[str]] = [
+                f"new_value_{i}" for i in range(len(origin_columns))
+            ]
+            df_cond[new_columns] = x
+
+            if cond.ndim == 1:
+                new_columns = new_columns[0]
+                origin_columns = origin_columns[0]
+
+            df_scalar = df_cond[new_columns]
+            cond = df_cond[origin_columns]
+            return df_scalar.where(cond, y)
+            """
             # broadcast scalar x to size of cond
             object_shape = cond.shape
             if len(object_shape) == 1:
@@ -100,6 +119,7 @@ def where_mapper(
             # handles np.where(df, scalar1, scalar2)
             # handles np.where(df1, scalar, df2)
             return df_scalar.where(cond, y)
+            """
     # return the sentinel NotImplemented if we do not support this function
     return NotImplemented
 
