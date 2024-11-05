@@ -270,8 +270,17 @@ def test_profiler_without_target_stage(profiler_session, caplog):
         )
 
 
-def test_set_active_profiler_failed(profiler_session, caplog):
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_set_active_profiler_failed(
+    profiler_session, caplog, tmp_stage_name, db_parameters
+):
     pro = profiler_session.stored_procedure_profiler
+    pro.set_target_stage(
+        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+    )
     with mock.patch(
         "snowflake.snowpark.DataFrame._internal_collect_with_tag_no_telemetry",
         side_effect=Exception,
