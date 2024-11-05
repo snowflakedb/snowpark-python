@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -252,11 +253,11 @@ def test_create_temp_stage(profiler_session):
         profiler_session.sql(f"use database {current_db}").collect()
 
 
-def test_profiler_without_target_stage(profiler_session):
+def test_profiler_without_target_stage(profiler_session, caplog):
     pro = profiler_session.stored_procedure_profiler
-    with pytest.raises(ValueError) as err:
+    with caplog.at_level(logging.INFO):
         pro.set_active_profiler("LINE")
         assert (
-            "Stored procedure profiler does not have a valid target stage, please provide one in profiler.set_target_stage()."
-            in str(err)
+            "Target stage for profiler not found, using default stage of current session."
+            in str(caplog.text)
         )

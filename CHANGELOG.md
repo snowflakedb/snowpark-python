@@ -11,7 +11,7 @@
 
 #### Improvements
 
-- When target stage is not set profiler, `ValueError` with more detailed error message is raised instead of `SnowparkSQLException`.
+- When target stage is not set in profiler, a default stage from `Session.get_session_stage` is used instead of raising `SnowparkSQLException`.
 
 #### Dependency Updates
 

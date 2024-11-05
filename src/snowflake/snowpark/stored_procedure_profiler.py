@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import threading
 from typing import List, Literal, Optional
 
@@ -10,6 +11,8 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
     strip_double_quotes_in_like_statement_in_table_name,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class StoredProcedureProfiler:
@@ -61,7 +64,7 @@ class StoredProcedureProfiler:
             self._session.sql(
                 f"create temp stage if not exists {stage} FILE_FORMAT = (RECORD_DELIMITER = NONE FIELD_DELIMITER = NONE )"
             )._internal_collect_with_tag_no_telemetry()
-        sql_statement = f'alter session set PYTHON_PROFILER_TARGET_STAGE ="{stage}"'
+        sql_statement = f"alter session set PYTHON_PROFILER_TARGET_STAGE ='{stage}'"
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
     def set_active_profiler(
@@ -76,8 +79,9 @@ class StoredProcedureProfiler:
 
         """
         if not self._has_target_stage:
-            raise ValueError(
-                "Stored procedure profiler does not have a valid target stage, please provide one in profiler.set_target_stage()."
+            self.set_target_stage(self._session.get_session_stage().lstrip("@"))
+            logger.info(
+                "Target stage for profiler not found, using default stage of current session."
             )
         with self._lock:
             self._active_profiler_number += 1
