@@ -303,6 +303,9 @@ class MockSelectStatement(MockSelectable):
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
             new._column_states = self._column_states
+            new.expr_to_alias = copy(
+                self.expr_to_alias
+            )  # use copy because we don't want two plans to share the same list. If one mutates, the other ones won't be impacted.
             new.flatten_disabled = self.flatten_disabled
             new._execution_plan = self._execution_plan
             return new
