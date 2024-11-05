@@ -3,13 +3,14 @@
 #
 
 from functools import cached_property
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
+    FunctionExpression,
     SnowflakeUDF,
     UnresolvedAttribute,
 )
@@ -30,6 +31,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
+    Cast,
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -41,7 +43,7 @@ from snowflake.snowpark.mock._plan import MockExecutionPlan
 from snowflake.snowpark.mock._select_statement import MockSelectable
 
 # from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import PandasDataFrameType, _NumericType
+from snowflake.snowpark.types import MapType, PandasDataFrameType, _NumericType
 
 
 def resolve_attributes(
@@ -174,9 +176,17 @@ def resolve_attributes(
     resolved_attributes = []
     for i, attr in enumerate(attributes):
         if isinstance(attr, (Alias, UnresolvedAlias)):
-            attr = Attribute(
-                attr.name, attr.children[0].datatype, attr.children[0].nullable
-            )
+            # Handle special case of parse_json which is silently inserted for some types in session.createDataFrame
+            if (
+                isinstance(attr.child, Cast)
+                and isinstance(attr.child.child, FunctionExpression)
+                and attr.child.child.name == "parse_json"
+            ):
+                attr = Attribute(attr.name, MapType(), attr.children[0].nullable)
+            else:
+                attr = Attribute(
+                    attr.name, attr.children[0].datatype, attr.children[0].nullable
+                )
         elif isinstance(attr, SnowflakeUDF):
             data_type = session.udaf.get_udaf(attr.udf_name)._return_type
             attr = Attribute(f"${i}", data_type, True)
@@ -195,3 +205,10 @@ class NopExecutionPlan(MockExecutionPlan):
     @cached_property
     def output(self) -> List[Attribute]:
         return resolve_attributes(self.source_plan, session=self.session)
+
+    @property
+    def output_dict(self) -> Dict[str, Any]:
+        output_dict = {
+            attr.name: (attr.datatype, attr.nullable) for attr in self.output
+        }
+        return output_dict

@@ -396,7 +396,24 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
 
-        results_cursor = self._cursor.execute(query, **kwargs)
+        try:
+            results_cursor = self._cursor.execute(query, **kwargs)
+        except Exception as ex:
+            # If there's a execution failure, we may still need to notify the listener since some earlier
+            # dataframe may be used later and succeed, otherwise the AST cache will be incomplete.
+            for listener in filter(
+                lambda observer: hasattr(observer, "include_failures")
+                and observer.include_failures,
+                self._query_listeners,
+            ):
+                notify_kwargs = {"requestId": None}
+                if "_dataframe_ast" in kwargs:
+                    notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
+                notify_kwargs["exception"] = ex
+                query_record = QueryRecord(None, query, False)
+                listener._notify(query_record, **notify_kwargs)
+            raise ex
+
         notify_kwargs = {"requestId": str(results_cursor._request_id)}
         if "_dataframe_ast" in kwargs:
             notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
