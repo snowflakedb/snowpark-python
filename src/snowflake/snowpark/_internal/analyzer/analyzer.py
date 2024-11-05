@@ -779,9 +779,11 @@ class Analyzer:
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
-            # update the pre and post actions for selectable if it has subqueries
+            # Perform in-place update of the pre and post actions for selectable
+            # if it has subqueries. Also updated attached resolved snowflake plan
+            # for the selectable
             if isinstance(logical_plan, Selectable):
-                logical_plan.with_subqueries(self.subquery_plans)
+                logical_plan.with_subqueries(self.subquery_plans, result)
 
         return result
 

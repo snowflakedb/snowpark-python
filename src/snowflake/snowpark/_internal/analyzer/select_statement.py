@@ -399,9 +399,17 @@ class Selectable(LogicalPlan, ABC):
         elif post_action not in self.post_actions:
             self.post_actions.append(copy(post_action))
 
-    def with_subqueries(self, subquery_plans: List[SnowflakePlan]) -> "Selectable":
+    def with_subqueries(
+        self, subquery_plans: List[SnowflakePlan], snowflake_plan: SnowflakePlan
+    ) -> "Selectable":
         """Update pre-actions, post-actions and schema to capture necessary subquery_plans
-        encountered during plan resolution."""
+        encountered during plan resolution. All updates are in-place.
+
+        Args:
+            subquery_plans: List of subquery plans encountered during plan resolution.
+            snowflake_plan: The snowflake plan which is created and updated using
+                subquery plans during resolution stage.
+        """
         for plan in subquery_plans:
             for query in plan.queries[:-1]:
                 self.merge_into_pre_action(query)
@@ -409,7 +417,7 @@ class Selectable(LogicalPlan, ABC):
                 self.merge_into_post_action(query)
 
         if self._snowflake_plan is not None:
-            self._snowflake_plan = self._snowflake_plan.with_subqueries(subquery_plans)
+            self._snowflake_plan = snowflake_plan
 
         return self
 
