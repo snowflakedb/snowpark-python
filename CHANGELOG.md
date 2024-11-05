@@ -97,6 +97,7 @@
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 - Added support for `DataFrame.attrs` and `Series.attrs`.
 - Added support for `DataFrame.style`.
+- Added numpy compatibility support for `np.full_like`
 
 #### Improvements
 
