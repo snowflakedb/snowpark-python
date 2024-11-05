@@ -57,18 +57,22 @@ df6 = df1.select(
     )
 )
 
+df7 = df1.select(df1["a"] + make_interval(weeks=21))
+
 
 ## EXPECTED UNPARSER OUTPUT
 
 df1 = session.create_dataframe([[datetime.datetime(2010, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST")), datetime.datetime(2011, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST"))], [datetime.datetime(2012, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST")), datetime.datetime(2013, 1, 1, 0, 0, 0, 0, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST"))]], schema=["a", "b"])
 
-df2 = df1.select(df1["a"] + make_interval(None, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, None, None))
+df2 = df1.select(df1["a"] + make_interval(quarters=1, months=1, weeks=2, days=2, hours=2, minutes=3, seconds=3, milliseconds=3, microseconds=4, nanoseconds=4))
 
 df4 = df1.select()
 
-df5 = df1.select(df1["a"] + make_interval(None, 1, 2, 3, 4, 5, 6, 7, None, None, None, None, None))
+df5 = df1.select(df1["a"] + make_interval(quarters=1, months=2, weeks=3, days=4, hours=5, minutes=6, seconds=7))
 
-df6 = df1.select(df1["a"] + make_interval(1, None, 2, 3, 4, 5, 6, 7, 8, 9, 10, None, None))
+df6 = df1.select(df1["a"] + make_interval(years=1, months=2, weeks=3, days=4, hours=5, minutes=6, seconds=7, milliseconds=8, microseconds=9, nanoseconds=10))
+
+df7 = df1.select(df1["a"] + make_interval(weeks=21))
 
 ## EXPECTED ENCODED AST
 
@@ -218,117 +222,123 @@ body {
                     }
                   }
                 }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
+                named_args {
+                  _1: "quarters"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 1
                     }
                   }
                 }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 1
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 1
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 2
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 2
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 2
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 3
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 3
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 3
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 4
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
-                    }
-                    v: 4
-                  }
-                }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
+                named_args {
+                  _1: "months"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 1
                     }
                   }
                 }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 37
+                named_args {
+                  _1: "weeks"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 2
+                    }
+                  }
+                }
+                named_args {
+                  _1: "days"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 2
+                    }
+                  }
+                }
+                named_args {
+                  _1: "hours"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 2
+                    }
+                  }
+                }
+                named_args {
+                  _1: "minutes"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 3
+                    }
+                  }
+                }
+                named_args {
+                  _1: "seconds"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 3
+                    }
+                  }
+                }
+                named_args {
+                  _1: "milliseconds"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 3
+                    }
+                  }
+                }
+                named_args {
+                  _1: "microseconds"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 4
+                    }
+                  }
+                }
+                named_args {
+                  _1: "nanoseconds"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 37
+                      }
+                      v: 4
                     }
                   }
                 }
@@ -427,114 +437,87 @@ body {
                     }
                   }
                 }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
+                named_args {
+                  _1: "quarters"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 55
+                      }
+                      v: 1
                     }
                   }
                 }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
-                    }
-                    v: 1
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
-                    }
-                    v: 2
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
-                    }
-                    v: 3
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
-                    }
-                    v: 4
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
-                    }
-                    v: 5
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
-                    }
-                    v: 6
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
-                    }
-                    v: 7
-                  }
-                }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
+                named_args {
+                  _1: "months"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 55
+                      }
+                      v: 2
                     }
                   }
                 }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
+                named_args {
+                  _1: "weeks"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 55
+                      }
+                      v: 3
                     }
                   }
                 }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
+                named_args {
+                  _1: "days"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 55
+                      }
+                      v: 4
                     }
                   }
                 }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
+                named_args {
+                  _1: "hours"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 55
+                      }
+                      v: 5
                     }
                   }
                 }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 55
+                named_args {
+                  _1: "minutes"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 55
+                      }
+                      v: 6
+                    }
+                  }
+                }
+                named_args {
+                  _1: "seconds"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 55
+                      }
+                      v: 7
                     }
                   }
                 }
@@ -606,117 +589,123 @@ body {
                     }
                   }
                 }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 1
-                  }
-                }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
+                named_args {
+                  _1: "years"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 1
                     }
                   }
                 }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 2
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 3
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 4
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 5
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 6
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 7
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 8
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 9
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
-                    }
-                    v: 10
-                  }
-                }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
+                named_args {
+                  _1: "months"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 2
                     }
                   }
                 }
-                pos_args {
-                  null_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 68
+                named_args {
+                  _1: "weeks"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 3
+                    }
+                  }
+                }
+                named_args {
+                  _1: "days"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 4
+                    }
+                  }
+                }
+                named_args {
+                  _1: "hours"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 5
+                    }
+                  }
+                }
+                named_args {
+                  _1: "minutes"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 6
+                    }
+                  }
+                }
+                named_args {
+                  _1: "seconds"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 7
+                    }
+                  }
+                }
+                named_args {
+                  _1: "milliseconds"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 8
+                    }
+                  }
+                }
+                named_args {
+                  _1: "microseconds"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 9
+                    }
+                  }
+                }
+                named_args {
+                  _1: "nanoseconds"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 68
+                      }
+                      v: 10
                     }
                   }
                 }
@@ -752,6 +741,86 @@ body {
     uid: 5
     var_id {
       bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          add {
+            lhs {
+              sp_dataframe_col {
+                col_name: "a"
+                df {
+                  sp_dataframe_ref {
+                    id {
+                      bitfield1: 1
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 82
+                }
+              }
+            }
+            rhs {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "make_interval"
+                      }
+                    }
+                  }
+                }
+                named_args {
+                  _1: "weeks"
+                  _2 {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 82
+                      }
+                      v: 21
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 82
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 82
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 82
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df7"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
     }
   }
 }
