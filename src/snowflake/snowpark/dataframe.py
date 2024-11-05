@@ -3967,6 +3967,7 @@ class DataFrame:
         #       issued as query similar to collect().
 
         # AST.
+        kwargs = {}
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
@@ -4005,6 +4006,11 @@ class DataFrame:
                     t._1 = k
                     t._2 = v
             self._set_ast_ref(expr.df)
+
+        self._session._ast_batch.eval(stmt)
+
+        # Flush the AST and encode it as part of the query.
+        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4102,7 +4108,7 @@ class DataFrame:
 
         # TODO SNOW-1776638: Add Eval and pass dataframeAst as part of kwargs.
         return df._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params
+            statement_params=statement_params, **kwargs
         )
 
     @df_collect_api_telemetry
