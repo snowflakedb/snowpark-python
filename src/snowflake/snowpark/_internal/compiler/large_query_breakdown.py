@@ -321,8 +321,8 @@ class LargeQueryBreakdown:
                         validity_status
                         == InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
                     ):
-                        # If node is not a pipeline breaker, we allow select statements to be
-                        # considered as valid candidates for partitioning.
+                        # If node is not a pipeline breaker, we allow relaxed pipeline breaker
+                        # conditions to be considered as valid candidates for partitioning.
                         relaxed_validity_status, _ = self._is_node_valid_to_breakdown(
                             child, root, relaxed=True
                         )
