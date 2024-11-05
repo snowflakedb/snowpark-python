@@ -4,23 +4,37 @@ df = session.table(tables.table1)
 
 df1 = df.first(-5)
 
-df2 = df.first(2)
+df2 = df.first(2, block=True)
 
 df3 = df.first()
 
-df4 = df.first(0, statement_params={'a':'b', 'c':'d'}, block=False)
+df4 = df.first(block=False)
+
+df5 = df.first(0, statement_params={'a':'b', 'c':'d'}, block=False)
 
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
 
-df1 = df.first(-5, True)
+df1 = df.first(n=-5)
 
-df2 = df.first(2, True)
+df1
 
-df3 = df.first(1, True)
+df2 = df.first(n=2)
 
-df4 = df.first(0, False, {"a": "b", "c": "d"})
+df2
+
+df3 = df.first(n=1)
+
+df3
+
+df4 = df.first(n=1, block=False)
+
+df4
+
+df5 = df.first(n=0, statement_params={"a": "b", "c": "d"}, block=False)
+
+df5
 
 ## EXPECTED ENCODED AST
 
@@ -80,6 +94,14 @@ body {
   }
 }
 body {
+  eval {
+    uid: 3
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
   assign {
     expr {
       sp_dataframe_first {
@@ -101,9 +123,17 @@ body {
     symbol {
       value: "df2"
     }
-    uid: 3
+    uid: 4
     var_id {
-      bitfield1: 3
+      bitfield1: 4
+    }
+  }
+}
+body {
+  eval {
+    uid: 5
+    var_id {
+      bitfield1: 4
     }
   }
 }
@@ -129,9 +159,52 @@ body {
     symbol {
       value: "df3"
     }
-    uid: 4
+    uid: 6
     var_id {
-      bitfield1: 4
+      bitfield1: 6
+    }
+  }
+}
+body {
+  eval {
+    uid: 7
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_first {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        num: 1
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  eval {
+    uid: 9
+    var_id {
+      bitfield1: 8
     }
   }
 }
@@ -148,7 +221,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 33
+          start_line: 35
         }
         statement_params {
           _1: "a"
@@ -161,11 +234,19 @@ body {
       }
     }
     symbol {
-      value: "df4"
+      value: "df5"
     }
-    uid: 5
+    uid: 10
     var_id {
-      bitfield1: 5
+      bitfield1: 10
+    }
+  }
+}
+body {
+  eval {
+    uid: 11
+    var_id {
+      bitfield1: 10
     }
   }
 }
