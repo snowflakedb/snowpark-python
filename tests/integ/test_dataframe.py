@@ -1278,6 +1278,37 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="schema_query is not supported in Local Testing",
+    run=False,
+)
+def test_in_with_subquery_multiple_query(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+
+        df0 = session.create_dataframe([[1], [2], [3]], schema=["a"])
+        df1 = session.create_dataframe(
+            [[1, 11, 111], [2, 22, 222], [3, 33, 333]], schema=["a", "b", "c"]
+        )
+        df_filter = df0.filter(df0.a < 3)
+        df_in = df1.filter(~df1.a.in_(df_filter))
+
+        df_in = df_in.select("a", "b")
+        Utils.check_answer(df_in, [Row(3, 33)])
+        # check that schema query does not depend on temp tables
+        assert "SNOWPARK_TEMP_TABLE_" not in df_in._plan.schema_query
+        assert df_in.schema == StructType(
+            [StructField("A", LongType(), False), StructField("B", LongType(), False)]
+        )
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+
+
 def test_join_right_outer(session):
     """Test for right-outer join of dataframes."""
 
