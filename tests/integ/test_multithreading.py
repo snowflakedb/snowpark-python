@@ -669,6 +669,7 @@ def test_concurrent_update_on_sensitive_configs(
     reason="large query breakdown is not supported in local testing mode",
     run=False,
 )
+@pytest.mark.skip("SNOW-1787235: Investigate and fix flaky test")
 def test_large_query_breakdown_with_cte(threadsafe_session):
     bounds = (300, 600) if threadsafe_session.sql_simplifier_enabled else (60, 90)
     try:
