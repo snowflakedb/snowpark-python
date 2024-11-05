@@ -27,6 +27,7 @@
 - Added support for `Index.to_numpy`.
 - Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 - Added support for `size` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for `snowflake.snowpark.functions.window`
 - Added support for `pd.read_pickle` (Uses native pandas for processing).
 - Added support for `pd.read_html` (Uses native pandas for processing).
 - Added support for `pd.read_xml` (Uses native pandas for processing).
@@ -41,6 +42,7 @@
 #### Bug Fixes
 
 - Fixed a bug where column aliases were incorrectly resolved in `DataFrame.join`, causing errors when selecting columns from a joined DataFrame.
+- Fixed a bug where `Table.update` and `Table.merge` could fail if the target table's index was not the default `RangeIndex`.
 
 ## 1.24.0 (2024-10-28)
 
@@ -92,6 +94,7 @@
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 - Added support for `DataFrame.attrs` and `Series.attrs`.
 - Added support for `DataFrame.style`.
+- Added numpy compatibility support for `np.full_like`
 
 #### Improvements
 
