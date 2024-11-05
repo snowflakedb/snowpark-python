@@ -3569,14 +3569,14 @@ class Session:
         self,
         include_describe: bool = False,
         include_thread_id: bool = False,
-        record_error_queries: bool = False,
+        include_error: bool = False,
     ) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
         Args:
             include_describe: Include query notifications for describe queries
             include_thread_id: Include thread id where queries are called
-            record_error_queries: record queries that have error during execution
+            include_error: record queries that have error during execution
 
         >>> with session.query_history(True) as query_history:
         ...     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -3587,7 +3587,7 @@ class Session:
         >>> assert not query_history.queries[1].is_describe
         """
         query_listener = QueryHistory(
-            self, include_describe, include_thread_id, record_error_queries
+            self, include_describe, include_thread_id, include_error
         )
         self._conn.add_query_listener(query_listener)
         return query_listener

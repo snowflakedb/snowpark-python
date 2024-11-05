@@ -84,8 +84,6 @@ class StoredProcedureProfiler:
             logger.info(
                 "Target stage for profiler not found, using default stage of current session."
             )
-        with self._lock:
-            self._active_profiler_number += 1
         if active_profiler_type.upper() not in ["LINE", "MEMORY"]:
             raise ValueError(
                 f"active_profiler expect 'LINE', 'MEMORY', got {active_profiler_type} instead"
@@ -98,9 +96,10 @@ class StoredProcedureProfiler:
                 f"Set active profiler failed because of {e}. Active profiler is previously set value or default 'LINE' now."
             )
         with self._lock:
+            self._active_profiler_number += 1
             if self._query_history is None:
                 self._query_history = self._session.query_history(
-                    include_thread_id=True, record_error_queries=True
+                    include_thread_id=True, include_error=True
                 )
             self._is_enabled = True
 
