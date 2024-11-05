@@ -163,7 +163,6 @@
 - Added support for `Session.stored_procedure_profiler`.
 
 #### Improvements
-- Improved the following new capability for function `snowflake.snowpark.functions.array_remove` it is now possible to use it with a string.
 
 #### Bug Fixes
 
