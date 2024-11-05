@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import threading
 from typing import List, Literal, Optional
 
@@ -10,6 +11,8 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
     strip_double_quotes_in_like_statement_in_table_name,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class StoredProcedureProfiler:
@@ -79,7 +82,12 @@ class StoredProcedureProfiler:
                 f"active_profiler expect 'LINE', 'MEMORY', got {active_profiler_type} instead"
             )
         sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type.upper()}'"
-        self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
+        try:
+            self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
+        except Exception as e:
+            logger.warning(
+                f"Set active profiler failed because of {e}. Active profiler is previously set value or default 'LINE' now."
+            )
         with self._lock:
             if self._query_history is None:
                 self._query_history = self._session.query_history(
