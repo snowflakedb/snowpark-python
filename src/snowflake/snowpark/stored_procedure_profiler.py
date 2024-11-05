@@ -76,7 +76,7 @@ class StoredProcedureProfiler:
 
         Args:
             active_profiler_type: String that represent active_profiler, must be either 'LINE' or 'MEMORY'
-            (case-sensitive). Active profiler is 'LINE' by default.
+            (case-insensitive). Active profiler is 'LINE' by default.
 
         """
         if not self._has_target_stage:
@@ -86,14 +86,17 @@ class StoredProcedureProfiler:
             )
         with self._lock:
             self._active_profiler_number += 1
-        if active_profiler_type not in ["LINE", "MEMORY"]:
+        if active_profiler_type.upper() not in ["LINE", "MEMORY"]:
             raise ValueError(
                 f"active_profiler expect 'LINE', 'MEMORY', got {active_profiler_type} instead"
             )
-        sql_statement = (
-            f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type}'"
-        )
-        self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
+        sql_statement = f"alter session set ACTIVE_PYTHON_PROFILER = '{active_profiler_type.upper()}'"
+        try:
+            self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
+        except Exception as e:
+            logger.warning(
+                f"Set active profiler failed because of {e}. Active profiler is previously set value or default 'LINE' now."
+            )
         with self._lock:
             if self._query_history is None:
                 self._query_history = self._session.query_history(
