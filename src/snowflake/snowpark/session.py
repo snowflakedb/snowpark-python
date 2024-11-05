@@ -279,25 +279,6 @@ def _get_sandbox_conditional_active_session(session: "Session") -> "Session":
     return session
 
 
-def _close_session_atexit():
-    """
-    This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
-    notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
-    """
-    if is_in_stored_procedure():
-        return
-    with _session_management_lock:
-        for session in _active_sessions.copy():
-            try:
-                session.close()
-            except Exception:
-                pass
-
-
-# Register _close_session_atexit so it will be called at interpreter shutdown
-atexit.register(_close_session_atexit)
-
-
 def _remove_session(session: "Session") -> None:
     with _session_management_lock:
         try:
@@ -633,6 +614,21 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
+
+        # Register self._close_at_exit so it will be called at interpreter shutdown
+        atexit.register(self._close_at_exit)
+
+    def _close_at_exit(self) -> None:
+        """
+        This is the helper function to close the current session at interpreter shutdown.
+        For example, when a jupyter notebook is shutting down, this will also close
+        the current session and make sure send all telemetry to the server.
+        """
+        with _session_management_lock:
+            try:
+                self.close()
+            except Exception:
+                pass
 
     def __enter__(self):
         return self
