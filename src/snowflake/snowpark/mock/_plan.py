@@ -390,17 +390,19 @@ def handle_function_expression(
             importlib.import_module("snowflake.snowpark.functions"), func.name
         )
     except AttributeError:
-        # this is missing function in snowpark-python, need support for both live and local test
+        original_func = None
+        # raise error depending on whether users has a provided a patch for function not available in snowpark-python
         analyzer.session._conn.log_not_supported_error(
             external_feature_name=func.name,
             error_message=f"Function {func.name} is not supported in snowpark-python.",
-            raise_error=NotImplementedError,
+            raise_error=NotImplementedError if func is None else None,
         )
 
-    signatures = inspect.signature(original_func)
-    spec = inspect.getfullargspec(original_func)
+    to_mock_func = original_func or func.impl
+    signatures = inspect.signature(to_mock_func)
+    spec = inspect.getfullargspec(to_mock_func)
     to_pass_args = []
-    type_hints = typing.get_type_hints(original_func)
+    type_hints = typing.get_type_hints(to_mock_func)
     for idx, key in enumerate(signatures.parameters):
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
@@ -449,9 +451,22 @@ def handle_function_expression(
     try:
         result = func(*to_pass_args, row_number=current_row, input_data=input_data)
     except Exception as err:
+        extra_err_info = (
+            (
+                f"\nA patch is provided for '{func.name}' which is not supported in Snowpark Python."
+                f" Please ensure the implementation follows specifications outlined at:"
+                f" https://docs.snowflake.com/en/sql-reference/functions-all and refer to"
+                f" https://github.com/snowflakedb/snowpark-python/blob/main/src/snowflake/snowpark/mock/_functions.py"
+                f" for patterns on creating a compatible patch function for input and output types."
+            )
+            if not original_func and func
+            else ""
+        )
+
         SnowparkLocalTestingException.raise_from_error(
             err,
-            error_message=f"Error executing mocked function '{func.name}'. See error traceback for detailed information.",
+            error_message=f"Error executing mocked function '{func.name}'."
+            f" See error traceback for detailed information.{extra_err_info}",
         )
 
     return result
