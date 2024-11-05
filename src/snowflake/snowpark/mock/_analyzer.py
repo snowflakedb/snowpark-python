@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import threading
 from collections import Counter, defaultdict
 from typing import DefaultDict, Dict, List, Union
 
@@ -150,12 +149,10 @@ class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self.plan_builder = MockSnowflakePlanBuilder(self.session)
+        self.subquery_plans = []
+        self.generated_alias_maps = {}
+        self.alias_maps_to_use = None
         self._conn = self.session._conn
-        self.rlock = threading.RLock()
-        with self.rlock:
-            self.subquery_plans = []
-            self.generated_alias_maps = {}
-            self.alias_maps_to_use = None
 
     def analyze(
         self,
@@ -361,10 +358,16 @@ class MockAnalyzer:
             return f"{sql}"
 
         if isinstance(expr, Attribute):
-            with self.rlock:
-                assert self.alias_maps_to_use is not None
+            # this is different from live connection, in live connection we assert alias_maps_to_use is not None.
+            # However, it's not the case in local testing because we don't have the alias map when we use
+            # the plan to get attributes. So we need to check if alias_maps_to_use is None here.
+            if self.alias_maps_to_use:
+                # this is the case when we resolve plan
                 name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
-                return quote_name(name)
+            else:
+                # this is the case when we describe plan to get attributes
+                name = expr.name
+            return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
             return expr.name
@@ -615,12 +618,11 @@ class MockAnalyzer:
         if isinstance(expr, Alias):
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
-                with self.rlock:
-                    self.generated_alias_maps[expr.child.expr_id] = quoted_name
-                    assert self.alias_maps_to_use is not None
-                    for k, v in self.alias_maps_to_use.items():
-                        if v == expr.child.name:
-                            self.generated_alias_maps[k] = quoted_name
+                self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                assert self.alias_maps_to_use is not None
+                for k, v in self.alias_maps_to_use.items():
+                    if v == expr.child.name:
+                        self.generated_alias_maps[k] = quoted_name
 
                 if df_aliased_col_name_to_real_col_name:
                     for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
@@ -749,12 +751,11 @@ class MockAnalyzer:
             )
 
     def resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
-        with self.rlock:
-            self.subquery_plans = []
-            self.generated_alias_maps = {}
-            result = self.do_resolve(logical_plan)
-            result.add_aliases(self.generated_alias_maps)
-            return result
+        self.subquery_plans = []
+        self.generated_alias_maps = {}
+        result = self.do_resolve(logical_plan)
+        result.add_aliases(self.generated_alias_maps)
+        return result
 
     def do_resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
         resolved_children = {}
@@ -768,8 +769,8 @@ class MockAnalyzer:
 
         if isinstance(logical_plan, MockSelectable):
             # Selectable doesn't have children. It already has the expr_to_alias dict.
-            with self.rlock:
-                self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
+            assert logical_plan.expr_to_alias is not None
+            self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
             use_maps = {}
             # get counts of expr_to_alias keys
@@ -785,8 +786,7 @@ class MockAnalyzer:
                     use_maps.update(
                         {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
                     )
-            with self.rlock:
-                self.alias_maps_to_use = use_maps
+            self.alias_maps_to_use = use_maps
 
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
