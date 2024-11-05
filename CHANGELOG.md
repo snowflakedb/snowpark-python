@@ -9,6 +9,10 @@
 - Added the following new functions in `snowflake.snowpark.dataframe`:
   - `map`
 
+#### Bug Fixes
+
+- Fixed the pre-action and post-action query propagation when `In` expression were used in selects.
+
 #### Dependency Updates
 
 - Added a dependency on `protobuf>=5.28` and `tzlocal` at runtime.
