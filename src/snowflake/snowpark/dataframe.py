@@ -4078,7 +4078,13 @@ class DataFrame:
             )
             statement_params_for_cache_result = (
                 statement_params or self._statement_params
-            ).copy()
+            )
+            if statement_params_for_cache_result:
+                statement_params_for_cache_result = (
+                    statement_params_for_cache_result.copy()
+                )
+            else:
+                statement_params_for_cache_result = {}
             statement_params_for_cache_result[
                 "cache_result_temp_table"
             ] = temp_table_name
