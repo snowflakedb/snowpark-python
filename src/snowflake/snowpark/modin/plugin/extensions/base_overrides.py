@@ -1011,7 +1011,9 @@ def _dropna(
         raise ValueError("invalid how option: %s" % how)
     if subset is not None:
         if axis != 1:
-            indices = self.columns.get_indexer_for(subset)
+            indices = self.columns.get_indexer_for(
+                subset if is_list_like(subset) else [subset]
+            )
             check = indices == -1
             if check.any():
                 raise KeyError(list(np.compress(check, subset)))

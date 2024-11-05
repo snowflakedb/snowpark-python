@@ -40,6 +40,10 @@
 #### Bug Fixes
 
 - Fixed a bug where aggregating a single-column dataframe with a single callable function (e.g. `pd.DataFrame([0]).agg(np.mean)`) would fail to transpose the result.
+- Fixed bugs where `DataFrame.dropna()` would:
+  - Treat an empty `subset` (e.g. `[]`) as if it specified all columns instead of no columns.
+  - Raise a `TypeError` for a scalar `subset` instead of filtering on just that column.
+  - Raise a `ValueError` for a `subset` of type `pandas.Index` instead of filtering on the columns in the index.
 
 ### Snowpark Local Testing Updates
 
