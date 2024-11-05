@@ -317,6 +317,10 @@ class LargeQueryBreakdown:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
 
+                    if (
+                        validity_status
+                        == InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
+                    ):
                         # If node is not a pipeline breaker, we allow select statements to be
                         # considered as valid candidates for partitioning.
                         relaxed_validity_status, _ = self._is_node_valid_to_breakdown(
@@ -401,9 +405,21 @@ class LargeQueryBreakdown:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
 
-        if is_valid and not self._is_node_pipeline_breaker(
-            node, allow_select_statement
+        if (
+            is_valid
+            and not allow_select_statement
+            and not self._is_node_pipeline_breaker(node)
         ):
+            is_valid = False
+            validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
+
+        if (
+            is_valid
+            and allow_select_statement
+            and not isinstance(node, SelectStatement)
+        ):
+            # If the node is not a SelectStatement, and allow_select_statement is True,
+            # then we know this node is a pipeline breaker.
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
 
@@ -478,9 +494,7 @@ class LargeQueryBreakdown:
 
         return False
 
-    def _is_node_pipeline_breaker(
-        self, node: LogicalPlan, allow_select_statement: bool
-    ) -> bool:
+    def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
         """Method to check if a node is a pipeline breaker based on the node type.
 
         If the node contains a SnowflakePlan, we check its source plan recursively.
@@ -505,7 +519,7 @@ class LargeQueryBreakdown:
             # If select statement are allowed to be considered as pipeline breaker, then
             # we return True. Otherwise, we check if the select statement contains an order by
             # clause since sorting is a pipeline breaker.
-            return allow_select_statement or (node.order_by is not None)
+            return node.order_by is not None
 
         if isinstance(node, SetStatement):
             # If the last operator applied in the SetStatement is a pipeline breaker, then the
@@ -530,13 +544,11 @@ class LargeQueryBreakdown:
 
         if isinstance(node, SnowflakePlan):
             return node.source_plan is not None and self._is_node_pipeline_breaker(
-                node.source_plan, allow_select_statement
+                node.source_plan
             )
 
         if isinstance(node, (SelectSnowflakePlan)):
-            return self._is_node_pipeline_breaker(
-                node.snowflake_plan, allow_select_statement
-            )
+            return self._is_node_pipeline_breaker(node.snowflake_plan)
 
         return False
 
