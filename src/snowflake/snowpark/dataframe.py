@@ -4760,7 +4760,6 @@ class DataFrame:
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
 
         # AST.
-        stmt = None
         kwargs = {}
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
