@@ -12,6 +12,7 @@
 #### Improvements
 
 - When target stage is not set in profiler, a default stage from `Session.get_session_stage` is used instead of raising `SnowparkSQLException`.
+- Allowed lower case or mixed case input when calling `Session.stored_procedure_profiler.set_active_profiler`.
 
 #### Bug Fixes
 
@@ -50,6 +51,10 @@
 - Fixed a bug where aggregating a single-column dataframe with a single callable function (e.g. `pd.DataFrame([0]).agg(np.mean)`) would fail to transpose the result.
 
 ### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for patching functions that are unavailable in the `snowflake.snowpark.functions` module.
 
 #### Bug Fixes
 

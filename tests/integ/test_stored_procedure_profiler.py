@@ -3,6 +3,7 @@
 #
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from unittest import mock
 
 import pytest
 
@@ -267,6 +268,17 @@ def test_profiler_without_target_stage(profiler_session, caplog):
             "Target stage for profiler not found, using default stage of current session."
             in str(caplog.text)
         )
+
+
+def test_set_active_profiler_failed(profiler_session, caplog):
+    pro = profiler_session.stored_procedure_profiler
+    with mock.patch(
+        "snowflake.snowpark.DataFrame._internal_collect_with_tag_no_telemetry",
+        side_effect=Exception,
+    ):
+        with caplog.at_level(logging.WARNING):
+            pro.set_active_profiler("Line")
+            assert "Set active profiler failed because of" in caplog.text
 
 
 def test_when_sp_profiler_not_enabled(profiler_session):
