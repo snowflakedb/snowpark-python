@@ -171,6 +171,10 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     repr_aggregate_function,
     using_named_aggregations_for_func,
 )
+from snowflake.snowpark.modin.plugin._internal.align_utils import (
+    align_axis_0_left,
+    align_axis_0_right,
+)
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
     APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
@@ -6569,7 +6573,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             result = single_agg_func_query_compilers[0].concat(
                 axis=0, other=single_agg_func_query_compilers[1:]
             )
-        if axis == 0 and (should_squeeze or is_scalar(func)):
+
+        if axis == 0 and (should_squeeze or is_scalar(func) or callable(func)):
             # In this branch, the concatenated frame is a 1-row frame, but needs to be converted
             # into a 1-column frame so the frontend can wrap it as a Series
             result = result.transpose_single_row()
@@ -8399,6 +8404,117 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_types=None,
         )
         return SnowflakeQueryCompiler(new_frame)
+
+    def align(
+        self,
+        other: SnowparkDataFrame = None,
+        join: str = "outer",
+        axis: int = 0,
+        level: Level = None,
+        copy: bool = True,
+        fill_value: Scalar = None,
+    ) -> tuple["SnowflakeQueryCompiler", "SnowflakeQueryCompiler"]:
+        """
+        Align two objects on their axes with the specified join method.
+
+        Join method is specified for each axis Index.
+
+        Args:
+            other: DataFrame or Series
+            join: {‘outer’, ‘inner’, ‘left’, ‘right’}, default ‘outer’
+                Type of alignment to be performed.
+                left: use only keys from left frame, preserve key order.
+                right: use only keys from right frame, preserve key order.
+                outer: use union of keys from both frames, sort keys lexicographically.
+                inner: use intersection of keys from both frames, preserve the order of the left keys.
+            axis: allowed axis of the other object, default None
+                Align on index (0), columns (1), or both (None).
+            level: int or level name, default None
+                Broadcast across a level, matching Index values on the passed MultiIndex level.
+            copy: bool, default True
+                Always returns new objects. If copy=False and no reindexing is required then original objects are returned.
+            fill_value: scalar, default np.nan
+                Always returns new objects. If copy=False and no reindexing is required then original objects are returned.
+
+        Returns:
+            tuple of SnowflakeQueryCompilers
+            Aligned objects.
+
+        """
+        if copy is not True:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'copy=False'"
+            )
+        if level is not None:
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'level'"
+            )
+        if fill_value is not None:
+            # TODO: SNOW-1752860
+            ErrorMessage.not_implemented(
+                "Snowpark pandas 'align' method doesn't support 'fill_value'"
+            )
+        if axis != 0:
+            # TODO: SNOW-1752856
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas 'align' method doesn't support 'axis={axis}'"
+            )
+        frame = self._modin_frame
+        other_frame = other._query_compiler._modin_frame
+
+        if self.is_multiindex(axis=axis) or other._query_compiler.is_multiindex(
+            axis=axis
+        ):
+            raise NotImplementedError(
+                "Snowpark pandas doesn't support `align` with MultiIndex"
+            )
+
+        # convert frames to variant type if index is incompatible for join
+        frame, other_frame = join_utils.convert_incompatible_types_to_variant(
+            frame,
+            other_frame,
+            frame.index_column_snowflake_quoted_identifiers,
+            other_frame.index_column_snowflake_quoted_identifiers,
+        )
+
+        (
+            left_result,
+            left_frame,
+            left_frame_data_ids,
+            left_index_ids,
+        ) = align_axis_0_left(frame, other_frame, join)
+        (
+            right_result,
+            right_frame,
+            right_frame_data_ids,
+            right_index_ids,
+        ) = align_axis_0_right(frame, other_frame, join)
+
+        left_qc = SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=left_frame,
+                data_column_snowflake_quoted_identifiers=left_frame_data_ids,
+                data_column_pandas_labels=frame.data_column_pandas_labels,
+                data_column_pandas_index_names=frame.data_column_pandas_index_names,
+                data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                index_column_snowflake_quoted_identifiers=left_index_ids,
+                index_column_pandas_labels=left_result.index_column_pandas_labels,
+                index_column_types=left_result.cached_index_column_snowpark_pandas_types,
+            )
+        )
+        right_qc = SnowflakeQueryCompiler(
+            InternalFrame.create(
+                ordered_dataframe=right_frame,
+                data_column_snowflake_quoted_identifiers=right_frame_data_ids,
+                data_column_pandas_labels=other_frame.data_column_pandas_labels,
+                data_column_pandas_index_names=other_frame.data_column_pandas_index_names,
+                data_column_types=other_frame.cached_data_column_snowpark_pandas_types,
+                index_column_snowflake_quoted_identifiers=right_index_ids,
+                index_column_pandas_labels=right_result.index_column_pandas_labels,
+                index_column_types=right_result.cached_index_column_snowpark_pandas_types,
+            )
+        )
+        return left_qc, right_qc
 
     def apply(
         self,
@@ -18690,13 +18806,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 new_col = new_col.as_(inner_quoted_identifier)
                 new_columns.append(new_col)
 
-            new_ordered_data_frame = OrderedDataFrame(
-                dataframe_ref=DataFrameReference(
-                    frame.ordered_dataframe._dataframe_ref.snowpark_dataframe.agg(
-                        new_columns
-                    )
-                )
-            )
+            new_ordered_data_frame = frame.ordered_dataframe.agg(*new_columns)
 
             new_frame = InternalFrame.create(
                 ordered_dataframe=new_ordered_data_frame,

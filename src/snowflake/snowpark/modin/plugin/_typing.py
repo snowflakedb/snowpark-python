@@ -44,6 +44,10 @@ AlignTypeLit = Literal[
     # align columns.
     "outer",
     # If align column values matches exactly, merge frames line by line (this is
+    # equivalent to joining on row position) otherwise perform INNER JOIN on
+    # align columns
+    "inner",
+    # If align column values matches exactly, merge frames line by line (this is
     # equivalent to joining on row position) otherwise
     # - perform LEFT OUTER JOIN if left frame is non-empty
     # - perform RIGHT OUTER JOIN if left frame is empty
