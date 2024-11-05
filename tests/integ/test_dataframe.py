@@ -1303,7 +1303,7 @@ def test_in_with_subquery_multiple_query(session):
         # check that schema query does not depend on temp tables
         assert "SNOWPARK_TEMP_TABLE_" not in df_in._plan.schema_query
         assert df_in.schema == StructType(
-            [StructField("A", LongType()), StructField("B", LongType())]
+            [StructField("A", LongType(), False), StructField("B", LongType(), False)]
         )
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_threshold
