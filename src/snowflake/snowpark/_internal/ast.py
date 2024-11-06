@@ -7,8 +7,9 @@ import base64
 import itertools
 import sys
 import uuid
+from collections import namedtuple
 from dataclasses import dataclass
-from typing import Callable, Tuple
+from typing import Callable
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark.version import VERSION
@@ -27,6 +28,9 @@ class TrackedCallable:
 
     var_id: int
     func: Callable
+
+
+SerializedBatch = namedtuple("SerializedBatch", ["request_id", "batch"])
 
 
 class AstBatch:
@@ -84,11 +88,12 @@ class AstBatch:
         stmt.eval.uid = self._get_next_id()
         stmt.eval.var_id.CopyFrom(target.var_id)
 
-    def flush(self) -> Tuple[str, str]:
+    def flush(self) -> SerializedBatch:
         """Ties off a batch and starts a new one. Returns the tied-off batch."""
+        req_id: str = str(self._request_id)
         batch = str(base64.b64encode(self._request.SerializeToString()), "utf-8")
         self._init_batch()
-        return (str(self._request_id), batch)
+        return SerializedBatch(req_id, batch)
 
     def _init_batch(self):
         # Reset the AST batch by initializing a new request.
