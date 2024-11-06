@@ -89,8 +89,14 @@ def check_result_with_and_without_breakdown(session, df):
         session._large_query_breakdown_enabled = large_query_enabled
 
 
-def test_no_valid_nodes_found(session, caplog):
-    """Test large query breakdown works with default bounds"""
+def check_summary_breakdown_value(patch_send, expected_summary):
+    _, kwargs = patch_send.call_args
+    summary_value = kwargs["compilation_stage_summary"]
+    assert summary_value["breakdown_failure_summary"] == expected_summary
+
+
+def test_no_pipeline_breaker_nodes(session):
+    """Test large query breakdown breaks select statement when no pipeline breaker nodes found"""
     if not session.sql_simplifier_enabled:
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
@@ -106,14 +112,27 @@ def test_no_valid_nodes_found(session, caplog):
     union_df = df1.union_all(df2)
     final_df = union_df.with_column("A", col("A") + lit(1))
 
-    with caplog.at_level(logging.DEBUG):
+    with patch.object(
+        session._conn._telemetry_client, "send_query_compilation_summary_telemetry"
+    ) as patch_send:
         # there is one query count in large query breakdown to check there
         # is active transaction
         with SqlCounter(query_count=1, describe_count=0):
             queries = final_df.queries
-    assert len(queries["queries"]) == 1, queries["queries"]
-    assert len(queries["post_actions"]) == 0, queries["post_actions"]
-    assert "Could not find a valid node for partitioning" in caplog.text
+
+    assert len(queries["queries"]) == 2
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+
+    assert len(queries["post_actions"]) == 1
+    assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+
+    patch_send.assert_called_once()
+    expected_summary = [
+        {
+            "num_partitions_made": 1,
+        }
+    ]
+    check_summary_breakdown_value(patch_send, expected_summary)
 
 
 def test_large_query_breakdown_external_cte_ref(session):
@@ -149,18 +168,18 @@ def test_large_query_breakdown_external_cte_ref(session):
     assert len(queries["queries"]) == 1
 
     patch_send.assert_called_once()
-    _, kwargs = patch_send.call_args
-    summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == [
+    expected_summary = [
         {
-            "num_external_cte_ref_nodes": 2,
-            "num_non_pipeline_breaker_nodes": 4 if sql_simplifier_enabled else 2,
+            "num_external_cte_ref_nodes": 6 if sql_simplifier_enabled else 2,
+            "num_non_pipeline_breaker_nodes": 0 if sql_simplifier_enabled else 2,
             "num_nodes_below_lower_bound": 28,
             "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
             "num_valid_nodes": 0,
+            "num_valid_nodes_relaxed": 0,
             "num_partitions_made": 0,
         }
     ]
+    check_summary_breakdown_value(patch_send, expected_summary)
 
 
 def test_breakdown_at_with_query_node(session):
@@ -445,10 +464,12 @@ def test_sort(session):
     for i in range(160):
         df1 = df1.with_column("A", col("A") + lit(i))
         df2 = df2.with_column("B", col("B") + lit(i))
-    df1_with_sort = df1.order_by("A")
 
-    union_df = df1_with_sort.union_all(df2)
-    final_df = union_df.with_column("A", col("A") + lit(1))
+    # when sort is applied on the final dataframe, the final result should be the same as
+    # when no optimization is applied.
+    # A cut will be made at SelectStatement
+    union_df = df1.union_all(df2)
+    final_df = union_df.with_column("A", col("A") + lit(1)).order_by("A")
 
     with SqlCounter(query_count=5, describe_count=0):
         check_result_with_and_without_breakdown(session, final_df)
@@ -460,19 +481,6 @@ def test_sort(session):
 
     assert len(plan_queries["post_actions"]) == 1
     assert plan_queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
-
-    # when sort is applied on the final dataframe, it should not be broken down
-    union_df = df1.union_all(df2)
-    final_df = union_df.with_column("A", col("A") + lit(1)).order_by("A")
-
-    # large query breakdown not in effect
-    with SqlCounter(query_count=3, describe_count=0):
-        check_result_with_and_without_breakdown(session, final_df)
-
-    with SqlCounter(query_count=1, describe_count=0):
-        plan_queries = final_df.queries
-    assert len(plan_queries["queries"]) == 1
-    assert len(plan_queries["post_actions"]) == 0
 
 
 def test_multiple_query_plan(session):
@@ -673,7 +681,8 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     """Test complexity bounds affect number of partitions.
     Also test that when partitions are added, drop table queries are added.
     """
-    if session.sql_simplifier_enabled:
+    sql_simplifier_enabled = session.sql_simplifier_enabled
+    if sql_simplifier_enabled:
         set_bounds(session, 300, 600)
     else:
         set_bounds(session, 400, 600)
@@ -686,7 +695,7 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
         assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
         assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
-    if session.sql_simplifier_enabled:
+    if sql_simplifier_enabled:
         set_bounds(session, 300, 455)
     else:
         set_bounds(session, 400, 450)
@@ -703,8 +712,8 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     set_bounds(session, 0, 300)
     with SqlCounter(query_count=1, describe_count=0):
         queries = large_query_df.queries
-        assert len(queries["queries"]) == 1
-        assert len(queries["post_actions"]) == 0
+        assert len(queries["queries"]) == (4 if sql_simplifier_enabled else 1)
+        assert len(queries["post_actions"]) == (3 if sql_simplifier_enabled else 0)
 
     reset_bounds(session)
     with SqlCounter(query_count=1, describe_count=0):
