@@ -3,7 +3,7 @@
 ## 1.25.0 (TBD)
 
 ### Snowpark Python API Updates
-- Improved the following new capability for function `snowflake.snowpark.functions.to_array` it is now possible to use in many different scenarios.
+- Improved `functions.to_array` to accept multiple input columns.
 
 #### New Features
 
