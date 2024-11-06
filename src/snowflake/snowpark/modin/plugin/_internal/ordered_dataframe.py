@@ -1334,6 +1334,7 @@ class OrderedDataFrame:
         left_on_cols: list[str],
         right_on_cols: list[str],
         how: AlignTypeLit = "outer",
+        enable_default_sort: bool = True,
     ) -> "OrderedDataFrame":
         """
         Performs align operation of the specified join type (``how``) with the current
@@ -1447,9 +1448,9 @@ class OrderedDataFrame:
             how="outer",
         )
 
-        # sort = False
-        # if how == "outer":
-        #    sort = True
+        sort = False
+        if how == "outer" and enable_default_sort:
+            sort = True
         result_helper = JoinOrAlignOrderedDataframeResultHelper(
             left,
             right,
@@ -1457,7 +1458,7 @@ class OrderedDataFrame:
             left_on_cols,
             right_on_cols,
             how=how,
-            sort=False,
+            sort=sort,
         )
         # get the ordered dataframe with correct order based on sort
         joined_ordered_frame = result_helper.join_or_align_result
