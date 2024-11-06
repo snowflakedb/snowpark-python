@@ -7,7 +7,7 @@ from unittest import mock
 import pytest
 
 from snowflake.snowpark import Session
-from snowflake.snowpark._internal.ast import AstBatch
+from snowflake.snowpark._internal.ast.ast import AstBatch
 
 
 @pytest.fixture
