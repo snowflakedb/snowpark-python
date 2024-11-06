@@ -4275,7 +4275,7 @@ def test_to_array(session):
         sort=False,
     )
 
-    actual = session.createDataFrame(
+    base_df = session.createDataFrame(
         [
             ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
             ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
@@ -4291,7 +4291,7 @@ def test_to_array(session):
             "LITERAL_5_FLOAT",
         ],
     )
-    actual = actual.select(to_array("age", "age"))
+    actual = base_df.select(to_array("age", "age"))
 
     Utils.check_answer(
         actual,
@@ -4302,23 +4302,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array([actual.age, actual.age]))
+    actual = base_df.select(to_array([base_df.age, base_df.age]))
     Utils.check_answer(
         actual,
         [
@@ -4328,23 +4312,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array(actual.age, actual.age))
+    actual = base_df.select(to_array(base_df.age, base_df.age))
     Utils.check_answer(
         actual,
         [
@@ -4354,23 +4322,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("age", actual.age))
+    actual = base_df.select(to_array("age", base_df.age))
     Utils.check_answer(
         actual,
         [
@@ -4380,23 +4332,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array(actual.age, "age"))
+    actual = base_df.select(to_array(base_df.age, "age"))
     Utils.check_answer(
         actual,
         [
@@ -4406,23 +4342,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array(actual.age, actual.name))
+    actual = base_df.select(to_array(base_df.age, base_df.name))
     Utils.check_answer(
         actual,
         [
@@ -4432,23 +4352,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array(actual.name, actual.name))
+    actual = base_df.select(to_array(base_df.name, base_df.name))
     Utils.check_answer(
         actual,
         [
@@ -4458,23 +4362,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("name", "name"))
+    actual = base_df.select(to_array("name", "name"))
     Utils.check_answer(
         actual,
         [
@@ -4484,23 +4372,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("LITERAL_2_INT", "LITERAL_5_FLOAT"))
+    actual = base_df.select(to_array("LITERAL_2_INT", "LITERAL_5_FLOAT"))
     Utils.check_answer(
         actual,
         [
@@ -4510,23 +4382,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("LITERAL_2_INT", "AGE"))
+    actual = base_df.select(to_array("LITERAL_2_INT", "AGE"))
     Utils.check_answer(
         actual,
         [
@@ -4536,23 +4392,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("LITERAL_2_FLOAT", actual.age))
+    actual = base_df.select(to_array("LITERAL_2_FLOAT", base_df.age))
     Utils.check_answer(
         actual,
         [
@@ -4562,23 +4402,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array(actual.age, "LITERAL_5_INT"))
+    actual = base_df.select(to_array(base_df.age, "LITERAL_5_INT"))
     Utils.check_answer(
         actual,
         [
@@ -4588,23 +4412,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("age", "LITERAL_5_INT"))
+    actual = base_df.select(to_array("age", "LITERAL_5_INT"))
     Utils.check_answer(
         actual,
         [
@@ -4614,23 +4422,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("age", "LITERAL_2_FLOAT"))
+    actual = base_df.select(to_array("age", "LITERAL_2_FLOAT"))
     Utils.check_answer(
         actual,
         [
@@ -4640,23 +4432,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("age", "LITERAL_5_FLOAT"))
+    actual = base_df.select(to_array("age", "LITERAL_5_FLOAT"))
     Utils.check_answer(
         actual,
         [
@@ -4666,23 +4442,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("LITERAL_2_INT", "age"))
+    actual = base_df.select(to_array("LITERAL_2_INT", "age"))
     Utils.check_answer(
         actual,
         [
@@ -4692,23 +4452,7 @@ def test_to_array(session):
         ],
     )
 
-    actual = session.createDataFrame(
-        [
-            ("Eva", 4, 2.5, 2, 5, 2.1, 6.3),
-            ("Alice", 2, 2.5, 2, 5, 2.0, 5.0),
-            ("Bob", 5, 5.5, 2, 5, 2.0, 5.0),
-        ],
-        [
-            "name",
-            "age",
-            "double_value",
-            "LITERAL_2_INT",
-            "LITERAL_5_INT",
-            "LITERAL_2_FLOAT",
-            "LITERAL_5_FLOAT",
-        ],
-    )
-    actual = actual.select(to_array("LITERAL_2_FLOAT", "age"))
+    actual = base_df.select(to_array("LITERAL_2_FLOAT", "age"))
     Utils.check_answer(
         actual,
         [
