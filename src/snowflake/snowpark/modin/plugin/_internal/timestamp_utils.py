@@ -443,7 +443,7 @@ def raise_if_to_datetime_not_supported(
 
 
 def convert_dateoffset_to_interval(
-    value: native_pd.DateOffset,
+    value: native_pd.DateOffset, _emit_ast: bool = True
 ) -> Interval:
     """
     Converts a pandas DateOffset where value is treated as a timedelta to a Snowpark
@@ -456,30 +456,8 @@ def convert_dateoffset_to_interval(
     # Handle case where the DateOffset has no argument or an integer argument
     # Ex. pd.DateOffset() -> Timedelta 1 Day, pd.DateOffset(5) -> Timedelta 5 Days
     if not dateoffset_dict:
-        return make_interval(days=value.n)
-    # Handle case where DateOffset offset value is treated as a timedelta
-    param_mapping = {
-        "years": "year",
-        "months": "month",
-        "weeks": "week",
-        "days": "day",
-        "hours": "hour",
-        "minutes": "minute",
-        "seconds": "second",
-        "milliseconds": "millisecond",
-        "microseconds": "microsecond",
-        "nanoseconds": "nanosecond",
-    }
-    interval_kwargs = {}
-    for interval, offset in dateoffset_dict.items():
-        new_param = param_mapping.get(interval)
-        if new_param is None:
-            # TODO SNOW-1007629: Support DateOffset with replacement offset values
-            raise NotImplementedError(
-                "DateOffset with parameters that replace the offset value are not yet supported."
-            )
-        interval_kwargs[new_param] = offset
-    return make_interval(**interval_kwargs)
+        return make_interval(days=value.n, _emit_ast=_emit_ast)
+    return make_interval(**dateoffset_dict, _emit_ast=_emit_ast)
 
 
 def tz_localize_column(column: Column, tz: Union[str, dt.tzinfo]) -> Column:
