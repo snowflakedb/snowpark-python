@@ -5,6 +5,8 @@
 
 import logging
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -160,6 +162,15 @@ def unparser_jar(pytestconfig):
             f"Please set the correct path with --unparser_jar or SNOWPARK_UNPARSER_JAR."
         )
     return unparser_jar
+
+
+@pytest.fixture(scope="module", autouse=True)
+def proto_generated():
+    """Generate Protobuf Python files automatically"""
+    try:
+        from snowflake.snowpark._internal.proto.generated import ast_pb2  # noqa: F401
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "tox", "-e", "protoc"])
 
 
 def pytest_sessionstart(session):
