@@ -54,6 +54,9 @@
   - Raise a `TypeError` for a scalar `subset` instead of filtering on just that column.
   - Raise a `ValueError` for a `subset` of type `pandas.Index` instead of filtering on the columns in the index.
 
+#### Improvements
+- Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
+
 ### Snowpark Local Testing Updates
 
 #### New Features
