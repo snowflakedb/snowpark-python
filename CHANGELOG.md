@@ -287,6 +287,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 - Fixed a bug where the truncate mode in `DataFrameWriter.save_as_table` incorrectly handled DataFrames containing only a subset of columns from the existing table.
 - Fixed a bug where function `to_timestamp` does not set the default timezone of the column datatype.
+- Fixed a bug where joins on dataframes with shared lineage would cause a KeyError exception.
 
 ### Snowpark pandas API Updates
 
