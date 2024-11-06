@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark._internal.ast_utils import build_expr_from_python_val
+from snowflake.snowpark._internal.ast.utils import build_expr_from_python_val
 from snowflake.snowpark._internal.proto.generated import ast_pb2 as proto
 
 
