@@ -673,6 +673,13 @@ class ServerConnection:
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
+                # Only send dataframe AST on the last query.
+                if "_dataframe_ast" in kwargs:
+                    dataframe_ast = kwargs["_dataframe_ast"]
+                    del kwargs["_dataframe_ast"]
+                else:
+                    dataframe_ast = None
+
                 for i, query in enumerate(main_queries):
                     if isinstance(query, BatchInsertQuery):
                         self.run_batch_insert(query.sql, query.rows, **kwargs)
@@ -681,6 +688,8 @@ class ServerConnection:
                         final_query = query.sql
                         for holder, id_ in placeholders.items():
                             final_query = final_query.replace(holder, id_)
+                        if i == len(main_queries) - 1 and dataframe_ast:
+                            kwargs["_dataframe_ast"] = dataframe_ast
                         result = self.run_query(
                             final_query,
                             to_pandas,
@@ -704,6 +713,8 @@ class ServerConnection:
         finally:
             # delete created tmp object
             if block:
+                if "_dataframe_ast" in kwargs:
+                    del kwargs["_dataframe_ast"]
                 for action in plan_queries[PlanQueryType.POST_ACTIONS]:
                     self.run_query(
                         action.sql,

@@ -12,6 +12,7 @@ import pytest
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
 import snowflake.snowpark.functions
 import snowflake.snowpark.types
+import tests.integ.utils.sql_counter
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.ast_utils import base64_lines_to_request
 from snowflake.snowpark.query_history import AstListener, QueryRecord
@@ -44,11 +45,13 @@ def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> st
     return res.stdout
 
 
-def generate_error_trace_info(python_text):
+def generate_error_trace_info(python_text, exception=None):
     error_msg = "\nOriginal stack trace:\n" + "".join(
         filter(
             lambda s: "site-package" not in s and "ast_test_utils" not in s,
-            traceback.format_stack(),
+            traceback.format_stack()
+            if exception is None
+            else "\n".join(traceback.format_tb(exception.__traceback__)),
         )
     )
 
@@ -58,9 +61,18 @@ def generate_error_trace_info(python_text):
     return error_msg
 
 
-def notify_compare_ast_validation_with_session(
-    validation_session: Session, query_record: QueryRecord, *args, **kwargs
+def notify_compare_ast_validation(
+    compare_ast_validation_listener: AstListener,
+    query_record: QueryRecord,
+    *args,
+    **kwargs,
 ):
+    # For multi-query, we only want to do the comparison query after the *last* query.
+    if "dataframeAst" not in kwargs:
+        return
+
+    validation_session = compare_ast_validation_listener._validation_session
+
     # Get query_id for the original and generated code python dataframe code.
     qid_result1 = validation_session._ast_full_validation_result
     qid_result2 = query_record.query_id
@@ -87,10 +99,15 @@ def notify_compare_ast_validation_with_session(
 
         try:
             results_cursor = validation_session._conn._cursor.execute(comparison_sql)
-            compare_results = validation_session._conn._to_data_or_iter(
-                results_cursor, False, False
-            )
-            compare_diff = compare_results["data"][0][0]
+
+            # Ensure we are using a new cursor to avoid side effects on the connection reusing cursor state with
+            # the validation query.
+            validation_cursor = results_cursor.connection.cursor()
+            validation_cursor.get_results_from_sfqid(results_cursor.sfqid)
+
+            compare_results = validation_cursor.fetchall()
+            compare_diff = compare_results[0][0]
+
             # The results can be None if the query result is an empty set.
             success = compare_diff is None or compare_diff == 0
         except Exception as ex:
@@ -147,6 +164,11 @@ def notify_full_ast_validation_with_listener(
         return
 
     base64_batches = full_ast_validation_listener.base64_batches
+    # Some queries won't have AST attached because they are part of a multi-query action.  Only the last query should
+    # send dataframe AST to ensure it is executed only once.
+    if not base64_batches:
+        return
+
     cur_request = base64_lines_to_request(base64_batches[0])
     first_stmt = cur_request.body[0]
     first_uid = (
@@ -240,7 +262,9 @@ def notify_full_ast_validation_with_listener(
                 # The original query failed with same exception as validation query, so this is expected.
                 pass
         else:
-            error_msg = str(ex) + "\n" + generate_error_trace_info(python_code_output)
+            error_msg = (
+                str(ex) + "\n" + generate_error_trace_info(python_code_output, ex)
+            )
             pytest.assume(
                 False,
                 f"""Full AST validation failed, could not run unparser generated python code.\n{error_msg}""",
@@ -256,20 +280,21 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
     )
     validation_session.sql_simplifier_enabled = session._sql_simplifier_enabled
     validation_session._cte_optimization_enabled = session.cte_optimization_enabled
-    validation_session.ast_enabled = False
+    validation_session.ast_enabled = True
     validation_session.full_ast_validation = False
 
     compare_ast_validation_listener = validation_session.ast_listener(True)
 
-    def notify_compare_ast_with_session(query_record: QueryRecord, *args, **kwargs):
-        notify_compare_ast_validation_with_session(
-            validation_session, query_record, *args, **kwargs
+    def notify_compare_ast(query_record: QueryRecord, *args, **kwargs):
+        notify_compare_ast_validation(
+            compare_ast_validation_listener, query_record, *args, **kwargs
         )
 
     compare_ast_validation_listener._original_notify = (
         compare_ast_validation_listener._notify
     )
-    compare_ast_validation_listener._notify = notify_compare_ast_with_session
+    compare_ast_validation_listener._notify = notify_compare_ast
+    compare_ast_validation_listener._validation_session = validation_session
 
     full_ast_validation_listener = session.ast_listener(True)
     full_ast_validation_listener._original_notify = full_ast_validation_listener._notify
@@ -291,6 +316,9 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
     full_ast_validation_listener._current_test = ""
     full_ast_validation_listener._prev_stmts = {}
 
+    # Ensure sql counter uses the original session and not the validation session.
+    tests.integ.utils.sql_counter._active_session = session
+
     return full_ast_validation_listener
 
 
@@ -304,3 +332,4 @@ def close_full_ast_validation_mode(full_ast_validation_listener):
     )
     full_ast_validation_listener._notify = full_ast_validation_listener._original_notify
     full_ast_validation_listener._validation_session.close()
+    tests.integ.utils.sql_counter._active_session = None
