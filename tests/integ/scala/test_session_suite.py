@@ -23,12 +23,7 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.session import _get_active_session
 from snowflake.snowpark.types import IntegerType, StringType, StructField, StructType
-from tests.utils import (
-    IS_IN_STORED_PROC,
-    IS_IN_STORED_PROC_LOCALFS,
-    Utils,
-    multithreaded_run,
-)
+from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, Utils
 
 
 @pytest.mark.xfail(
@@ -260,7 +255,6 @@ def test_dataframe_close_session(session, db_parameters):
     assert ex_info.value.error_code == "1404"
 
 
-@multithreaded_run()
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="transactions not supported by local testing.",
@@ -276,7 +270,6 @@ def test_large_local_relation_no_commit(session):
     assert not Utils.is_active_transaction(session)
 
 
-@multithreaded_run()
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="transactions not supported by local testing.",

@@ -55,6 +55,7 @@ class InvalidNodesInBreakdownCategory(Enum):
     NON_PIPELINE_BREAKER = "num_non_pipeline_breaker_nodes"
     EXTERNAL_CTE_REF = "num_external_cte_ref_nodes"
     VALID_NODE = "num_valid_nodes"
+    VALID_NODE_RELAXED = "num_valid_nodes_relaxed"
 
 
 class SkipLargeQueryBreakdownCategory(Enum):

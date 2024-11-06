@@ -3,9 +3,11 @@
 #
 import threading
 from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
+from unittest import mock
 
 import pytest
 
+from snowflake.connector.errors import Error
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 from tests.utils import IS_IN_STORED_PROC
 
@@ -198,3 +200,31 @@ def test_query_history_with_multi_thread_and_describe(session):
             assert query.sql_text.split(" ")[-1] == str(query.thread_id)
         thread_numbers.add(query.thread_id)
     assert len(thread_numbers) == 2
+
+
+def test_query_history_when_execution_raise_error(session):
+    exception = Error(sfqid="fake_id", query="fake_query")
+    with session.query_history(include_error=True) as query_listener:
+        with mock.patch(
+            "snowflake.connector.cursor.SnowflakeCursor.execute", side_effect=exception
+        ):
+            with pytest.raises(Error):
+                session.sql("select 0").collect()
+        record = query_listener.queries[0]
+        assert record.query_id == "fake_id"
+        assert record.sql_text == "fake_query"
+
+
+def test_query_history_when_async_execution_raise_error(session):
+    exception = Error(sfqid="fake_id", query="fake_query")
+    with session.query_history(include_error=True) as query_listener:
+        with mock.patch(
+            "snowflake.connector.cursor.SnowflakeCursor.execute_async",
+            side_effect=exception,
+        ):
+            with pytest.raises(Error):
+                res = session.sql("select 0").collect_nowait()
+                res.result()
+        record = query_listener.queries[0]
+        assert record.query_id == "fake_id"
+        assert record.sql_text == "fake_query"

@@ -293,8 +293,9 @@ class LargeQueryBreakdown:
             4. Return the statistics of partition for the current root.
         """
         current_level = [root]
-        candidate_node = None
-        candidate_score = -1  # start with -1 since score is always > 0
+        candidate_node, relaxed_candidate_node = None, None
+        # start with -1 since score is always > 0
+        candidate_score, relaxed_candidate_score = -1, -1
         current_node_validity_statistics = defaultdict(int)
 
         while current_level:
@@ -316,6 +317,15 @@ class LargeQueryBreakdown:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
 
+                    if (
+                        validity_status
+                        == InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
+                    ):
+                        # Update the relaxed candidate node and score.
+                        if score > relaxed_candidate_score:
+                            relaxed_candidate_score = score
+                            relaxed_candidate_node = child
+
                     # Update the statistics for the current node.
                     current_node_validity_statistics[validity_status] += 1
 
@@ -323,7 +333,10 @@ class LargeQueryBreakdown:
 
         # If no valid node is found, candidate_node will be None.
         # Otherwise, return the node with the highest complexity score.
-        return candidate_node, current_node_validity_statistics
+        return (
+            candidate_node or relaxed_candidate_node,
+            current_node_validity_statistics,
+        )
 
     def _get_partitioned_plan(self, root: TreeNode, child: TreeNode) -> SnowflakePlan:
         """This method takes cuts the child out from the root, creates a temp table plan for the
@@ -369,6 +382,8 @@ class LargeQueryBreakdown:
         score = get_complexity_score(node)
         is_valid = True
         validity_status = InvalidNodesInBreakdownCategory.VALID_NODE
+
+        # check score bounds
         if score < self.complexity_score_lower_bound:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.SCORE_BELOW_LOWER_BOUND
@@ -377,10 +392,15 @@ class LargeQueryBreakdown:
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
 
+        # check pipeline breaker condition
         if is_valid and not self._is_node_pipeline_breaker(node):
-            is_valid = False
-            validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
+            if self._is_relaxed_pipeline_breaker(node):
+                validity_status = InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
+            else:
+                is_valid = False
+                validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
 
+        # check external CTE ref condition
         if is_valid and self._contains_external_cte_ref(node, root):
             is_valid = False
             validity_status = InvalidNodesInBreakdownCategory.EXTERNAL_CTE_REF
@@ -449,6 +469,13 @@ class LargeQueryBreakdown:
             root_count = root.referenced_ctes[with_query_block]
             if node_count != root_count:
                 return True
+
+        return False
+
+    def _is_relaxed_pipeline_breaker(self, node: LogicalPlan) -> bool:
+        """Method to check if a node is a relaxed pipeline breaker based on the node type."""
+        if isinstance(node, SelectStatement):
+            return True
 
         return False
 

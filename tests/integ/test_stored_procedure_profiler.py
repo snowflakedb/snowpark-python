@@ -9,6 +9,7 @@ import pytest
 
 import snowflake.snowpark
 from snowflake.snowpark import DataFrame
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from tests.utils import Utils
@@ -143,12 +144,6 @@ def test_set_incorrect_active_profiler(
     profiler_session, db_parameters, tmp_stage_name, caplog
 ):
     with pytest.raises(ValueError) as e:
-        profiler_session.stored_procedure_profiler.set_active_profiler(
-            "wrong_active_profiler"
-        )
-    assert "active_profiler expect 'LINE', 'MEMORY'" in str(e)
-
-    with pytest.raises(ValueError) as e:
         profiler_session.stored_procedure_profiler.set_target_stage(f"{tmp_stage_name}")
     assert "stage name must be fully qualified name" in str(e)
 
@@ -159,6 +154,12 @@ def test_set_incorrect_active_profiler(
         profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
         profiler_session.stored_procedure_profiler.get_output()
     assert "last executed stored procedure does not exist" in caplog.text
+
+    with pytest.raises(ValueError) as e:
+        profiler_session.stored_procedure_profiler.set_active_profiler(
+            "wrong_active_profiler"
+        )
+    assert "active_profiler expect 'LINE', 'MEMORY'" in str(e)
 
 
 @pytest.mark.parametrize(
@@ -260,8 +261,66 @@ def test_create_temp_stage(profiler_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_set_active_profiler_failed(profiler_session, caplog):
+def test_stored_proc_error(
+    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
+):
+    profiler_session.sql('alter session set PYTHON_UDF_CGROUP_MEMSIZE="1g"').collect()
+    profiler_session.sql("alter session set UDF_SET_CGROUP_ENABLE = true").collect()
+    profiler_session.sql("alter session set UDF_CGROUP_ENABLE = true").collect()
+    profiler_session.sql("ALTER SESSION SET ENABLE_UDF_OOM_NOTIFIER = TRUE;").collect()
+    function_name = f"oom_sp_{Utils.random_function_name()}"
+
+    @sproc(name=function_name, replace=True)
+    def oom_sp(session: snowflake.snowpark.Session) -> str:
+        gb = 1024 * 1024 * 1024
+        x = "*" * gb * 5
+        return f"Return string is of length {len(x)}"
+
+    profiler_session.stored_procedure_profiler.register_modules(["oom_sp"])
+    profiler_session.stored_procedure_profiler.set_target_stage(
+        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+    )
+
+    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
+
+    with pytest.raises(
+        SnowparkSQLException, match="Function available memory exhausted"
+    ):
+        profiler_session.call(function_name)
+    res = profiler_session.stored_procedure_profiler.get_output()
+
+    profiler_session.stored_procedure_profiler.disable()
+
+    profiler_session.stored_procedure_profiler.register_modules()
+
+    assert res is not None and "oom_sp" in res
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_profiler_without_target_stage(profiler_session, caplog):
     pro = profiler_session.stored_procedure_profiler
+    with caplog.at_level(logging.INFO):
+        pro.set_active_profiler("LINE")
+        assert (
+            "Target stage for profiler not found, using default stage of current session."
+            in str(caplog.text)
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_set_active_profiler_failed(
+    profiler_session, caplog, tmp_stage_name, db_parameters
+):
+    pro = profiler_session.stored_procedure_profiler
+    pro.set_target_stage(
+        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+    )
     with mock.patch(
         "snowflake.snowpark.DataFrame._internal_collect_with_tag_no_telemetry",
         side_effect=Exception,
