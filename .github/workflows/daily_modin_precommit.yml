@@ -28,6 +28,9 @@ jobs:
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Install tox
         run: python -m pip install tox
       - name: Run fix_lint
@@ -44,6 +47,9 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip wheel
       - name: Generate wheel
@@ -67,6 +73,9 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.8
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install tox
@@ -91,6 +100,9 @@ jobs:
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: "aws"
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install tox
@@ -129,6 +141,13 @@ jobs:
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Add protoc to Windows path
+        if: runner.os == 'Windows'
+        run: |
+          echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Download wheel(s)
         uses: actions/download-artifact@v4
         with:
@@ -200,6 +219,9 @@ jobs:
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Download wheel(s)
         uses: actions/download-artifact@v4
         with:
@@ -269,6 +291,9 @@ jobs:
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Download wheel(s)
         uses: actions/download-artifact@v4
         with:
@@ -330,6 +355,9 @@ jobs:
           python-version: '3.9'
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install tox
@@ -378,6 +406,9 @@ jobs:
           python-version: '3.9'
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Install Snowpark
         run: python -m pip install ".[modin-development]"
       - name: Install Sphinx
