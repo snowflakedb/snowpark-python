@@ -6581,6 +6581,11 @@ def to_array(*e: Union[ColumnOrName, List[ColumnOrName]]) -> Column:
         >>> df = session.create_dataframe([Row(a=[1, 2, 3]), Row(a=None)])
         >>> df.select(to_array(col('a')).as_('ans')).collect()
         [Row(ANS='[\\n  1,\\n  2,\\n  3\\n]'), Row(ANS=None)]
+
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row('Eva', 4), Row('Alice', 2)],schema=["name", "age"])
+        >>> df.select(to_array([df.age, df.age])).collect()
+        [Row(ANS='[\\n  4,\\n  4\\n]'), Row(ANS='[\\n  2,\\n  2\\n]')]
     """
     if len(e) == 1 and isinstance(e[0], list):
         cols = e[0]
