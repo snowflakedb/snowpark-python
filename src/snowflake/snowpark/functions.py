@@ -6567,7 +6567,7 @@ def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
     return builtin("to_binary")(c, fmt) if fmt else builtin("to_binary")(c)
 
 
-def to_array(*cols: Union[ColumnOrName, List[ColumnOrName]]) -> Column:
+def to_array(*e: Union[ColumnOrName, List[ColumnOrName]]) -> Column:
     """Converts any value to an ARRAY value or NULL (if input is NULL).
 
     Example::
@@ -6582,9 +6582,10 @@ def to_array(*cols: Union[ColumnOrName, List[ColumnOrName]]) -> Column:
         >>> df.select(to_array(col('a')).as_('ans')).collect()
         [Row(ANS='[\\n  1,\\n  2,\\n  3\\n]'), Row(ANS=None)]
     """
-    if len(cols) == 1 and isinstance(cols[0], list):
-        cols = cols[0]
-
+    if len(e) == 1 and isinstance(e[0], list):
+        cols = e[0]
+    else:
+        cols = e
     # Convert string arguments to Column objects
     cs = [_to_col_if_str(c, "array_construct") for c in cols]
     return builtin("array_construct")(*cs)
