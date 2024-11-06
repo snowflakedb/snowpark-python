@@ -11320,6 +11320,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
             if subset is None or label in subset
         ]
+
         if thresh is lib.no_default:
             thresh = None
 

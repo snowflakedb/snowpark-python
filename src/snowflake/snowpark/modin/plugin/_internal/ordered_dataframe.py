@@ -833,17 +833,21 @@ class OrderedDataFrame:
         snowpark_dataframe = self.to_projected_snowpark_dataframe()
 
         from snowflake.snowpark.modin.plugin._internal.utils import cache_result
-        return cache_result(OrderedDataFrame(
-            # the pivot result columns for dynamic pivot are data dependent, a schema call is required
-            # to know all the quoted identifiers for the pivot result.
-            DataFrameReference(
-                snowpark_dataframe.pivot(
-                    pivot_col=pivot_col,
-                    values=values,
-                    default_on_null=default_on_null,
-                ).agg(*agg_exprs)
+
+        pivot_dataframe = snowpark_dataframe.pivot(
+            pivot_col=pivot_col,
+            values=values,
+            default_on_null=default_on_null,
+        ).agg(*agg_exprs)
+        # pivot_dataframe = pivot_dataframe.cache_result()
+
+        return cache_result(
+            OrderedDataFrame(
+                # the pivot result columns for dynamic pivot are data dependent, a schema call is required
+                # to know all the quoted identifiers for the pivot result.
+                DataFrameReference(pivot_dataframe)
             )
-        ))
+        )
 
     def unpivot(
         self,
