@@ -91,6 +91,7 @@ class AstBatch:
         return (str(self._request_id), batch)
 
     def _init_batch(self):
+        # Reset the AST batch by initializing a new request.
         self._request_id = AstBatch.generate_request_id()  # Generate a new unique ID.
         self._request = proto.Request()
 
