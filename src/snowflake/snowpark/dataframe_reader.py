@@ -7,7 +7,7 @@ from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_file_format_statement,
     drop_file_format_if_exists_statement,
