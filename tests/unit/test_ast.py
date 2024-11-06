@@ -33,6 +33,7 @@ class TestAstBatch:
         assert stmt is not None
 
     def test_eval(self, fake_session):
+        # Smoke test for AstBatch.eval()
         ast_batch = AstBatch(fake_session)
         ast_batch.eval(ast_batch.assign("foo"))
 
