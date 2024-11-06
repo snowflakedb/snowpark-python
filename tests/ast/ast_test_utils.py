@@ -45,13 +45,13 @@ def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> st
     return res.stdout
 
 
-def generate_error_trace_info(python_text, ex=None):
+def generate_error_trace_info(python_text, exception=None):
     error_msg = "\nOriginal stack trace:\n" + "".join(
         filter(
             lambda s: "site-package" not in s and "ast_test_utils" not in s,
             traceback.format_stack()
-            if ex is None
-            else "\n".join(traceback.format_tb(ex.__traceback__)),
+            if exception is None
+            else "\n".join(traceback.format_tb(exception.__traceback__)),
         )
     )
 
