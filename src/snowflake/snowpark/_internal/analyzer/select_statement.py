@@ -324,12 +324,16 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        if self._cumulative_node_complexity is None:
-            self._cumulative_node_complexity = sum_node_complexities(
-                self.individual_node_complexity,
-                *(node.cumulative_node_complexity for node in self.children_plan_nodes),
-            )
-        return self._cumulative_node_complexity
+        with self.analyzer.session._plan_lock:
+            if self._cumulative_node_complexity is None:
+                self._cumulative_node_complexity = sum_node_complexities(
+                    self.individual_node_complexity,
+                    *(
+                        node.cumulative_node_complexity
+                        for node in self.children_plan_nodes
+                    ),
+                )
+            return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
