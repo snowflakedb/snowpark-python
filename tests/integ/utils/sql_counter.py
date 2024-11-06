@@ -88,6 +88,8 @@ FILTER_OUT_QUERIES = [
 # define global at module-level
 sql_count_records = {}
 
+_active_session = None
+
 
 class SqlCounter(QueryListener):
     """
@@ -154,8 +156,12 @@ class SqlCounter(QueryListener):
 
         if self._no_check:
             self.session = None
+        elif _active_session is not None:
+            self.session = _active_session
         else:
             self.session = Session.SessionBuilder().getOrCreate()
+
+        if self.session:
             # Add SqlCounter as a snowpark query listener.
             self.session._conn.add_query_listener(self)
 
