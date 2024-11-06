@@ -262,6 +262,15 @@ class MockServerConnection:
                 name = get_fully_qualified_name(name, current_schema, current_database)
                 self.view_registry[name] = execution_plan
 
+        def copy_into_table(
+            self, name: Union[str, Iterable[str]], table: TableEmulator
+        ):
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                name = get_fully_qualified_name(name, current_schema, current_database)
+                self.table_registry[name] = table
+
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
             with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")

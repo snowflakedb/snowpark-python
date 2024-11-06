@@ -3963,9 +3963,6 @@ class DataFrame:
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
 
-        # TODO: This should be an eval operation, not an assign only as implemented here. Rather, the AST should be
-        #       issued as query similar to collect().
-
         # AST.
         kwargs = {}
         stmt = None
@@ -4007,20 +4004,20 @@ class DataFrame:
                     t._2 = v
             self._set_ast_ref(expr.df)
 
-        self._session._ast_batch.eval(stmt)
+            self._session._ast_batch.eval(stmt)
 
-        # Flush the AST and encode it as part of the query.
-        _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
-        # TODO: Support copy_into_table in MockServerConnection.
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
-        if (
-            isinstance(self._session._conn, MockServerConnection)
-            and self._session._conn._suppress_not_implemented_error
-        ):
-            # Allow AST tests to pass.
-            return []
+        # # TODO: Support copy_into_table in MockServerConnection.
+        # from snowflake.snowpark.mock._connection import MockServerConnection
+        #
+        # if (
+        #     isinstance(self._session._conn, MockServerConnection)
+        #     and self._session._conn._suppress_not_implemented_error
+        # ):
+        #     # Allow AST tests to pass.
+        #     return []
 
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
