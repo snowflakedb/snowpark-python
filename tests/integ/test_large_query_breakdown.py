@@ -170,8 +170,8 @@ def test_large_query_breakdown_external_cte_ref(session):
     patch_send.assert_called_once()
     expected_summary = [
         {
-            "num_external_cte_ref_nodes": 2,
-            "num_non_pipeline_breaker_nodes": 4 if sql_simplifier_enabled else 2,
+            "num_external_cte_ref_nodes": 6 if session.sql_simplifier_enabled else 2,
+            "num_non_pipeline_breaker_nodes": 0 if sql_simplifier_enabled else 2,
             "num_nodes_below_lower_bound": 28,
             "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
             "num_valid_nodes": 0,
@@ -711,8 +711,8 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     set_bounds(session, 0, 300)
     with SqlCounter(query_count=1, describe_count=0):
         queries = large_query_df.queries
-        assert len(queries["queries"]) == 4
-        assert len(queries["post_actions"]) == 3
+        assert len(queries["queries"]) == (4 if session.sql_simplifier_enabled else 1)
+        assert len(queries["post_actions"]) == (3 if session.sql_simplifier_enabled else 0)
 
     reset_bounds(session)
     with SqlCounter(query_count=1, describe_count=0):
