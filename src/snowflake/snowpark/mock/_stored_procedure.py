@@ -263,7 +263,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         **kwargs,
     ) -> StoredProcedure:
 
-        check_imports_type(imports)
+        check_imports_type(imports, "stored-proc-level")
 
         ast = None
         stmt = None

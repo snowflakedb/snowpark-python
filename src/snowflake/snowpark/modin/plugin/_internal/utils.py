@@ -40,6 +40,7 @@ from snowflake.snowpark.functions import (
     equal_nan,
     floor,
     iff,
+    lit,
     max as max_,
     mean,
     min as min_,
@@ -1733,10 +1734,10 @@ def pandas_lit(
             convert_dateoffset_to_interval,
         )
 
-        return Column(convert_dateoffset_to_interval(value), _emit_ast=_emit_ast)
+        return convert_dateoffset_to_interval(value, _emit_ast=_emit_ast)
     else:
         # Construct a Literal directly in order to pass in `datatype`. `lit()` function does not support datatype.
-        return Column(Literal(value, datatype), _emit_ast=_emit_ast)
+        return lit(value, datatype, _emit_ast=_emit_ast)
 
 
 def is_repr_truncated(
