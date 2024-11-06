@@ -712,7 +712,9 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     with SqlCounter(query_count=1, describe_count=0):
         queries = large_query_df.queries
         assert len(queries["queries"]) == (4 if session.sql_simplifier_enabled else 1)
-        assert len(queries["post_actions"]) == (3 if session.sql_simplifier_enabled else 0)
+        assert len(queries["post_actions"]) == (
+            3 if session.sql_simplifier_enabled else 0
+        )
 
     reset_bounds(session)
     with SqlCounter(query_count=1, describe_count=0):
