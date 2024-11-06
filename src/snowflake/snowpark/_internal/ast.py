@@ -68,7 +68,7 @@ class AstBatch:
         """
         stmt = self._request.body.add()
         # TODO: extended BindingId spec from the branch snowpark-ir.
-        stmt.assign.uid = next(self._id_gen)
+        stmt.assign.uid = self._get_next_id()
         stmt.assign.var_id.bitfield1 = stmt.assign.uid
         stmt.assign.symbol.value = symbol if isinstance(symbol, str) else ""
         return stmt.assign
@@ -81,7 +81,7 @@ class AstBatch:
             target: The variable to evaluate.
         """
         stmt = self._request.body.add()
-        stmt.eval.uid = next(self._id_gen)
+        stmt.eval.uid = self._get_next_id()
         stmt.eval.var_id.CopyFrom(target.var_id)
 
     def flush(self) -> Tuple[str, str]:
@@ -119,3 +119,7 @@ class AstBatch:
         next_id = len(self._callables)
         self._callables[k] = TrackedCallable(var_id=next_id, func=func)
         return next_id
+
+    def _get_next_id(self) -> int:
+        """Returns the next ID from the generator."""
+        return next(self._id_gen)
