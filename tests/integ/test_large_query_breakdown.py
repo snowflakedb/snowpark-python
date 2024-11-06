@@ -170,7 +170,7 @@ def test_large_query_breakdown_external_cte_ref(session):
     patch_send.assert_called_once()
     expected_summary = [
         {
-            "num_external_cte_ref_nodes": 6 if session.sql_simplifier_enabled else 2,
+            "num_external_cte_ref_nodes": 6 if sql_simplifier_enabled else 2,
             "num_non_pipeline_breaker_nodes": 0 if sql_simplifier_enabled else 2,
             "num_nodes_below_lower_bound": 28,
             "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
@@ -681,7 +681,8 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     """Test complexity bounds affect number of partitions.
     Also test that when partitions are added, drop table queries are added.
     """
-    if session.sql_simplifier_enabled:
+    sql_simplifier_enabled = session.sql_simplifier_enabled
+    if sql_simplifier_enabled:
         set_bounds(session, 300, 600)
     else:
         set_bounds(session, 400, 600)
@@ -694,7 +695,7 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
         assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
         assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
-    if session.sql_simplifier_enabled:
+    if sql_simplifier_enabled:
         set_bounds(session, 300, 455)
     else:
         set_bounds(session, 400, 450)
@@ -711,10 +712,8 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     set_bounds(session, 0, 300)
     with SqlCounter(query_count=1, describe_count=0):
         queries = large_query_df.queries
-        assert len(queries["queries"]) == (4 if session.sql_simplifier_enabled else 1)
-        assert len(queries["post_actions"]) == (
-            3 if session.sql_simplifier_enabled else 0
-        )
+        assert len(queries["queries"]) == (4 if sql_simplifier_enabled else 1)
+        assert len(queries["post_actions"]) == (3 if sql_simplifier_enabled else 0)
 
     reset_bounds(session)
     with SqlCounter(query_count=1, describe_count=0):
