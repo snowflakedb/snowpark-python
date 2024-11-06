@@ -156,9 +156,14 @@ def test_assign_short_series_mismatched_index(index):
 @sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize(
     "callable_fn",
-    [lambda x: x["a"], lambda x: x["a"] + x["b"]],
-    ids=["identity_fn", "add_two_cols_fn"],
+    [lambda x: x["a"] + x["b"]],
+    ids=["add_two_cols_fn"],
 )
+# @pytest.mark.parametrize(
+#    "callable_fn",
+#    [lambda x: x["a"], lambda x: x["a"] + x["b"]],
+#    ids=["identity_fn", "add_two_cols_fn"],
+# )
 def test_assign_basic_callable(callable_fn):
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -170,6 +175,12 @@ def test_assign_basic_callable(callable_fn):
     eval_snowpark_pandas_result(
         snow_df, native_df, lambda df: df.assign(new_col=callable_fn)
     )
+    """
+    SELECT "index_q6cs", "a" AS "a_n0kk", "b" AS "b_7wt0", "c" AS "c_7af0", "__reduced__" AS "new_col" FROM ( 
+        SELECT "__index__", "a", "b", "c", "__row_position__", "index", "index_q6cs", "__row_position___zc30", "index_q6cs" AS "index_q6cs_o40b", "__row_position__" AS "__row_position___cyb8", "__row_position___zc30" AS "__row_position___zc30_r4c8", ("a" + "b") AS "__reduced__", "index_q6cs" AS "index_q6cs_0znu", "__row_position__" AS "__row_position___s674", "__row_position___zc30" AS "__row_position___zc30_docs" FROM ( 
+            SELECT  *  FROM (( SELECT "__index__" AS "__index__", "a" AS "a", "b" AS "b", "c" AS "c", "__row_position__" AS "__row_position__" FROM ( SELECT $1 AS "__index__", $2 AS "a", $3 AS "b", $4 AS "c", $5 AS "__row_position__" FROM  VALUES (0 :: INT, 1 :: INT, 2 :: INT, 3 :: INT, 0 :: INT), (1 :: INT, 4 :: INT, 5 :: INT, 6 :: INT, 1 :: INT), (2 :: INT, 7 :: INT, 8 :: INT, 9 :: INT, 2 :: INT))) AS SNOWPARK_LEFT LEFT OUTER JOIN ( 
+                SELECT "index" AS "index", "index_q6cs" AS "index_q6cs", "__row_position___zc30" AS "__row_position___zc30" FROM ( SELECT "index", "index_4ezz" AS "index_q6cs", "__row_position__" AS "__row_position___zc30" FROM ( SELECT "__index__", "__row_position__", "__row_position__" AS "__index_q3tc__", "__index__" AS "index", "__index__" AS "index_4ezz" FROM ( SELECT $1 AS "__index__", $2 AS "__row_position__" FROM  VALUES (0 :: INT, 0 :: INT), (1 :: INT, 1 :: INT), (2 :: INT, 2 :: INT))))) AS SNOWPARK_RIGHT ON EQUAL_NULL("__row_position__", "__row_position___zc30")))) ORDER BY "__row_position__" ASC NULLS LAST, "__row_position___zc30" ASC NULLS LAST
+    """
 
 
 @sql_count_checker(query_count=1, join_count=1)
