@@ -2605,6 +2605,6 @@ def test_binary_op_multi_series_from_same_df():
         snow_df, native_df, lambda df: df["A"] + df["B"] + df["C"]
     )
     # perform binary operations in different orders
-    # eval_snowpark_pandas_result(
-    #    snow_df, native_df, lambda df: (df["A"] + df["B"]) + (df["C"] + df["D"])
-    # )
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: (df["A"] + df["B"]) + (df["C"] + df["D"])
+    )

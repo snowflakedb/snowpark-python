@@ -54,6 +54,12 @@ AlignTypeLit = Literal[
     "coalesce",
 ]  # right and inner can also be supported if needed
 
+AlignSortLit = [
+    "default_sort",
+    "sort",
+    "no_sort",
+]
+
 SnowflakeSupportedFileTypeLit = Union[
     Literal["csv"], Literal["json"], Literal["parquet"]
 ]

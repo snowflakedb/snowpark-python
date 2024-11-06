@@ -23,7 +23,11 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     append_columns,
     extract_pandas_label_from_snowflake_quoted_identifier,
 )
-from snowflake.snowpark.modin.plugin._typing import AlignTypeLit, JoinTypeLit
+from snowflake.snowpark.modin.plugin._typing import (
+    AlignSortLit,
+    AlignTypeLit,
+    JoinTypeLit,
+)
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
 from snowflake.snowpark.types import VariantType
 
@@ -1231,7 +1235,7 @@ def align(
     left_on: list[str],
     right_on: list[str],
     how: AlignTypeLit = "outer",
-    sort: bool = False,
+    sort: AlignSortLit = "default_sort",
 ) -> JoinOrAlignInternalFrameResult:
     """
     Align the left and the right frame on given columns 'left_on' and 'right_on' with
@@ -1279,6 +1283,7 @@ def align(
         left_on_cols=left_on,
         right_on_cols=right_on,
         how=how,
+        enable_default_sort=(sort == "default_sort"),
     )
     # aligned_ordered_frame after aligning on row_position columns
     # Example 1 (left is empty not empty):
@@ -1298,6 +1303,8 @@ def align(
     if how == "outer":
         coalesce_key_config = [JoinKeyCoalesceConfig.LEFT] * len(left_on)
         inherit_join_index = InheritJoinIndex.FROM_BOTH
+
+    sort_result = sort == "sort"
     (
         aligned_frame,
         result_column_mapper,
@@ -1308,7 +1315,7 @@ def align(
         left_on=left_on,
         right_on=right_on,
         how=how,
-        sort=sort,
+        sort=sort_result,
         key_coalesce_config=coalesce_key_config,
         inherit_index=inherit_join_index,
     )
@@ -1319,7 +1326,7 @@ def align_on_index(
     left: InternalFrame,
     right: InternalFrame,
     how: AlignTypeLit = "outer",
-    sort: bool = False,
+    sort: AlignSortLit = "default_sort",
 ) -> JoinOrAlignInternalFrameResult:
     """
     Align the left and the right frame on the index columns with given join method (`how`).
