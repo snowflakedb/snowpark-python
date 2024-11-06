@@ -6582,15 +6582,11 @@ def to_array(*cols: Union[ColumnOrName, List[ColumnOrName]]) -> Column:
         >>> df.select(to_array(col('a')).as_('ans')).collect()
         [Row(ANS='[\\n  1,\\n  2,\\n  3\\n]'), Row(ANS=None)]
     """
-    flattened_cols = []
-    for col in cols:
-        if isinstance(col, list):
-            flattened_cols.extend(col)
-        else:
-            flattened_cols.append(col)
+    if len(cols) == 1 and isinstance(cols[0], list):
+        cols = cols[0]
 
     # Convert string arguments to Column objects
-    cs = [_to_col_if_str(c, "array_construct") for c in flattened_cols]
+    cs = [_to_col_if_str(c, "array_construct") for c in cols]
     return builtin("array_construct")(*cs)
 
 
