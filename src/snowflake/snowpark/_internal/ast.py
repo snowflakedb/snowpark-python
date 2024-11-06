@@ -19,6 +19,12 @@ CLIENT_AST_VERSION = proto.__Version__.MAX_VERSION
 
 @dataclass
 class TrackedCallable:
+    """
+    Several Snowpark APIs that deal with stored procedures and user-defined functions accept callables as arguments.
+    This class is a pair of a callable and an ID that is used to reference it in the AST. Distinct objects get distinct IDs.
+    It is undesirable for the same callable to have multiple IDs due to constraints in other parts of the system.
+    """
+
     var_id: int
     func: Callable
 
