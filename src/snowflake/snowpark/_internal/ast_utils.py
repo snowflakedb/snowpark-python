@@ -23,7 +23,7 @@ from dateutil.tz import tzlocal
 from google.protobuf.text_format import MessageToString, Parse
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     CaseWhen,
