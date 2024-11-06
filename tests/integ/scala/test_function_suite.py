@@ -2930,10 +2930,6 @@ def test_array_remove(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="array_remove is not yet supported in local testing mode.",
-)
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
     reason="array_cat is not yet supported in local testing mode.",
 )
 def test_array_cat(session):
