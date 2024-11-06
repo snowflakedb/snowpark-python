@@ -6089,12 +6089,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 + " is not supported yet in Snowpark pandas."
             )
         if columns is None:
+            df_dtypes = self.dtypes
             columns = [
                 col_name
                 for (col_index, col_name) in enumerate(
                     self._modin_frame.data_column_pandas_labels
                 )
-                if is_series or is_string_dtype(self.dtypes[col_index])
+                if is_series or is_string_dtype(df_dtypes.iloc[col_index])
             ]
 
         if not isinstance(columns, list):
@@ -6109,13 +6110,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
 
         if prefix is None and not is_series:
+            df_dtypes = self.dtypes
             prefix = [
                 col_name
                 for (col_index, col_name) in enumerate(
                     self._modin_frame.data_column_pandas_labels
                 )
                 if self._modin_frame.is_unnamed_series()
-                or is_string_dtype(self.dtypes[col_index])
+                or is_string_dtype(df_dtypes.iloc[col_index])
             ]
 
         if not isinstance(prefix, list):
