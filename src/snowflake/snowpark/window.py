@@ -127,7 +127,7 @@ class Window:
             ColumnOrName,
             Iterable[ColumnOrName],
         ],
-        _emit_ast: bool = True
+        _emit_ast: bool = True,
     ) -> "WindowSpec":
         """
         Returns a :class:`WindowSpec` object with order by clause.
@@ -255,6 +255,15 @@ class Window:
     rowsBetween = rows_between
 
 
+def _check_window_position_parameter(
+    value: Union[int, WindowRelativePosition], name: str = ""
+) -> None:
+    from snowflake.snowpark import Column
+
+    if not isinstance(value, int) and not isinstance(value, Column):
+        raise ValueError(f"{name} must be an integer or a Column")
+
+
 def _fill_window_spec_ast_with_relative_positions(
     ast: proto.SpWindowSpecExpr,
     start: Union[int, WindowRelativePosition],
@@ -269,6 +278,7 @@ def _fill_window_spec_ast_with_relative_positions(
         start: relative start position, integer or special enum value.
         end: relative end position, integer or special enum value.
     """
+
     if isinstance(start, WindowRelativePosition):
         if start == WindowRelativePosition.CURRENT_ROW:
             ast.start.sp_window_relative_position__current_row = True
@@ -317,7 +327,7 @@ class WindowSpec:
             ColumnOrName,
             Iterable[ColumnOrName],
         ],
-        _emit_ast: bool = True
+        _emit_ast: bool = True,
     ) -> "WindowSpec":
         """
         Returns a new :class:`WindowSpec` object with the new partition by clause.
@@ -357,7 +367,7 @@ class WindowSpec:
             ColumnOrName,
             Iterable[ColumnOrName],
         ],
-        _emit_ast: bool = True
+        _emit_ast: bool = True,
     ) -> "WindowSpec":
         """
         Returns a new :class:`WindowSpec` object with the new order by clause.
@@ -410,6 +420,9 @@ class WindowSpec:
         See Also:
             - :func:`Window.rows_between`
         """
+        _check_window_position_parameter(start, "start")
+        _check_window_position_parameter(end, "end")
+
         boundary_start, boundary_end = _convert_boundary_to_expr(start, end)
 
         # AST.
@@ -440,6 +453,10 @@ class WindowSpec:
         See Also:
             - :func:`Window.range_between`
         """
+
+        _check_window_position_parameter(start, "start")
+        _check_window_position_parameter(end, "end")
+
         # AST.
         ast = None
         if _emit_ast:

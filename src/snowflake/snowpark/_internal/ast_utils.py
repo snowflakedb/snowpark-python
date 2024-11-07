@@ -462,9 +462,14 @@ def build_indirect_table_fn_apply(
     if isinstance(
         func, (snowflake.snowpark.table_function.TableFunctionCall, Callable)
     ):
-        stmt = func._ast_stmt
-        fn_expr = expr.fn.indirect_table_fn_id_ref
-        fn_expr.id.bitfield1 = stmt.var_id.bitfield1
+        # The if stmt here is required to make test_permanent_udtf_negative pass.
+        # Ultimately, it should be removed. Needed because check for non-existing UDTF is
+        # carried out in snowflake-connector. In phase1, this should be done server-side.
+        # TODO: Remove if in phase1.
+        if hasattr(func, "_ast_stmt"):
+            stmt = func._ast_stmt
+            fn_expr = expr.fn.indirect_table_fn_id_ref
+            fn_expr.id.bitfield1 = stmt.var_id.bitfield1
     else:
         fn_expr = expr.fn.indirect_table_fn_name_ref
         _set_fn_name(func, fn_expr)
@@ -1244,8 +1249,11 @@ def add_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:
     ):
         return
     stmt = ast_batch.assign()
-    stmt.expr.CopyFrom(o._ast)
-    o._ast_stmt = stmt
+    # In tests like test_permanent_udtf_negative, where a non-existent UDTF is used this will lead to o=None
+    # being passed here. Safeguard as the check is carried out in the connector.
+    if o is not None and o._ast is not None:
+        stmt.expr.CopyFrom(o._ast)
+        o._ast_stmt = stmt
 
 
 def build_sproc(

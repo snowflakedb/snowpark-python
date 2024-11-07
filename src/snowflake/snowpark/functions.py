@@ -334,7 +334,9 @@ def column(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> C
 
 
 @publicapi
-def lit(literal: LiteralType, _emit_ast: bool = True) -> Column:
+def lit(
+    literal: LiteralType, datatype: Optional[DataType] = None, _emit_ast: bool = True
+) -> Column:
     """
     Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
     It supports basic Python data types, including ``int``, ``float``, ``str``,
@@ -358,15 +360,19 @@ def lit(literal: LiteralType, _emit_ast: bool = True) -> Column:
         ---------------------------------------------------------------------------------------
         <BLANKLINE>
     """
+
+    assert not isinstance(
+        literal, Column
+    ), "Do not use lit(Column(...)), type hint does not allow this syntax."
+
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        build_builtin_fn_apply(ast, "lit", literal)
-    return (
-        literal
-        if isinstance(literal, Column)
-        else Column(Literal(literal), _ast=ast, _emit_ast=_emit_ast)
-    )
+        if datatype is None:
+            build_builtin_fn_apply(ast, "lit", literal)
+        else:
+            build_builtin_fn_apply(ast, "lit", literal, datatype)
+    return Column(Literal(literal, datatype=datatype), _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -2540,7 +2546,9 @@ def lpad(
     """
     c = _to_col_if_str(e, "lpad")
     p = _to_col_if_str(pad, "lpad")
-    return builtin("lpad", _emit_ast=_emit_ast)(c, lit(len), p)
+    return builtin("lpad", _emit_ast=_emit_ast)(
+        c, len if isinstance(len, Column) else lit(len), p
+    )
 
 
 @publicapi
@@ -2597,7 +2605,9 @@ def rpad(
     """
     c = _to_col_if_str(e, "rpad")
     p = _to_col_if_str(pad, "rpad")
-    return builtin("rpad", _emit_ast=_emit_ast)(c, lit(len), p)
+    return builtin("rpad", _emit_ast=_emit_ast)(
+        c, len if isinstance(len, Column) else lit(len), p
+    )
 
 
 @publicapi
@@ -2647,7 +2657,9 @@ def repeat(s: ColumnOrName, n: Union[Column, int], _emit_ast: bool = True) -> Co
         <BLANKLINE>
     """
     c = _to_col_if_str(s, "repeat")
-    return builtin("repeat", _emit_ast=_emit_ast)(c, lit(n))
+    return builtin("repeat", _emit_ast=_emit_ast)(
+        c, n if isinstance(n, Column) else lit(n)
+    )
 
 
 @publicapi
@@ -3117,8 +3129,8 @@ def regexp_count(
     """
     sql_func_name = "regexp_count"
     sub = _to_col_if_str(subject, sql_func_name)
-    pat = lit(pattern)
-    pos = lit(position)
+    pat = pattern if isinstance(pattern, Column) else lit(pattern)
+    pos = position if isinstance(position, Column) else lit(position)
 
     params = [lit(p) for p in parameters]
     return builtin(sql_func_name, _emit_ast=_emit_ast)(sub, pat, pos, *params)
@@ -3206,12 +3218,12 @@ def regexp_replace(
     """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
-    pat = lit(pattern)
-    rep = lit(replacement)
-    pos = lit(position)
-    occ = lit(occurrences)
+    pat = pattern if isinstance(pattern, Column) else lit(pattern)
+    rep = replacement if isinstance(replacement, Column) else lit(replacement)
+    pos = position if isinstance(position, Column) else lit(position)
+    occ = occurrences if isinstance(occurrences, Column) else lit(occurrences)
 
-    params = [lit(p) for p in parameters]
+    params = [p if isinstance(p, Column) else lit(p) for p in parameters]
     return builtin(sql_func_name, _emit_ast=_emit_ast)(sub, pat, rep, pos, occ, *params)
 
 
@@ -3281,7 +3293,9 @@ def charindex(
     t = _to_col_if_str(target_expr, "charindex")
     s = _to_col_if_str(source_expr, "charindex")
     return (
-        builtin("charindex", _emit_ast=_emit_ast)(t, s, lit(position))
+        builtin("charindex", _emit_ast=_emit_ast)(
+            t, s, position if isinstance(position, Column) else lit(position)
+        )
         if position is not None
         else builtin("charindex", _emit_ast=_emit_ast)(t, s)
     )
@@ -3480,7 +3494,12 @@ def insert(
     """
     b = _to_col_if_str(base_expr, "insert")
     i = _to_col_if_str(insert_expr, "insert")
-    return builtin("insert", _emit_ast=_emit_ast)(b, lit(position), lit(length), i)
+    return builtin("insert", _emit_ast=_emit_ast)(
+        b,
+        position if isinstance(position, Column) else lit(position),
+        length if isinstance(length, Column) else lit(length),
+        i,
+    )
 
 
 @publicapi
@@ -3502,7 +3521,9 @@ def left(
         <BLANKLINE>
     """
     s = _to_col_if_str(str_expr, "left")
-    return builtin("left", _emit_ast=_emit_ast)(s, lit(length))
+    return builtin("left", _emit_ast=_emit_ast)(
+        s, length if isinstance(length, Column) else lit(length)
+    )
 
 
 @publicapi
@@ -3524,7 +3545,9 @@ def right(
         <BLANKLINE>
     """
     s = _to_col_if_str(str_expr, "right")
-    return builtin("right", _emit_ast=_emit_ast)(s, lit(length))
+    return builtin("right", _emit_ast=_emit_ast)(
+        s, length if isinstance(length, Column) else lit(length)
+    )
 
 
 @publicapi
@@ -3573,7 +3596,9 @@ def to_char(
     """
     c = _to_col_if_str(c, "to_char")
     return (
-        builtin("to_char", _emit_ast=_emit_ast)(c, lit(format))
+        builtin("to_char", _emit_ast=_emit_ast)(
+            c, format if isinstance(format, Column) else lit(format)
+        )
         if format is not None
         else builtin("to_char", _emit_ast=_emit_ast)(c)
     )
