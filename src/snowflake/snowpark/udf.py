@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.udf_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
+    check_imports_type,
     parse_positional_args_to_list,
     publicapi,
     warning,
@@ -853,6 +854,8 @@ class UDFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
+
+        check_imports_type(imports, "udf-level")
 
         # AST. Capture original parameters, before any pre-processing.
         ast = None

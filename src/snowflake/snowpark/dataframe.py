@@ -2214,7 +2214,11 @@ class DataFrame:
         if not subset:
             df = self.distinct(_emit_ast=False)
             adjust_api_subcalls(df, "DataFrame.drop_duplicates", len_subcalls=1)
+
+            if _emit_ast:
+                df._ast_id = stmt.var_id.bitfield1
             return df
+
         subset = parse_positional_args_to_list(*subset)
 
         filter_cols = [self.col(x) for x in subset]
@@ -4772,7 +4776,6 @@ class DataFrame:
             raise ValueError(f"Invalid type of argument passed to first(): {type(n)}")
 
         # AST.
-        stmt = None
         kwargs = {}
         if _emit_ast:
             stmt = self._session._ast_batch.assign()

@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.ast_utils import build_udaf, with_src_position
 from snowflake.snowpark._internal.udf_utils import process_registration_inputs
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import TempObjectType, check_imports_type
 from snowflake.snowpark.types import DataType
 from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
 
@@ -66,6 +66,9 @@ class MockUDAFRegistration(UDAFRegistration):
         _emit_ast: bool = True,
         **kwargs
     ) -> UserDefinedAggregateFunction:
+
+        check_imports_type(imports)
+
         # AST. Capture original parameters, before any pre-processing.
         ast = None
         if _emit_ast:
