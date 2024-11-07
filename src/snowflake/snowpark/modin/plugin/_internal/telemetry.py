@@ -15,6 +15,7 @@ import snowflake.snowpark.session
 from snowflake.connector.telemetry import TelemetryField as PCTelemetryField
 from snowflake.snowpark._internal.telemetry import TelemetryField, safe_telemetry
 from snowflake.snowpark.exceptions import SnowparkSessionException
+from collections import defaultdict, Counter
 from snowflake.snowpark.modin.plugin._internal.utils import (
     is_snowpark_pandas_dataframe_or_series_type,
 )
@@ -36,6 +37,7 @@ class SnowparkPandasTelemetryField(Enum):
     ARGS = "argument"
     # fallback flag
     IS_FALLBACK = "is_fallback"
+    CALL_COUNT = "call_count"
 
 
 # Argument truncating size after converted to str. Size amount can be later specified after analysis and needs.
@@ -58,6 +60,7 @@ def _send_snowpark_pandas_telemetry_helper(
     func_name: str,
     query_history: Optional[QueryHistory],
     api_calls: Union[str, list[dict[str, Any]]],
+    method_call_count,
 ) -> None:
     """
     A helper function that sends Snowpark pandas API telemetry data.
@@ -79,6 +82,7 @@ def _send_snowpark_pandas_telemetry_helper(
         TelemetryField.KEY_FUNC_NAME.value: func_name,
         TelemetryField.KEY_CATEGORY.value: SnowparkPandasTelemetryField.FUNC_CATEGORY_SNOWPARK_PANDAS.value,
         TelemetryField.KEY_ERROR_MSG.value: error_msg,
+        ** ( {SnowparkPandasTelemetryField.CALL_COUNT.value: method_call_count        } if method_call_count is not None else {})
     }
     if len(api_calls) > 0:
         data[TelemetryField.KEY_API_CALLS.value] = api_calls
@@ -229,6 +233,7 @@ def _gen_func_name(
         func_name = f"property.{property_name}_{property_method_type.value}"
     return f"{class_prefix}.{func_name}"
 
+_snowpark_pandas_object_to_method_counts = defaultdict(lambda : Counter[str])
 
 def _telemetry_helper(
     *,
@@ -275,6 +280,8 @@ def _telemetry_helper(
     existing_api_calls = []
     need_to_restore_args0_api_calls = False
 
+    method_call_count = None
+
     # If the decorated func is a class method or a standalone function, we need to get an active session:
     if is_standalone_function or (len(args) > 0 and isinstance(args[0], type)):
         try:
@@ -295,6 +302,10 @@ def _telemetry_helper(
             need_to_restore_args0_api_calls = True
             session = args[0]._query_compiler._modin_frame.ordered_dataframe.session
             class_prefix = args[0].__class__.__name__
+
+            args[0]._query_compiler._method_call_counts[func.__name__] += 1
+
+            method_call_count = args[0]._query_compiler._method_call_counts[func.__name__]            
         except (TypeError, IndexError, AttributeError):
             # TypeError: args might not support indexing; IndexError: args is empty; AttributeError: args[0] might not
             # have _query_compiler attribute.
@@ -337,6 +348,7 @@ def _telemetry_helper(
             func_name=func_name,
             query_history=query_history,
             api_calls=existing_api_calls + [curr_api_call],
+            method_call_count=method_call_count,
         )
         raise e
 
@@ -371,6 +383,7 @@ def _telemetry_helper(
             func_name=func_name,
             query_history=query_history,
             api_calls=existing_api_calls + [curr_api_call],
+            method_call_count=method_call_count,
         )
         if need_to_restore_args0_api_calls:
             args[0]._query_compiler.snowpark_pandas_api_calls = existing_api_calls
