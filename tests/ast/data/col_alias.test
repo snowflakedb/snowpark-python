@@ -22,7 +22,7 @@ df = df.select(col("A").alias("test"))
 
 df = df.select(col("A").name("test"))
 
-df = df.select((col("A") + 1).name("test"))
+df = df.select(col("A") + 1.name("test"))
 
 ## EXPECTED ENCODED AST
 
