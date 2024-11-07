@@ -94,6 +94,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark._internal.ast",
         "snowflake.snowpark._internal.compiler",
         "snowflake.snowpark._internal.proto.generated",
         "snowflake.snowpark.mock",
