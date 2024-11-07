@@ -310,8 +310,10 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
     full_ast_validation_listener._notify = notify_full_ast_validation
     full_ast_validation_listener._validation_session = validation_session
     full_ast_validation_listener._unparser_jar = unparser_jar
-    full_ast_validation_listener._globals = vars(snowflake.snowpark.functions) | vars(
-        snowflake.snowpark.types
+    full_ast_validation_listener._globals = (
+        vars(snowflake.snowpark.functions)
+        | vars(snowflake.snowpark.types)
+        | vars(snowflake.snowpark.window)
     )
     full_ast_validation_listener._current_test = ""
     full_ast_validation_listener._prev_stmts = {}

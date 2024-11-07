@@ -570,9 +570,9 @@ df291 = df.select(dense_rank())
 
 df292 = df.select(row_number())
 
-df293 = df.select(lag("A"), lag(col("B")), lag("A", 1, None, None), lag("A", 1, col("B")), lag("A", 2, lit(20), True))
+df293 = df.select(lag("A"), lag(col("B")), lag("A", 1, None, True), lag("A", 1, col("B")), lag("A", 2, lit(20), True))
 
-df294 = df.select(lead("A"), lead(col("B")), lead("A", 1, None, None), lead("A", 1, col("B")), lead("A", 2, lit(20), True))
+df294 = df.select(lead("A"), lead(col("B")), lead("A", 1, None, True), lead("A", 1, col("B")), lead("A", 2, lit(20), True))
 
 df295 = df.select(last_value("A"), last_value("A", True), last_value(col("B"), False))
 
@@ -1164,9 +1164,9 @@ df291 = df111.select(dense_rank())
 
 df292 = df111.select(row_number())
 
-df293 = df111.select(lag("A", None, 1, None, False), lag(col("B"), None, 1, None, False), lag("A", None, 1, None, None), lag("A", col("B"), 1, col("B"), False), lag("A", lit(20), 2, lit(20), True))
+df293 = df111.select(lag("A", 1, None, False), lag(col("B"), 1, None, False), lag("A", 1, None, True), lag("A", 1, col("B"), False), lag("A", 2, lit(20), True))
 
-df294 = df111.select(lead("A", None, 1, None, False), lead(col("B"), None, 1, None, False), lead("A", None, 1, None, None), lead("A", col("B"), 1, col("B"), False), lead("A", lit(20), 2, lit(20), True))
+df294 = df111.select(lead("A", 1, None, False), lead(col("B"), 1, None, False), lead("A", 1, None, True), lead("A", 1, col("B"), False), lead("A", 2, lit(20), True))
 
 df295 = df111.select(last_value("A", False), last_value("A", True), last_value(col("B"), False))
 
@@ -36392,14 +36392,6 @@ body {
               }
             }
             pos_args {
-              null_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 595
-                }
-              }
-            }
-            pos_args {
               int64_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
@@ -36468,14 +36460,6 @@ body {
               }
             }
             pos_args {
-              null_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 595
-                }
-              }
-            }
-            pos_args {
               int64_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
@@ -36527,14 +36511,6 @@ body {
               }
             }
             pos_args {
-              null_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 595
-                }
-              }
-            }
-            pos_args {
               int64_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
@@ -36552,11 +36528,12 @@ body {
               }
             }
             pos_args {
-              null_val {
+              bool_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 595
                 }
+                v: true
               }
             }
             src {
@@ -36583,32 +36560,6 @@ body {
                   start_line: 595
                 }
                 v: "A"
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 595
-                    }
-                    v: "B"
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 595
-                }
               }
             }
             pos_args {
@@ -36678,32 +36629,6 @@ body {
                   start_line: 595
                 }
                 v: "A"
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "lit"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 595
-                    }
-                    v: 20
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 595
-                }
               }
             }
             pos_args {
@@ -36804,14 +36729,6 @@ body {
               }
             }
             pos_args {
-              null_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 597
-                }
-              }
-            }
-            pos_args {
               int64_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
@@ -36880,14 +36797,6 @@ body {
               }
             }
             pos_args {
-              null_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 597
-                }
-              }
-            }
-            pos_args {
               int64_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
@@ -36939,14 +36848,6 @@ body {
               }
             }
             pos_args {
-              null_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 597
-                }
-              }
-            }
-            pos_args {
               int64_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
@@ -36964,11 +36865,12 @@ body {
               }
             }
             pos_args {
-              null_val {
+              bool_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 597
                 }
+                v: true
               }
             }
             src {
@@ -36995,32 +36897,6 @@ body {
                   start_line: 597
                 }
                 v: "A"
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 597
-                    }
-                    v: "B"
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 597
-                }
               }
             }
             pos_args {
@@ -37090,32 +36966,6 @@ body {
                   start_line: 597
                 }
                 v: "A"
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "lit"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 597
-                    }
-                    v: 20
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 597
-                }
               }
             }
             pos_args {
