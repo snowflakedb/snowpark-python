@@ -9,7 +9,7 @@ from typing import List, Optional, Union
 
 import pytest
 
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.functions
 import snowflake.snowpark.types
 import tests.integ.utils.sql_counter
