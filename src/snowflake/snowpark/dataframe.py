@@ -4009,15 +4009,28 @@ class DataFrame:
             # Flush the AST and encode it as part of the query.
             _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
 
-        # # TODO: Support copy_into_table in MockServerConnection.
-        # from snowflake.snowpark.mock._connection import MockServerConnection
-        #
-        # if (
-        #     isinstance(self._session._conn, MockServerConnection)
-        #     and self._session._conn._suppress_not_implemented_error
-        # ):
-        #     # Allow AST tests to pass.
-        #     return []
+        # TODO: Support copy_into_table in MockServerConnection.
+        from snowflake.snowpark.mock._connection import MockServerConnection
+
+        if (
+            isinstance(self._session._conn, MockServerConnection)
+            and self._session._conn._suppress_not_implemented_error
+        ):
+            # Allow AST tests to pass.
+            df = DataFrame(
+                self._session,
+                CopyIntoTableNode(
+                    table_name,
+                    file_path="test_file_path",  # Dummy file path.
+                    copy_options=copy_options,
+                    format_type_options=format_type_options,
+                ),
+                _ast_stmt=stmt,
+            )
+
+            return df._internal_collect_with_tag_no_telemetry(
+                statement_params=statement_params, **kwargs
+            )
 
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
