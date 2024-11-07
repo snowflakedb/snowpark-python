@@ -162,7 +162,7 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Set, Tuple, Union, overload
+from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -207,6 +207,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     publicapi,
     validate_object_name,
+    check_create_map_parameter,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -934,7 +935,7 @@ def covar_samp(
 
 @publicapi
 def create_map(
-    *cols: Union[ColumnOrName, List[ColumnOrName], Set[ColumnOrName]],
+    *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName]],
     _emit_ast: bool = True,
 ) -> Column:
     """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
@@ -979,25 +980,16 @@ def create_map(
         <BLANKLINE>
     """
 
-    # Note: The type hint seems wrong here, hard to infer what the correct API here is.
+    check_create_map_parameter(*cols)
 
-    if len(cols) == 1 and isinstance(cols[0], (list, set)):
+    # TODO SNOW-1790918: Remove as part of refactoring with alias.
+    if len(cols) == 1 and isinstance(cols[0], (list, tuple)):
         cols = cols[0]
-
-    has_odd_columns = len(cols) & 1
-    if has_odd_columns:
-        raise ValueError(
-            f"The 'create_map' function requires an even number of parameters but the actual number is {len(cols)}"
-        )
-
-    # To make Ast deterministic, sort set and convert to tuple.
-    if isinstance(cols, set):
-        cols = tuple(sorted(list(cols)))
 
     col = object_construct_keep_null(*cols, _emit_ast=_emit_ast)
 
     if _emit_ast:
-        # Alias to create_map
+        # Alias to create_map.
         set_builtin_fn_alias(col._ast, "create_map")
 
     return col
