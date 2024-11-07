@@ -9,9 +9,11 @@ import sys
 import uuid
 from collections import namedtuple
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+from snowflake.snowpark import Session
 from snowflake.snowpark.version import VERSION
 
 # TODO(SNOW-1791994): Enable pyright type checks for this file.
@@ -48,7 +50,7 @@ class AstBatch:
     # Function used to generate request IDs. This is overridden in some tests.
     generate_request_id = uuid.uuid4
 
-    def __init__(self, session) -> None:
+    def __init__(self, session: Session) -> None:
         """
         Initializes a new AST batch.
 
@@ -66,7 +68,7 @@ class AstBatch:
         """Resets the ID generator."""
         self._id_gen = itertools.count(start=1)
 
-    def assign(self, symbol=None):
+    def assign(self, symbol: Optional[str] = None) -> proto.Assign:
         """
         Creates a new assignment statement.
 
@@ -80,7 +82,7 @@ class AstBatch:
         stmt.assign.symbol.value = symbol if isinstance(symbol, str) else ""
         return stmt.assign
 
-    def eval(self, target):
+    def eval(self, target: proto.Assign):
         """
         Creates a new evaluation statement.
 
