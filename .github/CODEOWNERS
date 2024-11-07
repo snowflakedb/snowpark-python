@@ -1,6 +1,7 @@
 * @snowflakedb/snowpark-python-api-reviewers
 /src/snowflake/snowpark/ @snowflakedb/snowpark-python-api-reviewers @snowflakedb/snowpark-ir
 /src/snowflake/snowpark/modin/ @snowflakedb/snowpark-pandas-api
+/src/snowflake/snowpark/_internal/ast @snowflakedb/snowpark-ir
 /tests/ast/ @snowflakedb/snowpark-ir
 /tests/integ/modin/ @snowflakedb/snowpark-pandas-api
 /tests/unit/modin/ @snowflakedb/snowpark-pandas-api
