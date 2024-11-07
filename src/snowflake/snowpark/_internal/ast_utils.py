@@ -224,7 +224,7 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
     elif isinstance(obj, decimal.Decimal):
         ast = with_src_position(expr_builder.big_decimal_val)
         dec_tuple = obj.as_tuple()
-        if not obj.is_normal():
+        if not obj.is_finite():
             # For special values, like nan, snan, inf, the exponent is special string value.
             ast.special.value = ("-" if dec_tuple.sign else "+") + dec_tuple.exponent
         else:
