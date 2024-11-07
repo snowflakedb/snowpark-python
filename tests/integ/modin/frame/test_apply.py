@@ -966,7 +966,7 @@ def test_coin_base_apply(session):
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, f"SHARED_CARD_USERS variant", is_temporary=True)
-    session.sql(f"""insert into {table_name} (SHARED_CARD_USERS) SELECT to_variant('["Apple", "Pear", "Cabbage"]')""").collect()
+    session.sql(f"""insert into {table_name} (SHARED_CARD_USERS) SELECT PARSE_JSON('["Apple", "Pear", "Cabbage"]')""").collect()
     session.sql(f"insert into {table_name} values (NULL)").collect()
 
     df = pd.read_snowflake(table_name)
@@ -982,7 +982,7 @@ def test_coin_base_apply(session):
         Output: Number of shared card users
         """
         if x:
-            return len(re.sub(r'[\[\]\"\\n]', "", x).split(','))
+            return len(x)
         else:
             return 0
 
