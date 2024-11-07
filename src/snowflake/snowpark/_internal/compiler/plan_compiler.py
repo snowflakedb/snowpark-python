@@ -82,8 +82,6 @@ class PlanCompiler:
             # preparation for compilation
             # 1. make a copy of the original plan
             start_time = time.time()
-            # TODO: analyze snowflake logical and selectable for lazily evaluated
-            # elements that may be evaluated together in multithreading environment
             complexity_score_before_compilation = get_complexity_score(self._plan)
             logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
             plot_plan_if_enabled(self._plan, "original_plan")
