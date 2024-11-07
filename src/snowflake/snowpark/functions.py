@@ -207,6 +207,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
     publicapi,
     validate_object_name,
+    check_create_map_parameter,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -926,31 +927,6 @@ def covar_samp(
     return builtin("covar_samp", _emit_ast=_emit_ast)(col1, col2)
 
 
-def _check_map_parameter(*cols: typing.Any) -> None:
-    """Helper function to check parameter cols for create_map function."""
-
-    error_message = "The 'create_map' function requires an even number of parameters but the actual number is {}"
-
-    # TODO SNOW-1790918: Keep error messages for now identical to current state, make more distinct by replacing text in blocks.
-    if len(cols) == 1:
-        if not isinstance(cols[0], (tuple, list)):
-            raise ValueError(error_message.format(len(cols[0])))
-        # Test for create_map([col_key, col_value]), create_map((col_key, col_value)), ...
-        if not (
-            len(cols[0]) > 0
-            and len(cols[0]) % 2 == 0
-            and all(isinstance(x, ColumnOrName) for x in cols[0])
-        ):
-            raise ValueError(error_message.format(len(cols[0])))
-    else:
-        if not (
-            len(cols) > 0
-            and len(cols) % 2 == 0
-            and all(isinstance(x, ColumnOrName) for x in cols)
-        ):
-            raise ValueError(error_message.format(len(cols)))
-
-
 @publicapi
 def create_map(
     *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName]],
@@ -998,7 +974,7 @@ def create_map(
         <BLANKLINE>
     """
 
-    _check_column_parameters(*cols)
+    check_create_map_parameter(*cols)
 
     # TODO SNOW-1790918: Remove as part of refactoring with alias.
     if len(cols) == 1 and isinstance(cols[0], (list, tuple)):
