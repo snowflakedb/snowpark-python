@@ -8011,9 +8011,7 @@ def lag(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast, "lag", e, default_value, offset, default_value, ignore_nulls
-        )
+        build_builtin_fn_apply(ast, "lag", e, offset, default_value, ignore_nulls)
 
     c = _to_col_if_str(e, "lag")
 
@@ -8057,9 +8055,7 @@ def lead(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast, "lead", e, default_value, offset, default_value, ignore_nulls
-        )
+        build_builtin_fn_apply(ast, "lead", e, offset, default_value, ignore_nulls)
 
     c = _to_col_if_str(e, "lead")
 
