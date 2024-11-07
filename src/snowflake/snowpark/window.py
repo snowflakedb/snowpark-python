@@ -256,7 +256,7 @@ class Window:
 
 
 def _check_window_position_parameter(
-    value: Union[int, WindowRelativePosition], name=""
+    value: Union[int, WindowRelativePosition], name: str = ""
 ) -> None:
     from snowflake.snowpark import Column
 

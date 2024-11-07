@@ -950,7 +950,7 @@ def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
 
 
 def check_imports_type(
-    imports: Optional[List[Union[str, Tuple[str, str]]]], name=""
+    imports: Optional[List[Union[str, Tuple[str, str]]]], name: str = ""
 ) -> None:
     """Check that import parameter adheres to type hint given, if not raises TypeError."""
     if not (
