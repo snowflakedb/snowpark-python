@@ -64,6 +64,7 @@ def eval_snowpark_pandas_result(*args, **kwargs):
 
 
 @pytest.mark.parametrize("by", ["col1", ["col3"], ["col5"]])
+@pytest.mark.modin_sp_precommit
 @sql_count_checker(query_count=2)
 def test_basic_single_group_row_groupby(
     result_compatible_agg_method, basic_snowpark_pandas_df, by
