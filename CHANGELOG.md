@@ -55,9 +55,11 @@
   - Raise a `TypeError` for a scalar `subset` instead of filtering on just that column.
   - Raise a `ValueError` for a `subset` of type `pandas.Index` instead of filtering on the columns in the index.
 - Disable creation of scoped read only table to mitigate Disable creation of scoped read only table to mitigate `TableNotFoundError` when using dynamic pivot in notebook environment.
+- Fixed a bug when concat dataframe or series coming from the same dataframe when axis = 1.
 
 #### Improvements
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
+
 
 ### Snowpark Local Testing Updates
 
