@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 from collections import Counter, defaultdict
-from typing import DefaultDict, Dict, List, Union
+from typing import DefaultDict, Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -141,7 +141,6 @@ from snowflake.snowpark.mock._select_statement import (
     MockSelectExecutionPlan,
     MockSelectStatement,
 )
-from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import _NumericType
 
 
@@ -157,7 +156,9 @@ class MockAnalyzer:
     def analyze(
         self,
         expr: Union[Expression, NamedExpression],
-        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]] = None,
+        df_aliased_col_name_to_real_col_name: Optional[
+            DefaultDict[str, Dict[str, str]]
+        ] = None,
         parse_local_name=False,
         keep_alias=True,
     ) -> Union[str, List[str]]:
@@ -644,19 +645,14 @@ class MockAnalyzer:
             expr_str = self.analyze(
                 expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
             )
+            assert isinstance(expr_str, (str, list))
             if isinstance(expr_str, str):
                 if parse_local_name:
                     expr_str = expr_str.upper()
                 return quote_name(expr_str.strip())
-            elif isinstance(expr_str, list):
+            else:  # expr_str is a list
                 assert all(isinstance(e, str) for e in expr_str)
                 return ",".join([quote_name(e.strip()) for e in expr_str])
-            else:
-                raise SnowparkLocalTestingException(
-                    f"Invalid expression '{expr_str}' for UnresolvedAlias."
-                    f" Please ensure the alias name exists in the DataFrame."
-                )
-
         elif isinstance(expr, Cast):
             return cast_expression(
                 self.analyze(
@@ -972,7 +968,7 @@ class MockAnalyzer:
         if isinstance(logical_plan, MockSelectable):
             if isinstance(logical_plan, MockSelectStatement):
                 # align with the live connection behavior where the analyzer calls
-                # logical_plan.projection_in_str to resolve the alias map
+                # logical_plan.projection_in_str to materialize an lazy property to resolve the alias map
                 logical_plan.projection_in_str
             return MockExecutionPlan(logical_plan, self.session)
 

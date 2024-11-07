@@ -230,7 +230,7 @@ class MockExecutionPlan(LogicalPlan):
         }
 
     def add_aliases(self, to_add: Dict) -> None:
-        self.expr_to_alias = {**self.expr_to_alias, **to_add}
+        self.expr_to_alias.update(to_add)
 
 
 class MockFileOperation(MockExecutionPlan):
