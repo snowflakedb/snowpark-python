@@ -807,6 +807,7 @@ class Analyzer:
             use_maps = {}
             # get counts of expr_to_alias keys
             counts = Counter()
+            # TODO join: key here? we are only keeping non-shared expr_to_alias keys
             for v in resolved_children.values():
                 if v.expr_to_alias:
                     counts.update(list(v.expr_to_alias.keys()))
