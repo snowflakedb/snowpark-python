@@ -7351,14 +7351,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if axis == 1:
             result_frame = frames[0]
             for other_frame in frames[1:]:
-                # Concat on axis = 1 is implemented using join operation. This is
-                # equivalent to joining on index columns when index labels are same for
+                # Concat on axis = 1 is implemented using align operation. This is
+                # equivalent to align on index columns when index labels are same for
                 # both the frames.
-                # We rename index labels to make sure index columns are joined level
+                # We rename index labels to make sure index columns are aligned level
                 # by level.
-                # result_frame, _ = join_utils.join_on_index_columns(
-                #   result_frame, other_frame, how=join, sort=sort
-                # )
                 if sort is True:
                     align_sort = "sort"
                 else:
@@ -15664,6 +15661,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             right=other_frame,
             left_on=self_frame.index_column_snowflake_quoted_identifiers,
             right_on=other_frame.index_column_snowflake_quoted_identifiers,
+            how="outer",
         )
 
         left_right_pairs = prepare_binop_pairs_between_dataframe_and_dataframe(
