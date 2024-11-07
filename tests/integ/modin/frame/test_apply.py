@@ -959,3 +959,33 @@ def test_apply_axis1_with_dynamic_pivot_and_with_3rd_party_libraries_and_decorat
         native_ans = native_df.apply(func.func, axis=1)
 
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_ans, native_ans)
+
+def test_coin_base_apply(session):
+    from tests.utils import Utils
+    import re
+
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, table_name, f"SHARED_CARD_USERS variant", is_temporary=True)
+    session.sql(f"""insert into {table_name} (SHARED_CARD_USERS) SELECT to_variant('["Apple", "Pear", "Cabbage"]')""").collect()
+    session.sql(f"insert into {table_name} values (NULL)").collect()
+
+    df = pd.read_snowflake(table_name)
+    print(df)
+
+    def compute_num_shared_card_users(x):
+        """
+        Helper function to compute the number of shared card users
+
+        Input:
+         - x: the array with the users
+
+        Output: Number of shared card users
+        """
+        if x:
+            return len(re.sub(r'[\[\]\"\\n]', "", x).split(','))
+        else:
+            return 0
+
+    res = df['SHARED_CARD_USERS'].apply(lambda x: compute_num_shared_card_users(x))
+    print(res)
+
