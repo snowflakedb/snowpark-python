@@ -14,6 +14,8 @@
 
 - When target stage is not set in profiler, a default stage from `Session.get_session_stage` is used instead of raising `SnowparkSQLException`.
 - Allowed lower case or mixed case input when calling `Session.stored_procedure_profiler.set_active_profiler`.
+- Added distributed tracing using open telemetry APIs for action function in `DataFrame`:
+  - `cache_result`
 
 #### Bug Fixes
 
