@@ -15,6 +15,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAli
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,18 @@ def infer_quoted_identifiers_from_expressions(
     return result
 
 
+def is_select_statement_child_metadata_same(
+    source_plan: "SelectStatement",
+) -> bool:
+    """
+    When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
+    which has the same metadata as it's child plan (source_plan.from_).
+    """
+    return (
+        source_plan.projection is None and source_plan.from_._snowflake_plan is not None
+    )
+
+
 def infer_metadata(
     source_plan: Optional[LogicalPlan],
     analyzer: "Analyzer",
@@ -80,10 +93,7 @@ def infer_metadata(
         LeftAnti,
         LeftSemi,
     )
-    from snowflake.snowpark._internal.analyzer.select_statement import (
-        Selectable,
-        SelectStatement,
-    )
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
     from snowflake.snowpark._internal.analyzer.unary_plan_node import (
         Aggregate,
@@ -153,13 +163,8 @@ def infer_metadata(
                 quoted_identifiers = [
                     c.name for c in source_plan._column_states.projection
                 ]
-            # When source_plan.from_ is a Selectable and it doesn't have a projection,
-            # it's a simple `SELECT * from ...`, which has the same metadata as it's child plan (source_plan.from_).
-            if (
-                isinstance(source_plan.from_, Selectable)
-                and source_plan.projection is None
-                and source_plan.from_._snowflake_plan is not None
-            ):
+            # When source_plan has the same metadata as its child plan, we can use it directly
+            if is_select_statement_child_metadata_same(source_plan):
                 # only set attributes and quoted_identifiers if they are not set in previous step
                 if (
                     attributes is None
@@ -182,3 +187,24 @@ def infer_metadata(
             quoted_identifiers = None
 
     return PlanMetadata(attributes=attributes, quoted_identifiers=quoted_identifiers)
+
+
+def cache_metadata_on_select_statement(
+    source_plan: LogicalPlan, metadata: PlanMetadata
+) -> None:
+    """
+    Cache metadata on a SelectStatement source plan.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+
+    if (
+        isinstance(source_plan, SelectStatement)
+        and source_plan.analyzer.session.reduce_describe_query_enabled
+    ):
+        source_plan._attributes = metadata.attributes
+        # When source_plan has the same metadata as its child plan,
+        # we should cache it on the child plan too.
+        # This is necessary SelectStatement.select() will need the column states of the child plan
+        # (check the implementation of derive_column_states_from_subquery().
+        if is_select_statement_child_metadata_same(source_plan):
+            source_plan.from_._snowflake_plan._metadata = metadata

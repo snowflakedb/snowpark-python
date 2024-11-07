@@ -358,10 +358,24 @@ def test_join_common_quoted_identifier(session):
         assert df._plan.quoted_identifiers == ['"A"', '"B1"', '"B2"']
 
 
-def test_cache_metadata_on_select_statement_from(session, sql_simplifier_enabled):
-    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).rename(
-        {"b": "c"}
-    )
+@pytest.mark.parametrize(
+    "create_df_func",
+    [
+        lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        .group_by("a")
+        .count(),
+        lambda session: session.create_dataframe(
+            [[1, 2], [3, 4]], schema=["a", "b"]
+        ).join(session.sql("SELECT 1 AS a, 2 AS b1"), "a"),
+        lambda session: session.create_dataframe(
+            [[1, 2], [3, 4]], schema=["a", "b"]
+        ).rename({"b": "c"}),
+    ],
+)
+def test_cache_metadata_on_select_statement_from(
+    session, sql_simplifier_enabled, create_df_func
+):
+    df = create_df_func(session)
     with SqlCounter(query_count=0, describe_count=1):
         _ = df.schema
     with SqlCounter(

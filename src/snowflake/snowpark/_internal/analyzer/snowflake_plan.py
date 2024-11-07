@@ -85,6 +85,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.metadata_utils import (
     PlanMetadata,
+    cache_metadata_on_select_statement,
     infer_metadata,
 )
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
@@ -345,10 +346,6 @@ class SnowflakePlan(LogicalPlan):
 
     @property
     def attributes(self) -> List[Attribute]:
-        from snowflake.snowpark._internal.analyzer.select_statement import (
-            SelectStatement,
-        )
-
         if self._metadata.attributes is not None:
             return self._metadata.attributes
         assert (
@@ -358,15 +355,7 @@ class SnowflakePlan(LogicalPlan):
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
-        if self.session.reduce_describe_query_enabled and isinstance(
-            self.source_plan, SelectStatement
-        ):
-            self.source_plan._attributes = attributes
-            if (
-                self.source_plan.projection is None
-                and self.source_plan.from_._snowflake_plan is not None
-            ):
-                self.source_plan.from_._snowflake_plan._metadata = self._metadata
+        cache_metadata_on_select_statement(self.source_plan, self._metadata)
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
             self.schema_query = schema_value_statement(attributes)
