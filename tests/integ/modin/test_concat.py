@@ -1143,7 +1143,7 @@ def test_concat_keys():
 
 
 @sql_count_checker(query_count=1, join_count=0)
-def test_concat_object_with_same_index_from_same_df(join):
+def test_concat_object_with_same_index_with_dup(join):
     df = native_pd.DataFrame(
         {
             "C": [1, 2, 3],
@@ -1158,12 +1158,36 @@ def test_concat_object_with_same_index_from_same_df(join):
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation(snow_objs, native_objs, axis=1),
+        _concat_operation(snow_objs, native_objs, join=join, axis=1),
     )
 
 
-# def test_concat_object_with_same_index_from_different_df(join):
-#    native_s1 = pd.Series([1, 2, 3])
+@sql_count_checker(query_count=1, join_count=0)
+def test_concat_object_with_same_index_with_dup_sort(join):
+    df = native_pd.DataFrame(
+        {
+            "C": [1, 2, 3],
+            "A": ["a", "b", "c"],
+            "D": [3, 2, 1],
+        },
+        index=native_pd.Index([2, 1, 2]),
+    )
+    snow_df = pd.DataFrame(df)
+    snow_objs = [snow_df["D"], snow_df["C"] + 1]
+
+    # Note this behavior is different from native pandas, native pandas
+    # throws ValueError: cannot reindex on an axis with duplicate labels.
+    # With snowpark pandas, the operation will be successful with an align
+    # behavior.
+    expected_result = native_pd.DataFrame(
+        {
+            "D": [2, 3, 1],
+            "C": [3, 2, 4],
+        },
+        index=native_pd.Index([1, 2, 2]),
+    )
+    snow_res = pd.concat(snow_objs, join=join, axis=1, sort=True)
+    assert_frame_equal(snow_res, expected_result)
 
 
 @sql_count_checker(query_count=4, join_count=0)
