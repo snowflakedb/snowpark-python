@@ -23,10 +23,13 @@ from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
+from snowflake.snowpark.modin.plugin.extensions.configs import Configs
 
 register_pd_accessor("Index")(Index)
 register_pd_accessor("DatetimeIndex")(DatetimeIndex)
 register_pd_accessor("TimedeltaIndex")(TimedeltaIndex)
+
+register_pd_accessor("configs")(Configs)
 
 
 def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):

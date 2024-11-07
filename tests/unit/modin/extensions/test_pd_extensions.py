@@ -20,6 +20,8 @@ from modin.pandas.api.extensions import register_pd_accessor
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 
+import pytest
+
 
 def test_pd_extension_simple_method():
     expected_string_val = "Some string value"
@@ -41,3 +43,17 @@ def test_pd_extension_non_method():
     assert attribute_name in pd._PD_EXTENSIONS_.keys()
     assert pd._PD_EXTENSIONS_[attribute_name] == 4
     assert pd.four == expected_val
+
+
+@pytest.mark.parametrize("enable_scoped_snapshot", [True, False])
+def test_pd_configs_set(enable_scoped_snapshot):
+    origin_enable_scoped_snapshot = pd.configs.enable_scoped_snapshot
+    try:
+        # test the default configuration should be false
+        assert pd.configs.enable_scoped_snapshot is False
+        # verify the value could be set accordingly
+        pd.configs.enable_scoped_snapshot = enable_scoped_snapshot
+        assert pd.configs.enable_scoped_snapshot is enable_scoped_snapshot
+    finally:
+        # reset the value back
+        pd.configs.enable_scoped_snapshot = origin_enable_scoped_snapshot
