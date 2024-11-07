@@ -939,7 +939,6 @@ def _check_map_parameter(*cols: typing.Any) -> None:
         if not (
             len(cols[0]) > 0
             and len(cols[0]) % 2 == 0
-            and all(isinstance(x, ColumnOrName) for x in cols[0])
         ):
             raise ValueError(error_message.format(len(cols[0])))
     else:
