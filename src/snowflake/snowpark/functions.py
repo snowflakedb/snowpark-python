@@ -162,7 +162,7 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Set, Tuple, Union, overload
+from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.ast_pb2 as proto
@@ -926,9 +926,34 @@ def covar_samp(
     return builtin("covar_samp", _emit_ast=_emit_ast)(col1, col2)
 
 
+def _check_map_parameter(*cols: typing.Any) -> None:
+    """Helper function to check parameter cols for create_map function."""
+
+    error_message = "The 'create_map' function requires an even number of parameters but the actual number is {}"
+
+    # TODO SNOW-1790918: Keep error messages for now identical to current state, make more distinct by replacing text in blocks.
+    if len(cols) == 1:
+        if not isinstance(cols[0], (tuple, list)):
+            raise ValueError(error_message.format(len(cols[0])))
+        # Test for create_map([col_key, col_value]), create_map((col_key, col_value)), ...
+        if not (
+            len(cols[0]) > 0
+            and len(cols[0]) % 2 == 0
+            and all(isinstance(x, ColumnOrName) for x in cols[0])
+        ):
+            raise ValueError(error_message.format(len(cols[0])))
+    else:
+        if not (
+            len(cols) > 0
+            and len(cols) % 2 == 0
+            and all(isinstance(x, ColumnOrName) for x in cols)
+        ):
+            raise ValueError(error_message.format(len(cols)))
+
+
 @publicapi
 def create_map(
-    *cols: Union[ColumnOrName, List[ColumnOrName], Set[ColumnOrName]],
+    *cols: Union[ColumnOrName, List[ColumnOrName], Tuple[ColumnOrName]],
     _emit_ast: bool = True,
 ) -> Column:
     """Transforms multiple column pairs into a single map :class:`~snowflake.snowpark.Column` where each pair of
@@ -973,29 +998,16 @@ def create_map(
         <BLANKLINE>
     """
 
-    def _check_map_parameter(cols):
-        # TODO: clarify in meeting parameter type and make changes.
-        pass
+    _check_column_parameters(*cols)
 
-    # Note: The type hint seems wrong here, hard to infer what the correct API here is.
-
-    if len(cols) == 1 and isinstance(cols[0], (list, set)):
+    # TODO SNOW-1790918: Remove as part of refactoring with alias.
+    if len(cols) == 1 and isinstance(cols[0], (list, tuple)):
         cols = cols[0]
-
-    has_odd_columns = len(cols) & 1
-    if has_odd_columns:
-        raise ValueError(
-            f"The 'create_map' function requires an even number of parameters but the actual number is {len(cols)}"
-        )
-
-    # To make Ast deterministic, sort set and convert to tuple.
-    if isinstance(cols, set):
-        cols = tuple(sorted(list(cols)))
 
     col = object_construct_keep_null(*cols, _emit_ast=_emit_ast)
 
     if _emit_ast:
-        # Alias to create_map
+        # Alias to create_map.
         set_builtin_fn_alias(col._ast, "create_map")
 
     return col
