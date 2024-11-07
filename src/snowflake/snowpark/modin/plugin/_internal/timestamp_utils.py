@@ -451,12 +451,16 @@ def convert_dateoffset_to_interval(
     yet supported, so a NotImplemented error is raised.
     """
 
+    # For operations, that use parameters not ending in s, operations will reduce with value replacement.
+    # E.g.,
+    # pd.to_datetime("2000-05-05") + pd.DateOffset(days=10) = "2000-05-15"
+    # pd.to_datetime(("2000-05-05") + pd.DateOffset(day=10) = "2000-05-10"
+
     # Call DateOffset.kwds to parse the DateOffset into a dictionary of params
     # If doff = pd.DateOffset(years=2, day=1), then doff.kwds returns {'years': 2, 'day': 1}
     dateoffset_dict = value.kwds
 
-    # Apparently the mapping does not seem supported, this is likely already fixed in main.
-    # Do light-weight check here to pass existing test.
+    # Error out for the replacement case here. TODO SNOW-1007629 will fix this.
     if any(not k.endswith("s") for k in dateoffset_dict.keys()):
         raise NotImplementedError(
             "DateOffset with parameters that replace the offset value are not yet supported."
@@ -464,14 +468,8 @@ def convert_dateoffset_to_interval(
 
     # Handle case where the DateOffset has no argument or an integer argument
     # Ex. pd.DateOffset() -> Timedelta 1 Day, pd.DateOffset(5) -> Timedelta 5 Days
-    # This should fix TODO SNOW-1007629.
     if not dateoffset_dict:
         return make_interval(days=value.n, _emit_ast=_emit_ast)
-
-    # Replace year -> years, ...
-    dateoffset_dict = {
-        k if k.endswith("s") else k + "s": v for k, v in dateoffset_dict.items()
-    }
 
     return make_interval(**dateoffset_dict, _emit_ast=_emit_ast)
 
