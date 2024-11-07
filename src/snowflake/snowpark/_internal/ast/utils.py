@@ -131,7 +131,9 @@ def fill_timezone(
     )
 
     if obj.tzinfo is not None:
-        ast.tz.offset_seconds = int(obj.tzinfo.utcoffset(datetime_val).total_seconds())
+        utc_offset = obj.tzinfo.utcoffset(datetime_val)
+        if utc_offset is not None:
+            ast.tz.offset_seconds = int(utc_offset.total_seconds())
         tz = obj.tzinfo.tzname(datetime_val)
         if tz is not None:
             ast.tz.name.value = tz
