@@ -849,8 +849,9 @@ def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:  # pragma: n
 def publicapi(func) -> Callable:
     """decorator to safeguard public APIs with global feature flags."""
 
+    # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
     @functools.wraps(func)
-    def func_call_wrapper(*args, **kwargs):
+    def func_call_wrapper(*args, **kwargs):  # pragma: no cover
         # warning(func.__qualname__, warning_text)
 
         # Handle AST encoding, by modifying default behavior.
