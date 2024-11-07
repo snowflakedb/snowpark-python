@@ -22,6 +22,7 @@ from snowflake.snowpark.functions import (
     max as max_,
     min as min_,
     seq2,
+    sum as sum_,
     table_function,
 )
 from snowflake.snowpark.session import (
@@ -29,7 +30,7 @@ from snowflake.snowpark.session import (
     Session,
 )
 from tests.integ.utils.sql_counter import SqlCounter
-from tests.utils import IS_IN_STORED_PROC
+from tests.utils import IS_IN_STORED_PROC, TestData
 
 pytestmark = [
     pytest.mark.skipif(
@@ -370,6 +371,9 @@ def test_join_common_quoted_identifier(session):
         lambda session: session.create_dataframe(
             [[1, 2], [3, 4]], schema=["a", "b"]
         ).rename({"b": "c"}),
+        lambda session: TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount"))),
     ],
 )
 def test_cache_metadata_on_select_statement_from(
