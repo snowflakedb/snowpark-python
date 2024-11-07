@@ -33,7 +33,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
-from snowflake.snowpark._internal.ast.ast import AstBatch
+from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark._internal.type_utils import (
     VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
     ColumnOrLiteral,
