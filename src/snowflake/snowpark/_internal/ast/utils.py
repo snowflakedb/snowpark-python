@@ -43,6 +43,9 @@ from snowflake.snowpark._internal.type_utils import (
 from snowflake.snowpark._internal.utils import str_to_enum
 from snowflake.snowpark.types import DataType, StructType
 
+# TODO(SNOW-1791994): Enable pyright type checks for this file.
+
+
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
 FAIL_ON_MISSING_AST = True
