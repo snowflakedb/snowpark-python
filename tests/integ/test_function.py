@@ -1262,6 +1262,39 @@ def test_as_negative(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=True)",
+    reason="FEAT: array_construct function not supported",
+)
+def test_array_construct(session, local_testing_mode):
+    df = (
+        session.create_dataframe(
+            [["aah", 1, 3.14, '{"a":1}'], [None, None, None, None]]
+        )
+        .to_df("string", "integer", "double", "obj")
+        .with_column("json", parse_json("obj"))
+    )
+    result = df.select(
+        array_construct("string", "integer").alias("array"),
+    )
+    actual = result.collect()
+    expected = [Row('[\n  "aah",\n  1\n]'), Row("[\n  undefined,\n  undefined\n]")]
+    Utils.assert_rows(actual, expected)
+
+    df = session.create_dataframe(
+        [
+            [10],
+            [20],
+            [30],
+        ],
+        schema=["integer"],
+    )
+    result = df.select(array_construct("integer").alias("a"))
+    actual = result.collect()
+    expected = [Row("[\n  10,\n 20,\n  30\n]")]
+    # Utils.assert_rows(actual, expected)
+
+
 def test_to_date_to_array_to_variant_to_object(session, local_testing_mode):
     df = (
         session.create_dataframe(
