@@ -264,7 +264,6 @@ class SnowflakePlan(LogicalPlan):
             self.session._analyzer,
             self.df_aliased_col_name_to_real_col_name,
         )
-        # TODO: should this be reset when plan is broken down in optimization stage?
         self._plan_state: Optional[Dict[PlanState, Any]] = None
 
     @property
