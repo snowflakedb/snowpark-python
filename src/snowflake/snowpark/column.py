@@ -1253,15 +1253,16 @@ class Column:
         """
         Returns a window frame, based on the specified :class:`~snowflake.snowpark.window.WindowSpec`.
         """
-        if not window:
-            window = Window._spec()
-
         ast = None
         if _emit_ast:
             ast = proto.Expr()
             expr = with_src_position(ast.sp_column_over)
             expr.col.CopyFrom(self._ast)
-            expr.window_spec.CopyFrom(window._ast if window else WindowSpec())
+            if window:
+                expr.window_spec.CopyFrom(window._ast)
+
+        if not window:
+            window = Window._spec()
 
         return window._with_aggregate(self._expression, ast=ast, _emit_ast=_emit_ast)
 

@@ -38,6 +38,10 @@ df14 = df.select(avg("value").over(Window.rangeBetween(Window.CURRENT_ROW, Windo
 
 df15 = df.select(avg("value").over(Window.rangeBetween(Window.currentRow, Window.unboundedPreceding)))
 
+df16 = df.select(avg("value").over())
+
+df17 = df.select(avg("value").over().as_("window1"))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -69,6 +73,10 @@ df13 = df.select(avg(col("value")).over(Window.range_between(Window.currentRow, 
 df14 = df.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedFollowing)))
 
 df15 = df.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedPreceding)))
+
+df16 = df.select(avg(col("value")).over())
+
+df17 = df.select(avg(col("value")).over().as_("window1"))
 
 ## EXPECTED ENCODED AST
 
@@ -1828,6 +1836,174 @@ body {
     uid: 15
     var_id {
       bitfield1: 15
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_over {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "avg"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          fn_name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 63
+                        }
+                        v: "value"
+                      }
+                    }
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 63
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 63
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 63
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 63
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df16"
+    }
+    uid: 16
+    var_id {
+      bitfield1: 16
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_alias {
+            col {
+              sp_column_over {
+                col {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          fn_name_flat {
+                            name: "avg"
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      apply_expr {
+                        fn {
+                          builtin_fn {
+                            name {
+                              fn_name_flat {
+                                name: "col"
+                              }
+                            }
+                          }
+                        }
+                        pos_args {
+                          string_val {
+                            src {
+                              file: "SRC_POSITION_TEST_MODE"
+                              start_line: 65
+                            }
+                            v: "value"
+                          }
+                        }
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 65
+                        }
+                      }
+                    }
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 65
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 65
+                }
+              }
+            }
+            name: "window1"
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 65
+            }
+            variant_is_as {
+              value: true
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 65
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df17"
+    }
+    uid: 17
+    var_id {
+      bitfield1: 17
     }
   }
 }
