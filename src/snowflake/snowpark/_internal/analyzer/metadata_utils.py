@@ -190,7 +190,7 @@ def infer_metadata(
 
 
 def cache_metadata_on_select_statement(
-    source_plan: LogicalPlan, metadata: PlanMetadata
+    source_plan: Optional[LogicalPlan], metadata: PlanMetadata
 ) -> None:
     """
     Cache metadata on a SelectStatement source plan.
