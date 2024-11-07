@@ -100,7 +100,7 @@ message Version {
   int64 patch = 4;
 }
 
-// const.ir:99
+// const.ir:100
 message PythonTimeZone {
   google.protobuf.StringValue name = 1;
   int64 offset_seconds = 2;
@@ -647,41 +647,42 @@ message BigIntVal {
 // const.ir:43
 message BigDecimalVal {
   int64 scale = 1;
-  SrcPosition src = 2;
-  bytes unscaled_value = 3;
+  google.protobuf.StringValue special = 2;
+  SrcPosition src = 3;
+  bytes unscaled_value = 4;
 }
 
-// const.ir:48
+// const.ir:49
 message StringVal {
   SrcPosition src = 1;
   string v = 2;
 }
 
-// const.ir:52
+// const.ir:53
 message BinaryVal {
   SrcPosition src = 1;
   bytes v = 2;
 }
 
-// const.ir:60
+// const.ir:61
 message TimestampVal {
   SrcPosition src = 1;
   int64 v = 2;
 }
 
-// const.ir:64
+// const.ir:65
 message DateVal {
   SrcPosition src = 1;
   int64 v = 2;
 }
 
-// const.ir:68
+// const.ir:69
 message TimeVal {
   SrcPosition src = 1;
   int64 v = 2;
 }
 
-// const.ir:72
+// const.ir:73
 message PythonTimestampVal {
   int64 day = 1;
   int64 hour = 2;
@@ -694,7 +695,7 @@ message PythonTimestampVal {
   int64 year = 9;
 }
 
-// const.ir:83
+// const.ir:84
 message PythonDateVal {
   int64 day = 1;
   int64 month = 2;
@@ -702,7 +703,7 @@ message PythonDateVal {
   int64 year = 4;
 }
 
-// const.ir:89
+// const.ir:90
 message PythonTimeVal {
   int64 hour = 1;
   int64 microsecond = 2;
@@ -712,14 +713,14 @@ message PythonTimeVal {
   PythonTimeZone tz = 6;
 }
 
-// const.ir:105
+// const.ir:106
 message FnVal {
   Expr body = 1;
   repeated string params = 2;
   SrcPosition src = 3;
 }
 
-// const.ir:111
+// const.ir:112
 message SpDatatypeVal {
   SpDataType datatype = 1;
   SrcPosition src = 2;

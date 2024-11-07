@@ -224,16 +224,20 @@ def build_expr_from_python_val(expr_builder: proto.Expr, obj: Any) -> None:
     elif isinstance(obj, decimal.Decimal):
         ast = with_src_position(expr_builder.big_decimal_val)
         dec_tuple = obj.as_tuple()
-        unscaled_val = reduce(lambda val, digit: val * 10 + digit, dec_tuple.digits)
-        if dec_tuple.sign != 0:
-            unscaled_val *= -1
+        if not obj.is_finite():
+            # For special values, like nan, snan, inf, the exponent is special string value.
+            ast.special.value = ("-" if dec_tuple.sign else "+") + dec_tuple.exponent
+        else:
+            unscaled_val = reduce(lambda val, digit: val * 10 + digit, dec_tuple.digits)
+            if dec_tuple.sign != 0:
+                unscaled_val *= -1
 
-        # In two-complement -1 with one byte is 0xFF. We encode arbitrary length integers
-        # in full bytes. Therefore, round up to fullest byte. To restore the sign, add another byte.
-        req_bytes = unscaled_val.bit_length() // 8 + 1
+            # In two-complement -1 with one byte is 0xFF. We encode arbitrary length integers
+            # in full bytes. Therefore, round up to fullest byte. To restore the sign, add another byte.
+            req_bytes = unscaled_val.bit_length() // 8 + 1
 
-        ast.unscaled_value = unscaled_val.to_bytes(req_bytes, "big", signed=True)
-        ast.scale = dec_tuple.exponent
+            ast.unscaled_value = unscaled_val.to_bytes(req_bytes, "big", signed=True)
+            ast.scale = dec_tuple.exponent
 
     elif isinstance(obj, datetime.datetime):
         ast = with_src_position(expr_builder.python_timestamp_val)
