@@ -19,7 +19,7 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.ast_utils import (

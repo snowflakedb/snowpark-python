@@ -23,7 +23,7 @@ from typing import (
 )
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
@@ -3967,10 +3967,8 @@ class DataFrame:
             copy_options: The kwargs that is used to specify the ``copyOptions`` of the ``COPY INTO <table>`` command.
         """
 
-        # TODO: This should be an eval operation, not an assign only as implemented here. Rather, the AST should be
-        #       issued as query similar to collect().
-
         # AST.
+        kwargs = {}
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
@@ -4010,6 +4008,11 @@ class DataFrame:
                     t._2 = v
             self._set_ast_ref(expr.df)
 
+            self._session._ast_batch.eval(stmt)
+
+            # Flush the AST and encode it as part of the query.
+            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -4018,7 +4021,20 @@ class DataFrame:
             and self._session._conn._suppress_not_implemented_error
         ):
             # Allow AST tests to pass.
-            return []
+            df = DataFrame(
+                self._session,
+                CopyIntoTableNode(
+                    table_name,
+                    file_path="test_file_path",  # Dummy file path.
+                    copy_options=copy_options,
+                    format_type_options=format_type_options,
+                ),
+                _ast_stmt=stmt,
+            )
+
+            return df._internal_collect_with_tag_no_telemetry(
+                statement_params=statement_params, **kwargs
+            )
 
         if not self._reader or not self._reader._file_path:
             raise SnowparkDataframeException(
@@ -4106,7 +4122,7 @@ class DataFrame:
 
         # TODO SNOW-1776638: Add Eval and pass dataframeAst as part of kwargs.
         return df._internal_collect_with_tag_no_telemetry(
-            statement_params=statement_params
+            statement_params=statement_params, **kwargs
         )
 
     @df_collect_api_telemetry
