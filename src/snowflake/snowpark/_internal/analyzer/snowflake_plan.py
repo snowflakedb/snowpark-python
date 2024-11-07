@@ -362,6 +362,11 @@ class SnowflakePlan(LogicalPlan):
             self.source_plan, SelectStatement
         ):
             self.source_plan._attributes = attributes
+            if (
+                self.source_plan.projection is None
+                and self.source_plan.from_._snowflake_plan is not None
+            ):
+                self.source_plan.from_._snowflake_plan._metadata = self._metadata
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
             self.schema_query = schema_value_statement(attributes)
