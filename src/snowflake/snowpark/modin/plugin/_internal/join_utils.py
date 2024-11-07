@@ -1251,8 +1251,13 @@ def align(
             * left: use only index from left frame, preserve left order.
             * coalesce: use only index from left frame, preserve left order. If left
               frame is empty left_on columns are coalesced with right_on columns.
-            * outer: use union of index from both frames, sort index lexicographically.
+            * outer: use union of index from both frames.
             * inner: use intersection of index from both frames, preserve left order.
+        sort: the sort strategy.
+            * default_sort, outer align result will sort the align key lexicographically
+                if the original frame is not aligned, no sort happen for others align methods.
+            * sort, always sort the result based on the align key
+            * no_sort, do not sort the result
     Returns:
         New aligned InternalFrame by aligning left frame with right frame.
     """
@@ -1347,6 +1352,11 @@ def align_on_index(
                 right order.
             * outer: use union of index from both frames, sort index lexicographically.
             * inner: use intersection of index from both frames, preserve left order.
+        sort: the sort strategy.
+            * default_sort, outer align result will sort the align key lexicographically
+                if the original frame is not aligned, no sort happen for others align methods.
+            * sort, always sort the result based on the align key
+            * no_sort, do not sort the result
     Returns:
         An InternalFrame for the aligned result.
         A JoinOrAlignResultColumnMapper that provides quoted identifiers mapping from the
