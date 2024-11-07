@@ -387,6 +387,47 @@ class Selectable(LogicalPlan, ABC):
         reference count of the cte. Includes itself and its children"""
         pass
 
+    def merge_into_pre_action(self, pre_action: "Query") -> None:
+        """Method to merge a pre-action into the current Selectable's pre-actions if it
+        is not already present. If pre_actions is None, new list will be initialized."""
+        if self.pre_actions is None:
+            self.pre_actions = [copy(pre_action)]
+        elif pre_action not in self.pre_actions:
+            self.pre_actions.append(copy(pre_action))
+
+    def merge_into_post_action(self, post_action: "Query") -> None:
+        """Method to merge a post-action into the current Selectable's post-actions if it
+        is not already present. If post_actions is None, new list will be initialized."""
+        if self.post_actions is None:
+            self.post_actions = [copy(post_action)]
+        elif post_action not in self.post_actions:
+            self.post_actions.append(copy(post_action))
+
+    def with_subqueries(
+        self,
+        subquery_plans: List[SnowflakePlan],
+        resolved_snowflake_plan: SnowflakePlan,
+    ) -> "Selectable":
+        """Update pre-actions, post-actions and schema to capture necessary subquery_plans
+        encountered during plan resolution. All updates are in-place.
+
+        Args:
+            subquery_plans: List of subquery plans encountered during plan resolution.
+            snowflake_plan: The snowflake plan corresponding to the resolved plan of the
+                current selectable which is created and updated using subquery plans
+                during resolution stage.
+        """
+        for plan in subquery_plans:
+            for query in plan.queries[:-1]:
+                self.merge_into_pre_action(query)
+            for query in plan.post_actions:
+                self.merge_into_post_action(query)
+
+        if self._snowflake_plan is not None:
+            self._snowflake_plan = resolved_snowflake_plan
+
+        return self
+
 
 class SelectableEntity(Selectable):
     """Query from a table, view, or any other Snowflake objects.
@@ -1343,17 +1384,11 @@ class SetStatement(Selectable):
         self._nodes = []
         for operand in set_operands:
             if operand.selectable.pre_actions:
-                if not self.pre_actions:
-                    self.pre_actions = []
                 for action in operand.selectable.pre_actions:
-                    if action not in self.pre_actions:
-                        self.pre_actions.append(copy(action))
+                    self.merge_into_pre_action(action)
             if operand.selectable.post_actions:
-                if not self.post_actions:
-                    self.post_actions = []
                 for action in operand.selectable.post_actions:
-                    if action not in self.post_actions:
-                        self.post_actions.append(copy(action))
+                    self.merge_into_post_action(action)
             self._nodes.append(operand.selectable)
 
     def __deepcopy__(self, memodict={}) -> "SetStatement":  # noqa: B006
