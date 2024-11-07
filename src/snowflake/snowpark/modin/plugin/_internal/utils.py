@@ -109,6 +109,7 @@ READ_ONLY_TABLE_SUFFIX = "READONLY"
 METADATA_ROW_POSITION_COLUMN = "METADATA$ROW_POSITION"
 # read only table is only supported for base table or base temporary table
 READ_ONLY_TABLE_SUPPORTED_TABLE_KINDS = ["LOCAL TEMPORARY", "BASE TABLE"]
+ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = "enable_scoped_data_snapshot"
 UNDEFINED = "undefined"
 # number of digits used to generate a random suffix
 _NUM_SUFFIX_DIGITS = 4
@@ -273,7 +274,10 @@ def _create_read_only_table(
     readonly_table_name = (
         f"{random_name_for_temp_object(TempObjectType.TABLE)}{READ_ONLY_TABLE_SUFFIX}"
     )
-    use_scoped_temp_table = session._use_scoped_temp_objects
+    # enable_scoped_snapshot = pd.get_option(ENABLE_SCOPED_TEMP_READ_ONLY_TABLE)
+    use_scoped_temp_table = (
+        session._use_scoped_temp_objects and pd.configs.enable_scoped_snapshot
+    )
     # If we need to materialize into a temp table our create table expression
     # needs to be SELECT * FROM (object).
     if materialize_into_temp_table:

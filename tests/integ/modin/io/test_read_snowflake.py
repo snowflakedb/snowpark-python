@@ -39,10 +39,13 @@ paramList = [False, True]
 
 @pytest.fixture(params=paramList)
 def setup_use_scoped_object(request, session):
-    use_scoped_objects = session._use_scoped_temp_objects
-    session._use_scoped_temp_objects = request.param
+    session_use_scoped_temp_objects = session._use_scoped_temp_objects
+    session._use_scoped_temp_objects = True
+    use_scoped_snapshot = pd.configs.enable_scoped_snapshot
+    pd.configs.enable_scoped_snapshot = request.param
     yield
-    session._use_scoped_temp_objects = use_scoped_objects
+    pd.configs.enable_scoped_snapshot = use_scoped_snapshot
+    session._use_scoped_temp_objects = session_use_scoped_temp_objects
 
 
 def read_snowflake_and_verify_snapshot_creation(
@@ -85,7 +88,7 @@ def read_snowflake_and_verify_snapshot_creation(
         assert len(query_history.queries) == 1
 
     # test if the scoped snapshot is created
-    scoped_pattern = " SCOPED " if session._use_scoped_temp_objects else " "
+    scoped_pattern = " SCOPED " if pd.configs.enable_scoped_snapshot else " "
     table_create_sql = query_history.queries[-1].sql_text
     table_create_pattern = f"CREATE OR REPLACE{scoped_pattern}TEMPORARY READ ONLY TABLE SNOWPARK_TEMP_TABLE_[0-9A-Z]+.*{READ_ONLY_TABLE_SUFFIX}.*"
     assert re.match(table_create_pattern, table_create_sql) is not None
