@@ -38,6 +38,8 @@ class TrackedCallable:
 SerializedBatch = namedtuple("SerializedBatch", ["request_id", "batch"])
 
 
+# AstBatch is not thread safe by itself, but is thread compatible. All access to AstBatch should be synchronized through
+# external means.
 class AstBatch:
     """
     A batch of AST statements. This class is used to generate AST requests.
