@@ -44,7 +44,7 @@ res3 = df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], c
 
 res4 = df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
 
-res5 = df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
+df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
 
 df3 = df.cache_result()
 
@@ -353,6 +353,14 @@ body {
   }
 }
 body {
+  eval {
+    uid: 7
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
   assign {
     expr {
       sp_dataframe_cache_result {
@@ -372,9 +380,9 @@ body {
     symbol {
       value: "df3"
     }
-    uid: 7
+    uid: 8
     var_id {
-      bitfield1: 7
+      bitfield1: 8
     }
   }
 }
@@ -402,9 +410,9 @@ body {
     symbol {
       value: "df4"
     }
-    uid: 8
+    uid: 9
     var_id {
-      bitfield1: 8
+      bitfield1: 9
     }
   }
 }
@@ -436,9 +444,9 @@ body {
     }
     symbol {
     }
-    uid: 9
+    uid: 10
     var_id {
-      bitfield1: 9
+      bitfield1: 10
     }
   }
 }
