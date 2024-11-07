@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Generic, List, Optional, Type, TypeVar, Union
 
 import snowflake.snowpark._internal.analyzer.expression as expression
-import snowflake.snowpark._internal.proto.ast_pb2 as proto
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 # Use correct version from here:
 from snowflake.snowpark._internal.utils import installed_pandas, pandas, quote_name
