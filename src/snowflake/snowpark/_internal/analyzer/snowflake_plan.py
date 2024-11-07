@@ -587,6 +587,7 @@ class SnowflakePlanBuilder:
         common_columns = set(select_left.expr_to_alias.keys()).intersection(
             select_right.expr_to_alias.keys()
         )
+        # TODO join: related to alias
         new_expr_to_alias = {
             k: v
             for k, v in {
