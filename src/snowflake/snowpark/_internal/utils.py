@@ -1204,6 +1204,21 @@ def check_flatten_mode(mode: str) -> None:
         raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
 
+def check_create_map_parameter(*cols: Any) -> None:
+    """Helper function to check parameter cols for create_map function."""
+
+    error_message = "The 'create_map' function requires an even number of parameters but the actual number is {}"
+
+    # TODO SNOW-1790918: Keep error messages for now identical to current state, make more distinct by replacing text in blocks.
+    if len(cols) == 1:
+        cols = cols[0]
+        if not isinstance(cols, (tuple, list)):
+            raise ValueError(error_message.format(len(cols)))
+
+    if not (len(cols) > 0 and len(cols) % 2 == 0):
+        raise ValueError(error_message.format(len(cols)))
+
+
 def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
     from snowflake.snowpark import Column
 

@@ -80,7 +80,7 @@ df37 = df.select(covar_samp("A", "B"))
 
 df38 = df.select(create_map(["A", "B"]))
 
-df39 = df.select(create_map({"A", "B", "A", "B"}))
+df39 = df.select(create_map(("A", "B", "A", "B")))
 
 df40 = df.select(create_map("A", "B"))
 
@@ -674,7 +674,7 @@ df37 = df.select(covar_samp(col("A"), col("B")))
 
 df38 = df.select(create_map(col("A"), col("B")))
 
-df39 = df.select(create_map(col("A"), col("B")))
+df39 = df.select(create_map(col("A"), col("B"), col("A"), col("B")))
 
 df40 = df.select(create_map(col("A"), col("B")))
 
@@ -5047,6 +5047,58 @@ body {
                   fn_name_flat {
                     name: "create_map"
                   }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 105
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 105
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 105
+                    }
+                    v: "B"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 105
                 }
               }
             }
