@@ -11289,7 +11289,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         how: Literal["any", "all"],
         thresh: Optional[Union[int, lib.NoDefault]] = lib.no_default,
-        subset: IndexLabel = None,
+        subset: Optional[Iterable] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Remove missing values. If 'thresh' is specified then the 'how' parameter is ignored.
@@ -11316,7 +11316,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.data_column_pandas_labels,
                 self._modin_frame.data_column_snowflake_quoted_identifiers,
             )
-            if not subset or label in subset
+            if subset is None or label in subset
         ]
         if thresh is lib.no_default:
             thresh = None

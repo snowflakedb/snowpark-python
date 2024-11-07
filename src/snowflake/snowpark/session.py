@@ -279,25 +279,6 @@ def _get_sandbox_conditional_active_session(session: "Session") -> "Session":
     return session
 
 
-def _close_session_atexit():
-    """
-    This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
-    notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
-    """
-    if is_in_stored_procedure():
-        return
-    with _session_management_lock:
-        for session in _active_sessions.copy():
-            try:
-                session.close()
-            except Exception:
-                pass
-
-
-# Register _close_session_atexit so it will be called at interpreter shutdown
-atexit.register(_close_session_atexit)
-
-
 def _remove_session(session: "Session") -> None:
     with _session_management_lock:
         try:
@@ -637,6 +618,21 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
+
+        # Register self._close_at_exit so it will be called at interpreter shutdown
+        atexit.register(self._close_at_exit)
+
+    def _close_at_exit(self) -> None:
+        """
+        This is the helper function to close the current session at interpreter shutdown.
+        For example, when a jupyter notebook is shutting down, this will also close
+        the current session and make sure send all telemetry to the server.
+        """
+        with _session_management_lock:
+            try:
+                self.close()
+            except Exception:
+                pass
 
     def __enter__(self):
         return self
@@ -3570,13 +3566,17 @@ class Session:
         return df
 
     def query_history(
-        self, include_describe: bool = False, include_thread_id: bool = False
+        self,
+        include_describe: bool = False,
+        include_thread_id: bool = False,
+        include_error: bool = False,
     ) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
         Args:
             include_describe: Include query notifications for describe queries
             include_thread_id: Include thread id where queries are called
+            include_error: record queries that have error during execution
 
         >>> with session.query_history(True) as query_history:
         ...     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -3586,7 +3586,9 @@ class Session:
         >>> assert query_history.queries[0].is_describe
         >>> assert not query_history.queries[1].is_describe
         """
-        query_listener = QueryHistory(self, include_describe, include_thread_id)
+        query_listener = QueryHistory(
+            self, include_describe, include_thread_id, include_error
+        )
         self._conn.add_query_listener(query_listener)
         return query_listener
 

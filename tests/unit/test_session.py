@@ -27,10 +27,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
 )
-from snowflake.snowpark.session import (
-    _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING,
-    _close_session_atexit,
-)
+from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
 from snowflake.snowpark.types import StructField, StructType
 
 
@@ -462,8 +459,8 @@ def test_session_close_atexit():
         {mocked_session},
     ):
         with mock.patch.object(snowflake.snowpark.session.Session, "close") as m:
-            # _close_session_atexit will be called when the interpreter is shutting down
-            _close_session_atexit()
+            # _close_at_exit will be called when the interpreter is shutting down
+            mocked_session._close_at_exit()
             m.assert_called_once()
 
 
