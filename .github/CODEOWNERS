@@ -3,6 +3,7 @@
 /src/snowflake/snowpark/modin/ @snowflakedb/snowpark-pandas-api
 /src/snowflake/snowpark/_internal/ast @snowflakedb/snowpark-ir
 /tests/ast/ @snowflakedb/snowpark-ir
+/tests/unit/ast/  @snowflakedb/snowpark-ir
 /tests/integ/modin/ @snowflakedb/snowpark-pandas-api
 /tests/unit/modin/ @snowflakedb/snowpark-pandas-api
 /docs/modin_api_coverage/ @snowflakedb/snowpark-pandas-api
