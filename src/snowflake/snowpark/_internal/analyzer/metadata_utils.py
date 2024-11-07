@@ -74,9 +74,7 @@ def is_select_statement_child_metadata_same(
     When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
     which has the same metadata as it's child plan (source_plan.from_).
     """
-    return (
-        source_plan.projection is None and source_plan.from_._snowflake_plan is not None
-    )
+    return source_plan.projection is None
 
 
 def infer_metadata(
@@ -164,7 +162,10 @@ def infer_metadata(
                     c.name for c in source_plan._column_states.projection
                 ]
             # When source_plan has the same metadata as its child plan, we can use it directly
-            if is_select_statement_child_metadata_same(source_plan):
+            if (
+                is_select_statement_child_metadata_same(source_plan)
+                and source_plan.from_._snowflake_plan is not None
+            ):
                 # only set attributes and quoted_identifiers if they are not set in previous step
                 if (
                     attributes is None
@@ -206,5 +207,8 @@ def cache_metadata_on_select_statement(
         # we should cache it on the child plan too.
         # This is necessary SelectStatement.select() will need the column states of the child plan
         # (check the implementation of derive_column_states_from_subquery().
-        if is_select_statement_child_metadata_same(source_plan):
+        if (
+            is_select_statement_child_metadata_same(source_plan)
+            and source_plan.from_._snowflake_plan is not None
+        ):
             source_plan.from_._snowflake_plan._metadata = metadata
