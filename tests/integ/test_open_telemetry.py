@@ -530,3 +530,19 @@ def test_open_telemetry_span_from_dataframe_writer(session, dict_exporter):
         },
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+
+
+def test_open_telemetry_from_cache_result(session, dict_exporter):
+    df = session.sql("select 1").cache_result()
+    lineno = inspect.currentframe().f_lineno - 1
+
+    answer = (
+        "cache_result",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "method.chain": "DataFrame.cache_result()",
+        },
+    )
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+    assert df.collect()[0][0] == 1
