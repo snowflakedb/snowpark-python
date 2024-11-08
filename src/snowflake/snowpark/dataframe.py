@@ -4057,42 +4057,43 @@ class DataFrame:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
+        with open_telemetry_context_manager(self.cache_result, self):
+            from snowflake.snowpark.mock._connection import MockServerConnection
 
-        temp_table_name = self._session.get_fully_qualified_name_if_possible(
-            f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
-        )
+            temp_table_name = self._session.get_fully_qualified_name_if_possible(
+                f'"{random_name_for_temp_object(TempObjectType.TABLE)}"'
+            )
 
-        if isinstance(self._session._conn, MockServerConnection):
-            self.write.save_as_table(temp_table_name, create_temp_table=True)
-        else:
-            df = self._with_plan(
-                SnowflakeCreateTable(
-                    [temp_table_name],
-                    None,
-                    SaveMode.ERROR_IF_EXISTS,
-                    self._plan,
-                    creation_source=TableCreationSource.CACHE_RESULT,
-                    table_type="temp",
+            if isinstance(self._session._conn, MockServerConnection):
+                self.write.save_as_table(temp_table_name, create_temp_table=True)
+            else:
+                df = self._with_plan(
+                    SnowflakeCreateTable(
+                        [temp_table_name],
+                        None,
+                        SaveMode.ERROR_IF_EXISTS,
+                        self._plan,
+                        creation_source=TableCreationSource.CACHE_RESULT,
+                        table_type="temp",
+                    )
                 )
+                statement_params_for_cache_result = {
+                    **(statement_params or self._statement_params or {}),
+                    "cache_result_temp_table": temp_table_name,
+                }
+                self._session._conn.execute(
+                    df._plan,
+                    _statement_params=create_or_update_statement_params_with_query_tag(
+                        statement_params_for_cache_result,
+                        self._session.query_tag,
+                        SKIP_LEVELS_TWO,
+                    ),
+                )
+            cached_df = snowflake.snowpark.table.Table(
+                temp_table_name, self._session, is_temp_table_for_cleanup=True
             )
-            statement_params_for_cache_result = {
-                **(statement_params or self._statement_params or {}),
-                "cache_result_temp_table": temp_table_name,
-            }
-            self._session._conn.execute(
-                df._plan,
-                _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params_for_cache_result,
-                    self._session.query_tag,
-                    SKIP_LEVELS_TWO,
-                ),
-            )
-        cached_df = snowflake.snowpark.table.Table(
-            temp_table_name, self._session, is_temp_table_for_cleanup=True
-        )
-        cached_df.is_cached = True
-        return cached_df
+            cached_df.is_cached = True
+            return cached_df
 
     @df_collect_api_telemetry
     def random_split(
