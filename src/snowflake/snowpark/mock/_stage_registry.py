@@ -10,6 +10,7 @@ import re
 import shutil
 import tempfile
 import uuid
+from collections import defaultdict
 from functools import partial
 from logging import getLogger
 from typing import IO, TYPE_CHECKING, Dict, List, Tuple
@@ -461,7 +462,7 @@ class StageEntity:
             result_df_sf_types = {}
             converters_dict = {}
             for i in range(len(schema)):
-                column_name = analyzer.analyze(schema[i])
+                column_name = analyzer.analyze(schema[i], defaultdict(dict))
                 column_series = ColumnEmulator(
                     data=None,
                     dtype=object,
