@@ -5847,20 +5847,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         column: Hashable,
         prefix: Hashable,
         prefix_sep: str,
+        dummy_column_name: str,
     ) -> "SnowflakeQueryCompiler":
-        self._raise_not_implemented_error_for_timedelta()
+        # self._raise_not_implemented_error_for_timedelta()
 
-        dummy_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
+        # dummy_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
         # We need to add a column that will help us differentiate between identical
         # rows, so that we do not have aggregations happen on duplicate rows.
         # We will use a random name for this column.
-        query_compiler = SnowflakeQueryCompiler(
-            self._modin_frame.ensure_row_position_column().append_column(
-                dummy_column_name, pandas_lit(1)
-            )
-        )
+        # query_compiler = SnowflakeQueryCompiler(
+        #    self._modin_frame.ensure_row_position_column().append_column(
+        #        dummy_column_name, pandas_lit(1)
+        #    )
+        # )
 
-        ordered_frame = query_compiler._modin_frame.ordered_dataframe
+        ordered_frame = self._modin_frame.ordered_dataframe
         get_dummies_column_snowflake_quoted_identifier = column
 
         for snowflake_quoted_identifier, pandas_label in zip(
@@ -5871,6 +5872,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 get_dummies_column_snowflake_quoted_identifier = (
                     snowflake_quoted_identifier
                 )
+
+        # columns_to_keep = [self._modin_frame.row_position_snowflake_quoted_identifier] + self._modin_frame.index_column_snowflake_quoted_identifiers + [get_dummies_column_snowflake_quoted_identifier, dummy_column_name]
+
+        # ordered_frame = ordered_frame.select(columns_to_keep)
 
         agg_exprs = [min_(dummy_column_name)]
         ret_frame = ordered_frame.pivot(
@@ -5961,7 +5966,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ret_frame._dataframe_ref,
             projected_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
             ordering_columns=ordering_columns,
-            row_position_snowflake_quoted_identifier=query_compiler._modin_frame.row_position_snowflake_quoted_identifier,
+            row_position_snowflake_quoted_identifier=self._modin_frame.row_position_snowflake_quoted_identifier,
         )
 
         new_col_map = {}
@@ -5972,7 +5977,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # at the end of the method before return.
         for (
             index_column_name
-        ) in query_compiler._modin_frame.index_column_snowflake_quoted_identifiers:
+        ) in self._modin_frame.index_column_snowflake_quoted_identifiers:
             if index_column_name in data_column_snowflake_quoted_identifiers:
                 data_column_snowflake_quoted_identifiers.remove(index_column_name)
 
@@ -6029,10 +6034,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         new_internal_frame = InternalFrame.create(
             ordered_dataframe=ordered_ret_frame,
             data_column_pandas_labels=new_data_column_pandas_labels,
-            data_column_pandas_index_names=query_compiler._modin_frame.data_column_pandas_index_names,
+            data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
             data_column_snowflake_quoted_identifiers=frame_data_column_snowflake_quoted_identifiers,
-            index_column_pandas_labels=query_compiler._modin_frame.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=query_compiler._modin_frame.index_column_snowflake_quoted_identifiers,
+            index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
             data_column_types=None,
             index_column_types=None,
         )
@@ -6044,12 +6049,134 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def _get_dummies_helper_v2(
-            self,
-            columns: list[Hashable],
-            prefix: list[Hashable],
-            prefix_sep: str,
+    def _single_dummies_pivot(
+        self,
+        column: Hashable,
+        prefix: Hashable,
+        prefix_sep: str,
+        dummy_column_name: str,
     ) -> "SnowflakeQueryCompiler":
+        ordered_frame = self._modin_frame.ordered_dataframe
+        get_dummies_column_snowflake_quoted_identifier = column
+        assert self._modin_frame.row_position_snowflake_quoted_identifier is not None
+        origin_row_position_snowflake_quoted_identifiers = self._modin_frame.row_position_snowflake_quoted_identifier
+
+        for snowflake_quoted_identifier, pandas_label in zip(
+                self._modin_frame.data_column_snowflake_quoted_identifiers,
+                self._modin_frame.data_column_pandas_labels,
+        ):
+            if column == pandas_label:
+                get_dummies_column_snowflake_quoted_identifier = (
+                    snowflake_quoted_identifier
+                )
+
+        # only keep the row position column + pivot column and dummy column for pivot
+        columns_to_keep = [origin_row_position_snowflake_quoted_identifiers, get_dummies_column_snowflake_quoted_identifier, dummy_column_name]
+        ordered_frame = ordered_frame.select(columns_to_keep)
+
+        agg_exprs = [min_(dummy_column_name)]
+        ret_frame = ordered_frame.pivot(
+            col(str(get_dummies_column_snowflake_quoted_identifier)),
+            None,
+            0,
+            *agg_exprs,
+        )
+        ret_frame.sort(origin_row_position_snowflake_quoted_identifiers)
+
+        # Next: We need to find out the snowflake quoted identifiers for
+        # the new columns - i.e. the columns that came from the values of
+        # the column we were pivoting on.
+        pivot_result_column_snowflake_quoted_identifiers = [identifier != origin_row_position_snowflake_quoted_identifiers for identifier in ret_frame.projected_column_snowflake_quoted_identifiers]
+
+        # Next handle the prefix for the pivot result column
+
+        if prefix is None:
+            prefix = ""
+            prefix_sep = ""
+
+        pivot_result_column_pandas_labels = []
+        for result_column_quoted_identifier in pivot_result_column_snowflake_quoted_identifiers:
+
+            if (
+                result_column_name
+                not in ordered_frame.projected_column_snowflake_quoted_identifiers
+                or pandas_col_name == column
+            ):
+                if (
+                    isinstance(pandas_col_name, str)
+                    and pandas_col_name.startswith("'")
+                    and pandas_col_name.endswith("'")
+                ):
+                    pandas_col_name = pandas_col_name[1:-1]
+                new_pandas_col_name = f"{prefix}{prefix_sep}{pandas_col_name}"
+                if new_pandas_col_name:
+                    new_col_map[result_column_name] = quote_name_without_upper_casing(
+                        new_pandas_col_name
+                    )
+                new_data_column_pandas_labels.append(new_pandas_col_name)
+            else:
+                new_data_column_pandas_labels.append(pandas_col_name)
+
+        # code below fixes up columns so that they occupy their rightful place as the ordering columns or
+        # index columns or data columns
+        new_internal_frame = InternalFrame.create(
+            ordered_dataframe=ret_frame,
+            data_column_pandas_labels=new_data_column_pandas_labels,
+            data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
+            data_column_snowflake_quoted_identifiers=frame_data_column_snowflake_quoted_identifiers,
+            index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+            data_column_types=None,
+            index_column_types=None,
+        )
+
+
+
+
+    def _get_dummies_helper_v2(
+        self,
+        columns: list[Hashable],
+        prefixs: list[Hashable],
+        prefix_sep: str,
+    ) -> "SnowflakeQueryCompiler":
+        self._raise_not_implemented_error_for_timedelta()
+
+        dummy_column_name = random_name_for_temp_object(TempObjectType.COLUMN)
+        # We need to add a column that will help us differentiate between identical
+        # rows, so that we do not have aggregations happen on duplicate rows.
+        # We will use a random name for this column.
+        query_compiler = SnowflakeQueryCompiler(
+            self._modin_frame.ensure_row_position_column().append_column(
+                dummy_column_name, pandas_lit(1)
+            )
+        )
+
+        none_pivot_data_columns = [pandas_label not in columns for pandas_label in self._modin_frame.data_column_pandas_labels]
+
+        pivoted_query_compilers = []
+        for (pandas_column_name, column_prefix) in zip(columns, prefixs):
+            # get a frame that only contains row_position column + pivot column + dummy column for pivot
+            query_compiler = query_compiler._get_dummies_helper(
+                pandas_column_name,
+                column_prefix,
+                prefix_sep,
+                dummy_column_name,
+            )
+            pivoted_query_compilers.append(query_compiler)
+
+
+
+        # inner join the result dfs on the row position columns
+        # exclude all the columns that are not pivoted
+        pivoted_result = pivoted_query_compilers[0]._modin_frame
+        columns_to_drop = [pandas_label not in columns for pandas_label in self._modin_frame.data_column_pandas_labels]
+        for pivot_query_compiler in pivoted_query_compilers[1:]:
+            # drop off other colums
+            pivot_query_compiler = pivot_query_compiler.drop(columns)
+            pivot_query_compiler = pivot_query_compiler.reset_index(drop=True)
+
+
+
 
 
     def get_dummies(
