@@ -14,7 +14,7 @@ SCRIPT_NAME="$(basename "$0")"
 
 echo "${SCRIPT_NAME} is running... "
 
-PROTOC_VERSION=28.3
+PROTOC_VERSION=3.20.1
 PROTOC_OS_ARCH=""
 PROTOC_ZIP=""
 
@@ -32,7 +32,7 @@ getOSNameAndArch(){
         PROTOC_OS_ARCH="linux-x86_64"
         ;;
       darwin)
-        PROTOC_OS_ARCH="osx-universal_binary"
+        PROTOC_OS_ARCH="osx-x86_64"
         ;;
       mingw64* | msys* | cygwin*)
         PROTOC_OS_ARCH="win64"

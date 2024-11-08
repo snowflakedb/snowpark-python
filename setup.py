@@ -56,7 +56,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
-    "protoc-wheel-0",  # Protocol buffer compiler, for Snowpark IR
+    "protoc-wheel-0==21.1",  # Protocol buffer compiler, for Snowpark IR
     "lxml",  # used in read_xml tests
 ]
 
@@ -81,7 +81,7 @@ else:
 
 if protoc is None:
     sys.stderr.write(
-        "protoc is not installed nor found. Please compile it or install the binary package.\n"
+        "protoc is not installed nor found. Please install the binary package, e.g., `pip install protoc-wheel-0==21.1`\n"
     )
     sys.exit(-1)
 
