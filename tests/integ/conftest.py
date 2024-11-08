@@ -313,3 +313,11 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
+
+
+@pytest.fixture(scope='function', autouse=True)
+def clear_session_ast_batch_on_validate_ast(session, validate_ast):
+    yield
+    if validate_ast:
+        # After each test, flush the AST batch so it does not pollute the next test validation.
+        session._ast_batch.flush()
