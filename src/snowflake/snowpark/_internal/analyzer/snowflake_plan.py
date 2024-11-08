@@ -264,6 +264,7 @@ class SnowflakePlan(LogicalPlan):
             self.session._analyzer,
             self.df_aliased_col_name_to_real_col_name,
         )
+        self._plan_state: Optional[Dict[PlanState, Any]] = None
 
     @property
     def uuid(self) -> str:
@@ -379,38 +380,45 @@ class SnowflakePlan(LogicalPlan):
             }
         return self._output_dict
 
-    @cached_property
+    @property
     def plan_state(self) -> Dict[PlanState, Any]:
-        from snowflake.snowpark._internal.analyzer.select_statement import (
-            SelectStatement,
-        )
+        with self.session._plan_lock:
+            if self._plan_state is not None:
+                # return the cached plan state
+                return self._plan_state
 
-        # calculate plan height and num_selects_with_complexity_merged
-        height = 0
-        num_selects_with_complexity_merged = 0
-        current_level = [self]
-        while len(current_level) > 0:
-            next_level = []
-            for node in current_level:
-                next_level.extend(node.children_plan_nodes)
-                if (
-                    isinstance(node, SelectStatement)
-                    and node._merge_projection_complexity_with_subquery
-                ):
-                    num_selects_with_complexity_merged += 1
-            height += 1
-            current_level = next_level
-        # calculate the repeated node status
-        cte_nodes, duplicated_node_complexity_distribution = find_duplicate_subtrees(
-            self, propagate_complexity_hist=True
-        )
+            from snowflake.snowpark._internal.analyzer.select_statement import (
+                SelectStatement,
+            )
 
-        return {
-            PlanState.PLAN_HEIGHT: height,
-            PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: num_selects_with_complexity_merged,
-            PlanState.NUM_CTE_NODES: len(cte_nodes),
-            PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: duplicated_node_complexity_distribution,
-        }
+            # calculate plan height and num_selects_with_complexity_merged
+            height = 0
+            num_selects_with_complexity_merged = 0
+            current_level = [self]
+            while len(current_level) > 0:
+                next_level = []
+                for node in current_level:
+                    next_level.extend(node.children_plan_nodes)
+                    if (
+                        isinstance(node, SelectStatement)
+                        and node._merge_projection_complexity_with_subquery
+                    ):
+                        num_selects_with_complexity_merged += 1
+                height += 1
+                current_level = next_level
+            # calculate the repeated node status
+            (
+                cte_nodes,
+                duplicated_node_complexity_distribution,
+            ) = find_duplicate_subtrees(self, propagate_complexity_hist=True)
+
+            self._plan_state = {
+                PlanState.PLAN_HEIGHT: height,
+                PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: num_selects_with_complexity_merged,
+                PlanState.NUM_CTE_NODES: len(cte_nodes),
+                PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: duplicated_node_complexity_distribution,
+            }
+            return self._plan_state
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -420,16 +428,17 @@ class SnowflakePlan(LogicalPlan):
 
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        if self._cumulative_node_complexity is None:
-            # if source plan is available, the source plan complexity
-            # is the snowflake plan complexity.
-            if self.source_plan:
-                self._cumulative_node_complexity = (
-                    self.source_plan.cumulative_node_complexity
-                )
-            else:
-                self._cumulative_node_complexity = {}
-        return self._cumulative_node_complexity
+        with self.session._plan_lock:
+            if self._cumulative_node_complexity is None:
+                # if source plan is available, the source plan complexity
+                # is the snowflake plan complexity.
+                if self.source_plan:
+                    self._cumulative_node_complexity = (
+                        self.source_plan.cumulative_node_complexity
+                    )
+                else:
+                    self._cumulative_node_complexity = {}
+            return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):

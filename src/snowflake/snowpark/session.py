@@ -607,6 +607,10 @@ class Session:
         # query can be slow and prevent other threads from moving on waiting for _lock.
         self._package_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
+        # this lock is used to protect race-conditions when evaluating critical lazy properties
+        # of SnowflakePlan or Selectable objects
+        self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
+
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
