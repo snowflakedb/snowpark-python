@@ -15,11 +15,11 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-@sql_count_checker(query_count=1)
-# @pytest.mark.parametrize("prefix", ["Brenan", "Is", "A", "Manager", "1"])
-# @pytest.mark.parametrize("prefix_sep", ["_", "/"])
-@pytest.mark.parametrize("prefix", ["Brenan"])
-@pytest.mark.parametrize("prefix_sep", ["_"])
+@sql_count_checker(query_count=1, join_count=1)
+@pytest.mark.parametrize("prefix", ["Brenan", "Is", "A", "Manager", "1"])
+@pytest.mark.parametrize("prefix_sep", ["_", "/"])
+# @pytest.mark.parametrize("prefix", ["Brenan"])
+# @pytest.mark.parametrize("prefix_sep", ["_"])
 def test_get_dummies_madeup(prefix, prefix_sep):
     pandas_df = native_pd.DataFrame(
         {"COL_0": [1, 1, 3], "COL_1": ["MANAGER", "MINION", "EMPLOYEE"]}
@@ -39,7 +39,7 @@ def test_get_dummies_madeup(prefix, prefix_sep):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_get_dummies_prefix_and_column_same():
     pandas_df = native_pd.DataFrame(
         {"COL_0": [1, 1, 3], "COL_1": ["MANAGER", "MINION", "EMPLOYEE"]}
@@ -79,7 +79,7 @@ def test_get_dummies_with_numeric_column_names(prefix, prefix_sep):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize("prefix_sep", ["_", "/"])
 def test_get_dummies_pandas(prefix_sep):
 
