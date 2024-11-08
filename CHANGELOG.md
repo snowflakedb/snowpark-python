@@ -54,6 +54,7 @@
   - Treat an empty `subset` (e.g. `[]`) as if it specified all columns instead of no columns.
   - Raise a `TypeError` for a scalar `subset` instead of filtering on just that column.
   - Raise a `ValueError` for a `subset` of type `pandas.Index` instead of filtering on the columns in the index.
+- Disable creation of scoped read only table to mitigate dynamic pivot unfound table issue in notebook env.
 
 #### Improvements
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
