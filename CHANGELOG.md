@@ -16,6 +16,7 @@
 - Allowed lower case or mixed case input when calling `Session.stored_procedure_profiler.set_active_profiler`.
 - Added distributed tracing using open telemetry APIs for action function in `DataFrame`:
   - `cache_result`
+- Removed opentelemetry warning from logging.
 
 #### Bug Fixes
 
