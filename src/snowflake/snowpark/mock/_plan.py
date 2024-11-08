@@ -4,6 +4,7 @@
 
 import importlib
 import inspect
+import json
 import math
 import re
 import statistics
@@ -1227,21 +1228,50 @@ def execute_mock_plan(
             else:
                 matched_rows = target
 
+            # the following function is used to flatten the cell object to string which is hashable
+            # as required by pandas.DataFrame.value_counts/drop_duplicates method
+            def flatten_object_cell_func(cell):
+                if isinstance(cell, (dict, list)):
+                    return json.dumps(cell)
+                return cell
+
             # Calculate multi_join
-            matched_count = intermediate[target.columns].value_counts(dropna=False)[
-                matched_rows.apply(tuple, 1)
-            ]
+
+            # 1. count each row occurrences
+            try:
+                # flatten the object cell (list, dict) to string first
+                flatten_intermediate = intermediate.map(flatten_object_cell_func)
+            except AttributeError:  # for backward compatibility with pandas < 2.1.0
+                flatten_intermediate = intermediate.applymap(flatten_object_cell_func)
+
+            rows_value_counts = flatten_intermediate[target.columns].value_counts(
+                dropna=False
+            )
+            # 2. get the row into tuple serving as the key to index the rows_value_counts DF
+            try:
+                key_index = matched_rows.map(flatten_object_cell_func).apply(tuple, 1)
+            except AttributeError:  # for backward compatibility with pandas < 2.1.0
+                key_index = matched_rows.applymap(flatten_object_cell_func).apply(
+                    tuple, 1
+                )
+            matched_count = rows_value_counts[
+                key_index
+            ]  # 3. get the occurrences of the matched rows
             multi_joins = matched_count.where(lambda x: x > 1).count()
 
             # Select rows that match the condition to be updated
-            rows_to_update = intermediate.drop_duplicates(
+
+            # 1. get the index of the rows to update
+            pd_index = flatten_intermediate.drop_duplicates(
                 subset=matched_rows.columns, keep="first"
-            ).reset_index(  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
-                drop=True
+            ).index
+            # 2. get the rows to update
+            rows_to_update = intermediate.loc[pd_index].reset_index(
+                drop=True  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
             )
             rows_to_update.sf_types = intermediate.sf_types
 
-            # Update rows in place
+            # 3. Update rows in place
             for attr, new_expr in source_plan.assignments.items():
                 column_name = analyzer.analyze(attr, expr_to_alias)
                 target_index = target.loc[rows_to_update[ROW_ID]].index
