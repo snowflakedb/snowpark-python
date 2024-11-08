@@ -449,6 +449,13 @@ def test_str_len():
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
 
 
+@sql_count_checker(query_count=1)
+def test_str_len_list():
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
+
+
 @pytest.mark.parametrize(
     "items",
     [
