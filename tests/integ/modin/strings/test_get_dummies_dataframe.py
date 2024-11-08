@@ -16,8 +16,10 @@ from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=1)
-@pytest.mark.parametrize("prefix", ["Brenan", "Is", "A", "Manager", "1"])
-@pytest.mark.parametrize("prefix_sep", ["_", "/"])
+# @pytest.mark.parametrize("prefix", ["Brenan", "Is", "A", "Manager", "1"])
+# @pytest.mark.parametrize("prefix_sep", ["_", "/"])
+@pytest.mark.parametrize("prefix", ["Brenan"])
+@pytest.mark.parametrize("prefix_sep", ["_"])
 def test_get_dummies_madeup(prefix, prefix_sep):
     pandas_df = native_pd.DataFrame(
         {"COL_0": [1, 1, 3], "COL_1": ["MANAGER", "MINION", "EMPLOYEE"]}

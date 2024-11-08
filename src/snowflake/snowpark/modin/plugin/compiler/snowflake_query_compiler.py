@@ -6044,6 +6044,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
+    def _get_dummies_helper_v2(
+            self,
+            columns: list[Hashable],
+            prefix: list[Hashable],
+            prefix_sep: str,
+    ) -> "SnowflakeQueryCompiler":
+
+
     def get_dummies(
         self,
         prefix: Optional[Union[Hashable, list[Hashable]]],
