@@ -207,8 +207,10 @@ def _generate_prefix(prefix: str) -> str:
     return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
 
 
-def _generate_deterministic_prefix(prefix, exclude_prefixes):
-    # Generate deterministic prefix while ensuring it doesn't exist in the exclude list.
+def _generate_deterministic_prefix(prefix: str, exclude_prefixes: List[str]):
+    """
+    Generate deterministic prefix while ensuring it doesn't exist in the exclude list.
+    """
     candidate_prefix = prefix + "_"
     counter = 1
     while any([p.startswith(candidate_prefix) for p in exclude_prefixes]):
