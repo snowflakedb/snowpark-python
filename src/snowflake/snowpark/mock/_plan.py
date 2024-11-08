@@ -229,6 +229,9 @@ class MockExecutionPlan(LogicalPlan):
             PlanQueryType.POST_ACTIONS: self.post_actions,
         }
 
+    def add_aliases(self, to_add: Dict) -> None:
+        self.expr_to_alias.update(to_add)
+
 
 class MockFileOperation(MockExecutionPlan):
     class Operator(str, Enum):

@@ -65,6 +65,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug where column aliases were incorrectly resolved in `DataFrame.join`, causing errors when selecting columns from a joined DataFrame.
 - Fixed a bug where `Table.update` and `Table.merge` could fail if the target table's index was not the default `RangeIndex`.
 
 ## 1.24.0 (2024-10-28)
