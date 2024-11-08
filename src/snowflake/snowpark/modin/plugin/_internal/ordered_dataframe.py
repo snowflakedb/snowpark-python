@@ -840,14 +840,19 @@ class OrderedDataFrame:
             default_on_null=default_on_null,
         ).agg(*agg_exprs)
         # pivot_dataframe = pivot_dataframe.cache_result()
-
-        return cache_result(
-            OrderedDataFrame(
+        return OrderedDataFrame(
                 # the pivot result columns for dynamic pivot are data dependent, a schema call is required
                 # to know all the quoted identifiers for the pivot result.
                 DataFrameReference(pivot_dataframe)
-            )
         )
+
+        # return cache_result(
+        #    OrderedDataFrame(
+                # the pivot result columns for dynamic pivot are data dependent, a schema call is required
+                # to know all the quoted identifiers for the pivot result.
+        #        DataFrameReference(pivot_dataframe)
+        #    )
+        # )
 
     def unpivot(
         self,

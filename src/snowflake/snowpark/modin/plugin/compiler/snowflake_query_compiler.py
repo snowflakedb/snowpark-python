@@ -6055,11 +6055,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         prefix: Hashable,
         prefix_sep: str,
         dummy_column_name: str,
+        dummy_column_identifier: str,
     ) -> "SnowflakeQueryCompiler":
         ordered_frame = self._modin_frame.ordered_dataframe
         get_dummies_column_snowflake_quoted_identifier = column
         assert self._modin_frame.row_position_snowflake_quoted_identifier is not None
-        origin_row_position_snowflake_quoted_identifiers = self._modin_frame.row_position_snowflake_quoted_identifier
+        origin_row_position_snowflake_quoted_identifier = self._modin_frame.row_position_snowflake_quoted_identifier
 
         for snowflake_quoted_identifier, pandas_label in zip(
                 self._modin_frame.data_column_snowflake_quoted_identifiers,
@@ -6071,7 +6072,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
 
         # only keep the row position column + pivot column and dummy column for pivot
-        columns_to_keep = [origin_row_position_snowflake_quoted_identifiers, get_dummies_column_snowflake_quoted_identifier, dummy_column_name]
+        columns_to_keep = [origin_row_position_snowflake_quoted_identifier, get_dummies_column_snowflake_quoted_identifier, dummy_column_identifier]
         ordered_frame = ordered_frame.select(columns_to_keep)
 
         agg_exprs = [min_(dummy_column_name)]
@@ -6081,12 +6082,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             0,
             *agg_exprs,
         )
-        ret_frame.sort(origin_row_position_snowflake_quoted_identifiers)
+        ret_frame.sort(OrderingColumn(origin_row_position_snowflake_quoted_identifier))
 
         # Next: We need to find out the snowflake quoted identifiers for
         # the new columns - i.e. the columns that came from the values of
         # the column we were pivoting on.
-        pivot_result_column_snowflake_quoted_identifiers = [identifier != origin_row_position_snowflake_quoted_identifiers for identifier in ret_frame.projected_column_snowflake_quoted_identifiers]
+        pivot_result_column_snowflake_quoted_identifiers = []
+        for identifier in ret_frame.projected_column_snowflake_quoted_identifiers:
+            if identifier != origin_row_position_snowflake_quoted_identifier:
+                pivot_result_column_snowflake_quoted_identifiers.append(identifier)
+        # ret_frame.projected_column_snowflake_quoted_identifiers.remove(origin_row_position_snowflake_quoted_identifier)
 
         # Next handle the prefix for the pivot result column
 
@@ -6095,42 +6100,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             prefix_sep = ""
 
         pivot_result_column_pandas_labels = []
-        for result_column_quoted_identifier in pivot_result_column_snowflake_quoted_identifiers:
-
+        for quoted_identifier in pivot_result_column_snowflake_quoted_identifiers:
+            pandas_col_label = extract_pandas_label_from_snowflake_quoted_identifier(quoted_identifier)
             if (
-                result_column_name
-                not in ordered_frame.projected_column_snowflake_quoted_identifiers
-                or pandas_col_name == column
+                isinstance(pandas_col_label, str)
+                and pandas_col_label.startswith("'")
+                and pandas_col_label.endswith("'")
             ):
-                if (
-                    isinstance(pandas_col_name, str)
-                    and pandas_col_name.startswith("'")
-                    and pandas_col_name.endswith("'")
-                ):
-                    pandas_col_name = pandas_col_name[1:-1]
-                new_pandas_col_name = f"{prefix}{prefix_sep}{pandas_col_name}"
-                if new_pandas_col_name:
-                    new_col_map[result_column_name] = quote_name_without_upper_casing(
-                        new_pandas_col_name
-                    )
-                new_data_column_pandas_labels.append(new_pandas_col_name)
-            else:
-                new_data_column_pandas_labels.append(pandas_col_name)
+                pandas_col_label = pandas_col_label[1:-1]
+            new_pandas_col_label = f"{prefix}{prefix_sep}{pandas_col_label}"
+            pivot_result_column_pandas_labels.append(new_pandas_col_label)
 
         # code below fixes up columns so that they occupy their rightful place as the ordering columns or
         # index columns or data columns
         new_internal_frame = InternalFrame.create(
             ordered_dataframe=ret_frame,
-            data_column_pandas_labels=new_data_column_pandas_labels,
+            data_column_pandas_labels=pivot_result_column_pandas_labels,
             data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
-            data_column_snowflake_quoted_identifiers=frame_data_column_snowflake_quoted_identifiers,
-            index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=self._modin_frame.index_column_snowflake_quoted_identifiers,
+            data_column_snowflake_quoted_identifiers=pivot_result_column_snowflake_quoted_identifiers,
+            index_column_pandas_labels=["row_position_index"],
+            index_column_snowflake_quoted_identifiers=[origin_row_position_snowflake_quoted_identifier],
             data_column_types=None,
             index_column_types=None,
         )
 
-
+        return SnowflakeQueryCompiler(new_internal_frame)
 
 
     def _get_dummies_helper_v2(
@@ -6151,31 +6145,59 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-        none_pivot_data_columns = [pandas_label not in columns for pandas_label in self._modin_frame.data_column_pandas_labels]
-
+        dummy_column_identifier = query_compiler._modin_frame.data_column_snowflake_quoted_identifiers[-1]
         pivoted_query_compilers = []
         for (pandas_column_name, column_prefix) in zip(columns, prefixs):
             # get a frame that only contains row_position column + pivot column + dummy column for pivot
-            query_compiler = query_compiler._get_dummies_helper(
+            pivot_query_compiler = query_compiler._single_dummies_pivot(
                 pandas_column_name,
                 column_prefix,
                 prefix_sep,
                 dummy_column_name,
+                dummy_column_identifier,
             )
-            pivoted_query_compilers.append(query_compiler)
+            pivoted_query_compilers.append(pivot_query_compiler)
 
 
+        remaining_data_column_pandas_labels = []
+        remaining_data_column_snowflake_quoted_identifiers = []
+        for (pandas_label, snowflake_quoted_identifiers) in zip(self._modin_frame.data_column_pandas_labels, self._modin_frame.data_column_snowflake_quoted_identifiers):
+            if pandas_label not in columns:
+                remaining_data_column_pandas_labels.append(pandas_label)
+                remaining_data_column_snowflake_quoted_identifiers.append(snowflake_quoted_identifiers)
+
+        columns_to_keep = [query_compiler._modin_frame.row_position_snowflake_quoted_identifier] + query_compiler._modin_frame.index_column_snowflake_quoted_identifiers + remaining_data_column_snowflake_quoted_identifiers
+        # do select of the row position column and the index columns and none pivot column
+        result_ordered_df = query_compiler._modin_frame.ordered_dataframe
+        result_ordered_df = result_ordered_df.select(columns_to_keep)
+        result_internal_frame = InternalFrame.create(
+            ordered_dataframe=result_ordered_df,
+            data_column_pandas_labels=query_compiler._modin_frame.index_column_pandas_labels + remaining_data_column_pandas_labels,
+            data_column_pandas_index_names=query_compiler._modin_frame.data_column_pandas_index_names,
+            data_column_snowflake_quoted_identifiers=query_compiler._modin_frame.index_column_snowflake_quoted_identifiers + remaining_data_column_snowflake_quoted_identifiers,
+            index_column_pandas_labels=["row_position_index"],
+            index_column_snowflake_quoted_identifiers=[query_compiler._modin_frame.row_position_snowflake_quoted_identifier],
+            data_column_types=None,
+            index_column_types=None,
+        )
 
         # inner join the result dfs on the row position columns
-        # exclude all the columns that are not pivoted
-        pivoted_result = pivoted_query_compilers[0]._modin_frame
-        columns_to_drop = [pandas_label not in columns for pandas_label in self._modin_frame.data_column_pandas_labels]
-        for pivot_query_compiler in pivoted_query_compilers[1:]:
-            # drop off other colums
-            pivot_query_compiler = pivot_query_compiler.drop(columns)
-            pivot_query_compiler = pivot_query_compiler.reset_index(drop=True)
+        for pivot_query_compiler in pivoted_query_compilers:
+            # perform inner join on the row position column
+            internal_frame = pivot_query_compiler._modin_frame
+            result_internal_frame = join_utils.join(
+                result_internal_frame,
+                internal_frame,
+                left_on=result_internal_frame.index_column_snowflake_quoted_identifiers,
+                right_on=internal_frame.index_column_snowflake_quoted_identifiers,
+                how="inner",
+            ).result_frame
 
+        # reset the index to original index
+        result_query_compiler = SnowflakeQueryCompiler(result_internal_frame)
+        result_query_compiler = result_query_compiler.set_index(query_compiler._modin_frame.index_column_pandas_labels)
 
+        return result_query_compiler
 
 
 
@@ -6261,13 +6283,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if prefix_sep is None:
             prefix_sep = "_"
 
-        query_compiler = self
-        for (pandas_column_name, column_prefix) in zip(columns, prefix):
-            query_compiler = query_compiler._get_dummies_helper(
-                pandas_column_name,
-                column_prefix,
-                prefix_sep,
-            )
+        query_compiler = self._get_dummies_helper_v2(
+            columns,
+            prefix,
+            prefix_sep
+        )
+        # for (pandas_column_name, column_prefix) in zip(columns, prefix):
+        #    query_compiler = query_compiler._get_dummies_helper(
+        #        pandas_column_name,
+        #        column_prefix,
+        #        prefix_sep,
+        #    )
 
         return query_compiler
 
