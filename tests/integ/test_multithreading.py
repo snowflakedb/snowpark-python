@@ -272,8 +272,13 @@ def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_
 
     with tempfile.TemporaryDirectory() as download_dir:
         with ThreadPoolExecutor(max_workers=10) as executor:
-            for file_path in resources_files:
+            futures = [
                 executor.submit(put_and_get_file, file_path, download_dir)
+                for file_path in resources_files
+            ]
+
+            for future in as_completed(futures):
+                future.result()
 
         if not use_stream:
             # assert all files are downloaded
