@@ -66,6 +66,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug where `Table.update` could not handle `VariantType`, `MapType`, and `ArrayType` data types.
 - Fixed a bug where column aliases were incorrectly resolved in `DataFrame.join`, causing errors when selecting columns from a joined DataFrame.
 - Fixed a bug where `Table.update` and `Table.merge` could fail if the target table's index was not the default `RangeIndex`.
 
