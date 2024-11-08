@@ -58,6 +58,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "decorator",  # sql counter check
     "protoc-wheel-0",  # Protocol buffer compiler, for Snowpark IR
     "lxml",  # used in read_xml tests
+    "mypy-protobuf",
 ]
 
 # read the version

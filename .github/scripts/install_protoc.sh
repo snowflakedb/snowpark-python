@@ -71,4 +71,6 @@ install() {
 
 install
 
+pip install mypy-protobuf
+
 echo "${SCRIPT_NAME} done."
