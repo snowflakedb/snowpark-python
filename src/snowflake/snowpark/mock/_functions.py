@@ -2150,3 +2150,11 @@ def mock_ntile(ntile: int, raw_input: ColumnEmulator, row_index: int) -> ColumnE
         bucket = math.floor(row_index * current_ntile / num_rows) + 1
 
     return ColumnEmulator([bucket], sf_type=ColumnType(LongType(), False))
+
+
+@patch("any_value")
+def mock_any_value(col: ColumnEmulator):
+    return ColumnEmulator(
+        col.sample(1),
+        sf_type=col.sf_type,
+    )
