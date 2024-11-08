@@ -1215,7 +1215,7 @@ def check_create_map_parameter(*cols: Any) -> None:
         if not isinstance(cols, (tuple, list)):
             raise ValueError(error_message.format(len(cols)))
 
-    if not (len(cols) > 0 and len(cols) % 2 == 0):
+    if not len(cols) % 2 == 0:
         raise ValueError(error_message.format(len(cols)))
 
 
