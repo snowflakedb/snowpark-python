@@ -43,6 +43,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     UsingJoin,
     create_join_type,
 )
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     Expression,
@@ -206,6 +207,18 @@ def _generate_prefix(prefix: str) -> str:
     return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
 
 
+def _generate_deterministic_prefix(prefix: str, exclude_prefixes: List[str]):
+    """
+    Generate deterministic prefix while ensuring it doesn't exist in the exclude list.
+    """
+    candidate_prefix = prefix + "_"
+    counter = 1
+    while any([p.startswith(candidate_prefix) for p in exclude_prefixes]):
+        candidate_prefix = f"{prefix}{counter}_"
+        counter = counter + 1
+    return candidate_prefix
+
+
 def _get_unaliased(col_name: str) -> List[str]:
     unaliased = []
     c = col_name
@@ -267,6 +280,7 @@ def _disambiguate(
         for n in lhs_names
         if n in set(rhs_names) and n not in normalized_using_columns
     ]
+    all_names = [unquote_if_quoted(n) for n in lhs_names + rhs_names]
 
     if common_col_names:
         # We use the session of the LHS DataFrame to report this telemetry
@@ -275,8 +289,12 @@ def _disambiguate(
     lsuffix = lsuffix or lhs._alias
     rsuffix = rsuffix or rhs._alias
     suffix_provided = lsuffix or rsuffix
-    lhs_prefix = _generate_prefix("l") if not suffix_provided else ""
-    rhs_prefix = _generate_prefix("r") if not suffix_provided else ""
+    lhs_prefix = (
+        _generate_deterministic_prefix("l", all_names) if not suffix_provided else ""
+    )
+    rhs_prefix = (
+        _generate_deterministic_prefix("r", all_names) if not suffix_provided else ""
+    )
 
     lhs_remapped = lhs.select(
         [
