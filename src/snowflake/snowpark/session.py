@@ -238,6 +238,10 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
 _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
     "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
 )
+# Flag for controlling the usage of scoped temp read only table.
+_PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
+    "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
+)
 # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
 # in Snowflake. This is the limit where we start seeing compilation errors.
 DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
@@ -539,6 +543,11 @@ class Session:
             _use_scoped_temp_objects
             and self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
+            )
+        )
+        self._use_scoped_temp_read_only_table: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE, False
             )
         )
         self._file = FileOperation(self)
