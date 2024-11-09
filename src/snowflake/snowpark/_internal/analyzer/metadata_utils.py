@@ -15,7 +15,6 @@ from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAli
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
-    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
 
 
 @dataclass(frozen=True)
@@ -65,16 +64,6 @@ def infer_quoted_identifiers_from_expressions(
         else:
             return None
     return result
-
-
-def is_select_statement_child_metadata_same(
-    source_plan: "SelectStatement",
-) -> bool:
-    """
-    When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
-    which has the same metadata as it's child plan (source_plan.from_).
-    """
-    return source_plan.projection is None
 
 
 def infer_metadata(
