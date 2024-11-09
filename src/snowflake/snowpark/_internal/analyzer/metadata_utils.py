@@ -161,9 +161,10 @@ def infer_metadata(
                 quoted_identifiers = [
                     c.name for c in source_plan._column_states.projection
                 ]
-            # When source_plan has the same metadata as its child plan, we can use it directly
+            # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
+            # which means source_plan has the same metadata as its child plan, we can use it directly
             if (
-                is_select_statement_child_metadata_same(source_plan)
+                source_plan.projection is None
                 and source_plan.from_._snowflake_plan is not None
             ):
                 # only set attributes and quoted_identifiers if they are not set in previous step
@@ -190,7 +191,7 @@ def infer_metadata(
     return PlanMetadata(attributes=attributes, quoted_identifiers=quoted_identifiers)
 
 
-def cache_metadata_on_select_statement(
+def cache_metadata_if_select_statement(
     source_plan: Optional[LogicalPlan], metadata: PlanMetadata
 ) -> None:
     """
@@ -203,12 +204,13 @@ def cache_metadata_on_select_statement(
         and source_plan.analyzer.session.reduce_describe_query_enabled
     ):
         source_plan._attributes = metadata.attributes
-        # When source_plan has the same metadata as its child plan,
+        # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
+        # which means source_plan has the same metadata as its child plan,
         # we should cache it on the child plan too.
         # This is necessary SelectStatement.select() will need the column states of the child plan
         # (check the implementation of derive_column_states_from_subquery().
         if (
-            is_select_statement_child_metadata_same(source_plan)
+            source_plan.projection is None
             and source_plan.from_._snowflake_plan is not None
         ):
             source_plan.from_._snowflake_plan._metadata = metadata
