@@ -445,7 +445,9 @@ def test_str_invalid_dtypes(data):
 
 @sql_count_checker(query_count=1)
 def test_str_len():
-    native_ser = native_pd.Series(TEST_DATA)
+    # We're excluding the last element below because mixed types
+    # are not allowed for `Series.str.len`.
+    native_ser = native_pd.Series(TEST_DATA[:-1])
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
 
@@ -486,10 +488,16 @@ def test_str_len_list_coin_base(session):
         else:
             return 0
 
+    # The following two methods for computing the final result should be identical.
+
+    # The first one uses `Series.str.len` followed by `Series.fillna`.
     str_len_res = df["SHARED_CARD_USERS"].str.len().fillna(0)
+
+    # The second one uses `Series.apply` and a user defined function.
     apply_res = df["SHARED_CARD_USERS"].apply(
         lambda x: compute_num_shared_card_users(x)
     )
+
     assert_series_equal(str_len_res, apply_res, check_dtype=False)
 
 
