@@ -57,8 +57,7 @@ AlignTypeLit = Literal[
 AlignSortLit = [
     # Align operator provides a default sorting capability, which sort the
     # align key lexicographically when the align type is outer, and the original
-    # dataframe is not aligned. No sort will happen for other align type.
-    # other types.
+    # dataframe is not aligned. No sort will happen for other align types.
     "default_sort",
     # Always sort the align key lexicographically regardless of align type.
     "sort",
