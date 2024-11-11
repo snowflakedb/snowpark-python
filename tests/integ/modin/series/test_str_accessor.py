@@ -457,7 +457,7 @@ def test_str_len_list():
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=9, udf_count=1)
 def test_str_len_list_coin_base(session):
     from tests.utils import Utils
 
@@ -491,6 +491,17 @@ def test_str_len_list_coin_base(session):
         lambda x: compute_num_shared_card_users(x)
     )
     assert_series_equal(str_len_res, apply_res, check_dtype=False)
+
+
+@sql_count_checker(query_count=0)
+def test_str_len_neg():
+    native_ser = native_pd.Series([{1: "cat", 2: "dog"}, None])
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowpark pandas method 'Series.str.len' currently only supports string and list columns",
+    ):
+        snow_ser.str.len()
 
 
 @pytest.mark.parametrize(

@@ -16550,8 +16550,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        # TODO SNOW-1438001: Handle dict, list, and tuple values for Series.str.len().
+        # TODO SNOW-1438001: Handle dict, and tuple values for Series.str.len().
         col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+        if not isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            (StringType, ArrayType),
+        ):
+            ErrorMessage.not_implemented(
+                "Snowpark pandas method 'Series.str.len' currently only supports string and list columns"
+            )
         if isinstance(
             self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
             ArrayType,
