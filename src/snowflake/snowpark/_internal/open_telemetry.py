@@ -11,6 +11,7 @@ import os.path
 from contextlib import contextmanager
 from logging import getLogger
 from typing import Tuple
+import logging
 
 logger = getLogger(__name__)
 target_modules = [
@@ -92,11 +93,12 @@ def open_telemetry_udf_context_manager(
                     filename, lineno = context_manager_code_location(
                         inspect.stack(), registration_function
                     )
-                    cur_span.set_attribute("code.filepath", f"{filename}")
-                    cur_span.set_attribute("code.lineno", lineno)
-                    cur_span.set_attribute("snow.executable.name", name)
-                    cur_span.set_attribute("snow.executable.handler", handler_name)
-                    cur_span.set_attribute("snow.executable.filepath", file_path)
+                    with suppress_warning():
+                        cur_span.set_attribute("code.filepath", f"{filename}")
+                        cur_span.set_attribute("code.lineno", lineno)
+                        cur_span.set_attribute("snow.executable.name", name)
+                        cur_span.set_attribute("snow.executable.handler", handler_name)
+                        cur_span.set_attribute("snow.executable.filepath", file_path)
             except Exception as e:
                 logger.warning(f"Error when acquiring span attributes. {e}")
             finally:
@@ -147,3 +149,14 @@ def extract_tracer_name(class_name):
         if "." in class_name
         else class_name
     )
+
+
+@contextmanager
+def suppress_warning():
+    op_logger = logging.getLogger("opentelemetry")
+    previous_level = op_logger.level
+    op_logger.setLevel(logging.ERROR)
+    try:
+        yield
+    finally:
+        op_logger.setLevel(previous_level)

@@ -238,6 +238,10 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
 _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
     "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
 )
+# Flag for controlling the usage of scoped temp read only table.
+_PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
+    "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
+)
 # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
 # in Snowflake. This is the limit where we start seeing compilation errors.
 DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
@@ -541,6 +545,11 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
+        self._use_scoped_temp_read_only_table: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE, False
+            )
+        )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
         self._sql_simplifier_enabled: bool = (
@@ -606,6 +615,10 @@ class Session:
         # launches a query to snowflake to get all version of packages available in snowflake. This
         # query can be slow and prevent other threads from moving on waiting for _lock.
         self._package_lock = create_rlock(self._conn._thread_safe_session_enabled)
+
+        # this lock is used to protect race-conditions when evaluating critical lazy properties
+        # of SnowflakePlan or Selectable objects
+        self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
