@@ -64,7 +64,7 @@ BASIC_DATA_FUNC_RETURN_TYPE_MAP = [
     ),
 ]
 
-# TODO SNOW-876999: Test return date/time/timestamp type when
+# TODO(SNOW-1798212): Test return date/time/timestamp type when
 #  timezone-aware type annotation on UDF is supported
 DATE_TIME_TIMESTAMP_DATA_FUNC_RETURN_TYPE_MAP = [
     # data in DATE column will be encoded as pd.Timestamp,
