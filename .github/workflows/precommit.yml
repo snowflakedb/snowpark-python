@@ -612,7 +612,6 @@ jobs:
     needs:
       - test
       - test-local-testing
-      - test-enable-cte-optimization
       - test-snowpark-pandas
       - test-modin-extra-without-pandas-extra
       - test-ast-encoding
