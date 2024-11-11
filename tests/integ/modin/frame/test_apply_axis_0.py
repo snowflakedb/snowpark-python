@@ -14,7 +14,9 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.series.test_apply import create_func_with_return_type_hint
+from tests.integ.modin.series.test_apply_and_map import (
+    create_func_with_return_type_hint,
+)
 from tests.integ.modin.utils import (
     PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
