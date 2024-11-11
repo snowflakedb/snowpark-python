@@ -77,7 +77,7 @@ def test_get_dummies_with_numeric_column_names(prefix, prefix_sep):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize("prefix_sep", ["_", "/"])
 def test_get_dummies_pandas(prefix_sep):
 
@@ -101,7 +101,7 @@ def test_get_dummies_pandas(prefix_sep):
 
 
 @pytest.mark.parametrize("sort_column", ["A", "C", "D"])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_get_dummies_pandas_no_row_pos_col(sort_column):
     data = {"A": ["a", "b", "a"], "B": ["b", "a", "c"], "C": [1, 2, 3]}
     if sort_column == "D":
@@ -137,7 +137,7 @@ def test_get_dummies_pandas_no_row_pos_col(sort_column):
 
 
 @pytest.mark.parametrize("sort_column", ["A", "C"])
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_get_dummies_pandas_no_row_pos_col_duplicate_values(sort_column):
     pandas_df = native_pd.DataFrame(
         {"A": ["a", "b", "a"], "B": ["b", "a", "c"], "C": [1, 2, 2]}
@@ -171,7 +171,7 @@ def test_get_dummies_pandas_no_row_pos_col_duplicate_values(sort_column):
 # https://snowflakecomputing.atlassian.net/browse/SNOW-1050112
 # Customer issue: Calling get_dummies on the result of
 # pd.read_snowflake directly results in a ValueError.
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=3, join_count=1)
 def test_get_dummies_pandas_after_read_snowflake(session):
     pandas_df = native_pd.DataFrame(
         {"A": ["a", "b", "a"], "B": ["b", "a", "c"], "C": [1, 2, 3]}
