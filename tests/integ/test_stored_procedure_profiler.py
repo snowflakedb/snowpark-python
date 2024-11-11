@@ -53,6 +53,7 @@ def test_profiler_function_exist(is_profiler_function_exist, profiler_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
 def test_profiler_with_profiler_class(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
@@ -81,6 +82,7 @@ def test_profiler_with_profiler_class(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
 def test_single_return_value_of_sp(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
@@ -109,6 +111,7 @@ def test_single_return_value_of_sp(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
 def test_anonymous_procedure(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
