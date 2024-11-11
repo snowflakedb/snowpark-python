@@ -8,7 +8,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.series.test_apply import (
+from tests.integ.modin.series.test_apply_and_map import (
     BASIC_DATA_FUNC_RETURN_TYPE_MAP,
     DATE_TIME_TIMESTAMP_DATA_FUNC_RETURN_TYPE_MAP,
     TEST_NUMPY_FUNCS,
