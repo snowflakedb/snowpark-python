@@ -21,7 +21,9 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     DEFAULT_UDTF_PARTITION_SIZE,
 )
 from snowflake.snowpark.types import DoubleType, PandasSeriesType
-from tests.integ.modin.series.test_apply import create_func_with_return_type_hint
+from tests.integ.modin.series.test_apply_and_map import (
+    create_func_with_return_type_hint,
+)
 from tests.integ.modin.utils import (
     PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
