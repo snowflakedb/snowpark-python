@@ -308,5 +308,4 @@ def get_dummies_helper(
         index_column_types=None,
     )
 
-    # do an optimization
     return result_internal_frame
