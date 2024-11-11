@@ -26,7 +26,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 
 
 ROW_POSITION_INDEX_COLUMN_PANDAS_LABEL = "row_position_index"
-DUMMY_COLUMN_PANDAS_LABEL = "lit_one"
+LIT_ONE_COLUMN_PANDAS_LABEL = "lit_one"
 
 
 def single_get_dummies_pivot(
@@ -78,7 +78,7 @@ def single_get_dummies_pivot(
     row_position_snowflake_quoted_identifier = (
         internal_frame.row_position_snowflake_quoted_identifier
     )
-    dummy_column_snowflake_quoted_identifier = (
+    lit_one_column_snowflake_quoted_identifier = (
         internal_frame.data_column_snowflake_quoted_identifiers[-1]
     )
     # for the dataframe passed for pivot, we keep the row position column, dummy lit one column,
@@ -86,7 +86,7 @@ def single_get_dummies_pivot(
     columns_snowflake_quoted_identifier = [
         row_position_snowflake_quoted_identifier,
         pivot_column_snowflake_quoted_identifier,
-        dummy_column_snowflake_quoted_identifier,
+        lit_one_column_snowflake_quoted_identifier,
     ] + columns_to_keep_snowflake_quoted_identifiers
     ordered_dataframe = internal_frame.ordered_dataframe.select(
         columns_snowflake_quoted_identifier
@@ -102,7 +102,7 @@ def single_get_dummies_pivot(
         col(str(pivot_column_snowflake_quoted_identifier)),
         None,
         0,
-        min_(dummy_column_snowflake_quoted_identifier),
+        min_(lit_one_column_snowflake_quoted_identifier),
     )
     pivoted_ordered_dataframe = pivoted_ordered_dataframe.sort(
         OrderingColumn(row_position_snowflake_quoted_identifier)
@@ -204,7 +204,7 @@ def get_dummies_helper(
 
     # append a lit one column as value column for pivot
     new_internal_frame = internal_frame.ensure_row_position_column().append_column(
-        DUMMY_COLUMN_PANDAS_LABEL, pandas_lit(1)
+        LIT_ONE_COLUMN_PANDAS_LABEL, pandas_lit(1)
     )
     # the dummy column is appended as the last data column of the new_internal_frame
     row_position_column_snowflake_quoted_identifier = (
