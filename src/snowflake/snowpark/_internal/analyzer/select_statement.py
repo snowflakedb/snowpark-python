@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
-from functools import cached_property, reduce
+from functools import reduce
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -241,6 +241,7 @@ class Selectable(LogicalPlan, ABC):
         ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        self._encoded_node_id_with_query: Optional[str] = None
 
     @property
     @abstractmethod
@@ -248,7 +249,7 @@ class Selectable(LogicalPlan, ABC):
         """Returns the sql query of this Selectable logical plan."""
         pass
 
-    @cached_property
+    @property
     def encoded_node_id_with_query(self) -> str:
         """
         Returns an encoded node id of this Selectable logical plan.
@@ -257,7 +258,10 @@ class Selectable(LogicalPlan, ABC):
         two selectable node with same queries. This is currently used by repeated subquery
         elimination to detect two nodes with same query, please use it with careful.
         """
-        return encode_node_id_with_query(self)
+        with self.analyzer.session._plan_lock:
+            if self._encoded_node_id_with_query is None:
+                self._encoded_node_id_with_query = encode_node_id_with_query(self)
+            return self._encoded_node_id_with_query
 
     @property
     @abstractmethod
@@ -324,12 +328,16 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        if self._cumulative_node_complexity is None:
-            self._cumulative_node_complexity = sum_node_complexities(
-                self.individual_node_complexity,
-                *(node.cumulative_node_complexity for node in self.children_plan_nodes),
-            )
-        return self._cumulative_node_complexity
+        with self.analyzer.session._plan_lock:
+            if self._cumulative_node_complexity is None:
+                self._cumulative_node_complexity = sum_node_complexities(
+                    self.individual_node_complexity,
+                    *(
+                        node.cumulative_node_complexity
+                        for node in self.children_plan_nodes
+                    ),
+                )
+            return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):

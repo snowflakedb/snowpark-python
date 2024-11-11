@@ -15,7 +15,7 @@ gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/para
 python -m pip install tox
 
 # Install protoc
-pip install protoc-wheel-0
+pip install protoc-wheel-0==21.1
 
 # Run snowpandas tests
 python -m tox -c $WORKING_DIR -e snowparkpandasjenkins-modin
