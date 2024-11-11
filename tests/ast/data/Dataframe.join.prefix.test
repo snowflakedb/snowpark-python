@@ -1,10 +1,10 @@
 ## TEST CASE
 
-df1 = session.create_dataframe([[1, 2, 3, 4, 5, 6]], schema=['\"A\"','\"B\"','\"C\"','\"r_A\"','\"l_A\"', '\"l2_A\"'])
+df1 = session.create_dataframe([[1, 2, 3, 4, 5, 6]], schema=['\"A\"','\"B\"','\"C\"','\"r_0000_A\"','\"l_0000_A\"', '\"l_0002_A\"'])
 
-df2 = session.create_dataframe([[1, 2, 3, 4, 5]], schema=['\"A\"','\"B\"','\"C\"','\"l1_C\"', '\"l3_B\"'])
+df2 = session.create_dataframe([[1, 2, 3, 4, 5]], schema=['\"A\"','\"B\"','\"C\"','\"l_0001_C\"', '\"l_0003_B\"'])
 
-df3 = df1.filter(col("\"A\"") == 1).join(df2.select((col("\"A\"") + 1).as_("\"A\""), col("\"B\""), col("\"C\""), col("\"l1_C\""), col("\"l3_B\"")))
+df3 = df1.filter(col("\"A\"") == 1).join(df2.select((col("\"A\"") + 1).as_("\"A\""), col("\"B\""), col("\"C\""), col("\"l_0001_C\""), col("\"l_0003_B\"")))
 
 df4 = df3.sort(df3.columns)
 
@@ -12,17 +12,17 @@ df4.collect()
 
 ## EXPECTED UNPARSER OUTPUT
 
-df1 = session.create_dataframe([[1, 2, 3, 4, 5, 6]], schema=["\"A\"", "\"B\"", "\"C\"", "\"r_A\"", "\"l_A\"", "\"l2_A\""])
+df1 = session.create_dataframe([[1, 2, 3, 4, 5, 6]], schema=["\"A\"", "\"B\"", "\"C\"", "\"r_0000_A\"", "\"l_0000_A\"", "\"l_0002_A\""])
 
-df2 = session.create_dataframe([[1, 2, 3, 4, 5]], schema=["\"A\"", "\"B\"", "\"C\"", "\"l1_C\"", "\"l3_B\""])
+df2 = session.create_dataframe([[1, 2, 3, 4, 5]], schema=["\"A\"", "\"B\"", "\"C\"", "\"l_0001_C\"", "\"l_0003_B\""])
 
 df3_res1 = df1.filter(col("\"A\"") == 1)
 
-df3 = df2.select((col("\"A\"") + 1).as_("\"A\""), col("\"B\""), col("\"C\""), col("\"l1_C\""), col("\"l3_B\""))
+df3 = df2.select((col("\"A\"") + 1).as_("\"A\""), col("\"B\""), col("\"C\""), col("\"l_0001_C\""), col("\"l_0003_B\""))
 
 df3 = df3_res1.join(df3, how="inner")
 
-df4 = df3.sort(["\"l4_A\"", "\"l4_B\"", "\"l4_C\"", "\"r_A\"", "\"l_A\"", "\"l2_A\"", "\"r1_A\"", "\"r1_B\"", "\"r1_C\"", "\"l1_C\"", "\"l3_B\""])
+df4 = df3.sort(["\"l_0004_A\"", "\"l_0004_B\"", "\"l_0004_C\"", "\"r_0000_A\"", "\"l_0000_A\"", "\"l_0002_A\"", "\"r_0001_A\"", "\"r_0001_B\"", "\"r_0001_C\"", "\"l_0001_C\"", "\"l_0003_B\""])
 
 df4.collect()
 
@@ -103,9 +103,9 @@ body {
             vs: "\"A\""
             vs: "\"B\""
             vs: "\"C\""
-            vs: "\"r_A\""
-            vs: "\"l_A\""
-            vs: "\"l2_A\""
+            vs: "\"r_0000_A\""
+            vs: "\"l_0000_A\""
+            vs: "\"l_0002_A\""
           }
         }
         src {
@@ -189,8 +189,8 @@ body {
             vs: "\"A\""
             vs: "\"B\""
             vs: "\"C\""
-            vs: "\"l1_C\""
-            vs: "\"l3_B\""
+            vs: "\"l_0001_C\""
+            vs: "\"l_0003_B\""
           }
         }
         src {
@@ -405,7 +405,7 @@ body {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 29
                 }
-                v: "\"l1_C\""
+                v: "\"l_0001_C\""
               }
             }
             src {
@@ -431,7 +431,7 @@ body {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 29
                 }
-                v: "\"l3_B\""
+                v: "\"l_0003_B\""
               }
             }
             src {
@@ -509,7 +509,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"l4_A\""
+            v: "\"l_0004_A\""
           }
         }
         cols {
@@ -518,7 +518,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"l4_B\""
+            v: "\"l_0004_B\""
           }
         }
         cols {
@@ -527,7 +527,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"l4_C\""
+            v: "\"l_0004_C\""
           }
         }
         cols {
@@ -536,7 +536,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"r_A\""
+            v: "\"r_0000_A\""
           }
         }
         cols {
@@ -545,7 +545,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"l_A\""
+            v: "\"l_0000_A\""
           }
         }
         cols {
@@ -554,7 +554,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"l2_A\""
+            v: "\"l_0002_A\""
           }
         }
         cols {
@@ -563,7 +563,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"r1_A\""
+            v: "\"r_0001_A\""
           }
         }
         cols {
@@ -572,7 +572,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"r1_B\""
+            v: "\"r_0001_B\""
           }
         }
         cols {
@@ -581,7 +581,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"r1_C\""
+            v: "\"r_0001_C\""
           }
         }
         cols {
@@ -590,7 +590,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"l1_C\""
+            v: "\"l_0001_C\""
           }
         }
         cols {
@@ -599,7 +599,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"l3_B\""
+            v: "\"l_0003_B\""
           }
         }
         df {
