@@ -158,7 +158,14 @@ def test_corr_negative(numeric_native_df, method):
 @sql_count_checker(query_count=1)
 def test_string_sum(data, numeric_only_kwargs):
     eval_snowpark_pandas_result(
-        *create_test_dfs(data), lambda df: df.sum(**numeric_only_kwargs)
+        *create_test_dfs(data),
+        lambda df: df.sum(**numeric_only_kwargs),
+        # pandas doesn't propagate attrs if the frame is empty after type filtering,
+        # which happens if numeric_only=True and all columns are strings, but Snowpark pandas does.
+        test_attrs=not (
+            numeric_only_kwargs.get("numeric_only", False)
+            and isinstance(data["col1"][0], str)
+        ),
     )
 
 
@@ -682,20 +689,24 @@ def test_agg_with_no_column_raises(pandas_df):
 
 
 @pytest.mark.parametrize(
-    "func",
+    "func, test_attrs",
     [
-        lambda df: df.aggregate(min),
-        lambda df: df.max(),
-        lambda df: df.count(),
-        lambda df: df.corr(),
-        lambda df: df.aggregate(x=("A", "min")),
+        (lambda df: df.aggregate(min), True),
+        # This is a bug in pandas - the attrs are not propagated for
+        # size, but are propagated for other functions.
+        (lambda df: df.aggregate("size"), False),
+        (lambda df: df.aggregate(len), False),
+        (lambda df: df.max(), True),
+        (lambda df: df.count(), True),
+        (lambda df: df.corr(), True),
+        (lambda df: df.aggregate(x=("A", "min")), True),
     ],
 )
 @sql_count_checker(query_count=1)
-def test_agg_with_single_col(func):
+def test_agg_with_single_col(func, test_attrs):
     native_df = native_pd.DataFrame({"A": [1, 2, 3]})
     snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(snow_df, native_df, func)
+    eval_snowpark_pandas_result(snow_df, native_df, func, test_attrs=test_attrs)
 
 
 @pytest.mark.parametrize(
@@ -850,6 +861,8 @@ def test_agg_valid_variant_col(session, test_table_name):
         np.min,
         np.max,
         np.sum,
+        "size",
+        len,
         ["max", "min", "count", "sum"],
         ["min"],
         ["idxmax", "max", "idxmin", "min"],
@@ -860,7 +873,12 @@ def test_agg_axis_1_simple(agg_func):
     data = [[1, 2, 3], [2, 4, -1], [3, 0, 6]]
     native_df = native_pd.DataFrame(data)
     df = pd.DataFrame(data)
-    eval_snowpark_pandas_result(df, native_df, lambda df: df.agg(agg_func, axis=1))
+    eval_snowpark_pandas_result(
+        df,
+        native_df,
+        lambda df: df.agg(agg_func, axis=1),
+        test_attrs=agg_func not in ("size", len),
+    )  # native pandas does not propagate attrs for size, but snowpark pandas does
 
 
 @pytest.mark.parametrize(

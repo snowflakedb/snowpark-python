@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExp
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     get_aliased_option_name,
+    get_copy_into_location_options,
     normalize_remote_file_or_dir,
     parse_table_name,
     publicapi,
@@ -84,6 +85,8 @@ class DataFrameWriter:
     ) -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
+        self._partition_by: Optional[ColumnOrSqlExpr] = None
+        self._cur_options: Dict[str, Any] = {}
         self._ast_stmt = _ast_stmt
 
     @publicapi
@@ -119,6 +122,26 @@ class DataFrameWriter:
                     self._ast_stmt.expr.sp_dataframe_write.save_mode, self._save_mode
                 )
 
+        return self
+
+    def partition_by(self, expr: ColumnOrSqlExpr) -> "DataFrameWriter":
+        """Specifies an expression used to partition the unloaded table rows into separate files. It can be a
+        :class:`Column`, a column name, or a SQL expression.
+        """
+        self._partition_by = expr
+        return self
+
+    def option(self, key: str, value: Any) -> "DataFrameWriter":
+        """Depending on the ``file_format_type`` specified, you can include more format specific options.
+        Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
+        """
+        aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
+        self._cur_options[aliased_key] = value
+        return self
+
+    def options(self, configs: Dict) -> "DataFrameWriter":
+        for k, v in configs.items():
+            self.option(k, v)
         return self
 
     @overload
@@ -203,8 +226,9 @@ class DataFrameWriter:
 
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
-                        and ``transient``. An empty string means to create a permanent table. Learn more about table
-                        types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+                        and ``transient``. An empty string means to create a permanent table. Not applicable
+                        for iceberg tables. Learn more about table types
+                        `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
             clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
                 See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys#defining-a-clustering-key-for-a-table>`_
                 for more details.
@@ -530,6 +554,7 @@ class DataFrameWriter:
             _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
 
         stage_location = normalize_remote_file_or_dir(location)
+        partition_by = partition_by if partition_by is not None else self._partition_by
         if isinstance(partition_by, str):
             partition_by = sql_expr(partition_by)._expression
         elif isinstance(partition_by, Column):
@@ -539,13 +564,21 @@ class DataFrameWriter:
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
 
-        # apply writer option alias mapping
-        format_type_aliased_options = None
+        # read current options and update them with the new options
+        cur_format_type_options, cur_copy_options = get_copy_into_location_options(
+            self._cur_options
+        )
+        if copy_options:
+            cur_copy_options.update(copy_options)
+
         if format_type_options:
+            # apply writer option alias mapping
             format_type_aliased_options = {}
             for key, value in format_type_options.items():
                 aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
                 format_type_aliased_options[aliased_key] = value
+
+            cur_format_type_options.update(format_type_aliased_options)
 
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
@@ -554,8 +587,8 @@ class DataFrameWriter:
                 partition_by=partition_by,
                 file_format_name=file_format_name,
                 file_format_type=file_format_type,
-                format_type_options=format_type_aliased_options,
-                copy_options=copy_options,
+                format_type_options=cur_format_type_options,
+                copy_options=cur_copy_options,
                 header=header,
             )
         )

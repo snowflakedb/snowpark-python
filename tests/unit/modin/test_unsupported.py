@@ -16,14 +16,11 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 @pytest.mark.parametrize(
     "io_method, kwargs",
     [
-        ["read_xml", {"path_or_buffer": ""}],
         ["read_gbq", {"query": ""}],
-        ["read_html", {"io": ""}],
         ["read_clipboard", {}],
         ["read_hdf", {"path_or_buf": ""}],
         ["read_feather", {"path": ""}],
         ["read_stata", {"filepath_or_buffer": ""}],
-        ["read_pickle", {"filepath_or_buffer": ""}],
         ["read_sql", {"sql": "", "con": ""}],
         ["read_fwf", {"filepath_or_buffer": ""}],
         ["read_sql_table", {"table_name": "", "con": ""}],
@@ -93,7 +90,6 @@ def test_unsupported_general(general_method, kwargs):
         ["reorder_levels", {"order": ""}],
         ["sem", {}],
         ["set_flags", {}],
-        ["style", {}],
         ["swapaxes", {"axis1": "", "axis2": ""}],
         ["swaplevel", {}],
         ["to_clipboard", {}],

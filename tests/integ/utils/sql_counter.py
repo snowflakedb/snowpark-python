@@ -77,12 +77,15 @@ HIGH_QUERY_COUNT_THRESHOLD = 9
 # it only runs at the first time of creating a fallback stored procedure
 # 5. test_table_fixture does a drop table which is inconsistently included but ultimately not related to the tested code
 # These cases should be excluded in our query counts.
+# 6. Unused temp tables to be dropped to temp table cleaner may happen any time when garbage collection kicks in,
+# so we should not count it
 FILTER_OUT_QUERIES = [
     ["create SCOPED TEMPORARY", "stage if not exists"],
     ["PUT", "file:///tmp/placeholder/snowpark.zip"],
     ["PUT", "file:///tmp/placeholder/udf_py_"],
     ['SELECT "PACKAGE_NAME"', 'array_agg("VERSION")'],
     ["drop table if exists", "TESTTABLENAME"],
+    ["drop table if exists", "/* internal query to drop unused temp table */"],
 ]
 
 # define global at module-level

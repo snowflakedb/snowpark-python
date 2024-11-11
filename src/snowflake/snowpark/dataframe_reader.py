@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
+    SNOWFLAKE_PATH_PREFIXES,
     TempObjectType,
     get_aliased_option_name,
     get_copy_into_table_options,
@@ -66,6 +67,15 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
+
+
+def _validate_stage_path(path: str) -> str:
+    stripped_path = path.strip("\"'")
+    if not any(stripped_path.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
+        raise ValueError(
+            f"'{path}' is an invalid Snowflake stage location. DataFrameReader can only read files from stage locations."
+        )
+    return path
 
 
 class DataFrameReader:
@@ -470,6 +480,7 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
+        path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = "CSV"
 
@@ -854,6 +865,7 @@ class DataFrameReader:
 
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
+        path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = format
 

@@ -23,7 +23,6 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import TempObjectType, check_imports_type
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 from snowflake.snowpark.mock._plan import calculate_expression
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
@@ -259,6 +258,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         force_inline_code: bool = False,
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
@@ -416,10 +416,6 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             sproc_name = get_fully_qualified_name(
                 sproc_name, current_schema, current_database
             )
-            try:
-                sproc = self._registry[sproc_name]
-            except KeyError:
-                raise SnowparkSQLException("Unknown function")
 
             # TODO: Support call in MockServerConnection.
             from snowflake.snowpark.mock._connection import MockServerConnection
@@ -437,7 +433,6 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
 
             sproc = self._registry[sproc_name]
             res = sproc(*args, session=session, statement_params=statement_params)
-
             sproc_expr = None
             if _emit_ast and sproc._ast is not None:
                 assert (
@@ -454,5 +449,4 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 # such as `collect` or `show`.
                 # If the result is a scalar, it is taken care of in `__call__` in MockStoredProcedure.
                 res._ast = sproc_expr
-
             return res

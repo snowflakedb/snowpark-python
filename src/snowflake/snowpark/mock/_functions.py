@@ -22,6 +22,7 @@ import pytz
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
+from snowflake.snowpark._internal.utils import unalias_datetime_part
 from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     _TIMESTAMP_TYPE_MAPPING,
@@ -58,7 +59,6 @@ from ._util import (
     convert_numeric_string_value_to_float_seconds,
     convert_snowflake_datetime_format,
     process_string_time_with_fractional_seconds,
-    unalias_datetime_part,
 )
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
@@ -2225,3 +2225,11 @@ def mock_ntile(ntile: int, raw_input: ColumnEmulator, row_index: int) -> ColumnE
         bucket = math.floor(row_index * current_ntile / num_rows) + 1
 
     return ColumnEmulator([bucket], sf_type=ColumnType(LongType(), False))
+
+
+@patch("any_value")
+def mock_any_value(col: ColumnEmulator):
+    return ColumnEmulator(
+        col.sample(1),
+        sf_type=col.sf_type,
+    )
