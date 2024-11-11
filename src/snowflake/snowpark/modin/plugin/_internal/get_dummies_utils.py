@@ -9,7 +9,10 @@ from snowflake.snowpark.functions import (
     min as min_,
 )
 
-from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import OrderingColumn
+from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
+    OrderedDataFrame,
+    OrderingColumn,
+)
 from snowflake.snowpark.modin.plugin._internal.utils import (
     pandas_lit,
     extract_pandas_label_from_snowflake_quoted_identifier,
@@ -280,6 +283,18 @@ def get_dummies_helper(
             how="inner",
         ).result_frame
 
+    # optimization: keep the original row position column as the result ordered frame
+    # row position to avoid unnecessary row position column in later operation, which
+    # is an expensive operation.
+    result_ordered_frame = result_internal_frame.ordered_dataframe
+    result_ordered_frame = OrderedDataFrame(
+        dataframe_ref=result_ordered_frame._dataframe_ref,
+        projected_column_snowflake_quoted_identifiers=result_ordered_frame.projected_column_snowflake_quoted_identifiers,
+        ordering_columns=result_ordered_frame.ordering_columns,
+        row_position_snowflake_quoted_identifier=row_position_column_snowflake_quoted_identifier,
+        row_count_snowflake_quoted_identifier=result_ordered_frame.row_count_snowflake_quoted_identifier,
+    )
+
     # reset the original index back
     data_column_pandas_label = []
     data_column_snowflake_quoted_identifiers = []
@@ -297,7 +312,7 @@ def get_dummies_helper(
             )
 
     result_internal_frame = InternalFrame.create(
-        ordered_dataframe=result_internal_frame.ordered_dataframe,
+        ordered_dataframe=result_ordered_frame,
         data_column_pandas_labels=data_column_pandas_label,
         data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
         data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
