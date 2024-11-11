@@ -58,6 +58,7 @@
 - Fixed a bug when concat dataframe or series coming from the same dataframe when axis = 1.
 
 #### Improvements
+
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
 
 
