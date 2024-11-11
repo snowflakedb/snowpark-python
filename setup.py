@@ -14,11 +14,7 @@ from setuptools.command.build_py import build_py as _build_py
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-MODIN_DEPENDENCY_VERSION = (
-    "==0.28.1"  # Snowpark pandas requires modin 0.28.1, which depends on pandas 2.2.1
-)
-# Use HEAD of main branch in connector. This doesn't work with [pandas] extra.
-# CONNECTOR_DEPENDENCY = "snowflake-connector-python @ git+https://github.com/snowflakedb/snowflake-connector-python@main#egg=snowflake-connector-python"
+MODIN_DEPENDENCY_VERSION = "==0.30.1"  # Snowpark pandas requires modin 0.30.1, which is compatible with pandas 2.2.x
 CONNECTOR_DEPENDENCY_VERSION = ">=3.12.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
@@ -32,6 +28,9 @@ INSTALL_REQ_LIST = [
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+    # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
+    "protobuf>=3.20, <6",  # Snowpark IR
+    "tzlocal",  # Snowpark IR
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
@@ -59,15 +58,11 @@ DEVELOPMENT_REQUIREMENTS = [
     "openpyxl",  # used in read_excel test, not a requirement for distribution
     "matplotlib",  # used in plot tests
     "pre-commit",
-    "protoc-wheel-0",
-    "aiohttp",  # vcrpy requirements.
-    "boto",  # vcrpy requirements.
-    "httplib2",  # vcrpy requirements.
-    "httpx",  # vcrpy requirements.
-    "tornado",  # vcrpy requirements.
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
+    "protoc-wheel-0==21.1",  # Protocol buffer compiler, for Snowpark IR
+    "lxml",  # used in read_xml tests
 ]
 
 # read the version
@@ -91,7 +86,7 @@ else:
 
 if protoc is None:
     sys.stderr.write(
-        "protoc is not installed nor found. Please compile it or install the binary package.\n"
+        "protoc is not installed nor found. Please install the binary package, e.g., `pip install protoc-wheel-0==21.1`\n"
     )
     sys.exit(-1)
 
@@ -167,6 +162,7 @@ setup(
         "snowflake.snowpark",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
+        "snowflake.snowpark._internal.ast",
         "snowflake.snowpark._internal.compiler",
         "snowflake.snowpark._internal.proto.generated",
         "snowflake.snowpark.mock",

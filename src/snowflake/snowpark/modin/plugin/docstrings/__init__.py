@@ -6,10 +6,13 @@
 
 from snowflake.snowpark.modin.plugin.docstrings.base import BasePandasDataset
 from snowflake.snowpark.modin.plugin.docstrings.dataframe import DataFrame
+from snowflake.snowpark.modin.plugin.docstrings.general import *  # noqa: F401,F403
 from snowflake.snowpark.modin.plugin.docstrings.groupby import (
     DataFrameGroupBy,
     SeriesGroupBy,
 )
+from snowflake.snowpark.modin.plugin.docstrings.index import Index
+from snowflake.snowpark.modin.plugin.docstrings.io import *  # noqa: F401,F403
 from snowflake.snowpark.modin.plugin.docstrings.resample import Resampler
 from snowflake.snowpark.modin.plugin.docstrings.series import Series
 from snowflake.snowpark.modin.plugin.docstrings.series_utils import (
@@ -29,4 +32,5 @@ __all__ = [
     "Series",
     "SeriesGroupBy",
     "StringMethods",
+    "Index",
 ]

@@ -20,6 +20,7 @@ from snowflake.snowpark.functions import (
     _timestamp_from_parts_internal,
     abs,
     acos,
+    any_value,
     approx_count_distinct,
     approx_percentile,
     approx_percentile_accumulate,
@@ -2829,6 +2830,82 @@ def test_array_append(session):
     reason="array_remove is not yet supported in local testing mode.",
 )
 def test_array_remove(session):
+    actual = session.createDataFrame([([1, 2, 4, 4, 3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 4))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  1,\n  2,\n  3\n]"),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([(["a", "b", "c", "a", "a"],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, "a"))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "b",\n  "c"\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [(["apple", "banana", "apple", "orange"],), ([],)], ["data"]
+    )
+    actual = actual.select(array_remove(actual.data, "apple"))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "banana",\n  "orange"\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([([1, "2", 3.1, 1, 3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 1))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "2",\n  3.1,\n  3\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([(["@", ";", "3.1", 1, 5 / 3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 1))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "@",\n  ";",\n  "3.1",\n  1.6666666666666667\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([([-1, -2, -4, -4, -3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 1))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  -1,\n  -2,\n  -4,\n  -4,\n  -3\n]"),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([([4.4, 5.5, 1.1],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 5.5))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4.4,\n  1.1\n]"),
+            Row("[]"),
+        ],
+    )
+
+    actual = TestData.array1(session).select(
+        array_remove(array_remove(col("arr1"), lit(1)), lit(8))
+    )
+
     Utils.check_answer(
         [
             Row("[\n  2,\n  3\n]"),
@@ -4066,7 +4143,7 @@ def test_timestamp_from_parts_internal():
 
 def test_timestamp_from_parts_internal_negative():
     func_name = "negative test"
-    with pytest.raises(ValueError, match="expected 2, 6, 7 or 8"):
+    with pytest.raises(ValueError, match="expected 2 or 6 required arguments"):
         _timestamp_from_parts_internal(func_name, 1)
 
     with pytest.raises(ValueError, match="does not accept timezone as an argument"):
@@ -5458,3 +5535,33 @@ def test_collation(session):
         TestData.zero1(session).select(collation(lit("f").collate("de"))),
         [Row("de")],
     )
+
+
+def test_any_value(session):
+    df = session.create_dataframe(
+        [
+            (1, 1),
+            (1, 1),
+            (2, 1),
+            (2, 2),
+            (2, 2),
+        ],
+        schema=["id", "subid"],
+    ).order_by("id", "subid")
+
+    Utils.check_answer(
+        df.group_by("id", "subid").agg(any_value("id")).order_by("id", "subid"),
+        [Row(1, 1, 1), Row(2, 1, 2), Row(2, 2, 2)],
+    )
+
+    non_deterministic_result_1 = df.select(any_value("id")).collect()
+    assert non_deterministic_result_1 == [Row(1)] or non_deterministic_result_1 == [
+        Row(2)
+    ]
+    non_deterministic_result_2 = (
+        df.group_by("id").agg(any_value("subid")).order_by("id").collect()
+    )
+    assert non_deterministic_result_2 == [
+        Row(1, 1),
+        Row(2, 1),
+    ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]

@@ -812,3 +812,17 @@ def test_get_session_stage(session):
         Utils.drop_database(session, new_database)
         session.use_database(current_database)
         session.use_schema(current_schema)
+
+
+def test_session_atexit(db_parameters):
+    exit_funcs = []
+    with patch("atexit.register", lambda func: exit_funcs.append(func)):
+        with Session.builder.configs(db_parameters).create():
+            pass
+
+    # the first exit function is from the connector
+    # the second exit function is from the Snowpark session
+    # the order matters so Snowpark session is closed first
+    assert len(exit_funcs) == 2
+    assert exit_funcs[0].__module__.startswith("snowflake.connector")
+    assert exit_funcs[1].__module__.startswith("snowflake.snowpark")

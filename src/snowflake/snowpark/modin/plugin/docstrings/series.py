@@ -1795,10 +1795,12 @@ class Series(BasePandasDataset):
         ----------
         arg : function, collections.abc.Mapping subclass or Series
             Mapping correspondence.
+            Only function is currently supported by Snowpark pandas.
         na_action : {None, 'ignore'}, default None
             If 'ignore', propagate NULL values, without passing them to the
             mapping correspondence. Note that, it will not bypass NaN values
             in a FLOAT column in Snowflake.
+            'ignore' is currently not supported by Snowpark pandas.
 
         Returns
         -------
@@ -1833,7 +1835,7 @@ class Series(BasePandasDataset):
 
         ``map`` accepts a ``dict`` or a ``Series``. Values that are not found
         in the ``dict`` are converted to ``NaN``, unless the dict has a default
-        value (e.g. ``defaultdict``):
+        value (e.g. ``defaultdict``) (Currently not supported by Snowpark pandas):
 
         >>> s.map({'cat': 'kitten', 'dog': 'puppy'})  # doctest: +SKIP
         0    kitten
@@ -1852,7 +1854,7 @@ class Series(BasePandasDataset):
         dtype: object
 
         To avoid applying the function to missing values (and keep them as
-        ``NaN``) ``na_action='ignore'`` can be used:
+        ``NaN``) ``na_action='ignore'`` can be used (Currently not supported by Snowpark pandas):
 
         >>> s.map('I am a {}'.format, na_action='ignore')  # doctest: +SKIP
         0       I am a cat
@@ -3381,6 +3383,57 @@ class Series(BasePandasDataset):
         Returns
         -------
         numpy.ndarray
+
+        See Also
+        --------
+        Series.array
+            Get the actual data stored within.
+        Index.array
+            Get the actual data stored within.
+        DataFrame.to_numpy
+            Similar method for DataFrame.
+
+        Notes
+        -----
+        The returned array will be the same up to equality (values equal in self will be equal in the returned array; likewise for values that are not equal). When self contains an ExtensionArray, the dtype may be different. For example, for a category-dtype Series, to_numpy() will return a NumPy array and the categorical dtype will be lost.
+
+        This table lays out the different dtypes and default return types of to_numpy() for various dtypes within pandas.
+
+        +--------------------+----------------------------------+
+        | dtype              | array type                       |
+        +--------------------+----------------------------------+
+        | category[T]        | ndarray[T] (same dtype as input) |
+        +--------------------+----------------------------------+
+        | period             | ndarray[object] (Periods)        |
+        +--------------------+----------------------------------+
+        | interval           | ndarray[object] (Intervals)      |
+        +--------------------+----------------------------------+
+        | IntegerNA          | ndarray[object]                  |
+        +--------------------+----------------------------------+
+        | datetime64[ns]     | datetime64[ns]                   |
+        +--------------------+----------------------------------+
+        | datetime64[ns, tz] | ndarray[object] (Timestamps)     |
+        +--------------------+----------------------------------+
+
+        Examples
+        --------
+        >>> ser = pd.Series(pd.Categorical(['a', 'b', 'a']))  # doctest: +SKIP
+        >>> ser.to_numpy()  # doctest: +SKIP
+        array(['a', 'b', 'a'], dtype=object)
+
+        Specify the dtype to control how datetime-aware data is represented. Use dtype=object to return an ndarray of pandas Timestamp objects, each with the correct tz.
+
+        >>> ser = pd.Series(pd.date_range('2000', periods=2, tz="CET"))
+        >>> ser.to_numpy(dtype=object)
+        array([Timestamp('2000-01-01 00:00:00+0100', tz='UTC+01:00'),
+               Timestamp('2000-01-02 00:00:00+0100', tz='UTC+01:00')],
+              dtype=object)
+
+        Or dtype='datetime64[ns]' to return an ndarray of native datetime64 values. The values are converted to UTC and the timezone info is dropped.
+
+        >>> ser.to_numpy(dtype="datetime64[ns]")
+        array(['1999-12-31T23:00:00.000000000', '2000-01-01T23:00:00...'],
+              dtype='datetime64[ns]')
         """
 
     tolist = to_list

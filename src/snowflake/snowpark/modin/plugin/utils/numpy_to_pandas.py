@@ -1,12 +1,13 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Any, Optional, Union
+from typing import Any, Hashable, Optional, Union
 
 import modin.pandas as pd
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 
+from snowflake.snowpark import functions as sp_func
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
@@ -87,19 +88,72 @@ def where_mapper(
             return x.where(cond, y)  # type: ignore
 
         if is_scalar(x):
-            # broadcast scalar x to size of cond
-            object_shape = cond.shape
-            if len(object_shape) == 1:
-                df_scalar = pd.Series(x, index=range(object_shape[0]))
-            elif len(object_shape) == 2:
-                df_scalar = pd.DataFrame(
-                    x, index=range(object_shape[0]), columns=range(object_shape[1])
-                )
+            if cond.ndim == 1:
+                df_cond = cond.to_frame()
+            else:
+                df_cond = cond.copy()
+
+            origin_columns = df_cond.columns
+            # rename the columns of df_cond for ensure no conflict happens when
+            # appending new columns
+            renamed_columns = [f"col_{i}" for i in range(len(origin_columns))]
+            df_cond.columns = renamed_columns
+            # broadcast scalar x to size of cond through indexing
+            new_columns = [f"new_col_{i}" for i in range(len(origin_columns))]
+            df_cond[new_columns] = x
+
+            if cond.ndim == 1:
+                df_scalar = df_cond[new_columns[0]]
+                df_scalar.name = cond.name
+            else:
+                df_scalar = df_cond[new_columns]
+                # use the same name as the cond dataframe to make sure
+                # pandas where happens correctly
+                df_scalar.columns = origin_columns
 
             # handles np.where(df, scalar1, scalar2)
             # handles np.where(df1, scalar, df2)
             return df_scalar.where(cond, y)
+
     # return the sentinel NotImplemented if we do not support this function
+    return NotImplemented
+
+
+def may_share_memory_mapper(a: Any, b: Any, max_work: Optional[int] = None) -> bool:
+    """
+    Maps and executes the numpy may_share_memory signature and always
+    returns False
+    """
+    return False
+
+
+def full_like_mapper(
+    a: Union[pd.DataFrame, pd.Series],
+    fill_value: Hashable,
+    dtype: Optional[Any] = None,
+    order: Optional[str] = "K",
+    subok: Optional[bool] = True,
+    shape: Optional[tuple[Any]] = None,
+) -> Union[pd.DataFrame, pd.Series]:
+    if not subok:
+        return NotImplemented
+    if not order == "K":
+        return NotImplemented
+    if dtype is not None:
+        return NotImplemented
+
+    result_shape = shape
+    if isinstance(result_shape, tuple) and len(result_shape) == 0:
+        result_shape = (1,)
+    if isinstance(result_shape, int):
+        result_shape = (result_shape,)
+    if result_shape is None:
+        result_shape = a.shape
+    if len(result_shape) == 2:
+        height, width = result_shape  # type: ignore
+        return pd.DataFrame(fill_value, index=range(height), columns=range(width))
+    if len(result_shape) == 1:
+        return pd.Series(fill_value, index=range(result_shape[0]))
     return NotImplemented
 
 
@@ -113,7 +167,11 @@ def map_to_bools(inputs: Any) -> Any:
 # an associated pandas function (pd.where) using a mapping function
 # (where_mapper) which can adapt differing function signatures. These
 # functions are called by numpy
-numpy_to_pandas_func_map = {"where": where_mapper}
+numpy_to_pandas_func_map = {
+    "where": where_mapper,
+    "may_share_memory": may_share_memory_mapper,
+    "full_like": full_like_mapper,
+}
 
 # Map that associates a numpy universal function name that operates on
 # ndarrays in an element by element fashion with a lambda which performs
@@ -135,14 +193,14 @@ numpy_to_pandas_universal_func_map = {
     "divide": lambda obj, inputs: obj.__truediv__(*inputs),  # same as true_divide
     "logaddexp": NotImplemented,
     "logaddexp2": NotImplemented,
-    "true_divide": lambda obj, inputs, kwargs: obj.__truediv__(*inputs),
-    "floor_divide": NotImplemented,
+    "true_divide": lambda obj, inputs: obj.__truediv__(*inputs),
+    "floor_divide": lambda obj, inputs: obj.__floordiv__(*inputs),
     "negative": NotImplemented,
     "positive": NotImplemented,
-    "power": NotImplemented,
-    "float_power": NotImplemented,
-    "remainder": NotImplemented,
-    "mod": NotImplemented,
+    "power": NotImplemented,  # cannot use obj.__pow__
+    "float_power": lambda obj, inputs: obj.__pow__(*inputs),
+    "remainder": lambda obj, inputs: obj.__mod__(*inputs),
+    "mod": lambda obj, inputs: obj.__mod__(*inputs),
     "fmod": NotImplemented,
     "divmod": NotImplemented,
     "absolute": NotImplemented,
@@ -154,9 +212,9 @@ numpy_to_pandas_universal_func_map = {
     "conjugate": NotImplemented,
     "exp": NotImplemented,
     "exp2": NotImplemented,
-    "log": NotImplemented,
-    "log2": NotImplemented,
-    "log10": NotImplemented,
+    "log": lambda obj, inputs: obj.apply(sp_func.ln),  # use built-in function
+    "log2": lambda obj, inputs: obj.apply(sp_func.log, base=2),
+    "log10": lambda obj, inputs: obj.apply(sp_func.log, base=10),
     "expm1": NotImplemented,
     "log1p": NotImplemented,
     "sqrt": NotImplemented,
@@ -192,12 +250,12 @@ numpy_to_pandas_universal_func_map = {
     "left_shift": NotImplemented,
     "right_shift": NotImplemented,
     # comparison functions
-    "greater": NotImplemented,
-    "greater_equal": NotImplemented,
-    "less": NotImplemented,
-    "less_equal": NotImplemented,
-    "not_equal": NotImplemented,
-    "equal": NotImplemented,
+    "greater": lambda obj, inputs: obj > inputs[0],
+    "greater_equal": lambda obj, inputs: obj >= inputs[0],
+    "less": lambda obj, inputs: obj < inputs[0],
+    "less_equal": lambda obj, inputs: obj <= inputs[0],
+    "not_equal": lambda obj, inputs: obj != inputs[0],
+    "equal": lambda obj, inputs: obj == inputs[0],
     "logical_and": lambda obj, inputs: obj.astype("bool").__and__(
         *map_to_bools(inputs)
     ),

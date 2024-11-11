@@ -715,7 +715,7 @@ class DataFrameAnalyticsFunctions:
             ... )
             >>> res.show()
             --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-            |"PRODUCTKEY"  |"SLIDING_POINT"      |"SALESAMOUNT"  |"ORDERDATE"          |"SUM_SALESAMOUNT_1D"  |"MAX_SALESAMOUNT_1D"  |"SUM_SALESAMOUNT_-1D"  |"MAX_SALESAMOUNT_-1D"  |
+            |"PRODUCTKEY"  |"ORDERDATE"          |"SALESAMOUNT"  |"SLIDING_POINT"      |"SUM_SALESAMOUNT_1D"  |"MAX_SALESAMOUNT_1D"  |"SUM_SALESAMOUNT_-1D"  |"MAX_SALESAMOUNT_-1D"  |
             --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
             |101           |2023-01-01 00:00:00  |200            |2023-01-01 00:00:00  |300                   |200                   |200                    |200                    |
             |101           |2023-01-02 00:00:00  |100            |2023-01-02 00:00:00  |400                   |300                   |300                    |200                    |
@@ -841,7 +841,7 @@ class DataFrameAnalyticsFunctions:
             )
 
             # Peform final aggregations.
-            group_by_cols = group_by + [sliding_point_col]
+            group_by_cols = group_by + [time_col]
             result_df = self._perform_window_aggregations(
                 result_df,
                 self_joined_df,

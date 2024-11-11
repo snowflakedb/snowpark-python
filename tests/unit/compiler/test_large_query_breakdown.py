@@ -25,7 +25,10 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    LogicalPlan,
+    WithQueryBlock,
+)
 from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     Pivot,
@@ -54,6 +57,7 @@ empty_selectable = SelectSQL("dummy_query", analyzer=mock.create_autospec(Analyz
         (lambda _: Union(empty_logical_plan, empty_logical_plan, is_all=True), False),
         (lambda _: Except(empty_logical_plan, empty_logical_plan), True),
         (lambda _: Intersect(empty_logical_plan, empty_logical_plan), True),
+        (lambda _: WithQueryBlock("dummy_cte", empty_logical_plan), True),
         (
             lambda x: SelectStatement(
                 from_=empty_selectable, order_by=[empty_expression], analyzer=x
@@ -105,7 +109,12 @@ empty_selectable = SelectSQL("dummy_query", analyzer=mock.create_autospec(Analyz
     ],
 )
 def test_pipeline_breaker_node(mock_session, mock_analyzer, node_generator, expected):
-    large_query_breakdown = LargeQueryBreakdown(mock_session, mock_analyzer, [])
+    large_query_breakdown = LargeQueryBreakdown(
+        mock_session,
+        mock_analyzer,
+        [],
+        mock_session.large_query_breakdown_complexity_bounds,
+    )
     node = node_generator(mock_analyzer)
 
     assert (

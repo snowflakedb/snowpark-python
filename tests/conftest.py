@@ -60,9 +60,15 @@ def is_excluded_frontend_file(path):
 
 def pytest_addoption(parser, pluginmanager):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
-    parser.addoption("--local_testing_mode", action="store_true", default=False)
-    parser.addoption("--enable_cte_optimization", action="store_true", default=False)
+    parser.addoption("--disable_cte_optimization", action="store_true", default=False)
+    parser.addoption(
+        "--disable_multithreading_mode", action="store_true", default=False
+    )
     parser.addoption("--skip_sql_count_check", action="store_true", default=False)
+    if not any(
+        "--local_testing_mode" in opt.names() for opt in parser._anonymous.options
+    ):
+        parser.addoption("--local_testing_mode", action="store_true", default=False)
     parser.addoption("--enable_ast", action="store_true", default=False)
     parser.addoption("--validate_ast", action="store_true", default=False)
     parser.addoption(
@@ -72,16 +78,6 @@ def pytest_addoption(parser, pluginmanager):
         type=str,
         help="Path to the Unparser JAR built in the monorepo. To build it, run `sbt assembly` from the unparser directory.",
     )
-
-
-def pytest_ignore_collect(collection_path, path, config):
-    # Need to check if opentelemetry is installed.
-    if not opentelemetry_installed and "open_telemetry" in str(path):
-        return True
-
-    # Python 3.8 is incompatible with Modin.
-    if not COMPATIBLE_WITH_MODIN and "modin" in str(path):
-        return True
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -147,7 +143,27 @@ def validate_ast(pytestconfig):
 
 @pytest.fixture(scope="session")
 def cte_optimization_enabled(pytestconfig):
-    return pytestconfig.getoption("enable_cte_optimization")
+    return not pytestconfig.getoption("disable_cte_optimization")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def proto_generated():
+    """Generate Protobuf Python files automatically"""
+    try:
+        from snowflake.snowpark._internal.proto.generated import ast_pb2  # noqa: F401
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "tox", "-e", "protoc"])
+
+
+MULTITHREADING_TEST_MODE_ENABLED = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def multithreading_mode_enabled(pytestconfig):
+    enabled = not pytestconfig.getoption("disable_multithreading_mode")
+    global MULTITHREADING_TEST_MODE_ENABLED
+    MULTITHREADING_TEST_MODE_ENABLED = enabled
+    return enabled
 
 
 @pytest.fixture(scope="session")
@@ -162,15 +178,6 @@ def unparser_jar(pytestconfig):
             f"Please set the correct path with --unparser_jar or SNOWPARK_UNPARSER_JAR."
         )
     return unparser_jar
-
-
-@pytest.fixture(scope="module", autouse=True)
-def proto_generated():
-    """Generate Protobuf Python files automatically"""
-    try:
-        from snowflake.snowpark._internal.proto.generated import ast_pb2  # noqa: F401
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "tox", "-e", "protoc"])
 
 
 def pytest_sessionstart(session):

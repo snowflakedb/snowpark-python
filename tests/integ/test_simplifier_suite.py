@@ -1347,3 +1347,24 @@ def test_star_column(session):
     Utils.check_answer(
         df2, [Row('{\n  "B": "a",\n  "Y": 0\n}'), Row('{\n  "B": "b",\n  "Y": 1\n}')]
     )
+
+
+def test_select_limit_orderby(session):
+    # convert to a table
+    df = session.create_dataframe([[5, "a"], [3, "b"]], schema=["a", "b"])
+    # call sort after limit
+    df1 = df.select("a", "b").limit(2).sort(col("a"))
+    Utils.check_answer(df1, [Row(3, "b"), Row(5, "a")])
+    # sql simplification is not applied, and order by clause is attached at end
+    expected_query = """SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) LIMIT 2) ORDER BY "A" ASC NULLS FIRST"""
+    assert df1.queries["queries"][0] == expected_query
+
+    df2 = df.select("a", "b").sort(col("a")).limit(2)
+    Utils.check_answer(df2, [Row(3, "b"), Row(5, "a")])
+    # sql simplification is applied, order by is in front of the limit
+    expected_query = """SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) ORDER BY "A" ASC NULLS FIRST LIMIT 2"""
+    assert df2.queries["queries"][0] == expected_query
+
+    df3 = df.select("a", "b").limit(2, offset=1).sort(col("a"))
+    expected_query = """SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) LIMIT 2 OFFSET 1) ORDER BY "A" ASC NULLS FIRST"""
+    assert df3.queries["queries"][0] == expected_query

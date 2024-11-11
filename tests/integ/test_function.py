@@ -126,6 +126,7 @@ from snowflake.snowpark.functions import (
     regexp_replace,
     reverse,
     sequence,
+    snowflake_cortex_summarize,
     split,
     sqrt,
     startswith,
@@ -2259,3 +2260,39 @@ def test_ln(session):
     df = session.create_dataframe([[e]], schema=["ln_value"])
     res = df.select(ln(col("ln_value")).alias("result")).collect()
     assert res[0][0] == 1.0
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: snowflake_cortex functions not supported",
+)
+@pytest.mark.skip("SNOW-1758914 snowflake.cortex.summarize error on GCP")
+def test_snowflake_cortex_summarize(session):
+    content = """In Snowpark, the main way in which you query and process data is through a DataFrame. This topic explains how to work with DataFrames.
+
+To retrieve and manipulate data, you use the DataFrame class. A DataFrame represents a relational dataset that is evaluated lazily: it only executes when a specific action is triggered. In a sense, a DataFrame is like a query that needs to be evaluated in order to retrieve data.
+
+To retrieve data into a DataFrame:
+
+Construct a DataFrame, specifying the source of the data for the dataset.
+
+For example, you can create a DataFrame to hold data from a table, an external CSV file, from local data, or the execution of a SQL statement.
+
+Specify how the dataset in the DataFrame should be transformed.
+
+For example, you can specify which columns should be selected, how the rows should be filtered, how the results should be sorted and grouped, etc.
+
+Execute the statement to retrieve the data into the DataFrame.
+
+In order to retrieve the data into the DataFrame, you must invoke a method that performs an action (for example, the collect() method).
+
+The next sections explain these steps in more detail.
+"""
+    df = session.create_dataframe([[content]], schema=["content"])
+    summary_from_col = df.select(snowflake_cortex_summarize(col("content"))).collect()[
+        0
+    ][0]
+    summary_from_str = df.select(snowflake_cortex_summarize(content)).collect()[0][0]
+    # this length check is to get around the fact that this function may not be deterministic
+    assert 0 < len(summary_from_col) < len(content)
+    assert 0 < len(summary_from_str) < len(content)

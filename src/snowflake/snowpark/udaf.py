@@ -354,6 +354,7 @@ class UDAFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -434,6 +435,8 @@ class UDAFRegistration:
                 retrieve the secrets using secret API.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is
+                created using CREATE OR REPLACE FUNCTION.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udaf`
@@ -478,6 +481,7 @@ class UDAFRegistration:
                 secrets=secrets,
                 comment=comment,
                 native_app_params=native_app_params,
+                copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
             )
 
@@ -499,6 +503,7 @@ class UDAFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -588,6 +593,8 @@ class UDAFRegistration:
                 retrieve the secrets using secret API.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is
+                created using CREATE OR REPLACE FUNCTION.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -635,6 +642,7 @@ class UDAFRegistration:
                 is_permanent=is_permanent,
                 immutable=immutable,
                 comment=comment,
+                copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
             )
 
@@ -661,6 +669,7 @@ class UDAFRegistration:
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
         immutable: bool = False,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedAggregateFunction:
@@ -738,10 +747,14 @@ class UDAFRegistration:
             is_permanent=is_permanent,
         )
 
-        if (not custom_python_runtime_version_allowed) and (self._session is not None):
-            check_python_runtime_version(
+        runtime_version_from_requirement = None
+        if self._session is not None:
+            runtime_version_from_requirement = (
                 self._session._runtime_version_from_requirement
             )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(runtime_version_from_requirement)
 
         raised = False
         try:
@@ -768,6 +781,8 @@ class UDAFRegistration:
                 statement_params=statement_params,
                 comment=comment,
                 native_app_params=native_app_params,
+                copy_grants=copy_grants,
+                runtime_version=runtime_version_from_requirement,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),

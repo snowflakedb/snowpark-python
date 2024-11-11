@@ -530,6 +530,7 @@ class UDFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -619,6 +620,9 @@ class UDFRegistration:
             immutable: Whether the UDF result is deterministic or not for the same input.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
+
         See Also:
         - :func:`~snowflake.snowpark.functions.udf`
         - :meth:`register_from_file`
@@ -663,6 +667,7 @@ class UDFRegistration:
                 api_call_source="UDFRegistration.register"
                 + ("[pandas_udf]" if _from_pandas else ""),
                 is_permanent=is_permanent,
+                copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
             )
 
@@ -687,6 +692,7 @@ class UDFRegistration:
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
         comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -779,6 +785,8 @@ class UDFRegistration:
             immutable: Whether the UDF result is deterministic or not for the same input.
             comment: Adds a comment for the created object. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -821,6 +829,7 @@ class UDFRegistration:
                 api_call_source="UDFRegistration.register_from_file",
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
             )
 
@@ -851,6 +860,7 @@ class UDFRegistration:
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
@@ -939,10 +949,14 @@ class UDFRegistration:
             is_permanent=is_permanent,
         )
 
-        if (not custom_python_runtime_version_allowed) and (self._session is not None):
-            check_python_runtime_version(
+        runtime_version_from_requirement = None
+        if self._session is not None:
+            runtime_version_from_requirement = (
                 self._session._runtime_version_from_requirement
             )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(runtime_version_from_requirement)
 
         raised = False
         try:
@@ -971,6 +985,8 @@ class UDFRegistration:
                 statement_params=statement_params,
                 comment=comment,
                 native_app_params=native_app_params,
+                copy_grants=copy_grants,
+                runtime_version=runtime_version_from_requirement,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
