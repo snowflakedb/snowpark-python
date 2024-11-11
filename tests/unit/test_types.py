@@ -1048,3 +1048,51 @@ def test_snow_type_to_dtype_str():
 
     with pytest.raises(TypeError, match="invalid DataType"):
         snow_type_to_dtype_str(None)
+
+
+def test_datatype():
+    tpe = DataType()
+    assert tpe.simple_string() == "data"
+    assert tpe.json() == '"data"'
+
+    tpe = BinaryType()
+    assert tpe.simple_string() == "binary"
+
+    tpe = BooleanType()
+    assert tpe.simple_string() == "boolean"
+
+    tpe = ByteType()
+    assert tpe.simple_string() == "byte"
+
+    tpe = DateType()
+    assert tpe.simple_string() == "date"
+
+    tpe = DecimalType()
+    assert tpe.simple_string() == "decimal"
+
+    tpe = DoubleType()
+    assert tpe.simple_string() == "double"
+
+    tpe = FloatType()
+    assert tpe.simple_string() == "float"
+
+    tpe = IntegerType()
+    assert tpe.simple_string() == "integer"
+
+    tpe = LongType()
+    assert tpe.simple_string() == "long"
+
+    tpe = ShortType()
+    assert tpe.simple_string() == "short"
+
+    tpe = StringType()
+    assert tpe.simple_string() == "string"
+
+    tpe = StructType()
+    assert tpe.simple_string() == "struct"
+
+    tpe = TimestampType()
+    assert tpe.simple_string() == "timestamp"
+
+    tpe = TimeType()
+    assert tpe.simple_string() == "time"

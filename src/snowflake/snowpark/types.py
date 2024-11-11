@@ -5,6 +5,7 @@
 
 """This package contains all Snowpark logical types."""
 import datetime
+import json
 import re
 import sys
 from enum import Enum
@@ -40,6 +41,19 @@ class DataType:
 
     def is_primitive(self):
         return True
+
+    @classmethod
+    def type_name(cls):
+        return cls.__name__[:-4].lower()
+
+    def simple_string(self):
+        return self.type_name()
+
+    def json_value(self):
+        return self.type_name()
+
+    def json(self):
+        return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
 
 
 # Data types
