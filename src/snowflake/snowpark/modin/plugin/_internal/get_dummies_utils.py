@@ -28,9 +28,9 @@ DUMMY_COLUMN_PANDAS_LABEL = "lit_one"
 
 def single_get_dummies_pivot(
     internal_frame: InternalFrame,
-    column: Hashable,
     prefix: Hashable,
     prefix_sep: str,
+    pivot_column_snowflake_quoted_identifier: str,
     columns_to_keep_snowflake_quoted_identifiers: list[str],
     columns_to_keep_pandas_labels: list[Hashable],
 ) -> InternalFrame:
@@ -40,9 +40,9 @@ def single_get_dummies_pivot(
         internal_frame: The original internal frame to perform pivot on.
             Note: the input internal frame must have a row position column and dummy lit(1) column
                 as the last data column
-        column: The encoded column, which is the column to pivot on
         prefix: String to append to newly generated column names after pivot
         prefix_sep: The separator used between the prefix and new column names
+        pivot_column_snowflake_quoted_identifier: The encoded column, which is the column to pivot on
         columns_to_keep_snowflake_quoted_identifiers: The snowflake quoted identifier in the
             internal_frame to keep as the data column of final result internal frame.
         columns_to_keep_pandas_labels: The pandas label in the internal_frame to keep as the
@@ -69,20 +69,6 @@ def single_get_dummies_pivot(
          1  2    0    1
          2  3    1    0
     """
-
-    # find the quoted identifier for pivot column
-    grouped_quoted_identifiers = (
-        internal_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-            [column], include_index=False
-        )
-    )
-    if (len(grouped_quoted_identifiers) == 0) or (
-        len(grouped_quoted_identifiers[0]) == 0
-    ):
-        raise KeyError(f"Column {column} does not exist")
-    if len(grouped_quoted_identifiers[0]) > 1:
-        ErrorMessage.not_implemented(f"get_dummies with duplicated columns {column}")
-    pivot_column_snowflake_quoted_identifier = grouped_quoted_identifiers[0][0]
 
     # get the row position column and dummy lit one column
     assert internal_frame.row_position_snowflake_quoted_identifier is not None
@@ -179,9 +165,39 @@ def get_dummies_helper(
 ) -> InternalFrame:
     """
     Helper function for get dummies to perform encoding on given columns
+
+    Example:
+        With the following DataFrame:
+
+           A  B  C
+        0  a  a  1
+        1  b  a  2
+        2  a  a  3
+
+        the result of calling get_dummies_helper with columns = ["A", "B"],
+        ["A", "B"] as prefix, and "_" as prefix_sep will be the following:
+
+            C  A_a  A_b  B_a
+         0  1    1    0    1
+         1  2    0    1    1
+         2  3    1    0    1
     """
     if len(columns) == 0:
         return internal_frame
+
+    grouped_quoted_identifiers = (
+        internal_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+            columns, include_index=False
+        )
+    )
+
+    for (pandas_label, quoted_identifiers) in zip(columns, grouped_quoted_identifiers):
+        if len(quoted_identifiers) == 0:
+            raise KeyError(f"Column {pandas_label} does not exist")
+        if len(quoted_identifiers) > 1:
+            ErrorMessage.not_implemented(
+                f"get_dummies with duplicated columns {pandas_label}"
+            )
 
     # append a lit one column as value column for pivot
     new_internal_frame = internal_frame.ensure_row_position_column().append_column(
@@ -192,8 +208,12 @@ def get_dummies_helper(
         new_internal_frame.row_position_snowflake_quoted_identifier
     )
 
+    # Find all columns that are not encode columns that will be kept in the result dataframe.
+    # The row position column is excluded in the list, we will always keep the row
+    # position column in the final result and handled independently.
     remaining_data_column_pandas_labels = []
     remaining_data_column_snowflake_quoted_identifiers = []
+    # check the index columns
     for (pandas_label, snowflake_quoted_identifiers) in zip(
         internal_frame.index_column_pandas_labels,
         internal_frame.index_column_snowflake_quoted_identifiers,
@@ -206,7 +226,7 @@ def get_dummies_helper(
             remaining_data_column_snowflake_quoted_identifiers.append(
                 snowflake_quoted_identifiers
             )
-
+    # check the data columns
     for (pandas_label, snowflake_quoted_identifiers) in zip(
         internal_frame.data_column_pandas_labels,
         internal_frame.data_column_snowflake_quoted_identifiers,
@@ -221,22 +241,34 @@ def get_dummies_helper(
                 snowflake_quoted_identifiers
             )
 
-    # do the first pivot by keeping all re
+    # Do the first pivot with the first column and keep all remaining columns.
+    # With the example given above, the first pivot is performed on column A, and we will
+    # get the following result:
+    #    C  A_a  A_b
+    # 0  1    1    0
+    # 1  2    0    1
+    # 2  3    1    0
     result_internal_frame = single_get_dummies_pivot(
         internal_frame=new_internal_frame,
-        column=columns[0],
         prefix=prefixes[0],
         prefix_sep=prefix_sep,
+        pivot_column_snowflake_quoted_identifier=grouped_quoted_identifiers[0][0],
         columns_to_keep_snowflake_quoted_identifiers=remaining_data_column_snowflake_quoted_identifiers,
         columns_to_keep_pandas_labels=remaining_data_column_pandas_labels,
     )
 
-    for (pandas_column, column_prefix) in zip(columns[1:], prefixes[1:]):
+    # Perform pivot on rest columns and join on the row position column to form the final result.
+    for i in range(1, len(columns)):
+        # With the example given above, the pivot result with second column will be
+        #    B_a
+        # 0    1
+        # 1    1
+        # 2    1
         pivoted_internal_frame = single_get_dummies_pivot(
             internal_frame=new_internal_frame,
-            column=pandas_column,
-            prefix=column_prefix,
+            prefix=prefixes[i],
             prefix_sep=prefix_sep,
+            pivot_column_snowflake_quoted_identifier=grouped_quoted_identifiers[i][0],
             columns_to_keep_snowflake_quoted_identifiers=[],
             columns_to_keep_pandas_labels=[],
         )
@@ -269,6 +301,7 @@ def get_dummies_helper(
         data_column_pandas_labels=data_column_pandas_label,
         data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
         data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+        # keep the original index columns
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
         data_column_types=None,
