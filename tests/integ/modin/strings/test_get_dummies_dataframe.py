@@ -15,17 +15,23 @@ from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-@sql_count_checker(query_count=1)
-@pytest.mark.parametrize("prefix", ["Brenan", "Is", "A", "Manager", "1"])
-@pytest.mark.parametrize("prefix_sep", ["_", "/"])
-def test_get_dummies_madeup(prefix, prefix_sep):
+@pytest.fixture(scope="function")
+def simple_pandas_df():
     pandas_df = native_pd.DataFrame(
         {"COL_0": [1, 1, 3], "COL_1": ["MANAGER", "MINION", "EMPLOYEE"]}
     )
-    snow_df = pd.DataFrame(pandas_df)
+
+    return pandas_df
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("prefix", ["Brenan", "Is", "A", "Manager", "1"])
+@pytest.mark.parametrize("prefix_sep", ["_", "/"])
+def test_get_dummies_madeup(simple_pandas_df, prefix, prefix_sep):
+    snow_df = pd.DataFrame(simple_pandas_df)
 
     pandas_get_dummies = native_pd.get_dummies(
-        pandas_df, columns=["COL_1"], prefix=prefix, prefix_sep=prefix_sep
+        simple_pandas_df, columns=["COL_1"], prefix=prefix, prefix_sep=prefix_sep
     )
 
     snow_get_dummies = pd.get_dummies(
@@ -38,17 +44,27 @@ def test_get_dummies_madeup(prefix, prefix_sep):
 
 
 @sql_count_checker(query_count=1)
-def test_get_dummies_prefix_and_column_same():
-    pandas_df = native_pd.DataFrame(
-        {"COL_0": [1, 1, 3], "COL_1": ["MANAGER", "MINION", "EMPLOYEE"]}
-    )
-    snow_df = pd.DataFrame(pandas_df)
+def test_get_dummies_prefix_and_column_same(simple_pandas_df):
+    snow_df = pd.DataFrame(simple_pandas_df)
 
     pandas_get_dummies = native_pd.get_dummies(
-        pandas_df, columns=["COL_1"], prefix="COL_1"
+        simple_pandas_df, columns=["COL_1"], prefix="COL_1"
     )
 
     snow_get_dummies = pd.get_dummies(snow_df, columns=["COL_1"], prefix="COL_1")
+
+    assert_snowpark_pandas_equal_to_pandas(
+        snow_get_dummies, pandas_get_dummies, check_dtype=False
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_get_dummies_no_prefix_column(simple_pandas_df):
+    snow_df = pd.DataFrame(simple_pandas_df)
+
+    pandas_get_dummies = native_pd.get_dummies(simple_pandas_df)
+
+    snow_get_dummies = pd.get_dummies(snow_df)
 
     assert_snowpark_pandas_equal_to_pandas(
         snow_get_dummies, pandas_get_dummies, check_dtype=False
