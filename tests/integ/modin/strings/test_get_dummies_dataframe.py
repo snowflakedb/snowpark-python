@@ -192,7 +192,8 @@ def test_get_dummies_multiple_columns():
             "B": ["b", "a", "c"],
             "C": [1, 2, 2],
             "D": ["e", "a", "a"],
-        }
+        },
+        index=native_pd.Index(["e", "f", "g"]),
     )
     snow_df = pd.DataFrame(pandas_df)
 
