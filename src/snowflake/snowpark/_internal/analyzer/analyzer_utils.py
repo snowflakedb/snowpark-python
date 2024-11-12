@@ -1183,7 +1183,9 @@ def create_or_replace_dynamic_table_statement(
         }
     )
 
-    iceberg_options = get_options_statement(validate_iceberg_config(iceberg_config))
+    iceberg_options = get_options_statement(
+        validate_iceberg_config(iceberg_config)
+    ).strip()
 
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TRANSIENT if is_transient else EMPTY_STRING}"

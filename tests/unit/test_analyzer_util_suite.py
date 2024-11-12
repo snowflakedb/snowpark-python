@@ -426,7 +426,7 @@ def test_create_dynamic_iceberg_table():
         },
     ) == (
         " CREATE  OR  REPLACE  DYNAMIC  ICEBERG  TABLE my_dt LAG  = '1 minute' WAREHOUSE  = "
-        "my_warehouse      EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = 'example_catalog'  "
+        "my_warehouse    EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = 'example_catalog'  "
         "BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY "
-        " = 'OPTIMIZED'  AS  SELECT  *  FROM (select * from foo)"
+        " = 'OPTIMIZED' AS  SELECT  *  FROM (select * from foo)"
     )
