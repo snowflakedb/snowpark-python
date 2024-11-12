@@ -372,8 +372,13 @@ class DataFrameAnalyticsFunctions:
                     agg_col = builtin(agg_func)(col(column)).over(window_spec)
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
-                    if _emit_ast:
+                    if (
+                        col_formatter
+                        != DataFrameAnalyticsFunctions._default_col_formatter
+                        and _emit_ast
+                    ):
                         ast.formatted_col_names.append(formatted_col_name)
+
                     agg_df = agg_df.with_column(
                         formatted_col_name, agg_col, _emit_ast=False
                     )
@@ -480,7 +485,10 @@ class DataFrameAnalyticsFunctions:
 
                 formatted_col_name = col_formatter(column, agg_func)
 
-                if _emit_ast:
+                if (
+                    col_formatter != DataFrameAnalyticsFunctions._default_col_formatter
+                    and _emit_ast
+                ):
                     ast.formatted_col_names.append(formatted_col_name)
 
                 agg_df = agg_df.with_column(
@@ -557,15 +565,19 @@ class DataFrameAnalyticsFunctions:
             ast.order_by.extend(order_by)
             self._dataframe._set_ast_ref(ast.df)
 
-        for c in cols:
-            for _lag in lags:
-                column = _to_col_if_str(c, "transform.compute_lag")
-                formatted_col_name = col_formatter(
-                    column.get_name().replace('"', ""), "LAG", _lag
-                )
+        if (
+            col_formatter != DataFrameAnalyticsFunctions._default_col_formatter
+            and _emit_ast
+        ):
+            for c in cols:
+                for _lag in lags:
+                    column = _to_col_if_str(c, "transform.compute_lag")
+                    formatted_col_name = col_formatter(
+                        column.get_name().replace('"', ""), "LAG", _lag
+                    )
 
-                if _emit_ast:
                     ast.formatted_col_names.append(formatted_col_name)
+
         df = self._compute_window_function(
             cols, lags, order_by, group_by, col_formatter, lag, "LAG"
         )
@@ -639,15 +651,19 @@ class DataFrameAnalyticsFunctions:
             ast.group_by.extend(group_by)
             ast.order_by.extend(order_by)
 
-        for c in cols:
-            for _lead in leads:
-                column = _to_col_if_str(c, "transform.compute_lead")
-                formatted_col_name = col_formatter(
-                    column.get_name().replace('"', ""), "LEAD", _lead
-                )
+        if (
+            col_formatter != DataFrameAnalyticsFunctions._default_col_formatter
+            and _emit_ast
+        ):
+            for c in cols:
+                for _lead in leads:
+                    column = _to_col_if_str(c, "transform.compute_lead")
+                    formatted_col_name = col_formatter(
+                        column.get_name().replace('"', ""), "LEAD", _lead
+                    )
 
-                if _emit_ast:
                     ast.formatted_col_names.append(formatted_col_name)
+
         df = self._compute_window_function(
             cols, leads, order_by, group_by, col_formatter, lead, "LEAD"
         )
@@ -755,15 +771,16 @@ class DataFrameAnalyticsFunctions:
             ast.sliding_interval = sliding_interval
             self._dataframe._set_ast_ref(ast.df)
 
-            for window in windows:
+            if col_formatter != DataFrameAnalyticsFunctions._default_col_formatter:
                 for column, funcs in aggs.items():
-                    for func in funcs:
-                        agg_column_name = (
-                            col_formatter(column, func, window)
-                            if col_formatter
-                            else f"{column}_{func}B"
-                        )
-                        ast.formatted_col_names.append(agg_column_name)
+                    for window in windows:
+                        for func in funcs:
+                            agg_column_name = (
+                                col_formatter(column, func, window)
+                                if col_formatter
+                                else f"{column}_{func}B"
+                            )
+                            ast.formatted_col_names.append(agg_column_name)
 
         # TODO: Support time_series_agg in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
