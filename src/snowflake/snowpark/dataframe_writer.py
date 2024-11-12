@@ -284,7 +284,8 @@ class DataFrameWriter:
             if mode is not None:
                 fill_sp_save_mode(expr.mode, mode)
 
-            expr.column_order = column_order
+            if column_order is not None:
+                expr.column_order = column_order
             expr.create_temp_table = create_temp_table
             expr.table_type = table_type
 
