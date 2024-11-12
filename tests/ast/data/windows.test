@@ -269,7 +269,15 @@ body {
                   sp_window_spec_rows_between {
                     end {
                       sp_window_relative_position__position {
-                        n: 2
+                        n {
+                          int64_val {
+                            src {
+                              file: "SRC_POSITION_TEST_MODE"
+                              start_line: 33
+                            }
+                            v: 2
+                          }
+                        }
                       }
                     }
                     src {
@@ -1082,7 +1090,15 @@ body {
               sp_window_spec_range_between {
                 end {
                   sp_window_relative_position__position {
-                    n: 2
+                    n {
+                      int64_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 47
+                        }
+                        v: 2
+                      }
+                    }
                   }
                 }
                 src {
@@ -1091,6 +1107,14 @@ body {
                 }
                 start {
                   sp_window_relative_position__position {
+                    n {
+                      int64_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 47
+                        }
+                      }
+                    }
                   }
                 }
                 wnd {
@@ -1185,7 +1209,15 @@ body {
               sp_window_spec_range_between {
                 end {
                   sp_window_relative_position__position {
-                    n: 2
+                    n {
+                      int64_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 49
+                        }
+                        v: 2
+                      }
+                    }
                   }
                 }
                 src {
@@ -1194,7 +1226,15 @@ body {
                 }
                 start {
                   sp_window_relative_position__position {
-                    n: 1
+                    n {
+                      int64_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 49
+                        }
+                        v: 1
+                      }
+                    }
                   }
                 }
                 wnd {
@@ -1289,7 +1329,15 @@ body {
               sp_window_spec_rows_between {
                 end {
                   sp_window_relative_position__position {
-                    n: 2
+                    n {
+                      int64_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 51
+                        }
+                        v: 2
+                      }
+                    }
                   }
                 }
                 src {
@@ -1298,6 +1346,14 @@ body {
                 }
                 start {
                   sp_window_relative_position__position {
+                    n {
+                      int64_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 51
+                        }
+                      }
+                    }
                   }
                 }
                 wnd {
@@ -1392,7 +1448,15 @@ body {
               sp_window_spec_rows_between {
                 end {
                   sp_window_relative_position__position {
-                    n: 2
+                    n {
+                      int64_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 53
+                        }
+                        v: 2
+                      }
+                    }
                   }
                 }
                 src {
@@ -1401,7 +1465,15 @@ body {
                 }
                 start {
                   sp_window_relative_position__position {
-                    n: 1
+                    n {
+                      int64_val {
+                        src {
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_line: 53
+                        }
+                        v: 1
+                      }
+                    }
                   }
                 }
                 wnd {
