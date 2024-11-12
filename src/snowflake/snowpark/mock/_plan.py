@@ -614,20 +614,21 @@ def handle_udaf_expression(
             )
 
         try:
-            # Initiate some aggregation state (this is only needed for distributed compute).
-            some_agg_state = udaf_handler().aggregate_state
-            Agg = udaf_handler()
+            # Initialize Aggregation handler class, i.e. the aggregation accumulator.
+            AggregationAccumulator = udaf_handler()
+            # Init its state.
+            some_agg_state = AggregationAccumulator.aggregate_state
 
             for _, row in function_input.iterrows():
                 # Call Agg.accumulate
                 if udaf.strict and any([v is None for v in row]):
-                    Agg.accumulate(None)
+                    AggregationAccumulator.accumulate(None)
                 else:
-                    Agg.accumulate(*row)
+                    AggregationAccumulator.accumulate(*row)
 
             # Call merge with empty state
-            Agg.merge(some_agg_state)
-            result = Agg.finish()
+            AggregationAccumulator.merge(some_agg_state)
+            result = AggregationAccumulator.finish()
 
             # Single row result for aggregation.
             res = ColumnEmulator(
