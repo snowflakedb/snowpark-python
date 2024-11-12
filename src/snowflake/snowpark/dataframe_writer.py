@@ -108,6 +108,9 @@ class DataFrameWriter:
         Returns:
             The :class:`DataFrameWriter` itself.
         """
+
+        # TODO SNOW-1800374: Add new APIs .partition_by, .option, .options after refresh with main.
+
         self._save_mode: SaveMode = str_to_enum(
             save_mode.lower(), SaveMode, "`save_mode`"
         )
