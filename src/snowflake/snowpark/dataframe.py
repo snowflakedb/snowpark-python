@@ -186,8 +186,18 @@ _NUM_PREFIX_DIGITS = 4
 _UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
 
 
+distinct_id = 0
+
+
+def _get_next_distinct_id():
+    global distinct_id
+    distinct_id += 1
+    return distinct_id
+
+
 def _generate_prefix(prefix: str) -> str:
-    return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
+    return f"{prefix}_{_get_next_distinct_id()}_"
+    # return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
 
 
 def _get_unaliased(col_name: str) -> List[str]:
@@ -275,12 +285,16 @@ def _disambiguate(
         ]
     )
 
+    assert lhs_remapped._plan.children_plan_nodes[0] == lhs._plan
+
     rhs_remapped = rhs.select(
         [
             _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
             for name in rhs_names
         ]
     )
+
+    assert rhs_remapped._plan.children_plan_nodes[0] == rhs._plan
     return lhs_remapped, rhs_remapped
 
 
@@ -1205,7 +1219,11 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ).select(names)
                 )
-            return self._with_plan(self._select_statement.select(names))
+
+            new_select = self._select_statement.select(names)
+            new_df = self._with_plan(new_select)
+            return new_df
+            # return self._with_plan(self._select_statement.select(names))
 
         return self._with_plan(Project(names, join_plan or self._plan))
 
@@ -2789,6 +2807,7 @@ class DataFrame:
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
         )
         join_condition_expr = join_exprs._expression if join_exprs is not None else None
+        join_condition_expr.extra_information = (lhs._plan, rhs._plan)
         match_condition_expr = (
             match_condition._expression if match_condition is not None else None
         )
@@ -2800,15 +2819,28 @@ class DataFrame:
             match_condition_expr,
         )
         if self._select_statement:
-            return self._with_plan(
-                self._session._analyzer.create_select_statement(
-                    from_=self._session._analyzer.create_select_snowflake_plan(
-                        join_logical_plan,
-                        analyzer=self._session._analyzer,
-                    ),
-                    analyzer=self._session._analyzer,
-                )
+            analyzer = self._session._analyzer
+            select_snowflake_plan = analyzer.create_select_snowflake_plan(
+                join_logical_plan,
+                analyzer=analyzer,
             )
+            select_statement = analyzer.create_select_statement(
+                from_=select_snowflake_plan,
+                analyzer=analyzer,
+            )
+            new_df = self._with_plan(select_statement)
+            return new_df
+
+        # if self._select_statement:
+        #     return self._with_plan(
+        #         self._session._analyzer.create_select_statement(
+        #             from_=self._session._analyzer.create_select_snowflake_plan(
+        #                 join_logical_plan,
+        #                 analyzer=self._session._analyzer,
+        #             ),
+        #             analyzer=self._session._analyzer,
+        #         )
+        #     )
         return self._with_plan(join_logical_plan)
 
     def with_column(
@@ -4179,7 +4211,7 @@ Query List:
         normalized_col_name = quote_name(col_name)
         cols = list(filter(lambda attr: attr.name == normalized_col_name, self._output))
         if len(cols) == 1:
-            return cols[0].with_name(normalized_col_name)
+            return cols[0].with_name(normalized_col_name, plan=self._plan)
         else:
             raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
                 col_name

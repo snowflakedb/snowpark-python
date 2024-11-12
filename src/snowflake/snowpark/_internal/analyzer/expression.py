@@ -149,11 +149,17 @@ class Expression:
 class NamedExpression:
     name: str
     _expr_id: Optional[uuid.UUID] = None
+    id = 0
+
+    @staticmethod
+    def get_next_id():
+        NamedExpression.id += 1
+        return NamedExpression.id
 
     @property
     def expr_id(self) -> uuid.UUID:
         if not self._expr_id:
-            self._expr_id = uuid.uuid4()
+            self._expr_id = NamedExpression.get_next_id()
         return self._expr_id
 
     def __copy__(self):
@@ -222,20 +228,25 @@ class InExpression(Expression):
 
 
 class Attribute(Expression, NamedExpression):
-    def __init__(self, name: str, datatype: DataType, nullable: bool = True) -> None:
+    def __init__(
+        self, name: str, datatype: DataType, nullable: bool = True, plan=None
+    ) -> None:
         super().__init__()
         self.name = name
         self.datatype: DataType = datatype
         self.nullable = nullable
+        self.plan = plan
 
-    def with_name(self, new_name: str) -> "Attribute":
+    def with_name(self, new_name: str, plan) -> "Attribute":
         if self.name == new_name:
+            self.plan = plan
             return self
         else:
             return Attribute(
                 snowflake.snowpark._internal.utils.quote_name(new_name),
                 self.datatype,
                 self.nullable,
+                plan=plan,
             )
 
     @property
