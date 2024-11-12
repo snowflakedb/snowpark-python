@@ -20,6 +20,7 @@ from snowflake.snowpark.functions import (
     _timestamp_from_parts_internal,
     abs,
     acos,
+    any_value,
     approx_count_distinct,
     approx_percentile,
     approx_percentile_accumulate,
@@ -5534,3 +5535,33 @@ def test_collation(session):
         TestData.zero1(session).select(collation(lit("f").collate("de"))),
         [Row("de")],
     )
+
+
+def test_any_value(session):
+    df = session.create_dataframe(
+        [
+            (1, 1),
+            (1, 1),
+            (2, 1),
+            (2, 2),
+            (2, 2),
+        ],
+        schema=["id", "subid"],
+    ).order_by("id", "subid")
+
+    Utils.check_answer(
+        df.group_by("id", "subid").agg(any_value("id")).order_by("id", "subid"),
+        [Row(1, 1, 1), Row(2, 1, 2), Row(2, 2, 2)],
+    )
+
+    non_deterministic_result_1 = df.select(any_value("id")).collect()
+    assert non_deterministic_result_1 == [Row(1)] or non_deterministic_result_1 == [
+        Row(2)
+    ]
+    non_deterministic_result_2 = (
+        df.group_by("id").agg(any_value("subid")).order_by("id").collect()
+    )
+    assert non_deterministic_result_2 == [
+        Row(1, 1),
+        Row(2, 1),
+    ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]

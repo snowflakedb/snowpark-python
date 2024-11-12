@@ -85,6 +85,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     abs as abs_,
     array_construct,
+    array_size,
     bround,
     builtin,
     cast,
@@ -6574,7 +6575,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             result = single_agg_func_query_compilers[0].concat(
                 axis=0, other=single_agg_func_query_compilers[1:]
             )
-        if axis == 0 and (should_squeeze or is_scalar(func)):
+
+        if axis == 0 and (should_squeeze or is_scalar(func) or callable(func)):
             # In this branch, the concatenated frame is a 1-row frame, but needs to be converted
             # into a 1-column frame so the frontend can wrap it as a Series
             result = result.transpose_single_row()
@@ -7351,13 +7353,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if axis == 1:
             result_frame = frames[0]
             for other_frame in frames[1:]:
-                # Concat on axis = 1 is implemented using join operation. This is
-                # equivalent to joining on index columns when index labels are same for
+                # Concat on axis = 1 is implemented using align operation. This is
+                # equivalent to align on index columns when index labels are same for
                 # both the frames.
-                # We rename index labels to make sure index columns are joined level
+                # We rename index labels to make sure index columns are aligned level
                 # by level.
-                result_frame, _ = join_utils.join_on_index_columns(
-                    result_frame, other_frame, how=join, sort=sort
+                if sort is True:
+                    align_sort = "sort"
+                else:
+                    align_sort = "no_sort"
+                result_frame, _ = join_utils.align_on_index(
+                    result_frame, other_frame, how=join, sort=align_sort
                 )
 
             qc = SnowflakeQueryCompiler(result_frame)
@@ -11265,7 +11271,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         how: Literal["any", "all"],
         thresh: Optional[Union[int, lib.NoDefault]] = lib.no_default,
-        subset: IndexLabel = None,
+        subset: Optional[Iterable] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Remove missing values. If 'thresh' is specified then the 'how' parameter is ignored.
@@ -11292,7 +11298,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 self._modin_frame.data_column_pandas_labels,
                 self._modin_frame.data_column_snowflake_quoted_identifiers,
             )
-            if not subset or label in subset
+            if subset is None or label in subset
         ]
         if thresh is lib.no_default:
             thresh = None
@@ -16525,12 +16531,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        # TODO SNOW-1438001: Handle dict, list, and tuple values for Series.str.len().
-        return SnowflakeQueryCompiler(
-            self._modin_frame.apply_snowpark_function_to_columns(
-                lambda col: self._replace_non_str(col, length(col))
+        # TODO SNOW-1438001: Handle dict, and tuple values for Series.str.len().
+        col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+        if isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            ArrayType,
+        ):
+            return SnowflakeQueryCompiler(
+                self._modin_frame.apply_snowpark_function_to_columns(
+                    lambda col: array_size(col)
+                )
             )
-        )
+        else:
+            return SnowflakeQueryCompiler(
+                self._modin_frame.apply_snowpark_function_to_columns(
+                    lambda col: self._replace_non_str(col, length(col))
+                )
+            )
 
     def str_ljust(self, width: int, fillchar: str = " ") -> None:
         ErrorMessage.method_not_implemented_error("ljust", "Series.str")

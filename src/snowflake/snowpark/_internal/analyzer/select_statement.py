@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections import UserDict, defaultdict
 from copy import copy, deepcopy
 from enum import Enum
-from functools import cached_property, reduce
+from functools import reduce
 from typing import (
     TYPE_CHECKING,
     AbstractSet,
@@ -241,6 +241,7 @@ class Selectable(LogicalPlan, ABC):
         ] = defaultdict(dict)
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        self._encoded_node_id_with_query: Optional[str] = None
 
     @property
     @abstractmethod
@@ -248,7 +249,7 @@ class Selectable(LogicalPlan, ABC):
         """Returns the sql query of this Selectable logical plan."""
         pass
 
-    @cached_property
+    @property
     def encoded_node_id_with_query(self) -> str:
         """
         Returns an encoded node id of this Selectable logical plan.
@@ -257,7 +258,10 @@ class Selectable(LogicalPlan, ABC):
         two selectable node with same queries. This is currently used by repeated subquery
         elimination to detect two nodes with same query, please use it with careful.
         """
-        return encode_node_id_with_query(self)
+        with self.analyzer.session._plan_lock:
+            if self._encoded_node_id_with_query is None:
+                self._encoded_node_id_with_query = encode_node_id_with_query(self)
+            return self._encoded_node_id_with_query
 
     @property
     @abstractmethod
@@ -324,12 +328,16 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        if self._cumulative_node_complexity is None:
-            self._cumulative_node_complexity = sum_node_complexities(
-                self.individual_node_complexity,
-                *(node.cumulative_node_complexity for node in self.children_plan_nodes),
-            )
-        return self._cumulative_node_complexity
+        with self.analyzer.session._plan_lock:
+            if self._cumulative_node_complexity is None:
+                self._cumulative_node_complexity = sum_node_complexities(
+                    self.individual_node_complexity,
+                    *(
+                        node.cumulative_node_complexity
+                        for node in self.children_plan_nodes
+                    ),
+                )
+            return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
     def cumulative_node_complexity(self, value: Dict[PlanNodeCategory, int]):
@@ -382,6 +390,47 @@ class Selectable(LogicalPlan, ABC):
         """Return the dict of ctes referenced by the whole selectable subtree and the
         reference count of the cte. Includes itself and its children"""
         pass
+
+    def merge_into_pre_action(self, pre_action: "Query") -> None:
+        """Method to merge a pre-action into the current Selectable's pre-actions if it
+        is not already present. If pre_actions is None, new list will be initialized."""
+        if self.pre_actions is None:
+            self.pre_actions = [copy(pre_action)]
+        elif pre_action not in self.pre_actions:
+            self.pre_actions.append(copy(pre_action))
+
+    def merge_into_post_action(self, post_action: "Query") -> None:
+        """Method to merge a post-action into the current Selectable's post-actions if it
+        is not already present. If post_actions is None, new list will be initialized."""
+        if self.post_actions is None:
+            self.post_actions = [copy(post_action)]
+        elif post_action not in self.post_actions:
+            self.post_actions.append(copy(post_action))
+
+    def with_subqueries(
+        self,
+        subquery_plans: List[SnowflakePlan],
+        resolved_snowflake_plan: SnowflakePlan,
+    ) -> "Selectable":
+        """Update pre-actions, post-actions and schema to capture necessary subquery_plans
+        encountered during plan resolution. All updates are in-place.
+
+        Args:
+            subquery_plans: List of subquery plans encountered during plan resolution.
+            snowflake_plan: The snowflake plan corresponding to the resolved plan of the
+                current selectable which is created and updated using subquery plans
+                during resolution stage.
+        """
+        for plan in subquery_plans:
+            for query in plan.queries[:-1]:
+                self.merge_into_pre_action(query)
+            for query in plan.post_actions:
+                self.merge_into_post_action(query)
+
+        if self._snowflake_plan is not None:
+            self._snowflake_plan = resolved_snowflake_plan
+
+        return self
 
 
 class SelectableEntity(Selectable):
@@ -1339,17 +1388,11 @@ class SetStatement(Selectable):
         self._nodes = []
         for operand in set_operands:
             if operand.selectable.pre_actions:
-                if not self.pre_actions:
-                    self.pre_actions = []
                 for action in operand.selectable.pre_actions:
-                    if action not in self.pre_actions:
-                        self.pre_actions.append(copy(action))
+                    self.merge_into_pre_action(action)
             if operand.selectable.post_actions:
-                if not self.post_actions:
-                    self.post_actions = []
                 for action in operand.selectable.post_actions:
-                    if action not in self.post_actions:
-                        self.post_actions.append(copy(action))
+                    self.merge_into_post_action(action)
             self._nodes.append(operand.selectable)
 
     def __deepcopy__(self, memodict={}) -> "SetStatement":  # noqa: B006

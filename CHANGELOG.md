@@ -8,6 +8,20 @@
 
 - Added the following new functions in `snowflake.snowpark.dataframe`:
   - `map`
+- Added support for passing parameter `include_error` to `Session.query_history` to record queries that have error during execution.
+
+#### Improvements
+
+- When target stage is not set in profiler, a default stage from `Session.get_session_stage` is used instead of raising `SnowparkSQLException`.
+- Allowed lower case or mixed case input when calling `Session.stored_procedure_profiler.set_active_profiler`.
+- Added distributed tracing using open telemetry APIs for action function in `DataFrame`:
+  - `cache_result`
+- Removed opentelemetry warning from logging.
+
+#### Bug Fixes
+
+- Fixed the pre-action and post-action query propagation when `In` expression were used in selects.
+- Fixed a bug that raised error `AttributeError` while calling `Session.stored_procedure_profiler.get_output` when `Session.stored_procedure_profiler` is disabled.
 
 #### Dependency Updates
 
@@ -27,12 +41,41 @@
 - Added support for `Index.to_numpy`.
 - Added support for `DataFrame.align` and `Series.align` for `axis=0`.
 - Added support for `size` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for `snowflake.snowpark.functions.window`
 - Added support for `pd.read_pickle` (Uses native pandas for processing).
 - Added support for `pd.read_html` (Uses native pandas for processing).
 - Added support for `pd.read_xml` (Uses native pandas for processing).
+- Added support for aggregation functions `"size"` and `len` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for list values in `Series.str.len`.
 - Added support for `DataFrame.align` and `Series.align` for `axis=1 and None`.
 
+#### Bug Fixes
+
+- Fixed a bug where aggregating a single-column dataframe with a single callable function (e.g. `pd.DataFrame([0]).agg(np.mean)`) would fail to transpose the result.
+- Fixed bugs where `DataFrame.dropna()` would:
+  - Treat an empty `subset` (e.g. `[]`) as if it specified all columns instead of no columns.
+  - Raise a `TypeError` for a scalar `subset` instead of filtering on just that column.
+  - Raise a `ValueError` for a `subset` of type `pandas.Index` instead of filtering on the columns in the index.
+- Disable creation of scoped read only table to mitigate Disable creation of scoped read only table to mitigate `TableNotFoundError` when using dynamic pivot in notebook environment.
+- Fixed a bug when concat dataframe or series objects are coming from the same dataframe when axis = 1.
+
+#### Improvements
+
+- Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
+
+
 ### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for patching functions that are unavailable in the `snowflake.snowpark.functions` module.
+- Added support for `snowflake.snowpark.functions.any_value`
+
+#### Bug Fixes
+
+- Fixed a bug where `Table.update` could not handle `VariantType`, `MapType`, and `ArrayType` data types.
+- Fixed a bug where column aliases were incorrectly resolved in `DataFrame.join`, causing errors when selecting columns from a joined DataFrame.
+- Fixed a bug where `Table.update` and `Table.merge` could fail if the target table's index was not the default `RangeIndex`.
 
 ## 1.24.0 (2024-10-28)
 
@@ -84,6 +127,7 @@
 - Added support for applying Snowpark Python function `snowflake_cortex_summarize`.
 - Added support for `DataFrame.attrs` and `Series.attrs`.
 - Added support for `DataFrame.style`.
+- Added numpy compatibility support for `np.full_like`
 
 #### Improvements
 

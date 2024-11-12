@@ -238,6 +238,10 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
 _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
     "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
 )
+# Flag for controlling the usage of scoped temp read only table.
+_PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
+    "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
+)
 # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
 # in Snowflake. This is the limit where we start seeing compilation errors.
 DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
@@ -277,25 +281,6 @@ def _get_sandbox_conditional_active_session(session: "Session") -> "Session":
     else:
         session = session or _get_active_session()
     return session
-
-
-def _close_session_atexit():
-    """
-    This is the helper function to close all active sessions at interpreter shutdown. For example, when a jupyter
-    notebook is shutting down, this will also close all active sessions and make sure send all telemetry to the server.
-    """
-    if is_in_stored_procedure():
-        return
-    with _session_management_lock:
-        for session in _active_sessions.copy():
-            try:
-                session.close()
-            except Exception:
-                pass
-
-
-# Register _close_session_atexit so it will be called at interpreter shutdown
-atexit.register(_close_session_atexit)
 
 
 def _remove_session(session: "Session") -> None:
@@ -560,6 +545,11 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
             )
         )
+        self._use_scoped_temp_read_only_table: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE, False
+            )
+        )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
         self._sql_simplifier_enabled: bool = (
@@ -626,6 +616,10 @@ class Session:
         # query can be slow and prevent other threads from moving on waiting for _lock.
         self._package_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
+        # this lock is used to protect race-conditions when evaluating critical lazy properties
+        # of SnowflakePlan or Selectable objects
+        self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
+
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
@@ -633,6 +627,21 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
 
         _logger.info("Snowpark Session information: %s", self._session_info)
+
+        # Register self._close_at_exit so it will be called at interpreter shutdown
+        atexit.register(self._close_at_exit)
+
+    def _close_at_exit(self) -> None:
+        """
+        This is the helper function to close the current session at interpreter shutdown.
+        For example, when a jupyter notebook is shutting down, this will also close
+        the current session and make sure send all telemetry to the server.
+        """
+        with _session_management_lock:
+            try:
+                self.close()
+            except Exception:
+                pass
 
     def __enter__(self):
         return self
@@ -3566,13 +3575,17 @@ class Session:
         return df
 
     def query_history(
-        self, include_describe: bool = False, include_thread_id: bool = False
+        self,
+        include_describe: bool = False,
+        include_thread_id: bool = False,
+        include_error: bool = False,
     ) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
         Args:
             include_describe: Include query notifications for describe queries
             include_thread_id: Include thread id where queries are called
+            include_error: record queries that have error during execution
 
         >>> with session.query_history(True) as query_history:
         ...     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -3582,7 +3595,9 @@ class Session:
         >>> assert query_history.queries[0].is_describe
         >>> assert not query_history.queries[1].is_describe
         """
-        query_listener = QueryHistory(self, include_describe, include_thread_id)
+        query_listener = QueryHistory(
+            self, include_describe, include_thread_id, include_error
+        )
         self._conn.add_query_listener(query_listener)
         return query_listener
 
