@@ -3464,6 +3464,7 @@ class DataFrame:
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        iceberg_config: Optional[dict] = None,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
 
@@ -3498,6 +3499,17 @@ class DataFrame:
                 the data retention period of the dynamic table to prevent streams on the dynamic table
                 from becoming stale.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+                * external_volume: specifies the identifier for the external volume where
+                    the Iceberg table stores its metadata files and data in Parquet format
+
+                * catalog: specifies either Snowflake or a catalog integration to use for this table
+
+                * base_location: the base directory that snowflake can write iceberg metadata and files to
+
+                * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
+
+                * storage_serialization_policy: specifies the storage serialization policy for the table
 
         Note:
             See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
@@ -3539,6 +3551,7 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
+            iceberg_config=iceberg_config,
         )
 
     @df_collect_api_telemetry
@@ -3616,6 +3629,7 @@ class DataFrame:
         is_transient: bool = False,
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
+        iceberg_config: Optional[dict] = None,
         **kwargs,
     ):
         validate_object_name(name)
@@ -3642,6 +3656,7 @@ class DataFrame:
             data_retention_time=data_retention_time,
             max_data_extension_time=max_data_extension_time,
             child=self._plan,
+            iceberg_config=iceberg_config,
         )
 
         return self._session._conn.execute(

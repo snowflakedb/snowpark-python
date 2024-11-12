@@ -447,7 +447,8 @@ def test_structured_dtypes_iceberg(
         pytest.skip("Test requires iceberg support and structured type support.")
     query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
 
-    table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
+    table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}".upper()
+    dynamic_table_name = f"snowpark_dynamic_iceberg_{uuid.uuid4().hex[:5]}".upper()
     try:
         create_df = structured_type_session.create_dataframe([], schema=expected_schema)
         create_df.write.save_as_table(table_name, iceberg_config=ICEBERG_CONFIG)
@@ -471,8 +472,29 @@ def test_structured_dtypes_iceberg(
             "BASE_LOCATION = 'python_connector_merge_gate/';"
         )
 
+        # Try saving as dynamic table
+        dyn_df = structured_type_session.table(table_name)
+        warehouse = structured_type_session.get_current_warehouse().strip('"')
+        dyn_df.create_or_replace_dynamic_table(
+            dynamic_table_name,
+            warehouse=warehouse,
+            lag="1000 minutes",
+            mode="errorifexists",
+            iceberg_config=ICEBERG_CONFIG,
+        )
+
+        dynamic_ddl = structured_type_session._run_query(
+            f"select get_ddl('table', '{dynamic_table_name}')"
+        )
+        assert dynamic_ddl[0][0] == (
+            f"create or replace dynamic table {dynamic_table_name}(\n\tMAP,\n\tOBJ,\n\tARR\n) "
+            f"target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
+            f"warehouse = {warehouse}\n as  SELECT  *  FROM ( SELECT  *  FROM {table_name});"
+        )
+
     finally:
         Utils.drop_table(structured_type_session, table_name)
+        Utils.drop_dynamic_table(structured_type_session, dynamic_table_name)
 
 
 @pytest.mark.skipif(
