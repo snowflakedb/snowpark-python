@@ -1002,6 +1002,14 @@ class SelectStatement(Selectable):
                         dependent_column_complexity = (
                             subquery_projection_name_complexity_map[dependent_column]
                         )
+                        print(
+                            self.analyzer.analyze(proj, {}),
+                            f"dependent_column: {dependent_column}",
+                            f"{dependent_column_complexity=}",
+                        )
+                        assert (
+                            PlanNodeCategory.COLUMN in projection_complexity
+                        ), projection_complexity
                         projection_complexity[PlanNodeCategory.COLUMN] -= 1
                         projection_complexity = sum_node_complexities(
                             projection_complexity, dependent_column_complexity
