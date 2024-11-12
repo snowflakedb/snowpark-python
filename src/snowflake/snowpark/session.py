@@ -60,8 +60,8 @@ from snowflake.snowpark._internal.analyzer.table_function import (
     TableFunctionRelation,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Cast
-from snowflake.snowpark._internal.ast import AstBatch
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.batch import AstBatch
+from snowflake.snowpark._internal.ast.utils import (
     add_intermediate_stmt,
     build_expr_from_python_val,
     build_indirect_table_fn_apply,

@@ -97,7 +97,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     add_intermediate_stmt,
     build_expr_from_dict_str_str,
     build_expr_from_python_val,

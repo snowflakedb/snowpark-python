@@ -23,7 +23,7 @@ from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.types import ArrayType, MapType
 
 from ._internal.analyzer.snowflake_plan import SnowflakePlan
-from ._internal.ast_utils import (
+from ._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,

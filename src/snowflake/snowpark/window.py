@@ -24,7 +24,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     WindowFrame,
     WindowSpecDefinition,
 )
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_python_val,
     with_src_position,
 )

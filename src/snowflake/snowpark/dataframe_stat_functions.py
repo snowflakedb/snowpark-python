@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark import Column
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
