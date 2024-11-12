@@ -161,6 +161,10 @@ class TimestampType(_AtomicType):
         tzinfo = f"tz={self.tz}" if self.tz != TimestampTimeZone.DEFAULT else ""
         return f"TimestampType({tzinfo})"
 
+    def simple_string(self):
+        tzinfo = self.tz if self.tz != TimestampTimeZone.DEFAULT else ""
+        return f"{self.type_name()}{tzinfo}"
+
 
 class TimeType(_AtomicType):
     """Time data type. This maps to the TIME data type in Snowflake."""
@@ -231,16 +235,30 @@ class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
 
     def __init__(
-        self, element_type: Optional[DataType] = None, structured: bool = False
+        self,
+        element_type: Optional[DataType] = None,
+        structured: bool = False,
+        contains_null: bool = True,
     ) -> None:
         self.structured = structured
         self.element_type = element_type if element_type else StringType()
+        self.contains_null = contains_null
 
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
 
     def is_primitive(self):
         return False
+
+    def simple_string(self):
+        return f"array<{self.element_type.simple_string()}>"
+
+    def json_value(self):
+        return {
+            "type": self.type_name(),
+            "elementType": self.element_type.json_value(),
+            "containsNull": self.contains_null,
+        }
 
 
 class MapType(DataType):
@@ -251,16 +269,29 @@ class MapType(DataType):
         key_type: Optional[DataType] = None,
         value_type: Optional[DataType] = None,
         structured: bool = False,
+        value_contains_null: bool = True,
     ) -> None:
         self.structured = structured
         self.key_type = key_type if key_type else StringType()
         self.value_type = value_type if value_type else StringType()
+        self.value_contains_null = value_contains_null
 
     def __repr__(self) -> str:
         return f"MapType({repr(self.key_type) if self.key_type else ''}, {repr(self.value_type) if self.value_type else ''})"
 
     def is_primitive(self):
         return False
+
+    def simple_string(self):
+        return f"map<{self.key_type.simple_string()},{self.value_type.simple_string()}>"
+
+    def json_value(self):
+        return {
+            "type": self.type_name(),
+            "keyType": self.key_type.json_value(),
+            "valueType": self.value_type.json_value(),
+            "valueContainsNull": self.value_contains_null,
+        }
 
 
 class VectorType(DataType):
