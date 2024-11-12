@@ -85,6 +85,7 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     abs as abs_,
     array_construct,
+    array_size,
     bround,
     builtin,
     cast,
@@ -16553,12 +16554,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler representing result of the string operation.
         """
-        # TODO SNOW-1438001: Handle dict, list, and tuple values for Series.str.len().
-        return SnowflakeQueryCompiler(
-            self._modin_frame.apply_snowpark_function_to_columns(
-                lambda col: self._replace_non_str(col, length(col))
+        # TODO SNOW-1438001: Handle dict, and tuple values for Series.str.len().
+        col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+        if isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            ArrayType,
+        ):
+            return SnowflakeQueryCompiler(
+                self._modin_frame.apply_snowpark_function_to_columns(
+                    lambda col: array_size(col)
+                )
             )
-        )
+        else:
+            return SnowflakeQueryCompiler(
+                self._modin_frame.apply_snowpark_function_to_columns(
+                    lambda col: self._replace_non_str(col, length(col))
+                )
+            )
 
     def str_ljust(self, width: int, fillchar: str = " ") -> None:
         ErrorMessage.method_not_implemented_error("ljust", "Series.str")
