@@ -272,7 +272,7 @@ class ArrayType(DataType):
     def json_value(self) -> Dict[str, Any]:
         return {
             "type": self.type_name(),
-            "elementType": self.element_type.json_value(),
+            "element_type": self.element_type.json_value(),
         }
 
 
@@ -301,8 +301,8 @@ class MapType(DataType):
     def json_value(self) -> Dict[str, Any]:
         return {
             "type": self.type_name(),
-            "keyType": self.key_type.json_value(),
-            "valueType": self.value_type.json_value(),
+            "key_type": self.key_type.json_value(),
+            "value_type": self.value_type.json_value(),
         }
 
 

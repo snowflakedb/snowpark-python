@@ -1185,19 +1185,19 @@ def test_datatype():
 
     tpe = ArrayType(IntegerType())
     assert tpe.simple_string() == "array<int>"
-    assert tpe.json() == '{"elementType":"integer","type":"array"}'
+    assert tpe.json() == '{"element_type":"integer","type":"array"}'
     assert tpe.type_name() == "array"
     assert tpe.json_value() == {
-        "elementType": "integer",
+        "element_type": "integer",
         "type": "array",
     }
 
     tpe = MapType(IntegerType(), StringType())
     assert tpe.simple_string() == "map<int,string>"
-    assert tpe.json() == '{"keyType":"integer","type":"map","valueType":"string"}'
+    assert tpe.json() == '{"key_type":"integer","type":"map","value_type":"string"}'
     assert tpe.type_name() == "map"
     assert tpe.json_value() == {
-        "keyType": "integer",
+        "key_type": "integer",
         "type": "map",
-        "valueType": "string",
+        "value_type": "string",
     }
