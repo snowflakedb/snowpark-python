@@ -119,9 +119,8 @@ def align_axis_1(
     join: Literal["inner", "outer", "left", "right"],
 ) -> tuple[InternalFrame, InternalFrame]:
     """
-    Concatenate frames on index axis by taking using UNION operator.
-    Snowflake identifiers of output frame are based on snowflake identifiers from first
-    frame.
+    Aligns frames on their columns.
+
     Args:
         frame1: First frame
         frame2: Second frame
@@ -147,15 +146,8 @@ def align_axis_1(
         inner_data_column_labels,
         join=join,
     )
-    if join != "right":
-        frame1 = align_axis_1_left_helper(
-            frame1, full_data_column_pandas_labels, frame2_data_column_pandas_labels
-        )
-        frame2 = align_axis_1_right_helper(
-            frame2, full_data_column_pandas_labels, frame2_data_column_pandas_labels
-        )
 
-    elif join == "right":
+    if join == "right":
         frame1 = align_axis_1_right_helper(
             frame1, full_data_column_pandas_labels, frame1_data_column_pandas_labels
         )
@@ -163,8 +155,11 @@ def align_axis_1(
             frame2, full_data_column_pandas_labels, frame1_data_column_pandas_labels
         )
     else:
-        raise AssertionError(
-            f"Invalid join type '{join}'. Accepted values are 'inner', 'outer', 'left', and 'right'."
+        frame1 = align_axis_1_left_helper(
+            frame1, full_data_column_pandas_labels, frame2_data_column_pandas_labels
+        )
+        frame2 = align_axis_1_right_helper(
+            frame2, full_data_column_pandas_labels, frame2_data_column_pandas_labels
         )
     return frame1, frame2
 
@@ -175,8 +170,8 @@ def align_axis_1_left_helper(
     other_frame_labels: list[str],
 ) -> InternalFrame:
     """
-    Select only the given labels from given frame for align. If any data column label is missing
-    in frame add new column with NULL values.
+    Select the given labels from data_column_labels for aligned left frame. If any data column label is missing
+    in frame add new column with NULL values. Duplicate column names will also be duplicated.
 
     Args:
         frame: An InternalFrame
@@ -202,6 +197,12 @@ def align_axis_1_left_helper(
 
     curr_label_count_map: dict[Hashable, int] = {}
     curr_label_index_map: dict[Hashable, int] = {}
+
+    # if snowflake_ids = [(D), (B1, B2), (B1, B2), (A1, A2), (A1, A2), (A1, A2), (B1, B2), (B1, B2), (A1, A2),
+    # (A1, A2), (A1, A2)],
+    # resulting aligned left frame column values will be
+    # D B1 B1 A1 A1 A1 B2 B2 A2 A2 A2
+    # where duplicate columns are selected from the tuple according to their tuple order
     for label, id_tuple in zip(data_column_labels, snowflake_ids):
         if (
             curr_label_count_map.get(label, 0) > 0
@@ -258,8 +259,8 @@ def align_axis_1_right_helper(
     frame_labels: list[str],
 ) -> InternalFrame:
     """
-    Select only the given labels from given frame for align. If any data column label is missing
-    in frame add new column with NULL values.
+    Select the given labels from data_column_labels for aligned right frame. If any data column label is missing
+    in frame add new column with NULL values. Duplicate column names will also be duplicated.
 
     Args:
         frame: An InternalFrame
@@ -285,6 +286,11 @@ def align_axis_1_right_helper(
 
     curr_label_count_map: dict[Hashable, int] = {}
     curr_label_index_map: dict[Hashable, int] = {}
+
+    # if snowflake_ids = [(D), (B1, B2), (B1, B2), (A1, A2, A3),(B1, B2), (B1, B2), (A1, A2, A3)],
+    # resulting aligned right frame column values will be
+    # D B1 B2 A1 A2 A3 B1 B2 A1 A2 A3
+    # where duplicate columns are selected from the tuple in the order they appear in the orig frame
     for label, id_tuple in zip(data_column_labels, snowflake_ids):
         if (
             curr_label_count_map.get(label, 0) > 0
@@ -366,6 +372,9 @@ def get_full_label_list(
     # final label list is similar to a cross join of frame1 and frame 2 column labels. For ex,
     # if frame1 has cols ["D", "B", "C", "A", "B", "A", "E"] and frame2 has cols ["A", "B", "B", "C", "D", "A", "A"],
     # result_list for join="outer" is ["A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "C", "D", "E"]
+
+    # outer join sorts keys lexicographically, and the rest of the joins preserves key order including inner which
+    # preserves left key order.
 
     if join == "inner":
         # Add elements from frame1 to result_list, based on frequency in frame2 if element is in intersection list

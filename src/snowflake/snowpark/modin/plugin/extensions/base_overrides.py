@@ -895,15 +895,12 @@ def align(
         )
     if isinstance(self, Series) and axis == 1:
         raise ValueError("No axis named 1 for object type Series")
-    is_lhs_dataframe_and_rhs_series = (
-        True
-        if isinstance(self, pd.DataFrame) and isinstance(other, pd.Series)
-        else False
+
+    is_lhs_dataframe_and_rhs_series = isinstance(self, pd.DataFrame) and isinstance(
+        other, pd.Series
     )
-    is_lhs_series_and_rhs_dataframe = (
-        True
-        if isinstance(self, pd.Series) and isinstance(other, pd.DataFrame)
-        else False
+    is_lhs_series_and_rhs_dataframe = isinstance(self, pd.Series) and isinstance(
+        other, pd.DataFrame
     )
 
     if is_lhs_dataframe_and_rhs_series and axis is None:
