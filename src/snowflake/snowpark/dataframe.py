@@ -220,10 +220,10 @@ def _generate_deterministic_prefix(prefix: str, exclude_prefixes: List[str]):
     """
     Generate deterministic prefix while ensuring it doesn't exist in the exclude list.
     """
-    candidate_prefix = prefix + "_"
+    candidate_prefix = f"{prefix}_{0:04}_"
     counter = 1
     while any([p.startswith(candidate_prefix) for p in exclude_prefixes]):
-        candidate_prefix = f"{prefix}{counter}_"
+        candidate_prefix = f"{prefix}_{counter:04}_"
         counter = counter + 1
     return candidate_prefix
 

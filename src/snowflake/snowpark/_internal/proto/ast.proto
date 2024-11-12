@@ -154,7 +154,7 @@ message SpWindowRelativePosition {
 
 // expr-window.ir:10
 message SpWindowRelativePosition_Position {
-  int64 n = 1;
+  Expr n = 1;
 }
 
 // pd-indexing.ir:2

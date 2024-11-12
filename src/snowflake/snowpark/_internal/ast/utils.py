@@ -1355,8 +1355,11 @@ def build_sproc(
     if packages is not None and len(packages) != 0:
         for package in packages:
             if isinstance(package, ModuleType):
-                raise NotImplementedError
-            ast.packages.append(package)
+                # Use similar to session._resolve_packages the pypi string notation to capture the version.
+                # Package resolution (existing vs. new) should be done server-side in phase1.
+                ast.packages.append(f"{package.__name__}=={package.__version__}")
+            else:
+                ast.packages.append(package)
     ast.replace = replace
     ast.if_not_exists = if_not_exists
     ast.parallel = parallel

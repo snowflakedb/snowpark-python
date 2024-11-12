@@ -1303,6 +1303,62 @@ def check_flatten_mode(mode: str) -> None:
         raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
 
+def check_create_map_parameter(*cols: Any) -> None:
+    """Helper function to check parameter cols for create_map function."""
+
+    error_message = "The 'create_map' function requires an even number of parameters but the actual number is {}"
+
+    # TODO SNOW-1790918: Keep error messages for now identical to current state, make more distinct by replacing text in blocks.
+    if len(cols) == 1:
+        cols = cols[0]
+        if not isinstance(cols, (tuple, list)):
+            raise ValueError(error_message.format(len(cols)))
+
+    if not (len(cols) > 0 and len(cols) % 2 == 0):
+        raise ValueError(error_message.format(len(cols)))
+
+
+def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
+    from snowflake.snowpark import Column
+
+    return len(e) == 2 and isinstance(e[0], (Column, str)) and isinstance(e[1], str)
+
+
+def check_agg_exprs(
+    exprs: Union[
+        "snowflake.snowpark.Column",
+        Tuple["snowflake.snowpark.ColumnOrName", str],
+        Dict[str, str],
+    ]
+):
+    """Helper function to raise exceptions when invalid exprs have been passed."""
+    from snowflake.snowpark import Column
+
+    exprs, _ = parse_positional_args_to_list_variadic(*exprs)
+
+    # special case for single list or tuple
+    if is_valid_tuple_for_agg(exprs):
+        exprs = [exprs]
+
+    if len(exprs) > 0 and isinstance(exprs[0], dict):
+        for k, v in exprs[0].items():
+            if not (isinstance(k, str) and isinstance(v, str)):
+                raise TypeError(
+                    "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() "
+                    f"should contain only strings: got key-value pair with types {type(k), type(v)}"
+                )
+    else:
+        for e in exprs:
+            if not (
+                isinstance(e, Column)
+                or (isinstance(e, (list, tuple)) and is_valid_tuple_for_agg(e))
+            ):
+                raise TypeError(
+                    "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should "
+                    "contain only Column objects, or pairs of Column object (or column name) and strings."
+                )
+
+
 class MissingModin(MissingOptionalDependency):
     """The class is specifically for modin optional dependency."""
 
