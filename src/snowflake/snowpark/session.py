@@ -581,12 +581,6 @@ class Session:
         )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
-        if isinstance(self._conn, NopConnection):
-            self._analyzer = NopAnalyzer(self)
-        elif isinstance(self._conn, MockServerConnection):
-            self._analyzer = MockAnalyzer(self)
-        else:
-            self._analyzer = Analyzer(self)
         self._sql_simplifier_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
@@ -703,11 +697,15 @@ class Session:
     @property
     def _analyzer(self) -> Analyzer:
         if not hasattr(self._thread_store, "analyzer"):
-            self._thread_store.analyzer = (
-                Analyzer(self)
-                if isinstance(self._conn, ServerConnection)
-                else MockAnalyzer(self)
-            )
+            analyzer: Union[Analyzer, MockAnalyzer, NopAnalyzer, None] = None
+            if isinstance(self._conn, NopConnection):
+                analyzer = NopAnalyzer(self)
+            elif isinstance(self._conn, MockServerConnection):
+                analyzer = MockAnalyzer(self)
+            else:
+                analyzer = Analyzer(self)
+
+            self._thread_store.analyzer = analyzer
         return self._thread_store.analyzer
 
     def close(self) -> None:
