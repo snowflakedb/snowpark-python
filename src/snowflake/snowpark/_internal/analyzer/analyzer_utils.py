@@ -1162,6 +1162,7 @@ def create_or_replace_dynamic_table_statement(
     data_retention_time: Optional[int],
     max_data_extension_time: Optional[int],
     child: str,
+    iceberg_config: Optional[dict] = None,
 ) -> str:
     cluster_by_sql = (
         f"{CLUSTER_BY}{LEFT_PARENTHESIS}{COMMA.join(clustering_keys)}{RIGHT_PARENTHESIS}"
@@ -1182,11 +1183,14 @@ def create_or_replace_dynamic_table_statement(
         }
     )
 
+    iceberg_options = get_options_statement(validate_iceberg_config(iceberg_config))
+
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TRANSIENT if is_transient else EMPTY_STRING}"
-        f"{DYNAMIC}{TABLE}{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}{LAG}{EQUALS}"
+        f"{DYNAMIC}{ICEBERG if iceberg_config else EMPTY_STRING}{TABLE}"
+        f"{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}{LAG}{EQUALS}"
         f"{convert_value_to_sql_option(lag)}{WAREHOUSE}{EQUALS}{warehouse}"
-        f"{refresh_and_initialize_options}{cluster_by_sql}{data_retention_options}"
+        f"{refresh_and_initialize_options}{cluster_by_sql}{data_retention_options}{iceberg_options}"
         f"{comment_sql}{AS}{project_statement([], child)}"
     )
 

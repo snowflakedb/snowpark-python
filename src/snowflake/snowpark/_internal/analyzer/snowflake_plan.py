@@ -1134,6 +1134,7 @@ class SnowflakePlanBuilder:
         max_data_extension_time: Optional[int],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
@@ -1169,6 +1170,7 @@ class SnowflakePlanBuilder:
                 data_retention_time=data_retention_time,
                 max_data_extension_time=max_data_extension_time,
                 child=x,
+                iceberg_config=iceberg_config,
             ),
             child,
             source_plan,
