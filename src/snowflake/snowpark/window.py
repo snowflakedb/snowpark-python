@@ -287,7 +287,9 @@ def _fill_window_spec_ast_with_relative_positions(
         if start == WindowRelativePosition.UNBOUNDED_PRECEDING:
             ast.start.sp_window_relative_position__unbounded_preceding = True
     else:
-        ast.start.sp_window_relative_position__position.n = start
+        build_expr_from_snowpark_column_or_python_val(
+            ast.start.sp_window_relative_position__position.n, start
+        )
 
     if isinstance(end, WindowRelativePosition):
         if end == WindowRelativePosition.CURRENT_ROW:
@@ -297,7 +299,9 @@ def _fill_window_spec_ast_with_relative_positions(
         if end == WindowRelativePosition.UNBOUNDED_PRECEDING:
             ast.end.sp_window_relative_position__unbounded_preceding = True
     else:
-        ast.end.sp_window_relative_position__position.n = end
+        build_expr_from_snowpark_column_or_python_val(
+            ast.end.sp_window_relative_position__position.n, end
+        )
 
 
 class WindowSpec:

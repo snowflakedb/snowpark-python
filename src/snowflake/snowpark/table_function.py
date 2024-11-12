@@ -94,6 +94,20 @@ class TableFunctionCall:
         Note that if this function is called but both ``partition_by`` and ``order_by`` are ``None``, the table function call will put all input rows into a single partition.
         If this function isn't called at all, the Snowflake database will use implicit partitioning.
         """
+
+        # create_order_by_expression has check in it, call here first.
+        if isinstance(order_by, (str, Column)):
+            order_by_tuple = (order_by,)
+        elif order_by is not None:
+            order_by_tuple = tuple(order_by)
+        else:
+            order_by_tuple = None
+        if order_by_tuple:
+            if len(order_by_tuple) > 0:
+                for e in order_by_tuple:
+                    _create_order_by_expression(e)
+        # End code for check.
+
         ast = None
         if _emit_ast and self._ast:
             ast = proto.Expr()
