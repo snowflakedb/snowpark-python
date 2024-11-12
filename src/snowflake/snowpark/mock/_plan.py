@@ -580,9 +580,9 @@ def handle_udaf_expression(
         if type(udaf.handler) is tuple:
             module_name, handler_name = udaf.func
             exec(f"from {module_name} import {handler_name}")
-            udaf_handler = eval(handler_name)
+            udaf_class = eval(handler_name)
         else:
-            udaf_handler = udaf.handler
+            udaf_class = udaf.handler
 
         # Compute input data and validate typing
         if len(exp.children) != len(udaf._input_types):
@@ -615,7 +615,7 @@ def handle_udaf_expression(
 
         try:
             # Initialize Aggregation handler class, i.e. the aggregation accumulator.
-            AggregationAccumulator = udaf_handler()
+            AggregationAccumulator = udaf_class()
             # Init its state.
             some_agg_state = AggregationAccumulator.aggregate_state
 
