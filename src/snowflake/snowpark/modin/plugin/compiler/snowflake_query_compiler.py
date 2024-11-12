@@ -8458,13 +8458,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         frame = self._modin_frame
         other_frame = other._query_compiler._modin_frame
 
-        if axis is not None:
-            if self.is_multiindex(axis=axis) or other._query_compiler.is_multiindex(
-                axis=axis
-            ):
-                raise NotImplementedError(
-                    "Snowpark pandas doesn't support `align` with MultiIndex"
-                )
+        if self.is_multiindex() or other._query_compiler.is_multiindex():
+            raise NotImplementedError(
+                "Snowpark pandas doesn't support `align` with MultiIndex"
+            )
 
         # convert frames to variant type if index is incompatible for join
         frame, other_frame = join_utils.convert_incompatible_types_to_variant(
@@ -8473,97 +8470,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             frame.index_column_snowflake_quoted_identifiers,
             other_frame.index_column_snowflake_quoted_identifiers,
         )
+        if axis == 0:
+            left_internal_frame = align_axis_0_left(frame, other_frame, join)
+            right_internal_frame = align_axis_0_right(frame, other_frame, join)
 
-        (
-            left_result,
-            left_frame,
-            left_frame_data_ids,
-            left_index_ids,
-        ) = align_axis_0_left(frame, other_frame, join)
-        (
-            right_result,
-            right_frame,
-            right_frame_data_ids,
-            right_index_ids,
-        ) = align_axis_0_right(frame, other_frame, join)
+            left_qc = SnowflakeQueryCompiler(left_internal_frame)
+            right_qc = SnowflakeQueryCompiler(right_internal_frame)
 
-        left_qc = SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=left_frame,
-                data_column_snowflake_quoted_identifiers=left_frame_data_ids,
-                data_column_pandas_labels=frame.data_column_pandas_labels,
-                data_column_pandas_index_names=frame.data_column_pandas_index_names,
-                data_column_types=frame.cached_data_column_snowpark_pandas_types,
-                index_column_snowflake_quoted_identifiers=left_index_ids,
-                index_column_pandas_labels=left_result.index_column_pandas_labels,
-                index_column_types=left_result.cached_index_column_snowpark_pandas_types,
-            )
-        )
-        right_qc = SnowflakeQueryCompiler(
-            InternalFrame.create(
-                ordered_dataframe=right_frame,
-                data_column_snowflake_quoted_identifiers=right_frame_data_ids,
-                data_column_pandas_labels=other_frame.data_column_pandas_labels,
-                data_column_pandas_index_names=other_frame.data_column_pandas_index_names,
-                data_column_types=other_frame.cached_data_column_snowpark_pandas_types,
-                index_column_snowflake_quoted_identifiers=right_index_ids,
-                index_column_pandas_labels=right_result.index_column_pandas_labels,
-                index_column_types=right_result.cached_index_column_snowpark_pandas_types,
-            )
-        )
         if axis == 1:
-            if join == "outer":
-                left_frame, right_frame = align_axis_1(frame, other_frame, join, True)
-            else:
-                left_frame, right_frame = align_axis_1(frame, other_frame, join, False)
+            left_frame, right_frame = align_axis_1(frame, other_frame, join)
             left_qc, right_qc = SnowflakeQueryCompiler(
                 left_frame
             ), SnowflakeQueryCompiler(right_frame)
+
         if axis is None:
-            if join == "outer":
-                left_frame_1, right_frame_1 = align_axis_1(
-                    frame, other_frame, join, True
-                )
-            else:
-                left_frame_1, right_frame_1 = align_axis_1(
-                    frame, other_frame, join, False
-                )
-            (
-                left_result,
-                left_frame,
-                left_frame_data_ids,
-                left_index_ids,
-            ) = align_axis_0_left(left_frame_1, right_frame_1, join)
-            (
-                right_result,
-                right_frame,
-                right_frame_data_ids,
-                right_index_ids,
-            ) = align_axis_0_right(left_frame_1, right_frame_1, join)
-            left_qc = SnowflakeQueryCompiler(
-                InternalFrame.create(
-                    ordered_dataframe=left_frame,
-                    data_column_snowflake_quoted_identifiers=left_frame_data_ids,
-                    data_column_pandas_labels=left_frame_1.data_column_pandas_labels,
-                    data_column_pandas_index_names=left_frame_1.data_column_pandas_index_names,
-                    data_column_types=left_frame_1.cached_data_column_snowpark_pandas_types,
-                    index_column_snowflake_quoted_identifiers=left_index_ids,
-                    index_column_pandas_labels=left_result.index_column_pandas_labels,
-                    index_column_types=left_result.cached_index_column_snowpark_pandas_types,
-                )
-            )
-            right_qc = SnowflakeQueryCompiler(
-                InternalFrame.create(
-                    ordered_dataframe=right_frame,
-                    data_column_snowflake_quoted_identifiers=right_frame_data_ids,
-                    data_column_pandas_labels=right_frame_1.data_column_pandas_labels,
-                    data_column_pandas_index_names=right_frame_1.data_column_pandas_index_names,
-                    data_column_types=right_frame_1.cached_data_column_snowpark_pandas_types,
-                    index_column_snowflake_quoted_identifiers=right_index_ids,
-                    index_column_pandas_labels=right_result.index_column_pandas_labels,
-                    index_column_types=right_result.cached_index_column_snowpark_pandas_types,
-                )
-            )
+            left_frame_1, right_frame_1 = align_axis_1(frame, other_frame, join)
+            left_internal_frame = align_axis_0_left(left_frame_1, right_frame_1, join)
+            right_internal_frame = align_axis_0_right(left_frame_1, right_frame_1, join)
+            left_qc = SnowflakeQueryCompiler(left_internal_frame)
+            right_qc = SnowflakeQueryCompiler(right_internal_frame)
+
         return left_qc, right_qc
 
     def apply(

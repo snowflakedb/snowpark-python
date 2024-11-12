@@ -9,8 +9,6 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.align_utils import _select_columns
-from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equal_to_pandas,
@@ -32,6 +30,65 @@ def test_align_basic(join, axis, join_count):
         native_other_df = native_pd.DataFrame(
             [[10, 20, 30, 40], [60, 70, 80, 90], [600, 700, 800, 900]],
             columns=["A", "B", "C", "D"],
+        )
+        native_left, native_right = native_df.align(
+            native_other_df,
+            join=join,
+            axis=axis,
+            limit=None,
+            fill_axis=0,
+            broadcast_axis=None,
+        )
+        df = pd.DataFrame(native_df)
+        other_df = pd.DataFrame(native_other_df)
+        left, right = df.align(other_df, join=join, axis=axis)
+        assert_frame_equal(left, native_left)
+        assert_frame_equal(right, native_right)
+
+
+@pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
+@pytest.mark.parametrize(
+    "axis, join_count",
+    [(0, 2), (1, 0), (None, 2)],
+)
+def test_align_duplicate_idx(join, axis, join_count):
+    with SqlCounter(query_count=2, join_count=join_count):
+        native_df = native_pd.DataFrame(
+            [
+                [1, 2, 3],
+                [
+                    6,
+                    7,
+                    8,
+                ],
+                [
+                    9,
+                    10,
+                    11,
+                ],
+                [
+                    4,
+                    6,
+                    2,
+                ],
+            ],
+            columns=["A", "B", "C"],
+            index=["one", "two", "three", "two"],
+        )
+        native_other_df = native_pd.DataFrame(
+            [
+                [
+                    10,
+                    20,
+                    30,
+                    40,
+                    50,
+                ],
+                [60, 70, 80, 90, 100],
+                [60, 70, 80, 90, 100],
+            ],
+            columns=["A", "B", "B", "C", "D"],
+            index=["one", "two", "two"],
         )
         native_left, native_right = native_df.align(
             native_other_df,
@@ -170,6 +227,40 @@ def test_align_basic_with_all_null_row(join, axis, join_count):
         assert_frame_equal(right, native_right)
 
 
+@pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
+@pytest.mark.parametrize(
+    "axis, join_count",
+    [(0, 2), (1, 0), (None, 2)],
+)
+def test_align_overlapping_duplicate_cols(join, axis, join_count):
+    with SqlCounter(query_count=2, join_count=join_count):
+        native_df = native_pd.DataFrame(
+            [[1, 2, 3, 4, 4, 5, 6], [6, 7, 8, 7, 9, 10, 11]],
+            columns=["D", "B", "C", "A", "B", "A", "E"],
+        )
+        native_other_df = native_pd.DataFrame(
+            [
+                [10, 20, 30, 40, 50, 45, 55],
+                [60, 70, 80, 90, 100, 320, 444],
+                [600, 700, 800, 900, 1000, 750, 999],
+            ],
+            columns=["A", "B", "B", "C", "D", "A", "A"],
+        )
+        native_left, native_right = native_df.align(
+            native_other_df,
+            join=join,
+            axis=axis,
+            limit=None,
+            fill_axis=0,
+            broadcast_axis=None,
+        )
+        df = pd.DataFrame(native_df)
+        other_df = pd.DataFrame(native_other_df)
+        left, right = df.align(other_df, join=join, axis=axis)
+        assert_frame_equal(left, native_left)
+        assert_frame_equal(right, native_right)
+
+
 @sql_count_checker(query_count=2, join_count=2)
 @pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
 def test_align_frame_with_series(join):
@@ -227,7 +318,8 @@ def test_align_frame_fill_value_negative():
 
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize("level", [0, 1])
-def test_level_negative(level):
+@pytest.mark.parametrize("axis", [0, 1, None])
+def test_level_negative(level, axis):
     df = pd.DataFrame(
         [[1], [2]],
         index=pd.MultiIndex.from_tuples(
@@ -244,11 +336,12 @@ def test_level_negative(level):
         NotImplementedError,
         match="Snowpark pandas 'align' method doesn't support 'level'",
     ):
-        left, right = df.align(other_df, join="outer", axis=0, level=0)
+        left, right = df.align(other_df, join="outer", axis=axis, level=0)
 
 
 @sql_count_checker(query_count=0)
-def test_multiindex_negative():
+@pytest.mark.parametrize("axis", [0, 1, None])
+def test_multiindex_negative(axis):
     df = pd.DataFrame(
         [[1], [2]],
         index=pd.MultiIndex.from_tuples(
@@ -265,7 +358,7 @@ def test_multiindex_negative():
         NotImplementedError,
         match="Snowpark pandas doesn't support `align` with MultiIndex",
     ):
-        left, right = df.align(other_df, join="outer", axis=0)
+        left, right = df.align(other_df, join="outer", axis=axis)
 
 
 @sql_count_checker(query_count=0)
@@ -325,12 +418,3 @@ def test_align_frame_deprecated_negative():
         match="The 'broadcast_axis' keyword in DataFrame.align is deprecated and will be removed in a future version.",
     ):
         left, right = df.align(other_df, join="outer", broadcast_axis=0)
-
-
-@sql_count_checker(query_count=0)
-def test_align_util_select_columns():
-    snow_df = pd.DataFrame({"A": [0, 1, 0, 1, 2], "B": [1, 2, 3, 4, 5]})
-    internal_frame: InternalFrame = snow_df._query_compiler._modin_frame
-    data_column_labels = ["A"]
-    frame1 = _select_columns(internal_frame, data_column_labels)
-    assert frame1.data_column_pandas_labels == data_column_labels
