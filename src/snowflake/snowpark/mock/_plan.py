@@ -17,6 +17,7 @@ from functools import cached_property, partial, reduce
 from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
+from snowflake.snowpark._internal.analyzer.table_function import TableFunctionJoin, TableFunctionExpression
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
     InsertMergeExpression,
@@ -1618,7 +1619,19 @@ def execute_mock_plan(
         }
 
         return result
-
+    elif isinstance(source_plan, TableFunctionJoin):
+        from_df = execute_mock_plan(source_plan.children[0], expr_to_alias)
+        null_rows_idxs_map = {}
+        result = calculate_expression(source_plan.table_function, from_df, analyzer, expr_to_alias)
+        data = [result]
+        sf_types = [result.sf_type]
+        df = pd.concat(data, axis=1)
+        result_df = TableEmulator(
+            data=df,
+            sf_types={k: v for k, v in zip(df.columns, sf_types)},
+            sf_types_by_col_index={i: v for i, v in enumerate(sf_types)},
+        )
+        return result_df
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
         internal_feature_name=type(source_plan).__name__,
@@ -1706,6 +1719,8 @@ def calculate_expression(
             raise SnowparkLocalTestingException(f"invalid identifier {exp.name}")
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
+    if isinstance(exp, TableFunctionExpression):
+        exp = FunctionExpression(exp.func_name, list(exp.args.values()), False, exp.api_call_source, is_data_generator=True)
     if isinstance(exp, FunctionExpression):
         return handle_function_expression(exp, input_data, analyzer, expr_to_alias)
     if isinstance(exp, ListAgg):
