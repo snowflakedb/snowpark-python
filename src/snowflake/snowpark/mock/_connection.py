@@ -704,7 +704,7 @@ class MockServerConnection:
             rows = [rows] if to_iter else rows
 
         # Notify query listeners.
-        self.notify_mock_query_record_listener(kwargs)
+        self.notify_mock_query_record_listener(**kwargs)
 
         return iter(rows) if to_iter else rows
 
