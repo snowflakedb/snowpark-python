@@ -3500,12 +3500,14 @@ class DataFrame:
                 from becoming stale.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
                 - external_volume: specifies the identifier for the external volume where
-                    the Iceberg table stores its metadata files and data in Parquet format
-                - catalog: specifies either Snowflake or a catalog integration to use for this table
-                - base_location: the base directory that snowflake can write iceberg metadata and files to
-                - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
-                - storage_serialization_policy: specifies the storage serialization policy for the table
+                  the Iceberg table stores its metadata files and data in Parquet format.
+                - catalog: specifies either Snowflake or a catalog integration to use for this table.
+                - base_location: the base directory that snowflake can write iceberg metadata and files to.
+                - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
+                - storage_serialization_policy: specifies the storage serialization policy for the table.
+
 
         Note:
             See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
