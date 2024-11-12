@@ -28,12 +28,11 @@ class QueryRecord(NamedTuple):
 
 class QueryListener:
     @abstractmethod
-    def _notify(self, query_record: QueryRecord, *args, **kwargs) -> None:
+    def _notify(self, query_record: QueryRecord, **kwargs) -> None:
         """
         notify query listener of a query event
         Args:
             query_record: record of the query to notify the listener of
-            *args: optional arguments
             **kwargs: optional keyword arguments
         Returns:
             None
@@ -65,7 +64,7 @@ class QueryHistory(QueryListener):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.session._conn.remove_query_listener(self)
 
-    def _notify(self, query_record: QueryRecord, *args, **kwargs) -> None:
+    def _notify(self, query_record: QueryRecord, **kwargs) -> None:
         self._queries.append(query_record)
 
     @property
@@ -97,7 +96,7 @@ class AstListener(QueryListener):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.session._conn.remove_query_listener(self)
 
-    def _notify(self, query_record: QueryRecord, *args, **kwargs) -> None:
+    def _notify(self, query_record: QueryRecord, **kwargs) -> None:
         if "dataframeAst" in kwargs:
             self._ast_batches.append(kwargs["dataframeAst"])
 

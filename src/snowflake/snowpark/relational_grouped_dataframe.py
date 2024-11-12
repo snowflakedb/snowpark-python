@@ -108,29 +108,33 @@ class _PivotType(_GroupType):
 
 
 class GroupingSets:
-    """Creates a :class:`GroupingSets` object from a list of column/expression sets that you pass
-    to :meth:`DataFrame.group_by_grouping_sets`. See :meth:`DataFrame.group_by_grouping_sets` for
-    examples of how to use this class with a :class:`DataFrame`. See
-    `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_
-    for its counterpart in SQL (several examples are shown below).
+    @publicapi
+    def __init__(
+        self, *sets: Union[Column, List[Column]], _emit_ast: bool = True
+    ) -> None:
+        """Creates a :class:`GroupingSets` object from a list of column/expression sets that you pass
+        to :meth:`DataFrame.group_by_grouping_sets`. See :meth:`DataFrame.group_by_grouping_sets` for
+        examples of how to use this class with a :class:`DataFrame`. See
+        `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_
+        for its counterpart in SQL (several examples are shown below).
 
-    =============================================================  ==================================
-    Python interface                                               SQL interface
-    =============================================================  ==================================
-    ``GroupingSets([col("a")], [col("b")])``                       ``GROUPING SETS ((a), (b))``
-    ``GroupingSets([col("a") , col("b")], [col("c"), col("d")])``  ``GROUPING SETS ((a, b), (c, d))``
-    ``GroupingSets([col("a"), col("b")])``                         ``GROUPING SETS ((a, b))``
-    ``GroupingSets(col("a"), col("b"))``                           ``GROUPING SETS ((a, b))``
-    =============================================================  ==================================
-    """
-
-    def __init__(self, *sets: Union[Column, List[Column]]) -> None:
-        self._ast = with_src_position(proto.SpGroupingSets())
-        set_list, self._ast.sets.variadic = parse_positional_args_to_list_variadic(
-            *sets
-        )
-        for s in set_list:
-            build_expr_from_python_val(self._ast.sets.args.add(), s)
+        =============================================================  ==================================
+        Python interface                                               SQL interface
+        =============================================================  ==================================
+        ``GroupingSets([col("a")], [col("b")])``                       ``GROUPING SETS ((a), (b))``
+        ``GroupingSets([col("a") , col("b")], [col("c"), col("d")])``  ``GROUPING SETS ((a, b), (c, d))``
+        ``GroupingSets([col("a"), col("b")])``                         ``GROUPING SETS ((a, b))``
+        ``GroupingSets(col("a"), col("b"))``                           ``GROUPING SETS ((a, b))``
+        =============================================================  ==================================
+        """
+        self._ast = None
+        if _emit_ast:
+            self._ast = with_src_position(proto.SpGroupingSets())
+            set_list, self._ast.sets.variadic = parse_positional_args_to_list_variadic(
+                *sets
+            )
+            for s in set_list:
+                build_expr_from_python_val(self._ast.sets.args.add(), s)
 
         prepared_sets = parse_positional_args_to_list(*sets)
         prepared_sets = (
@@ -156,7 +160,7 @@ class RelationalGroupedDataFrame:
         group_type: _GroupType,
         _ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
-        self._df = df
+        self._dataframe = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type
         self._df_api_call = None
@@ -195,19 +199,19 @@ class RelationalGroupedDataFrame:
             group_plan = Aggregate(
                 self._grouping_exprs,
                 aliased_agg,
-                self._df._select_statement or self._df._plan,
+                self._dataframe._select_statement or self._dataframe._plan,
             )
         elif isinstance(self._group_type, _RollupType):
             group_plan = Aggregate(
                 [Rollup(self._grouping_exprs)],
                 aliased_agg,
-                self._df._select_statement or self._df._plan,
+                self._dataframe._select_statement or self._dataframe._plan,
             )
         elif isinstance(self._group_type, _CubeType):
             group_plan = Aggregate(
                 [Cube(self._grouping_exprs)],
                 aliased_agg,
-                self._df._select_statement or self._df._plan,
+                self._dataframe._select_statement or self._dataframe._plan,
             )
         elif isinstance(self._group_type, _PivotType):
             if len(agg_exprs) != 1:
@@ -218,21 +222,24 @@ class RelationalGroupedDataFrame:
                 self._group_type.values,
                 agg_exprs,
                 self._group_type.default_on_null,
-                self._df._select_statement or self._df._plan,
+                self._dataframe._select_statement or self._dataframe._plan,
             )
         else:  # pragma: no cover
             raise TypeError(f"Wrong group by type {self._group_type}")
 
-        if self._df._select_statement:
-            group_plan = self._df._session._analyzer.create_select_statement(
-                from_=self._df._session._analyzer.create_select_snowflake_plan(
-                    group_plan, analyzer=self._df._session._analyzer
+        if self._dataframe._select_statement:
+            group_plan = self._dataframe._session._analyzer.create_select_statement(
+                from_=self._dataframe._session._analyzer.create_select_snowflake_plan(
+                    group_plan, analyzer=self._dataframe._session._analyzer
                 ),
-                analyzer=self._df._session._analyzer,
+                analyzer=self._dataframe._session._analyzer,
             )
 
         return DataFrame(
-            self._df._session, group_plan, _ast_stmt=_ast_stmt, _emit_ast=_emit_ast
+            self._dataframe._session,
+            group_plan,
+            _ast_stmt=_ast_stmt,
+            _emit_ast=_emit_ast,
         )
 
     @relational_group_df_api_usage
@@ -275,7 +282,7 @@ class RelationalGroupedDataFrame:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._df._session._ast_batch.assign()
+                stmt = self._dataframe._session._ast_batch.assign()
                 ast = with_src_position(
                     stmt.expr.sp_relational_grouped_dataframe_agg, stmt
                 )
@@ -400,14 +407,14 @@ class RelationalGroupedDataFrame:
         # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
         # function so the inferred input types are the types of each column in the dataframe.
         kwargs["input_types"] = kwargs.get(
-            "input_types", [field.datatype for field in self._df.schema.fields]
+            "input_types", [field.datatype for field in self._dataframe.schema.fields]
         )
 
         kwargs["input_names"] = kwargs.get(
-            "input_names", [field.name for field in self._df.schema.fields]
+            "input_names", [field.name for field in self._dataframe.schema.fields]
         )
 
-        _apply_in_pandas_udtf = self._df._session.udtf.register(
+        _apply_in_pandas_udtf = self._dataframe._session.udtf.register(
             _ApplyInPandas,
             output_schema=output_schema,
             _emit_ast=_emit_ast,
@@ -415,22 +422,24 @@ class RelationalGroupedDataFrame:
         )
         partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
 
-        df = self._df.select(
-            _apply_in_pandas_udtf(*self._df.columns).over(
+        df = self._dataframe.select(
+            _apply_in_pandas_udtf(*self._dataframe.columns).over(
                 partition_by=partition_by, _emit_ast=False
             ),
             _emit_ast=False,
         )
 
         if _emit_ast:
-            stmt = self._df._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
                 stmt.expr.sp_relational_grouped_dataframe_apply_in_pandas, stmt
             )
             ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
                 self._ast_id
             )
-            build_proto_from_callable(ast.func, func, self._df._session._ast_batch)
+            build_proto_from_callable(
+                ast.func, func, self._dataframe._session._ast_batch
+            )
             build_proto_from_struct_type(output_schema, ast.output_schema)
             for k, v in kwargs.items():
                 entry = ast.kwargs.add()
@@ -522,8 +531,13 @@ class RelationalGroupedDataFrame:
             <BLANKLINE>
         """
 
-        self._df, pc, pivot_values, pivot_default_on_null = prepare_pivot_arguments(
-            self._df,
+        (
+            self._dataframe,
+            pc,
+            pivot_values,
+            pivot_default_on_null,
+        ) = prepare_pivot_arguments(
+            self._dataframe,
             "RelationalGroupedDataFrame.pivot",
             pivot_col,
             values,
@@ -534,7 +548,7 @@ class RelationalGroupedDataFrame:
 
         # special case: This is an internal state modifying operation.
         if _emit_ast:
-            stmt = self._df._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
                 stmt.expr.sp_relational_grouped_dataframe_pivot, stmt
             )
@@ -599,7 +613,7 @@ class RelationalGroupedDataFrame:
 
         # TODO: count seems similar to mean, min, .... Can we unify implementation here?
         if _emit_ast:
-            stmt = self._df._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
                 stmt.expr.sp_relational_grouped_dataframe_builtin, stmt
             )
@@ -632,7 +646,7 @@ class RelationalGroupedDataFrame:
         df = self._to_df(agg_exprs)
 
         if _emit_ast:
-            stmt = self._df._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.assign()
             ast = with_src_position(
                 stmt.expr.sp_relational_grouped_dataframe_builtin, stmt
             )
