@@ -9,7 +9,7 @@ import json
 import re
 import sys
 from enum import Enum
-from typing import Generic, List, Optional, Type, TypeVar, Union
+from typing import Generic, List, Optional, Type, TypeVar, Union, Dict, Any
 
 import snowflake.snowpark._internal.analyzer.expression as expression
 from snowflake.connector.options import installed_pandas, pandas
@@ -43,10 +43,10 @@ class DataType:
         return True
 
     @classmethod
-    def type_name(cls):
+    def type_name(cls) -> str:
         return cls.__name__[:-4].lower()
 
-    def simple_string(self):
+    def simple_string(self) -> str:
         return self.type_name()
 
     def json_value(self):
@@ -54,6 +54,10 @@ class DataType:
 
     def json(self):
         return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
+
+    typeName = type_name
+    simpleString = simple_string
+    jsonValue = json_value
 
 
 # Data types
@@ -163,7 +167,11 @@ class TimestampType(_AtomicType):
 
     def simple_string(self):
         tzinfo = self.tz if self.tz != TimestampTimeZone.DEFAULT else ""
-        return f"{self.type_name()}{tzinfo}"
+        return f"{self.type_name()}_{tzinfo}" if tzinfo != "" else self.type_name()
+
+    def json_value(self):
+        tzinfo = self.tz if self.tz != TimestampTimeZone.DEFAULT else ""
+        return f"{self.type_name()}_{tzinfo}" if tzinfo != "" else self.type_name()
 
 
 class TimeType(_AtomicType):
@@ -184,25 +192,29 @@ class _FractionalType(_NumericType):
 class ByteType(_IntegralType):
     """Byte data type. This maps to the TINYINT data type in Snowflake."""
 
-    pass
+    def simple_string(self) -> str:
+        return "tinyint"
 
 
 class ShortType(_IntegralType):
     """Short integer data type. This maps to the SMALLINT data type in Snowflake."""
 
-    pass
+    def simple_string(self) -> str:
+        return "smallint"
 
 
 class IntegerType(_IntegralType):
     """Integer data type. This maps to the INT data type in Snowflake."""
 
-    pass
+    def simple_string(self) -> str:
+        return "int"
 
 
 class LongType(_IntegralType):
     """Long integer data type. This maps to the BIGINT data type in Snowflake."""
 
-    pass
+    def simple_string(self) -> str:
+        return "bigint"
 
 
 class FloatType(_FractionalType):
@@ -230,6 +242,12 @@ class DecimalType(_FractionalType):
     def __repr__(self) -> str:
         return f"DecimalType({self.precision}, {self.scale})"
 
+    def simple_string(self) -> str:
+        return f"decimal({self.precision},{self.scale})"
+
+    def json_value(self) -> str:
+        return f"decimal({self.precision},{self.scale})"
+
 
 class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
@@ -253,7 +271,7 @@ class ArrayType(DataType):
     def simple_string(self):
         return f"array<{self.element_type.simple_string()}>"
 
-    def json_value(self):
+    def json_value(self) -> Dict[str, Any]:
         return {
             "type": self.type_name(),
             "elementType": self.element_type.json_value(),
@@ -285,7 +303,7 @@ class MapType(DataType):
     def simple_string(self):
         return f"map<{self.key_type.simple_string()},{self.value_type.simple_string()}>"
 
-    def json_value(self):
+    def json_value(self) -> Dict[str, Any]:
         return {
             "type": self.type_name(),
             "keyType": self.key_type.json_value(),
@@ -391,6 +409,7 @@ class StructField:
         column_identifier: Union[ColumnIdentifier, str],
         datatype: DataType,
         nullable: bool = True,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.column_identifier = (
             ColumnIdentifier(column_identifier)
@@ -399,6 +418,7 @@ class StructField:
         )
         self.datatype = datatype
         self.nullable = nullable
+        self.metadata = metadata or {}
 
     @property
     def name(self) -> str:
@@ -414,6 +434,29 @@ class StructField:
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+    def simple_string(self) -> str:
+        return f"{self.name}:{self.datatype.simpleString()}"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "type": self.datatype.json_value(),
+            "nullable": self.nullable,
+            "metadata": self.metadata,
+        }
+
+    def type_name(self) -> str:
+        raise TypeError(
+            "StructField does not have typeName. Use typeName on its type explicitly instead"
+        )
+
+    def json(self):
+        return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
+
+    simpleString = simple_string
+    jsonValue = json_value
+    typeName = type_name
 
 
 class StructType(DataType):
@@ -485,6 +528,12 @@ class StructType(DataType):
     def names(self) -> List[str]:
         """Returns the list of names of the :class:`StructField`"""
         return [f.name for f in self.fields]
+
+    def simple_string(self) -> str:
+        return f"struct<{','.join(f.simpleString() for f in self)}>"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {"type": self.type_name(), "fields": [f.json_value() for f in self]}
 
 
 class VariantType(DataType):

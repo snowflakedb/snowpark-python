@@ -1070,7 +1070,7 @@ def test_datatype():
     assert tpe.json_value() == "boolean"
 
     tpe = ByteType()
-    assert tpe.simple_string() == "byte"
+    assert tpe.simple_string() == "tinyint"
     assert tpe.json() == '"byte"'
     assert tpe.type_name() == "byte"
     assert tpe.json_value() == "byte"
@@ -1081,11 +1081,11 @@ def test_datatype():
     assert tpe.type_name() == "date"
     assert tpe.json_value() == "date"
 
-    tpe = DecimalType()
-    assert tpe.simple_string() == "decimal"
-    assert tpe.json() == '"decimal"'
+    tpe = DecimalType(20, 10)
+    assert tpe.simple_string() == "decimal(20,10)"
+    assert tpe.json() == '"decimal(20,10)"'
     assert tpe.type_name() == "decimal"
-    assert tpe.json_value() == "decimal"
+    assert tpe.json_value() == "decimal(20,10)"
 
     tpe = DoubleType()
     assert tpe.simple_string() == "double"
@@ -1100,19 +1100,19 @@ def test_datatype():
     assert tpe.json_value() == "float"
 
     tpe = IntegerType()
-    assert tpe.simple_string() == "integer"
+    assert tpe.simple_string() == "int"
     assert tpe.json() == '"integer"'
     assert tpe.type_name() == "integer"
     assert tpe.json_value() == "integer"
 
     tpe = LongType()
-    assert tpe.simple_string() == "long"
+    assert tpe.simple_string() == "bigint"
     assert tpe.json() == '"long"'
     assert tpe.type_name() == "long"
     assert tpe.json_value() == "long"
 
     tpe = ShortType()
-    assert tpe.simple_string() == "short"
+    assert tpe.simple_string() == "smallint"
     assert tpe.json() == '"short"'
     assert tpe.type_name() == "short"
     assert tpe.json_value() == "short"
@@ -1123,11 +1123,35 @@ def test_datatype():
     assert tpe.type_name() == "string"
     assert tpe.json_value() == "string"
 
-    tpe = StructType()
-    assert tpe.simple_string() == "struct"
-    assert tpe.json() == '"struct"'
+    tpe = StructType([StructField("a", StringType()), StructField("b", IntegerType())])
+    assert tpe.simple_string() == "struct<A:string,B:integer>"
+    assert (
+        tpe.json()
+        == '{"fields":[{"metadata":{},"name":"A","nullable":true,"type":"string"},{"metadata":{},"name":"B","nullable":true,"type":"integer"}],"type":"struct"}'
+    )
     assert tpe.type_name() == "struct"
-    assert tpe.json_value() == "struct"
+    assert tpe.json_value() == {
+        "type": "struct",
+        "fields": [
+            {"name": "A", "type": "string", "nullable": True, "metadata": {}},
+            {"name": "B", "type": "integer", "nullable": True, "metadata": {}},
+        ],
+    }
+
+    tpe = StructField("AA", StringType())
+    assert tpe.simple_string() == "AA:string"
+    assert tpe.json() == '{"metadata":{},"name":"AA","nullable":true,"type":"string"}'
+    with pytest.raises(
+        TypeError,
+        match="StructField does not have typeName. Use typeName on its type explicitly instead",
+    ):
+        tpe.type_name()
+    assert tpe.json_value() == {
+        "name": "AA",
+        "type": "string",
+        "nullable": True,
+        "metadata": {},
+    }
 
     tpe = TimestampType()
     assert tpe.simple_string() == "timestamp"
@@ -1136,22 +1160,22 @@ def test_datatype():
     assert tpe.json_value() == "timestamp"
 
     tpe = TimestampType(TimestampTimeZone.TZ)
-    assert tpe.simple_string() == "timestamptz"
-    assert tpe.json() == '"timestamp"'
+    assert tpe.simple_string() == "timestamp_tz"
+    assert tpe.json() == '"timestamp_tz"'
     assert tpe.type_name() == "timestamp"
-    assert tpe.json_value() == "timestamp"
+    assert tpe.json_value() == "timestamp_tz"
 
     tpe = TimestampType(TimestampTimeZone.LTZ)
-    assert tpe.simple_string() == "timestampltz"
-    assert tpe.json() == '"timestamp"'
+    assert tpe.simple_string() == "timestamp_ltz"
+    assert tpe.json() == '"timestamp_ltz"'
     assert tpe.type_name() == "timestamp"
-    assert tpe.json_value() == "timestamp"
+    assert tpe.json_value() == "timestamp_ltz"
 
     tpe = TimestampType(TimestampTimeZone.NTZ)
-    assert tpe.simple_string() == "timestampntz"
-    assert tpe.json() == '"timestamp"'
+    assert tpe.simple_string() == "timestamp_ntz"
+    assert tpe.json() == '"timestamp_ntz"'
     assert tpe.type_name() == "timestamp"
-    assert tpe.json_value() == "timestamp"
+    assert tpe.json_value() == "timestamp_ntz"
 
     tpe = TimeType()
     assert tpe.simple_string() == "time"
@@ -1160,7 +1184,7 @@ def test_datatype():
     assert tpe.json_value() == "time"
 
     tpe = ArrayType(IntegerType())
-    assert tpe.simple_string() == "array<integer>"
+    assert tpe.simple_string() == "array<int>"
     assert tpe.json() == '{"containsNull":true,"elementType":"integer","type":"array"}'
     assert tpe.type_name() == "array"
     assert tpe.json_value() == {
@@ -1170,7 +1194,7 @@ def test_datatype():
     }
 
     tpe = MapType(IntegerType(), StringType())
-    assert tpe.simple_string() == "map<integer,string>"
+    assert tpe.simple_string() == "map<int,string>"
     assert (
         tpe.json()
         == '{"keyType":"integer","type":"map","valueContainsNull":true,"valueType":"string"}'
