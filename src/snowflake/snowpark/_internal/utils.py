@@ -1076,6 +1076,55 @@ def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
         )
 
 
+def check_imports_type(
+    imports: Optional[List[Union[str, Tuple[str, str]]]], name: str = ""
+) -> None:
+    """Check that import parameter adheres to type hint given, if not raises TypeError."""
+    if not (
+        imports is None
+        or (
+            isinstance(imports, list)
+            and all(
+                isinstance(imp, str)
+                or (
+                    isinstance(imp, tuple)
+                    and len(imp) == 2
+                    and isinstance(imp[0], str)
+                    and isinstance(imp[1], str)
+                )
+                for imp in imports
+            )
+        )
+    ):
+        raise TypeError(
+            f"{name} import can only be a file path (str) or a tuple of the file path (str) and the import path (str)"
+        )
+
+
+def check_output_schema_type(  # noqa: F821
+    output_schema: Union[  # noqa: F821
+        "StructType", Iterable[str], "PandasDataFrameType"  # noqa: F821
+    ]  # noqa: F821
+) -> None:
+    """Helper function to ensure output_schema adheres to type hint."""
+
+    from snowflake.snowpark.types import StructType
+
+    if installed_pandas:
+        from snowflake.snowpark.types import PandasDataFrameType
+    else:
+        PandasDataFrameType = int  # dummy type.
+
+    if not (
+        isinstance(output_schema, StructType)
+        or (installed_pandas and isinstance(output_schema, PandasDataFrameType))
+        or isinstance(output_schema, Iterable)
+    ):
+        raise ValueError(
+            f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
+        )
+
+
 def _get_options(
     options: Dict[str, Any], allowed_options: Set[str]
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
