@@ -19,7 +19,7 @@ import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
 
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     ClearTempTables,
     base64_lines_to_request,
     base64_lines_to_textproto,
@@ -116,8 +116,8 @@ import snowflake.snowpark.functions as functions
 from snowflake.snowpark.functions import *
 from snowflake.snowpark.types import *
 from snowflake.snowpark import Table
-from snowflake.snowpark._internal.ast import AstBatch
-import snowflake.snowpark._internal.ast_utils as ast_utils
+from snowflake.snowpark._internal.ast.batch import AstBatch
+import snowflake.snowpark._internal.ast.utils as ast_utils
 
 import uuid
 

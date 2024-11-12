@@ -184,7 +184,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     LastValue,
     Lead,
 )
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_builtin_fn_apply,
     build_call_table_function_apply,
     build_expr_from_python_val,
