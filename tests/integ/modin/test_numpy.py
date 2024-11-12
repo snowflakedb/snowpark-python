@@ -57,6 +57,63 @@ def test_np_may_share_memory():
         assert not np.may_share_memory(snow_df_A, native_df_A)
 
 
+def test_full_like():
+    data = {
+        "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],
+        "B": [True, False, True, True, False, True, False, False, False],
+        "C": ["a", "b", "c", "d", "a", "b", "c", "d", "e"],
+    }
+    snow_df = pd.DataFrame(data)
+    pandas_df = native_pd.DataFrame(data)
+
+    with SqlCounter(query_count=2):
+        snow_result = np.full_like(snow_df, 1234)
+        pandas_result = np.full_like(pandas_df, 1234)
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        snow_result = np.full_like(snow_df, 1234, shape=(5, 3))
+        pandas_result = np.full_like(pandas_df, 1234, shape=(5, 3))
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=2):
+        snow_result = np.full_like(snow_df["A"], 1234)
+        pandas_result = np.full_like(pandas_df["A"], 1234)
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        snow_result = np.full_like(snow_df, "numpy is the best")
+        pandas_result = np.full_like(pandas_df, "numpy is the best")
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        pandas_result = np.full_like(pandas_df, fill_value=4, shape=())
+        snow_result = np.full_like(snow_df, fill_value=4, shape=())
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        snow_result = np.full_like(snow_df, fill_value=4, shape=4)
+        pandas_result = np.full_like(pandas_df, fill_value=4, shape=4)
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with SqlCounter(query_count=1):
+        snow_result = np.full_like(snow_df, fill_value=4, shape=(4,))
+        pandas_result = np.full_like(pandas_df, fill_value=4, shape=(4,))
+        assert_array_equal(np.array(snow_result), np.array(pandas_result))
+
+    with pytest.raises(TypeError):
+        np.full_like(snow_df, 1234, shape=[])
+
+    with pytest.raises(TypeError):
+        np.full_like(snow_df, 1234, subok=False)
+
+    with pytest.raises(TypeError):
+        np.full_like(snow_df, 1234, order="D")
+
+    with pytest.raises(TypeError):
+        np.full_like(snow_df, 1234, dtype=int)
+
+
 def test_logical_operators():
     data = {
         "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],
@@ -199,7 +256,7 @@ def test_np_where_notimplemented():
             )
 
 
-@sql_count_checker(query_count=5, join_count=4)
+@sql_count_checker(query_count=4, join_count=1)
 def test_scalar():
     pdf_scalar = native_pd.DataFrame([[99, 99], [99, 99]])
     sdf_scalar = pd.DataFrame([[99, 99], [99, 99]])
@@ -258,10 +315,11 @@ def test_different_inputs(cond, x, y):
         assert_array_equal(sp_result, np_orig_result)
 
 
-@sql_count_checker(query_count=2, join_count=2)
-def test_broadcast_scalar_x_df():
-    input_df = native_pd.DataFrame([[False, True], [False, True]])
-    input_df2 = native_pd.DataFrame([[1, 0], [0, 1]])
+@sql_count_checker(query_count=1, join_count=1)
+@pytest.mark.parametrize("column_names", [None, ["A", "B"]])
+def test_broadcast_scalar_x_df(column_names):
+    input_df = native_pd.DataFrame([[False, True], [False, True]], columns=column_names)
+    input_df2 = native_pd.DataFrame([[1, 0], [0, 1]], columns=column_names)
     snow_df = pd.DataFrame(input_df)
     snow_df2 = pd.DataFrame(input_df2)
     snow_result = np.where(snow_df, -99, snow_df2)
@@ -269,7 +327,7 @@ def test_broadcast_scalar_x_df():
     assert_array_equal(snow_result, np_result)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_broadcast_scalar_x_ser():
     input_ser = native_pd.Series([False, True])
     input_ser2 = native_pd.Series([1, 0])

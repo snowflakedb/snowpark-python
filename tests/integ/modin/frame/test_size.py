@@ -59,7 +59,8 @@ def test_dataframe_size_index_empty(empty_index_native_pandas_dataframe):
 
 
 @sql_count_checker(query_count=1)
-def test_dataframe_agg_size_axis_1():
+@pytest.mark.parametrize("func", ["size", len])
+def test_dataframe_agg_size_axis_1(func):
     native_df = native_pd.DataFrame(
         [[1, 2, np.nan], [4, 5, np.nan]], columns=list("ABC")
     )
@@ -67,6 +68,6 @@ def test_dataframe_agg_size_axis_1():
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: df.agg(func="size", axis=1),
+        lambda df: df.agg(func=func, axis=1),
         test_attrs=False,  # native pandas does not propagate attrs for size, but snowpark pandas does
     )

@@ -15,6 +15,11 @@ from unittest.mock import patch
 
 import pytest
 
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
+    PlanNodeCategory,
+    PlanState,
+)
+from snowflake.snowpark._internal.compiler.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION,
     Session,
@@ -39,7 +44,7 @@ try:
 except ImportError:
     is_dateutil_available = False
 
-from snowflake.snowpark.functions import lit
+from snowflake.snowpark.functions import col, lit, sum_distinct
 from snowflake.snowpark.row import Row
 from tests.utils import (
     IS_IN_STORED_PROC,
@@ -215,7 +220,7 @@ def test_action_ids_are_unique(threadsafe_session):
 @pytest.mark.parametrize("use_stream", [True, False])
 def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_stream):
     stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
-    stage_with_prefix = f"@{threadsafe_temp_stage}/{stage_prefix}/"
+    stage_with_prefix = f"@{threadsafe_temp_stage}/{stage_prefix}"
     test_files = TestFiles(resources_path)
 
     resources_files = [
@@ -238,8 +243,11 @@ def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_
     def put_and_get_file(upload_file_path, download_dir):
         if use_stream:
             with open(upload_file_path, "rb") as fd:
-                results = threadsafe_session.file.put_stream(
-                    fd, stage_with_prefix, auto_compress=False, overwrite=False
+                stage_file_name = (
+                    f"{stage_with_prefix}/{os.path.basename(upload_file_path)}"
+                )
+                result = threadsafe_session.file.put_stream(
+                    fd, stage_file_name, auto_compress=False, overwrite=False
                 )
         else:
             results = threadsafe_session.file.put(
@@ -248,13 +256,14 @@ def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_
                 auto_compress=False,
                 overwrite=False,
             )
+            assert len(results) == 1
+            result = results[0]
         # assert file is uploaded successfully
-        assert len(results) == 1
-        assert results[0].status == "UPLOADED"
+        assert result.status == "UPLOADED"
 
-        stage_file_name = f"{stage_with_prefix}{os.path.basename(upload_file_path)}"
+        stage_file_name = f"{stage_with_prefix}/{result.target}"
         if use_stream:
-            fd = threadsafe_session.file.get_stream(stage_file_name, download_dir)
+            fd = threadsafe_session.file.get_stream(stage_file_name)
             with open(upload_file_path, "rb") as upload_fd:
                 assert get_file_hash(upload_fd) == get_file_hash(fd)
 
@@ -263,7 +272,7 @@ def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_
             # assert file is downloaded successfully
             assert len(results) == 1
             assert results[0].status == "DOWNLOADED"
-            download_file_path = results[0].file
+            download_file_path = os.path.join(download_dir, results[0].file)
             # assert two files are identical
             with open(upload_file_path, "rb") as upload_fd, open(
                 download_file_path, "rb"
@@ -272,8 +281,13 @@ def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_
 
     with tempfile.TemporaryDirectory() as download_dir:
         with ThreadPoolExecutor(max_workers=10) as executor:
-            for file_path in resources_files:
+            futures = [
                 executor.submit(put_and_get_file, file_path, download_dir)
+                for file_path in resources_files
+            ]
+
+            for future in as_completed(futures):
+                future.result()
 
         if not use_stream:
             # assert all files are downloaded
@@ -666,6 +680,110 @@ def test_concurrent_update_on_sensitive_configs(
 
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
+    reason="large query breakdown is not supported in local testing mode",
+    run=False,
+)
+def test_large_query_breakdown_with_cte(threadsafe_session):
+    bounds = (300, 600) if threadsafe_session.sql_simplifier_enabled else (60, 90)
+    try:
+        original_query_compilation_stage_enabled = (
+            threadsafe_session._query_compilation_stage_enabled
+        )
+        original_cte_optimization_enabled = threadsafe_session._cte_optimization_enabled
+        original_large_query_breakdown_enabled = (
+            threadsafe_session._large_query_breakdown_enabled
+        )
+        original_complexity_bounds = (
+            threadsafe_session._large_query_breakdown_complexity_bounds
+        )
+        threadsafe_session._query_compilation_stage_enabled = True
+        threadsafe_session._cte_optimization_enabled = True
+        threadsafe_session._large_query_breakdown_enabled = True
+        threadsafe_session._large_query_breakdown_complexity_bounds = bounds
+
+        df0 = threadsafe_session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
+        df1 = threadsafe_session.sql("select 2 as b, 3 as c")
+        df_join = df0.join(df1, on=["b"], how="inner")
+
+        # this will trigger repeated subquery elimination
+        df2 = df_join.filter(col("b") == 2).union_all(df_join)
+        df3 = threadsafe_session.sql("select 3 as b, 4 as c").with_column(
+            "a", col("b") + 1
+        )
+        for i in range(7):
+            # this will increase the complexity of the query and trigger large query breakdown
+            df2 = df2.with_column("a", col("a") + i + col("a"))
+            df3 = df3.with_column("b", col("b") + i + col("b"))
+
+        df2 = df2.group_by("a").agg(sum_distinct(col("b")).alias("b"))
+        df3 = df3.group_by("b").agg(sum_distinct(col("a")).alias("a"))
+
+        df4 = df2.union_all(df3)
+
+        def apply_filter_and_collect(df, thread_id):
+            final_df = df.filter(col("a") > thread_id * 5)
+            queries = final_df.queries
+            result = final_df.collect()
+            return (queries, result)
+
+        results = []
+        with threadsafe_session.query_history() as history:
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [
+                    executor.submit(apply_filter_and_collect, df4, i) for i in range(10)
+                ]
+
+                for future in futures:
+                    results.append(future.result())
+
+        unique_temp_tables_created = set()
+        unique_ctes_created = set()
+        for query in history.queries:
+            query_text = query.sql_text
+            if query_text.startswith("CREATE  SCOPED TEMPORARY  TABLE"):
+                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query_text)
+                assert match is not None, query_text
+                table_name = match.group()
+                unique_temp_tables_created.add(table_name)
+            elif query_text.startswith("WITH SNOWPARK_TEMP_CTE_"):
+                match = re.search(r"SNOWPARK_TEMP_CTE_[\w]+", query_text)
+                assert match is not None, query_text
+                cte_name = match.group()
+                unique_ctes_created.add(cte_name)
+
+        assert len(unique_temp_tables_created) == 10, unique_temp_tables_created
+        assert len(unique_ctes_created) == 10, unique_ctes_created
+
+        threadsafe_session._query_compilation_stage_enabled = False
+        threadsafe_session._cte_optimization_enabled = False
+        for i, result in enumerate(results):
+            queries, optimized_collect = result
+            _, non_optimized_collect = apply_filter_and_collect(df4, i)
+            Utils.check_answer(optimized_collect, non_optimized_collect)
+
+            assert len(queries["queries"]) == 2
+            assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+            if threadsafe_session.sql_simplifier_enabled:
+                assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
+
+            assert len(queries["post_actions"]) == 1
+            assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+
+    finally:
+        threadsafe_session._query_compilation_stage_enabled = (
+            original_query_compilation_stage_enabled
+        )
+        threadsafe_session._cte_optimization_enabled = original_cte_optimization_enabled
+        threadsafe_session._large_query_breakdown_enabled = (
+            original_large_query_breakdown_enabled
+        )
+        threadsafe_session._large_query_breakdown_complexity_bounds = (
+            original_complexity_bounds
+        )
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not execute sql queries",
     run=False,
 )
@@ -797,3 +915,50 @@ def test_num_cursors_created(db_parameters, is_enabled, local_testing_mode):
         # otherwise, we will use the same cursor created by the main thread
         # thus creating 0 new cursors.
         assert mock_telemetry.call_count == (num_workers if is_enabled else 0)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not execute sql queries",
+    run=False,
+)
+@patch("snowflake.snowpark._internal.analyzer.snowflake_plan.find_duplicate_subtrees")
+def test_critical_lazy_evaluation_for_plan(
+    mock_find_duplicate_subtrees, threadsafe_session
+):
+    mock_find_duplicate_subtrees.side_effect = find_duplicate_subtrees
+
+    df = threadsafe_session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
+    for i in range(10):
+        df = df.with_column("a", col("a") + i + col("a"))
+    df = df.union_all(df)
+
+    def call_critical_lazy_methods(df_):
+        assert df_._plan.cumulative_node_complexity == {
+            PlanNodeCategory.FILTER: 2,
+            PlanNodeCategory.LITERAL: 22,
+            PlanNodeCategory.COLUMN: 64,
+            PlanNodeCategory.LOW_IMPACT: 42,
+            PlanNodeCategory.SET_OPERATION: 1,
+        }
+        assert df_._plan.plan_state == {
+            PlanState.PLAN_HEIGHT: 13,
+            PlanState.NUM_CTE_NODES: 1,
+            PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: 0,
+            PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: [2, 0, 0, 0, 0, 0, 0],
+        }
+        assert (
+            df_._select_statement.encoded_node_id_with_query
+            == "b04d566533_SelectStatement"
+        )
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = [executor.submit(call_critical_lazy_methods, df) for _ in range(10)]
+
+        for future in as_completed(futures):
+            future.result()
+
+    # SnowflakePlan.plan_state calls find_duplicate_subtrees. This should be
+    # called only once and the cached result should be used for the rest of
+    # the calls.
+    mock_find_duplicate_subtrees.assert_called_once()

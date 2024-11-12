@@ -40,6 +40,8 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
         ("count", {}, 1, True),
         ("size", {}, 0, True),
         ("size", {}, 1, True),
+        (len, {}, 0, True),
+        (len, {}, 1, True),
         ("min", {}, 0, True),
         ("min", {}, 1, True),
         ("test", {}, 0, False),

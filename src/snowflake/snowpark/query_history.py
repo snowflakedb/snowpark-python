@@ -37,11 +37,13 @@ class QueryHistory:
         session: "snowflake.snowpark.session.Session",
         include_describe: bool = False,
         include_thread_id: bool = False,
+        include_error: bool = False,
     ) -> None:
         self.session = session
         self._queries: List[QueryRecord] = []
         self._include_describe = include_describe
         self._include_thread_id = include_thread_id
+        self._include_error = include_error
 
     def __enter__(self):
         return self
@@ -58,8 +60,15 @@ class QueryHistory:
 
     @property
     def include_describe(self) -> bool:
+        """When True, QueryRecords for describe queries are recorded by this listener."""
         return self._include_describe
 
     @property
     def include_thread_id(self) -> bool:
+        """When True, thread id of the query are recorded by this listener."""
         return self._include_thread_id
+
+    @property
+    def include_error(self) -> bool:
+        """When True, queries that have error during execution are recorded by this listener."""
+        return self._include_error

@@ -1334,6 +1334,7 @@ class OrderedDataFrame:
         left_on_cols: list[str],
         right_on_cols: list[str],
         how: AlignTypeLit = "outer",
+        enable_default_sort: bool = True,
     ) -> "OrderedDataFrame":
         """
         Performs align operation of the specified join type (``how``) with the current
@@ -1383,6 +1384,8 @@ class OrderedDataFrame:
                   left_on column is replaced with the right_on column in the result.
                   This method can only be used when left_on and right_on type are
                   compatible, otherwise an error will be thrown.
+            enable_default_sort: whether to enable the default sorting strategy for align.
+                Check for [AlignSortLit] under _typing.py for more details.
         Returns:
             Aligned OrderedDataFrame.
         """
@@ -1448,7 +1451,9 @@ class OrderedDataFrame:
         )
 
         sort = False
-        if how == "outer":
+        if how == "outer" and enable_default_sort:
+            # if default sort is enabled, and it is outer align, we
+            # sort the result based on align keys
             sort = True
         result_helper = JoinOrAlignOrderedDataframeResultHelper(
             left,
