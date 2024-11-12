@@ -6,6 +6,7 @@ import binascii
 import datetime
 import decimal
 import json
+import logging
 import math
 import numbers
 import operator
@@ -69,6 +70,8 @@ _DEFAULT_OUTPUT_FORMAT = {
     TimeType: "HH24:MI:SS",
     TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
 }
+
+_logger = logging.getLogger(__name__)
 
 
 class MockedFunction:
@@ -374,7 +377,8 @@ def mock_stddev(column: ColumnEmulator) -> ColumnEmulator:
 def mock_approx_percentile_accumulate(
     column: Union[TableEmulator, ColumnEmulator]
 ) -> ColumnEmulator:
-    # TODO: Fix, returns dummy of 42 for now.
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
     return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
 
 
@@ -383,7 +387,8 @@ def mock_approx_percentile_estimate(
     column1: Union[TableEmulator, ColumnEmulator],
     column2: Union[TableEmulator, ColumnEmulator],
 ) -> ColumnEmulator:
-    # TODO: Fix, returns dummy of 42 for now.
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
     return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
 
 
@@ -392,7 +397,8 @@ def mock_covar_samp(
     column1: Union[TableEmulator, ColumnEmulator],
     column2: Union[TableEmulator, ColumnEmulator],
 ) -> ColumnEmulator:
-    # TODO: Fix, returns dummy of 42 for now.
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
     return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
 
 
@@ -401,7 +407,8 @@ def mock_corr_samp(
     column1: Union[TableEmulator, ColumnEmulator],
     column2: Union[TableEmulator, ColumnEmulator],
 ) -> ColumnEmulator:
-    # TODO: Fix, returns dummy of 42 for now.
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
     return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
 
 
