@@ -256,11 +256,9 @@ class ArrayType(DataType):
         self,
         element_type: Optional[DataType] = None,
         structured: bool = False,
-        contains_null: bool = True,
     ) -> None:
         self.structured = structured
         self.element_type = element_type if element_type else StringType()
-        self.contains_null = contains_null
 
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
@@ -275,7 +273,6 @@ class ArrayType(DataType):
         return {
             "type": self.type_name(),
             "elementType": self.element_type.json_value(),
-            "containsNull": self.contains_null,
         }
 
 
@@ -287,12 +284,10 @@ class MapType(DataType):
         key_type: Optional[DataType] = None,
         value_type: Optional[DataType] = None,
         structured: bool = False,
-        value_contains_null: bool = True,
     ) -> None:
         self.structured = structured
         self.key_type = key_type if key_type else StringType()
         self.value_type = value_type if value_type else StringType()
-        self.value_contains_null = value_contains_null
 
     def __repr__(self) -> str:
         return f"MapType({repr(self.key_type) if self.key_type else ''}, {repr(self.value_type) if self.value_type else ''})"
@@ -308,7 +303,6 @@ class MapType(DataType):
             "type": self.type_name(),
             "keyType": self.key_type.json_value(),
             "valueType": self.value_type.json_value(),
-            "valueContainsNull": self.value_contains_null,
         }
 
 
@@ -401,7 +395,7 @@ class ColumnIdentifier:
         return string[1:-1] if result else string
 
 
-class StructField:
+class StructField(DataType):
     """Represents the content of :class:`StructField`."""
 
     def __init__(
@@ -450,13 +444,6 @@ class StructField:
         raise TypeError(
             "StructField does not have typeName. Use typeName on its type explicitly instead"
         )
-
-    def json(self):
-        return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
-
-    simpleString = simple_string
-    jsonValue = json_value
-    typeName = type_name
 
 
 class StructType(DataType):
@@ -530,7 +517,7 @@ class StructType(DataType):
         return [f.name for f in self.fields]
 
     def simple_string(self) -> str:
-        return f"struct<{','.join(f.simpleString() for f in self)}>"
+        return f"struct<{','.join(f.simple_string() for f in self)}>"
 
     def json_value(self) -> Dict[str, Any]:
         return {"type": self.type_name(), "fields": [f.json_value() for f in self]}
