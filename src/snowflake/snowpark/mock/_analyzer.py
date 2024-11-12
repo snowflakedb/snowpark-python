@@ -756,7 +756,6 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):
-            # TODO: Fix local test mode.
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, TableUpdate):
