@@ -198,11 +198,11 @@ class NopConnection(MockServerConnection):
             else:
                 result = result_row
 
-        self.notify_mock_query_record_listener(kwargs)
+        self.notify_mock_query_record_listener(**kwargs)
         return result
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
-        self.notify_mock_query_record_listener(kwargs)
+        self.notify_mock_query_record_listener(**kwargs)
         return ([], [])
