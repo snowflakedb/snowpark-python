@@ -9,7 +9,7 @@
 - Added the following new functions in `snowflake.snowpark.dataframe`:
   - `map`
 - Added support for passing parameter `include_error` to `Session.query_history` to record queries that have error during execution.
-- Added support for following functions in class `DataType`, children of `DataType` and `StructField`:
+- Added support for following methods in class `DataType`, derived class of `DataType` and `StructField`:
   - `type_name`
   - `simple_string`
   - `json_value`
