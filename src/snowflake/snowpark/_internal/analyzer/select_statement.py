@@ -1113,6 +1113,7 @@ class SelectStatement(Selectable):
             # there is no need to flatten the projection complexity since the child
             # select projection is already flattened with the current select.
             new._merge_projection_complexity_with_subquery = False
+            assert self.from_ == new.from_
         else:
             new = SelectStatement(
                 projection=cols, from_=self.to_subqueryable(), analyzer=self.analyzer
@@ -1124,6 +1125,7 @@ class SelectStatement(Selectable):
                     self,
                 )
             )
+            assert self.from_ == new.from_.from_
 
         new.flatten_disabled = disable_next_level_flatten
         assert new.projection is not None
