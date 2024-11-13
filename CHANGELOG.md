@@ -51,6 +51,7 @@
 - Added support for `pd.read_html` (Uses native pandas for processing).
 - Added support for `pd.read_xml` (Uses native pandas for processing).
 - Added support for aggregation functions `"size"` and `len` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for list values in `Series.str.len`.
 
 #### Bug Fixes
 
@@ -60,9 +61,14 @@
   - Raise a `TypeError` for a scalar `subset` instead of filtering on just that column.
   - Raise a `ValueError` for a `subset` of type `pandas.Index` instead of filtering on the columns in the index.
 - Disable creation of scoped read only table to mitigate Disable creation of scoped read only table to mitigate `TableNotFoundError` when using dynamic pivot in notebook environment.
+- Fixed a bug when concat dataframe or series objects are coming from the same dataframe when axis = 1.
 
 #### Improvements
+
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
+- Improve get_dummies performance by flattening the pivot with join.
+
+
 
 ### Snowpark Local Testing Updates
 
