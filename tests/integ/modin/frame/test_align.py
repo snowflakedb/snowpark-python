@@ -56,34 +56,16 @@ def test_align_duplicate_idx(join, axis, join_count):
         native_df = native_pd.DataFrame(
             [
                 [1, 2, 3],
-                [
-                    6,
-                    7,
-                    8,
-                ],
-                [
-                    9,
-                    10,
-                    11,
-                ],
-                [
-                    4,
-                    6,
-                    2,
-                ],
+                [6, 7, 8],
+                [9, 10, 11],
+                [4, 6, 2],
             ],
             columns=["A", "B", "C"],
             index=["one", "two", "three", "two"],
         )
         native_other_df = native_pd.DataFrame(
             [
-                [
-                    10,
-                    20,
-                    30,
-                    40,
-                    50,
-                ],
+                [10, 20, 30, 40, 50],
                 [60, 70, 80, 90, 100],
                 [60, 70, 80, 90, 100],
             ],
