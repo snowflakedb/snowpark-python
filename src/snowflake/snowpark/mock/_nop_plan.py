@@ -43,7 +43,12 @@ from snowflake.snowpark.mock._plan import MockExecutionPlan
 from snowflake.snowpark.mock._select_statement import MockSelectable
 
 # from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import MapType, PandasDataFrameType, _NumericType
+from snowflake.snowpark.types import (
+    IntegerType,
+    MapType,
+    PandasDataFrameType,
+    _NumericType,
+)
 
 
 def resolve_attributes(
@@ -82,8 +87,12 @@ def resolve_attributes(
             attributes = [
                 Attribute(
                     attr.name,
-                    source_attributes[attr_name].datatype,
-                    source_attributes[attr_name].nullable,
+                    source_attributes[attr_name].datatype
+                    if attr_name in source_attributes
+                    else IntegerType(),
+                    source_attributes[attr_name].nullable
+                    if attr_name in source_attributes
+                    else True,
                 )
                 if isinstance(attr, UnresolvedAttribute)
                 else attr

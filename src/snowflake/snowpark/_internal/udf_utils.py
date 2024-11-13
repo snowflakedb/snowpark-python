@@ -100,6 +100,7 @@ REGISTER_KWARGS_ALLOWLIST = {
     "_from_pandas_udf_function",
     "input_names",  # for pandas_udtf
     "max_batch_size",  # for pandas_udtf
+    "registered_name",  # registered name already exists
 }
 
 
