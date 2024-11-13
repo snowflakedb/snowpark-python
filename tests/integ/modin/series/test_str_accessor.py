@@ -13,7 +13,7 @@ import pytest
 from snowflake.snowpark._internal.utils import TempObjectType
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import assert_series_equal, eval_snowpark_pandas_result
-from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 TEST_DATA = [
     "a%_.*?|&^$bc",
@@ -457,46 +457,49 @@ def test_str_len_list():
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
 
 
-@sql_count_checker(query_count=9, udf_count=1)
 def test_str_len_list_coin_base(session):
-    from tests.utils import Utils
+    expected_udf_count = 2
+    if session.sql_simplifier_enabled:
+        expected_udf_count = 1
+    with SqlCounter(query_count=9, udf_count=expected_udf_count):
+        from tests.utils import Utils
 
-    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    Utils.create_table(
-        session, table_name, "SHARED_CARD_USERS array", is_temporary=True
-    )
-    session.sql(
-        f"""insert into {table_name} (SHARED_CARD_USERS) SELECT PARSE_JSON('["Apple", "Pear", "Cabbage"]')"""
-    ).collect()
-    session.sql(f"insert into {table_name} values (NULL)").collect()
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        Utils.create_table(
+            session, table_name, "SHARED_CARD_USERS array", is_temporary=True
+        )
+        session.sql(
+            f"""insert into {table_name} (SHARED_CARD_USERS) SELECT PARSE_JSON('["Apple", "Pear", "Cabbage"]')"""
+        ).collect()
+        session.sql(f"insert into {table_name} values (NULL)").collect()
 
-    df = pd.read_snowflake(table_name)
+        df = pd.read_snowflake(table_name)
 
-    def compute_num_shared_card_users(x):
-        """
-        Helper function to compute the number of shared card users
+        def compute_num_shared_card_users(x):
+            """
+            Helper function to compute the number of shared card users
 
-        Input:
-         - x: the array with the users
+            Input:
+            - x: the array with the users
 
-        Output: Number of shared card users
-        """
-        if x:
-            return len(x)
-        else:
-            return 0
+            Output: Number of shared card users
+            """
+            if x:
+                return len(x)
+            else:
+                return 0
 
-    # The following two methods for computing the final result should be identical.
+        # The following two methods for computing the final result should be identical.
 
-    # The first one uses `Series.str.len` followed by `Series.fillna`.
-    str_len_res = df["SHARED_CARD_USERS"].str.len().fillna(0)
+        # The first one uses `Series.str.len` followed by `Series.fillna`.
+        str_len_res = df["SHARED_CARD_USERS"].str.len().fillna(0)
 
-    # The second one uses `Series.apply` and a user defined function.
-    apply_res = df["SHARED_CARD_USERS"].apply(
-        lambda x: compute_num_shared_card_users(x)
-    )
+        # The second one uses `Series.apply` and a user defined function.
+        apply_res = df["SHARED_CARD_USERS"].apply(
+            lambda x: compute_num_shared_card_users(x)
+        )
 
-    assert_series_equal(str_len_res, apply_res, check_dtype=False)
+        assert_series_equal(str_len_res, apply_res, check_dtype=False)
 
 
 @pytest.mark.parametrize(
