@@ -580,9 +580,9 @@ def handle_udaf_expression(
         if type(udaf.handler) is tuple:
             module_name, handler_name = udaf.func
             exec(f"from {module_name} import {handler_name}")
-            udaf_handler = eval(handler_name)
+            udaf_class = eval(handler_name)
         else:
-            udaf_handler = udaf.handler
+            udaf_class = udaf.handler
 
         # Compute input data and validate typing
         if len(exp.children) != len(udaf._input_types):
@@ -614,20 +614,21 @@ def handle_udaf_expression(
             )
 
         try:
-            # Initiate some aggregation state (this is only needed for distributed compute).
-            some_agg_state = udaf_handler().aggregate_state
-            Agg = udaf_handler()
+            # Initialize Aggregation handler class, i.e. the aggregation accumulator.
+            AggregationAccumulator = udaf_class()
+            # Init its state.
+            some_agg_state = AggregationAccumulator.aggregate_state
 
             for _, row in function_input.iterrows():
                 # Call Agg.accumulate
                 if udaf.strict and any([v is None for v in row]):
-                    Agg.accumulate(None)
+                    AggregationAccumulator.accumulate(None)
                 else:
-                    Agg.accumulate(*row)
+                    AggregationAccumulator.accumulate(*row)
 
             # Call merge with empty state
-            Agg.merge(some_agg_state)
-            result = Agg.finish()
+            AggregationAccumulator.merge(some_agg_state)
+            result = AggregationAccumulator.finish()
 
             # Single row result for aggregation.
             res = ColumnEmulator(
