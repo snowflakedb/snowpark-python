@@ -1076,26 +1076,25 @@ def test_snow_type_to_dtype_str():
                 [StructField("a", StringType()), StructField("b", IntegerType())]
             ),
             "struct<A:string,B:int>",
-            '{"fields":[{"metadata":{},"name":"A","nullable":true,"type":"string"},{"metadata":{},"name":"B","nullable":true,"type":"integer"}],"type":"struct"}',
+            '{"fields":[{"name":"A","nullable":true,"type":"string"},{"name":"B","nullable":true,"type":"integer"}],"type":"struct"}',
             "struct",
             {
                 "type": "struct",
                 "fields": [
-                    {"name": "A", "type": "string", "nullable": True, "metadata": {}},
-                    {"name": "B", "type": "integer", "nullable": True, "metadata": {}},
+                    {"name": "A", "type": "string", "nullable": True},
+                    {"name": "B", "type": "integer", "nullable": True},
                 ],
             },
         ),
         (
             StructField("AA", StringType()),
             "AA:string",
-            '{"metadata":{},"name":"AA","nullable":true,"type":"string"}',
+            '{"name":"AA","nullable":true,"type":"string"}',
             "",
             {
                 "name": "AA",
                 "type": "string",
                 "nullable": True,
-                "metadata": {},
             },
         ),
         (TimestampType(), "timestamp", '"timestamp"', "timestamp", "timestamp"),
@@ -1182,7 +1181,7 @@ def test_snow_type_to_dtype_str():
                 ]
             ),
             "struct<NESTED:struct<A:int,B:string>>",
-            '{"fields":[{"metadata":{},"name":"NESTED","nullable":true,"type":{"fields":[{"metadata":{},"name":"A","nullable":true,"type":"integer"},{"metadata":{},"name":"B","nullable":true,"type":"string"}],"type":"struct"}}],"type":"struct"}',
+            '{"fields":[{"name":"NESTED","nullable":true,"type":{"fields":[{"name":"A","nullable":true,"type":"integer"},{"name":"B","nullable":true,"type":"string"}],"type":"struct"}}],"type":"struct"}',
             "struct",
             {
                 "type": "struct",
@@ -1196,18 +1195,15 @@ def test_snow_type_to_dtype_str():
                                     "name": "A",
                                     "type": "integer",
                                     "nullable": True,
-                                    "metadata": {},
                                 },
                                 {
                                     "name": "B",
                                     "type": "string",
                                     "nullable": True,
-                                    "metadata": {},
                                 },
                             ],
                         },
                         "nullable": True,
-                        "metadata": {},
                     }
                 ],
             },
