@@ -108,25 +108,26 @@ class _PivotType(_GroupType):
 
 
 class GroupingSets:
+    """Creates a :class:`GroupingSets` object from a list of column/expression sets that you pass
+    to :meth:`DataFrame.group_by_grouping_sets`. See :meth:`DataFrame.group_by_grouping_sets` for
+    examples of how to use this class with a :class:`DataFrame`. See
+    `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_
+    for its counterpart in SQL (several examples are shown below).
+
+    =============================================================  ==================================
+    Python interface                                               SQL interface
+    =============================================================  ==================================
+    ``GroupingSets([col("a")], [col("b")])``                       ``GROUPING SETS ((a), (b))``
+    ``GroupingSets([col("a") , col("b")], [col("c"), col("d")])``  ``GROUPING SETS ((a, b), (c, d))``
+    ``GroupingSets([col("a"), col("b")])``                         ``GROUPING SETS ((a, b))``
+    ``GroupingSets(col("a"), col("b"))``                           ``GROUPING SETS ((a, b))``
+    =============================================================  ==================================
+    """
+
     @publicapi
     def __init__(
         self, *sets: Union[Column, List[Column]], _emit_ast: bool = True
     ) -> None:
-        """Creates a :class:`GroupingSets` object from a list of column/expression sets that you pass
-        to :meth:`DataFrame.group_by_grouping_sets`. See :meth:`DataFrame.group_by_grouping_sets` for
-        examples of how to use this class with a :class:`DataFrame`. See
-        `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_
-        for its counterpart in SQL (several examples are shown below).
-
-        =============================================================  ==================================
-        Python interface                                               SQL interface
-        =============================================================  ==================================
-        ``GroupingSets([col("a")], [col("b")])``                       ``GROUPING SETS ((a), (b))``
-        ``GroupingSets([col("a") , col("b")], [col("c"), col("d")])``  ``GROUPING SETS ((a, b), (c, d))``
-        ``GroupingSets([col("a"), col("b")])``                         ``GROUPING SETS ((a, b))``
-        ``GroupingSets(col("a"), col("b"))``                           ``GROUPING SETS ((a, b))``
-        =============================================================  ==================================
-        """
         self._ast = None
         if _emit_ast:
             self._ast = with_src_position(proto.SpGroupingSets())
