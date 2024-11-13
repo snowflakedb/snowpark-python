@@ -66,7 +66,7 @@ def generate_error_trace_info(python_text, exception=None):
 
 
 def compare_ast_result_query_validation(
-    validation_session: Session,
+    session: Session,
     qid_result1: str,
     qid_result2: str,
 ):
@@ -91,7 +91,7 @@ def compare_ast_result_query_validation(
         """
 
         try:
-            results_cursor = validation_session._conn._cursor.execute(comparison_sql)
+            results_cursor = session._conn._cursor.execute(comparison_sql)
 
             # Ensure we are using a new cursor to avoid side effects on the connection reusing cursor state with
             # the validation query.
@@ -112,7 +112,7 @@ def compare_ast_result_query_validation(
             error_msg = f"Full AST validation results differed.\n\nResult 1 Query Id: {qid_result1}\nResult 2 Query Id: {qid_result2}\n"
 
         error_msg = error_msg + generate_error_trace_info(
-            validation_session._debug_python_code_output
+            session._debug_python_code_output
         )
 
     pytest.assume(
@@ -215,7 +215,7 @@ def notify_full_ast_validation_with_listener(
         for stmt in prev_stmts
     }
 
-    # Unparse the AST into python code and execute in the validation_session.  This will notify the validation
+    # Unparse the AST into python code and execute in the session.  This will notify the validation
     # session query listener which will compute the diff and assert equals original.
     try:
         python_code_output = render(
@@ -236,12 +236,10 @@ def notify_full_ast_validation_with_listener(
         full_ast_validation_listener._ast_batches.clear()
         return
 
-    full_ast_validation_listener._validation_session._ast_full_validation_result = (
+    full_ast_validation_listener.session._ast_full_validation_result = (
         query_record.query_id
     )
-    full_ast_validation_listener._validation_session._debug_python_code_output = (
-        python_code_output
-    )
+    full_ast_validation_listener.session._debug_python_code_output = python_code_output
 
     # Save the original cursor state since any subsequent executions in the session will override the
     # active cursor and we need to restore when we return from here.
@@ -282,7 +280,7 @@ def notify_full_ast_validation_with_listener(
                 )
 
             compare_ast_result_query_validation(
-                full_ast_validation_listener._validation_session,
+                full_ast_validation_listener.session,
                 validation_query_record.query_id,
                 query_record.query_id,
             )
@@ -300,16 +298,6 @@ def notify_full_ast_validation_with_listener(
 
 
 def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
-    # validation_session = (
-    #     Session.builder.configs(db_parameters).config("local_testing", False).create()
-    # )
-    # validation_session.sql_simplifier_enabled = session._sql_simplifier_enabled
-    # validation_session._cte_optimization_enabled = session.cte_optimization_enabled
-    # validation_session.ast_enabled = True
-    # validation_session.full_ast_validation = False
-
-    validation_session = session
-
     full_ast_validation_listener = session.ast_listener(True)
     full_ast_validation_listener._original_notify = full_ast_validation_listener._notify
 
@@ -319,7 +307,6 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
         )
 
     full_ast_validation_listener._notify = notify_full_ast_validation
-    full_ast_validation_listener._validation_session = validation_session
     full_ast_validation_listener._unparser_jar = unparser_jar
     full_ast_validation_listener._globals = (
         vars(snowflake.snowpark.functions)
@@ -341,5 +328,4 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
 def close_full_ast_validation_mode(full_ast_validation_listener):
     # Remove the test hook for full ast validation so does not run for any clean up work.
     full_ast_validation_listener._notify = full_ast_validation_listener._original_notify
-    full_ast_validation_listener._validation_session.close()
     tests.integ.utils.sql_counter._active_session = None
