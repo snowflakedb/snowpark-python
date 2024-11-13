@@ -232,6 +232,118 @@ def test_align_basic_with_all_null_row(join, axis, join_count):
     "axis, join_count",
     [(0, 2), (1, 0), (None, 2)],
 )
+def test_align_basic_with_empty_df(join, axis, join_count):
+    with SqlCounter(query_count=2, join_count=join_count):
+        native_df = native_pd.DataFrame(
+            [[1, 2, np.nan, 4], [6, 7, 8, 9]], columns=["D", "B", "E", "A"]
+        )
+        native_other_df = native_pd.DataFrame()
+
+        native_left, native_right = native_df.align(
+            native_other_df,
+            join=join,
+            axis=axis,
+            limit=None,
+            fill_axis=0,
+            broadcast_axis=None,
+        )
+        df = pd.DataFrame(native_df)
+        other_df = pd.DataFrame()
+        left, right = df.align(other_df, join=join, axis=axis)
+        # Need check_column_type=False here since the `inferred_type` of empty columns differs
+        # from native pandas (Snowpark pandas gives "empty" vs. native pandas "integer")
+        assert_frame_equal(left, native_left, check_column_type=False)
+        assert_frame_equal(right, native_right, check_column_type=False)
+
+
+@pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
+@pytest.mark.parametrize(
+    "axis, join_count",
+    [(0, 2), (1, 0), (None, 2)],
+)
+def test_align_basic_with_zero_cols(join, axis, join_count):
+    with SqlCounter(query_count=3, join_count=join_count):
+        native_df = native_pd.DataFrame(
+            [[1, 2, np.nan, 4], [6, 7, 8, 9]], columns=["D", "B", "E", "A"]
+        )
+        native_other_df = native_pd.DataFrame(index=pd.Index([1, 2]))
+
+        native_left, native_right = native_df.align(
+            native_other_df,
+            join=join,
+            axis=axis,
+            limit=None,
+            fill_axis=0,
+            broadcast_axis=None,
+        )
+        df = pd.DataFrame(native_df)
+        other_df = pd.DataFrame(native_other_df)
+        left, right = df.align(other_df, join=join, axis=axis)
+        # Need check_column_type=False here since the `inferred_type` of empty columns differs
+        # from native pandas (Snowpark pandas gives "empty" vs. native pandas "integer")
+        assert_frame_equal(left, native_left, check_column_type=False)
+        assert_frame_equal(right, native_right, check_column_type=False)
+
+
+@pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
+@pytest.mark.parametrize(
+    "axis, join_count",
+    [(0, 2), (1, 0), (None, 2)],
+)
+def test_align_basic_with_zero_rows(join, axis, join_count):
+    with SqlCounter(query_count=2, join_count=join_count):
+        native_df = native_pd.DataFrame(
+            [[1, 2, np.nan, 4], [6, 7, 8, 9]], columns=["D", "B", "E", "A"]
+        )
+        native_other_df = native_pd.DataFrame(columns=["A", "B", "C"])
+
+        native_left, native_right = native_df.align(
+            native_other_df,
+            join=join,
+            axis=axis,
+            limit=None,
+            fill_axis=0,
+            broadcast_axis=None,
+        )
+        df = pd.DataFrame(native_df)
+        other_df = pd.DataFrame(native_other_df)
+        left, right = df.align(other_df, join=join, axis=axis)
+        assert_frame_equal(left, native_left)
+        assert_frame_equal(right, native_right)
+
+
+@pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
+@pytest.mark.parametrize(
+    "axis, join_count",
+    [(0, 2), (1, 0), (None, 2)],
+)
+def test_align_basic_with_both_empty_dfs(join, axis, join_count):
+    with SqlCounter(query_count=2, join_count=join_count):
+        native_df = native_pd.DataFrame()
+        native_other_df = native_pd.DataFrame()
+
+        native_left, native_right = native_df.align(
+            native_other_df,
+            join=join,
+            axis=axis,
+            limit=None,
+            fill_axis=0,
+            broadcast_axis=None,
+        )
+        df = pd.DataFrame(native_df)
+        other_df = pd.DataFrame(native_other_df)
+        left, right = df.align(other_df, join=join, axis=axis)
+        # Need check_column_type=False here since the `inferred_type` of empty columns differs
+        # from native pandas (Snowpark pandas gives "empty" vs. native pandas "integer")
+        assert_frame_equal(left, native_left, check_column_type=False)
+        assert_frame_equal(right, native_right, check_column_type=False)
+
+
+@pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
+@pytest.mark.parametrize(
+    "axis, join_count",
+    [(0, 2), (1, 0), (None, 2)],
+)
 def test_align_overlapping_duplicate_cols(join, axis, join_count):
     with SqlCounter(query_count=2, join_count=join_count):
         native_df = native_pd.DataFrame(

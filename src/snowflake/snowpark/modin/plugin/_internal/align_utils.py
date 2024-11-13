@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 from collections import Counter
-from collections.abc import Hashable
 from typing import Literal
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
@@ -195,8 +194,8 @@ def align_axis_1_left_helper(
         data_column_labels, include_index=False
     )
 
-    curr_label_count_map: dict[Hashable, int] = {}
-    curr_label_index_map: dict[Hashable, int] = {}
+    curr_label_count_map: Counter = Counter()
+    curr_label_index_map: Counter = Counter()
 
     # if snowflake_ids = [(D), (B1, B2), (B1, B2), (A1, A2), (A1, A2), (A1, A2), (B1, B2), (B1, B2), (A1, A2),
     # (A1, A2), (A1, A2)],
@@ -284,8 +283,8 @@ def align_axis_1_right_helper(
         data_column_labels, include_index=False
     )
 
-    curr_label_count_map: dict[Hashable, int] = {}
-    curr_label_index_map: dict[Hashable, int] = {}
+    curr_label_count_map: Counter = Counter()
+    curr_label_index_map: Counter = Counter()
 
     # if snowflake_ids = [(D), (B1, B2), (B1, B2), (A1, A2, A3),(B1, B2), (B1, B2), (A1, A2, A3)],
     # resulting aligned right frame column values will be

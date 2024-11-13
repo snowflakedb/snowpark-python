@@ -60,6 +60,27 @@ def test_align_series_with_nulls(join, axis):
 
 
 @sql_count_checker(query_count=2, join_count=2)
+@pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
+@pytest.mark.parametrize("axis", [0, None])
+def test_align_empty_series(join, axis):
+    native_ser = native_pd.Series()
+    native_other_ser = native_pd.Series([60, 70, 80, 90, 100, np.nan])
+    native_left, native_right = native_ser.align(
+        native_other_ser,
+        join=join,
+        axis=axis,
+        limit=None,
+        fill_axis=0,
+        broadcast_axis=None,
+    )
+    ser = pd.Series()
+    other_ser = pd.Series(native_other_ser)
+    left, right = ser.align(other_ser, join=join, axis=axis)
+    assert_series_equal(left, native_left)
+    assert_series_equal(right, native_right)
+
+
+@sql_count_checker(query_count=2, join_count=2)
 @pytest.mark.parametrize("axis", [0, None])
 @pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
 def test_align_basic_series_reorder_index(join, axis):
