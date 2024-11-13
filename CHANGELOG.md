@@ -47,7 +47,7 @@
 - Added support for `pd.read_xml` (Uses native pandas for processing).
 - Added support for aggregation functions `"size"` and `len` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
 - Added support for list values in `Series.str.len`.
-- Added support for `DataFrame.align` and `Series.align` for `axis=1 and None`.
+- Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
 
 #### Bug Fixes
 
