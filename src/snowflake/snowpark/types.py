@@ -433,7 +433,6 @@ class StructField:
         column_identifier: Union[ColumnIdentifier, str],
         datatype: DataType,
         nullable: bool = True,
-        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.column_identifier = (
             ColumnIdentifier(column_identifier)
@@ -442,7 +441,6 @@ class StructField:
         )
         self.datatype = datatype
         self.nullable = nullable
-        self.metadata = metadata or {}
 
     @property
     def name(self) -> str:
@@ -467,7 +465,6 @@ class StructField:
             "name": self.name,
             "type": self.datatype.json_value(),
             "nullable": self.nullable,
-            "metadata": self.metadata,
         }
 
     def json(self) -> str:
