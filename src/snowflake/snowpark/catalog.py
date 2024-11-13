@@ -2,7 +2,8 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import List, Optional, Tuple, Union
+import re
+from typing import List, NamedTuple, Optional, Tuple, Union
 
 from snowflake.core import Root
 from snowflake.core.database import Database
@@ -16,11 +17,17 @@ from snowflake.core.view import View
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, StructType
 
 DatabaseOrStr = Union[str, Database]
 SchemaOrStr = Union[str, Schema]
 ArgumentType = Union[List[DataType], Tuple[DataType]]
+
+
+class Column(NamedTuple):
+    name: str
+    datatype: str
+    nullable: bool
 
 
 class Catalog:
@@ -100,27 +107,37 @@ class Catalog:
         *,
         database: Optional[DatabaseOrStr] = None,
         schema: Optional[SchemaOrStr] = None,
-        like: Optional[str] = None,
-        starts_with: Optional[str] = None,
-        limit: Optional[int] = None,
-        from_name: Optional[str] = None,
-        history: bool = False,
-        deep: bool = False,
+        pattern: Optional[str] = None,
     ) -> List[Table]:
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
-        table_collection = self._root.databases[db_name].schemas[schema_name].tables
-        return list(
-            table_collection.iter(
-                like=like,
-                starts_with=starts_with,
-                limit=limit,
-                from_name=from_name,
-                history=history,
-                deep=deep,
-            )
-        )
+        iter = self._root.databases[db_name].schemas[schema_name].tables
+        if pattern:
+            iter = filter(lambda x: re.match(pattern, x.name), iter)
+
+        return list(iter)
+
+    listTables = list_tables  # alias
+
+    def list_columns(
+        self,
+        table_name: str,
+        *,
+        database: Optional[DatabaseOrStr] = None,
+        schema: Optional[SchemaOrStr] = None,
+    ) -> List[Column]:
+        if database is None:
+            table = self._session.table(table_name)
+        else:
+            db_name = self._parse_database(database)
+            schema_name = self._parse_schema(schema)
+            table = self._session.table(f"{db_name}.{schema_name}.{table_name}")
+
+        schema: StructType = table.schema
+        return [Column(col.name, col.data_type, col.nullable) for col in schema.fields]
+
+    listColumns = list_columns  # alias
 
     def list_views(
         self,
