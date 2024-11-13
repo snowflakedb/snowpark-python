@@ -279,8 +279,8 @@ def test_stored_proc_error(
 
     with pytest.raises(SnowparkSQLException, match="fake out of memory") as err:
         profiler_session.call(function_name)
-        id = profiler_session.stored_procedure_profiler._get_last_query_id()
-        assert id in str(err)
+        query_id = profiler_session.stored_procedure_profiler._get_last_query_id()
+        assert query_id in str(err)
 
     profiler_session.stored_procedure_profiler.disable()
 
