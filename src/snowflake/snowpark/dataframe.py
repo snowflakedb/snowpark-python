@@ -96,7 +96,6 @@ from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_m
 from snowflake.snowpark._internal.telemetry import (
     add_api_call,
     adjust_api_subcalls,
-    df_api_usage,
     df_collect_api_telemetry,
     df_to_relational_group_df_api_usage,
 )
@@ -187,8 +186,18 @@ _NUM_PREFIX_DIGITS = 4
 _UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
 
 
+distinct_id = 0
+
+
+def _get_next_distinct_id():
+    global distinct_id
+    distinct_id += 1
+    return distinct_id
+
+
 def _generate_prefix(prefix: str) -> str:
-    return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
+    return f"{prefix}_{_get_next_distinct_id()}_"
+    # return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
 
 
 def _get_unaliased(col_name: str) -> List[str]:
@@ -263,25 +272,36 @@ def _disambiguate(
     lhs_prefix = _generate_prefix("l") if not suffix_provided else ""
     rhs_prefix = _generate_prefix("r") if not suffix_provided else ""
 
-    lhs_remapped = lhs.select(
-        [
-            _alias_if_needed(
-                lhs,
-                name,
-                lhs_prefix,
-                lsuffix,
-                [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
-            )
-            for name in lhs_names
-        ]
-    )
+    aliased_cols = [
+        _alias_if_needed(
+            lhs,
+            name,
+            lhs_prefix,
+            lsuffix,
+            [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
+        )
+        for name in lhs_names
+    ]
+    lhs_remapped = lhs.select(aliased_cols)
 
-    rhs_remapped = rhs.select(
-        [
-            _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
-            for name in rhs_names
-        ]
-    )
+    if lhs.session.sql_simplifier_enabled:
+        assert lhs_remapped._select_statement.from_ == lhs._select_statement.from_
+    else:
+        assert lhs_remapped._plan.children_plan_nodes[0] == lhs._plan
+
+    aliased_cols = [
+        _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
+        for name in rhs_names
+    ]
+    rhs_remapped = rhs.select(aliased_cols)
+
+    if rhs.session.sql_simplifier_enabled:
+        # case 1 can be flattened, case 2 can't be flattened
+        assert rhs_remapped._select_statement.from_ == rhs._select_statement.from_ or (
+            rhs_remapped._select_statement.from_.from_ == rhs._select_statement.from_
+        )
+    else:
+        assert rhs_remapped._plan.children_plan_nodes[0] == rhs._plan
     return lhs_remapped, rhs_remapped
 
 
@@ -525,6 +545,7 @@ class DataFrame:
         is_cached: bool = False,
     ) -> None:
         self._session = session
+        # SelectStatement will create a new SnowflakePlan during resolve if there is not one bound with that yet
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
@@ -585,7 +606,6 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
-    @df_collect_api_telemetry
     def collect(
         self,
         *,
@@ -616,7 +636,6 @@ class DataFrame:
                 case_sensitive=case_sensitive,
             )
 
-    @df_collect_api_telemetry
     def collect_nowait(
         self,
         *,
@@ -674,7 +693,6 @@ class DataFrame:
         _internal_collect_with_tag_no_telemetry
     )
 
-    @df_collect_api_telemetry
     def _execute_and_get_query_id(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> str:
@@ -709,7 +727,6 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
-    @df_collect_api_telemetry
     def to_local_iterator(
         self,
         *,
@@ -786,7 +803,6 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
-    @df_collect_api_telemetry
     def to_pandas(
         self,
         *,
@@ -862,7 +878,6 @@ class DataFrame:
     ) -> AsyncJob:
         ...  # pragma: no cover
 
-    @df_collect_api_telemetry
     def to_pandas_batches(
         self,
         *,
@@ -913,7 +928,6 @@ class DataFrame:
             **kwargs,
         )
 
-    @df_api_usage
     def to_df(self, *names: Union[str, Iterable[str]]) -> "DataFrame":
         """
         Creates a new DataFrame containing columns with the specified names.
@@ -948,7 +962,6 @@ class DataFrame:
             new_cols.append(Column(attr).alias(name))
         return self.select(new_cols)
 
-    @df_collect_api_telemetry
     def to_snowpark_pandas(
         self,
         index_col: Optional[Union[str, List[str]]] = None,
@@ -1087,7 +1100,6 @@ class DataFrame:
         else:
             return Column(self._resolve(col_name))
 
-    @df_api_usage
     def select(
         self,
         *cols: Union[
@@ -1215,11 +1227,18 @@ class DataFrame:
                         analyzer=self._session._analyzer,
                     ).select(names)
                 )
-            return self._with_plan(self._select_statement.select(names))
+
+            new_select = self._select_statement.select(names)
+            # case 1 new select is flatten, case 2 new select is not flattened
+            assert (self._select_statement.from_ == new_select.from_) or (
+                self._select_statement.from_ == new_select.from_.from_
+            )
+            new_df = self._with_plan(new_select)
+            return new_df
+            # return self._with_plan(self._select_statement.select(names))
 
         return self._with_plan(Project(names, join_plan or self._plan))
 
-    @df_api_usage
     def select_expr(self, *exprs: Union[str, Iterable[str]]) -> "DataFrame":
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
@@ -1251,7 +1270,6 @@ class DataFrame:
 
     selectExpr = select_expr
 
-    @df_api_usage
     def drop(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1325,7 +1343,6 @@ class DataFrame:
         else:
             return self.select(list(keep_col_names))
 
-    @df_api_usage
     def filter(self, expr: ColumnOrSqlExpr) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -1359,7 +1376,6 @@ class DataFrame:
             )
         )
 
-    @df_api_usage
     def sort(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
@@ -1497,7 +1513,6 @@ class DataFrame:
             ] = attr.name
         return _copy
 
-    @df_api_usage
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
@@ -1688,7 +1703,6 @@ class DataFrame:
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
         )
 
-    @df_api_usage
     def distinct(self) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -1813,7 +1827,6 @@ class DataFrame:
             ),
         )
 
-    @df_api_usage
     def unpivot(
         self, value_column: str, name_column: str, column_list: List[ColumnOrName]
     ) -> "DataFrame":
@@ -1858,7 +1871,6 @@ class DataFrame:
             )
         return self._with_plan(unpivot_plan)
 
-    @df_api_usage
     def limit(self, n: int, offset: int = 0) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
@@ -1891,7 +1903,6 @@ class DataFrame:
             return self._with_plan(self._select_statement.limit(n, offset=offset))
         return self._with_plan(Limit(Literal(n), Literal(offset), self._plan))
 
-    @df_api_usage
     def union(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows. Both input
@@ -1925,7 +1936,6 @@ class DataFrame:
             )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=False))
 
-    @df_api_usage
     def union_all(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows. Both input
@@ -1961,7 +1971,6 @@ class DataFrame:
             )
         return self._with_plan(UnionPlan(self._plan, other._plan, is_all=True))
 
-    @df_api_usage
     def union_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), excluding any duplicate rows.
@@ -1987,7 +1996,6 @@ class DataFrame:
         """
         return self._union_by_name_internal(other, is_all=False)
 
-    @df_api_usage
     def union_all_by_name(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows in the current DataFrame
         and another DataFrame (``other``), including any duplicate rows.
@@ -2061,7 +2069,6 @@ class DataFrame:
             df = self._with_plan(UnionPlan(self._plan, right_child._plan, is_all))
         return df
 
-    @df_api_usage
     def intersect(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains the intersection of rows from the
         current DataFrame and another DataFrame (``other``). Duplicate rows are
@@ -2095,7 +2102,6 @@ class DataFrame:
             )
         return self._with_plan(Intersect(self._plan, other._plan))
 
-    @df_api_usage
     def except_(self, other: "DataFrame") -> "DataFrame":
         """Returns a new DataFrame that contains all the rows from the current DataFrame
         except for the rows that also appear in the ``other`` DataFrame. Duplicate rows are eliminated.
@@ -2129,7 +2135,6 @@ class DataFrame:
             )
         return self._with_plan(Except(self._plan, other._plan))
 
-    @df_api_usage
     def natural_join(
         self, right: "DataFrame", how: Optional[str] = None, **kwargs
     ) -> "DataFrame":
@@ -2192,7 +2197,6 @@ class DataFrame:
             return self._with_plan(select_plan)
         return self._with_plan(join_plan)
 
-    @df_api_usage
     def join(
         self,
         right: "DataFrame",
@@ -2526,7 +2530,6 @@ class DataFrame:
 
         raise TypeError("Invalid type for join. Must be Dataframe")
 
-    @df_api_usage
     def join_table_function(
         self,
         func: Union[str, List[str], TableFunctionCall],
@@ -2670,7 +2673,6 @@ class DataFrame:
             TableFunctionJoin(self._plan, func_expr, right_cols=new_col_names)
         )
 
-    @df_api_usage
     def cross_join(
         self,
         right: "DataFrame",
@@ -2784,14 +2786,23 @@ class DataFrame:
                 match_condition._expression if match_condition is not None else None,
             )
             if self._select_statement:
-                return self._with_plan(
-                    self._session._analyzer.create_select_statement(
-                        from_=self._session._analyzer.create_select_snowflake_plan(
-                            join_logical_plan, analyzer=self._session._analyzer
-                        ),
-                        analyzer=self._session._analyzer,
-                    )
+                analyzer = self._session._analyzer
+                select_statement_snowflake_plan = analyzer.create_select_snowflake_plan(
+                    join_logical_plan, analyzer=analyzer
                 )
+                select_statement_logic_plan = analyzer.create_select_statement(
+                    from_=select_statement_snowflake_plan, analyzer=analyzer
+                )
+                new_df = self._with_plan(select_statement_logic_plan)
+                return new_df
+                # return self._with_plan(
+                #     self._session._analyzer.create_select_statement(
+                #         from_=self._session._analyzer.create_select_snowflake_plan(
+                #             join_logical_plan, analyzer=self._session._analyzer
+                #         ),
+                #         analyzer=self._session._analyzer,
+                #     )
+                # )
             return self._with_plan(join_logical_plan)
 
     def _join_dataframes_internal(
@@ -2808,6 +2819,7 @@ class DataFrame:
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
         )
         join_condition_expr = join_exprs._expression if join_exprs is not None else None
+        join_condition_expr.extra_information = (lhs._plan, rhs._plan)
         match_condition_expr = (
             match_condition._expression if match_condition is not None else None
         )
@@ -2819,18 +2831,30 @@ class DataFrame:
             match_condition_expr,
         )
         if self._select_statement:
-            return self._with_plan(
-                self._session._analyzer.create_select_statement(
-                    from_=self._session._analyzer.create_select_snowflake_plan(
-                        join_logical_plan,
-                        analyzer=self._session._analyzer,
-                    ),
-                    analyzer=self._session._analyzer,
-                )
+            analyzer = self._session._analyzer
+            select_snowflake_plan = analyzer.create_select_snowflake_plan(
+                join_logical_plan,
+                analyzer=analyzer,
             )
+            select_statement = analyzer.create_select_statement(
+                from_=select_snowflake_plan,
+                analyzer=analyzer,
+            )
+            new_df = self._with_plan(select_statement)
+            return new_df
+
+        # if self._select_statement:
+        #     return self._with_plan(
+        #         self._session._analyzer.create_select_statement(
+        #             from_=self._session._analyzer.create_select_snowflake_plan(
+        #                 join_logical_plan,
+        #                 analyzer=self._session._analyzer,
+        #             ),
+        #             analyzer=self._session._analyzer,
+        #         )
+        #     )
         return self._with_plan(join_logical_plan)
 
-    @df_api_usage
     def with_column(
         self, col_name: str, col: Union[Column, TableFunctionCall]
     ) -> "DataFrame":
@@ -2876,7 +2900,6 @@ class DataFrame:
         """
         return self.with_columns([col_name], [col])
 
-    @df_api_usage
     def with_columns(
         self, col_names: List[str], values: List[Union[Column, TableFunctionCall]]
     ) -> "DataFrame":
@@ -3030,7 +3053,6 @@ class DataFrame:
 
         return self._writer
 
-    @df_collect_api_telemetry
     def copy_into_table(
         self,
         table_name: Union[str, Iterable[str]],
@@ -3195,7 +3217,6 @@ class DataFrame:
             ),
         )._internal_collect_with_tag_no_telemetry(statement_params=statement_params)
 
-    @df_collect_api_telemetry
     def show(
         self,
         n: int = 10,
@@ -3231,7 +3252,6 @@ class DataFrame:
         extra_warning_text="Use `DataFrame.join_table_function()` instead.",
         extra_doc_string="Use :meth:`join_table_function` instead.",
     )
-    @df_api_usage
     def flatten(
         self,
         input: ColumnOrName,
@@ -3405,7 +3425,6 @@ class DataFrame:
             + line
         )
 
-    @df_collect_api_telemetry
     def create_or_replace_view(
         self,
         name: Union[str, Iterable[str]],
@@ -3448,7 +3467,6 @@ class DataFrame:
             ),
         )
 
-    @df_collect_api_telemetry
     def create_or_replace_dynamic_table(
         self,
         name: Union[str, Iterable[str]],
@@ -3541,7 +3559,6 @@ class DataFrame:
             ),
         )
 
-    @df_collect_api_telemetry
     def create_or_replace_temp_view(
         self,
         name: Union[str, Iterable[str]],
@@ -3715,7 +3732,6 @@ class DataFrame:
 
     take = first
 
-    @df_api_usage
     def sample(
         self, frac: Optional[float] = None, n: Optional[int] = None
     ) -> "DataFrame":
@@ -3860,7 +3876,6 @@ class DataFrame:
         )
         return res_df
 
-    @df_api_usage
     def rename(
         self,
         col_or_mapper: Union[ColumnOrName, dict],
@@ -3932,7 +3947,6 @@ class DataFrame:
 
         return self._with_plan(rename_plan)
 
-    @df_api_usage
     def with_column_renamed(self, existing: ColumnOrName, new: str) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
@@ -3996,7 +4010,6 @@ class DataFrame:
         ]
         return self.select(new_columns)
 
-    @df_collect_api_telemetry
     def cache_result(
         self, *, statement_params: Optional[Dict[str, str]] = None
     ) -> "Table":
@@ -4095,7 +4108,6 @@ class DataFrame:
             cached_df.is_cached = True
             return cached_df
 
-    @df_collect_api_telemetry
     def random_split(
         self,
         weights: List[float],
@@ -4212,7 +4224,7 @@ Query List:
         normalized_col_name = quote_name(col_name)
         cols = list(filter(lambda attr: attr.name == normalized_col_name, self._output))
         if len(cols) == 1:
-            return cols[0].with_name(normalized_col_name)
+            return cols[0].with_name(normalized_col_name, plan=self._plan)
         else:
             raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
                 col_name

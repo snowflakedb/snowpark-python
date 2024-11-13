@@ -226,12 +226,18 @@ class SnowflakePlan(LogicalPlan):
         referenced_ctes: Optional[Dict[WithQueryBlock, int]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
+        conflicted_alias_map=None,
     ) -> None:
         super().__init__()
         self.queries = queries
         self.schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
-        self.expr_to_alias = expr_to_alias if expr_to_alias else {}
+        self.expr_to_alias = (
+            expr_to_alias if expr_to_alias else {}
+        )  # use to stored old alias map info, TODO: when use old one and when to use new one?
+        self.conflicted_alias_map = (
+            conflicted_alias_map if conflicted_alias_map else {}
+        )  # use to store conflicted alias map info
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
@@ -506,7 +512,23 @@ class SnowflakePlan(LogicalPlan):
         return copied_plan
 
     def add_aliases(self, to_add: Dict) -> None:
+        # intersect_keys = set(self.expr_to_alias.keys()).intersection(to_add.keys())
+        conflicted = False
+        intersected_keys = set(to_add.keys()).intersection(
+            set(self.expr_to_alias.keys())
+        )
+        for key in intersected_keys:
+            if to_add[key] != self.expr_to_alias[key]:
+                conflicted = True
+                print(
+                    f"Alias conflict for key {key}, to_add: {to_add[key]} and self.expr_to_alias: {self.expr_to_alias[key]}"
+                )
+
+        if conflicted:
+            print(f"before conflict, self.expr_to_alias: {self.expr_to_alias}")
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
+        if conflicted:
+            print(f"after conflict, self.expr_to_alias: {self.expr_to_alias}")
 
 
 class SnowflakePlanBuilder:
@@ -590,6 +612,7 @@ class SnowflakePlanBuilder:
         common_columns = set(select_left.expr_to_alias.keys()).intersection(
             select_right.expr_to_alias.keys()
         )
+        # TODO join: related to alias
         new_expr_to_alias = {
             k: v
             for k, v in {
@@ -598,6 +621,17 @@ class SnowflakePlanBuilder:
             }.items()
             if k not in common_columns
         }
+        conflicted_alias_map = defaultdict(list)
+        for k in common_columns:
+            if select_left.expr_to_alias[k] == select_right.expr_to_alias[k]:
+                new_expr_to_alias[k] = select_left.expr_to_alias[k]
+            else:
+                conflicted_alias_map[k].append(
+                    (select_left.expr_to_alias[k], select_left)
+                )
+                conflicted_alias_map[k].append(
+                    (select_right.expr_to_alias[k], select_right)
+                )
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
         # Need to do a deduplication to avoid repeated query.
@@ -645,7 +679,11 @@ class SnowflakePlanBuilder:
             api_calls=api_calls,
             session=self.session,
             referenced_ctes=referenced_ctes,
+            conflicted_alias_map=conflicted_alias_map,
         )
+        # ret_plan.conflicted_alias_map = conflicted_alias_map
+
+        # return ret_plan
 
     def query(
         self,

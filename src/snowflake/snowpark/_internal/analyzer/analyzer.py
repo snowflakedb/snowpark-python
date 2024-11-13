@@ -167,6 +167,7 @@ class Analyzer:
         self.generated_alias_maps = {}
         self.subquery_plans = []
         self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
+        self.conflicted_maps_to_use = None
 
     def analyze(
         self,
@@ -366,8 +367,48 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Attribute):
+            expr_plan = expr.plan
+
+            # for sql simplifier case
+            expr_plan_source_plan = None
+            expr_plan_from = None
+            if expr_plan and isinstance(expr_plan.source_plan, SelectStatement):
+                expr_plan_source_plan = expr_plan.source_plan
+                expr_plan_from = expr_plan_source_plan.from_
+
+            def traverse_child(root):
+                if root == expr_plan:
+                    return 0
+                # this does not work for sql simplifier the case because selectable has no children nodes
+                for child in root.children_plan_nodes:
+                    res = traverse_child(child)
+                    if res == -1:
+                        continue
+                    return res + 1
+                return -1
+
             assert self.alias_maps_to_use is not None
-            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            name = self.alias_maps_to_use.get(expr.expr_id)
+            if not name:
+                if expr.expr_id not in self.conflicted_maps_to_use:
+                    name = expr.name
+                else:
+                    # find the plan that has the least depth for non-sql simplifier case
+                    min_depth = float("inf")
+                    for tmp_name, plan in self.conflicted_maps_to_use[expr.expr_id]:
+                        if expr_plan_from:
+                            # sql simplifier case, we just need to compare the from_ case
+                            if expr_plan_from == plan.source_plan.from_:
+                                name = tmp_name
+                                break
+                        else:
+                            # non sql simplifier case
+                            depth = traverse_child(plan)
+                            if depth < min_depth and depth != -1:
+                                min_depth = depth
+                                name = tmp_name
+                    if not name:
+                        raise RuntimeError("alias is not found")
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
@@ -675,6 +716,7 @@ class Analyzer:
         df_aliased_col_name_to_real_col_name,
         parse_local_name=False,
     ) -> str:
+
         if self.session.eliminate_numeric_sql_value_cast_enabled:
             left_sql_expr = self.to_sql_try_avoid_cast(
                 expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
@@ -804,6 +846,9 @@ class Analyzer:
             # Selectable doesn't have children. It already has the expr_to_alias dict.
             self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
+            if isinstance(logical_plan, Join):
+                print("break point")
+
             use_maps = {}
             # get counts of expr_to_alias keys
             counts = Counter()
@@ -819,11 +864,50 @@ class Analyzer:
                         {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
                     )
 
+            def find_diff_values(*dicts):
+                # Store values by key for comparison
+                value_map = defaultdict(set)
+                # Store duplicate keys with differing values
+                diff_keys = {}
+
+                # Gather all values for each key from all dictionaries
+                for d in dicts:
+                    for key, value in d.items():
+                        value_map[key].add(value)
+
+                # Identify keys with differing values
+                for key, values in value_map.items():
+                    if (
+                        len(values) > 1
+                    ):  # Only consider keys with more than one unique value
+                        diff_keys[key] = list(values)
+
+                return set(diff_keys.keys())
+
+            dup_keys_with_different_values = find_diff_values(
+                *[v.expr_to_alias for v in resolved_children.values()]
+            )
+            self.conflicted_maps_to_use = defaultdict(list)
+            # if the logic plan has a conflict alias map already and there is no children
+            if (
+                getattr(logical_plan, "conflicted_alias_map", {})
+                and not resolved_children
+            ):
+                self.conflicted_maps_to_use = logical_plan.conflicted_alias_map
+            else:
+                for plan in resolved_children.values():
+                    if plan.conflicted_alias_map:
+                        self.conflicted_maps_to_use.update(plan.conflicted_alias_map)
+                    for k, v in plan.expr_to_alias.items():
+                        if k in dup_keys_with_different_values:
+                            self.conflicted_maps_to_use[k].append((v, plan))
+
             self.alias_maps_to_use = use_maps
 
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
         )
+        res.conflicted_alias_map.update(self.conflicted_maps_to_use)
         res.df_aliased_col_name_to_real_col_name.update(
             df_aliased_col_name_to_real_col_name
         )
