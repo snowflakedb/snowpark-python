@@ -22,6 +22,7 @@ from snowflake.snowpark.functions import (
     max as max_,
     min as min_,
     seq2,
+    sum as sum_,
     table_function,
 )
 from snowflake.snowpark.session import (
@@ -29,7 +30,7 @@ from snowflake.snowpark.session import (
     Session,
 )
 from tests.integ.utils.sql_counter import SqlCounter
-from tests.utils import IS_IN_STORED_PROC
+from tests.utils import IS_IN_STORED_PROC, TestData
 
 pytestmark = [
     pytest.mark.skipif(
@@ -356,6 +357,38 @@ def test_join_common_quoted_identifier(session):
     with SqlCounter(query_count=0, describe_count=1):
         assert df._plan._metadata.quoted_identifiers is None
         assert df._plan.quoted_identifiers == ['"A"', '"B1"', '"B2"']
+
+
+@pytest.mark.parametrize(
+    "create_df_func",
+    [
+        lambda session: session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        .group_by("a")
+        .count(),
+        lambda session: session.create_dataframe(
+            [[1, 2], [3, 4]], schema=["a", "b"]
+        ).join(session.sql("SELECT 1 AS a, 2 AS b1"), "a"),
+        lambda session: session.create_dataframe(
+            [[1, 2], [3, 4]], schema=["a", "b"]
+        ).rename({"b": "c"}),
+        lambda session: TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg(sum_(col("amount"))),
+    ],
+)
+def test_cache_metadata_on_select_statement_from(
+    session, sql_simplifier_enabled, create_df_func
+):
+    df = create_df_func(session)
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df.schema
+    with SqlCounter(
+        query_count=0,
+        describe_count=0
+        if session.reduce_describe_query_enabled or not sql_simplifier_enabled
+        else 1,
+    ):
+        df.select("*")
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
