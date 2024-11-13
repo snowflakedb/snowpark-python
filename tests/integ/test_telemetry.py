@@ -1284,3 +1284,28 @@ def test_cursor_created_telemetry(session):
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
     assert data == expected_data
     assert type_ == "snowpark_cursor_created"
+
+
+def test_describe_query_details(session):
+    client = session._conn._telemetry_client
+
+    def send_telemetry():
+        client.send_describe_query_details(
+            session.session_id,
+            sql_text="select 1 as a, 2 as b",
+            e2e_time=0.01,
+            stack_trace=["line1", "line2"],
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "sql_text": "select 1 as a, 2 as b",
+        "e2e_time": 0.01,
+        "stack_trace": ["line1", "line2"],
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_describe_query_details"
