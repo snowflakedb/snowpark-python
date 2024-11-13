@@ -558,6 +558,7 @@ class StructType(DataType):
 
     simpleString = simple_string
     jsonValue = json_value
+    fieldNames = names
 
 
 class VariantType(DataType):
