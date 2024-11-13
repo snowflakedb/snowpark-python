@@ -45,7 +45,7 @@ res8 = df.group_by("a").count()
 
 df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)], schema=["location", "temp_c"])
 
-res10 = udtf(_ApplyInPandas, output_schema=StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()])
+res10 = udtf(output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], registered_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
 
@@ -716,60 +716,44 @@ body {
 body {
   assign {
     expr {
-      udtf {
-        handler {
-          name: "_ApplyInPandas"
-        }
+      udtf_register {
         input_types {
-          list {
-            sp_string_type {
-              length {
-              }
+          sp_string_type {
+            length {
             }
           }
-          list {
-            sp_float_type: true
-          }
+        }
+        input_types {
+          sp_float_type: true
         }
         output_schema {
           udtf_schema__type {
             return_type {
-              sp_struct_type {
-                fields {
-                  column_identifier {
-                    name: "location"
-                  }
-                  data_type {
-                    sp_string_type {
-                      length {
-                      }
+              sp_pandas_data_frame_type {
+                col_names: "LOCATION"
+                col_names: "TEMP_C"
+                col_names: "TEMP_F"
+                col_types {
+                  sp_string_type {
+                    length {
                     }
                   }
-                  nullable: true
                 }
-                fields {
-                  column_identifier {
-                    name: "temp_c"
-                  }
-                  data_type {
-                    sp_float_type: true
-                  }
-                  nullable: true
+                col_types {
+                  sp_float_type: true
                 }
-                fields {
-                  column_identifier {
-                    name: "temp_f"
-                  }
-                  data_type {
-                    sp_float_type: true
-                  }
-                  nullable: true
+                col_types {
+                  sp_float_type: true
                 }
               }
             }
           }
         }
-        parallel: 4
+        registered_name {
+          fn_name_flat {
+            name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+          }
+        }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 43
@@ -789,7 +773,6 @@ body {
     expr {
       sp_relational_grouped_dataframe_apply_in_pandas {
         func {
-          id: 1
           name: "convert"
         }
         grouped_df {
