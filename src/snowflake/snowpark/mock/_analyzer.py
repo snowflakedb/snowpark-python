@@ -758,6 +758,10 @@ class MockAnalyzer:
         return result
 
     def do_resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
+        assert hasattr(logical_plan, "df_aliased_col_name_to_real_col_name"), (
+            f"The logical plan {logical_plan!r} should have the attribute "
+            "df_aliased_col_name_to_real_col_name"
+        )
         resolved_children = {}
         df_aliased_col_name_to_real_col_name = defaultdict(dict)
         for c in logical_plan.children:
