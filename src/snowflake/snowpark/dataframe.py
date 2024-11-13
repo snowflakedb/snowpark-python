@@ -272,29 +272,36 @@ def _disambiguate(
     lhs_prefix = _generate_prefix("l") if not suffix_provided else ""
     rhs_prefix = _generate_prefix("r") if not suffix_provided else ""
 
-    lhs_remapped = lhs.select(
-        [
-            _alias_if_needed(
-                lhs,
-                name,
-                lhs_prefix,
-                lsuffix,
-                [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
-            )
-            for name in lhs_names
-        ]
-    )
+    aliased_cols = [
+        _alias_if_needed(
+            lhs,
+            name,
+            lhs_prefix,
+            lsuffix,
+            [] if isinstance(join_type, (LeftSemi, LeftAnti)) else common_col_names,
+        )
+        for name in lhs_names
+    ]
+    lhs_remapped = lhs.select(aliased_cols)
 
-    assert lhs_remapped._plan.children_plan_nodes[0] == lhs._plan
+    if lhs.session.sql_simplifier_enabled:
+        assert lhs_remapped._select_statement.from_ == lhs._select_statement.from_
+    else:
+        assert lhs_remapped._plan.children_plan_nodes[0] == lhs._plan
 
-    rhs_remapped = rhs.select(
-        [
-            _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
-            for name in rhs_names
-        ]
-    )
+    aliased_cols = [
+        _alias_if_needed(rhs, name, rhs_prefix, rsuffix, common_col_names)
+        for name in rhs_names
+    ]
+    rhs_remapped = rhs.select(aliased_cols)
 
-    assert rhs_remapped._plan.children_plan_nodes[0] == rhs._plan
+    if rhs.session.sql_simplifier_enabled:
+        # case 1 can be flattened, case 2 can't be flattened
+        assert rhs_remapped._select_statement.from_ == rhs._select_statement.from_ or (
+            rhs_remapped._select_statement.from_.from_ == rhs._select_statement.from_
+        )
+    else:
+        assert rhs_remapped._plan.children_plan_nodes[0] == rhs._plan
     return lhs_remapped, rhs_remapped
 
 
@@ -538,6 +545,7 @@ class DataFrame:
         is_cached: bool = False,
     ) -> None:
         self._session = session
+        # SelectStatement will create a new SnowflakePlan during resolve if there is not one bound with that yet
         self._plan = self._session._analyzer.resolve(plan)
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
@@ -1221,6 +1229,10 @@ class DataFrame:
                 )
 
             new_select = self._select_statement.select(names)
+            # case 1 new select is flatten, case 2 new select is not flattened
+            assert (self._select_statement.from_ == new_select.from_) or (
+                self._select_statement.from_ == new_select.from_.from_
+            )
             new_df = self._with_plan(new_select)
             return new_df
             # return self._with_plan(self._select_statement.select(names))

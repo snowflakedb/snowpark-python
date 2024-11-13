@@ -3032,16 +3032,33 @@ class Session:
                 project_columns.append(column(name))
 
         if self.sql_simplifier_enabled:
-            df = DataFrame(
-                self,
-                self._analyzer.create_select_statement(
-                    from_=self._analyzer.create_select_snowflake_plan(
-                        SnowflakeValues(attrs, converted, schema_query=schema_query),
-                        analyzer=self._analyzer,
-                    ),
-                    analyzer=self._analyzer,
-                ),
-            ).select(project_columns)
+            analyzer = self._analyzer
+            snowflakevalues = SnowflakeValues(
+                attrs, converted, schema_query=schema_query
+            )
+            select_snowflake_plan = analyzer.create_select_snowflake_plan(
+                snowflake_plan=snowflakevalues,
+                analyzer=analyzer,
+            )
+            select_statement = analyzer.create_select_statement(
+                from_=select_snowflake_plan, analyzer=analyzer
+            )
+            # select_statement.snowflake_plan  # this will create a new snowflake plan
+            df = DataFrame(self, select_statement)
+            assert df._plan == select_statement.snowflake_plan
+            df.select(project_columns)
+            assert df._select_statement == select_statement
+
+            # df = DataFrame(
+            #     self,
+            #     self._analyzer.create_select_statement(
+            #         from_=self._analyzer.create_select_snowflake_plan(
+            #             sv,
+            #             analyzer=self._analyzer,
+            #         ),
+            #         analyzer=self._analyzer,
+            #     ),
+            # ).select(project_columns)
         else:
             df = DataFrame(
                 self, SnowflakeValues(attrs, converted, schema_query=schema_query)

@@ -367,12 +367,19 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Attribute):
-            # TODO: which plan expr_to_alias to use?
             expr_plan = expr.plan
+
+            # for sql simplifier case
+            expr_plan_source_plan = None
+            expr_plan_from = None
+            if expr_plan and isinstance(expr_plan.source_plan, SelectStatement):
+                expr_plan_source_plan = expr_plan.source_plan
+                expr_plan_from = expr_plan_source_plan.from_
 
             def traverse_child(root):
                 if root == expr_plan:
                     return 0
+                # this does not work for sql simplifier the case because selectable has no children nodes
                 for child in root.children_plan_nodes:
                     res = traverse_child(child)
                     if res == -1:
@@ -386,13 +393,22 @@ class Analyzer:
                 if expr.expr_id not in self.conflicted_maps_to_use:
                     name = expr.name
                 else:
-                    # find the plan that has the least depth
+                    # find the plan that has the least depth for non-sql simplifier case
                     min_depth = float("inf")
                     for tmp_name, plan in self.conflicted_maps_to_use[expr.expr_id]:
-                        depth = traverse_child(plan)
-                        if depth < min_depth:
-                            min_depth = depth
-                            name = tmp_name
+                        if expr_plan_from:
+                            # sql simplifier case, we just need to compare the from_ case
+                            if expr_plan_from == plan.source_plan.from_:
+                                name = tmp_name
+                                break
+                        else:
+                            # non sql simplifier case
+                            depth = traverse_child(plan)
+                            if depth < min_depth and depth != -1:
+                                min_depth = depth
+                                name = tmp_name
+                    if not name:
+                        raise RuntimeError("alias is not found")
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
@@ -828,9 +844,7 @@ class Analyzer:
 
         if isinstance(logical_plan, Selectable):
             # Selectable doesn't have children. It already has the expr_to_alias dict.
-            self.alias_maps_to_use = (
-                logical_plan.expr_to_alias.copy()
-            )  # logical_plan.expr_to_alias.copy()
+            self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
             if isinstance(logical_plan, Join):
                 print("break point")
@@ -893,6 +907,7 @@ class Analyzer:
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
         )
+        res.conflicted_alias_map.update(self.conflicted_maps_to_use)
         res.df_aliased_col_name_to_real_col_name.update(
             df_aliased_col_name_to_real_col_name
         )
