@@ -230,13 +230,11 @@ def align_axis_1_left_helper(
             )
             select_list.append(col(snowflake_id).as_(new_column_snowflake_quoted_id))
             snowflake_id = new_column_snowflake_quoted_id
-            i = curr_label_count_map[label]
-            curr_label_count_map[label] = i + 1
+            curr_label_count_map[label] += 1
         else:
             snowflake_id = id_tuple[index]
             select_list.append(snowflake_id)
-            i = curr_label_count_map[label]
-            curr_label_count_map[label] = i + 1
+            curr_label_count_map[label] += 1
         data_column_snowflake_identifiers.append(snowflake_id)
 
     return InternalFrame.create(
@@ -319,13 +317,11 @@ def align_axis_1_right_helper(
             )
             select_list.append(col(snowflake_id).as_(new_column_snowflake_quoted_id))
             snowflake_id = new_column_snowflake_quoted_id
-            i = curr_label_count_map[label]
-            curr_label_count_map[label] = i + 1
+            curr_label_count_map[label] += 1
         else:
             snowflake_id = id_tuple[index]
             select_list.append(snowflake_id)
-            i = curr_label_count_map[label]
-            curr_label_count_map[label] = i + 1
+            curr_label_count_map[label] += 1
         data_column_snowflake_identifiers.append(snowflake_id)
 
     return InternalFrame.create(
