@@ -791,6 +791,10 @@ class MockAnalyzer:
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
         )
+        assert hasattr(res, "df_aliased_col_name_to_real_col_name"), (
+            f"The resolved plan {res!r} should have the attribute "
+            "df_aliased_col_name_to_real_col_name"
+        )
         res.df_aliased_col_name_to_real_col_name.update(
             df_aliased_col_name_to_real_col_name
         )
