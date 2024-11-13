@@ -421,7 +421,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             except KeyError:
                 raise SnowparkSQLException("Unknown function")
 
-            # TODO: Support call in MockServerConnection.
+            # TODO SNOW-1800512: Support call in MockServerConnection.
             from snowflake.snowpark.mock._connection import MockServerConnection
 
             if sproc_name not in self._registry:
