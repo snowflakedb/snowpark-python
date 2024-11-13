@@ -86,6 +86,13 @@ if protoc is None:
     )
     sys.exit(-1)
 
+protoc_gen_mypy = shutil.which("protoc-gen-mypy")
+if protoc_gen_mypy is None:
+    sys.stderr.write(
+        "protoc-gen-mypy is not installed nor found. Please install the binary package, e.g., `pip install mypy-protobuf`\n"
+    )
+    sys.exit(-1)
+
 # Protobuf files need to compile
 PROTOS = ("src/snowflake/snowpark/_internal/proto/ast.proto",)
 
