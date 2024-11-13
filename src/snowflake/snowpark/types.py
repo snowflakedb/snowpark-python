@@ -49,10 +49,10 @@ class DataType:
     def simple_string(self) -> str:
         return self.type_name()
 
-    def json_value(self):
+    def json_value(self) -> Union[str, Dict[str, Any]]:
         return self.type_name()
 
-    def json(self):
+    def json(self) -> str:
         return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
 
     typeName = type_name
@@ -160,18 +160,31 @@ class TimestampType(_AtomicType):
 
     def __init__(self, timezone: TimestampTimeZone = TimestampTimeZone.DEFAULT) -> None:
         self.tz = timezone  #: Timestamp variations
+        self.tzinfo = self.tz if self.tz != TimestampTimeZone.DEFAULT else ""
 
     def __repr__(self) -> str:
-        tzinfo = f"tz={self.tz}" if self.tz != TimestampTimeZone.DEFAULT else ""
-        return f"TimestampType({tzinfo})"
+        return (
+            f"TimestampType(tz={self.tzinfo})"
+            if self.tzinfo != ""
+            else "TimestampType()"
+        )
 
-    def simple_string(self):
-        tzinfo = self.tz if self.tz != TimestampTimeZone.DEFAULT else ""
-        return f"{self.type_name()}_{tzinfo}" if tzinfo != "" else self.type_name()
+    def simple_string(self) -> str:
+        return (
+            f"{self.type_name()}_{self.tzinfo}"
+            if self.tzinfo != ""
+            else self.type_name()
+        )
 
-    def json_value(self):
-        tzinfo = self.tz if self.tz != TimestampTimeZone.DEFAULT else ""
-        return f"{self.type_name()}_{tzinfo}" if tzinfo != "" else self.type_name()
+    def json_value(self) -> str:
+        return (
+            f"{self.type_name()}_{self.tzinfo}"
+            if self.tzinfo != ""
+            else self.type_name()
+        )
+
+    simpleString = simple_string
+    jsonValue = json_value
 
 
 class TimeType(_AtomicType):
@@ -195,12 +208,16 @@ class ByteType(_IntegralType):
     def simple_string(self) -> str:
         return "tinyint"
 
+    simpleString = simple_string
+
 
 class ShortType(_IntegralType):
     """Short integer data type. This maps to the SMALLINT data type in Snowflake."""
 
     def simple_string(self) -> str:
         return "smallint"
+
+    simpleString = simple_string
 
 
 class IntegerType(_IntegralType):
@@ -209,12 +226,16 @@ class IntegerType(_IntegralType):
     def simple_string(self) -> str:
         return "int"
 
+    simpleString = simple_string
+
 
 class LongType(_IntegralType):
     """Long integer data type. This maps to the BIGINT data type in Snowflake."""
 
     def simple_string(self) -> str:
         return "bigint"
+
+    simpleString = simple_string
 
 
 class FloatType(_FractionalType):
@@ -248,6 +269,9 @@ class DecimalType(_FractionalType):
     def json_value(self) -> str:
         return f"decimal({self.precision},{self.scale})"
 
+    simpleString = simple_string
+    jsonValue = json_value
+
 
 class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
@@ -266,7 +290,7 @@ class ArrayType(DataType):
     def is_primitive(self):
         return False
 
-    def simple_string(self):
+    def simple_string(self) -> str:
         return f"array<{self.element_type.simple_string()}>"
 
     def json_value(self) -> Dict[str, Any]:
@@ -274,6 +298,9 @@ class ArrayType(DataType):
             "type": self.type_name(),
             "element_type": self.element_type.json_value(),
         }
+
+    simpleString = simple_string
+    jsonValue = json_value
 
 
 class MapType(DataType):
@@ -295,7 +322,7 @@ class MapType(DataType):
     def is_primitive(self):
         return False
 
-    def simple_string(self):
+    def simple_string(self) -> str:
         return f"map<{self.key_type.simple_string()},{self.value_type.simple_string()}>"
 
     def json_value(self) -> Dict[str, Any]:
@@ -304,6 +331,9 @@ class MapType(DataType):
             "key_type": self.key_type.json_value(),
             "value_type": self.value_type.json_value(),
         }
+
+    simpleString = simple_string
+    jsonValue = json_value
 
 
 class VectorType(DataType):
@@ -395,7 +425,7 @@ class ColumnIdentifier:
         return string[1:-1] if result else string
 
 
-class StructField(DataType):
+class StructField:
     """Represents the content of :class:`StructField`."""
 
     def __init__(
@@ -430,7 +460,7 @@ class StructField(DataType):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
 
     def simple_string(self) -> str:
-        return f"{self.name}:{self.datatype.simpleString()}"
+        return f"{self.name}:{self.datatype.simple_string()}"
 
     def json_value(self) -> Dict[str, Any]:
         return {
@@ -440,10 +470,17 @@ class StructField(DataType):
             "metadata": self.metadata,
         }
 
+    def json(self) -> str:
+        return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
+
     def type_name(self) -> str:
         raise TypeError(
             "StructField does not have typeName. Use typeName on its type explicitly instead"
         )
+
+    typeName = type_name
+    simpleString = simple_string
+    jsonValue = json_value
 
 
 class StructType(DataType):
@@ -521,6 +558,9 @@ class StructType(DataType):
 
     def json_value(self) -> Dict[str, Any]:
         return {"type": self.type_name(), "fields": [f.json_value() for f in self]}
+
+    simpleString = simple_string
+    jsonValue = json_value
 
 
 class VariantType(DataType):
