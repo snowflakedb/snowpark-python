@@ -204,11 +204,11 @@ def align_axis_1_left_helper(
     # where duplicate columns are selected from the tuple according to their tuple order
     for label, id_tuple in zip(data_column_labels, snowflake_ids):
         if (
-            curr_label_count_map.get(label, 0) > 0
-            and curr_label_count_map.get(label, 0) % other_counter[label] == 0
+            curr_label_count_map[label] > 0
+            and curr_label_count_map[label] % other_counter[label] == 0
         ):
-            curr_label_index_map[label] = curr_label_index_map.get(label, 0) + 1
-        index = curr_label_index_map.get(label, 0)
+            curr_label_index_map[label] += 1
+        index = curr_label_index_map[label]
 
         if len(id_tuple) == 0:
             # if missing, add new column to frame with NULL values.
@@ -292,13 +292,14 @@ def align_axis_1_right_helper(
     # where duplicate columns are selected from the tuple in the order they appear in the orig frame
     for label, id_tuple in zip(data_column_labels, snowflake_ids):
         if (
-            curr_label_count_map.get(label, 0) > 0
-            and curr_label_count_map.get(label, 0) % counter[label] != 0
+            curr_label_count_map[label] > 0
+            and curr_label_count_map[label] % counter[label] != 0
         ):
-            curr_label_index_map[label] = curr_label_index_map.get(label, 0) + 1
+            curr_label_index_map[label] += 1
         else:
             curr_label_index_map[label] = 0
-        index = curr_label_index_map.get(label, 0)
+        index = curr_label_index_map[label]
+
         if len(id_tuple) == 0:
             # if missing, add new column to frame with NULL values.
             snowflake_id = (
