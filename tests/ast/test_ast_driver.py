@@ -107,6 +107,12 @@ def indent_lines(source: str, n_indents: int = 0):
     return "\n".join(map(lambda line: indent * n_indents + line, source.split("\n")))
 
 
+def normalize_temp_names(s: str):
+    return re.sub(
+        "SNOWPARK_TEMP_([a-zA-Z]*(_FUNCTION)?)_(\w+)", r"SNOWPARK_TEMP_\1_xxx", s
+    )
+
+
 def run_test(session, tables, test_name, test_source):
     override_time_zone()
     os.chdir(DATA_DIR)
@@ -165,9 +171,7 @@ def run_test(session, tables):
         raw_unparser_output = (
             render(base64_batches, pytest.unparser_jar) if pytest.unparser_jar else ""
         )
-        unparser_output = re.sub(
-            r"SNOWPARK_TEMP_TABLE_(\w+)", "SNOWPARK_TEMP_TABLE_xxx", raw_unparser_output
-        )
+        unparser_output = normalize_temp_names(raw_unparser_output)
         return unparser_output, "\n".join(base64_batches)
     except Exception as e:
         raise Exception("Generated AST test failed") from e
@@ -195,7 +199,7 @@ def test_ast(session, tables, test_case):
                     "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
                     "\n\n## EXPECTED ENCODED AST\n\n",
-                    base64_lines_to_textproto(base64_str.strip()),
+                    normalize_temp_names(base64_lines_to_textproto(base64_str.strip())),
                 ]
             )
     else:
