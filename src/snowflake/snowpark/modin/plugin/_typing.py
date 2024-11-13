@@ -54,6 +54,17 @@ AlignTypeLit = Literal[
     "coalesce",
 ]  # right and inner can also be supported if needed
 
+AlignSortLit = [
+    # Align operator provides a default sorting capability, which sort the
+    # align key lexicographically when the align type is outer, and the original
+    # dataframe is not aligned. No sort will happen for other align types.
+    "default_sort",
+    # Always sort the align key lexicographically regardless of align type.
+    "sort",
+    # Do not sort the align key regardless of the align type.
+    "no_sort",
+]
+
 SnowflakeSupportedFileTypeLit = Union[
     Literal["csv"], Literal["json"], Literal["parquet"]
 ]
