@@ -457,7 +457,9 @@ def test_str_len_list():
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
 
 
-def test_str_len_list_coin_base(session):
+@pytest.mark.parametrize("enable_sql_simplifier", [True, False])
+def test_str_len_list_coin_base(session, enable_sql_simplifier):
+    session.sql_simplifier_enabled = enable_sql_simplifier
     expected_udf_count = 2
     if session.sql_simplifier_enabled:
         expected_udf_count = 1
