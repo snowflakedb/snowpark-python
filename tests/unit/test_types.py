@@ -1050,154 +1050,191 @@ def test_snow_type_to_dtype_str():
         snow_type_to_dtype_str(None)
 
 
-def test_datatype():
-    tpe = DataType()
-    assert tpe.simple_string() == "data"
-    assert tpe.json() == '"data"'
-    assert tpe.type_name() == "data"
-    assert tpe.json_value() == "data"
+@pytest.mark.parametrize(
+    "tpe, simple_string, json, type_name, json_value",
+    [
+        (DataType(), "data", '"data"', "data", "data"),
+        (BinaryType(), "binary", '"binary"', "binary", "binary"),
+        (BooleanType(), "boolean", '"boolean"', "boolean", "boolean"),
+        (ByteType(), "tinyint", '"byte"', "byte", "byte"),
+        (DateType(), "date", '"date"', "date", "date"),
+        (
+            DecimalType(20, 10),
+            "decimal(20,10)",
+            '"decimal(20,10)"',
+            "decimal",
+            "decimal(20,10)",
+        ),
+        (DoubleType(), "double", '"double"', "double", "double"),
+        (FloatType(), "float", '"float"', "float", "float"),
+        (IntegerType(), "int", '"integer"', "integer", "integer"),
+        (LongType(), "bigint", '"long"', "long", "long"),
+        (ShortType(), "smallint", '"short"', "short", "short"),
+        (StringType(), "string", '"string"', "string", "string"),
+        (
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+            "struct<A:string,B:int>",
+            '{"fields":[{"metadata":{},"name":"A","nullable":true,"type":"string"},{"metadata":{},"name":"B","nullable":true,"type":"integer"}],"type":"struct"}',
+            "struct",
+            {
+                "type": "struct",
+                "fields": [
+                    {"name": "A", "type": "string", "nullable": True, "metadata": {}},
+                    {"name": "B", "type": "integer", "nullable": True, "metadata": {}},
+                ],
+            },
+        ),
+        (
+            StructField("AA", StringType()),
+            "AA:string",
+            '{"metadata":{},"name":"AA","nullable":true,"type":"string"}',
+            "",
+            {
+                "name": "AA",
+                "type": "string",
+                "nullable": True,
+                "metadata": {},
+            },
+        ),
+        (TimestampType(), "timestamp", '"timestamp"', "timestamp", "timestamp"),
+        (
+            TimestampType(TimestampTimeZone.TZ),
+            "timestamp_tz",
+            '"timestamp_tz"',
+            "timestamp",
+            "timestamp_tz",
+        ),
+        (
+            TimestampType(TimestampTimeZone.LTZ),
+            "timestamp_ltz",
+            '"timestamp_ltz"',
+            "timestamp",
+            "timestamp_ltz",
+        ),
+        (
+            TimestampType(TimestampTimeZone.NTZ),
+            "timestamp_ntz",
+            '"timestamp_ntz"',
+            "timestamp",
+            "timestamp_ntz",
+        ),
+        (TimeType(), "time", '"time"', "time", "time"),
+        (
+            ArrayType(IntegerType()),
+            "array<int>",
+            '{"element_type":"integer","type":"array"}',
+            "array",
+            {
+                "element_type": "integer",
+                "type": "array",
+            },
+        ),
+        (
+            ArrayType(ArrayType(IntegerType())),
+            "array<array<int>>",
+            '{"element_type":{"element_type":"integer","type":"array"},"type":"array"}',
+            "array",
+            {
+                "element_type": {"element_type": "integer", "type": "array"},
+                "type": "array",
+            },
+        ),
+        (
+            MapType(IntegerType(), StringType()),
+            "map<int,string>",
+            '{"key_type":"integer","type":"map","value_type":"string"}',
+            "map",
+            {
+                "key_type": "integer",
+                "type": "map",
+                "value_type": "string",
+            },
+        ),
+        (
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+            "map<string,map<int,string>>",
+            '{"key_type":"string","type":"map","value_type":{"key_type":"integer","type":"map","value_type":"string"}}',
+            "map",
+            {
+                "type": "map",
+                "key_type": "string",
+                "value_type": {
+                    "type": "map",
+                    "key_type": "integer",
+                    "value_type": "string",
+                },
+            },
+        ),
+        (
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+            "struct<NESTED:struct<A:int,B:string>>",
+            '{"fields":[{"metadata":{},"name":"NESTED","nullable":true,"type":{"fields":[{"metadata":{},"name":"A","nullable":true,"type":"integer"},{"metadata":{},"name":"B","nullable":true,"type":"string"}],"type":"struct"}}],"type":"struct"}',
+            "struct",
+            {
+                "type": "struct",
+                "fields": [
+                    {
+                        "name": "NESTED",
+                        "type": {
+                            "type": "struct",
+                            "fields": [
+                                {
+                                    "name": "A",
+                                    "type": "integer",
+                                    "nullable": True,
+                                    "metadata": {},
+                                },
+                                {
+                                    "name": "B",
+                                    "type": "string",
+                                    "nullable": True,
+                                    "metadata": {},
+                                },
+                            ],
+                        },
+                        "nullable": True,
+                        "metadata": {},
+                    }
+                ],
+            },
+        ),
+    ],
+)
+def test_datatype(tpe, simple_string, json, type_name, json_value):
+    assert tpe.simple_string() == simple_string
+    assert tpe.json_value() == json_value
+    assert tpe.json() == json
+    if isinstance(tpe, StructField):
+        with pytest.raises(
+            TypeError,
+            match="StructField does not have typeName. Use typeName on its type explicitly instead",
+        ):
+            tpe.type_name()
+    else:
+        assert tpe.type_name() == type_name
 
-    tpe = BinaryType()
-    assert tpe.simple_string() == "binary"
-    assert tpe.json() == '"binary"'
-    assert tpe.type_name() == "binary"
-    assert tpe.json_value() == "binary"
-
-    tpe = BooleanType()
-    assert tpe.simple_string() == "boolean"
-    assert tpe.json() == '"boolean"'
-    assert tpe.type_name() == "boolean"
-    assert tpe.json_value() == "boolean"
-
-    tpe = ByteType()
-    assert tpe.simple_string() == "tinyint"
-    assert tpe.json() == '"byte"'
-    assert tpe.type_name() == "byte"
-    assert tpe.json_value() == "byte"
-
-    tpe = DateType()
-    assert tpe.simple_string() == "date"
-    assert tpe.json() == '"date"'
-    assert tpe.type_name() == "date"
-    assert tpe.json_value() == "date"
-
-    tpe = DecimalType(20, 10)
-    assert tpe.simple_string() == "decimal(20,10)"
-    assert tpe.json() == '"decimal(20,10)"'
-    assert tpe.type_name() == "decimal"
-    assert tpe.json_value() == "decimal(20,10)"
-
-    tpe = DoubleType()
-    assert tpe.simple_string() == "double"
-    assert tpe.json() == '"double"'
-    assert tpe.type_name() == "double"
-    assert tpe.json_value() == "double"
-
-    tpe = FloatType()
-    assert tpe.simple_string() == "float"
-    assert tpe.json() == '"float"'
-    assert tpe.type_name() == "float"
-    assert tpe.json_value() == "float"
-
-    tpe = IntegerType()
-    assert tpe.simple_string() == "int"
-    assert tpe.json() == '"integer"'
-    assert tpe.type_name() == "integer"
-    assert tpe.json_value() == "integer"
-
-    tpe = LongType()
-    assert tpe.simple_string() == "bigint"
-    assert tpe.json() == '"long"'
-    assert tpe.type_name() == "long"
-    assert tpe.json_value() == "long"
-
-    tpe = ShortType()
-    assert tpe.simple_string() == "smallint"
-    assert tpe.json() == '"short"'
-    assert tpe.type_name() == "short"
-    assert tpe.json_value() == "short"
-
-    tpe = StringType()
-    assert tpe.simple_string() == "string"
-    assert tpe.json() == '"string"'
-    assert tpe.type_name() == "string"
-    assert tpe.json_value() == "string"
-
-    tpe = StructType([StructField("a", StringType()), StructField("b", IntegerType())])
-    assert tpe.simple_string() == "struct<A:string,B:integer>"
-    assert (
-        tpe.json()
-        == '{"fields":[{"metadata":{},"name":"A","nullable":true,"type":"string"},{"metadata":{},"name":"B","nullable":true,"type":"integer"}],"type":"struct"}'
-    )
-    assert tpe.type_name() == "struct"
-    assert tpe.json_value() == {
-        "type": "struct",
-        "fields": [
-            {"name": "A", "type": "string", "nullable": True, "metadata": {}},
-            {"name": "B", "type": "integer", "nullable": True, "metadata": {}},
-        ],
-    }
-
-    tpe = StructField("AA", StringType())
-    assert tpe.simple_string() == "AA:string"
-    assert tpe.json() == '{"metadata":{},"name":"AA","nullable":true,"type":"string"}'
-    with pytest.raises(
-        TypeError,
-        match="StructField does not have typeName. Use typeName on its type explicitly instead",
-    ):
-        tpe.type_name()
-    assert tpe.json_value() == {
-        "name": "AA",
-        "type": "string",
-        "nullable": True,
-        "metadata": {},
-    }
-
-    tpe = TimestampType()
-    assert tpe.simple_string() == "timestamp"
-    assert tpe.json() == '"timestamp"'
-    assert tpe.type_name() == "timestamp"
-    assert tpe.json_value() == "timestamp"
-
-    tpe = TimestampType(TimestampTimeZone.TZ)
-    assert tpe.simple_string() == "timestamp_tz"
-    assert tpe.json() == '"timestamp_tz"'
-    assert tpe.type_name() == "timestamp"
-    assert tpe.json_value() == "timestamp_tz"
-
-    tpe = TimestampType(TimestampTimeZone.LTZ)
-    assert tpe.simple_string() == "timestamp_ltz"
-    assert tpe.json() == '"timestamp_ltz"'
-    assert tpe.type_name() == "timestamp"
-    assert tpe.json_value() == "timestamp_ltz"
-
-    tpe = TimestampType(TimestampTimeZone.NTZ)
-    assert tpe.simple_string() == "timestamp_ntz"
-    assert tpe.json() == '"timestamp_ntz"'
-    assert tpe.type_name() == "timestamp"
-    assert tpe.json_value() == "timestamp_ntz"
-
-    tpe = TimeType()
-    assert tpe.simple_string() == "time"
-    assert tpe.json() == '"time"'
-    assert tpe.type_name() == "time"
-    assert tpe.json_value() == "time"
-
-    tpe = ArrayType(IntegerType())
-    assert tpe.simple_string() == "array<int>"
-    assert tpe.json() == '{"element_type":"integer","type":"array"}'
-    assert tpe.type_name() == "array"
-    assert tpe.json_value() == {
-        "element_type": "integer",
-        "type": "array",
-    }
-
-    tpe = MapType(IntegerType(), StringType())
-    assert tpe.simple_string() == "map<int,string>"
-    assert tpe.json() == '{"key_type":"integer","type":"map","value_type":"string"}'
-    assert tpe.type_name() == "map"
-    assert tpe.json_value() == {
-        "key_type": "integer",
-        "type": "map",
-        "value_type": "string",
-    }
+    # test alias
+    assert tpe.simpleString() == simple_string
+    assert tpe.jsonValue() == json_value
+    if isinstance(tpe, StructField):
+        with pytest.raises(
+            TypeError,
+            match="StructField does not have typeName. Use typeName on its type explicitly instead",
+        ):
+            tpe.typeName()
+    else:
+        assert tpe.typeName() == type_name
