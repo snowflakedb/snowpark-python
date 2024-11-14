@@ -1443,9 +1443,15 @@ class OrderedDataFrame:
         left = self.ensure_row_position_column()
         right = right.ensure_row_position_column()
 
+        # whether the alignment is performed on the row position column of each dataframe.
+        # In other words, this indicates whether the alignment is applied on a unique column
+        # of each dataframe. Optimizations can be applied based on this information.
         align_on_row_position_column = left_on_cols == [
             left.row_position_snowflake_quoted_identifier
         ] and right_on_cols == [right.row_position_snowflake_quoted_identifier]
+        # If the alignment is applied on the unique row position column, and the method is
+        # not "coalesce", the align operation can be directly mapped as a join. No extra filtering
+        # will be needed.
         direct_join_map = align_on_row_position_column and how != "coalesce"
 
         # perform outer join
@@ -1531,9 +1537,12 @@ class OrderedDataFrame:
         right_count = coalesce(max_(right_row_pos).over() + 1, lit(0))
         eq_row_pos_count = sum_(iff(left_row_pos == right_row_pos, 1, 0)).over()
 
-        # align_on_row_position_column = False
         ordering_columns = joined_ordered_frame.ordering_columns
         if align_on_row_position_column:
+            # when the alignment is applied on the row position column, there is no need to do
+            # filtering based on the column matching. Since the columns align on have unique values,
+            # if they match, the join will already give the result. If not, since the column values
+            # are unique, there will no duplicated rows to filter
             align_filter = None
         else:
             # 'col_matching_expr' represents if left_on_cols is an exact match with right_on_cols.
@@ -1580,7 +1589,6 @@ class OrderedDataFrame:
                 ] + ordering_columns
 
             align_filter = not_(col_matching_column) | (left_row_pos == right_row_pos)
-            # filter_expression = not_(col_matching_column) | (left_row_pos == right_row_pos)
 
         joined_ordered_frame = joined_ordered_frame.select(
             joined_ordered_frame.projected_column_snowflake_quoted_identifiers
@@ -1662,11 +1670,6 @@ class OrderedDataFrame:
                 right_row_pos.is_not_null(),  # right join
                 left_row_pos.is_not_null(),  # left join
             )
-            # filter_expression = filter_expression & iff(
-            #    left_count_column == 0,
-            #    right_row_pos.is_not_null(),  # right join
-            #    left_row_pos.is_not_null(),  # left join
-            # )
             from snowflake.snowpark.modin.plugin._internal.utils import (
                 unquote_name_if_quoted,
             )
@@ -1699,15 +1702,9 @@ class OrderedDataFrame:
                     select_list.append(identifier)
         elif how == "left":
             join_filter = left_row_pos.is_not_null()
-            # filter_expression = filter_expression & left_row_pos.is_not_null()
             select_list = result_projected_column_snowflake_quoted_identifiers
         elif how == "inner":
             join_filter = left_row_pos.is_not_null() & right_row_pos.is_not_null()
-            # filter_expression = (
-            #    filter_expression
-            #    & left_row_pos.is_not_null()
-            #    & right_row_pos.is_not_null()
-            # )
             select_list = result_projected_column_snowflake_quoted_identifiers
         elif how == "outer":
             select_list = result_projected_column_snowflake_quoted_identifiers
@@ -1715,6 +1712,8 @@ class OrderedDataFrame:
             raise ValueError(
                 f"how={how} is not valid argument for ordered_dataframe.align."
             )
+
+        # apply all filters to the joined_ordered_frame
         if (align_filter is not None) and (join_filter is not None):
             joined_ordered_frame = joined_ordered_frame.filter(
                 align_filter & join_filter
@@ -1724,9 +1723,6 @@ class OrderedDataFrame:
         elif join_filter is not None:
             joined_ordered_frame = joined_ordered_frame.filter(join_filter)
 
-        # joined_ordered_frame = joined_ordered_frame.filter(filter_expression).sort(
-        #    ordering_columns
-        # )
         joined_ordered_frame.sort(ordering_columns)
 
         # call select to make sure only the result_projected_column_snowflake_quoted_identifiers are projected
