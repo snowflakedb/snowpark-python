@@ -1838,6 +1838,11 @@ def mock_length(expr: ColumnEmulator):
     return result
 
 
+@patch("explode")
+def mock_explode(expr: ColumnEmulator):
+    return expr.explode()
+
+
 # See https://docs.snowflake.com/en/sql-reference/functions/initcap for list of delimiters
 DEFAULT_INITCAP_DELIMITERS = set('!?@"^#$&~_,.:;+-*%/|\\[](){}<>' + string.whitespace)
 
