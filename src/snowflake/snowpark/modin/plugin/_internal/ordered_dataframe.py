@@ -1531,6 +1531,7 @@ class OrderedDataFrame:
         right_count = coalesce(max_(right_row_pos).over() + 1, lit(0))
         eq_row_pos_count = sum_(iff(left_row_pos == right_row_pos, 1, 0)).over()
 
+        # align_on_row_position_column = False
         ordering_columns = joined_ordered_frame.ordering_columns
         if align_on_row_position_column:
             align_filter = None
