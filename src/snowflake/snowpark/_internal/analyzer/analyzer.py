@@ -1170,6 +1170,7 @@ class Analyzer:
                 max_data_extension_time=logical_plan.max_data_extension_time,
                 child=resolved_children[logical_plan.child],
                 source_plan=logical_plan,
+                iceberg_config=logical_plan.iceberg_config,
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):
