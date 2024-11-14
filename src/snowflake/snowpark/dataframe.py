@@ -161,6 +161,8 @@ from snowflake.snowpark.table_function import (
     _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import (
+    ArrayType,
+    MapType,
     PandasDataFrameType,
     StringType,
     StructField,
@@ -4316,9 +4318,59 @@ Query List:
         return exprs
 
     def print_schema(self) -> None:
+        """
+        Prints the schema of a dataframe in tree format.
+
+        Examples::
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
+            >>> df.print_schema()
+            root
+             |-- "A": LongType() (nullable = False)
+             |-- "B": StringType() (nullable = False)
+        """
+
+        def _format_datatype(name, dtype, nullable=None, prefix=""):
+            nullable_str = (
+                f" (nullable = {str(nullable)})" if nullable is not None else ""
+            )
+            indent = f" |  {prefix}"
+            extra_lines = []
+            type_str = dtype.__class__.__name__
+
+            # Structured Type format their parameters on multiple lines.
+            if isinstance(dtype, ArrayType):
+                extra_lines = [
+                    _format_datatype("element", dtype.element_type, prefix=indent),
+                ]
+            elif isinstance(dtype, MapType):
+                extra_lines = [
+                    _format_datatype("key", dtype.key_type, prefix=indent),
+                    _format_datatype("value", dtype.value_type, prefix=indent),
+                ]
+            elif isinstance(dtype, StructType):
+                extra_lines = [
+                    _format_datatype(
+                        quote_name(field.name, keep_case=True),
+                        field.datatype,
+                        field.nullable,
+                        indent,
+                    )
+                    for field in dtype.fields
+                ]
+            else:
+                # By default include all parameters in type string instead
+                type_str = str(dtype)
+
+            return "\n".join(
+                [
+                    f"{prefix} |-- {name}: {type_str}{nullable_str}",
+                ]
+                + extra_lines
+            )
+
         schema_tmp_str = "\n".join(
             [
-                f" |-- {attr.name}: {attr.datatype} (nullable = {str(attr.nullable)})"
+                _format_datatype(attr.name, attr.datatype, attr.nullable)
                 for attr in self._plan.attributes
             ]
         )
