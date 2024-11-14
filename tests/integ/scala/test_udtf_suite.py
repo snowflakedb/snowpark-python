@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -33,7 +33,13 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-pytestmark = pytest.mark.udf
+pytestmark = [
+    pytest.mark.udf,
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="UDTF is not supported in Local Testing",
+    ),
+]
 
 wordcount_table_name = Utils.random_table_name()
 

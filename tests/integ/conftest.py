@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import os
-import uuid
 from typing import Dict
 
 import pytest
@@ -14,23 +13,13 @@ from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.parameters import CONNECTION_PARAMETERS
-from tests.utils import Utils
-
-RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
-RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
-TEST_SCHEMA = f"GH_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
-if RUNNING_ON_JENKINS:
-    TEST_SCHEMA = f"JENKINS_JOB_{(str(uuid.uuid4()).replace('-', '_'))}"
-
-
-def running_on_public_ci() -> bool:
-    """Whether or not tests are currently running on one of our public CIs."""
-    return RUNNING_ON_GH
-
-
-def running_on_jenkins() -> bool:
-    """Whether or not tests are currently running on a Jenkins node."""
-    return RUNNING_ON_JENKINS
+from tests.utils import (
+    TEST_SCHEMA,
+    TestFiles,
+    Utils,
+    running_on_jenkins,
+    running_on_public_ci,
+)
 
 
 def print_help() -> None:
@@ -132,7 +121,7 @@ def clean_up_external_access_integration_resources(
 
 
 @pytest.fixture(scope="session")
-def db_parameters() -> Dict[str, str]:
+def db_parameters(local_testing_mode) -> Dict[str, str]:
     # If its running on our public CI or Jenkins, replace the schema
     if running_on_public_ci() or running_on_jenkins():
         # tests related to external access integration requires secrets, network rule to be created ahead
@@ -143,6 +132,7 @@ def db_parameters() -> Dict[str, str]:
         )
     else:
         CONNECTION_PARAMETERS["schema_with_secret"] = CONNECTION_PARAMETERS["schema"]
+    CONNECTION_PARAMETERS["local_testing"] = local_testing_mode
     return CONNECTION_PARAMETERS
 
 
@@ -154,7 +144,7 @@ def resources_path() -> str:
 @pytest.fixture(scope="session")
 def connection(db_parameters, local_testing_mode):
     if local_testing_mode:
-        yield MockServerConnection()
+        yield MockServerConnection(options={"disable_local_testing_telemetry": True})
     else:
         _keys = [
             "user",
@@ -203,7 +193,14 @@ def test_schema(connection, local_testing_mode) -> None:
 
 
 @pytest.fixture(scope="module")
-def session(db_parameters, resources_path, sql_simplifier_enabled, local_testing_mode):
+def session(
+    db_parameters,
+    resources_path,
+    sql_simplifier_enabled,
+    local_testing_mode,
+    cte_optimization_enabled,
+    multithreading_mode_enabled,
+):
     rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
     rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
     key1 = f"key1{Utils.random_alphanumeric_str(10)}"
@@ -213,9 +210,14 @@ def session(db_parameters, resources_path, sql_simplifier_enabled, local_testing
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
+        .config(
+            "session_parameters",
+            {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled},
+        )
         .create()
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
+    session._cte_optimization_enabled = cte_optimization_enabled
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
@@ -228,7 +230,40 @@ def session(db_parameters, resources_path, sql_simplifier_enabled, local_testing
     session.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
+def profiler_session(
+    db_parameters,
+    resources_path,
+    sql_simplifier_enabled,
+    local_testing_mode,
+    cte_optimization_enabled,
+):
+    rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
+    rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
+    key1 = f"key1{Utils.random_alphanumeric_str(10)}"
+    key2 = f"key2{Utils.random_alphanumeric_str(10)}"
+    integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
+    integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
+    session = (
+        Session.builder.configs(db_parameters)
+        .config("local_testing", local_testing_mode)
+        .create()
+    )
+    session.sql_simplifier_enabled = sql_simplifier_enabled
+    session._cte_optimization_enabled = cte_optimization_enabled
+    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+        set_up_external_access_integration_resources(
+            session, rule1, rule2, key1, key2, integration1, integration2
+        )
+    yield session
+    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+        clean_up_external_access_integration_resources(
+            session, rule1, rule2, key1, key2, integration1, integration2
+        )
+    session.close()
+
+
+@pytest.fixture(scope="function")
 def temp_schema(connection, session, local_testing_mode) -> None:
     """Set up and tear down a temp schema for cross-schema test.
     This is automatically called per test module."""
@@ -244,3 +279,18 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
+
+
+@pytest.fixture(scope="module")
+def temp_stage(session, resources_path, local_testing_mode):
+    tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, tmp_stage_name, test_files.test_file_parquet, compress=False
+    )
+    yield tmp_stage_name
+    if not local_testing_mode:
+        Utils.drop_stage(session, tmp_stage_name)

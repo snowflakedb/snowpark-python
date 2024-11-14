@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 """User-defined aggregate functions (UDAFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udaf.UDAFRegistration` for details and sample code."""
 
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.open_telemetry import (
+    open_telemetry_udf_context_manager,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -62,6 +65,7 @@ class UserDefinedAggregateFunction:
         name: str,
         return_type: DataType,
         input_types: List[DataType],
+        packages: Optional[List[Union[str, ModuleType]]] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -70,6 +74,8 @@ class UserDefinedAggregateFunction:
 
         self._return_type = return_type
         self._input_types = input_types
+
+        self._packages = packages
 
     def __call__(
         self,
@@ -105,7 +111,7 @@ class UserDefinedAggregateFunction:
 class UDAFRegistration:
     """
     Provides methods to register lambdas and functions as UDAFs in the Snowflake database.
-    For more information about Snowflake Python UDAFs, see `Python UDAFs <https://docs.snowflake.com/en/LIMITEDACCESS/python-aggregate-functions>`__.
+    For more information about Snowflake Python UDAFs, see `Python UDAFs <https://docs.snowflake.com/developer-guide/udf/python/udf-python-aggregate-functions>`__.
 
     :attr:`session.udaf <snowflake.snowpark.Session.udaf>` returns an object of this class.
     You can use this object to register UDAFs that you plan to use in the current session or
@@ -291,7 +297,7 @@ class UDAFRegistration:
         - :meth:`~snowflake.snowpark.DataFrame.join_table_function`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.session.Session"]) -> None:
         self._session = session
 
     def describe(
@@ -325,6 +331,8 @@ class UDAFRegistration:
         parallel: int = 4,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -402,44 +410,56 @@ class UDAFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
+            comment: Adds a comment for the created object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is
+                created using CREATE OR REPLACE FUNCTION.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.udaf`
             - :meth:`register_from_file`
         """
-        if not isinstance(handler, type):
-            raise TypeError(
-                f"Invalid handler: expecting a class type, but get {type(handler)}"
+        with open_telemetry_udf_context_manager(
+            self.register, handler=handler, name=name
+        ):
+            if not isinstance(handler, type):
+                raise TypeError(
+                    f"Invalid handler: expecting a class type, but get {type(handler)}"
+                )
+
+            check_register_args(
+                TempObjectType.AGGREGATE_FUNCTION,
+                name,
+                is_permanent,
+                stage_location,
+                parallel,
             )
 
-        check_register_args(
-            TempObjectType.AGGREGATE_FUNCTION,
-            name,
-            is_permanent,
-            stage_location,
-            parallel,
-        )
+            native_app_params = kwargs.get("native_app_params", None)
 
-        # register udaf
-        return self._do_register_udaf(
-            handler,
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            api_call_source="UDAFRegistration.register",
-            is_permanent=is_permanent,
-            immutable=immutable,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-        )
+            # register udaf
+            return self._do_register_udaf(
+                handler,
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                api_call_source="UDAFRegistration.register",
+                is_permanent=is_permanent,
+                immutable=immutable,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                comment=comment,
+                native_app_params=native_app_params,
+                copy_grants=copy_grants,
+            )
 
     def register_from_file(
         self,
@@ -457,6 +477,8 @@ class UDAFRegistration:
         parallel: int = 4,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -543,6 +565,10 @@ class UDAFRegistration:
                 The secrets can be accessed from handler code. The secrets specified as values must
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
+            comment: Adds a comment for the created object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is
+                created using CREATE OR REPLACE FUNCTION.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -554,36 +580,44 @@ class UDAFRegistration:
             - :func:`~snowflake.snowpark.functions.udaf`
             - :meth:`register`
         """
-        file_path = process_file_path(file_path)
-        check_register_args(
-            TempObjectType.AGGREGATE_FUNCTION,
-            name,
-            is_permanent,
-            stage_location,
-            parallel,
-        )
+        with open_telemetry_udf_context_manager(
+            self.register_from_file,
+            file_path=file_path,
+            handler_name=handler_name,
+            name=name,
+        ):
+            file_path = process_file_path(file_path)
+            check_register_args(
+                TempObjectType.AGGREGATE_FUNCTION,
+                name,
+                is_permanent,
+                stage_location,
+                parallel,
+            )
 
-        # register udaf
-        return self._do_register_udaf(
-            (file_path, handler_name),
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            api_call_source="UDAFRegistration.register_from_file",
-            skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-            immutable=immutable,
-        )
+            # register udaf
+            return self._do_register_udaf(
+                (file_path, handler_name),
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                api_call_source="UDAFRegistration.register_from_file",
+                skip_upload_on_content_match=skip_upload_on_content_match,
+                is_permanent=is_permanent,
+                immutable=immutable,
+                comment=comment,
+                copy_grants=copy_grants,
+            )
 
     def _do_register_udaf(
         self,
@@ -599,16 +633,26 @@ class UDAFRegistration:
         parallel: int = 4,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
+        comment: Optional[str] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
         immutable: bool = False,
+        copy_grants: bool = False,
     ) -> UserDefinedAggregateFunction:
         # get the udaf name, return and input types
-        (udaf_name, _, _, return_type, input_types,) = process_registration_inputs(
+        (
+            udaf_name,
+            _,
+            _,
+            return_type,
+            input_types,
+            opt_arg_defaults,
+        ) = process_registration_inputs(
             self._session,
             TempObjectType.AGGREGATE_FUNCTION,
             handler,
@@ -645,22 +689,29 @@ class UDAFRegistration:
             is_permanent=is_permanent,
         )
 
-        if not custom_python_runtime_version_allowed:
-            check_python_runtime_version(
+        runtime_version_from_requirement = None
+        if self._session is not None:
+            runtime_version_from_requirement = (
                 self._session._runtime_version_from_requirement
             )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(runtime_version_from_requirement)
 
         raised = False
         try:
             create_python_udf_or_sp(
                 session=self._session,
+                func=handler,
                 return_type=return_type,
                 input_args=input_args,
+                opt_arg_defaults=opt_arg_defaults,
                 handler=handler_name,
                 object_type=TempObjectType.AGGREGATE_FUNCTION,
                 object_name=udaf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                raw_imports=imports,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -669,6 +720,11 @@ class UDAFRegistration:
                 immutable=immutable,
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
+                statement_params=statement_params,
+                comment=comment,
+                native_app_params=native_app_params,
+                copy_grants=copy_grants,
+                runtime_version=runtime_version_from_requirement,
             )
         # an exception might happen during registering a udaf
         # (e.g., a dependency might not be found on the stage),
@@ -691,5 +747,5 @@ class UDAFRegistration:
                 )
 
         return UserDefinedAggregateFunction(
-            handler, udaf_name, return_type, input_types
+            handler, udaf_name, return_type, input_types, packages=packages
         )

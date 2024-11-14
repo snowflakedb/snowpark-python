@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import json
@@ -13,12 +13,14 @@ import pytest
 import pytz
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     _columns_from_timestamp_parts,
     _timestamp_from_parts_internal,
     abs,
     acos,
+    any_value,
     approx_count_distinct,
     approx_percentile,
     approx_percentile_accumulate,
@@ -35,6 +37,7 @@ from snowflake.snowpark.functions import (
     array_intersection,
     array_position,
     array_prepend,
+    array_remove,
     array_size,
     array_slice,
     array_to_string,
@@ -70,6 +73,7 @@ from snowflake.snowpark.functions import (
     collate,
     collation,
     contains,
+    convert_timezone,
     corr,
     cos,
     cosh,
@@ -78,6 +82,10 @@ from snowflake.snowpark.functions import (
     covar_pop,
     covar_samp,
     cume_dist,
+    current_database,
+    current_session,
+    date_part,
+    date_trunc,
     dateadd,
     datediff,
     degrees,
@@ -173,16 +181,19 @@ from snowflake.snowpark.functions import (
     substring,
     sum,
     sum_distinct,
+    system_reference,
     tan,
     tanh,
     time_from_parts,
     timestamp_tz_from_parts,
     to_array,
     to_date,
+    to_double,
     to_geography,
     to_geometry,
     to_json,
     to_object,
+    to_time,
     to_timestamp,
     to_timestamp_ltz,
     to_timestamp_ntz,
@@ -201,10 +212,12 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.mock._functions import LocalTimezone
 from snowflake.snowpark.types import (
+    DateType,
     StructField,
     StructType,
     TimestampTimeZone,
     TimestampType,
+    VariantType,
 )
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
@@ -225,7 +238,6 @@ def parameter_override(session, parameter, value, enabled=True):
             session.sql(f"alter session unset {parameter}").collect()
 
 
-@pytest.mark.localtest
 def test_col(session):
     test_data1 = TestData.test_data1(session)
     Utils.check_answer(test_data1.select(col("bool")), [Row(True), Row(False)])
@@ -236,10 +248,25 @@ def test_col(session):
     Utils.check_answer(test_data1.select(col("num")), [Row(1), Row(2)])
 
 
-@pytest.mark.localtest
 def test_lit(session):
     res = TestData.test_data1(session).select(lit(1)).collect()
     assert res == [Row(1), Row(1)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_system_reference(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1,)]).to_df(["a"])
+    df.write.save_as_table(table_name)
+
+    try:
+        data = df.select(system_reference("TABLE", table_name)).collect()
+        assert data[0][0].startswith("ENT_REF_TABLE")
+    finally:
+        session.table(table_name).drop_table()
 
 
 def test_avg(session):
@@ -253,6 +280,10 @@ def test_avg(session):
 
 @pytest.mark.parametrize(
     "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="corr is not yet supported in local testing mode.",
 )
 def test_corr(session, k, v1, v2):
     Utils.check_answer(
@@ -279,6 +310,10 @@ def test_count(session):
 @pytest.mark.parametrize(
     "k, v1, v2", [("K", "V1", "V2"), (col("K"), col("V1"), col("V2"))]
 )
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="covar_samp is not yet supported in local testing mode.",
+)
 def test_covariance(session, k, v1, v2):
     Utils.check_answer(
         TestData.number1(session).group_by(k).agg(covar_pop(v1, v2)),
@@ -291,32 +326,42 @@ def test_covariance(session, k, v1, v2):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="kurtosis is not yet supported in local testing mode.",
+)
 def test_kurtosis(session):
     df = TestData.xyz(session).select(
-        kurtosis(col("X")), kurtosis(col("Y")), kurtosis(col("Z"))
+        to_double(kurtosis(col("X"))),
+        to_double(kurtosis(col("Y"))),
+        to_double(kurtosis(col("Z"))),
     )
     Utils.check_answer(
         df,
         [
             Row(
-                Decimal("-3.333333333333"),
-                Decimal("5.0"),
-                Decimal("3.613736609956"),
+                -3.333333,
+                5.0,
+                3.613737,
             )
         ],
+        float_equality_threshold=1e-5,
     )
 
     # same as above, but pass str instead of Column
-    df = TestData.xyz(session).select(kurtosis("X"), kurtosis("Y"), kurtosis("Z"))
+    df = TestData.xyz(session).select(
+        to_double(kurtosis("X")), to_double(kurtosis("Y")), to_double(kurtosis("Z"))
+    )
     Utils.check_answer(
         df,
         [
             Row(
-                Decimal("-3.333333333333"),
-                Decimal("5.0"),
-                Decimal("3.613736609956"),
+                -3.333333,
+                5.0,
+                3.613737,
             )
         ],
+        float_equality_threshold=1e-5,
     )
 
 
@@ -329,6 +374,10 @@ def test_max_min_mean(session):
     assert df.collect() == [Row(2, 1, Decimal("3.6"))]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="mode is not yet supported in local testing mode.",
+)
 def test_mode(session):
     xyz = TestData.xyz(session)
     df_col = xyz.select(mode(col("X")), mode(col("Y")), mode(col("Z"))).collect()
@@ -346,19 +395,29 @@ def test_mode(session):
         Utils.check_answer(df_str, Row(2, 2, 3))
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="skew is not yet supported in local testing mode.",
+)
 def test_skew(session):
     xyz = TestData.xyz(session)
     Utils.check_answer(
         xyz.select(skew(col("X")), skew(col("Y")), skew(col("Z"))),
-        Row(-0.6085811063146803, -2.236069766354172, 1.8414236309018863),
+        Row(-0.608581, -2.236068, 1.841422),
+        float_equality_threshold=1e-5,
     )
     # same as above, but pass str instead of Column
     Utils.check_answer(
         xyz.select(skew("X"), skew("Y"), skew("Z")),
-        Row(-0.6085811063146803, -2.236069766354172, 1.8414236309018863),
+        Row(-0.608581, -2.236068, 1.841422),
+        float_equality_threshold=1e-5,
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="stddev is not yet supported in local testing mode.",
+)
 def test_stddev(session):
     xyz = TestData.xyz(session)
     Utils.check_answer(
@@ -387,6 +446,10 @@ def test_sum(session):
     assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="variance is not yet supported in local testing mode.",
+)
 def test_variance(session):
     df = (
         TestData.xyz(session)
@@ -426,7 +489,6 @@ def test_variance(session):
     )
 
 
-@pytest.mark.localtest
 def test_coalesce(session):
     Utils.check_answer(
         TestData.null_data2(session).select(coalesce(col("A"), col("B"), col("C"))),
@@ -459,7 +521,7 @@ def test_nan_and_null(session):
 
 
 def test_negate_and_not(session):
-    df = session.sql("select * from values(1, true),(-2,false) as T(a,b)")
+    df = session.create_dataframe([(1, True), (-2, False)], schema=["a", "b"])
     Utils.check_answer(
         df.select(negate(col("A")), not_(col("B"))), [Row(-1, False), Row(2, True)]
     )
@@ -470,9 +532,22 @@ def test_negate_and_not(session):
 
 
 def test_random(session):
-    df = session.sql("select 1")
-    df.select(random(123)).collect()
-    df.select(random()).collect()
+    df = session.create_dataframe([(1, 2), (3, 4), (5, 6)])
+    seen = set()
+    rows = df.select(random(123), random(123)).collect()
+    for row in rows:
+        value = row[0]
+        # Each row should have different value
+        assert value not in seen
+        seen |= {value}
+        # Each value in row should be the same
+        assert [v == value for v in row]
+
+    # Different seed should contain different result that are still all different
+    other_rows = df.select(random()).collect()
+    values = {row[0] for row in other_rows}
+    assert len(other_rows) == len(values)
+    assert values & seen == set()
 
 
 def test_sqrt(session):
@@ -489,7 +564,6 @@ def test_sqrt(session):
     )
 
 
-@pytest.mark.localtest
 def test_abs(session):
     Utils.check_answer(
         TestData.number2(session).select(abs(col("X"))), [Row(1), Row(0), Row(5)], False
@@ -500,6 +574,10 @@ def test_abs(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ceil is not yet supported in local testing mode.",
+)
 def test_ceil_floor(session):
     double1 = TestData.double1(session)
     Utils.check_answer(double1.select(ceil(col("A"))), [Row(2), Row(3), Row(4)])
@@ -509,6 +587,10 @@ def test_ceil_floor(session):
     Utils.check_answer(double1.select(floor("A")), [Row(1), Row(2), Row(3)])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="exp is not yet supported in local testing mode.",
+)
 def test_exp(session):
     Utils.check_answer(
         TestData.number2(session).select(exp(col("X")), exp(col("X"))),
@@ -531,6 +613,10 @@ def test_exp(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="log is not yet supported in local testing mode.",
+)
 def test_log(session):
     Utils.check_answer(
         TestData.integer1(session).select(log(lit(2), col("A")), log(lit(4), col("A"))),
@@ -559,6 +645,10 @@ def test_pow(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="repeat is not yet supported in local testing mode.",
+)
 def test_builtin_function(session):
     repeat = builtin("repeat")
     string1 = TestData.string1(session)
@@ -569,7 +659,6 @@ def test_builtin_function(session):
     )
 
 
-@pytest.mark.localtest
 def test_sub_string(session):
     Utils.check_answer(
         TestData.string1(session).select(substring(col("A"), lit(2), lit(4))),
@@ -584,6 +673,10 @@ def test_sub_string(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="translate is not yet supported in local testing mode.",
+)
 def test_translate(session):
     Utils.check_answer(
         TestData.string3(session).select(translate(col("A"), lit("ab "), lit("XY"))),
@@ -600,27 +693,68 @@ def test_translate(session):
 
 def test_datediff(session):
     Utils.check_answer(
-        [Row(1), Row(1)],
         TestData.timestamp1(session)
         .select(col("a"), dateadd("year", lit(1), col("a")).as_("b"))
         .select(datediff("year", col("a"), col("b"))),
+        [Row(1), Row(1)],
     )
 
     # Same as above, but pass str instead of Column
     Utils.check_answer(
-        [Row(1), Row(1)],
         TestData.timestamp1(session)
         .select("a", dateadd("year", lit(1), "a").as_("b"))
         .select(datediff("year", "a", "b")),
+        [Row(1), Row(1)],
+    )
+
+
+@pytest.mark.parametrize(
+    "unit,v1,v2,expected",
+    [
+        ("year", "2023-01-01 00:00:00.000", "2024-01-01 00:00:00.000", 1),
+        ("month", "2023-01-01 00:00:00.000", "2024-02-01 00:00:00.000", 13),
+        ("week", "2024-01-01 00:00:00.000", "2024-03-05 00:00:00.000", 9),
+        ("day", "2024-01-01 00:00:00.000", "2024-02-05 00:00:00.000", 35),
+        ("hour", "2024-01-01 00:00:00.000", "2024-01-01 6:35:00.000", 6),
+        ("minute", "2024-01-01 00:00:00.000", "2024-01-01 1:12:00.000", 72),
+        ("second", "2024-01-01 00:00:00.000", "2024-01-01 1:10:00.000", 4200),
+        ("millisecond", "2024-01-01 00:00:00.000", "2024-01-01 00:00:02.100", 2100),
+        ("microsecond", "2024-01-01 00:00:00.000", "2024-01-01 00:00:00.234", 234000),
+    ],
+)
+def test_datediff_edge_cases(session, unit, v1, v2, expected):
+    df = session.create_dataframe(
+        [
+            (v1, v2),
+            (v1, None),
+            (None, v2),
+            (None, None),
+        ],
+        schema=["a", "b"],
+    ).select(to_timestamp("a").alias("a"), to_timestamp("b").alias("b"))
+
+    Utils.check_answer(
+        df.select(datediff(unit, "a", "b")),
+        [
+            Row(expected),
+            Row(None),
+            Row(None),
+            Row(None),
+        ],
     )
 
 
 def test_datediff_negative(session):
+    df = TestData.timestamp1(session).select(
+        col("a"), dateadd("year", lit(1), col("a")).as_("b")
+    )
     with pytest.raises(ValueError, match="part must be a string"):
-        TestData.timestamp1(session).select(dateadd(7, lit(1), col("a")))
+        df.select(datediff(7, col("b"), col("a"))).collect()
+
+    with pytest.raises(SnowparkSQLException):
+        df.select(datediff("epoch_second", col("b"), col("a"))).collect()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
     [
@@ -677,7 +811,6 @@ def test_dateadd(part, expected, session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part,expected",
     [
@@ -872,7 +1005,6 @@ def test_dateadd_timestamp(part, expected, session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "part",
     [
@@ -914,13 +1046,306 @@ def test_dateadd_tz(tz_type, tzinfo, part, session):
     )
 
 
-@pytest.mark.localtest
+@pytest.mark.parametrize(
+    "part,expected",
+    [
+        ("yyy", [2024, 2017, 2017, 2017]),
+        ("qtr", [1, 1, 1, 1]),
+        ("mon", [2, 2, 2, 2]),
+        ("wk", [5, 8, 8, 8]),
+        ("day", [1, 24, 24, 24]),
+        ("hrs", [12, 12, 4, 14]),
+        ("min", [0, 0, 0, 0]),
+        ("sec", [0, 0, 0, 0]),
+        ("nsec", [0, 456000000, 123000000, 789000000]),
+        ("weekday", [4, 5, 5, 5]),
+        ("dow_iso", [4, 5, 5, 5]),
+        ("doy", [32, 55, 55, 55]),
+        ("week_iso", [5, 8, 8, 8]),
+        ("yearofweek", [2024, 2017, 2017, 2017]),
+        ("yearofweekiso", [2024, 2017, 2017, 2017]),
+        ("epoch", [1706788800, 1487937600, 1487937600, 1487941200]),
+        (
+            "epoch_milliseconds",
+            [1706788800000, 1487937600456, 1487937600123, 1487941200789],
+        ),
+        (
+            "epoch_microseconds",
+            [1706788800000000, 1487937600456000, 1487937600123000, 1487941200789000],
+        ),
+        (
+            "epoch_nanoseconds",
+            [
+                1706788800000000000,
+                1487937600456000000,
+                1487937600123000000,
+                1487941200789000000,
+            ],
+        ),
+        ("tzh", [0, 0, -8, 1]),
+        ("tzm", [0, 0, 0, 0]),
+    ],
+)
+def test_date_part_timestamp(part, expected, session):
+    LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+    df = TestData.datetime_primitives1(session)
+    Utils.check_answer(
+        df.select(
+            *[
+                date_part(part, col)
+                for col in [
+                    "timestamp",
+                    "timestamp_ntz",
+                    "timestamp_ltz",
+                    "timestamp_tz",
+                ]
+            ]
+        ),
+        [Row(*expected)],
+        sort=False,
+    )
+
+    LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.parametrize(
+    "part,expected",
+    [
+        ("yyy", [2024]),
+        ("qtr", [1]),
+        ("mon", [2]),
+        ("wk", [5]),
+        ("day", [1]),
+        ("weekday", [4]),
+        ("dow_iso", [4]),
+        ("doy", [32]),
+        ("week_iso", [5]),
+        ("yearofweek", [2024]),
+        ("yearofweekiso", [2024]),
+        ("epoch", [1706745600]),
+    ],
+)
+def test_date_part_date(part, expected, session):
+    LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+    df = TestData.datetime_primitives1(session)
+    Utils.check_answer(
+        df.select(date_part(part, "date")),
+        [Row(*expected)],
+        sort=False,
+    )
+
+    LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.parametrize(
+    "part,expected",
+    [
+        (
+            "dd",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 0, 0),
+                datetime(2017, 2, 24, 0, 0),
+                datetime(2017, 2, 24, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 24, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "hh",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0),
+                datetime(2017, 2, 24, 4, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 24, 14, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "usec",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            ],
+        ),
+        (
+            "msec",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            ],
+        ),
+        (
+            "min",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0),
+                datetime(2017, 2, 24, 4, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 24, 14, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "mm",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 0, 0),
+                datetime(2017, 2, 1, 0, 0),
+                datetime(2017, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "nsec",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0, 0, 456000),
+                datetime(
+                    2017, 2, 24, 4, 0, 0, 123000, tzinfo=pytz.timezone("Etc/GMT+8")
+                ),
+                datetime(
+                    2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
+                ),
+            ],
+        ),
+        (
+            "qtr",
+            [
+                date(2024, 1, 1),
+                datetime(2024, 1, 1, 0, 0),
+                datetime(2017, 1, 1, 0, 0),
+                datetime(2017, 1, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 1, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "sec",
+            [
+                date(2024, 2, 1),
+                datetime(2024, 2, 1, 12, 0),
+                datetime(2017, 2, 24, 12, 0),
+                datetime(2017, 2, 24, 4, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 24, 14, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "wk",
+            [
+                date(2024, 1, 29),
+                datetime(2024, 1, 29, 0, 0),
+                datetime(2017, 2, 20, 0, 0),
+                datetime(2017, 2, 20, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 2, 20, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+        (
+            "yyy",
+            [
+                date(2024, 1, 1),
+                datetime(2024, 1, 1, 0, 0),
+                datetime(2017, 1, 1, 0, 0),
+                datetime(2017, 1, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2017, 1, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT-1")),
+            ],
+        ),
+    ],
+)
+def test_date_trunc(part, expected, session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+        df = TestData.datetime_primitives1(session)
+        trunc_df = df.select(
+            *[
+                date_trunc(part, col)
+                for col in [
+                    "date",
+                    "timestamp",
+                    "timestamp_ntz",
+                    "timestamp_ltz",
+                    "timestamp_tz",
+                ]
+            ]
+        )
+        Utils.check_answer(
+            trunc_df,
+            [Row(*expected)],
+            sort=False,
+        )
+        types = [field.datatype for field in trunc_df.schema.fields]
+        assert isinstance(types[0], DateType), "Datetype should remain Datetype"
+        assert all(
+            isinstance(d, TimestampType) for d in types[1:]
+        ), "All timestamp type values should remain timestamps"
+        assert [t.tz for t in types[2:]] == [
+            TimestampTimeZone.NTZ,
+            TimestampTimeZone.LTZ,
+            TimestampTimeZone.TZ,
+        ], "Timestamps with tz type specified should match"
+
+        LocalTimezone.set_local_timezone()
+
+
+def test_date_trunc_negative(session, local_testing_mode):
+    df = TestData.datetime_primitives1(session)
+
+    # Invalid date part
+    with pytest.raises(SnowparkSQLException):
+        df.select(date_trunc("foobar", "date")).collect()
+
+    # Unsupported date part
+    with pytest.raises(SnowparkSQLException):
+        df.select(date_trunc("dow", "date")).collect()
+
+
+def test_current_session(session):
+    df = TestData.integer1(session)
+    rows = df.select(current_session()).collect()
+    assert (
+        len(rows) == 3
+    ), "Three rows should be maintained after call to current_session"
+    assert all(
+        row[0] == rows[0][0] for row in rows
+    ), "All session values should be the same after call to current_session"
+
+
+def test_current_database(session):
+    df = TestData.integer1(session)
+    rows = df.select(current_database()).collect()
+    assert (
+        len(rows) == 3
+    ), "Three rows should be maintained after call to current_database"
+    assert all(
+        row[0] == rows[0][0] for row in rows
+    ), "All database values should be the same after call to current_database"
+
+
 def test_dateadd_negative(session):
     with pytest.raises(ValueError, match="part must be a string"):
         TestData.date1(session).select(dateadd(7, lit(1), "a"))
 
 
-@pytest.mark.localtest
 def test_to_timestamp(session):
     long1 = TestData.long1(session)
     Utils.check_answer(
@@ -972,7 +1397,84 @@ def test_to_timestamp(session):
     )
 
 
-@pytest.mark.localtest
+def test_to_time(session, local_testing_mode):
+    # basic string expr
+    df = TestData.time_primitives1(session)
+    Utils.check_answer(
+        df.select(*[to_time(column) for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(22, 33, 44)),
+            Row(time(22, 33, 44, 123000)),
+            Row(time(22, 33, 44, 567890)),
+        ],
+    )
+
+    Utils.check_answer(
+        df.select(*[to_time(column, "HH24:MI:SS.FF4") for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(22, 33, 44)),
+            Row(time(22, 33, 44, 123000)),
+            Row(time(22, 33, 44, 567890)),
+        ],
+    )
+
+    # string expr with format
+    df = TestData.time_primitives2(session)
+    Utils.check_answer(
+        df.select(*[to_time(column, "HH12.MI-SS PM") for column in df.columns]),
+        [
+            Row(time(13, 2, 3)),
+            Row(time(22, 33, 44)),
+            Row(time(12, 55, 19)),
+        ],
+    )
+
+    # timestamp
+    df = TestData.time_primitives3(session)
+    Utils.check_answer(
+        df.select(*[to_time(column) for column in df.columns]),
+        [
+            Row(time(12, 13, 14)),
+            Row(time(20, 21, 22)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+            Row(time(21, 20, 19)),
+        ],
+    )
+
+    # variant type
+    df = TestData.time_primitives4(session)
+    Utils.check_answer(
+        df.select(*[to_time(column) for column in df.columns]),
+        [
+            Row(time(1, 2, 3)),
+            Row(time(21, 20, 19)),
+            Row(
+                None,
+            ),
+            Row(time(1, 2, 3)),
+        ],
+    )
+
+    # variant data
+
+    # invalid input for string expr with format
+    # TODO: local test error experience SNOW-1235716
+    # currently local testing throws ValueError while live connection throws SQLException
+    with pytest.raises(SnowparkSQLException):
+        df = session.create_dataframe([("asdfgh",), ("qwerty",)]).to_df("a")
+        Utils.check_answer(
+            df.select(to_time("A", "HH12.MI-SS PM")),
+            [
+                Row(time(13, 2, 3)),
+                Row(time(22, 33, 44)),
+            ],
+        )
+
+
 @pytest.mark.parametrize(
     "to_type,expected",
     [
@@ -983,6 +1485,7 @@ def test_to_timestamp(session):
                 datetime(2024, 2, 1, 8, 0),
                 datetime(2024, 2, 1, 0, 0),
                 datetime(2024, 2, 1, 0, 0),
+                datetime(2024, 2, 1, 8, 0),
                 datetime(2024, 2, 1, 0, 0),
                 datetime(2024, 2, 1, 12, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
@@ -997,6 +1500,7 @@ def test_to_timestamp(session):
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 1, 31, 22, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(
@@ -1017,6 +1521,7 @@ def test_to_timestamp(session):
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+6")),
+                datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(2024, 2, 1, 12, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
                 datetime(
@@ -1060,7 +1565,6 @@ def test_to_timestamp_all(to_type, expected, session, local_testing_mode):
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "to_type,expected",
     [
@@ -1088,20 +1592,6 @@ def test_to_timestamp_all(to_type, expected, session, local_testing_mode):
         ),
         (
             to_timestamp_ltz,
-            [
-                Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-                Row(
-                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-                Row(
-                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-            ],
-        ),
-        (
-            to_timestamp_tz,
             [
                 Row(
                     datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
@@ -1139,7 +1629,6 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
         LocalTimezone.set_local_timezone()
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "to_type,expected",
     [
@@ -1147,7 +1636,9 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
             to_timestamp_tz,
             [
                 Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                    datetime(
+                        2024, 2, 1, 0, 0, 0, 123456, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
                 ),
                 Row(
                     datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
@@ -1160,7 +1651,7 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
         (
             to_timestamp_ntz,
             [
-                Row(datetime(2024, 2, 1, 0, 0)),
+                Row(datetime(2024, 2, 1, 0, 0, 0, 123456)),
                 Row(datetime(2024, 2, 2, 0, 0)),
                 Row(datetime(2024, 2, 3, 0, 0)),
             ],
@@ -1169,21 +1660,9 @@ def test_to_timestamp_fmt_string(to_type, expected, session, local_testing_mode)
             to_timestamp_ltz,
             [
                 Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-                Row(
-                    datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-                Row(
-                    datetime(2024, 2, 3, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
-                ),
-            ],
-        ),
-        (
-            to_timestamp_tz,
-            [
-                Row(
-                    datetime(2024, 2, 1, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
+                    datetime(
+                        2024, 2, 1, 0, 0, 0, 123456, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
                 ),
                 Row(
                     datetime(2024, 2, 2, 0, 0, tzinfo=pytz.timezone("Etc/GMT+8")),
@@ -1204,7 +1683,7 @@ def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode)
     ):
         LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
         data = [
-            ("2024-02-01 00:00:00.000000", "YYYY-MM-DD HH24:MI:SS.FF"),
+            ("2024-02-01 00:00:00.123456789", "YYYY-MM-DD HH24:MI:SS.FF1"),
             ("20240202000000000000", "YYYYMMDDHH24MISSFF"),
             ("03 Feb 2024 00:00:00", "DD mon YYYY HH24:MI:SS"),
         ]
@@ -1218,24 +1697,290 @@ def test_to_timestamp_fmt_column(to_type, expected, session, local_testing_mode)
         LocalTimezone.set_local_timezone()
 
 
+@pytest.mark.parametrize(
+    "to_type,expected",
+    [
+        (
+            to_timestamp_tz,
+            [
+                Row(
+                    datetime(
+                        1970, 1, 2, 2, 17, 36, 789000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                ),
+                Row(
+                    datetime(
+                        1970,
+                        1,
+                        14,
+                        22,
+                        56,
+                        7,
+                        890000,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+                Row(
+                    datetime(
+                        1970,
+                        5,
+                        23,
+                        14,
+                        21,
+                        18,
+                        900000,
+                        tzinfo=pytz.timezone("Etc/GMT+7"),
+                    ),
+                ),
+            ],
+        ),
+        (
+            to_timestamp_ntz,
+            [
+                Row(datetime(1970, 1, 2, 10, 17, 36, 789000)),
+                Row(datetime(1970, 1, 15, 6, 56, 7, 890000)),
+                Row(datetime(1970, 5, 23, 21, 21, 18, 900000)),
+            ],
+        ),
+        (
+            to_timestamp_ltz,
+            [
+                Row(
+                    datetime(
+                        1970, 1, 2, 2, 17, 36, 789000, tzinfo=pytz.timezone("Etc/GMT+8")
+                    ),
+                ),
+                Row(
+                    datetime(
+                        1970,
+                        1,
+                        14,
+                        22,
+                        56,
+                        7,
+                        890000,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+                Row(
+                    datetime(
+                        1970,
+                        5,
+                        23,
+                        14,
+                        21,
+                        18,
+                        900000,
+                        tzinfo=pytz.timezone("Etc/GMT+7"),
+                    ),
+                ),
+            ],
+        ),
+    ],
+)
+def test_to_timestamp_numeric_scale_column(
+    to_type, expected, session, local_testing_mode
+):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+        data = [
+            123456789,
+            1234567890,
+            12345678900,
+        ]
+        df = session.create_dataframe(data).to_df(["int"])
+
+        Utils.check_answer(
+            df.select(to_type(col("int"), 3)),
+            expected,
+            sort=False,
+        )
+        LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.parametrize(
+    "to_type,expected",
+    [
+        (
+            to_timestamp_tz,
+            [
+                Row(
+                    datetime(2361, 3, 21, 11, 15, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2361, 3, 21, 11, 15, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(
+                        2024,
+                        2,
+                        1,
+                        12,
+                        34,
+                        56,
+                        789000,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+                Row(
+                    datetime(
+                        2017,
+                        12,
+                        24,
+                        12,
+                        55,
+                        59,
+                        123456,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+            ],
+        ),
+        (
+            to_timestamp_ntz,
+            [
+                Row(datetime(2361, 3, 21, 11, 15)),
+                Row(datetime(2361, 3, 21, 19, 15)),
+                Row(datetime(2024, 2, 1, 12, 34, 56, 789000)),
+                Row(datetime(2017, 12, 24, 12, 55, 59, 123456)),
+            ],
+        ),
+        (
+            to_timestamp_ltz,
+            [
+                Row(
+                    datetime(2361, 3, 21, 11, 15, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(2361, 3, 21, 11, 15, tzinfo=pytz.timezone("Etc/GMT+8")),
+                ),
+                Row(
+                    datetime(
+                        2024,
+                        2,
+                        1,
+                        12,
+                        34,
+                        56,
+                        789000,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+                Row(
+                    datetime(
+                        2017,
+                        12,
+                        24,
+                        12,
+                        55,
+                        59,
+                        123456,
+                        tzinfo=pytz.timezone("Etc/GMT+8"),
+                    ),
+                ),
+            ],
+        ),
+    ],
+)
+def test_to_timestamp_variant_column(to_type, expected, session, local_testing_mode):
+    data = [
+        12345678900,  # integer
+        "12345678900",  # string containing integer
+        "2024-02-01 12:34:56.789000",  # timestamp str
+        datetime(2017, 12, 24, 12, 55, 59, 123456),  # timestamp
+    ]
+
+    if to_type == to_timestamp_ntz and IS_IN_STORED_PROC:
+        # integer in variant type depends on local time zone of the server
+        # while in sproc reg test, the timezone is non-deterministic leading to non-deterministic result
+        # here we pop the case of integer in variant type
+        expected.pop(0)
+        data.pop(0)
+    with parameter_override(
+        session,
+        "timezone",
+        "Etc/GMT+8",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        # as we are testing Variant + Integer case
+        # this timezone has to be the same as the one in session
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+        df = session.create_dataframe(
+            data,
+            StructType(
+                [
+                    StructField("v", VariantType()),
+                ]
+            ),
+        ).to_df(["var"])
+
+        Utils.check_answer(
+            df.select(to_type(col("var"))),
+            expected,
+            sort=False,
+        )
+        LocalTimezone.set_local_timezone()
+
+
 def test_to_date(session):
-    df = session.sql("select * from values('2020-05-11') as T(a)")
-    Utils.check_answer(df.select(to_date(col("A"))), [Row(date(2020, 5, 11))])
+    expected1 = expected2 = [
+        Row(date(2023, 3, 16)),
+        Row(date(2010, 7, 30)),
+        Row(date(2024, 4, 18)),
+    ]
+    expected3 = [
+        Row(date(2024, 4, 18)),
+        Row(None),
+        Row(date(2024, 6, 3)),
+        Row(date(2000, 3, 21)),
+        Row(date(2025, 12, 31)),
+    ]
+    # string type, timestamp type and variant type
+    for df, expected in zip(
+        [
+            TestData.date_primitives1(session),
+            TestData.date_primitives2(session),
+            TestData.date_primitives3(session),
+        ],
+        [expected1, expected2, expected3],
+    ):
+        Utils.check_answer(
+            df.select(*[to_date(column) for column in df.columns]), expected
+        )
+        Utils.check_answer(
+            df.select(*[to_date(col(column)) for column in df.columns]), expected
+        )
 
-    # same as above, but pass str instead of Column
-    Utils.check_answer(df.select(to_date("A")), [Row(date(2020, 5, 11))])
+    # with format column
+    expected4 = [
+        Row(date(2024, 4, 18)),
+        Row(date(1999, 9, 1)),
+        Row(date(2024, 10, 29)),
+        Row(date(2015, 5, 15)),
+    ]
+    df = TestData.date_primitives4(session)
+    Utils.check_answer(df.select(to_date(df.a, df.b)), expected4)
 
-    df = session.sql("select * from values('2020.07.23') as T(a)")
-    Utils.check_answer(
-        df.select(to_date(col("A"), lit("YYYY.MM.DD"))), [Row(date(2020, 7, 23))]
-    )
+    # with string format column
+    data5 = ["1999-01-01", "2000-02-02", "2024-03-03"]
+    expected5 = [
+        Row(date(1999, 1, 1)),
+        Row(date(2000, 2, 2)),
+        Row(date(2024, 3, 3)),
+    ]
+    df = session.create_dataframe(data5).to_df(["a"])
+    Utils.check_answer(df.select(to_date(df.a, "YYYY-MM-DD")), expected5)
 
-    # same as above, but pass str instead of Column
-    Utils.check_answer(
-        df.select(to_date("A", lit("YYYY.MM.DD"))), [Row(date(2020, 7, 23))]
-    )
 
-
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrays_overlap is not yet supported in local testing mode.",
+)
 def test_arrays_overlap(session):
     Utils.check_answer(
         TestData.array1(session).select(arrays_overlap(col("ARR1"), col("ARR2"))),
@@ -1251,6 +1996,10 @@ def test_arrays_overlap(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_intersection is not yet supported in local testing mode.",
+)
 def test_array_intersection(session):
     Utils.check_answer(
         TestData.array1(session).select(array_intersection(col("ARR1"), col("ARR2"))),
@@ -1266,6 +2015,10 @@ def test_array_intersection(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_array is not yet supported in local testing mode.",
+)
 def test_is_array(session):
     Utils.check_answer(
         TestData.array1(session).select(is_array(col("ARR1"))),
@@ -1295,6 +2048,10 @@ def test_is_array(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_boolean is not yet supported in local testing mode.",
+)
 def test_is_boolean(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1314,6 +2071,10 @@ def test_is_boolean(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_binary is not yet supported in local testing mode.",
+)
 def test_is_binary(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1333,6 +2094,10 @@ def test_is_binary(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_char is not yet supported in local testing mode.",
+)
 def test_is_char_is_varchar(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1366,6 +2131,10 @@ def test_is_char_is_varchar(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_date is not yet supported in local testing mode.",
+)
 def test_is_date_is_date_value(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1403,6 +2172,10 @@ def test_is_date_is_date_value(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_decimal is not yet supported in local testing mode.",
+)
 def test_is_decimal(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1426,6 +2199,10 @@ def test_is_decimal(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_double is not yet supported in local testing mode.",
+)
 def test_is_double_is_real(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1473,6 +2250,10 @@ def test_is_double_is_real(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_integer is not yet supported in local testing mode.",
+)
 def test_is_integer(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1498,6 +2279,10 @@ def test_is_integer(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_null_value is not yet supported in local testing mode.",
+)
 def test_is_null_value(session):
     Utils.check_answer(
         TestData.null_json1(session).select(is_null_value(sql_expr("v:a"))),
@@ -1515,6 +2300,10 @@ def test_is_null_value(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_object is not yet supported in local testing mode.",
+)
 def test_is_object(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1534,6 +2323,10 @@ def test_is_object(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_time is not yet supported in local testing mode.",
+)
 def test_is_time(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1553,6 +2346,10 @@ def test_is_time(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="is_timestamp_ntz is not yet supported in local testing mode.",
+)
 def test_is_timestamp_all(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -1616,6 +2413,10 @@ def test_is_timestamp_all(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="split is not yet supported in local testing mode.",
+)
 def test_split(session):
     assert (
         TestData.string5(session)
@@ -1627,7 +2428,6 @@ def test_split(session):
     )
 
 
-@pytest.mark.localtest
 def test_contains(session):
     Utils.check_answer(
         TestData.string4(session).select(contains(col("a"), lit("app"))),
@@ -1642,7 +2442,6 @@ def test_contains(session):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_startswith(session, col_a):
     Utils.check_answer(
@@ -1652,7 +2451,6 @@ def test_startswith(session, col_a):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_a", ["a", col("a")])
 def test_endswith(session, col_a):
     Utils.check_answer(
@@ -1662,6 +2460,10 @@ def test_endswith(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="char is not yet supported in local testing mode.",
+)
 def test_char(session):
     df = session.create_dataframe([(84, 85), (96, 97)]).to_df("A", "B")
 
@@ -1676,6 +2478,10 @@ def test_char(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="check_json is not yet supported in local testing mode.",
+)
 def test_check_json(session):
     Utils.check_answer(
         TestData.null_json1(session).select(check_json(col("v"))),
@@ -1711,6 +2517,10 @@ def test_check_json(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="check_xml is not yet supported in local testing mode.",
+)
 def test_check_xml(session):
     Utils.check_answer(
         TestData.null_xml1(session).select(check_xml(col("v"))),
@@ -1746,6 +2556,10 @@ def test_check_xml(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="json_extract_path_text is not yet supported in local testing mode.",
+)
 def test_json_extract_path_text(session):
     Utils.check_answer(
         TestData.valid_json1(session).select(
@@ -1763,7 +2577,6 @@ def test_json_extract_path_text(session):
     )
 
 
-@pytest.mark.localtest
 def test_parse_json(session):
     null_json1 = TestData.null_json1(session)
     Utils.check_answer(
@@ -1780,6 +2593,10 @@ def test_parse_json(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="parse_xml is not yet supported in local testing mode.",
+)
 def test_parse_xml(session):
     null_xml1 = TestData.null_xml1(session)
 
@@ -1806,7 +2623,6 @@ def test_parse_xml(session):
     )
 
 
-@pytest.mark.localtest
 def test_strip_null_value(session):
     df = TestData.null_json1(session)
 
@@ -1823,6 +2639,10 @@ def test_strip_null_value(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_agg is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_amount", ["amount", col("amount")])
 def test_array_agg(session, col_amount):
     assert sorted(
@@ -1936,6 +2756,10 @@ def test_window_function_array_agg_within_group(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_append is not yet supported in local testing mode.",
+)
 def test_array_append(session):
     Utils.check_answer(
         [
@@ -2001,6 +2825,114 @@ def test_array_append(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_remove is not yet supported in local testing mode.",
+)
+def test_array_remove(session):
+    actual = session.createDataFrame([([1, 2, 4, 4, 3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 4))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  1,\n  2,\n  3\n]"),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([(["a", "b", "c", "a", "a"],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, "a"))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "b",\n  "c"\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [(["apple", "banana", "apple", "orange"],), ([],)], ["data"]
+    )
+    actual = actual.select(array_remove(actual.data, "apple"))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "banana",\n  "orange"\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([([1, "2", 3.1, 1, 3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 1))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "2",\n  3.1,\n  3\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([(["@", ";", "3.1", 1, 5 / 3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 1))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "@",\n  ";",\n  "3.1",\n  1.6666666666666667\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([([-1, -2, -4, -4, -3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 1))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  -1,\n  -2,\n  -4,\n  -4,\n  -3\n]"),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([([4.4, 5.5, 1.1],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 5.5))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4.4,\n  1.1\n]"),
+            Row("[]"),
+        ],
+    )
+
+    actual = TestData.array1(session).select(
+        array_remove(array_remove(col("arr1"), lit(1)), lit(8))
+    )
+
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), lit(1)), lit(8))
+        ),
+        sort=False,
+    )
+
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), 1), lit(8))
+        ),
+        sort=False,
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_cat is not yet supported in local testing mode.",
+)
 def test_array_cat(session):
     Utils.check_answer(
         TestData.array1(session).select(array_cat(col("arr1"), col("arr2"))),
@@ -2022,6 +2954,10 @@ def test_array_cat(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_compact is not yet supported in local testing mode.",
+)
 def test_array_compact(session):
     Utils.check_answer(
         TestData.null_array1(session).select(array_compact(col("arr1"))),
@@ -2037,6 +2973,10 @@ def test_array_compact(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_construct is not yet supported in local testing mode.",
+)
 def test_array_construct(session):
     assert (
         TestData.zero1(session)
@@ -2071,6 +3011,10 @@ def test_array_construct(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_construct_compact is not yet supported in local testing mode.",
+)
 def test_array_construct_compact(session):
     assert (
         TestData.zero1(session)
@@ -2112,6 +3056,10 @@ def test_array_construct_compact(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_contains is not yet supported in local testing mode.",
+)
 def test_array_contains(session):
     assert (
         TestData.zero1(session)
@@ -2147,6 +3095,10 @@ def test_array_contains(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_insert is not yet supported in local testing mode.",
+)
 def test_array_insert(session):
     Utils.check_answer(
         TestData.array2(session).select(array_insert(col("arr1"), col("d"), col("e"))),
@@ -2162,6 +3114,10 @@ def test_array_insert(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_position is not yet supported in local testing mode.",
+)
 def test_array_position(session):
     Utils.check_answer(
         TestData.array2(session).select(array_position(col("d"), col("arr1"))),
@@ -2177,6 +3133,10 @@ def test_array_position(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_prepend is not yet supported in local testing mode.",
+)
 def test_array_prepend(session):
     Utils.check_answer(
         TestData.array1(session).select(
@@ -2222,6 +3182,10 @@ def test_array_prepend(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_size is not yet supported in local testing mode.",
+)
 def test_array_size(session):
     Utils.check_answer(
         TestData.array2(session).select(array_size(col("arr1"))),
@@ -2261,6 +3225,10 @@ def test_array_size(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_slice is not yet supported in local testing mode.",
+)
 def test_array_slice(session):
     Utils.check_answer(
         TestData.array3(session).select(array_slice(col("arr1"), col("d"), col("e"))),
@@ -2276,6 +3244,10 @@ def test_array_slice(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_to_string is not yet supported in local testing mode.",
+)
 def test_array_to_string(session):
     Utils.check_answer(
         TestData.array3(session).select(array_to_string(col("arr1"), col("f"))),
@@ -2291,6 +3263,10 @@ def test_array_to_string(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="object_agg is not yet supported in local testing mode.",
+)
 def test_objectagg(session):
     Utils.check_answer(
         TestData.object1(session).select(object_agg(col("key"), col("value"))),
@@ -2326,6 +3302,17 @@ def test_object_construct(session):
         sort=False,
     )
 
+    Utils.check_answer(
+        TestData.object2(session),
+        [
+            Row('{\n  "age": 21,\n  "name": "Joe",\n  "zip": 21021\n}', "age", 0, True),
+            Row(
+                '{\n  "age": 26,\n  "name": "Jay",\n  "zip": 94021\n}', "key", 0, False
+            ),
+        ],
+        sort=False,
+    )
+
 
 def test_object_construct_keep_null(session):
     Utils.check_answer(
@@ -2350,6 +3337,10 @@ def test_object_construct_keep_null(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="object_delete is not yet supported in local testing mode.",
+)
 def test_object_delete(session):
     Utils.check_answer(
         TestData.object2(session).select(
@@ -2369,6 +3360,10 @@ def test_object_delete(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="object_insert is not yet supported in local testing mode.",
+)
 def test_object_insert(session):
     Utils.check_answer(
         TestData.object2(session).select(
@@ -2464,6 +3459,10 @@ def test_object_insert(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="object_pick is not yet supported in local testing mode.",
+)
 def test_object_pick(session):
     Utils.check_answer(
         TestData.object2(session).select(
@@ -2505,6 +3504,10 @@ def test_object_pick(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_array is not yet supported in local testing mode.",
+)
 def test_as_array(session):
     Utils.check_answer(
         TestData.array1(session).select(as_array(col("ARR1"))),
@@ -2538,6 +3541,10 @@ def test_as_array(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_binary is not yet supported in local testing mode.",
+)
 def test_as_binary(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2561,6 +3568,10 @@ def test_as_binary(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_char is not yet supported in local testing mode.",
+)
 def test_as_char_as_varchar(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2594,6 +3605,10 @@ def test_as_char_as_varchar(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_date is not yet supported in local testing mode.",
+)
 def test_as_date(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2613,6 +3628,10 @@ def test_as_date(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_decimal is not yet supported in local testing mode.",
+)
 def test_as_decimal_as_number(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2721,6 +3740,10 @@ def test_as_decimal_as_number(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_double is not yet supported in local testing mode.",
+)
 def test_as_double_as_real(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2768,6 +3791,10 @@ def test_as_double_as_real(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_integer is not yet supported in local testing mode.",
+)
 def test_as_integer(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2793,6 +3820,10 @@ def test_as_integer(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_object is not yet supported in local testing mode.",
+)
 def test_as_object(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -2812,10 +3843,17 @@ def test_as_object(session):
     )
 
 
-def test_timestamp_tz_from_parts(session):
-    try:
-        if not IS_IN_STORED_PROC:
-            session.sql('alter session set timezone="America/Los_Angeles"').collect()
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="timestamp_tz_from_parts is not yet supported in local testing mode.",
+)
+def test_timestamp_tz_from_parts(session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
         df = session.create_dataframe(
             [[2022, 4, 1, 11, 11, 0, "America/Los_Angeles"]],
             schema=["year", "month", "day", "hour", "minute", "second", "timezone"],
@@ -2898,11 +3936,115 @@ def test_timestamp_tz_from_parts(session):
                 )
             ],
         )
-    finally:
-        if not IS_IN_STORED_PROC:
-            session.sql("alter session unset timezone").collect()
 
 
+def test_convert_timezone(session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+        df = TestData.datetime_primitives1(session).select(
+            "timestamp", "timestamp_ntz", "timestamp_ltz", "timestamp_tz"
+        )
+
+        Utils.check_answer(
+            df.select(*[convert_timezone(lit("UTC"), col) for col in df.columns]),
+            [
+                Row(
+                    datetime(2024, 2, 1, 20, 0, tzinfo=pytz.UTC),
+                    datetime(2017, 2, 24, 20, 0, 0, 456000, tzinfo=pytz.UTC),
+                    datetime(2017, 2, 24, 12, 0, 0, 123000, tzinfo=pytz.UTC),
+                    datetime(2017, 2, 24, 13, 0, 0, 789000, tzinfo=pytz.UTC),
+                )
+            ],
+        )
+
+        df = TestData.datetime_primitives1(session).select("timestamp", "timestamp_ntz")
+
+        Utils.check_answer(
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ),
+            [
+                Row(
+                    datetime(2024, 2, 1, 4, 0),
+                    datetime(2017, 2, 24, 4, 0, 0, 456000),
+                )
+            ],
+        )
+
+        df = TestData.datetime_primitives1(session).select(
+            "timestamp_ltz", "timestamp_tz"
+        )
+        with pytest.raises(SnowparkSQLException):
+            # convert_timezone function does not accept non-TimestampTimeZone.NTZ datetime
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ).collect()
+
+        LocalTimezone.set_local_timezone()
+
+
+def test_convert_timezone_neg(session):
+    df = TestData.datetime_primitives1(session)
+    with pytest.raises(SnowparkSQLException):
+        df.select(
+            convert_timezone(lit("UTC"), "timestamp_tz", lit("US/Eastern"))
+        ).collect()
+
+
+def test_convert_timezone_nulls(session):
+    null_df = session.create_dataframe([[None]]).to_df("timestamp")
+    Utils.check_answer(
+        null_df.select(convert_timezone(lit("UTC"), to_timestamp_ntz("timestamp"))),
+        [Row(None)],
+    )
+    Utils.check_answer(
+        null_df.select(
+            convert_timezone(
+                lit("UTC"), to_timestamp_ntz("timestamp"), lit("US/Eastern")
+            )
+        ),
+        [Row(None)],
+    )
+
+
+def test_convert_timezone_with_source(session, local_testing_mode):
+    with parameter_override(
+        session,
+        "timezone",
+        "America/Los_Angeles",
+        not IS_IN_STORED_PROC and not local_testing_mode,
+    ):
+        LocalTimezone.set_local_timezone(pytz.timezone("Etc/GMT+8"))
+
+        df = TestData.datetime_primitives2(session)
+
+        Utils.check_answer(
+            df.select(convert_timezone(lit("UTC"), "timestamp", lit("US/Eastern"))),
+            [
+                Row(datetime(9999, 12, 31, 5, 0, 0, 123456)),
+                Row(datetime(1583, 1, 2, 4, 56, 1, 567890)),
+            ],
+        )
+
+        LocalTimezone.set_local_timezone()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="time_from_parts is not yet supported in local testing mode.",
+)
 def test_time_from_parts(session):
     df = session.create_dataframe(
         [[11, 11, 0, 987654321]], schema=["hour", "minute", "second", "nanoseconds"]
@@ -2920,7 +4062,6 @@ def test_time_from_parts(session):
     )
 
 
-@pytest.mark.localtest
 def test_columns_from_timestamp_parts():
     func_name = "test _columns_from_timestamp_parts"
     y, m, d = _columns_from_timestamp_parts(func_name, "year", "month", 8)
@@ -2939,13 +4080,11 @@ def test_columns_from_timestamp_parts():
     assert s._expression.value == 17
 
 
-@pytest.mark.localtest
 def test_columns_from_timestamp_parts_negative():
     with pytest.raises(ValueError, match="Incorrect number of args passed"):
         _columns_from_timestamp_parts("neg test", "year", "month")
 
 
-@pytest.mark.localtest
 def test_timestamp_from_parts_internal():
     func_name = "test _timestamp_from_parts_internal"
     date_expr, time_expr = _timestamp_from_parts_internal(func_name, "date", "time")
@@ -3002,7 +4141,6 @@ def test_timestamp_from_parts_internal():
     assert s._expression.name == '"S"'
 
 
-@pytest.mark.localtest
 def test_timestamp_from_parts_internal_negative():
     func_name = "negative test"
     with pytest.raises(ValueError, match="expected 2 or 6 required arguments"):
@@ -3012,6 +4150,10 @@ def test_timestamp_from_parts_internal_negative():
         _timestamp_from_parts_internal(func_name, 1, 2, 3, 4, 5, 6, 7, 8)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_time is not yet supported in local testing mode.",
+)
 def test_as_time(session):
     Utils.check_answer(
         TestData.variant1(session).select(
@@ -3042,6 +4184,7 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(2024, 2, 1, 12, 0),
                 datetime(2017, 2, 24, 12, 0, 0, 456000),
                 None,
@@ -3051,6 +4194,7 @@ def test_as_time(session):
         (
             as_timestamp_ltz,
             Row(
+                None,
                 None,
                 None,
                 None,
@@ -3075,12 +4219,17 @@ def test_as_time(session):
                 None,
                 None,
                 None,
+                None,
                 datetime(
                     2017, 2, 24, 14, 0, 0, 789000, tzinfo=pytz.timezone("Etc/GMT-1")
                 ),
             ),
         ),
     ],
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="as_timestamp_tz is not yet supported in local testing mode.",
 )
 def test_as_timestamp_all(as_type, expected, session, local_testing_mode):
     with parameter_override(
@@ -3124,6 +4273,10 @@ def test_to_array(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="to_json is not yet supported in local testing mode.",
+)
 def test_to_json(session):
     Utils.check_answer(
         TestData.integer1(session).select(to_json(col("a"))),
@@ -3174,6 +4327,10 @@ def test_to_variant(session):
     assert integer1.select(to_variant("a")).collect()[0][0] == "1"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="to_xml is not yet supported in local testing mode.",
+)
 def test_to_xml(session):
     Utils.check_answer(
         TestData.integer1(session).select(to_xml(col("a"))),
@@ -3196,6 +4353,10 @@ def test_to_xml(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="to_geography is not yet supported in local testing mode.",
+)
 def test_to_geography(session):
     geography_string = """{
   "coordinates": [
@@ -3216,6 +4377,10 @@ def test_to_geography(session):
     assert geography.select(to_geography("a")).collect()[0][0] == geography_string
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="to_geometry is not yet supported in local testing mode.",
+)
 def test_to_geometry(session):
     geometry_string = """{
   "coordinates": [
@@ -3237,6 +4402,10 @@ def test_to_geometry(session):
 
 
 @pytest.mark.parametrize("a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="typeof is not yet supported in local testing mode.",
+)
 def test_typeof(session, a):
     Utils.check_answer(
         TestData.integer1(session).select(typeof(a)),
@@ -3246,6 +4415,10 @@ def test_typeof(session, a):
 
 
 @pytest.mark.parametrize("obj, k", [("obj", "k"), (col("obj"), col("k"))])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="get_ignore_case is not yet supported in local testing mode.",
+)
 def test_get_ignore_case(session, obj, k):
     Utils.check_answer(
         TestData.object2(session).select(get_ignore_case(obj, k)),
@@ -3261,6 +4434,10 @@ def test_get_ignore_case(session, obj, k):
 
 
 @pytest.mark.parametrize("column", ["obj", col("obj")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="object_keys is not yet supported in local testing mode.",
+)
 def test_object_keys(session, column):
     Utils.check_answer(
         TestData.object2(session).select(object_keys(column)),
@@ -3278,6 +4455,10 @@ def test_object_keys(session, column):
         ("v", "t2", "t3", "instance", 0),
         (col("v"), col("t2"), col("t3"), col("instance"), lit(0)),
     ],
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="get_ignore_case is not yet supported in local testing mode.",
 )
 def test_xmlget(session, v, t2, t3, instance, zero):
     Utils.check_answer(
@@ -3314,6 +4495,10 @@ def test_xmlget(session, v, t2, t3, instance, zero):
 
 
 @pytest.mark.parametrize("v, k", [("v", "k"), (col("v"), col("k"))])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="get_path is not yet supported in local testing mode.",
+)
 def test_get_path(session, v, k):
     Utils.check_answer(
         TestData.valid_json1(session).select(get_path(v, k)),
@@ -3324,31 +4509,35 @@ def test_get_path(session, v, k):
 
 def test_get(session):
     Utils.check_answer(
-        [Row("21"), Row(None)],
         TestData.object2(session).select(get(col("obj"), col("k"))),
+        [Row("21"), Row(None)],
         sort=False,
     )
     Utils.check_answer(
-        [Row(None), Row(None)],
         TestData.object2(session).select(get(col("obj"), lit("AGE"))),
+        [Row(None), Row(None)],
         sort=False,
     )
 
     # Same as above, but pass str instead of Column
     Utils.check_answer(
-        [Row("21"), Row(None)],
         TestData.object2(session).select(get("obj", "k")),
+        [Row("21"), Row(None)],
         sort=False,
     )
 
     Utils.check_answer(
-        [Row(None), Row(None)],
         TestData.object2(session).select(get("obj", lit("AGE"))),
+        [Row(None), Row(None)],
         sort=False,
     )
 
 
 @pytest.mark.parametrize("col_a", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="approx_count_distinct is not yet supported in local testing mode.",
+)
 def test_approx_count_distinct(session, col_a):
     Utils.check_answer(
         TestData.duplicated_numbers(session).select(approx_count_distinct(col_a)),
@@ -3356,6 +4545,10 @@ def test_approx_count_distinct(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="approx_percentile is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_a", ["A", col("A")])
 def test_approx_percentile(session, col_a):
     Utils.check_answer(
@@ -3364,6 +4557,10 @@ def test_approx_percentile(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="approx_percentile_accumulate is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_a", ["A", col("A")])
 def test_approx_percentile_accumulate(session, col_a):
     Utils.check_answer(
@@ -3383,6 +4580,10 @@ def test_approx_percentile_accumulate(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="approx_percentile_estimate is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_a", ["A", col("A")])
 def test_approx_percentile_estimate(session, col_a):
     Utils.check_answer(
@@ -3393,6 +4594,10 @@ def test_approx_percentile_estimate(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="approx_percentile_accumulate is not yet supported in local testing mode.",
+)
 @pytest.mark.parametrize("col_a, col_b", [("A", "B"), (col("A"), col("B"))])
 def test_approx_percentile_combine(session, col_a, col_b):
     df1 = (
@@ -3427,7 +4632,6 @@ def test_approx_percentile_combine(session, col_a, col_b):
     )
 
 
-@pytest.mark.localtest
 def test_iff(session, local_testing_mode):
     df = session.create_dataframe(
         [(True, 2, 2, 4), (False, 12, 12, 14), (True, 22, 23, 24)],
@@ -3452,34 +4656,90 @@ def test_iff(session, local_testing_mode):
             sort=False,
         )
 
+    # Expressions have incompatible type
+    with pytest.raises(SnowparkSQLException):
+        df = (
+            session.create_dataframe(
+                [(True, datetime.now())],
+                schema=["a", "b"],
+            )
+            .select(iff(col("a") == col("b"), col("a"), col("b")))
+            .collect()
+        )
+
 
 def test_cume_dist(session):
     Utils.check_answer(
         TestData.xyz(session).select(
-            cume_dist().over(Window.partition_by(col("X")).order_by(col("Y")))
+            "X", "Y", cume_dist().over(Window.partition_by(col("X")).order_by(col("Y")))
         ),
-        [Row(0.3333333333333333), Row(1.0), Row(1.0), Row(1.0), Row(1.0)],
-        sort=False,
+        [
+            Row(2, 1, 0.3333333333333333),
+            Row(2, 2, 1.0),
+            Row(2, 2, 1.0),
+            Row(1, 2, 1.0),
+            Row(1, 2, 1.0),
+        ],
+        sort=True,
+    )
+
+    Utils.check_answer(
+        TestData.xyz2(session).select(
+            "X", "Y", cume_dist().over(Window.partition_by(col("X")).order_by(col("Y")))
+        ),
+        [
+            Row(2, 1, 0.16666666666666666),
+            Row(2, 2, 0.5),
+            Row(2, 2, 0.5),
+            Row(2, 3, 0.8333333333333334),
+            Row(2, 3, 0.8333333333333334),
+            Row(2, 4, 1.0),
+            Row(1, 2, 1.0),
+            Row(1, 2, 1.0),
+        ],
+        sort=True,
     )
 
 
 def test_dense_rank(session):
+    # Basic example
+    basic = TestData.xyz(session).select(
+        "X", "Y", dense_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
     Utils.check_answer(
-        TestData.xyz(session).select(dense_rank().over(Window.order_by(col("X")))),
-        [Row(1), Row(1), Row(2), Row(2), Row(2)],
-        sort=False,
+        basic,
+        [Row(2, 1, 1), Row(2, 2, 2), Row(2, 2, 2), Row(1, 2, 1), Row(1, 2, 1)],
+        sort=True,
+    )
+
+    # Slightly less Basic example
+    basic2 = TestData.xyz2(session).select(
+        "X", "Y", dense_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
+    Utils.check_answer(
+        basic2,
+        [
+            Row(2, 1, 1),
+            Row(2, 2, 2),
+            Row(2, 2, 2),
+            Row(2, 3, 3),
+            Row(2, 3, 3),
+            Row(2, 4, 4),
+            Row(1, 2, 1),
+            Row(1, 2, 1),
+        ],
+        sort=True,
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lag(session, col_z, local_testing_mode):
+def test_lag(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lag(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(0), Row(10), Row(1), Row(0), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -3487,7 +4747,7 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -3495,19 +4755,26 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
+    )
+
+    Utils.check_answer(
+        TestData.xyz(session).select(
+            lag(col_z, 0).over(Window.partition_by(col("X")).order_by(col("X")))
+        ),
+        [Row(10), Row(1), Row(3), Row(1), Row(3)],
+        sort=True,
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lead(session, col_z, local_testing_mode):
+def test_lead(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lead(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(0), Row(3), Row(0)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -3515,7 +4782,7 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -3523,11 +4790,47 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
 
-@pytest.mark.localtest
+def test_lead_lag_nulls(session):
+    data = [
+        (1, 1, 1, None),
+        (1, 1, 2, None),
+        (1, 1, 3, 1),
+        (1, 1, 4, None),
+        (1, 1, 5, None),
+        (1, 1, 6, 2),
+        (1, 1, 7, None),
+        (1, 1, 8, None),
+    ]
+    schema = ["COL1", "COL2", "COL3", "COLUMN_TO_FILL"]
+    df = session.create_dataframe(data=data, schema=schema)
+
+    window = Window.partition_by(["COL1", "COL2"]).order_by("COL3")
+
+    lead_col = lead(df.col("COLUMN_TO_FILL"), ignore_nulls=True).over(window)
+    lag_col = lag(df.col("COLUMN_TO_FILL"), ignore_nulls=True).over(window)
+    max_lead_lag = iff(lead_col > lag_col, lead_col, lag_col)
+
+    final_df = df.with_column("MAX_LEAD_LAG", max_lead_lag)
+    Utils.check_answer(
+        final_df,
+        [
+            Row(1, 1, 1, None, None),
+            Row(1, 1, 2, None, None),
+            Row(1, 1, 3, 1, None),
+            Row(1, 1, 4, None, 2),
+            Row(1, 1, 5, None, 2),
+            Row(1, 1, 6, 2, 1),
+            Row(1, 1, 7, None, 2),
+            Row(1, 1, 8, None, 2),
+        ],
+        sort=False,
+    )
+
+
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_last_value(session, col_z):
     Utils.check_answer(
@@ -3539,7 +4842,6 @@ def test_last_value(session, col_z):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
 def test_first_value(session, col_z):
     Utils.check_answer(
@@ -3566,39 +4868,182 @@ def test_ntile(session, col_n):
     else:
         Utils.check_answer(
             df.select(
-                ntile(col_n).over(Window.partition_by(col("X")).order_by(col("Y")))
+                "X",
+                "Y",
+                ntile(col_n).over(Window.partition_by(col("X")).order_by(col("Y"))),
             ),
-            [Row(1), Row(2), Row(3), Row(1), Row(2)],
-            sort=False,
+            [Row(2, 1, 1), Row(2, 2, 2), Row(2, 2, 3), Row(1, 2, 1), Row(1, 2, 2)],
+            sort=True,
         )
 
 
-def test_percent_rank(session):
+def test_ntile_larger_example(session):
     Utils.check_answer(
-        TestData.xyz(session).select(
-            percent_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+        TestData.xyz2(session).select(
+            "X", "Y", ntile(3).over(Window.partition_by(col("X")).order_by(col("Y")))
         ),
-        [Row(0.0), Row(0.5), Row(0.5), Row(0.0), Row(0.0)],
-        sort=False,
+        [
+            Row(2, 1, 1),
+            Row(2, 2, 1),
+            Row(2, 2, 2),
+            Row(2, 3, 2),
+            Row(2, 3, 3),
+            Row(2, 4, 3),
+            Row(1, 2, 1),
+            Row(1, 2, 2),
+        ],
+        sort=True,
+    )
+
+
+def test_percent_rank(session):
+    # Basic example
+    basic = TestData.xyz(session).select(
+        "X", "Y", percent_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
+    Utils.check_answer(
+        basic,
+        [
+            Row(2, 1, 0.0),
+            Row(2, 2, 0.5),
+            Row(2, 2, 0.5),
+            Row(1, 2, 0.0),
+            Row(1, 2, 0.0),
+        ],
+        sort=True,
+    )
+
+    # Slightly less Basic example
+    basic2 = TestData.xyz2(session).select(
+        "X", "Y", percent_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
+    Utils.check_answer(
+        basic2,
+        [
+            Row(2, 1, 0.0),
+            Row(2, 2, 0.2),
+            Row(2, 2, 0.2),
+            Row(2, 3, 0.6),
+            Row(2, 3, 0.6),
+            Row(2, 4, 1.0),
+            Row(1, 2, 0.0),
+            Row(1, 2, 0.0),
+        ],
+        sort=True,
     )
 
 
 def test_rank(session):
+    df = TestData.xyz(session)
+
+    # Basic example
+    basic = df.select(
+        "X", "Y", rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
     Utils.check_answer(
-        TestData.xyz(session).select(
-            rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+        basic,
+        [Row(2, 1, 1), Row(2, 2, 2), Row(2, 2, 2), Row(1, 2, 1), Row(1, 2, 1)],
+        sort=True,
+    )
+
+    # Slightly less Basic example
+    basic2 = TestData.xyz2(session).select(
+        "X", "Y", rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
+    Utils.check_answer(
+        basic2,
+        [
+            Row(2, 1, 1),
+            Row(2, 2, 2),
+            Row(2, 2, 2),
+            Row(2, 3, 4),
+            Row(2, 3, 4),
+            Row(2, 4, 6),
+            Row(1, 2, 1),
+            Row(1, 2, 1),
+        ],
+        sort=True,
+    )
+
+    # Order by multiple
+    mult_ord = df.select(
+        "X",
+        "Y",
+        "Z",
+        rank().over(Window.partition_by(col("X")).order_by(col("Y"), col("Z"))),
+    )
+    Utils.check_answer(
+        mult_ord,
+        [
+            Row(2, 1, 10, 1),
+            Row(2, 2, 1, 2),
+            Row(2, 2, 3, 3),
+            Row(1, 2, 1, 1),
+            Row(1, 2, 3, 2),
+        ],
+        sort=True,
+    )
+
+    # Order by expression
+    expr_order = df.select(
+        "X",
+        "Y",
+        "Z",
+        rank().over(Window.partition_by(col("X")).order_by(col("Y") + col("Z"))),
+    )
+    Utils.check_answer(
+        expr_order,
+        [
+            Row(1, 2, 1, 1),
+            Row(1, 2, 3, 2),
+            Row(2, 2, 1, 1),
+            Row(2, 2, 3, 2),
+            Row(2, 1, 10, 3),
+        ],
+        sort=True,
+    )
+
+    # Rows Between
+    rows_between = df.select(
+        "X",
+        "Y",
+        rank().over(
+            Window.partition_by(col("X"))
+            .order_by(col("Y"))
+            .rows_between(Window.CURRENT_ROW, 2)
         ),
-        [Row(1), Row(2), Row(2), Row(1), Row(1)],
-        sort=False,
+    )
+    Utils.check_answer(
+        rows_between,
+        [Row(2, 1, 1), Row(2, 2, 1), Row(2, 2, 1), Row(1, 2, 1), Row(1, 2, 1)],
+        sort=True,
+    )
+
+    # Range Between
+    range_between = df.select(
+        "X",
+        "Y",
+        rank().over(
+            Window.partition_by(col("X"))
+            .order_by(col("Y"))
+            .range_between(Window.UNBOUNDED_PRECEDING, Window.UNBOUNDED_FOLLOWING)
+        ),
+    )
+    Utils.check_answer(
+        range_between,
+        [Row(2, 1, 1), Row(2, 2, 2), Row(2, 2, 2), Row(1, 2, 1), Row(1, 2, 1)],
+        sort=True,
     )
 
 
 def test_row_number(session):
     Utils.check_answer(
-        TestData.xyz(session).select(
-            row_number().over(Window.partition_by(col("X")).order_by(col("Y")))
-        ),
-        [Row(1), Row(2), Row(3), Row(1), Row(2)],
+        TestData.xyz(session)
+        .select(
+            "X", row_number().over(Window.partition_by(col("X")).order_by(col("Y")))
+        )
+        .order_by("X"),
+        [Row(1, 1), Row(1, 2), Row(2, 1), Row(2, 2), Row(2, 3)],
         sort=False,
     )
 
@@ -3625,12 +5070,20 @@ def test_listagg(session):
 @pytest.mark.parametrize(
     "col_expr, col_scale", [("expr", 1), (col("expr"), col("scale"))]
 )
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="trunc is not yet supported in local testing mode.",
+)
 def test_trunc(session, col_expr, col_scale):
     df = session.create_dataframe([(3.14, 1)], schema=["expr", "scale"])
     Utils.check_answer(df.select(trunc(col_expr, col_scale)), [Row(3.1)])
 
 
 @pytest.mark.parametrize("col_A, col_scale", [("A", 0), (col("A"), lit(0))])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="round is not yet supported in local testing mode.",
+)
 def test_round(session, col_A, col_scale):
     Utils.check_answer(
         TestData.double1(session).select(round(col_A, col_scale)),
@@ -3639,6 +5092,10 @@ def test_round(session, col_A, col_scale):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sin is not yet supported in local testing mode.",
+)
 def test_sin_sinh(session, col_A):
     Utils.check_answer(
         TestData.double2(session).select(sin(col_A), sinh(col_A)),
@@ -3652,6 +5109,10 @@ def test_sin_sinh(session, col_A):
 
 
 @pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="cos is not yet supported in local testing mode.",
+)
 def test_cos_cosh(session, col_A, col_B):
     Utils.check_answer(
         TestData.double2(session).select(cos(col_A), cosh(col_B)),
@@ -3665,6 +5126,10 @@ def test_cos_cosh(session, col_A, col_B):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="tan is not yet supported in local testing mode.",
+)
 def test_tan_tanh(session, col_A):
     Utils.check_answer(
         TestData.double2(session).select(tan(col_A), tanh(col_A)),
@@ -3678,6 +5143,10 @@ def test_tan_tanh(session, col_A):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="acos is not yet supported in local testing mode.",
+)
 def test_asin_acos(session, col_A):
     Utils.check_answer(
         TestData.double2(session).select(acos(col_A), asin(col_A)),
@@ -3691,6 +5160,10 @@ def test_asin_acos(session, col_A):
 
 
 @pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="atan is not yet supported in local testing mode.",
+)
 def test_atan_atan2(session, col_A, col_B):
     Utils.check_answer(
         TestData.double2(session).select(atan(col_B), atan(col_A)),
@@ -3710,6 +5183,10 @@ def test_atan_atan2(session, col_A, col_B):
 
 
 @pytest.mark.parametrize("col_A, col_B", [("A", "B"), (col("A"), col("B"))])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="degrees is not yet supported in local testing mode.",
+)
 def test_degrees(session, col_A, col_B):
     Utils.check_answer(
         TestData.double2(session).select(degrees(col_A), degrees(col_B)),
@@ -3723,6 +5200,10 @@ def test_degrees(session, col_A, col_B):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="radians is not yet supported in local testing mode.",
+)
 def test_radians(session, col_A):
     Utils.check_answer(
         TestData.double1(session).select(radians(col_A)),
@@ -3736,6 +5217,10 @@ def test_radians(session, col_A):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="factorial is not yet supported in local testing mode.",
+)
 def test_factorial(session, col_A):
     Utils.check_answer(
         TestData.integer1(session).select(factorial(col_A)),
@@ -3745,6 +5230,10 @@ def test_factorial(session, col_A):
 
 
 @pytest.mark.parametrize("col_0, col_2, col_4", [(0, 2, 4), (lit(0), lit(2), lit(4))])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="div0 is not yet supported in local testing mode.",
+)
 def test_div0(session, col_0, col_2, col_4):
     Utils.check_answer(
         TestData.zero1(session).select(div0(col_2, col_0), div0(col_4, col_2)),
@@ -3753,6 +5242,10 @@ def test_div0(session, col_0, col_2, col_4):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="md5 is not yet supported in local testing mode.",
+)
 def test_md5_sha1_sha2(session, col_A):
     Utils.check_answer(
         TestData.string1(session).select(md5(col_A), sha1(col_A), sha2(col_A, 224)),
@@ -3778,6 +5271,10 @@ def test_md5_sha1_sha2(session, col_A):
 
 
 @pytest.mark.parametrize("col_B", ["B", col("B")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ascii is not yet supported in local testing mode.",
+)
 def test_ascii(session, col_B):
     Utils.check_answer(
         TestData.string1(session).select(ascii(col_B)),
@@ -3786,7 +5283,6 @@ def test_ascii(session, col_B):
     )
 
 
-@pytest.mark.localtest
 @pytest.mark.parametrize(
     "func,expected",
     [
@@ -3856,6 +5352,10 @@ def test_initcap_length_lower_upper(func, expected, use_col, session):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="lpad is not yet supported in local testing mode.",
+)
 def test_lpad_rpad(session, col_A):
     Utils.check_answer(
         TestData.string2(session).select(
@@ -3871,6 +5371,10 @@ def test_lpad_rpad(session, col_A):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ltrim is not yet supported in local testing mode.",
+)
 def test_ltrim_rtrim_trim(session, col_A):
     Utils.check_answer(
         TestData.string3(session).select(ltrim(col_A), rtrim(col_A), trim(col_A)),
@@ -3888,6 +5392,10 @@ def test_ltrim_rtrim_trim(session, col_A):
 
 
 @pytest.mark.parametrize("col_B", ["B", col("B")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="repeat is not yet supported in local testing mode.",
+)
 def test_repeat(session, col_B):
     Utils.check_answer(
         TestData.string1(session).select(repeat(col_B, 3)),
@@ -3897,6 +5405,10 @@ def test_repeat(session, col_B):
 
 
 @pytest.mark.parametrize("col_A", ["A", col("A")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="soundex is not yet supported in local testing mode.",
+)
 def test_soundex(session, col_A):
     Utils.check_answer(
         TestData.string4(session).select(soundex(col_A)),
@@ -3906,6 +5418,10 @@ def test_soundex(session, col_A):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="insert is not yet supported in local testing mode.",
+)
 def test_insert(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(insert(col_a, 2, 3, lit("abc"))),
@@ -3915,6 +5431,10 @@ def test_insert(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="left is not yet supported in local testing mode.",
+)
 def test_left(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(left(col_a, 2)),
@@ -3924,6 +5444,10 @@ def test_left(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="right is not yet supported in local testing mode.",
+)
 def test_right(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(right(col_a, 2)),
@@ -3933,6 +5457,10 @@ def test_right(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="regexp_count is not yet supported in local testing mode.",
+)
 def test_regexp_count(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(regexp_count(col_a, "a")),
@@ -3948,6 +5476,10 @@ def test_regexp_count(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="replace is not yet supported in local testing mode.",
+)
 def test_replace(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(replace(col_a, "a")),
@@ -3963,6 +5495,10 @@ def test_replace(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="charindex is not yet supported in local testing mode.",
+)
 def test_charindex(session, col_a):
     Utils.check_answer(
         TestData.string4(session).select(charindex(lit("na"), col_a)),
@@ -3978,6 +5514,10 @@ def test_charindex(session, col_a):
 
 
 @pytest.mark.parametrize("col_a", ["a", col("a")])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="collate is not yet supported in local testing mode.",
+)
 def test_collate(session, col_a):
     Utils.check_answer(
         TestData.string3(session).where(collate(col_a, "en_US-trim") == "abcba"),
@@ -3986,8 +5526,42 @@ def test_collate(session, col_a):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="collation is not yet supported in local testing mode.",
+)
 def test_collation(session):
     Utils.check_answer(
         TestData.zero1(session).select(collation(lit("f").collate("de"))),
         [Row("de")],
     )
+
+
+def test_any_value(session):
+    df = session.create_dataframe(
+        [
+            (1, 1),
+            (1, 1),
+            (2, 1),
+            (2, 2),
+            (2, 2),
+        ],
+        schema=["id", "subid"],
+    ).order_by("id", "subid")
+
+    Utils.check_answer(
+        df.group_by("id", "subid").agg(any_value("id")).order_by("id", "subid"),
+        [Row(1, 1, 1), Row(2, 1, 2), Row(2, 2, 2)],
+    )
+
+    non_deterministic_result_1 = df.select(any_value("id")).collect()
+    assert non_deterministic_result_1 == [Row(1)] or non_deterministic_result_1 == [
+        Row(2)
+    ]
+    non_deterministic_result_2 = (
+        df.group_by("id").agg(any_value("subid")).order_by("id").collect()
+    )
+    assert non_deterministic_result_2 == [
+        Row(1, 1),
+        Row(2, 1),
+    ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -14,23 +14,23 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.select_statement import (
-    SelectSnowflakePlan,
-    SelectStatement,
-)
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
+    SNOWFLAKE_PATH_PREFIXES,
     TempObjectType,
+    get_aliased_option_name,
     get_copy_into_table_options,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
 
@@ -43,6 +43,30 @@ else:
     from collections.abc import Iterable
 
 logger = getLogger(__name__)
+
+LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
+READER_OPTIONS_ALIAS_MAP = {
+    "DELIMITER": "FIELD_DELIMITER",
+    "HEADER": "PARSE_HEADER",
+    "PATHGLOBFILTER": "PATTERN",
+    "FILENAMEPATTERN": "PATTERN",
+    "INFERSCHEMA": "INFER_SCHEMA",
+    "SEP": "FIELD_DELIMITER",
+    "LINESEP": "RECORD_DELIMITER",
+    "QUOTE": "FIELD_OPTIONALLY_ENCLOSED_BY",
+    "NULLVALUE": "NULL_IF",
+    "DATEFORMAT": "DATE_FORMAT",
+    "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
+}
+
+
+def _validate_stage_path(path: str) -> str:
+    stripped_path = path.strip("\"'")
+    if not any(stripped_path.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
+        raise ValueError(
+            f"'{path}' is an invalid Snowflake stage location. DataFrameReader can only read files from stage locations."
+        )
+    return path
 
 
 class DataFrameReader:
@@ -377,6 +401,11 @@ class DataFrameReader:
         See Also:
             https://docs.snowflake.com/en/user-guide/querying-metadata
         """
+        if isinstance(self._session._conn, MockServerConnection):
+            self._session._conn.log_not_supported_error(
+                external_feature_name="DataFrameReader.with_metadata",
+                raise_error=NotImplementedError,
+            )
         self._metadata_cols = [
             _to_col_if_str(col, "DataFrameReader.with_metadata")
             for col in metadata_cols
@@ -392,18 +421,27 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
+        path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = "CSV"
 
-        # infer schema is set to false by default
-        if "INFER_SCHEMA" not in self._cur_options:
-            self._cur_options["INFER_SCHEMA"] = False
         schema_to_cast, transformations = None, None
 
         if not self._user_schema:
             if not self._infer_schema:
                 raise SnowparkClientExceptionMessages.DF_MUST_PROVIDE_SCHEMA_FOR_READING_FILE()
 
+            if isinstance(self._session._conn, MockServerConnection):
+                self._session._conn.log_not_supported_error(
+                    external_feature_name="Read option 'INFER_SCHEMA of value 'TRUE' for file format 'csv'",
+                    internal_feature_name="DataFrameReader.csv",
+                    parameters_info={
+                        "format": "csv",
+                        "option": "INFER_SCHEMA",
+                        "option_value": "TRUE",
+                    },
+                    raise_error=NotImplementedError,
+                )
             (
                 schema,
                 schema_to_cast,
@@ -411,6 +449,8 @@ class DataFrameReader:
                 exception,
             ) = self._infer_schema_for_file_format(path, "CSV")
             if exception is not None:
+                if isinstance(exception, FileNotFoundError):
+                    raise exception
                 # if infer schema query fails, use $1, VariantType as schema
                 logger.warn(
                     f"Could not infer csv schema due to exception: {exception}. "
@@ -421,6 +461,7 @@ class DataFrameReader:
                 schema_to_cast = [("$1", "C1")]
                 transformations = []
         else:
+            self._cur_options["INFER_SCHEMA"] = False
             schema = self._user_schema._to_attributes()
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
@@ -553,7 +594,8 @@ class DataFrameReader:
             key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
             value: Value of the option.
         """
-        self._cur_options[key.upper()] = value
+        aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
+        self._cur_options[aliased_key] = value
         return self
 
     def options(self, configs: Dict) -> "DataFrameReader":
@@ -580,7 +622,10 @@ class DataFrameReader:
         drop_tmp_file_format_if_exists_query: Optional[str] = None
         use_temp_file_format = "FORMAT_NAME" not in self._cur_options
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
-        infer_schema_query = infer_schema_statement(path, file_format_name)
+        infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", None)
+        infer_schema_query = infer_schema_statement(
+            path, file_format_name, infer_schema_options
+        )
         try:
             if use_temp_file_format:
                 self._session._conn.run_query(
@@ -598,7 +643,12 @@ class DataFrameReader:
                 drop_tmp_file_format_if_exists_query = (
                     drop_file_format_if_exists_statement(file_format_name)
                 )
+            # SNOW-1628625: Schema inference should be done lazily
             results = self._session._conn.run_query(infer_schema_query)["data"]
+            if len(results) == 0:
+                raise FileNotFoundError(
+                    f"Given path: '{path}' could not be found or is empty."
+                )
             new_schema = []
             schema_to_cast = []
             transformations: List["snowflake.snowpark.column.Column"] = []
@@ -621,7 +671,13 @@ class DataFrameReader:
                 new_schema.append(
                     Attribute(
                         name,
-                        convert_sf_to_sp_type(data_type, precision, scale, 0),
+                        convert_sf_to_sp_type(
+                            data_type,
+                            precision,
+                            scale,
+                            0,
+                            self._session._conn.max_string_size,
+                        ),
                         r[2],
                     )
                 )
@@ -645,15 +701,23 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
-        from snowflake.snowpark.mock._connection import MockServerConnection
-
         if isinstance(self._session._conn, MockServerConnection):
-            raise NotImplementedError(
-                f"[Local Testing] Support for semi structured file {format} is not implemented."
-            )
+            if self._session._conn.is_closed():
+                raise SnowparkSessionException(
+                    "Cannot perform this operation because the session has been closed.",
+                    error_code="1404",
+                )
+            if format not in LOCAL_TESTING_SUPPORTED_FILE_FORMAT:
+                self._session._conn.log_not_supported_error(
+                    external_feature_name=f"Read semi structured {format} file",
+                    internal_feature_name="DataFrameReader._read_semi_structured_file",
+                    parameters_info={"format": str(format)},
+                    raise_error=NotImplementedError,
+                )
 
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
+        path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = format
 
@@ -675,8 +739,8 @@ class DataFrameReader:
         if self._session.sql_simplifier_enabled:
             df = DataFrame(
                 self._session,
-                SelectStatement(
-                    from_=SelectSnowflakePlan(
+                self._session._analyzer.create_select_statement(
+                    from_=self._session._analyzer.create_select_snowflake_plan(
                         self._session._plan_builder.read_file(
                             path,
                             format,

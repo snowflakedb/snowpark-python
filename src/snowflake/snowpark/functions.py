@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -169,6 +169,7 @@ import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
     FunctionExpression,
+    Interval,
     ListAgg,
     Literal,
     MultipleExpression,
@@ -188,9 +189,10 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     LiteralType,
 )
+from snowflake.snowpark._internal.udf_utils import check_decorator_args
 from snowflake.snowpark._internal.utils import (
+    parse_duration_string,
     parse_positional_args_to_list,
-    private_preview,
     validate_object_name,
 )
 from snowflake.snowpark.column import (
@@ -201,18 +203,22 @@ from snowflake.snowpark.column import (
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
-from snowflake.snowpark.stored_procedure import StoredProcedure
+from snowflake.snowpark.stored_procedure import (
+    StoredProcedure,
+    StoredProcedureRegistration,
+)
 from snowflake.snowpark.types import (
     DataType,
     FloatType,
     PandasDataFrameType,
     StringType,
     StructType,
+    TimestampTimeZone,
     TimestampType,
 )
-from snowflake.snowpark.udaf import UserDefinedAggregateFunction
-from snowflake.snowpark.udf import UserDefinedFunction
-from snowflake.snowpark.udtf import UserDefinedTableFunction
+from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
+from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
+from snowflake.snowpark.udtf import UDTFRegistration, UserDefinedTableFunction
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -322,6 +328,29 @@ def sql_expr(sql: str) -> Column:
         [Row(A=3, B=4)]
     """
     return Column._expr(sql)
+
+
+def system_reference(
+    object_type: str,
+    object_identifier: str,
+    scope: str = "CALL",
+    privileges: Optional[List[str]] = None,
+):
+    """
+    Returns a reference to an object (a table, view, or function). When you execute SQL actions on a
+    reference to an object, the actions are performed using the role of the user who created the
+    reference.
+
+    Example::
+        >>> df = session.create_dataframe([(1,)], schema=["A"])
+        >>> df.write.save_as_table("my_table", mode="overwrite", table_type="temporary")
+        >>> df.select(substr(system_reference("table", "my_table"), 1, 14).alias("identifier")).collect()
+        [Row(IDENTIFIER='ENT_REF_TABLE_')]
+    """
+    privileges = privileges or []
+    return builtin("system$reference")(
+        object_type, object_identifier, scope, *privileges
+    )
 
 
 def current_session() -> Column:
@@ -1636,6 +1665,18 @@ def seq8(sign: int = 0) -> Column:
     return _call_function("seq8", False, Literal(sign), is_data_generator=True)
 
 
+def to_boolean(e: ColumnOrName) -> Column:
+    """Converts an input expression to a boolean.
+
+    Example::
+        >>> df = session.create_dataframe(['yes', 'no'], schema=['a'])
+        >>> df.select(to_boolean(col('a')).as_('ans')).collect()
+        [Row(ANS=True), Row(ANS=False)]
+    """
+    c = _to_col_if_str(e, "to_boolean")
+    return builtin("to_boolean")(c)
+
+
 def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     """Converts an input expression to a decimal.
 
@@ -1649,6 +1690,27 @@ def to_decimal(e: ColumnOrName, precision: int, scale: int) -> Column:
     """
     c = _to_col_if_str(e, "to_decimal")
     return builtin("to_decimal")(c, lit(precision), lit(scale))
+
+
+def to_double(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
+    """Converts an input expression to a decimal.
+
+    Example::
+        >>> df = session.create_dataframe(['12', '11.3', '-90.12345'], schema=['a'])
+        >>> df.select(to_double(col('a')).as_('ans')).collect()
+        [Row(ANS=12.0), Row(ANS=11.3), Row(ANS=-90.12345)]
+
+    Example::
+        >>> df = session.create_dataframe(['12+', '11.3+', '90.12-'], schema=['a'])
+        >>> df.select(to_double(col('a'), "999.99MI").as_('ans')).collect()
+        [Row(ANS=12.0), Row(ANS=11.3), Row(ANS=-90.12)]
+    """
+    c = _to_col_if_str(e, "to_double")
+    if fmt is None:
+        return builtin("to_double")(c)
+    else:
+        fmt_col = _to_col_if_lit(fmt, "to_double")
+        return builtin("to_double")(c, fmt_col)
 
 
 def div0(
@@ -3087,7 +3149,7 @@ def date_format(c: ColumnOrName, fmt: ColumnOrLiteralStr) -> Column:
     return to_char(try_cast(c, TimestampType()), fmt)
 
 
-def to_time(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_time(e: ColumnOrName, fmt: Optional[ColumnOrLiteralStr] = None) -> Column:
     """Converts an input expression into the corresponding time.
 
     Example::
@@ -3266,7 +3328,7 @@ def to_utc_timestamp(e: ColumnOrName, tz: ColumnOrLiteral) -> Column:
     return builtin("convert_timezone")(tz_c, "UTC", c)
 
 
-def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
+def to_date(e: ColumnOrName, fmt: Optional[ColumnOrLiteral] = None) -> Column:
     """Converts an input expression into a date.
 
     Example::
@@ -3275,13 +3337,21 @@ def to_date(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         >>> df.select(to_date(col('a')).as_('ans')).collect()
         [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
 
+        >>> df = session.create_dataframe(['2013-05-17', '2013-05-17'], schema=['a'])
+        >>> df.select(to_date(col('a'), 'YYYY-MM-DD').as_('ans')).collect()
+        [Row(ANS=datetime.date(2013, 5, 17)), Row(ANS=datetime.date(2013, 5, 17))]
+
         >>> df = session.create_dataframe(['31536000000000', '71536004000000'], schema=['a'])
         >>> df.select(to_date(col('a')).as_('ans')).collect()
         [Row(ANS=datetime.date(1971, 1, 1)), Row(ANS=datetime.date(1972, 4, 7))]
 
     """
     c = _to_col_if_str(e, "to_date")
-    return builtin("to_date")(c, fmt) if fmt is not None else builtin("to_date")(c)
+
+    if fmt is None:
+        return builtin("to_date")(c)
+    else:
+        return builtin("to_date")(c, Column._to_expr(fmt))
 
 
 def current_timestamp() -> Column:
@@ -4015,6 +4085,66 @@ def arrays_to_object(
     return builtin("arrays_to_object")(keys_c, values_c)
 
 
+def arrays_zip(*cols: ColumnOrName) -> Column:
+    """Returns an array of structured objects, where the N-th object contains the N-th elements of the input arrays.
+
+    Args:
+        cols: The columns to zip together.
+
+    Returns:
+        A new array of structured objects.
+
+    Examples::
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(10, 20, 30) as B")
+        >>> df.select(arrays_zip(df.a, df.b).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 10     |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 20     |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": 30     |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
+        >>> df = session.sql("select array_construct('10', '20', '30') as A, array_construct(1, 2) as B, array_construct(1.1) as C")
+        >>> df.select(arrays_zip(df.a, df.b, df.c).as_("zipped")).show(statement_params={"enable_arrays_zip_function": "TRUE"})
+        -------------------
+        |"ZIPPED"         |
+        -------------------
+        |[                |
+        |  {              |
+        |    "$1": "10",  |
+        |    "$2": 1,     |
+        |    "$3": 1.1    |
+        |  },             |
+        |  {              |
+        |    "$1": "20",  |
+        |    "$2": 2,     |
+        |    "$3": null   |
+        |  },             |
+        |  {              |
+        |    "$1": "30",  |
+        |    "$2": null,  |
+        |    "$3": null   |
+        |  }              |
+        |]                |
+        -------------------
+        <BLANKLINE>
+    """
+    cols = [_to_col_if_str(c, "arrays_zip") for c in cols]
+    return builtin("arrays_zip")(*cols)
+
+
 def array_generate_range(
     start: ColumnOrName, stop: ColumnOrName, step: Optional[ColumnOrName] = None
 ) -> Column:
@@ -4370,7 +4500,7 @@ def date_from_parts(
     return builtin("date_from_parts")(y_col, m_col, d_col)
 
 
-def date_trunc(part: ColumnOrName, expr: ColumnOrName) -> Column:
+def date_trunc(part: str, expr: ColumnOrName) -> Column:
     """
     Truncates a DATE, TIME, or TIMESTAMP to the specified precision.
 
@@ -4386,15 +4516,16 @@ def date_trunc(part: ColumnOrName, expr: ColumnOrName) -> Column:
         ...     schema=["a"],
         ... )
         >>> df.select(date_trunc("YEAR", "a"), date_trunc("MONTH", "a"), date_trunc("DAY", "a")).collect()
-        [Row(DATE_TRUNC("YEAR", "A")=datetime.datetime(2020, 1, 1, 0, 0), DATE_TRUNC("MONTH", "A")=datetime.datetime(2020, 5, 1, 0, 0), DATE_TRUNC("DAY", "A")=datetime.datetime(2020, 5, 1, 0, 0))]
+        [Row(DATE_TRUNC('YEAR', "A")=datetime.datetime(2020, 1, 1, 0, 0), DATE_TRUNC('MONTH', "A")=datetime.datetime(2020, 5, 1, 0, 0), DATE_TRUNC('DAY', "A")=datetime.datetime(2020, 5, 1, 0, 0))]
         >>> df.select(date_trunc("HOUR", "a"), date_trunc("MINUTE", "a"), date_trunc("SECOND", "a")).collect()
-        [Row(DATE_TRUNC("HOUR", "A")=datetime.datetime(2020, 5, 1, 13, 0), DATE_TRUNC("MINUTE", "A")=datetime.datetime(2020, 5, 1, 13, 11), DATE_TRUNC("SECOND", "A")=datetime.datetime(2020, 5, 1, 13, 11, 20))]
+        [Row(DATE_TRUNC('HOUR', "A")=datetime.datetime(2020, 5, 1, 13, 0), DATE_TRUNC('MINUTE', "A")=datetime.datetime(2020, 5, 1, 13, 11), DATE_TRUNC('SECOND', "A")=datetime.datetime(2020, 5, 1, 13, 11, 20))]
         >>> df.select(date_trunc("QUARTER", "a")).collect()
-        [Row(DATE_TRUNC("QUARTER", "A")=datetime.datetime(2020, 4, 1, 0, 0))]
+        [Row(DATE_TRUNC('QUARTER', "A")=datetime.datetime(2020, 4, 1, 0, 0))]
     """
-    part_col = _to_col_if_str(part, "date_trunc")
+    if not isinstance(part, str):
+        raise ValueError("part must be a string")
     expr_col = _to_col_if_str(expr, "date_trunc")
-    return builtin("date_trunc")(part_col, expr_col)
+    return builtin("date_trunc")(part, expr_col)
 
 
 def dayname(e: ColumnOrName) -> Column:
@@ -4463,6 +4594,123 @@ def dayofyear(e: ColumnOrName) -> Column:
     """
     c = _to_col_if_str(e, "dayofyear")
     return builtin("dayofyear")(c)
+
+
+def window(
+    time_column: ColumnOrName,
+    window_duration: str,
+    slide_duration: Optional[str] = None,
+    start_time: Optional[str] = None,
+) -> Column:
+    """
+    Converts a time column into a window object with start and end times. Window start times are
+    inclusive while end times are exclusive. For example 9:30 is in the window [9:30, 10:00), but not [9:00, 9:30).
+
+    Args:
+        time_column: The column to apply the window transformation to.
+        window_duration: An interval string that determines the length of each window.
+        slide_duration: An interval string representing the amount of time in-between the start of
+            each window. Note that this parameter is not supported yet. Specifying it will raise a
+            NotImplementedError exception.
+        start_time: An interval string representing the amount of time the start of each window is
+            offset. eg. a five minute window with start_time of '2 minutes' will be from [9:02, 9:07)
+            instead of [9:00, 9:05)
+
+    Note:
+        Interval strings are of the form 'quantity unit' where quantity is an integer and unitis
+        is a supported time unit. This function supports the same time units as dateadd. see
+        `supported time units <https://docs.snowflake.com/en/sql-reference/functions-date-time#label-supported-date-time-parts>`_
+        for more information.
+
+    Example::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.functions import window
+        >>> df = session.createDataFrame(
+        ...      [(datetime.datetime.strptime("2024-10-31 09:05:00.000", "%Y-%m-%d %H:%M:%S.%f"),)],
+        ...      schema=["time"]
+        ... )
+        >>> df.select(window(df.time, "5 minutes")).show()
+        ----------------------------------------
+        |"WINDOW"                              |
+        ----------------------------------------
+        |{                                     |
+        |  "end": "2024-10-31 09:10:00.000",   |
+        |  "start": "2024-10-31 09:05:00.000"  |
+        |}                                     |
+        ----------------------------------------
+        <BLANKLINE>
+        >>> df.select(window(df.time, "5 minutes", start_time="2 minutes")).show()
+        ----------------------------------------
+        |"WINDOW"                              |
+        ----------------------------------------
+        |{                                     |
+        |  "end": "2024-10-31 09:07:00.000",   |
+        |  "start": "2024-10-31 09:02:00.000"  |
+        |}                                     |
+        ----------------------------------------
+        <BLANKLINE>
+
+    Example::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.functions import sum, window
+        >>> df = session.createDataFrame([
+        ...         (datetime.datetime(2024, 10, 31, 1, 0, 0), 1),
+        ...         (datetime.datetime(2024, 10, 31, 2, 0, 0), 1),
+        ...         (datetime.datetime(2024, 10, 31, 3, 0, 0), 1),
+        ...         (datetime.datetime(2024, 10, 31, 4, 0, 0), 1),
+        ...         (datetime.datetime(2024, 10, 31, 5, 0, 0), 1),
+        ...     ], schema=["time", "value"]
+        ... )
+        >>> df.group_by(window(df.time, "2 hours")).agg(sum(df.value)).show()
+        -------------------------------------------------------
+        |"WINDOW"                              |"SUM(VALUE)"  |
+        -------------------------------------------------------
+        |{                                     |1             |
+        |  "end": "2024-10-31 02:00:00.000",   |              |
+        |  "start": "2024-10-31 00:00:00.000"  |              |
+        |}                                     |              |
+        |{                                     |2             |
+        |  "end": "2024-10-31 04:00:00.000",   |              |
+        |  "start": "2024-10-31 02:00:00.000"  |              |
+        |}                                     |              |
+        |{                                     |2             |
+        |  "end": "2024-10-31 06:00:00.000",   |              |
+        |  "start": "2024-10-31 04:00:00.000"  |              |
+        |}                                     |              |
+        -------------------------------------------------------
+        <BLANKLINE>
+    """
+    if slide_duration:
+        # SNOW-1063685: slide_duration changes this function from a 1:1 mapping to a 1:N mapping. That
+        # currently would require a udtf which may have significantly different performance.
+        raise NotImplementedError(
+            "snowflake.snowpark.functions.window does not support slide_duration parameter yet."
+        )
+
+    epoch = lit("1970-01-01 00:00:00").cast(
+        TimestampType(timezone=TimestampTimeZone.NTZ)
+    )
+    time = _to_col_if_str(time_column, "window")
+
+    window_duration, window_unit = parse_duration_string(window_duration)
+    window_duration = lit(window_duration)
+    window_unit = f"{window_unit}s"
+
+    base = epoch
+    if start_time:
+        start_duration, start_unit = parse_duration_string(start_time)
+        base += make_interval(**{f"{start_unit}s": start_duration})
+
+    window = floor(datediff(window_unit, base, time) / window_duration)
+    window_start = dateadd(window_unit, window * window_duration, base)
+    return object_construct_keep_null(
+        lit("start"),
+        window_start,
+        lit("end"),
+        dateadd(window_unit, window_duration, window_start),
+    ).alias("window")
 
 
 def is_array(col: ColumnOrName) -> Column:
@@ -5205,6 +5453,67 @@ def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
     return builtin("array_append")(a, e)
 
 
+def array_remove(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
+    """Given a source ARRAY, returns an ARRAY with elements of the specified value removed.
+
+    Args:
+        array: name of column containing array.
+        element: element to be removed from the array. If the element is a VARCHAR, it needs
+            to be casted into VARIANT data type.
+
+    Examples::
+        >>> from snowflake.snowpark.types import VariantType
+        >>> df = session.create_dataframe([([1, '2', 3.1, 1, 1],)], ['data'])
+        >>> df.select(array_remove(df.data, 1).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  "2",     |
+        |  3.1      |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, lit('2').cast(VariantType())).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  1,       |
+        |  3.1,     |
+        |  1,       |
+        |  1        |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(df.data, None).alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |NULL       |
+        -------------
+        <BLANKLINE>
+
+        >>> df.select(array_remove(array_remove(df.data, 1), "2").alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  3.1      |
+        |]          |
+        -------------
+        <BLANKLINE>
+
+    See Also:
+        - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
+    """
+    a = _to_col_if_str(array, "array_remove")
+    e = lit(element).cast("VARIANT") if isinstance(element, str) else element
+    return builtin("array_remove")(a, e)
+
+
 def array_cat(array1: ColumnOrName, array2: ColumnOrName) -> Column:
     """Returns the concatenation of two ARRAYs.
 
@@ -5750,14 +6059,15 @@ def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     """Returns the cosine distance between two vectors of equal dimension and element type.
 
     Example::
-        >> from snowflake.snowpark.functions import vector_cosine_distance
-        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
-        >> df.select(vector_cosine_distance(df.a, df.b).as_("dist")).show()
+        >>> from snowflake.snowpark.functions import vector_cosine_distance
+        >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >>> df.select(vector_cosine_distance(df.a, df.b).as_("dist")).show()
         ----------------------
         |"DIST"              |
         ----------------------
         |0.9925833339709303  |
         ----------------------
+        <BLANKLINE>
     """
     v1 = _to_col_if_str(v1, "vector_cosine_distance")
     v2 = _to_col_if_str(v2, "vector_cosine_distance")
@@ -5765,17 +6075,18 @@ def vector_cosine_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
 
 
 def vector_l2_distance(v1: ColumnOrName, v2: ColumnOrName) -> Column:
-    """Returns the cosine distance between two vectors of equal dimension and element type.
+    """Returns the l2 distance between two vectors of equal dimension and element type.
 
     Example::
-        >> from snowflake.snowpark.functions import vector_l2_distance
-        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
-        >> df.select(vector_l2_distance(df.a, df.b).as_("dist")).show()
-        ---------------------
+        >>> from snowflake.snowpark.functions import vector_l2_distance
+        >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >>> df.select(vector_l2_distance(df.a, df.b).as_("dist")).show()
+        ----------------------
         |"DIST"              |
         ----------------------
         |1.7320508075688772  |
         ----------------------
+        <BLANKLINE>
     """
     v1 = _to_col_if_str(v1, "vector_l2_distance")
     v2 = _to_col_if_str(v2, "vector_l2_distance")
@@ -5786,18 +6097,38 @@ def vector_inner_product(v1: ColumnOrName, v2: ColumnOrName) -> Column:
     """Returns the inner product between two vectors of equal dimension and element type.
 
     Example::
-        >> from snowflake.snowpark.functions import vector_inner_product
-        >> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
-        >> df.select(vector_inner_product(df.a, df.b).as_("dist")).show()
+        >>> from snowflake.snowpark.functions import vector_inner_product
+        >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >>> df.select(vector_inner_product(df.a, df.b).as_("dist")).show()
         ----------
         |"DIST"  |
         ----------
         |20.0    |
         ----------
+        <BLANKLINE>
     """
     v1 = _to_col_if_str(v1, "vector_inner_product")
     v2 = _to_col_if_str(v2, "vector_inner_product")
     return builtin("vector_inner_product")(v1, v2)
+
+
+def ln(c: ColumnOrLiteral) -> Column:
+    """Returns the natrual logarithm of given column expression.
+
+    Example::
+        >>> from snowflake.snowpark.functions import ln
+        >>> from math import e
+        >>> df = session.create_dataframe([[e]], schema=["ln_value"])
+        >>> df.select(ln(col("ln_value")).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |1.0       |
+        ------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(c, "ln")
+    return builtin("ln")(c)
 
 
 def asc(c: ColumnOrName) -> Column:
@@ -6853,15 +7184,15 @@ def ntile(e: Union[int, ColumnOrName]) -> Column:
         ...     [["C", "SPY", 3], ["C", "AAPL", 10], ["N", "SPY", 5], ["N", "AAPL", 7], ["Q", "MSFT", 3]],
         ...     schema=["exchange", "symbol", "shares"]
         ... )
-        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).show()
+        >>> df.select(col("exchange"), col("symbol"), ntile(3).over(Window.partition_by("exchange").order_by("shares")).alias("ntile_3")).order_by(["exchange","symbol"]).show()
         -------------------------------------
         |"EXCHANGE"  |"SYMBOL"  |"NTILE_3"  |
         -------------------------------------
-        |Q           |MSFT      |1          |
-        |N           |SPY       |1          |
-        |N           |AAPL      |2          |
-        |C           |SPY       |1          |
         |C           |AAPL      |2          |
+        |C           |SPY       |1          |
+        |N           |AAPL      |2          |
+        |N           |SPY       |1          |
+        |Q           |MSFT      |1          |
         -------------------------------------
         <BLANKLINE>
     """
@@ -7026,6 +7357,8 @@ def udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
@@ -7110,6 +7443,8 @@ def udf(
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
         immutable: Whether the UDF result is deterministic or not for the same input.
+        comment: Adds a comment for the created object. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
     Returns:
         A UDF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7177,10 +7512,21 @@ def udf(
         [Row(MINUS_ONE(10)=9)]
 
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udf_registration_method = UDFRegistration(session=session).register
+    else:
+        udf_registration_method = session.udf.register
+
     if func is None:
         return functools.partial(
-            session.udf.register,
+            udf_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7199,9 +7545,11 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udf.register(
+        return udf_registration_method(
             func,
             return_type=return_type,
             input_types=input_types,
@@ -7221,6 +7569,8 @@ def udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
 
 
@@ -7244,6 +7594,8 @@ def udtf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
@@ -7314,6 +7666,8 @@ def udtf(
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
         immutable: Whether the UDTF result is deterministic or not for the same input.
+        comment: Adds a comment for the created object. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
     Returns:
         A UDTF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7393,10 +7747,21 @@ def udtf(
         >>> session.table_function("alt_int", lit(1)).collect()
         [Row(NUMBER=1)]
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udtf_registration_method = UDTFRegistration(session=session).register
+    else:
+        udtf_registration_method = session.udtf.register
+
     if handler is None:
         return functools.partial(
-            session.udtf.register,
+            udtf_registration_method,
             output_schema=output_schema,
             input_types=input_types,
             name=name,
@@ -7413,9 +7778,11 @@ def udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udtf.register(
+        return udtf_registration_method(
             handler,
             output_schema=output_schema,
             input_types=input_types,
@@ -7433,10 +7800,11 @@ def udtf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
 
 
-@private_preview(version="1.6.0")
 def udaf(
     handler: Optional[typing.Type] = None,
     *,
@@ -7455,6 +7823,8 @@ def udaf(
     immutable: bool = False,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedAggregateFunction, functools.partial]:
     """Registers a Python class as a Snowflake Python UDAF and returns the UDAF.
 
@@ -7525,6 +7895,8 @@ def udaf(
             The secrets can be accessed from handler code. The secrets specified as values must
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
+        comment: Adds a comment for the created object. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
     Returns:
         A UDAF function that can be called with :class:`~snowflake.snowpark.Column` expressions.
@@ -7612,10 +7984,21 @@ def udaf(
         >>> df.agg(PythonSumUDAF("a")).collect()
         [Row(SUM_INT("A")=6)]
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udaf_registration_method = UDAFRegistration(session=session).register
+    else:
+        udaf_registration_method = session.udaf.register
+
     if handler is None:
         return functools.partial(
-            session.udaf.register,
+            udaf_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7630,9 +8013,11 @@ def udaf(
             immutable=immutable,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udaf.register(
+        return udaf_registration_method(
             handler,
             return_type=return_type,
             input_types=input_types,
@@ -7648,6 +8033,8 @@ def udaf(
             immutable=immutable,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
+            **kwargs,
         )
 
 
@@ -7673,6 +8060,8 @@ def pandas_udf(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedFunction, functools.partial]:
     """
     Registers a Python function as a vectorized UDF and returns the UDF.
@@ -7724,10 +8113,21 @@ def pandas_udf(
         ------------
         <BLANKLINE>
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udf_registration_method = UDFRegistration(session=session).register
+    else:
+        udf_registration_method = session.udf.register
+
     if func is None:
         return functools.partial(
-            session.udf.register,
+            udf_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -7747,9 +8147,11 @@ def pandas_udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udf.register(
+        return udf_registration_method(
             func,
             return_type=return_type,
             input_types=input_types,
@@ -7770,6 +8172,8 @@ def pandas_udf(
             external_access_integrations=external_access_integrations,
             secrets=secrets,
             immutable=immutable,
+            comment=comment,
+            **kwargs,
         )
 
 
@@ -7795,6 +8199,8 @@ def pandas_udtf(
     secrets: Optional[Dict[str, str]] = None,
     immutable: bool = False,
     max_batch_size: Optional[int] = None,
+    comment: Optional[str] = None,
+    **kwargs,
 ) -> Union[UserDefinedTableFunction, functools.partial]:
     """Registers a Python class as a vectorized Python UDTF and returns the UDTF.
 
@@ -7878,10 +8284,21 @@ def pandas_udtf(
         -----------------------------
         <BLANKLINE>
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        udtf_registration_method = UDTFRegistration(session=session).register
+    else:
+        udtf_registration_method = session.udtf.register
+
     if handler is None:
         return functools.partial(
-            session.udtf.register,
+            udtf_registration_method,
             output_schema=output_schema,
             input_types=input_types,
             input_names=input_names,
@@ -7900,9 +8317,11 @@ def pandas_udtf(
             secrets=secrets,
             immutable=immutable,
             max_batch_size=max_batch_size,
+            comment=comment,
+            **kwargs,
         )
     else:
-        return session.udtf.register(
+        return udtf_registration_method(
             handler,
             output_schema=output_schema,
             input_types=input_types,
@@ -7922,6 +8341,8 @@ def pandas_udtf(
             secrets=secrets,
             immutable=immutable,
             max_batch_size=max_batch_size,
+            comment=comment,
+            **kwargs,
         )
 
 
@@ -8091,6 +8512,7 @@ def sproc(
     source_code_display: bool = True,
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
+    comment: Optional[str] = None,
     **kwargs,
 ) -> Union[StoredProcedure, functools.partial]:
     """Registers a Python function as a Snowflake Python stored procedure and returns the stored procedure.
@@ -8169,6 +8591,8 @@ def sproc(
             The secrets can be accessed from handler code. The secrets specified as values must
             also be specified in the external access integration and the keys are strings used to
             retrieve the secrets using secret API.
+        comment: Adds a comment for the created object. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
 
     Returns:
         A stored procedure function that can be called with python value.
@@ -8224,10 +8648,23 @@ def sproc(
         >>> add_sp(1, 1)
         2
     """
-    session = session or snowflake.snowpark.session._get_active_session()
+
+    # Initial check to make sure no unexpected args are passed in
+    check_decorator_args(**kwargs)
+
+    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+        session
+    )
+    if session is None:
+        sproc_registration_method = StoredProcedureRegistration(
+            session=session
+        ).register
+    else:
+        sproc_registration_method = session.sproc.register
+
     if func is None:
         return functools.partial(
-            session.sproc.register,
+            sproc_registration_method,
             return_type=return_type,
             input_types=input_types,
             name=name,
@@ -8244,10 +8681,11 @@ def sproc(
             source_code_display=source_code_display,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
             **kwargs,
         )
     else:
-        return session.sproc.register(
+        return sproc_registration_method(
             func,
             return_type=return_type,
             input_types=input_types,
@@ -8265,6 +8703,7 @@ def sproc(
             source_code_display=source_code_display,
             external_access_integrations=external_access_integrations,
             secrets=secrets,
+            comment=comment,
             **kwargs,
         )
 
@@ -8301,3 +8740,108 @@ def unix_timestamp(e: ColumnOrName, fmt: Optional["Column"] = None) -> Column:
         <BLANKLINE>
     """
     return date_part("epoch_second", to_timestamp(e, fmt))
+
+
+def locate(expr1: str, expr2: ColumnOrName, start_pos: int = 1) -> Column:
+    """
+    Searches for the first occurrence of the first argument in the second argument.
+    If successful, returns the position (1-based) of the first argument in the second argument.
+    Otherwise, return 0.
+
+    Note::
+
+        If the first argument is empty, this function always returns 1.
+
+    Example::
+
+        >>> df = session.create_dataframe([["find a needle in a haystack"],["nothing but hay in a haystack"]], schema=["expr"])
+        >>> df.select(locate("needle", col("expr")).alias("1-pos")).show()
+        -----------
+        |"1-pos"  |
+        -----------
+        |8        |
+        |0        |
+        -----------
+        <BLANKLINE>
+    """
+    _substr = lit(expr1)
+    _str = _to_col_if_str(expr2, "locate")
+    return builtin("charindex")(_substr, _str, lit(start_pos))
+
+
+def make_interval(
+    years: Optional[int] = None,
+    quarters: Optional[int] = None,
+    months: Optional[int] = None,
+    weeks: Optional[int] = None,
+    days: Optional[int] = None,
+    hours: Optional[int] = None,
+    minutes: Optional[int] = None,
+    seconds: Optional[int] = None,
+    milliseconds: Optional[int] = None,
+    microseconds: Optional[int] = None,
+    nanoseconds: Optional[int] = None,
+    mins: Optional[int] = None,
+    secs: Optional[int] = None,
+) -> Column:
+    """
+    Creates an interval column with the specified years, quarters, months, weeks, days, hours,
+    minutes, seconds, milliseconds, microseconds, and nanoseconds. You can find more details in
+    `Interval constants <https://docs.snowflake.com/en/sql-reference/data-types-datetime#interval-constants>`_.
+
+    INTERVAL is not a data type (that is, you can’t define a table column to be of data type INTERVAL).
+    Intervals can only be used in date, time, and timestamp arithmetic. For example,
+    ``df.select(make_interval(days=0))`` is not valid.
+
+    Example::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.functions import to_date
+        >>>
+        >>> df = session.create_dataframe([datetime.datetime(2023, 8, 8, 1, 2, 3)], schema=["ts"])
+        >>> df.select(to_date(col("ts") + make_interval(days=10)).alias("next_day")).show()
+        --------------
+        |"NEXT_DAY"  |
+        --------------
+        |2023-08-18  |
+        --------------
+        <BLANKLINE>
+
+    You can also find some examples to use interval constants with :meth:`~snowflake.snowpark.Window.range_between`
+    method.
+    """
+    # for migration purpose
+    minutes = minutes or mins
+    seconds = seconds or secs
+
+    # create column
+    return Column(
+        Interval(
+            years,
+            quarters,
+            months,
+            weeks,
+            days,
+            hours,
+            minutes,
+            seconds,
+            milliseconds,
+            microseconds,
+            nanoseconds,
+        )
+    )
+
+
+def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
+    """
+    Summarizes the given English-language input text.
+
+    Args:
+        text: A string containing the English text from which a summary should be generated.
+
+    Returns:
+        A string containing a summary of the original text.
+    """
+    sql_func_name = "snowflake.cortex.summarize"
+    text_col = _to_col_if_lit(text, sql_func_name)
+    return builtin(sql_func_name)(text_col)

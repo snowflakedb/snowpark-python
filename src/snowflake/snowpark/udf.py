@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 """User-defined functions (UDFs) in Snowpark. Please see `Python UDFs <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs>`_ for details.
@@ -16,12 +16,15 @@ Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for sample code on how
 """
 import sys
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.open_telemetry import (
+    open_telemetry_udf_context_manager,
+)
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
@@ -73,6 +76,7 @@ class UserDefinedFunction:
         input_types: List[DataType],
         name: str,
         is_return_nullable: bool = False,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -82,6 +86,7 @@ class UserDefinedFunction:
         self._return_type = return_type
         self._input_types = input_types
         self._is_return_nullable = is_return_nullable
+        self._packages = packages
 
     def __call__(
         self,
@@ -108,10 +113,12 @@ class UserDefinedFunction:
         return Column(self._create_udf_expression(exprs))
 
     def _create_udf_expression(self, exprs: List[Expression]) -> SnowflakeUDF:
-        if len(exprs) != len(self._input_types):
+        # len(exprs) can be less than len(self._input_types) if udf has
+        # optional arguments but it cannot have more arguments
+        if len(exprs) > len(self._input_types):
             raise ValueError(
                 f"Incorrect number of arguments passed to the UDF:"
-                f" Expected: {len(self._input_types)}, Found: {len(exprs)}"
+                f" Expected: <={len(self._input_types)}, Found: {len(exprs)}"
             )
         return SnowflakeUDF(
             self.name,
@@ -460,7 +467,7 @@ class UDFRegistration:
         - :meth:`~snowflake.snowpark.Session.add_packages`
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: Optional["snowflake.snowpark.session.Session"]) -> None:
         self._session = session
 
     def describe(
@@ -497,6 +504,8 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -583,47 +592,57 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
+            comment: Adds a comment for the created object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
+
         See Also:
-            - :func:`~snowflake.snowpark.functions.udf`
-            - :meth:`register_from_file`
+        - :func:`~snowflake.snowpark.functions.udf`
+        - :meth:`register_from_file`
         """
-        if not callable(func):
-            raise TypeError(
-                "Invalid function: not a function or callable "
-                f"(__call__ is not defined): {type(func)}"
+        with open_telemetry_udf_context_manager(self.register, func=func, name=name):
+            if not callable(func):
+                raise TypeError(
+                    "Invalid function: not a function or callable "
+                    f"(__call__ is not defined): {type(func)}"
+                )
+
+            check_register_args(
+                TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
             )
 
-        check_register_args(
-            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
-        )
+            _from_pandas = kwargs.get("_from_pandas_udf_function", False)
+            native_app_params = kwargs.get("native_app_params", None)
 
-        _from_pandas = kwargs.get("_from_pandas_udf_function", False)
-
-        # register udf
-        return self._do_register_udf(
-            func,
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            max_batch_size,
-            _from_pandas,
-            strict,
-            secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            api_call_source="UDFRegistration.register"
-            + ("[pandas_udf]" if _from_pandas else ""),
-            is_permanent=is_permanent,
-        )
+            # register udf
+            return self._do_register_udf(
+                func,
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                max_batch_size,
+                _from_pandas,
+                strict,
+                secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                native_app_params=native_app_params,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                api_call_source="UDFRegistration.register"
+                + ("[pandas_udf]" if _from_pandas else ""),
+                is_permanent=is_permanent,
+                copy_grants=copy_grants,
+            )
 
     def register_from_file(
         self,
@@ -644,6 +663,8 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
+        copy_grants: bool = False,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -733,6 +754,10 @@ class UDFRegistration:
                 also be specified in the external access integration and the keys are strings used to
                 retrieve the secrets using secret API.
             immutable: Whether the UDF result is deterministic or not for the same input.
+            comment: Adds a comment for the created object. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
+            copy_grants: Specifies to retain the access privileges from the original function when a new function is created
+                using CREATE OR REPLACE FUNCTION.
 
         Note::
             The type hints can still be extracted from the local source Python file if they
@@ -744,34 +769,39 @@ class UDFRegistration:
             - :func:`~snowflake.snowpark.functions.udf`
             - :meth:`register`
         """
-        file_path = process_file_path(file_path)
-        check_register_args(
-            TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
-        )
+        with open_telemetry_udf_context_manager(
+            self.register_from_file, file_path=file_path, func_name=func_name, name=name
+        ):
+            file_path = process_file_path(file_path)
+            check_register_args(
+                TempObjectType.FUNCTION, name, is_permanent, stage_location, parallel
+            )
 
-        # register udf
-        return self._do_register_udf(
-            (file_path, func_name),
-            return_type,
-            input_types,
-            name,
-            stage_location,
-            imports,
-            packages,
-            replace,
-            if_not_exists,
-            parallel,
-            strict,
-            secure,
-            external_access_integrations=external_access_integrations,
-            secrets=secrets,
-            immutable=immutable,
-            statement_params=statement_params,
-            source_code_display=source_code_display,
-            api_call_source="UDFRegistration.register_from_file",
-            skip_upload_on_content_match=skip_upload_on_content_match,
-            is_permanent=is_permanent,
-        )
+            # register udf
+            return self._do_register_udf(
+                (file_path, func_name),
+                return_type,
+                input_types,
+                name,
+                stage_location,
+                imports,
+                packages,
+                replace,
+                if_not_exists,
+                parallel,
+                strict,
+                secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                source_code_display=source_code_display,
+                api_call_source="UDFRegistration.register_from_file",
+                skip_upload_on_content_match=skip_upload_on_content_match,
+                is_permanent=is_permanent,
+                copy_grants=copy_grants,
+            )
 
     def _do_register_udf(
         self,
@@ -792,12 +822,15 @@ class UDFRegistration:
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         immutable: bool = False,
+        comment: Optional[str] = None,
         *,
+        native_app_params: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
         is_permanent: bool = False,
+        copy_grants: bool = False,
     ) -> UserDefinedFunction:
         # get the udf name, return and input types
         (
@@ -806,6 +839,7 @@ class UDFRegistration:
             is_dataframe_input,
             return_type,
             input_types,
+            opt_arg_defaults,
         ) = process_registration_inputs(
             self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
         )
@@ -849,22 +883,29 @@ class UDFRegistration:
             is_permanent=is_permanent,
         )
 
-        if not custom_python_runtime_version_allowed:
-            check_python_runtime_version(
+        runtime_version_from_requirement = None
+        if self._session is not None:
+            runtime_version_from_requirement = (
                 self._session._runtime_version_from_requirement
             )
+
+        if not custom_python_runtime_version_allowed:
+            check_python_runtime_version(runtime_version_from_requirement)
 
         raised = False
         try:
             create_python_udf_or_sp(
                 session=self._session,
+                func=func,
                 return_type=return_type,
                 input_args=input_args,
+                opt_arg_defaults=opt_arg_defaults,
                 handler=handler,
                 object_type=TempObjectType.FUNCTION,
                 object_name=udf_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
+                raw_imports=imports,
                 is_permanent=is_permanent,
                 replace=replace,
                 if_not_exists=if_not_exists,
@@ -875,6 +916,11 @@ class UDFRegistration:
                 external_access_integrations=external_access_integrations,
                 secrets=secrets,
                 immutable=immutable,
+                statement_params=statement_params,
+                comment=comment,
+                native_app_params=native_app_params,
+                copy_grants=copy_grants,
+                runtime_version=runtime_version_from_requirement,
             )
         # an exception might happen during registering a udf
         # (e.g., a dependency might not be found on the stage),
@@ -896,4 +942,6 @@ class UDFRegistration:
                     self._session, upload_file_stage_location, stage_location
                 )
 
-        return UserDefinedFunction(func, return_type, input_types, udf_name)
+        return UserDefinedFunction(
+            func, return_type, input_types, udf_name, packages=packages
+        )

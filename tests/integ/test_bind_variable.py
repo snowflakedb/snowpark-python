@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import copy
 import datetime
@@ -28,6 +28,14 @@ try:
     is_pandas_available = True
 except ImportError:
     is_pandas_available = False
+
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Variable binding is a SQL feature",
+        run=False,
+    )
+]
 
 
 @pytest.mark.parametrize("copy_df", [True, False])

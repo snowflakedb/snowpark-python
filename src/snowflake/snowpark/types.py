@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 """This package contains all Snowpark logical types."""
@@ -81,13 +81,12 @@ class StringType(_AtomicType):
         >>> string_t = StringType()    # this can be used to create a string type column with maximum allowed length
     """
 
-    _MAX_LENGTH = 16777216
-
-    def __init__(self, length: Optional[int] = None) -> None:
+    def __init__(self, length: Optional[int] = None, is_max_size: bool = False) -> None:
         self.length = length
+        self._is_max_size = length is None or is_max_size
 
     def __repr__(self) -> str:
-        if self.length:
+        if self.length and not self._is_max_size:
             return f"StringType({self.length})"
         return "StringType()"
 
@@ -98,21 +97,21 @@ class StringType(_AtomicType):
         if self.length == other.length:
             return True
 
-        # This is to ensure that we treat StringType() and StringType(_MAX_LENGTH)
+        # This is to ensure that we treat StringType() and StringType(MAX_LENGTH)
         # the same because when a string type column is created on server side without
-        # a length parameter, it is set the _MAX_LENGTH by default.
+        # a length parameter, it is set the MAX_LENGTH by default.
         if (
             self.length is None
-            and other.length == StringType._MAX_LENGTH
+            and other._is_max_size
             or other.length is None
-            and self.length == StringType._MAX_LENGTH
+            and self._is_max_size
         ):
             return True
 
         return False
 
     def __hash__(self):
-        if self.length == StringType._MAX_LENGTH:
+        if self._is_max_size and self.length is not None:
             return StringType().__hash__()
         return super().__hash__()
 
@@ -217,7 +216,10 @@ class DecimalType(_FractionalType):
 class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
 
-    def __init__(self, element_type: Optional[DataType] = None) -> None:
+    def __init__(
+        self, element_type: Optional[DataType] = None, structured: bool = False
+    ) -> None:
+        self.structured = structured
         self.element_type = element_type if element_type else StringType()
 
     def __repr__(self) -> str:
@@ -228,11 +230,15 @@ class ArrayType(DataType):
 
 
 class MapType(DataType):
-    """Map data type. This maps to the OBJECT data type in Snowflake."""
+    """Map data type. This maps to the OBJECT data type in Snowflake if key and value types are not defined otherwise MAP."""
 
     def __init__(
-        self, key_type: Optional[DataType] = None, value_type: Optional[DataType] = None
+        self,
+        key_type: Optional[DataType] = None,
+        value_type: Optional[DataType] = None,
+        structured: bool = False,
     ) -> None:
+        self.structured = structured
         self.key_type = key_type if key_type else StringType()
         self.value_type = value_type if value_type else StringType()
 
@@ -366,9 +372,12 @@ class StructField:
 
 
 class StructType(DataType):
-    """Represents a table schema. Contains :class:`StructField` for each column."""
+    """Represents a table schema or structured column. Contains :class:`StructField` for each field."""
 
-    def __init__(self, fields: Optional[List["StructField"]] = None) -> None:
+    def __init__(
+        self, fields: Optional[List["StructField"]] = None, structured=False
+    ) -> None:
+        self.structured = structured
         if fields is None:
             fields = []
         self.fields = fields

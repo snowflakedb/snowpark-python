@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import math
@@ -29,6 +29,7 @@ from snowflake.snowpark._internal.utils import (
     EMPTY_STRING,
     TempObjectType,
     escape_quotes,
+    escape_single_quotes,
     get_temp_type_for_object,
     is_single_quoted,
     is_sql_select_statement,
@@ -69,6 +70,10 @@ GROUP_BY = " GROUP BY "
 PARTITION_BY = " PARTITION BY "
 ORDER_BY = " ORDER BY "
 CLUSTER_BY = " CLUSTER BY "
+REFRESH_MODE = " REFRESH_MODE "
+INITIALIZE = " INITIALIZE "
+DATA_RETENTION_TIME_IN_DAYS = " DATA_RETENTION_TIME_IN_DAYS "
+MAX_DATA_EXTENSION_TIME_IN_DAYS = " MAX_DATA_EXTENSION_TIME_IN_DAYS "
 OVER = " OVER "
 SELECT = " SELECT "
 FROM = " FROM "
@@ -93,8 +98,10 @@ DYNAMIC = " DYNAMIC "
 LAG = " LAG "
 WAREHOUSE = " WAREHOUSE "
 TEMPORARY = " TEMPORARY "
+TRANSIENT = " TRANSIENT "
 IF = " If "
 INSERT = " INSERT "
+OVERWRITE = " OVERWRITE "
 INTO = " INTO "
 VALUES = " VALUES "
 SEQ8 = " SEQ8() "
@@ -121,6 +128,16 @@ LOCATION = " LOCATION "
 FILE_FORMAT = " FILE_FORMAT "
 FORMAT_NAME = " FORMAT_NAME "
 COPY = " COPY "
+COPY_GRANTS = " COPY GRANTS "
+ENABLE_SCHEMA_EVOLUTION = " ENABLE_SCHEMA_EVOLUTION "
+DATA_RETENTION_TIME_IN_DAYS = " DATA_RETENTION_TIME_IN_DAYS "
+MAX_DATA_EXTENSION_TIME_IN_DAYS = " MAX_DATA_EXTENSION_TIME_IN_DAYS "
+CHANGE_TRACKING = " CHANGE_TRACKING "
+EXTERNAL_VOLUME = " EXTERNAL_VOLUME "
+CATALOG = " CATALOG "
+BASE_LOCATION = " BASE_LOCATION "
+CATALOG_SYNC = " CATALOG_SYNC "
+STORAGE_SERIALIZATION_POLICY = " STORAGE_SERIALIZATION_POLICY "
 REG_EXP = " REGEXP "
 COLLATE = " COLLATE "
 RESULT_SCAN = " RESULT_SCAN"
@@ -143,6 +160,8 @@ PUT = " PUT "
 GET = " GET "
 GROUPING_SETS = " GROUPING SETS "
 QUESTION_MARK = "?"
+PERCENT_S = r"%s"
+SINGLE_COLON = ":"
 PATTERN = " PATTERN "
 WITHIN_GROUP = " WITHIN GROUP "
 VALIDATION_MODE = " VALIDATION_MODE "
@@ -153,6 +172,7 @@ MERGE = " MERGE "
 MATCHED = " MATCHED "
 LISTAGG = " LISTAGG "
 HEADER = " HEADER "
+COMMENT = " COMMENT "
 IGNORE_NULLS = " IGNORE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
@@ -161,8 +181,30 @@ INTERSECT = f" {Intersect.sql} "
 EXCEPT = f" {Except.sql} "
 NOT_NULL = " NOT NULL "
 WITH = "WITH "
+DEFAULT_ON_NULL = " DEFAULT ON NULL "
+ANY = " ANY "
+ICEBERG = " ICEBERG "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
+
+
+def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
+    if iceberg_config is None:
+        return dict()
+
+    iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
+    if "base_location" not in iceberg_config:
+        raise ValueError("Iceberg table configuration requires base_location be set.")
+
+    return {
+        EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
+        CATALOG: iceberg_config.get("catalog", None),
+        BASE_LOCATION: iceberg_config.get("base_location", None),
+        CATALOG_SYNC: iceberg_config.get("catalog_sync", None),
+        STORAGE_SERIALIZATION_POLICY: iceberg_config.get(
+            "storage_serialization_policy", None
+        ),
+    }
 
 
 def result_scan_statement(uuid_place_holder: str) -> str:
@@ -263,8 +305,11 @@ def in_expression(column: str, values: List[str]) -> str:
     return column + IN + block_expression(values)
 
 
-def regexp_expression(expr: str, pattern: str) -> str:
-    return expr + REG_EXP + pattern
+def regexp_expression(expr: str, pattern: str, parameters: Optional[str] = None) -> str:
+    if parameters is not None:
+        return function_expression("RLIKE", [expr, pattern, parameters], False)
+    else:
+        return expr + REG_EXP + pattern
 
 
 def collate_expression(expr: str, collation_spec: str) -> str:
@@ -734,6 +779,14 @@ def join_statement(
     )
 
 
+def get_comment_sql(comment: Optional[str]) -> str:
+    return (
+        COMMENT + EQUALS + SINGLE_QUOTE + escape_single_quotes(comment) + SINGLE_QUOTE
+        if comment
+        else EMPTY_STRING
+    )
+
+
 def create_table_statement(
     table_name: str,
     schema: str,
@@ -741,61 +794,129 @@ def create_table_statement(
     error: bool = True,
     table_type: str = EMPTY_STRING,
     clustering_key: Optional[Iterable[str]] = None,
+    comment: Optional[str] = None,
+    enable_schema_evolution: Optional[bool] = None,
+    data_retention_time: Optional[int] = None,
+    max_data_extension_time: Optional[int] = None,
+    change_tracking: Optional[bool] = None,
+    copy_grants: bool = False,
     *,
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
+    iceberg_config: Optional[dict] = None,
 ) -> str:
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
         if clustering_key
         else EMPTY_STRING
     )
+    comment_sql = get_comment_sql(comment)
+    options = {
+        ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
+        DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+        MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+        CHANGE_TRACKING: change_tracking,
+    }
+
+    iceberg_config = validate_iceberg_config(iceberg_config)
+    options.update(iceberg_config)
+    options_statement = get_options_statement(options)
+
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
-        f"{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
-        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause}"
+        f"{ICEBERG if iceberg_config else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
+        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{cluster_by_clause}"
+        f"{options_statement}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
     )
 
 
 def insert_into_statement(
-    table_name: str, child: str, column_names: Optional[Iterable[str]] = None
+    table_name: str,
+    child: str,
+    column_names: Optional[Iterable[str]] = None,
+    overwrite: bool = False,
 ) -> str:
     table_columns = f"({COMMA.join(column_names)})" if column_names else EMPTY_STRING
     if is_sql_select_statement(child):
-        return f"{INSERT}{INTO}{table_name}{table_columns}{SPACE}{child}"
+        return f"{INSERT}{OVERWRITE if overwrite else EMPTY_STRING}{INTO}{table_name}{table_columns}{SPACE}{child}"
     return f"{INSERT}{INTO}{table_name}{table_columns}{project_statement([], child)}"
 
 
-def batch_insert_into_statement(table_name: str, column_names: List[str]) -> str:
+def batch_insert_into_statement(
+    table_name: str, column_names: List[str], paramstyle: Optional[str]
+) -> str:
+    num_cols = len(column_names)
+    # paramstyle is initialized as None is stored proc environment
+    paramstyle = paramstyle.lower() if paramstyle else "qmark"
+    supported_paramstyle = ["qmark", "numeric", "format", "pyformat"]
+
+    if paramstyle == "qmark":
+        placeholder_marks = [QUESTION_MARK] * num_cols
+    elif paramstyle == "numeric":
+        placeholder_marks = [f"{SINGLE_COLON}{i+1}" for i in range(num_cols)]
+    elif paramstyle in ("format", "pyformat"):
+        placeholder_marks = [PERCENT_S] * num_cols
+    else:
+        raise ValueError(
+            f"'{paramstyle}' is not a recognized paramstyle. "
+            f"Supported values are: {', '.join(supported_paramstyle)}"
+        )
+
     return (
         f"{INSERT}{INTO}{table_name}"
         f"{LEFT_PARENTHESIS}{COMMA.join(column_names)}{RIGHT_PARENTHESIS}"
         f"{VALUES}{LEFT_PARENTHESIS}"
-        f"{COMMA.join([QUESTION_MARK] * len(column_names))}{RIGHT_PARENTHESIS}"
+        f"{COMMA.join(placeholder_marks)}{RIGHT_PARENTHESIS}"
     )
 
 
 def create_table_as_select_statement(
     table_name: str,
     child: str,
-    column_definition: str,
+    column_definition: Optional[str],
     replace: bool = False,
     error: bool = True,
     table_type: str = EMPTY_STRING,
     clustering_key: Optional[Iterable[str]] = None,
+    comment: Optional[str] = None,
+    enable_schema_evolution: Optional[bool] = None,
+    data_retention_time: Optional[int] = None,
+    max_data_extension_time: Optional[int] = None,
+    change_tracking: Optional[bool] = None,
+    copy_grants: bool = False,
+    iceberg_config: Optional[dict] = None,
+    *,
+    use_scoped_temp_objects: bool = False,
+    is_generated: bool = False,
 ) -> str:
+    column_definition_sql = (
+        f"{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
+        if column_definition
+        else EMPTY_STRING
+    )
     cluster_by_clause = (
         (CLUSTER_BY + LEFT_PARENTHESIS + COMMA.join(clustering_key) + RIGHT_PARENTHESIS)
         if clustering_key
         else EMPTY_STRING
     )
+    comment_sql = get_comment_sql(comment)
+    options = {
+        ENABLE_SCHEMA_EVOLUTION: enable_schema_evolution,
+        DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+        MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+        CHANGE_TRACKING: change_tracking,
+    }
+    iceberg_config = validate_iceberg_config(iceberg_config)
+    options.update(iceberg_config)
+    options_statement = get_options_statement(options)
     return (
-        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING} {table_type.upper()} {TABLE}"
-        f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING}"
-        f" {table_name}{LEFT_PARENTHESIS}{column_definition}{RIGHT_PARENTHESIS}"
-        f"{cluster_by_clause} {AS}{project_statement([], child)}"
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}"
+        f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
+        f"{ICEBERG if iceberg_config else EMPTY_STRING}{TABLE}"
+        f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
+        f"{table_name}{column_definition_sql}{cluster_by_clause}{options_statement}"
+        f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"
     )
 
 
@@ -838,7 +959,10 @@ def create_file_format_statement(
     use_scoped_temp_objects: bool = False,
     is_generated: bool = False,
 ) -> str:
-    options_str = TYPE + EQUALS + file_type + SPACE + get_options_statement(options)
+    type_str = TYPE + EQUALS + file_type + SPACE
+    options_str = (
+        type_str if "TYPE" not in options else EMPTY_STRING
+    ) + get_options_statement(options)
     return (
         CREATE
         + (
@@ -854,7 +978,9 @@ def create_file_format_statement(
     )
 
 
-def infer_schema_statement(path: str, file_format_name: str) -> str:
+def infer_schema_statement(
+    path: str, file_format_name: str, options: Optional[Dict[str, str]] = None
+) -> str:
     return (
         SELECT
         + STAR
@@ -865,15 +991,18 @@ def infer_schema_statement(path: str, file_format_name: str) -> str:
         + LEFT_PARENTHESIS
         + LOCATION
         + RIGHT_ARROW
-        + SINGLE_QUOTE
-        + path
-        + SINGLE_QUOTE
+        + (path if is_single_quoted(path) else SINGLE_QUOTE + path + SINGLE_QUOTE)
         + COMMA
         + FILE_FORMAT
         + RIGHT_ARROW
         + SINGLE_QUOTE
         + file_format_name
         + SINGLE_QUOTE
+        + (
+            ", " + ", ".join(f"{k} => {v}" for k, v in options.items())
+            if options
+            else ""
+        )
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
     )
@@ -980,7 +1109,7 @@ def rank_related_function_expression(
         func_name
         + LEFT_PARENTHESIS
         + expr
-        + (COMMA + str(offset) if offset else EMPTY_STRING)
+        + (COMMA + str(offset) if offset is not None else EMPTY_STRING)
         + (COMMA + default if default else EMPTY_STRING)
         + RIGHT_PARENTHESIS
         + (IGNORE_NULLS if ignore_nulls else EMPTY_STRING)
@@ -1002,7 +1131,10 @@ def order_expression(name: str, direction: str, null_ordering: str) -> str:
     return name + SPACE + direction + SPACE + null_ordering
 
 
-def create_or_replace_view_statement(name: str, child: str, is_temp: bool) -> str:
+def create_or_replace_view_statement(
+    name: str, child: str, is_temp: bool, comment: Optional[str]
+) -> str:
+    comment_sql = get_comment_sql(comment)
     return (
         CREATE
         + OR
@@ -1010,31 +1142,78 @@ def create_or_replace_view_statement(name: str, child: str, is_temp: bool) -> st
         + f"{TEMPORARY if is_temp else EMPTY_STRING}"
         + VIEW
         + name
+        + comment_sql
         + AS
         + project_statement([], child)
     )
 
 
 def create_or_replace_dynamic_table_statement(
-    name: str, warehouse: str, lag: str, child: str
+    name: str,
+    warehouse: str,
+    lag: str,
+    comment: Optional[str],
+    replace: bool,
+    if_not_exists: bool,
+    refresh_mode: Optional[str],
+    initialize: Optional[str],
+    clustering_keys: Iterable[str],
+    is_transient: bool,
+    data_retention_time: Optional[int],
+    max_data_extension_time: Optional[int],
+    child: str,
+    iceberg_config: Optional[dict] = None,
 ) -> str:
+    cluster_by_sql = (
+        f"{CLUSTER_BY}{LEFT_PARENTHESIS}{COMMA.join(clustering_keys)}{RIGHT_PARENTHESIS}"
+        if clustering_keys
+        else EMPTY_STRING
+    )
+    comment_sql = get_comment_sql(comment)
+    refresh_and_initialize_options = get_options_statement(
+        {
+            REFRESH_MODE: refresh_mode,
+            INITIALIZE: initialize,
+        }
+    )
+    data_retention_options = get_options_statement(
+        {
+            DATA_RETENTION_TIME_IN_DAYS: data_retention_time,
+            MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
+        }
+    )
+
+    iceberg_options = get_options_statement(
+        validate_iceberg_config(iceberg_config)
+    ).strip()
+
     return (
-        CREATE
-        + OR
-        + REPLACE
-        + DYNAMIC
-        + TABLE
-        + name
-        + f"{LAG + EQUALS + convert_value_to_sql_option(lag)}"
-        + f"{WAREHOUSE + EQUALS + warehouse}"
-        + AS
-        + project_statement([], child)
+        f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TRANSIENT if is_transient else EMPTY_STRING}"
+        f"{DYNAMIC}{ICEBERG if iceberg_config else EMPTY_STRING}{TABLE}"
+        f"{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}{LAG}{EQUALS}"
+        f"{convert_value_to_sql_option(lag)}{WAREHOUSE}{EQUALS}{warehouse}"
+        f"{refresh_and_initialize_options}{cluster_by_sql}{data_retention_options}{iceberg_options}"
+        f"{comment_sql}{AS}{project_statement([], child)}"
     )
 
 
 def pivot_statement(
-    pivot_column: str, pivot_values: List[str], aggregate: str, child: str
+    pivot_column: str,
+    pivot_values: Optional[Union[str, List[str]]],
+    aggregate: str,
+    default_on_null: Optional[str],
+    child: str,
 ) -> str:
+    if isinstance(pivot_values, str):
+        # The subexpression in this case already includes parenthesis.
+        values_str = pivot_values
+    else:
+        values_str = (
+            LEFT_PARENTHESIS
+            + (ANY if pivot_values is None else COMMA.join(pivot_values))
+            + RIGHT_PARENTHESIS
+        )
+
     return (
         SELECT
         + STAR
@@ -1048,9 +1227,12 @@ def pivot_statement(
         + FOR
         + pivot_column
         + IN
-        + LEFT_PARENTHESIS
-        + COMMA.join(pivot_values)
-        + RIGHT_PARENTHESIS
+        + values_str
+        + (
+            (DEFAULT_ON_NULL + LEFT_PARENTHESIS + default_on_null + RIGHT_PARENTHESIS)
+            if default_on_null
+            else EMPTY_STRING
+        )
         + RIGHT_PARENTHESIS
     )
 
@@ -1379,6 +1561,10 @@ def list_agg(col: str, delimiter: str, is_distinct: bool) -> str:
         + delimiter
         + RIGHT_PARENTHESIS
     )
+
+
+def column_sum(cols: List[str]) -> str:
+    return LEFT_PARENTHESIS + PLUS.join(cols) + RIGHT_PARENTHESIS
 
 
 def generator(row_count: int) -> str:

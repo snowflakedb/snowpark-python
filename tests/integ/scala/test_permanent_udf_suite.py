@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -21,6 +21,11 @@ from tests.utils import TempObjectType, TestFiles, Utils
 
 pytestmark = [
     pytest.mark.udf,
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Local Testing does not support permanent udfs.",
+        run=False,
+    ),
 ]
 
 

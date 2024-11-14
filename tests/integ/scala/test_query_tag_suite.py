@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 # This file contains the query tag related tests in Scala's APIInternalSuite.scala
@@ -12,6 +12,14 @@ import pytest
 from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 from snowflake.snowpark._internal.utils import TempObjectType
 from tests.utils import Utils
+
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="Query tag is a SQL feature",
+        run=False,
+    )
+]
 
 
 @pytest.mark.parametrize(

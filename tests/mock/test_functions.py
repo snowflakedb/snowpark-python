@@ -1,32 +1,39 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
 import math
+import unittest.mock
+from typing import Iterable
 
 import pytest
 
-from snowflake.snowpark import DataFrame, Row, Session
-from snowflake.snowpark.functions import (  # count,; is_null,;
+from snowflake.snowpark import DataFrame, Row
+from snowflake.snowpark.functions import (
     abs,
     asc,
+    call_function,
     col,
     contains,
     count,
+    current_date,
+    current_time,
+    current_timestamp,
     desc,
     is_null,
     lit,
     max,
     min,
+    to_char,
     to_date,
 )
-from snowflake.snowpark.mock._connection import MockServerConnection
+from snowflake.snowpark.mock._functions import MockedFunctionRegistry, patch
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
+from snowflake.snowpark.types import IntegerType
 
-session = Session(MockServerConnection())
 
-
-@pytest.mark.localtest
-def test_col():
+def test_col(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1, "a", True],
@@ -40,8 +47,7 @@ def test_col():
     assert origin_df.select(col("o")).collect() == [Row(True), Row(False), Row(None)]
 
 
-@pytest.mark.localtest
-def test_max():
+def test_max(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             ["a", "ddd", 11.0, None, None, True, math.nan],
@@ -61,8 +67,7 @@ def test_max():
     assert math.isnan(origin_df.select(max("s").as_("g")).collect()[0][0])
 
 
-@pytest.mark.localtest
-def test_min():
+def test_min(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             ["a", "ddd", 11.0, None, None, True, math.nan],
@@ -83,8 +88,7 @@ def test_min():
     assert math.isnan(origin_df.select(min("s").as_("g")).collect()[0][0])
 
 
-@pytest.mark.localtest
-def test_to_date():
+def test_to_date(session):
     origin_df: DataFrame = session.create_dataframe(
         ["2013-05-17", "31536000000000"],
         schema=["m"],
@@ -96,8 +100,7 @@ def test_to_date():
     ]
 
 
-@pytest.mark.localtest
-def test_contains():
+def test_contains(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             ["1", "2"],
@@ -135,8 +138,7 @@ def test_contains():
     ]
 
 
-@pytest.mark.localtest
-def test_abs():
+def test_abs(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1, -4],
@@ -148,8 +150,7 @@ def test_abs():
     assert origin_df.select(abs(col("m"))).collect() == [Row(1), Row(1), Row(2)]
 
 
-@pytest.mark.localtest
-def test_asc_and_desc():
+def test_asc_and_desc(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1],
@@ -167,8 +168,7 @@ def test_asc_and_desc():
     assert origin_df.sort(desc(col("v"))).collect() == expected
 
 
-@pytest.mark.localtest
-def test_count():
+def test_count(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [1],
@@ -183,8 +183,7 @@ def test_count():
     assert origin_df.select(count("v")).collect() == [Row(6)]
 
 
-@pytest.mark.localtest
-def test_is_null():
+def test_is_null(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [float("nan"), 2, "abc"],
@@ -204,8 +203,7 @@ def test_is_null():
     ]
 
 
-@pytest.mark.localtest
-def test_take_first():
+def test_take_first(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [float("nan"), 2, "abc"],
@@ -246,8 +244,7 @@ def test_take_first():
     assert math.isnan(res[4][0]) and res[4][1] == 200 and res[4][2] is None
 
 
-@pytest.mark.localtest
-def test_show():
+def test_show(session):
     origin_df: DataFrame = session.create_dataframe(
         [
             [float("nan"), 2, "abc"],
@@ -284,3 +281,77 @@ def test_show():
 |3....|4   |de...|
 ----------------\n""".lstrip()
     )
+
+
+def test_to_char_is_row_index_agnostic(session):
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    assert df.filter(col("a") > 3).select(to_char(col("a")), col("b")).collect() == [
+        Row("5", 6)
+    ]
+
+
+@pytest.mark.skipif(
+    "not config.getoption('local_testing_mode', default=True)",
+    reason="Only test local testing code in local testing mode.",
+)
+def test_function_register_unregister(session):
+    registry = MockedFunctionRegistry()
+
+    def _abs(x):
+        return math.abs(x)
+
+    # Try register/unregister using actual function
+    assert registry.get_function("abs") is None
+    mocked = registry.register(abs, _abs)
+    assert registry.get_function("abs") == mocked
+    registry.unregister(abs)
+    assert registry.get_function("abs") is None
+
+    # Try register/unregister using function name
+    assert registry.get_function("abs") is None
+    mocked = registry.register("abs", _abs)
+    assert registry.get_function("abs") == mocked
+    registry.unregister("abs")
+    assert registry.get_function("abs") is None
+
+
+def test_current_time(session):
+    df = session.create_dataframe([1], schema=["a"])
+    now_datetime = datetime.datetime(2024, 8, 13, 10, 1, 50)
+    with unittest.mock.patch("snowflake.snowpark.mock._functions.datetime") as dt:
+        dt.datetime.now.return_value = now_datetime
+        assert df.select(
+            current_timestamp(), current_date(), current_time()
+        ).collect() == [Row(now_datetime, now_datetime.date(), now_datetime.time())]
+
+
+def test_patch_unsupported_function(session):
+    df = session.create_dataframe([[3, 1], [3, 2], [4, 3]], schema=["a", "b"])
+    with pytest.raises(NotImplementedError):
+        df.select(
+            call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+        ).collect()
+
+    @patch("greatest_ignore_nulls")
+    def mock_greatest_ignore_nulls(
+        *columns: Iterable[ColumnEmulator],
+    ) -> ColumnEmulator:
+        return ColumnEmulator(
+            [1] * len(columns[0]), sf_type=ColumnType(IntegerType(), False)
+        )
+
+    assert df.select(
+        call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+    ).collect() == [Row(1), Row(1), Row(1)]
+
+    @patch("greatest_ignore_nulls")
+    def mock_wrong_patch(columns: Iterable[ColumnEmulator]) -> ColumnEmulator:
+        return ColumnEmulator(
+            [1] * len(columns[0]), sf_type=ColumnType(IntegerType(), False)
+        )
+
+    with pytest.raises(SnowparkLocalTestingException) as exc:
+        df.select(
+            call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+        ).collect()
+    assert "Please ensure the implementation follows specifications" in str(exc.value)

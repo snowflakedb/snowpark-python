@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import pytest
@@ -14,10 +14,10 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils, multithreaded_run
 
 
-@pytest.mark.localtest
+@multithreaded_run()
 def test_combination_of_multiple_operators(session):
     df1 = session.create_dataframe([1, 2]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in [1, 2]]).to_df("a", "b")
@@ -48,7 +48,6 @@ def test_combination_of_multiple_operators(session):
     ]
 
 
-@pytest.mark.localtest
 def test_combination_of_multiple_operators_with_filters(session):
     df1 = session.create_dataframe([i for i in range(1, 11)]).to_df("a")
     df2 = session.create_dataframe([[i, f"test{i}"] for i in range(1, 11)]).to_df(
@@ -80,7 +79,6 @@ def test_combination_of_multiple_operators_with_filters(session):
     assert df.collect() == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
-@pytest.mark.localtest
 def test_join_on_top_of_unions(session):
     df1 = session.create_dataframe([i for i in range(1, 6)]).to_df("a")
     df2 = session.create_dataframe([i for i in range(6, 11)]).to_df("a")
@@ -95,8 +93,11 @@ def test_join_on_top_of_unions(session):
     assert res == [Row(i, f"test{i}") for i in range(1, 11)]
 
 
+@multithreaded_run()
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
-def test_combination_of_multiple_data_sources(session, resources_path):
+def test_combination_of_multiple_data_sources(
+    session, resources_path, local_testing_mode
+):
     test_files = TestFiles(resources_path)
     test_file_csv = "testCSV.csv"
     tmp_stage_name = Utils.random_stage_name()
@@ -110,9 +111,11 @@ def test_combination_of_multiple_data_sources(session, resources_path):
     )
 
     try:
-        Utils.create_table(session, tmp_table_name, "num int")
-        session.sql(f"insert into {tmp_table_name} values(1),(2),(3)").collect()
-        session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name}").collect()
+        session.create_dataframe(data=[1, 2, 3], schema=["num"]).write.save_as_table(
+            tmp_table_name
+        )
+        if not local_testing_mode:
+            session.sql(f"CREATE TEMPORARY STAGE {tmp_stage_name}").collect()
         Utils.upload_to_stage(
             session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
         )

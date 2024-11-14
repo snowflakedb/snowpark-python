@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -12,7 +12,19 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkClientException
-from snowflake.snowpark.functions import call_udf, col, lit, max, min, udf
+from snowflake.snowpark.functions import (
+    array_construct,
+    call_udf,
+    col,
+    lit,
+    max,
+    min,
+    object_construct,
+    to_date,
+    to_time,
+    to_timestamp,
+    udf,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -50,25 +62,31 @@ view2 = f'"{Utils.random_name_for_temp_object(TempObjectType.VIEW)}"'
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path):
-    test_files = TestFiles(resources_path)
+def setup(session, resources_path, local_testing_mode):
+    if not local_testing_mode:
+        # Stages not supported in local testing yet
+        test_files = TestFiles(resources_path)
 
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    Utils.upload_to_stage(
-        session, tmp_stage_name, test_files.test_file_parquet, compress=False
-    )
-    Utils.create_table(session, table1, "a int")
-    session._run_query(f"insert into {table1} values(1),(2),(3)")
-    Utils.create_table(session, table2, "a int, b int")
-    session._run_query(f"insert into {table2} values(1, 2),(2, 3),(3, 4)")
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        Utils.upload_to_stage(
+            session, tmp_stage_name, test_files.test_file_parquet, compress=False
+        )
+
+    session.create_dataframe([[1], [2], [3]], schema=["a"]).write.save_as_table(table1)
+    session.create_dataframe(
+        [[1, 2], [2, 3], [3, 4]], schema=["a", "b"]
+    ).write.save_as_table(table2)
     yield
+
     Utils.drop_table(session, tmp_table_name)
     Utils.drop_table(session, table1)
     Utils.drop_table(session, table2)
     Utils.drop_table(session, semi_structured_table)
-    Utils.drop_view(session, view1)
-    Utils.drop_view(session, view2)
-    Utils.drop_stage(session, tmp_stage_name)
+    if not local_testing_mode:
+        # Views not supported in local testing yet.
+        Utils.drop_view(session, view1)
+        Utils.drop_view(session, view2)
+        Utils.drop_stage(session, tmp_stage_name)
 
 
 def test_basic_udf_function(session):
@@ -79,17 +97,31 @@ def test_basic_udf_function(session):
     Utils.check_answer(df.select(double_udf("a")).collect(), [Row(2), Row(4), Row(6)])
 
 
+def test_child_expression(session):
+    df = session.table(table1)
+    double_udf = udf(
+        lambda x: x + x, return_type=IntegerType(), input_types=[IntegerType()]
+    )
+    Utils.check_answer(
+        df.select(double_udf(col("a") + col("a"))).collect(), [Row(4), Row(8), Row(12)]
+    )
+
+
+def test_empty_expression(session):
+    df = session.table(table1)
+    const_udf = udf(lambda: 1, return_type=IntegerType(), input_types=[])
+    Utils.check_answer(df.select(const_udf()).collect(), [Row(1), Row(1), Row(1)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_construct is not yet supported in local testing mode.",
+)
 def test_udf_with_arrays(session):
-    Utils.create_table(session, semi_structured_table, "a1 array")
-    session._run_query(
-        f"insert into {semi_structured_table} "
-        f"select (array_construct('1', '2', '3'))"
+    tmp_df = session.create_dataframe([("1", "2", "3"), ("4", "5", "6")]).to_df(
+        ["a", "b", "c"]
     )
-    session._run_query(
-        f"insert into {semi_structured_table} "
-        f"select (array_construct('4', '5', '6'))"
-    )
-    df = session.table(semi_structured_table)
+    df = tmp_df.select(array_construct("a", "b", "c").alias("a1"))
     list_udf = udf(
         lambda x: ",".join(x),
         return_type=StringType(),
@@ -101,16 +133,10 @@ def test_udf_with_arrays(session):
 
 
 def test_udf_with_map_input(session):
-    Utils.create_table(session, semi_structured_table, "o1 object")
-    session._run_query(
-        f"insert into {semi_structured_table} "
-        f"select (object_construct('1', 'one', '2', 'two'))"
-    )
-    session._run_query(
-        f"insert into {semi_structured_table} "
-        f"select (object_construct('10', 'ten', '20', 'twenty'))"
-    )
-    df = session.table(semi_structured_table)
+    tmp_df = session.create_dataframe(
+        [("1", "one", "2", "two"), ("10", "ten", "20", "twenty")]
+    ).to_df(["a", "b", "c", "d"])
+    df = tmp_df.select(object_construct("a", "b", "c", "d").alias("o1"))
     map_keys_udf = udf(
         lambda x: list(x.keys()),
         return_type=ArrayType(StringType()),
@@ -126,17 +152,15 @@ def test_udf_with_map_input(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_construct is not yet supported in local testing mode.",
+)
 def test_udf_with_map_return(session):
-    Utils.create_table(session, semi_structured_table, "a1 array")
-    session._run_query(
-        f"insert into {semi_structured_table} "
-        f"select (array_construct('1', '2', '3'))"
+    tmp_df = session.create_dataframe([("1", "2", "3"), ("4", "5", "6")]).to_df(
+        ["a", "b", "c"]
     )
-    session._run_query(
-        f"insert into {semi_structured_table} "
-        f"select (array_construct('4', '5', '6'))"
-    )
-    df = session.table(semi_structured_table)
+    df = tmp_df.select(array_construct("a", "b", "c").alias("a1"))
     map_udf = udf(
         lambda x: {i: f"convert_to_map{i}" for i in x},
         return_type=MapType(StringType(), StringType()),
@@ -151,22 +175,17 @@ def test_udf_with_map_return(session):
 
 
 def test_udf_with_multiple_args_of_map_array(session):
-    Utils.create_table(
-        session, semi_structured_table, "o1 object, o2 object, id varchar"
+    tmp_df = session.create_dataframe(
+        [
+            ("1", "one", "2", "two", "one", "10", "two", "20", "ID1"),
+            ("3", "three", "4", "four", "three", "30", "four", "40", "ID2"),
+        ]
+    ).to_df(["a", "b", "c", "d", "e", "f", "g", "h", "i"])
+    df = tmp_df.select(
+        object_construct("a", "b", "c", "d").alias("o1"),
+        object_construct("e", "f", "g", "h").alias("o2"),
+        col("i").alias("id"),
     )
-    session._run_query(
-        f"insert into {semi_structured_table} "
-        f"(select object_construct('1', 'one', '2', 'two'), "
-        f"object_construct('one', '10', 'two', '20'), "
-        f"'ID1')"
-    )
-    session._run_query(
-        f"insert into {semi_structured_table} "
-        f"(select object_construct('3', 'three', '4', 'four'), "
-        f"object_construct('three', '30', 'four', '40'), "
-        f"'ID2')"
-    )
-    df = session.table(semi_structured_table)
 
     def f(map1, map2, id):
         values = [map2[key] for key in map1.values()]
@@ -194,10 +213,17 @@ def test_filter_on_top_of_udf(session):
         lambda x: x + x, return_type=IntegerType(), input_types=[IntegerType()]
     )
     Utils.check_answer(
-        df.select(double_udf("a")).filter(col("$1") > 4).collect(), [Row(6)]
+        df.select(double_udf("a").alias("doubled_a"))
+        .filter(col("doubled_a") > 4)
+        .collect(),
+        [Row(6)],
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Read semistructured parquet file not yet supported in local testing mode.",
+)
 def test_compose_on_dataframe_reader(session, resources_path):
     df = (
         session.read.option("INFER_SCHEMA", False)
@@ -220,7 +246,7 @@ def test_compose_on_dataframe_reader(session, resources_path):
 
 def test_view_with_udf(session):
     TestData.column_has_special_char(session).create_or_replace_view(view1)
-    df1 = session.sql(f"select * from {view1}")
+    df1 = session.table(view1)
     udf1 = udf(
         lambda x, y: x + y,
         return_type=IntegerType(),
@@ -230,7 +256,7 @@ def test_view_with_udf(session):
         '"col #"', udf1(col('"col %"'), col('"col *"'))
     ).create_or_replace_view(view2)
     Utils.check_answer(
-        session.sql(f"select * from {view2}").collect(),
+        session.table(view2).collect(),
         [
             Row(1, 2, 3),
             Row(3, 4, 7),
@@ -399,6 +425,10 @@ def test_binary_type(session):
     Utils.check_answer(df2.select(from_binary("a")).collect(), [Row(s) for s in data])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1370173: timestamp type can return NaT when None is expected.",
+)
 def test_date_and_timestamp_type(session):
     data = [
         [datetime.date(2019, 1, 1), datetime.datetime(2019, 1, 1)],
@@ -406,42 +436,42 @@ def test_date_and_timestamp_type(session):
         [None, None],
     ]
 
-    def to_timestamp(d):
+    def _to_timestamp(d):
         return datetime.datetime(d.year, d.month, d.day) if d else None
 
-    def to_date(t):
+    def _to_date(t):
         return t.date() if t else None
 
-    out = [Row(to_timestamp(d), to_date(t)) for d, t in data]
+    out = [Row(_to_timestamp(d), _to_date(t)) for d, t in data]
     df = session.create_dataframe(data).to_df("date", "timestamp")
     to_timestamp_udf = udf(
-        to_timestamp, return_type=TimestampType(), input_types=[DateType()]
+        _to_timestamp, return_type=TimestampType(), input_types=[DateType()]
     )
-    to_date_udf = udf(to_date, return_type=DateType(), input_types=[TimestampType()])
+    to_date_udf = udf(_to_date, return_type=DateType(), input_types=[TimestampType()])
     Utils.check_answer(
         df.select(to_timestamp_udf("date"), to_date_udf("timestamp")).collect(), out
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1370173: timestamp type can return NaT when None is expected.",
+)
 def test_time_and_timestamp_type(session):
-    Utils.create_table(session, tmp_table_name, "time time, timestamp timestamp")
-    session._run_query(
-        f"insert into {tmp_table_name} select to_time(a), to_timestamp(b) "
-        f"from values('01:02:03','1970-01-01 01:02:03'), "
-        f"(null, null) as T(a, b)"
-    )
-
-    def to_timestamp(t):
+    def _to_timestamp(t):
         return datetime.datetime(1970, 1, 1, t.hour, t.minute, t.second) if t else None
 
-    def to_time(t):
+    def _to_time(t):
         return t.time() if t else None
 
-    df = session.table(tmp_table_name)
+    tmp_df = session.create_dataframe(
+        [("01:02:03", "1970-01-01 01:02:03"), (None, None)]
+    ).to_df(["a", "b"])
+    df = tmp_df.select(to_time("a").alias("time"), to_timestamp("b").alias("timestamp"))
     to_timestamp_udf = udf(
-        to_timestamp, return_type=TimestampType(), input_types=[TimeType()]
+        _to_timestamp, return_type=TimestampType(), input_types=[TimeType()]
     )
-    to_time_udf = udf(to_time, return_type=TimeType(), input_types=[TimestampType()])
+    to_time_udf = udf(_to_time, return_type=TimeType(), input_types=[TimestampType()])
     res = Utils.get_sorted_rows(
         df.select(to_timestamp_udf("time"), to_time_udf("timestamp")).collect()
     )
@@ -451,7 +481,9 @@ def test_time_and_timestamp_type(session):
 
 
 def test_time_date_timestamp_type_with_snowflake_timezone(session):
-    df = session.sql("select '00:00:00' :: time as col1")
+    df = session.create_dataframe([("00:00:00",)], schema=["a"]).select(
+        to_time("a").alias("col1")
+    )
 
     add_udf = udf(
         lambda x: datetime.time(x.hour, x.minute, x.second + 5),
@@ -462,7 +494,9 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
     assert len(res) == 1
     assert str(res[0][0]) == "00:00:05"
 
-    df = session.sql("select '2020-1-1' :: date as col1")
+    df = session.create_dataframe([("2020-1-1",)], schema=["a"]).select(
+        to_date("a").alias("col1")
+    )
     add_udf = udf(
         lambda x: datetime.date(x.year, x.month, x.day + 1),
         return_type=DateType(),
@@ -472,7 +506,9 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
     assert len(res) == 1
     assert str(res[0][0]) == "2020-01-02"
 
-    df = session.sql("select '2020-1-1 00:00:00' :: date as col1")
+    df = session.create_dataframe([("2020-1-1 00:00:00",)], schema=["a"]).select(
+        to_timestamp("a").alias("col1")
+    )
     add_udf = udf(
         lambda x: datetime.datetime(
             x.year, x.month, x.day + 1, x.hour, x.minute, x.second + 5
@@ -485,6 +521,10 @@ def test_time_date_timestamp_type_with_snowflake_timezone(session):
     assert str(res[0][0]) == "2020-01-02 00:00:05"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="to_geography is not yet supported in local testing mode.",
+)
 def test_geography_type(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "g geography", is_temporary=True)
@@ -517,6 +557,10 @@ def test_geography_type(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="to_geometry is not yet supported in local testing mode.",
+)
 def test_geometry_type(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, table_name, "g geometry", is_temporary=True)
@@ -715,13 +759,16 @@ def test_variant_date_input(session):
     )
 
 
-def test_variant_null(session):
+def test_variant_null(session, local_testing_mode):
     @udf(return_type=StringType(), input_types=[VariantType()])
     def variant_null_output_udf(_):
         return None
 
     Utils.check_answer(
-        session.sql("select 1 as a").select(variant_null_output_udf("a")).collect(),
+        session.create_dataframe([[1]])
+        .to_df(["a"])
+        .select(variant_null_output_udf("a"))
+        .collect(),
         [Row(None)],
     )
 
@@ -731,7 +778,10 @@ def test_variant_null(session):
         return None
 
     Utils.check_answer(
-        session.sql("select 1 as a").select(variant_null_output_udf1("a")).collect(),
+        session.create_dataframe([[1]])
+        .to_df(["a"])
+        .select(variant_null_output_udf1("a"))
+        .collect(),
         [Row(None)],
     )
 
@@ -739,9 +789,15 @@ def test_variant_null(session):
     def variant_null_output_udf2(_):
         return None
 
+    # SNOW-960190: Live mode return type for variant expressions is somewhat inconsistent.
+    # Local testing prefers returning None
+    expected = Row(None) if local_testing_mode else Row("null")
     Utils.check_answer(
-        session.sql("select 1 as a").select(variant_null_output_udf2("a")).collect(),
-        [Row("null")],
+        session.create_dataframe([[1]])
+        .to_df(["a"])
+        .select(variant_null_output_udf2("a"))
+        .collect(),
+        [expected],
     )
 
     @udf(return_type=StringType(), input_types=[VariantType()])
@@ -768,6 +824,8 @@ def test_variant_string_output(session):
 
 # The behavior of Variant("null") in Python UDF is different from the one in Java UDF
 # Given a string "null", Python UDF will just a string "null", instead of NULL value
+
+
 def test_variant_null_string_output(session):
     @udf(return_type=VariantType(), input_types=[VariantType()])
     def variant_null_string_output_udf(_):

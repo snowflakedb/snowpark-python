@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -9,7 +9,7 @@ from typing import Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import UnresolvedRelation
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
     InsertMergeExpression,
@@ -69,7 +69,7 @@ class WhenMatchedClause:
 
     Args:
         condition: An optional :class:`Column` object representing the
-            specified condition.
+            specified condition. For example, ``col("a") == 1``.
     """
 
     def __init__(self, condition: Optional[Column] = None) -> None:
@@ -270,27 +270,34 @@ class Table(DataFrame):
         self,
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
+        is_temp_table_for_cleanup: bool = False,
     ) -> None:
-        super().__init__(
-            session, session._analyzer.resolve(UnresolvedRelation(table_name))
+        snowflake_table_plan = SnowflakeTable(
+            table_name,
+            session=session,
+            is_temp_table_for_cleanup=is_temp_table_for_cleanup,
         )
-        self.is_cached: bool = self.is_cached  #: Whether the table is cached.
-        self.table_name: str = table_name  #: The table name
-
-        if self._session.sql_simplifier_enabled:
-            self._select_statement = session._analyzer.create_select_statement(
+        if session.sql_simplifier_enabled:
+            plan = session._analyzer.create_select_statement(
                 from_=session._analyzer.create_selectable_entity(
-                    table_name, analyzer=session._analyzer
+                    snowflake_table_plan, analyzer=session._analyzer
                 ),
                 analyzer=session._analyzer,
             )
+        else:
+            plan = snowflake_table_plan
+        super().__init__(session, plan)
+        self.is_cached: bool = self.is_cached  #: Whether the table is cached.
+        self.table_name: str = table_name  #: The table name
+        self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
+
         # By default, the set the initial API call to say 'Table.__init__' since
         # people could instantiate a table directly. This value is overwritten when
         # created from Session object
         set_api_call_source(self, "Table.__init__")
 
     def __copy__(self) -> "Table":
-        return Table(self.table_name, self._session)
+        return Table(self.table_name, self._session, self._is_temp_table_for_cleanup)
 
     def __enter__(self):
         return self

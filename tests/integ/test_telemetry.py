@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import decimal
 import sys
+import threading
+import uuid
 from functools import partial
 from typing import Any, Dict, Tuple
 
@@ -47,13 +49,21 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="This is testing inbound telemetry",
+        run=False,
+    )
+]
+
 
 class TelemetryDataTracker:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def extract_telemetry_log_data(self, index, partial_func) -> Tuple[Dict, Any]:
-        """TODO: this needs to return telemetry type for other test code to assert whether telemetry type is correct."""
+    def extract_telemetry_log_data(self, index, partial_func) -> Tuple[Dict, str, Any]:
+        """Extracts telemetry data, telemetry type from the log batch and result of running partial_func."""
         telemetry_obj = self.session._conn._telemetry_client.telemetry
 
         result = partial_func()
@@ -67,8 +77,10 @@ class TelemetryDataTracker:
             result = partial_func()
             message_log = telemetry_obj._log_batch
 
-        data = message_log[index].to_dict()["message"][TelemetryField.KEY_DATA.value]
-        return data, result
+        message = message_log[index].to_dict()["message"]
+        data = message.get(TelemetryField.KEY_DATA.value, None)
+        type_ = message.get("type", None)
+        return data, type_, result
 
     def find_message_in_log_data(self, size, partial_func, expected_data) -> bool:
         telemetry_obj = self.session._conn._telemetry_client.telemetry
@@ -260,7 +272,8 @@ def test_describe_api_calls(session):
 
     empty_df = TestData.timestamp1(session).describe()
     assert empty_df._plan.api_calls == [
-        {"name": "Session.sql"},
+        {"name": "Session.create_dataframe[values]"},
+        {"name": "DataFrame.select"},
         {
             "name": "DataFrame.describe",
             "subcalls": [{"name": "Session.create_dataframe[values]"}],
@@ -566,7 +579,7 @@ def test_with_column_variations_api_calls(session):
 @pytest.mark.skipif(
     not is_pandas_available, reason="pandas is required to register vectorized UDFs"
 )
-def test_execute_queries_api_calls(session):
+def test_execute_queries_api_calls(session, sql_simplifier_enabled):
     df = session.range(1, 10, 2).filter(col("id") <= 4).filter(col("id") >= 0)
     assert df._plan.api_calls == [
         {"name": "Session.range"},
@@ -576,10 +589,30 @@ def test_execute_queries_api_calls(session):
 
     df.collect()
     # API calls don't change after query is executed
+    query_plan_height = 2 if sql_simplifier_enabled else 3
+    filter = 1 if sql_simplifier_enabled else 2
+    low_impact = 3 if sql_simplifier_enabled else 2
+    thread_ident = threading.get_ident()
+
     assert df._plan.api_calls == [
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
+            "query_plan_height": query_plan_height,
+            "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
+            "query_plan_complexity": {
+                "filter": filter,
+                "low_impact": low_impact,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -591,6 +624,21 @@ def test_execute_queries_api_calls(session):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
+            "query_plan_height": query_plan_height,
+            "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
+            "query_plan_complexity": {
+                "filter": filter,
+                "low_impact": low_impact,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -602,6 +650,21 @@ def test_execute_queries_api_calls(session):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
+            "query_plan_height": query_plan_height,
+            "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
+            "query_plan_complexity": {
+                "filter": filter,
+                "low_impact": low_impact,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -613,6 +676,21 @@ def test_execute_queries_api_calls(session):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
+            "query_plan_height": query_plan_height,
+            "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
+            "query_plan_complexity": {
+                "filter": filter,
+                "low_impact": low_impact,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -624,6 +702,21 @@ def test_execute_queries_api_calls(session):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "plan_uuid": df._plan.uuid,
+            "thread_ident": thread_ident,
+            "query_plan_height": query_plan_height,
+            "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
+            "query_plan_complexity": {
+                "filter": filter,
+                "low_impact": low_impact,
+                "function": 3,
+                "column": 3,
+                "literal": 5,
+                "window": 1,
+                "order_by": 1,
+            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -753,11 +846,24 @@ def test_dataframe_stat_functions_api_calls(session):
     # check to make sure that the original DF is unchanged
     assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
 
+    column = 6 if session.sql_simplifier_enabled else 9
     crosstab = df.stat.crosstab("empid", "month")
+    # uuid here is generated by an intermediate dataframe in crosstab implementation
+    # therefore we can't predict it. We check that the uuid for crosstab is same as
+    # that for df.
+    uuid = df._plan.api_calls[0]["plan_uuid"]
+    thread_ident = threading.get_ident()
     assert crosstab._plan.api_calls == [
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "plan_uuid": uuid,
+            "thread_ident": thread_ident,
+            "query_plan_height": 4,
+            "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
+            "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         },
         {
             "name": "DataFrameStatFunctions.crosstab",
@@ -768,11 +874,19 @@ def test_dataframe_stat_functions_api_calls(session):
             ],
         },
     ]
+
     # check to make sure that the original DF is unchanged
     assert df._plan.api_calls == [
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
+            "plan_uuid": uuid,
+            "thread_ident": thread_ident,
+            "query_plan_height": 4,
+            "query_plan_num_duplicate_nodes": 0,
+            "query_plan_num_selects_with_complexity_merged": 0,
+            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
+            "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         }
     ]
 
@@ -840,14 +954,16 @@ def test_udf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, minus_one_udf = telemetry_tracker.extract_telemetry_log_data(
+    data, type_, minus_one_udf = telemetry_tracker.extract_telemetry_log_data(
         -1, minus_one_udf_partial
     )
     assert data == {"func_name": "UDFRegistration.register", "category": "create"}
+    assert type_ == "snowpark_function_usage"
 
     select_partial = partial(df.select, df.a, minus_one_udf(df.b))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
+    assert type_ == "snowpark_function_usage"
 
     # udf register from file
     test_files = TestFiles(resources_path)
@@ -860,15 +976,19 @@ def test_udf_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, mod5_udf = telemetry_tracker.extract_telemetry_log_data(-1, mod5_udf_partial)
+    data, type_, mod5_udf = telemetry_tracker.extract_telemetry_log_data(
+        -1, mod5_udf_partial
+    )
     assert data == {
         "func_name": "UDFRegistration.register_from_file",
         "category": "create",
     }
+    assert type_ == "snowpark_function_usage"
 
     select_partial = partial(df.select, mod5_udf(df.a))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
+    assert type_ == "snowpark_function_usage"
 
     # pandas udf register
     def add_one_df_pandas_udf(df):
@@ -881,22 +1001,25 @@ def test_udf_call_and_invoke(session, resources_path):
         input_types=[PandasDataFrameType([IntegerType(), IntegerType()])],
         replace=True,
     )
-    data, add_one_df_pandas_udf = telemetry_tracker.extract_telemetry_log_data(
+    data, type_, add_one_df_pandas_udf = telemetry_tracker.extract_telemetry_log_data(
         -1, pandas_udf_partial
     )
     assert data == {
         "func_name": "UDFRegistration.register[pandas_udf]",
         "category": "create",
     }
+    assert type_ == "snowpark_function_usage"
 
     select_partial = partial(df.select, add_one_df_pandas_udf("a", "b"))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "UserDefinedFunction.__call__", "category": "usage"}
+    assert type_ == "snowpark_function_usage"
 
     # call using call_udf
     select_partial = partial(df.select, call_udf(minus_one_name, df.a))
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, select_partial)
     assert data == {"func_name": "functions.call_udf", "category": "usage"}
+    assert type_ == "snowpark_function_usage"
 
 
 @pytest.mark.udf
@@ -916,16 +1039,19 @@ def test_sproc_call_and_invoke(session, resources_path):
         replace=True,
     )
 
-    data, add_one_sp = telemetry_tracker.extract_telemetry_log_data(-1, add_one_partial)
+    data, type_, add_one_sp = telemetry_tracker.extract_telemetry_log_data(
+        -1, add_one_partial
+    )
     assert data == {
         "func_name": "StoredProcedureRegistration.register",
         "category": "create",
     }
+    assert type_ == "snowpark_function_usage"
 
     invoke_partial = partial(add_one_sp, 7)
     # the 3 messages after sproc_invoke are client_time_consume_first_result, client_time_consume_last_result, and action_collect
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-4, invoke_partial)
-    assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
+    expected_data = {"func_name": "StoredProcedure.__call__", "category": "usage"}
+    assert telemetry_tracker.find_message_in_log_data(6, invoke_partial, expected_data)
 
     # sproc register from file
     test_files = TestFiles(resources_path)
@@ -938,15 +1064,18 @@ def test_sproc_call_and_invoke(session, resources_path):
         packages=["snowflake-snowpark-python"],
         replace=True,
     )
-    data, mod5_sp = telemetry_tracker.extract_telemetry_log_data(-1, mod5_sp_partial)
+    data, type_, mod5_sp = telemetry_tracker.extract_telemetry_log_data(
+        -1, mod5_sp_partial
+    )
     assert data == {
         "func_name": "StoredProcedureRegistration.register_from_file",
         "category": "create",
     }
+    assert type_ == "snowpark_function_usage"
 
     invoke_partial = partial(mod5_sp, 3)
-    data, _ = telemetry_tracker.extract_telemetry_log_data(-4, invoke_partial)
-    assert data == {"func_name": "StoredProcedure.__call__", "category": "usage"}
+    expected_data = {"func_name": "StoredProcedure.__call__", "category": "usage"}
+    assert telemetry_tracker.find_message_in_log_data(6, invoke_partial, expected_data)
 
 
 @pytest.mark.udf
@@ -1035,7 +1164,7 @@ def test_sql_simplifier_enabled(session):
         def set_sql_simplifier_enabled():
             session.sql_simplifier_enabled = True
 
-        data, _ = telemetry_tracker.extract_telemetry_log_data(
+        data, _, _ = telemetry_tracker.extract_telemetry_log_data(
             -1, set_sql_simplifier_enabled
         )
         assert data == {
@@ -1044,3 +1173,114 @@ def test_sql_simplifier_enabled(session):
         }
     finally:
         session.sql_simplifier_enabled = original_value
+
+
+def test_post_compilation_stage_telemetry(session):
+    client = session._conn._telemetry_client
+    uuid_str = str(uuid.uuid4())
+
+    def send_telemetry():
+        summary_value = {
+            "cte_optimization_enabled": True,
+            "large_query_breakdown_enabled": True,
+            "complexity_score_bounds": (300, 600),
+            "time_taken_for_compilation": 0.136,
+            "time_taken_for_deep_copy_plan": 0.074,
+            "time_taken_for_cte_optimization": 0.01,
+            "time_taken_for_large_query_breakdown": 0.062,
+            "complexity_score_before_compilation": 1148,
+            "complexity_score_after_cte_optimization": [1148],
+            "complexity_score_after_large_query_breakdown": [514, 636],
+            "cte_node_created": 2,
+        }
+        client.send_query_compilation_summary_telemetry(
+            session_id=session.session_id,
+            plan_uuid=uuid_str,
+            compilation_stage_summary=summary_value,
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "plan_uuid": uuid_str,
+        "cte_optimization_enabled": True,
+        "large_query_breakdown_enabled": True,
+        "complexity_score_bounds": (300, 600),
+        "time_taken_for_compilation": 0.136,
+        "time_taken_for_deep_copy_plan": 0.074,
+        "time_taken_for_cte_optimization": 0.01,
+        "time_taken_for_large_query_breakdown": 0.062,
+        "complexity_score_before_compilation": 1148,
+        "complexity_score_after_cte_optimization": [1148],
+        "complexity_score_after_large_query_breakdown": [514, 636],
+        "cte_node_created": 2,
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_compilation_stage_statistics"
+
+
+def test_temp_table_cleanup(session):
+    client = session._conn._telemetry_client
+
+    def send_telemetry():
+        client.send_temp_table_cleanup_telemetry(
+            session.session_id,
+            temp_table_cleaner_enabled=True,
+            num_temp_tables_cleaned=2,
+            num_temp_tables_created=5,
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "temp_table_cleaner_enabled": True,
+        "num_temp_tables_cleaned": 2,
+        "num_temp_tables_created": 5,
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_temp_table_cleanup"
+
+
+def test_temp_table_cleanup_exception(session):
+    client = session._conn._telemetry_client
+
+    def send_telemetry():
+        client.send_temp_table_cleanup_abnormal_exception_telemetry(
+            session.session_id,
+            table_name="table_name_placeholder",
+            exception_message="exception_message_placeholder",
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "temp_table_cleanup_abnormal_exception_table_name": "table_name_placeholder",
+        "temp_table_cleanup_abnormal_exception_message": "exception_message_placeholder",
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_temp_table_cleanup_abnormal_exception"
+
+
+def test_cursor_created_telemetry(session):
+    client = session._conn._telemetry_client
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    def send_telemetry():
+        client.send_cursor_created_telemetry(session_id=session.session_id, thread_id=1)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "thread_ident": 1,
+    }
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_cursor_created"

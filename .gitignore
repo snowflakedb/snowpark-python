@@ -26,6 +26,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+**/generated/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -135,7 +136,8 @@ whitesource/
 # Sphinx documentation
 docs/_build/
 # Ignore generated autosummary files created by Sphinx docs when you run make html in the docs directory.
-docs/source/api/
+docs/source/snowpark/api/
+docs/source/modin/pandas_api/
 
 # Editor specific
 .idea/

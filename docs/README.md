@@ -12,7 +12,7 @@ make html
 If you get warnings, like "WARNING: [autosummary] failed to import 'snowpark.dataframe': no module named snowpark.dataframe", try reinstalling the Snowpark API:
 
 ```bash
-python -m pip install ".[development, pandas]"
+python -m pip install ".[modin-development]"
 ```
 
 You might need to install Sphinx:
@@ -22,6 +22,9 @@ python -m pip install sphinx
 ```
 
 Open the documentation: `open -a "Google Chrome" build/html/index.html`
+
+As a convenience, you can also use `make view` after activating your virtual environment, which runs `make clean`, `make html`, and opens the documentation with
+either your default browser, or the application you set as default for opening HTML files.
 
 Important files and directories:
 

@@ -1,19 +1,43 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2012-2023 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
+from snowflake.snowpark._internal.utils import warning_dict
+
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
+
+excluded_frontend_files = [
+    "accessor.py",
+]
+
+
+def is_excluded_frontend_file(path):
+    for excluded in excluded_frontend_files:
+        if str(path).endswith(excluded):
+            return True
+    return False
 
 
 def pytest_addoption(parser):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
-    parser.addoption("--local_testing_mode", action="store_true", default=False)
+    parser.addoption("--disable_cte_optimization", action="store_true", default=False)
+    parser.addoption(
+        "--disable_multithreading_mode", action="store_true", default=False
+    )
+    parser.addoption("--skip_sql_count_check", action="store_true", default=False)
+    if not any(
+        "--local_testing_mode" in opt.names() for opt in parser._anonymous.options
+    ):
+        parser.addoption("--local_testing_mode", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -33,6 +57,10 @@ def pytest_collection_modifyitems(items) -> None:
             # we raise an exception for all other dirs that are passed in
             if item_path == top_doctest_dir:
                 item.add_marker("doctest")
+            elif "modin" in str(item_path):
+                if not is_excluded_frontend_file(item.fspath):
+                    item.add_marker("doctest")
+                    item.add_marker(pytest.mark.usefixtures("add_doctest_imports"))
             else:
                 raise e
 
@@ -46,3 +74,90 @@ def sql_simplifier_enabled(pytestconfig):
 @pytest.fixture(scope="session")
 def local_testing_mode(pytestconfig):
     return pytestconfig.getoption("local_testing_mode")
+
+
+@pytest.fixture(scope="function")
+def local_testing_telemetry_setup():
+    # the import here is because we want LocalTestOOBTelemetryService to be initialized
+    # after pytest_sessionstart is setup so that it can detect os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"]
+    # and set internal usage to be true
+    from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
+
+    LocalTestOOBTelemetryService.get_instance().enable()
+    LocalTestOOBTelemetryService.get_instance()._is_internal_usage = True
+    yield
+    LocalTestOOBTelemetryService.get_instance().disable()
+
+
+@pytest.fixture(scope="session")
+def cte_optimization_enabled(pytestconfig):
+    return not pytestconfig.getoption("disable_cte_optimization")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def proto_generated():
+    """Generate Protobuf Python files automatically"""
+    try:
+        from snowflake.snowpark._internal.proto.generated import ast_pb2  # noqa: F401
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "tox", "-e", "protoc"])
+
+
+MULTITHREADING_TEST_MODE_ENABLED = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def multithreading_mode_enabled(pytestconfig):
+    enabled = not pytestconfig.getoption("disable_multithreading_mode")
+    global MULTITHREADING_TEST_MODE_ENABLED
+    MULTITHREADING_TEST_MODE_ENABLED = enabled
+    return enabled
+
+
+def pytest_sessionstart(session):
+    os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
+
+
+SKIP_SQL_COUNT_CHECK = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_skip_sql_count_check(pytestconfig):
+    skip = pytestconfig.getoption("skip_sql_count_check")
+    if skip:
+        global SKIP_SQL_COUNT_CHECK
+        SKIP_SQL_COUNT_CHECK = True
+
+
+@pytest.fixture(autouse=True)
+def clear_warning_dict():
+    yield
+    # clear the warning dict so that warnings from one test don't affect
+    # warnings from other tests.
+    warning_dict.clear()
+
+
+# the fixture only works when opentelemetry is installed
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    @pytest.fixture(scope="session")
+    def dict_exporter():
+        resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+        trace_provider = TracerProvider(resource=resource)
+        dict_exporter = InMemorySpanExporter()
+        processor = SimpleSpanProcessor(dict_exporter)
+        trace_provider.add_span_processor(processor)
+        trace.set_tracer_provider(trace_provider)
+        yield dict_exporter
+
+    opentelemetry_installed = True
+
+except ModuleNotFoundError:
+    opentelemetry_installed = False
