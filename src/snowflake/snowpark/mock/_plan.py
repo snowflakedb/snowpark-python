@@ -1620,12 +1620,11 @@ def execute_mock_plan(
 
         return result
     elif isinstance(source_plan, TableFunctionJoin):
+        __import__('pdb').set_trace()
         from_df = execute_mock_plan(source_plan.children[0], expr_to_alias)
-        null_rows_idxs_map = {}
         result = calculate_expression(source_plan.table_function, from_df, analyzer, expr_to_alias)
-        data = [result]
         sf_types = [result.sf_type]
-        df = pd.concat(data, axis=1)
+        df = pd.concat([result], axis=1)
         result_df = TableEmulator(
             data=df,
             sf_types={k: v for k, v in zip(df.columns, sf_types)},

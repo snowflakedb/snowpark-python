@@ -808,6 +808,7 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, TableFunctionJoin):
+            __import__('pdb').set_trace()
             return MockExecutionPlan(
                 logical_plan,
                 self.session,

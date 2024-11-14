@@ -252,6 +252,7 @@ def _get_cols_after_join_table(
 def _get_cols_after_explode_join(
     func: _ExplodeFunctionCall, plan: SnowflakePlan
 ) -> Tuple[List, List]:
+    __import__('pdb').set_trace()
     explode_col_type = plan.output_dict.get(func.col, [None])[0]
 
     cols = []
