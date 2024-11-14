@@ -177,11 +177,7 @@ class TimestampType(_AtomicType):
         )
 
     def json_value(self) -> str:
-        return (
-            f"{self.type_name()}_{self.tzinfo}"
-            if self.tzinfo != ""
-            else self.type_name()
-        )
+        return self.simple_string()
 
     simpleString = simple_string
     jsonValue = json_value
