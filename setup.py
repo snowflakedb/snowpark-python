@@ -57,6 +57,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
     "protoc-wheel-0==21.1",  # Protocol buffer compiler, for Snowpark IR
+    "mypy-protobuf",  # used in generating typed Python code from protobuf for Snowpark IR
     "lxml",  # used in read_xml tests
 ]
 
@@ -81,7 +82,14 @@ else:
 
 if protoc is None:
     sys.stderr.write(
-        "protoc is not installed nor found. Please install the binary package, e.g., `pip install protoc-wheel-0==21.1`\n"
+        "protoc is not installed nor found. Please install the binary package, e.g., `pip install protoc-wheel-0==21.1 mypy-protobuf`\n"
+    )
+    sys.exit(-1)
+
+protoc_gen_mypy = shutil.which("protoc-gen-mypy")
+if protoc_gen_mypy is None:
+    sys.stderr.write(
+        "protoc-gen-mypy is not installed nor found. Please install the binary package, e.g., `pip install mypy-protobuf`\n"
     )
     sys.exit(-1)
 
@@ -115,7 +123,7 @@ def generate_proto(source):
             protoc,
             f"--proto_path={proto_dir}",
             f"--python_out={output_dir}",
-            f"--pyi_out={output_dir}",
+            f"--mypy_out={output_dir}",
             source,
         ]
         if subprocess.call(protoc_command) != 0:

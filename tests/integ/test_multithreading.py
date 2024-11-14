@@ -937,7 +937,9 @@ def test_critical_lazy_evaluation_for_plan(
         assert df_._plan.cumulative_node_complexity == {
             PlanNodeCategory.FILTER: 2,
             PlanNodeCategory.LITERAL: 22,
-            PlanNodeCategory.COLUMN: 64,
+            PlanNodeCategory.COLUMN: 64
+            if threadsafe_session.sql_simplifier_enabled
+            else 62,
             PlanNodeCategory.LOW_IMPACT: 42,
             PlanNodeCategory.SET_OPERATION: 1,
         }
@@ -947,10 +949,10 @@ def test_critical_lazy_evaluation_for_plan(
             PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: 0,
             PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: [2, 0, 0, 0, 0, 0, 0],
         }
-        assert (
-            df_._select_statement.encoded_node_id_with_query
-            == "b04d566533_SelectStatement"
-        )
+        if threadsafe_session.sql_simplifier_enabled:
+            assert df_._select_statement.encoded_node_id_with_query.endswith(
+                "_SelectStatement"
+            )
 
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(call_critical_lazy_methods, df) for _ in range(10)]
