@@ -1442,12 +1442,21 @@ class OrderedDataFrame:
         # generate row position column for self and right, which is needed for align on column equivalence check
         left = self.ensure_row_position_column()
         right = right.ensure_row_position_column()
+
+        direct_join_map = False
+        if (
+            left_on_cols == [left.row_position_snowflake_quoted_identifier]
+            and right_on_cols == [right.row_position_snowflake_quoted_identifier]
+            and how != "coalesce"
+        ):
+            direct_join_map = True
+
         # perform outer join
         joined_ordered_frame = left.join(
             right,
             left_on_cols=left_on_cols,
             right_on_cols=right_on_cols,
-            how="outer",
+            how=how if direct_join_map else "outer",
         )
 
         sort = False
@@ -1466,6 +1475,10 @@ class OrderedDataFrame:
         )
         # get the ordered dataframe with correct order based on sort
         joined_ordered_frame = result_helper.join_or_align_result
+
+        if direct_join_map:
+            return joined_ordered_frame
+
         # update left_on_cols and right_on_cols
         left_on_cols = result_helper.map_left_quoted_identifiers(left_on_cols)
         right_on_cols = result_helper.map_right_quoted_identifiers(right_on_cols)
@@ -1498,6 +1511,7 @@ class OrderedDataFrame:
                 [right.row_position_snowflake_quoted_identifier]
             )[0]
         )
+
         # We use over() expression over all the data in frame. This adds a new column
         # with count where all values are same.  This way we avoid triggering any eager
         # evaluation.
