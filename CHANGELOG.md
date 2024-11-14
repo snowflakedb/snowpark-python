@@ -17,6 +17,13 @@
 - Added distributed tracing using open telemetry APIs for action function in `DataFrame`:
   - `cache_result`
 - Removed opentelemetry warning from logging.
+- Added support for specifying the following to `DataFrame.create_or_replace_dynamic_table`:
+  - `iceberg_config` A dictionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
 
 #### Bug Fixes
 
@@ -46,6 +53,7 @@
 - Added support for `pd.read_html` (Uses native pandas for processing).
 - Added support for `pd.read_xml` (Uses native pandas for processing).
 - Added support for aggregation functions `"size"` and `len` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for list values in `Series.str.len`.
 
 #### Bug Fixes
 
@@ -55,9 +63,14 @@
   - Raise a `TypeError` for a scalar `subset` instead of filtering on just that column.
   - Raise a `ValueError` for a `subset` of type `pandas.Index` instead of filtering on the columns in the index.
 - Disable creation of scoped read only table to mitigate Disable creation of scoped read only table to mitigate `TableNotFoundError` when using dynamic pivot in notebook environment.
+- Fixed a bug when concat dataframe or series objects are coming from the same dataframe when axis = 1.
 
 #### Improvements
+
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
+- Improve get_dummies performance by flattening the pivot with join.
+
+
 
 ### Snowpark Local Testing Updates
 

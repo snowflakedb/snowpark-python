@@ -85,6 +85,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.metadata_utils import (
     PlanMetadata,
+    cache_metadata_if_select_statement,
     infer_metadata,
 )
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
@@ -346,10 +347,6 @@ class SnowflakePlan(LogicalPlan):
 
     @property
     def attributes(self) -> List[Attribute]:
-        from snowflake.snowpark._internal.analyzer.select_statement import (
-            SelectStatement,
-        )
-
         if self._metadata.attributes is not None:
             return self._metadata.attributes
         assert (
@@ -359,10 +356,7 @@ class SnowflakePlan(LogicalPlan):
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
-        if self.session.reduce_describe_query_enabled and isinstance(
-            self.source_plan, SelectStatement
-        ):
-            self.source_plan._attributes = attributes
+        cache_metadata_if_select_statement(self.source_plan, self._metadata)
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
             self.schema_query = schema_value_statement(attributes)
@@ -1134,6 +1128,7 @@ class SnowflakePlanBuilder:
         max_data_extension_time: Optional[int],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
@@ -1169,6 +1164,7 @@ class SnowflakePlanBuilder:
                 data_retention_time=data_retention_time,
                 max_data_extension_time=max_data_extension_time,
                 child=x,
+                iceberg_config=iceberg_config,
             ),
             child,
             source_plan,
