@@ -1234,3 +1234,114 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             tpe.typeName()
     else:
         assert tpe.typeName() == type_name
+
+
+@pytest.mark.parametrize(
+    "tpe, json_dict, expected_result",
+    [
+        (
+            MapType,
+            {
+                "key_type": "integer",
+                "type": "map",
+                "value_type": "string",
+            },
+            MapType(IntegerType(), StringType()),
+        ),
+        (
+            MapType,
+            {
+                "type": "map",
+                "key_type": "string",
+                "value_type": {
+                    "type": "map",
+                    "key_type": "integer",
+                    "value_type": "string",
+                },
+            },
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+        ),
+        (
+            ArrayType,
+            {
+                "element_type": "integer",
+                "type": "array",
+            },
+            ArrayType(IntegerType()),
+        ),
+        (
+            ArrayType,
+            {
+                "element_type": {"element_type": "integer", "type": "array"},
+                "type": "array",
+            },
+            ArrayType(ArrayType(IntegerType())),
+        ),
+        (
+            StructType,
+            {
+                "type": "struct",
+                "fields": [
+                    {
+                        "name": "NESTED",
+                        "type": {
+                            "type": "struct",
+                            "fields": [
+                                {
+                                    "name": "A",
+                                    "type": "integer",
+                                    "nullable": True,
+                                },
+                                {
+                                    "name": "B",
+                                    "type": "string",
+                                    "nullable": True,
+                                },
+                            ],
+                        },
+                        "nullable": True,
+                    }
+                ],
+            },
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+        ),
+        (
+            StructField,
+            {
+                "name": "AA",
+                "type": "string",
+                "nullable": True,
+            },
+            StructField("AA", StringType()),
+        ),
+        (
+            StructType,
+            {
+                "type": "struct",
+                "fields": [
+                    {"name": "A", "type": "string", "nullable": True},
+                    {"name": "B", "type": "integer", "nullable": True},
+                ],
+            },
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+        ),
+    ],
+)
+def test_structtype_from_json(tpe, json_dict, expected_result):
+    result = tpe.from_json(json_dict)
+    assert result == expected_result
+    assert isinstance(result, tpe)

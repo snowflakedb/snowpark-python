@@ -290,6 +290,16 @@ class ArrayType(DataType):
     def is_primitive(self):
         return False
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "ArrayType":
+        return ArrayType(
+            _parse_datatype_json_value(
+                json_dict["elementType"]
+                if "elementType" in json_dict
+                else json_dict["element_type"]
+            )
+        )
+
     def simple_string(self) -> str:
         return f"array<{self.element_type.simple_string()}>"
 
@@ -301,6 +311,7 @@ class ArrayType(DataType):
 
     simpleString = simple_string
     jsonValue = json_value
+    fromJson = from_json
 
 
 class MapType(DataType):
@@ -322,6 +333,21 @@ class MapType(DataType):
     def is_primitive(self):
         return False
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "MapType":
+        return MapType(
+            _parse_datatype_json_value(
+                json_dict["keyType"]
+                if "keyType" in json_dict
+                else json_dict["key_type"]
+            ),
+            _parse_datatype_json_value(
+                json_dict["valueType"]
+                if "valueType" in json_dict
+                else json_dict["value_type"]
+            ),
+        )
+
     def simple_string(self) -> str:
         return f"map<{self.key_type.simple_string()},{self.value_type.simple_string()}>"
 
@@ -334,6 +360,7 @@ class MapType(DataType):
 
     simpleString = simple_string
     jsonValue = json_value
+    fromJson = from_json
 
 
 class VectorType(DataType):
@@ -457,6 +484,14 @@ class StructField:
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "StructField":
+        return StructField(
+            json_dict["name"],
+            _parse_datatype_json_value(json_dict["type"]),
+            json_dict["nullable"],
+        )
+
     def simple_string(self) -> str:
         return f"{self.name}:{self.datatype.simple_string()}"
 
@@ -478,6 +513,7 @@ class StructField:
     typeName = type_name
     simpleString = simple_string
     jsonValue = json_value
+    fromJson = from_json
 
 
 class StructType(DataType):
@@ -550,6 +586,10 @@ class StructType(DataType):
         """Returns the list of names of the :class:`StructField`"""
         return [f.name for f in self.fields]
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "StructType":
+        return StructType([StructField.fromJson(f) for f in json_dict["fields"]])
+
     def simple_string(self) -> str:
         return f"struct<{','.join(f.simple_string() for f in self)}>"
 
@@ -559,6 +599,7 @@ class StructType(DataType):
     simpleString = simple_string
     jsonValue = json_value
     fieldNames = names
+    fromJson = from_json
 
 
 class VariantType(DataType):
