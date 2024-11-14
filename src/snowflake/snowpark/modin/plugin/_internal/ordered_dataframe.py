@@ -1578,12 +1578,13 @@ class OrderedDataFrame:
                     OrderingColumn(global_order_col_identifier)
                 ] + ordering_columns
 
-            joined_ordered_frame = joined_ordered_frame.select(
-                joined_ordered_frame.projected_column_snowflake_quoted_identifiers
-                + extra_columns_to_append
-            )
             align_filter = not_(col_matching_column) | (left_row_pos == right_row_pos)
             # filter_expression = not_(col_matching_column) | (left_row_pos == right_row_pos)
+
+        joined_ordered_frame = joined_ordered_frame.select(
+            joined_ordered_frame.projected_column_snowflake_quoted_identifiers
+            + extra_columns_to_append
+        )
         # If left_on_cols matches with right_on_cols, include only the rows when left row
         # position is same as right row position.
         # If left_on_cols does not match right_on_cols, all values in 'col_matching' column will
