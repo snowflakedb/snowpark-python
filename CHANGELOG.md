@@ -22,6 +22,13 @@
 - Added distributed tracing using open telemetry APIs for action function in `DataFrame`:
   - `cache_result`
 - Removed opentelemetry warning from logging.
+- Added support for specifying the following to `DataFrame.create_or_replace_dynamic_table`:
+  - `iceberg_config` A dictionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
 
 #### Bug Fixes
 
