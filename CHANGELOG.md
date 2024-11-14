@@ -24,6 +24,7 @@
       - `base_location`
       - `catalog_sync`
       - `storage_serialization_policy`
+- Added support for nested data types to `DataFrame.print_schema`
 
 #### Bug Fixes
 

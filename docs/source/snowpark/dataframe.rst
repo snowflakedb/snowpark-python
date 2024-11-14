@@ -63,6 +63,8 @@ DataFrame
     DataFrame.orderBy
     DataFrame.order_by
     DataFrame.pivot
+    DataFrame.print_schema
+    DataDrame.printSchema
     DataFrame.randomSplit
     DataFrame.random_split
     DataFrame.rename
