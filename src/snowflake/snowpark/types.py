@@ -611,6 +611,54 @@ class PandasDataFrameType(_PandasType):
         ]
 
 
+_atomic_types: List[Type[DataType]] = [
+    StringType,
+    BinaryType,
+    BooleanType,
+    DecimalType,
+    FloatType,
+    DoubleType,
+    ByteType,
+    ShortType,
+    IntegerType,
+    LongType,
+    DateType,
+    TimestampType,
+    NullType,
+]
+_all_atomic_types: Dict[str, Type[DataType]] = {t.typeName(): t for t in _atomic_types}
+
+_complex_types: List[Type[Union[ArrayType, MapType, StructType]]] = [
+    ArrayType,
+    MapType,
+    StructType,
+]
+_all_complex_types: Dict[str, Type[Union[ArrayType, MapType, StructType]]] = {
+    v.typeName(): v for v in _complex_types
+}
+
+_FIXED_DECIMAL = re.compile(r"decimal\(\s*(\d+)\s*,\s*(-?\d+)\s*\)")
+
+
+def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
+    if not isinstance(json_value, dict):
+        if json_value in _all_atomic_types.keys():
+            return _all_atomic_types[json_value]()
+        elif json_value == "decimal":
+            return DecimalType()
+        elif _FIXED_DECIMAL.match(json_value):
+            m = _FIXED_DECIMAL.match(json_value)
+            return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]
+        else:
+            raise ValueError(f"Cannot parse data type: {str(json_value)}")
+    else:
+        tpe = json_value["type"]
+        if tpe in _all_complex_types:
+            return _all_complex_types[tpe].fromJson(json_value)
+        else:
+            raise ValueError(f"Unsupported data type: {str(tpe)}")
+
+
 #: The type hint for annotating Variant data when registering UDFs.
 Variant = TypeVar("Variant")
 
