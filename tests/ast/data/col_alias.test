@@ -4,25 +4,25 @@ from snowflake.snowpark.functions import col
 
 df = session.table(tables.table1)
 
-df = df.select(col("A").as_("test"))
+df1 = df.select(col("A").as_("test"))
 
-df = df.select(col("A").alias("test"))
+df2 = df.select(col("A").alias("test"))
 
-df = df.select(col("A").name("test"))
+df3 = df.select(col("A").name("test"))
 
-df = df.select((col("A") + 1).name("test"))
+df4 = df.select((col("A") + 1).name("test"))
 
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
 
-df = df.select(col("A").as_("test"))
+df1 = df.select(col("A").as_("test"))
 
-df = df.select(col("A").alias("test"))
+df2 = df.select(col("A").alias("test"))
 
-df = df.select(col("A").name("test"))
+df3 = df.select(col("A").name("test"))
 
-df = df.select((col("A") + 1).name("test"))
+df4 = df.select((col("A") + 1).name("test"))
 
 ## EXPECTED ENCODED AST
 
@@ -110,7 +110,7 @@ body {
       }
     }
     symbol {
-      value: "df"
+      value: "df1"
     }
     uid: 2
     var_id {
@@ -162,7 +162,7 @@ body {
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 2
+              bitfield1: 1
             }
           }
         }
@@ -174,7 +174,7 @@ body {
       }
     }
     symbol {
-      value: "df"
+      value: "df2"
     }
     uid: 3
     var_id {
@@ -224,7 +224,7 @@ body {
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 3
+              bitfield1: 1
             }
           }
         }
@@ -236,7 +236,7 @@ body {
       }
     }
     symbol {
-      value: "df"
+      value: "df3"
     }
     uid: 4
     var_id {
@@ -303,7 +303,7 @@ body {
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 4
+              bitfield1: 1
             }
           }
         }
@@ -315,7 +315,7 @@ body {
       }
     }
     symbol {
-      value: "df"
+      value: "df4"
     }
     uid: 5
     var_id {
