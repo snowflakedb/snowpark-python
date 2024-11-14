@@ -26,7 +26,10 @@ requirements:
     - pip
     - setuptools >=40.6.0
     - wheel
-    - protobuf
+    # Snowpark IR
+    - protobuf==3.20.1  # [py<=310]
+    - protobuf==4.25.3  # [py>310]
+    - mypy-protobuf
   run:
     - python
     - cloudpickle >=1.6.0,<=2.0.0  # [py<=310]
@@ -37,6 +40,9 @@ requirements:
     # This might no longer hold true but keep it just to avoid it from biting us again
     - libffi <=3.4.4
     - pyyaml
+    # Snowpark IR
+    - protobuf >=3.20,<6
+    - tzlocal
 
 test:
   imports:

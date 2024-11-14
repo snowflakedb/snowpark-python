@@ -51,7 +51,10 @@ class AstBatch:
     # Function used to generate request IDs. This is overridden in some tests.
     generate_request_id = uuid.uuid4
 
-    def __init__(self, session: "snowflake.snowpark.Session") -> None:  # noqa: F821
+    def __init__(
+        self,
+        session: "snowflake.snowpark.Session",  # type: ignore[name-defined]  # noqa: F821
+    ) -> None:
         """
         Initializes a new AST batch.
 
@@ -63,9 +66,9 @@ class AstBatch:
         self._init_batch()
 
         # Track callables in this dict (memory id -> TrackedCallable).
-        self._callables = {}
+        self._callables: dict[int, TrackedCallable] = {}
 
-    def reset_id_gen(self):
+    def reset_id_gen(self) -> None:
         """Resets the ID generator."""
         self._id_gen = itertools.count(start=1)
 
@@ -83,7 +86,7 @@ class AstBatch:
         stmt.assign.symbol.value = symbol if isinstance(symbol, str) else ""
         return stmt.assign
 
-    def eval(self, target: proto.Assign):
+    def eval(self, target: proto.Assign) -> None:
         """
         Creates a new evaluation statement.
 
@@ -101,7 +104,7 @@ class AstBatch:
         self._init_batch()
         return SerializedBatch(req_id, batch)
 
-    def _init_batch(self):
+    def _init_batch(self) -> None:
         # Reset the AST batch by initializing a new request.
         self._request_id = AstBatch.generate_request_id()  # Generate a new unique ID.
         self._request = proto.Request()

@@ -91,6 +91,7 @@ repos:
       - id: mypy
         files: >
           (?x)^(
+            src/snowflake/snowpark/_internal/ast/.*\.py|
             src/snowflake/snowpark/modin/pandas/indexing.py|
             src/snowflake/snowpark/modin/plugin/_internal/.*\.py|
             src/snowflake/snowpark/modin/pandas/snow_partition_iterator.py|
@@ -103,9 +104,12 @@ repos:
           - --disallow-incomplete-defs
         additional_dependencies:
           - types-requests
+          - types-python-dateutil
           - types-urllib3
           - types-setuptools
           - types-pyOpenSSL
           - types-setuptools
+          - mypy-protobuf
+          - typed-ast
           - pytest
           - numpy
