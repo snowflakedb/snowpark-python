@@ -959,7 +959,7 @@ def publicapi(func) -> Callable:
                 args[0],
                 snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
             ):
-                kwargs["_emit_ast"] = args[0]._df._session.ast_enabled
+                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
             else:
                 kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(func)
 

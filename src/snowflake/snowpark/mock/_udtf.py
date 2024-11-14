@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-# TODO: Implement mock udtf for local testing
+# TODO SNOW-1800512: Implement mock udtf for local testing.
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
