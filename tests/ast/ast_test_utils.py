@@ -131,7 +131,6 @@ def notify_compare_ast_validation(
 def notify_full_ast_validation_with_listener(
     full_ast_validation_listener: AstListener,
     query_record: QueryRecord,
-    *args,
     **kwargs,
 ):
     """
@@ -153,7 +152,7 @@ def notify_full_ast_validation_with_listener(
     # can reconstruct the full python code for execution.
 
     # Call the original listener notify method
-    full_ast_validation_listener._original_notify(query_record, *args, **kwargs)
+    full_ast_validation_listener._original_notify(query_record, **kwargs)
 
     # Obtain the test name from the scope of the test method.
     test_name = os.environ.get("PYTEST_CURRENT_TEST")

@@ -253,7 +253,7 @@ class MockServerConnection:
                     self.table_registry.pop(name)
 
                 # Notify query listeners.
-                self.conn.notify_mock_query_record_listener(kwargs)
+                self.conn.notify_mock_query_record_listener(**kwargs)
 
         def create_or_replace_view(
             self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
@@ -713,11 +713,11 @@ class MockServerConnection:
             rows = [rows] if to_iter else rows
 
         # Notify query listeners.
-        self.notify_mock_query_record_listener(kwargs)
+        self.notify_mock_query_record_listener(**kwargs)
 
         return iter(rows) if to_iter else rows
 
-    def notify_mock_query_record_listener(self, kwargs: Dict[Any, Any]):
+    def notify_mock_query_record_listener(self, **kwargs: Dict[Any, Any]):
         notify_kwargs = {"requestId": str(uuid.uuid4())}
         if "_dataframe_ast" in kwargs:
             notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]

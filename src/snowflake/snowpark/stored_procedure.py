@@ -80,7 +80,7 @@ class StoredProcedure:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.StoredProcedure] = None,
         _ast_id: Optional[int] = None,
-        _stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Assign] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -98,7 +98,7 @@ class StoredProcedure:
         self._ast = _ast
         self._ast_id = _ast_id
         # field to hold the assign statement for the stored procedure
-        self._stmt = _stmt
+        self._ast_stmt = _ast_stmt
 
     def _validate_call(
         self,
@@ -174,9 +174,9 @@ class StoredProcedure:
             # If the result is a Column or DataFrame object, the expression `eval` is performed in a later operation
             # such as `collect` or `show`.
             res._ast = sproc_expr
-        elif self._stmt is not None:
+        elif self._ast_stmt is not None:
             # If the result is a scalar, we can return it immediately. Perform the `eval` operation here.
-            session._ast_batch.eval(self._stmt)
+            session._ast_batch.eval(self._ast_stmt)
 
         return res
 
@@ -998,7 +998,7 @@ class StoredProcedureRegistration:
             packages=packages,
             _ast=ast,
             _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
-            _stmt=stmt,
+            _ast_stmt=stmt,
         )
 
         sproc._ast = ast
