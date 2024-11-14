@@ -383,7 +383,6 @@ def sql_count_checker(
     udf_count=None,
     udtf_count=None,
     union_count=None,
-    window_count=None,
     *args,
     **kwargs,
 ):
@@ -395,6 +394,10 @@ def sql_count_checker(
             filter(lambda k: k[0].endswith("_count"), all_args.locals.items())
         )
     }
+    # also look into kwargs for count information
+    for (key, value) in kwargs.items():
+        if key.endswith("_count"):
+            count_kwargs.update({key: value})
 
     def decorator(func):
         @functools.wraps(func)
