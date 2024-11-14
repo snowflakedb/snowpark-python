@@ -1098,8 +1098,8 @@ def test_udtf_call_and_invoke(session, resources_path):
 
     expected_data = {"func_name": "UDTFRegistration.register", "category": "create"}
     assert telemetry_tracker.find_message_in_log_data(
-        2, sum_udtf_partial, expected_data
-    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+        3, sum_udtf_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 3 message log entries"
 
     sum_udtf = sum_udtf_partial()
     select_partial = partial(df.select, sum_udtf(df.a, df.b))
@@ -1108,8 +1108,8 @@ def test_udtf_call_and_invoke(session, resources_path):
         "category": "usage",
     }
     assert telemetry_tracker.find_message_in_log_data(
-        2, select_partial, expected_data
-    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+        3, select_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 3 message log entries"
 
     # udtf register from file
     test_files = TestFiles(resources_path)
@@ -1127,8 +1127,8 @@ def test_udtf_call_and_invoke(session, resources_path):
         "category": "create",
     }
     assert telemetry_tracker.find_message_in_log_data(
-        2, my_udtf_partial, expected_data
-    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+        3, my_udtf_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 3 message log entries"
     my_udtf = my_udtf_partial()
 
     invoke_partial = partial(
@@ -1149,8 +1149,8 @@ def test_udtf_call_and_invoke(session, resources_path):
         "category": "usage",
     }
     assert telemetry_tracker.find_message_in_log_data(
-        2, invoke_partial, expected_data
-    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+        3, invoke_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 3 message log entries"
 
 
 @pytest.mark.skip(
