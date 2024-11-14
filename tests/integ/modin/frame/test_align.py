@@ -17,7 +17,8 @@ from tests.integ.modin.utils import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
-# @sql_count_checker(query_count=2, join_count=2, window_count=10)
+
+
 @pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
 @pytest.mark.parametrize(
     "axis, join_count, window_count",
