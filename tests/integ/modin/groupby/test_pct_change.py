@@ -40,6 +40,7 @@ def test_df_groupby_pct_change_basic(by, periods, fill_method):
 @pytest.mark.parametrize("as_index", [True, False])
 @pytest.mark.parametrize("sort", [True, False])
 @pytest.mark.parametrize("group_keys", [True, False])
+@sql_count_checker(query_count=1)
 def test_df_groupby_pct_change_parameters(dropna, as_index, sort, group_keys):
     # Unlike other GroupBy methods, none of the groupby parameters actually affect for pct_change.
     # This test still verifies that we match the pandas output when they're specified.
