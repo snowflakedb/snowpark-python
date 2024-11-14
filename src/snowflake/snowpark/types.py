@@ -385,6 +385,15 @@ class VectorType(DataType):
     def is_primitive(self):
         return False
 
+    def simple_string(self) -> str:
+        return f"vector({self.element_type},{self.dimension})"
+
+    def json_value(self) -> str:
+        return f"vector({self.element_type},{self.dimension})"
+
+    simpleString = simple_string
+    jsonValue = json_value
+
 
 class ColumnIdentifier:
     """Represents a column identifier."""
@@ -675,6 +684,7 @@ _all_complex_types: Dict[str, Type[Union[ArrayType, MapType, StructType]]] = {
 }
 
 _FIXED_DECIMAL = re.compile(r"decimal\(\s*(\d+)\s*,\s*(-?\d+)\s*\)")
+_FIXED_VECTOR = re.compile(r"vector\(\s*(int|float)\s*,\s*(-?\d+)\s*\)")
 
 
 def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
@@ -686,6 +696,9 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
         elif _FIXED_DECIMAL.match(json_value):
             m = _FIXED_DECIMAL.match(json_value)
             return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]
+        elif _FIXED_VECTOR.match(json_value):
+            m = _FIXED_VECTOR.match(json_value)
+            return VectorType(m.group(1), int(m.group(2)))  # type: ignore[union-attr]
         else:
             raise ValueError(f"Cannot parse data type: {str(json_value)}")
     else:
