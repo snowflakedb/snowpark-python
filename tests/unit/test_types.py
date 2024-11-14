@@ -1208,6 +1208,20 @@ def test_snow_type_to_dtype_str():
                 ],
             },
         ),
+        (
+            VectorType(int, 8),
+            "vector(int,8)",
+            '"vector(int,8)"',
+            "vector",
+            "vector(int,8)",
+        ),
+        (
+            VectorType(float, 8),
+            "vector(float,8)",
+            '"vector(float,8)"',
+            "vector",
+            "vector(float,8)",
+        ),
     ],
 )
 def test_datatype(tpe, simple_string, json, type_name, json_value):
@@ -1338,6 +1352,22 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             StructType(
                 [StructField("a", StringType()), StructField("b", IntegerType())]
             ),
+        ),
+        (
+            ArrayType,
+            {
+                "element_type": "vector(int,8)",
+                "type": "array",
+            },
+            ArrayType(VectorType(int, 8)),
+        ),
+        (
+            ArrayType,
+            {
+                "element_type": "vector(float,8)",
+                "type": "array",
+            },
+            ArrayType(VectorType(float, 8)),
         ),
     ],
 )
