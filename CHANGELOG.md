@@ -14,6 +14,11 @@
   - `simple_string`
   - `json_value`
   - `json`
+- Added support for method `from_json` in the following type classes:
+  - `ArrayType`
+  - `MapType`
+  - `StructField`
+  - `StructType`
 
 #### Improvements
 
