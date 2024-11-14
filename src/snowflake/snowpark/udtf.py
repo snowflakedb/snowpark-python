@@ -28,6 +28,7 @@ import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.ast_utils import (
+    build_udtf,
     build_udtf_apply,
     with_src_position,
 )
@@ -88,7 +89,7 @@ class UserDefinedTableFunction:
         input_types: List[DataType],
         name: str,
         packages: Optional[List[Union[str, ModuleType]]] = None,
-        _ast: Optional[proto.UdtfRegister] = None,
+        _ast: Optional[proto.Udtf] = None,
         _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
@@ -673,7 +674,7 @@ class UDTFRegistration:
         with open_telemetry_udf_context_manager(
             self.register, handler=handler, name=name
         ):
-            if not callable(handler) and "registered_name" not in kwargs:
+            if not callable(handler) and "object_name" not in kwargs:
                 raise TypeError(
                     "Invalid function: not a function or callable "
                     f"(__call__ is not defined): {type(handler)}"
@@ -878,28 +879,6 @@ class UDTFRegistration:
                 _emit_ast=_emit_ast,
             )
 
-    def _build_udtf_ast(
-        self,
-        name: str,
-        output_schema: Union[StructType, Iterable[str], "PandasDataFrameType"],
-        input_types: Optional[List[DataType]],
-        udtf_name: str,
-    ) -> Tuple[proto.UdtfRegister, int]:
-        stmt = self._session._ast_batch.assign()
-        ast = with_src_position(stmt.expr.udtf_register, stmt)
-        ast_id = stmt.var_id.bitfield1
-
-        if name is not None:
-            ast.name.fn_name_flat.name = name
-
-        ast.registered_name.fn_name_flat.name = udtf_name
-
-        output_schema._fill_ast(ast.output_schema.udtf_schema__type.return_type)
-        for input_type in input_types:
-            input_type._fill_ast(ast.input_types.add())
-
-        return (ast, ast_id)
-
     def _do_register_udtf(
         self,
         handler: Union[Callable, Tuple[str, str]],
@@ -929,17 +908,8 @@ class UDTFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
-
         check_output_schema_type(output_schema)
         check_imports_type(imports, "udtf-level")
-
-        if "registered_name" in kwargs:
-            return UserDefinedTableFunction(
-                lambda dummy: dummy,
-                output_schema,
-                input_types,
-                kwargs["registered_name"],
-            )
 
         if isinstance(output_schema, StructType):
             _validate_output_schema_names(output_schema.names)
@@ -974,11 +944,47 @@ class UDTFRegistration:
             output_schema=output_schema,
         )
 
-        ast, ast_id = (
-            self._build_udtf_ast(name, output_schema, input_types, udtf_name)
-            if _emit_ast
-            else (None, None)
-        )
+        # Capture original parameters.
+        ast, ast_id = None, None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.udtf, stmt)
+            ast_id = stmt.var_id.bitfield1
+            build_udtf(
+                ast,
+                handler,
+                output_schema=output_schema,
+                input_types=input_types,
+                name=name,
+                stage_location=stage_location,
+                imports=imports,
+                packages=packages,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                parallel=parallel,
+                max_batch_size=max_batch_size,
+                strict=strict,
+                secure=secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                is_permanent=is_permanent,
+                session=self._session,
+                udtf_name=udtf_name,
+                **kwargs,
+            )
+
+        if "object_name" in kwargs:
+            return UserDefinedTableFunction(
+                handler if handler else lambda dummy: dummy,
+                output_schema,
+                input_types,
+                kwargs["object_name"],
+                _ast=ast,
+                _ast_id=ast_id,
+            )
 
         arg_names = input_names or [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [

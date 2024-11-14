@@ -534,9 +534,10 @@ message SpDataframeSchema_Struct {
 message SpCallable {
   int64 id = 1;
   string name = 2;
+  string object_name = 3;
 }
 
-// sp-type.ir:104
+// sp-type.ir:106
 message SpPivotValue {
   oneof sealed_value {
     SpPivotValue_Dataframe sp_pivot_value__dataframe = 1;
@@ -544,12 +545,12 @@ message SpPivotValue {
   }
 }
 
-// sp-type.ir:105
+// sp-type.ir:107
 message SpPivotValue_Expr {
   Expr v = 1;
 }
 
-// sp-type.ir:106
+// sp-type.ir:108
 message SpPivotValue_Dataframe {
   SpDataframeRef v = 1;
 }
@@ -778,7 +779,7 @@ message FnRefExpr {
     StoredProcedure stored_procedure = 8;
     Udaf udaf = 9;
     Udf udf = 10;
-    UdtfRegister udtf_register = 11;
+    Udtf udtf = 11;
   }
 }
 
@@ -790,7 +791,7 @@ message FnNameRefExpr {
     StoredProcedure stored_procedure = 4;
     Udaf udaf = 5;
     Udf udf = 6;
-    UdtfRegister udtf_register = 7;
+    Udtf udtf = 7;
   }
 }
 
@@ -864,16 +865,31 @@ message Udf {
   bool strict = 22;
 }
 
-// expr-fn.ir:94
-message UdtfRegister {
-  repeated SpDataType input_types = 1;
-  FnName name = 2;
-  UdtfSchema output_schema = 3;
-  FnName registered_name = 4;
-  SrcPosition src = 5;
+// expr-fn.ir:95
+message Udtf {
+  google.protobuf.StringValue comment = 1;
+  repeated string external_access_integrations = 2;
+  SpCallable handler = 3;
+  bool if_not_exists = 4;
+  bool immutable = 5;
+  repeated SpTableName imports = 6;
+  List_SpDataType input_types = 7;
+  bool is_permanent = 8;
+  repeated Tuple_String_Expr kwargs = 9;
+  FnName name = 10;
+  UdtfSchema output_schema = 11;
+  repeated string packages = 12;
+  int64 parallel = 13;
+  bool replace = 14;
+  repeated Tuple_String_String secrets = 15;
+  bool secure = 16;
+  SrcPosition src = 17;
+  string stage_location = 18;
+  repeated Tuple_String_String statement_params = 19;
+  bool strict = 20;
 }
 
-// expr-fn.ir:101
+// expr-fn.ir:118
 message Udaf {
   google.protobuf.StringValue comment = 1;
   repeated string external_access_integrations = 2;
@@ -895,19 +911,19 @@ message Udaf {
   repeated Tuple_String_String statement_params = 18;
 }
 
-// expr-fn.ir:122
+// expr-fn.ir:139
 message IndirectTableFnNameRef {
   FnName name = 1;
   SrcPosition src = 2;
 }
 
-// expr-fn.ir:127
+// expr-fn.ir:144
 message IndirectTableFnIdRef {
   VarId id = 1;
   SrcPosition src = 2;
 }
 
-// expr-fn.ir:131
+// expr-fn.ir:148
 message CallTableFunctionExpr {
   FnName name = 1;
   SrcPosition src = 2;
@@ -1342,7 +1358,7 @@ message Expr {
     TupleVal tuple_val = 211;
     Udaf udaf = 212;
     Udf udf = 213;
-    UdtfRegister udtf_register = 214;
+    Udtf udtf = 214;
   }
 }
 
@@ -3110,7 +3126,7 @@ message HasSrcPosition {
     TupleVal tuple_val = 225;
     Udaf udaf = 226;
     Udf udf = 227;
-    UdtfRegister udtf_register = 228;
+    Udtf udtf = 228;
   }
 }
 
