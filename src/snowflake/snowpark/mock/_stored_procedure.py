@@ -23,6 +23,7 @@ from snowflake.snowpark._internal.udf_utils import (
 from snowflake.snowpark._internal.utils import TempObjectType, check_imports_type
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock import CUSTOM_JSON_ENCODER
 from snowflake.snowpark.mock._plan import calculate_expression
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
@@ -416,6 +417,10 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             sproc_name = get_fully_qualified_name(
                 sproc_name, current_schema, current_database
             )
+            try:
+                sproc = self._registry[sproc_name]
+            except KeyError:
+                raise SnowparkSQLException("Unknown function")
 
             # TODO: Support call in MockServerConnection.
             from snowflake.snowpark.mock._connection import MockServerConnection
