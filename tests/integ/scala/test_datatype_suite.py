@@ -893,3 +893,53 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
     assert cast_df.collect() == [
         Row([1, 2, 3], {"k1": 1, "k2": 2}, {"A": 1.0, "B": "foobar"})
     ]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_structured_type_print_schema(
+    structured_type_session, local_testing_mode, structured_type_support, capsys
+):
+    if not (
+        structured_type_support
+        and iceberg_supported(structured_type_session, local_testing_mode)
+    ):
+        pytest.skip("Test requires iceberg support and structured type support.")
+
+    schema = StructType(
+        [
+            StructField(
+                "map",
+                MapType(
+                    StringType(),
+                    ArrayType(
+                        StructType(
+                            [
+                                StructField("Field1", StringType()),
+                                StructField("Field2", IntegerType()),
+                            ],
+                            structured=True,
+                        ),
+                        structured=True,
+                    ),
+                    structured=True,
+                ),
+            )
+        ],
+        structured=True,
+    )
+
+    df = structured_type_session.create_dataframe([], schema=schema)
+    df.printSchema()
+    captured = capsys.readouterr()
+    assert captured.out == (
+        "root\n"
+        ' |-- "MAP": MapType (nullable = True)\n'
+        " |   |-- key: StringType()\n"
+        " |   |-- value: ArrayType\n"
+        " |   |   |-- element: StructType\n"
+        ' |   |   |   |-- "FIELD1": StringType() (nullable = True)\n'
+        ' |   |   |   |-- "FIELD2": LongType() (nullable = True)\n'
+    )
