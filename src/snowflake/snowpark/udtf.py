@@ -908,6 +908,20 @@ class UDTFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
+        if "object_name" in kwargs:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.udtf, stmt)
+            ast_id = stmt.var_id.bitfield1
+
+            return UserDefinedTableFunction(
+                handler,
+                output_schema,
+                input_types,
+                kwargs["object_name"],
+                _ast=ast,
+                _ast_id=ast_id,
+            )
+
         check_output_schema_type(output_schema)
         check_imports_type(imports, "udtf-level")
 
@@ -974,16 +988,6 @@ class UDTFRegistration:
                 session=self._session,
                 udtf_name=udtf_name,
                 **kwargs,
-            )
-
-        if "object_name" in kwargs:
-            return UserDefinedTableFunction(
-                handler if handler else lambda dummy: dummy,
-                output_schema,
-                input_types,
-                kwargs["object_name"],
-                _ast=ast,
-                _ast_id=ast_id,
             )
 
         arg_names = input_names or [f"arg{i + 1}" for i in range(len(input_types))]

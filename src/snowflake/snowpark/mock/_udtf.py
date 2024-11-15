@@ -71,44 +71,18 @@ class MockUDTFRegistration(UDTFRegistration):
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
-
-        # Capture original parameters.
-        ast = None
-        if _emit_ast:
+        if "object_name" in kwargs:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udtf, stmt)
+            ast_id = stmt.var_id.bitfield1
 
-            build_udtf(
-                ast,
-                handler,
-                output_schema=output_schema,
-                input_types=input_types,
-                name=name,
-                stage_location=stage_location,
-                imports=imports,
-                packages=packages,
-                replace=replace,
-                if_not_exists=if_not_exists,
-                parallel=parallel,
-                max_batch_size=max_batch_size,
-                strict=strict,
-                secure=secure,
-                external_access_integrations=external_access_integrations,
-                secrets=secrets,
-                immutable=immutable,
-                comment=comment,
-                statement_params=statement_params,
-                is_permanent=is_permanent,
-                session=self._session,
-                **kwargs,
-            )
-
-        if "object_name" in kwargs:
             return MockUserDefinedTableFunction(
-                handler if handler else lambda dummy: dummy,
+                handler,
                 output_schema,
                 input_types,
                 kwargs["object_name"],
+                _ast=ast,
+                _ast_id=ast_id,
             )
 
         if isinstance(output_schema, StructType):
@@ -148,6 +122,39 @@ class MockUDTFRegistration(UDTFRegistration):
             output_schema=output_schema,
         )
 
+        # Capture original parameters.
+        ast, ast_id = None, None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.udtf, stmt)
+            ast_id = stmt.var_id.bitfield1
+
+            build_udtf(
+                ast,
+                handler,
+                output_schema=output_schema,
+                input_types=input_types,
+                name=name,
+                stage_location=stage_location,
+                imports=imports,
+                packages=packages,
+                replace=replace,
+                if_not_exists=if_not_exists,
+                parallel=parallel,
+                max_batch_size=max_batch_size,
+                strict=strict,
+                secure=secure,
+                external_access_integrations=external_access_integrations,
+                secrets=secrets,
+                immutable=immutable,
+                comment=comment,
+                statement_params=statement_params,
+                is_permanent=is_permanent,
+                session=self._session,
+                udtf_name=udtf_name,
+                **kwargs,
+            )
+
         foo = MockUserDefinedTableFunction(
             handler,
             output_schema,
@@ -155,9 +162,7 @@ class MockUDTFRegistration(UDTFRegistration):
             udtf_name,
             packages=packages,
             _ast=ast,
-            _ast_id=(
-                stmt.var_id.bitfield1
-            ),  # Reference UDTF by its assign/statement id.,
+            _ast_id=ast_id,
         )
 
         # Add to registry to MockPlan can execute.

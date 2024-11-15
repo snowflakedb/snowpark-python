@@ -12,7 +12,10 @@ import pytest
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.functions
 import snowflake.snowpark.types
-import tests.integ.utils.sql_counter
+from tests.integ.utils.sql_counter import (
+    enable_sql_counting,
+    suppress_sql_counting,
+)
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.ast_utils import base64_lines_to_request
 from snowflake.snowpark.query_history import AstListener, QueryRecord
@@ -252,7 +255,8 @@ def notify_full_ast_validation_with_listener(
     globals_dict["session"] = full_ast_validation_listener.session
     try:
         suppress_ast_listener_reentry = True
-        globals_dict["session"].ast_enabled = False
+        # We don't want the validation queries to get added into any sql count in progress.
+        suppress_sql_counting()
         try:
             exec(python_code_output, globals_dict, globals_dict)
         except Exception as ex:
@@ -286,7 +290,7 @@ def notify_full_ast_validation_with_listener(
             )
     finally:
         suppress_ast_listener_reentry = False
-        globals_dict["session"].ast_enabled = True
+        enable_sql_counting()
 
     # This batch has been processed so let's clear.
     full_ast_validation_listener._ast_batches.clear()
@@ -316,9 +320,6 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
     full_ast_validation_listener._current_test = ""
     full_ast_validation_listener._prev_stmts = {}
 
-    # Ensure sql counter uses the original session and not the validation session.
-    tests.integ.utils.sql_counter._active_session = session
-
     global suppress_ast_listener_reentry
     suppress_ast_listener_reentry = False
 
@@ -328,4 +329,4 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
 def close_full_ast_validation_mode(full_ast_validation_listener):
     # Remove the test hook for full ast validation so does not run for any clean up work.
     full_ast_validation_listener._notify = full_ast_validation_listener._original_notify
-    tests.integ.utils.sql_counter._active_session = None
+    enable_sql_counting()
