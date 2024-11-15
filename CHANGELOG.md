@@ -36,6 +36,8 @@
 
 #### New Features
 
+- Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
+
 
 #### Bug Fixes
 
