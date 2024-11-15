@@ -36,6 +36,7 @@
 
 #### New Features
 
+- Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
 
 #### Bug Fixes
 
