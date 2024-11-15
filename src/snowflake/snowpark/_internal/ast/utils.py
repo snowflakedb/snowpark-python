@@ -54,7 +54,7 @@ from snowflake.snowpark.types import DataType, StructType
 FAIL_ON_MISSING_AST = True
 
 # The path to the snowpark package.
-SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
+SNOWPARK_LIB_PATH = Path(__file__).parent.parent.parent.resolve()
 
 # Test mode. In test mode, the source filename is ignored.
 SRC_POSITION_TEST_MODE = False
@@ -253,8 +253,8 @@ def build_expr_from_python_val(
             # in full bytes. Therefore, round up to fullest byte. To restore the sign, add another byte.
             req_bytes = unscaled_val.bit_length() // 8 + 1
 
-        ast.unscaled_value = unscaled_val.to_bytes(req_bytes, "big", signed=True)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "unscaled_value"
-        ast.scale = dec_tuple.exponent  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "scale"
+            ast.unscaled_value = unscaled_val.to_bytes(req_bytes, "big", signed=True)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "unscaled_value"
+            ast.scale = dec_tuple.exponent  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "scale"
 
     elif isinstance(obj, datetime.datetime):
         ast = with_src_position(expr_builder.python_timestamp_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "PythonTimestampVal"; expected "Expr"
