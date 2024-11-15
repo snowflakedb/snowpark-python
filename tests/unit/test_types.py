@@ -1339,9 +1339,49 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
                 [StructField("a", StringType()), StructField("b", IntegerType())]
             ),
         ),
+        (
+            StructField,
+            {
+                "name": "AA",
+                "type": "decimal(38,0)",
+                "nullable": True,
+            },
+            StructField("AA", DecimalType()),
+        ),
+        (
+            StructField,
+            {
+                "name": "AA",
+                "type": "decimal(20,10)",
+                "nullable": True,
+            },
+            StructField("AA", DecimalType(20, 10)),
+        ),
     ],
 )
 def test_structtype_from_json(tpe, json_dict, expected_result):
     result = tpe.from_json(json_dict)
     assert result == expected_result
     assert isinstance(result, tpe)
+
+
+def test_from_json_wrong_data_type():
+    wrong_json = {
+        "name": "AA",
+        "type": "wrong_type",
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Cannot parse data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+    wrong_json = {
+        "name": "AA",
+        "type": {
+            "type": "wrong_type",
+            "key_type": "integer",
+            "value_type": "string",
+        },
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Unsupported data type: wrong_type"):
+        StructField.from_json(wrong_json)
