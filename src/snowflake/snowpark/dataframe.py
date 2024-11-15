@@ -161,6 +161,8 @@ from snowflake.snowpark.table_function import (
     _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import (
+    ArrayType,
+    MapType,
     PandasDataFrameType,
     StringType,
     StructField,
@@ -3464,6 +3466,7 @@ class DataFrame:
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        iceberg_config: Optional[dict] = None,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
 
@@ -3498,6 +3501,15 @@ class DataFrame:
                 the data retention period of the dynamic table to prevent streams on the dynamic table
                 from becoming stale.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+                - external_volume: specifies the identifier for the external volume where
+                  the Iceberg table stores its metadata files and data in Parquet format.
+                - catalog: specifies either Snowflake or a catalog integration to use for this table.
+                - base_location: the base directory that snowflake can write iceberg metadata and files to.
+                - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
+                - storage_serialization_policy: specifies the storage serialization policy for the table.
+
 
         Note:
             See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
@@ -3539,6 +3551,7 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
+            iceberg_config=iceberg_config,
         )
 
     @df_collect_api_telemetry
@@ -3616,6 +3629,7 @@ class DataFrame:
         is_transient: bool = False,
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
+        iceberg_config: Optional[dict] = None,
         **kwargs,
     ):
         validate_object_name(name)
@@ -3642,6 +3656,7 @@ class DataFrame:
             data_retention_time=data_retention_time,
             max_data_extension_time=max_data_extension_time,
             child=self._plan,
+            iceberg_config=iceberg_config,
         )
 
         return self._session._conn.execute(
@@ -4303,9 +4318,59 @@ Query List:
         return exprs
 
     def print_schema(self) -> None:
+        """
+        Prints the schema of a dataframe in tree format.
+
+        Examples::
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
+            >>> df.print_schema()
+            root
+             |-- "A": LongType() (nullable = False)
+             |-- "B": StringType() (nullable = False)
+        """
+
+        def _format_datatype(name, dtype, nullable=None, prefix=""):
+            nullable_str = (
+                f" (nullable = {str(nullable)})" if nullable is not None else ""
+            )
+            indent = f" |  {prefix}"
+            extra_lines = []
+            type_str = dtype.__class__.__name__
+
+            # Structured Type format their parameters on multiple lines.
+            if isinstance(dtype, ArrayType):
+                extra_lines = [
+                    _format_datatype("element", dtype.element_type, prefix=indent),
+                ]
+            elif isinstance(dtype, MapType):
+                extra_lines = [
+                    _format_datatype("key", dtype.key_type, prefix=indent),
+                    _format_datatype("value", dtype.value_type, prefix=indent),
+                ]
+            elif isinstance(dtype, StructType):
+                extra_lines = [
+                    _format_datatype(
+                        quote_name(field.name, keep_case=True),
+                        field.datatype,
+                        field.nullable,
+                        indent,
+                    )
+                    for field in dtype.fields
+                ]
+            else:
+                # By default include all parameters in type string instead
+                type_str = str(dtype)
+
+            return "\n".join(
+                [
+                    f"{prefix} |-- {name}: {type_str}{nullable_str}",
+                ]
+                + extra_lines
+            )
+
         schema_tmp_str = "\n".join(
             [
-                f" |-- {attr.name}: {attr.datatype} (nullable = {str(attr.nullable)})"
+                _format_datatype(attr.name, attr.datatype, attr.nullable)
                 for attr in self._plan.attributes
             ]
         )

@@ -9,6 +9,11 @@
 - Added the following new functions in `snowflake.snowpark.dataframe`:
   - `map`
 - Added support for passing parameter `include_error` to `Session.query_history` to record queries that have error during execution.
+- Added support for following methods in class `DataType`, derived class of `DataType` and `StructField`:
+  - `type_name`
+  - `simple_string`
+  - `json_value`
+  - `json`
 
 #### Improvements
 
@@ -17,6 +22,14 @@
 - Added distributed tracing using open telemetry APIs for action function in `DataFrame`:
   - `cache_result`
 - Removed opentelemetry warning from logging.
+- Added support for specifying the following to `DataFrame.create_or_replace_dynamic_table`:
+  - `iceberg_config` A dictionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
+- Added support for nested data types to `DataFrame.print_schema`
 
 #### Bug Fixes
 
