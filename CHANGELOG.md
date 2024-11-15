@@ -1,14 +1,11 @@
 # Release History
 
-## 1.25.0 (TBD)
+## 1.26.0 (TBD)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
-- Added the following new functions in `snowflake.snowpark.dataframe`:
-  - `map`
-- Added support for passing parameter `include_error` to `Session.query_history` to record queries that have error during execution.
 - Added support for following methods in class `DataType`, derived class of `DataType` and `StructField`:
   - `type_name`
   - `simple_string`
@@ -17,11 +14,6 @@
 
 #### Improvements
 
-- When target stage is not set in profiler, a default stage from `Session.get_session_stage` is used instead of raising `SnowparkSQLException`.
-- Allowed lower case or mixed case input when calling `Session.stored_procedure_profiler.set_active_profiler`.
-- Added distributed tracing using open telemetry APIs for action function in `DataFrame`:
-  - `cache_result`
-- Removed opentelemetry warning from logging.
 - Added support for specifying the following to `DataFrame.create_or_replace_dynamic_table`:
   - `iceberg_config` A dictionary that can hold the following iceberg configuration options:
       - `external_volume`
@@ -30,6 +22,53 @@
       - `catalog_sync`
       - `storage_serialization_policy`
 - Added support for nested data types to `DataFrame.print_schema`
+
+#### Bug Fixes
+
+
+#### Dependency Updates
+
+
+### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+
+#### New Features
+
+
+#### Bug Fixes
+
+
+#### Improvements
+
+
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+
+#### Bug Fixes
+
+
+## 1.25.0 (2024-11-14)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added the following new functions in `snowflake.snowpark.dataframe`:
+  - `map`
+- Added support for passing parameter `include_error` to `Session.query_history` to record queries that have error during execution.
+
+#### Improvements
+
+- When target stage is not set in profiler, a default stage from `Session.get_session_stage` is used instead of raising `SnowparkSQLException`.
+- Allowed lower case or mixed case input when calling `Session.stored_procedure_profiler.set_active_profiler`.
+- Added distributed tracing using open telemetry APIs for action function in `DataFrame`:
+  - `cache_result`
+- Removed opentelemetry warning from logging.
 
 #### Bug Fixes
 
