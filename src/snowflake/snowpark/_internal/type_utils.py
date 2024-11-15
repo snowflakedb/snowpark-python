@@ -292,7 +292,7 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, StructType):
         if datatype.structured:
             fields = ", ".join(
-                f"{field.name} {convert_sp_to_sf_type(field.datatype)}"
+                f"{field.raw_name} {convert_sp_to_sf_type(field.datatype)}"
                 for field in datatype.fields
             )
             return f"OBJECT({fields})"
