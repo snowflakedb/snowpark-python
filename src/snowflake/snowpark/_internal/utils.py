@@ -693,6 +693,7 @@ def result_set_to_rows(
     result_set: List[Any],
     result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]] = None,
     case_sensitive: bool = True,
+    limit: Optional[int] = None,
 ) -> List[Row]:
     col_names = [col.name for col in result_meta] if result_meta else None
     rows = []
@@ -701,11 +702,15 @@ def result_set_to_rows(
         row_struct = (
             Row._builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
         )
+    size = 0
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")
         row = row_struct(*data)
         rows.append(row)
+        size += 1
+        if limit and size >= limit:
+            break
     return rows
 
 
