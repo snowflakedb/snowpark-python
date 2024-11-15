@@ -744,10 +744,12 @@ class ServerConnection:
         return result, result_meta
 
     def get_result_and_metadata(
-        self, plan: SnowflakePlan, **kwargs
+        self, plan: SnowflakePlan, limit=None, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
-        result_set, result_meta = self.get_result_set(plan, **kwargs)
-        result = result_set_to_rows(result_set["data"])
+        result_set, result_meta = self.get_result_set(
+            plan, to_iter=(limit is not None), **kwargs
+        )
+        result = result_set_to_rows(result_set["data"], limit=limit)
         attributes = convert_result_meta_to_attribute(result_meta, self.max_string_size)
         return result, attributes
 
