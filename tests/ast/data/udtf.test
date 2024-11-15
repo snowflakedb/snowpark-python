@@ -100,29 +100,29 @@ df.select("a", twoxsix_udtf("a").alias("double", "six_x"), "c").collect()
 
 ## EXPECTED UNPARSER OUTPUT
 
-prime_udtf = udtf(output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], registered_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+prime_udtf = udtf("PrimeSieve", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(prime_udtf(lit(20))).collect()
 
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df.with_column("total", udtf(output_schema=StructType([StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], registered_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
+df.with_column("total", udtf("sum_udtf", output_schema=StructType([StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
 
-generator_udtf = udtf(output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], registered_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+generator_udtf = udtf("GeneratorUDTF", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(generator_udtf(lit(3))).collect()
 
-foo = udtf(output_schema=StructType([StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", registered_name="foo")
+foo = udtf("Foo", output_schema=StructType([StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", force_inline_code=True, object_name="foo")
 
 df = session.create_dataframe([(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)])
 
 df = df.to_df(["a", "b", "c"])
 
-twox_udtf = udtf(output_schema=StructType([StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], registered_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twox_udtf = udtf("TwoXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select((twox_udtf("a"))).collect()
 
-twoxsix_udtf = udtf(output_schema=StructType([StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], registered_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.select(df["a"], (twoxsix_udtf(df["a"]))).collect()
 
@@ -133,9 +133,15 @@ df.select(col("a"), (twoxsix_udtf("a").alias("double", "six_x")), col("c")).coll
 body {
   assign {
     expr {
-      udtf_register {
+      udtf {
+        handler {
+          name: "PrimeSieve"
+          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+        }
         input_types {
-          sp_integer_type: true
+          list {
+            sp_integer_type: true
+          }
         }
         output_schema {
           udtf_schema__type {
@@ -154,11 +160,7 @@ body {
             }
           }
         }
-        registered_name {
-          fn_name_flat {
-            name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
-          }
-        }
+        parallel: 4
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 46
@@ -292,12 +294,19 @@ body {
 body {
   assign {
     expr {
-      udtf_register {
-        input_types {
-          sp_long_type: true
+      udtf {
+        handler {
+          id: 1
+          name: "sum_udtf"
+          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
         }
         input_types {
-          sp_long_type: true
+          list {
+            sp_long_type: true
+          }
+          list {
+            sp_long_type: true
+          }
         }
         output_schema {
           udtf_schema__type {
@@ -316,11 +325,7 @@ body {
             }
           }
         }
-        registered_name {
-          fn_name_flat {
-            name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
-          }
-        }
+        parallel: 4
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 51
@@ -559,9 +564,16 @@ body {
 body {
   assign {
     expr {
-      udtf_register {
+      udtf {
+        handler {
+          id: 2
+          name: "GeneratorUDTF"
+          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+        }
         input_types {
-          sp_integer_type: true
+          list {
+            sp_integer_type: true
+          }
         }
         output_schema {
           udtf_schema__type {
@@ -580,11 +592,7 @@ body {
             }
           }
         }
-        registered_name {
-          fn_name_flat {
-            name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
-          }
-        }
+        parallel: 4
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 63
@@ -718,12 +726,48 @@ body {
 body {
   assign {
     expr {
-      udtf_register {
-        input_types {
-          sp_integer_type: true
+      udtf {
+        comment {
+          value: "fufufufu"
+        }
+        external_access_integrations: "gs"
+        handler {
+          id: 3
+          name: "Foo"
+          object_name: "foo"
+        }
+        immutable: true
+        imports {
+          sp_table_name_flat {
+            name: "numpy"
+          }
+        }
+        imports {
+          sp_table_name_structured {
+            name: "seaborn"
+            name: "sns"
+          }
         }
         input_types {
-          sp_long_type: true
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_long_type: true
+          }
+        }
+        is_permanent: true
+        kwargs {
+          _1: "force_inline_code"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 72
+              }
+              v: true
+            }
+          }
         }
         name {
           fn_name_flat {
@@ -756,15 +800,24 @@ body {
             }
           }
         }
-        registered_name {
-          fn_name_flat {
-            name: "foo"
-          }
+        packages: "snowflake.snowpark"
+        parallel: 7
+        replace: true
+        secrets {
+          _1: "test"
+          _2: "verysecret"
         }
+        secure: true
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 72
         }
+        stage_location: "@"
+        statement_params {
+          _1: "a"
+          _2: "b"
+        }
+        strict: true
       }
     }
     symbol {
@@ -936,9 +989,16 @@ body {
 body {
   assign {
     expr {
-      udtf_register {
+      udtf {
+        handler {
+          id: 4
+          name: "TwoXUDTF"
+          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+        }
         input_types {
-          sp_integer_type: true
+          list {
+            sp_integer_type: true
+          }
         }
         output_schema {
           udtf_schema__type {
@@ -957,11 +1017,7 @@ body {
             }
           }
         }
-        registered_name {
-          fn_name_flat {
-            name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
-          }
-        }
+        parallel: 4
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 99
@@ -1086,9 +1142,16 @@ body {
 body {
   assign {
     expr {
-      udtf_register {
+      udtf {
+        handler {
+          id: 5
+          name: "TwoXSixXUDTF"
+          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+        }
         input_types {
-          sp_integer_type: true
+          list {
+            sp_integer_type: true
+          }
         }
         output_schema {
           udtf_schema__type {
@@ -1116,11 +1179,7 @@ body {
             }
           }
         }
-        registered_name {
-          fn_name_flat {
-            name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
-          }
-        }
+        parallel: 4
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 111

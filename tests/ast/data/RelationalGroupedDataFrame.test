@@ -45,7 +45,7 @@ res8 = df.group_by("a").count()
 
 df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)], schema=["location", "temp_c"])
 
-res10 = udtf(output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], registered_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+res10 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
 
@@ -716,15 +716,21 @@ body {
 body {
   assign {
     expr {
-      udtf_register {
-        input_types {
-          sp_string_type {
-            length {
-            }
-          }
+      udtf {
+        handler {
+          name: "_ApplyInPandas"
+          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
         }
         input_types {
-          sp_float_type: true
+          list {
+            sp_string_type {
+              length {
+              }
+            }
+          }
+          list {
+            sp_float_type: true
+          }
         }
         output_schema {
           udtf_schema__type {
@@ -749,11 +755,7 @@ body {
             }
           }
         }
-        registered_name {
-          fn_name_flat {
-            name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
-          }
-        }
+        parallel: 4
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 43
@@ -773,6 +775,7 @@ body {
     expr {
       sp_relational_grouped_dataframe_apply_in_pandas {
         func {
+          id: 1
           name: "convert"
         }
         grouped_df {
