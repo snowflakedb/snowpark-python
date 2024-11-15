@@ -60,7 +60,7 @@ from tests.utils import (
 _STRUCTURE_DATAFRAME_QUERY = """
 select
   object_construct('k1', 1) :: map(varchar, int) as map,
-  object_construct('A', 'foo', 'B', 0.05) :: object(A varchar, B float) as obj,
+  object_construct('A', 'foo', 'b', 0.05) :: object(A varchar, b float) as obj,
   [1.0, 3.1, 4.5] :: array(float) as arr
 """
 
@@ -71,10 +71,10 @@ def _create_test_dataframe(s):
         object_construct(lit("k1"), lit(1))
         .cast(MapType(StringType(), IntegerType(), structured=True))
         .alias("map"),
-        object_construct(lit("A"), lit("foo"), lit("B"), lit(0.05))
+        object_construct(lit("A"), lit("foo"), lit("b"), lit(0.05))
         .cast(
             StructType(
-                [StructField("A", StringType()), StructField("B", DoubleType())],
+                [StructField("A", StringType()), StructField("b", DoubleType())],
                 structured=True,
             )
         )
@@ -106,7 +106,7 @@ STRUCTURED_TYPES_EXAMPLES = {
                     StructType(
                         [
                             StructField("A", StringType(16777216), nullable=True),
-                            StructField("B", DoubleType(), nullable=True),
+                            StructField('"b"', DoubleType(), nullable=True),
                         ],
                         structured=True,
                     ),
@@ -386,7 +386,7 @@ def test_structured_dtypes_select(structured_type_session, examples):
     flattened_df = df.select(
         df.map["k1"].alias("value1"),
         df.obj["A"].alias("a"),
-        col("obj")["B"].alias("b"),
+        col("obj")["b"].alias("b"),
         df.arr[0].alias("value2"),
         df.arr[1].alias("value3"),
         col("arr")[2].alias("value4"),
@@ -395,7 +395,7 @@ def test_structured_dtypes_select(structured_type_session, examples):
         [
             StructField("VALUE1", LongType(), nullable=True),
             StructField("A", StringType(16777216), nullable=True),
-            StructField("B", DoubleType(), nullable=True),
+            StructField("b", DoubleType(), nullable=True),
             StructField("VALUE2", DoubleType(), nullable=True),
             StructField("VALUE3", DoubleType(), nullable=True),
             StructField("VALUE4", DoubleType(), nullable=True),
@@ -424,12 +424,12 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
     if structured_type_support:
         assert (
             pdf.to_json()
-            == '{"MAP":{"0":[["k1",1.0]]},"OBJ":{"0":{"A":"foo","B":0.05}},"ARR":{"0":[1.0,3.1,4.5]}}'
+            == '{"MAP":{"0":[["k1",1.0]]},"OBJ":{"0":{"A":"foo","b":0.05}},"ARR":{"0":[1.0,3.1,4.5]}}'
         )
     else:
         assert (
             pdf.to_json()
-            == '{"MAP":{"0":"{\\n  \\"k1\\": 1\\n}"},"OBJ":{"0":"{\\n  \\"A\\": \\"foo\\",\\n  \\"B\\": 5.000000000000000e-02\\n}"},"ARR":{"0":"[\\n  1.000000000000000e+00,\\n  3.100000000000000e+00,\\n  4.500000000000000e+00\\n]"}}'
+            == '{"MAP":{"0":"{\\n  \\"k1\\": 1\\n}"},"OBJ":{"0":"{\\n  \\"A\\": \\"foo\\",\\n  \\"b\\": 5.000000000000000e-02\\n}"},"ARR":{"0":"[\\n  1.000000000000000e+00,\\n  3.100000000000000e+00,\\n  4.500000000000000e+00\\n]"}}'
         )
 
 
@@ -467,7 +467,7 @@ def test_structured_dtypes_iceberg(
         )
         assert save_ddl[0][0] == (
             f"create or replace ICEBERG TABLE {table_name.upper()} (\n\t"
-            "MAP MAP(STRING, LONG),\n\tOBJ OBJECT(A STRING, B DOUBLE),\n\tARR ARRAY(DOUBLE)\n)\n "
+            "MAP MAP(STRING, LONG),\n\tOBJ OBJECT(A STRING, b DOUBLE),\n\tARR ARRAY(DOUBLE)\n)\n "
             "EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
             "BASE_LOCATION = 'python_connector_merge_gate/';"
         )
@@ -733,8 +733,8 @@ def test_structured_dtypes_iceberg_create_from_values(
     _, __, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     data = [
-        ({"x": 1}, {"A": "a", "B": 1}, [1, 1, 1]),
-        ({"x": 2}, {"A": "b", "B": 2}, [2, 2, 2]),
+        ({"x": 1}, {"A": "a", "b": 1}, [1, 1, 1]),
+        ({"x": 2}, {"A": "b", "b": 2}, [2, 2, 2]),
     ]
     try:
         create_df = structured_type_session.create_dataframe(
@@ -945,8 +945,8 @@ def test_structured_type_print_schema(
         " |   |-- key: StringType()\n"
         " |   |-- value: ArrayType\n"
         " |   |   |-- element: StructType\n"
-        ' |   |   |   |-- "FIELD1": StringType() (nullable = True)\n'
-        ' |   |   |   |-- "FIELD2": LongType() (nullable = True)\n'
+        ' |   |   |   |-- "Field1": StringType() (nullable = True)\n'
+        ' |   |   |   |-- "Field2": LongType() (nullable = True)\n'
     )
 
     # Test that depth works as expected
