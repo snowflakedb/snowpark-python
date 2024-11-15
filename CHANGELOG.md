@@ -36,6 +36,7 @@
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
   - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
   - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
+- Added support for mixed case field names in struct type columns.
 
 #### Bug Fixes
 
