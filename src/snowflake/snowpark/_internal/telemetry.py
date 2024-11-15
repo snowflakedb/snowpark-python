@@ -567,10 +567,10 @@ class TelemetryClient:
 
     def send_describe_query_details(
         self,
-        session_id: str,
+        session_id: int,
         sql_text: str,
         e2e_time: float,
-        stack_trace: Optional[List[str]],
+        stack_trace: Optional[List[Optional[str]]],
     ):
         message = {
             **self._create_basic_telemetry_data(
