@@ -88,7 +88,7 @@ FILTER_OUT_QUERIES = [
 # define global at module-level
 sql_count_records = {}
 
-_active_session = None
+sql_counter_state = threading.local()
 
 
 class SqlCounter(QueryListener):
@@ -156,8 +156,6 @@ class SqlCounter(QueryListener):
 
         if self._no_check:
             self.session = None
-        elif _active_session is not None:
-            self.session = _active_session
         else:
             self.session = Session.SessionBuilder().getOrCreate()
 
@@ -197,7 +195,8 @@ class SqlCounter(QueryListener):
         self._mark_as_dead()
 
     def _notify(self, query_record: QueryRecord, **kwargs: dict):
-        self._queries.append(query_record)
+        if not is_suppress_sql_counter_listener():
+            self._queries.append(query_record)
 
     def expects(self, **kwargs):
         """
@@ -641,3 +640,18 @@ def is_sql_counter_called():
     if SQL_COUNTER_CALLED in threading.current_thread().__dict__:
         return threading.current_thread().__dict__.get(SQL_COUNTER_CALLED)
     return False
+
+
+def enable_sql_counting():
+    sql_counter_state.suppress_sql_counter_listener = False
+
+
+def suppress_sql_counting():
+    sql_counter_state.suppress_sql_counter_listener = True
+
+
+def is_suppress_sql_counter_listener():
+    return (
+        hasattr(sql_counter_state, "suppress_sql_counter_listener")
+        and sql_counter_state.suppress_sql_counter_listener
+    )
