@@ -407,6 +407,7 @@ class ColumnIdentifier:
     """Represents a column identifier."""
 
     def __init__(self, normalized_name: str) -> None:
+        self.raw_name = normalized_name
         self.normalized_name = quote_name(normalized_name)
 
     @property
@@ -486,6 +487,10 @@ class StructField:
     def name(self) -> str:
         """Returns the column name."""
         return self.column_identifier.name
+
+    @property
+    def raw_name(self) -> str:
+        return self.column_identifier.raw_name
 
     @name.setter
     def name(self, n: str) -> None:
