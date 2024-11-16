@@ -109,27 +109,27 @@ df = df.to_df("ORDERDATE", "PRODUCTKEY", "SALESAMOUNT")
 
 df2 = df.with_column("HALF_AMOUNT", df["SALESAMOUNT"] / 2)
 
-moving_agg_res = df.analytics.moving_agg(aggs={"SALESAMOUNT": ["SUM", "AVG"]}, window_sizes=[2, 3], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"])
+moving_agg_res = df.analytics.moving_agg(aggs={"SALESAMOUNT": ["SUM", "AVG"]}, window_sizes=[2, 3], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=[])
 
-moving_agg_res2 = df2.analytics.moving_agg(aggs={"SALESAMOUNT": ["SUM"], "HALF_AMOUNT": ["MAX"]}, window_sizes=[2, 3], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], col_formatter=lambda column, agg, window: {"SALESAMOUNT": {2: {"SUM": "SALESAMOUNT_X_SUM_Y_2"}, 3: {"SUM": "SALESAMOUNT_X_SUM_Y_3"}}, "HALF_AMOUNT": {2: {"MAX": "HALF_AMOUNT_X_MAX_Y_2"}, 3: {"MAX": "HALF_AMOUNT_X_MAX_Y_3"}}}[column][window][agg])
+moving_agg_res2 = df2.analytics.moving_agg(aggs={"SALESAMOUNT": ["SUM"], "HALF_AMOUNT": ["MAX"]}, window_sizes=[2, 3], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=["SALESAMOUNT_X_SUM_Y_2", "SALESAMOUNT_X_SUM_Y_3", "HALF_AMOUNT_X_MAX_Y_2", "HALF_AMOUNT_X_MAX_Y_3"])
 
-cumulative_agg_res = df.analytics.cumulative_agg(aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]}, order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], is_forward=True)
+cumulative_agg_res = df.analytics.cumulative_agg(aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]}, order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], is_forward=True, formatted_col_names=[])
 
-cumulative_agg_res2 = df.analytics.cumulative_agg(aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]}, order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], is_forward=True, col_formatter=lambda column, agg: {"SALESAMOUNT": {"SUM": "SALESAMOUNT_W_SUM", "MIN": "SALESAMOUNT_W_MIN", "MAX": "SALESAMOUNT_W_MAX"}}[column][agg])
+cumulative_agg_res2 = df.analytics.cumulative_agg(aggs={"SALESAMOUNT": ["SUM", "MIN", "MAX"]}, order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], is_forward=True, formatted_col_names=["SALESAMOUNT_W_SUM", "SALESAMOUNT_W_MIN", "SALESAMOUNT_W_MAX"])
 
-compute_lag_res = df.analytics.compute_lag(cols=["SALESAMOUNT"], lags=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"])
+compute_lag_res = df.analytics.compute_lag(cols=["SALESAMOUNT"], lags=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=[])
 
-compute_lag_res2 = df.analytics.compute_lag(cols=["SALESAMOUNT"], lags=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], col_formatter=lambda column, other, value: {"SALESAMOUNT": {1: "SALESAMOUNT_X_LAG_Y_1", 2: "SALESAMOUNT_X_LAG_Y_2"}}[column][value])
+compute_lag_res2 = df.analytics.compute_lag(cols=["SALESAMOUNT"], lags=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=["SALESAMOUNT_X_LAG_Y_1", "SALESAMOUNT_X_LAG_Y_2"])
 
-compute_lead_res = df.analytics.compute_lead(cols=["SALESAMOUNT"], leads=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"])
+compute_lead_res = df.analytics.compute_lead(cols=["SALESAMOUNT"], leads=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=[])
 
-compute_lead_res2 = df.analytics.compute_lead(cols=["SALESAMOUNT"], leads=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], col_formatter=lambda column, other, value: {"SALESAMOUNT": {1: "SALESAMOUNT_X_LEAD_Y_1", 2: "SALESAMOUNT_X_LEAD_Y_2"}}[column][value])
+compute_lead_res2 = df.analytics.compute_lead(cols=["SALESAMOUNT"], leads=[1, 2], order_by=["ORDERDATE"], group_by=["PRODUCTKEY"], formatted_col_names=["SALESAMOUNT_X_LEAD_Y_1", "SALESAMOUNT_X_LEAD_Y_2"])
 
 df = df.with_column("ORDERDATE", to_timestamp(df["ORDERDATE"]))
 
-time_series_agg_res = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H")
+time_series_agg_res = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H", formatted_col_names=[])
 
-time_series_agg_res2 = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H", col_formatter=lambda column, agg, window: {"SALESAMOUNT": {"1D": {"SUM": "SUM_SALESAMOUNT_1D", "MAX": "MAX_SALESAMOUNT_1D"}, "-1D": {"SUM": "SUM_SALESAMOUNT_-1D", "MAX": "MAX_SALESAMOUNT_-1D"}}}[column][window][agg])
+time_series_agg_res2 = df.analytics.time_series_agg(time_col="ORDERDATE", aggs={"SALESAMOUNT": ["SUM", "MAX"]}, windows=["1D", "-1D"], group_by=["PRODUCTKEY"], sliding_interval="12H", formatted_col_names=["SUM_SALESAMOUNT_1D", "MAX_SALESAMOUNT_1D", "SUM_SALESAMOUNT_-1D", "MAX_SALESAMOUNT_-1D"])
 
 ## EXPECTED ENCODED AST
 
@@ -845,5 +845,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 23
+  minor: 24
 }

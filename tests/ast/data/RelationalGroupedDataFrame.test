@@ -45,7 +45,7 @@ res8 = df.group_by("a").count()
 
 df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)], schema=["location", "temp_c"])
 
-res10 = udtf(_ApplyInPandas, output_schema=StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()])
+res10 = udtf(_ApplyInPandas, output_schema=StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], copy_grants=False)
 
 df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
 
@@ -729,6 +729,17 @@ body {
           }
           list {
             sp_float_type: true
+          }
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+            }
           }
         }
         output_schema {
@@ -1502,5 +1513,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 23
+  minor: 24
 }

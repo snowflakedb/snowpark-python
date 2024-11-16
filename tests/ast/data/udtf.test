@@ -68,19 +68,19 @@ foo = udtf(Foo,  output_schema= ["a", "b"],
 
 ## EXPECTED UNPARSER OUTPUT
 
-prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
+prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False)
 
 session.table_function(prime_udtf(lit(20))).collect()
 
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df.with_column("total", udtf(sum_udtf, output_schema=["number"])(df["a"], df["b"])).sort(df["a"]).show()
+df.with_column("total", udtf(sum_udtf, output_schema=["number"], copy_grants=False)(df["a"], df["b"])).sort(df["a"]).show()
 
-generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
+generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False)
 
 session.table_function(generator_udtf(lit(3))).collect()
 
-foo = udtf(Foo, output_schema=["a", "b"], input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params=, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", force_inline_code=True)
+foo = udtf(Foo, output_schema=["a", "b"], input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params=, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", copy_grants=False, force_inline_code=True)
 
 ## EXPECTED ENCODED AST
 
@@ -94,6 +94,17 @@ body {
         input_types {
           list {
             sp_integer_type: true
+          }
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 46
+              }
+            }
           }
         }
         output_schema {
@@ -251,6 +262,17 @@ body {
         handler {
           id: 1
           name: "sum_udtf"
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 51
+              }
+            }
+          }
         }
         output_schema {
           udtf_schema__names {
@@ -506,6 +528,17 @@ body {
             sp_integer_type: true
           }
         }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 63
+              }
+            }
+          }
+        }
         output_schema {
           udtf_schema__type {
             return_type {
@@ -688,6 +721,17 @@ body {
         }
         is_permanent: true
         kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 72
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "force_inline_code"
           _2 {
             bool_val {
@@ -752,5 +796,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 23
+  minor: 24
 }

@@ -48,7 +48,7 @@ df = session.table("table1")
 
 df = df.select(col("NUM").as_("key"), col("STR").as_("value"))
 
-df3 = df.select(avg(col("value")).over(Window.partition_by(col("value")).order_by(col("key")).rows_between(Window.currentRow, 2)).as_("window1"), avg(col("value")).over(Window.order_by(col("key").desc()).range_between(Window.unboundedPreceding, Window.unboundedFollowing)).as_("window2"))
+df3 = df.select(avg(col("value")).over(Window.partition_by(col("value")).order_by(col("key")).rows_between(Window.currentRow, 0)).as_("window1"), avg(col("value")).over(Window.order_by(col("key").desc()).range_between(Window.unboundedPreceding, Window.unboundedFollowing)).as_("window2"))
 
 df4 = df.select(stddev(col("value")).over(Window.order_by(col("key"))))
 
@@ -58,13 +58,13 @@ df6 = df.select(avg(col("value")).over(Window.partition_by(col("key"))))
 
 df7 = df.select(avg(col("value")).over(Window.partition_by(col("key"))))
 
-df8 = df.select(avg(col("value")).over(Window.range_between(0, 2)))
+df8 = df.select(avg(col("value")).over(Window.range_between(0, 0)))
 
-df9 = df.select(avg(col("value")).over(Window.range_between(1, 2)))
+df9 = df.select(avg(col("value")).over(Window.range_between(0, 0)))
 
-df10 = df.select(avg(col("value")).over(Window.rows_between(0, 2)))
+df10 = df.select(avg(col("value")).over(Window.rows_between(0, 0)))
 
-df11 = df.select(avg(col("value")).over(Window.rows_between(1, 2)))
+df11 = df.select(avg(col("value")).over(Window.rows_between(0, 0)))
 
 df12 = df.select(avg(col("value")).over(Window.range_between(Window.currentRow, Window.unboundedFollowing)))
 
@@ -2092,5 +2092,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 23
+  minor: 24
 }
