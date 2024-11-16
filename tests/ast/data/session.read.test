@@ -1,44 +1,44 @@
 ## TEST CASE
 
-df1 = session.read.csv("resources/iris.csv")
+df1 = session.read.csv("@resources/iris.csv")
 
-df2 = session.read.json("resources/testJson.json")
+df2 = session.read.json("@resources/testJson.json")
 
-df3 = session.read.avro("resources/test.avro")
+df3 = session.read.avro("@resources/test.avro")
 
-df4 = session.read.parquet("resources/test.parquet")
+df4 = session.read.parquet("@resources/test.parquet")
 
-df5 = session.read.xml("resources/test.xml")
+df5 = session.read.xml("@resources/test.xml")
 
-df6 = session.read.orc("resources/test.orc")
+df6 = session.read.orc("@resources/test.orc")
 
-df7 = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv("testCSVheader.csv")
+df7 = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv("@testCSVheader.csv")
 
-df8 = session.read.options({"INFER_SCHEMA": True, "PARSE_HEADER": True}).csv("testCSVheader.csv")
+df8 = session.read.options({"INFER_SCHEMA": True, "PARSE_HEADER": True}).csv("@testCSVheader.csv")
 
 user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType()), StructField("c", FloatType())])
 
-df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(user_schema).csv("testCSVheader.csv")
+df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(user_schema).csv("@testCSVheader.csv")
 
 ## EXPECTED UNPARSER OUTPUT
 
-df1 = session.read.csv("resources/iris.csv")
+df1 = session.read.csv("@resources/iris.csv")
 
-df2 = session.read.json("resources/testJson.json")
+df2 = session.read.json("@resources/testJson.json")
 
-df3 = session.read.avro("resources/test.avro")
+df3 = session.read.avro("@resources/test.avro")
 
-df4 = session.read.parquet("resources/test.parquet")
+df4 = session.read.parquet("@resources/test.parquet")
 
-df5 = session.read.xml("resources/test.xml")
+df5 = session.read.xml("@resources/test.xml")
 
-df6 = session.read.orc("resources/test.orc")
+df6 = session.read.orc("@resources/test.orc")
 
-df7 = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv("testCSVheader.csv")
+df7 = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv("@testCSVheader.csv")
 
-df8 = session.read.options({"INFER_SCHEMA": True, "PARSE_HEADER": True}).csv("testCSVheader.csv")
+df8 = session.read.options({"INFER_SCHEMA": True, "PARSE_HEADER": True}).csv("@testCSVheader.csv")
 
-df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True), StructField("c", FloatType(), nullable=True)], structured=False)).csv("testCSVheader.csv")
+df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True), StructField("c", FloatType(), nullable=True)], structured=False)).csv("@testCSVheader.csv")
 
 ## EXPECTED ENCODED AST
 
@@ -46,7 +46,7 @@ body {
   assign {
     expr {
       sp_read_csv {
-        path: "resources/iris.csv"
+        path: "@resources/iris.csv"
         reader {
           sp_dataframe_reader_init {
             src {
@@ -74,7 +74,7 @@ body {
   assign {
     expr {
       sp_read_json {
-        path: "resources/testJson.json"
+        path: "@resources/testJson.json"
         reader {
           sp_dataframe_reader_init {
             src {
@@ -102,7 +102,7 @@ body {
   assign {
     expr {
       sp_read_avro {
-        path: "resources/test.avro"
+        path: "@resources/test.avro"
         reader {
           sp_dataframe_reader_init {
             src {
@@ -130,7 +130,7 @@ body {
   assign {
     expr {
       sp_read_parquet {
-        path: "resources/test.parquet"
+        path: "@resources/test.parquet"
         reader {
           sp_dataframe_reader_init {
             src {
@@ -158,7 +158,7 @@ body {
   assign {
     expr {
       sp_read_xml {
-        path: "resources/test.xml"
+        path: "@resources/test.xml"
         reader {
           sp_dataframe_reader_init {
             src {
@@ -186,7 +186,7 @@ body {
   assign {
     expr {
       sp_read_orc {
-        path: "resources/test.orc"
+        path: "@resources/test.orc"
         reader {
           sp_dataframe_reader_init {
             src {
@@ -214,7 +214,7 @@ body {
   assign {
     expr {
       sp_read_csv {
-        path: "testCSVheader.csv"
+        path: "@testCSVheader.csv"
         reader {
           sp_dataframe_reader_option {
             key: "PARSE_HEADER"
@@ -278,7 +278,7 @@ body {
   assign {
     expr {
       sp_read_csv {
-        path: "testCSVheader.csv"
+        path: "@testCSVheader.csv"
         reader {
           sp_dataframe_reader_options {
             configs {
@@ -338,7 +338,7 @@ body {
   assign {
     expr {
       sp_read_csv {
-        path: "testCSVheader.csv"
+        path: "@testCSVheader.csv"
         reader {
           sp_dataframe_reader_schema {
             reader {
@@ -461,5 +461,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 23
+  minor: 24
 }
