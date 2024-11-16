@@ -1,6 +1,59 @@
 # Release History
 
-## 1.25.0 (TBD)
+## 1.26.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for following methods in class `DataType`, derived class of `DataType` and `StructField`:
+  - `type_name`
+  - `simple_string`
+  - `json_value`
+  - `json`
+
+#### Improvements
+
+- Added support for specifying the following to `DataFrame.create_or_replace_dynamic_table`:
+  - `iceberg_config` A dictionary that can hold the following iceberg configuration options:
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
+- Added support for nested data types to `DataFrame.print_schema`
+
+#### Bug Fixes
+
+
+#### Dependency Updates
+
+
+### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+
+#### New Features
+
+- Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
+
+#### Bug Fixes
+
+
+#### Improvements
+
+
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+
+#### Bug Fixes
+
+
+## 1.25.0 (2024-11-14)
 
 ### Snowpark Python API Updates
 

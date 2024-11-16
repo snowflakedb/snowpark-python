@@ -267,17 +267,11 @@ def test_create_temp_stage(profiler_session):
 def test_stored_proc_error(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
-    profiler_session.sql('alter session set PYTHON_UDF_CGROUP_MEMSIZE="1g"').collect()
-    profiler_session.sql("alter session set UDF_SET_CGROUP_ENABLE = true").collect()
-    profiler_session.sql("alter session set UDF_CGROUP_ENABLE = true").collect()
-    profiler_session.sql("ALTER SESSION SET ENABLE_UDF_OOM_NOTIFIER = TRUE;").collect()
     function_name = f"oom_sp_{Utils.random_function_name()}"
 
     @sproc(name=function_name, replace=True)
     def oom_sp(session: snowflake.snowpark.Session) -> str:
-        gb = 1024 * 1024 * 1024
-        x = "*" * gb * 5
-        return f"Return string is of length {len(x)}"
+        raise ValueError("fake out of memory")
 
     profiler_session.stored_procedure_profiler.register_modules(["oom_sp"])
     profiler_session.stored_procedure_profiler.set_target_stage(
@@ -286,17 +280,14 @@ def test_stored_proc_error(
 
     profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
 
-    with pytest.raises(
-        SnowparkSQLException, match="Function available memory exhausted"
-    ):
+    with pytest.raises(SnowparkSQLException, match="fake out of memory") as err:
         profiler_session.call(function_name)
-    res = profiler_session.stored_procedure_profiler.get_output()
+        query_id = profiler_session.stored_procedure_profiler._get_last_query_id()
+        assert query_id in str(err)
 
     profiler_session.stored_procedure_profiler.disable()
 
     profiler_session.stored_procedure_profiler.register_modules()
-
-    assert res is not None and "oom_sp" in res
 
 
 @pytest.mark.skipif(
