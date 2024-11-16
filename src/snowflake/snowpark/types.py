@@ -5,10 +5,11 @@
 
 """This package contains all Snowpark logical types."""
 import datetime
+import json
 import re
 import sys
 from enum import Enum
-from typing import Generic, List, Optional, Type, TypeVar, Union
+from typing import Generic, List, Optional, Type, TypeVar, Union, Dict, Any
 
 import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -47,6 +48,23 @@ class DataType:
 
     def is_primitive(self):
         return True
+
+    @classmethod
+    def type_name(cls) -> str:
+        return cls.__name__[:-4].lower()
+
+    def simple_string(self) -> str:
+        return self.type_name()
+
+    def json_value(self) -> Union[str, Dict[str, Any]]:
+        return self.type_name()
+
+    def json(self) -> str:
+        return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
+
+    typeName = type_name
+    simpleString = simple_string
+    jsonValue = json_value
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         """Populates the provided SpDataType instance's fields with the values corresponding to this DataType's instance
@@ -171,10 +189,27 @@ class TimestampType(_AtomicType):
 
     def __init__(self, timezone: TimestampTimeZone = TimestampTimeZone.DEFAULT) -> None:
         self.tz = timezone  #: Timestamp variations
+        self.tzinfo = self.tz if self.tz != TimestampTimeZone.DEFAULT else ""
 
     def __repr__(self) -> str:
-        tzinfo = f"tz={self.tz}" if self.tz != TimestampTimeZone.DEFAULT else ""
-        return f"TimestampType({tzinfo})"
+        return (
+            f"TimestampType(tz={self.tzinfo})"
+            if self.tzinfo != ""
+            else "TimestampType()"
+        )
+
+    def simple_string(self) -> str:
+        return (
+            f"{self.type_name()}_{self.tzinfo}"
+            if self.tzinfo != ""
+            else self.type_name()
+        )
+
+    def json_value(self) -> str:
+        return self.simple_string()
+
+    simpleString = simple_string
+    jsonValue = json_value
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         if self.tz.value == "default":
@@ -206,12 +241,22 @@ class _FractionalType(_NumericType):
 class ByteType(_IntegralType):
     """Byte data type. This maps to the TINYINT data type in Snowflake."""
 
+    def simple_string(self) -> str:
+        return "tinyint"
+
+    simpleString = simple_string
+
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_byte_type = True
 
 
 class ShortType(_IntegralType):
     """Short integer data type. This maps to the SMALLINT data type in Snowflake."""
+
+    def simple_string(self) -> str:
+        return "smallint"
+
+    simpleString = simple_string
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_short_type = True
@@ -220,12 +265,22 @@ class ShortType(_IntegralType):
 class IntegerType(_IntegralType):
     """Integer data type. This maps to the INT data type in Snowflake."""
 
+    def simple_string(self) -> str:
+        return "int"
+
+    simpleString = simple_string
+
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_integer_type = True
 
 
 class LongType(_IntegralType):
     """Long integer data type. This maps to the BIGINT data type in Snowflake."""
+
+    def simple_string(self) -> str:
+        return "bigint"
+
+    simpleString = simple_string
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_long_type = True
@@ -258,6 +313,15 @@ class DecimalType(_FractionalType):
     def __repr__(self) -> str:
         return f"DecimalType({self.precision}, {self.scale})"
 
+    def simple_string(self) -> str:
+        return f"decimal({self.precision},{self.scale})"
+
+    def json_value(self) -> str:
+        return f"decimal({self.precision},{self.scale})"
+
+    simpleString = simple_string
+    jsonValue = json_value
+
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_decimal_type.precision = self.precision
         ast.sp_decimal_type.scale = self.scale
@@ -267,7 +331,9 @@ class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
 
     def __init__(
-        self, element_type: Optional[DataType] = None, structured: bool = False
+        self,
+        element_type: Optional[DataType] = None,
+        structured: bool = False,
     ) -> None:
         self.structured = structured
         self.element_type = element_type if element_type else StringType()
@@ -277,6 +343,18 @@ class ArrayType(DataType):
 
     def is_primitive(self):
         return False
+
+    def simple_string(self) -> str:
+        return f"array<{self.element_type.simple_string()}>"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {
+            "type": self.type_name(),
+            "element_type": self.element_type.json_value(),
+        }
+
+    simpleString = simple_string
+    jsonValue = json_value
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_array_type.structured = self.structured
@@ -301,6 +379,19 @@ class MapType(DataType):
 
     def is_primitive(self):
         return False
+
+    def simple_string(self) -> str:
+        return f"map<{self.key_type.simple_string()},{self.value_type.simple_string()}>"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {
+            "type": self.type_name(),
+            "key_type": self.key_type.json_value(),
+            "value_type": self.value_type.json_value(),
+        }
+
+    simpleString = simple_string
+    jsonValue = json_value
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_map_type.structured = self.structured
@@ -441,6 +532,28 @@ class StructField:
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
 
+    def simple_string(self) -> str:
+        return f"{self.name}:{self.datatype.simple_string()}"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "type": self.datatype.json_value(),
+            "nullable": self.nullable,
+        }
+
+    def json(self) -> str:
+        return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
+
+    def type_name(self) -> str:
+        raise TypeError(
+            "StructField does not have typeName. Use typeName on its type explicitly instead"
+        )
+
+    typeName = type_name
+    simpleString = simple_string
+    jsonValue = json_value
+
     def _fill_ast(self, ast: proto.SpStructField) -> None:
         self.column_identifier._fill_ast(ast.column_identifier)
         self.datatype._fill_ast(ast.data_type)
@@ -516,6 +629,15 @@ class StructType(DataType):
     def names(self) -> List[str]:
         """Returns the list of names of the :class:`StructField`"""
         return [f.name for f in self.fields]
+
+    def simple_string(self) -> str:
+        return f"struct<{','.join(f.simple_string() for f in self)}>"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {"type": self.type_name(), "fields": [f.json_value() for f in self]}
+
+    simpleString = simple_string
+    jsonValue = json_value
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_struct_type.structured = self.structured
