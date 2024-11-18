@@ -674,7 +674,7 @@ _all_complex_types: Dict[str, Type[Union[ArrayType, MapType, StructType]]] = {
     v.typeName(): v for v in _complex_types
 }
 
-_FIXED_DECIMAL = re.compile(r"decimal\(\s*(\d+)\s*,\s*(-?\d+)\s*\)")
+_FIXED_DECIMAL_PATTERN = re.compile(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)")
 
 
 def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
@@ -683,8 +683,8 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
             return _all_atomic_types[json_value]()
         elif json_value == "decimal":
             return DecimalType()
-        elif _FIXED_DECIMAL.match(json_value):
-            m = _FIXED_DECIMAL.match(json_value)
+        elif _FIXED_DECIMAL_PATTERN.match(json_value):
+            m = _FIXED_DECIMAL_PATTERN.match(json_value)
             return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]
         else:
             raise ValueError(f"Cannot parse data type: {str(json_value)}")
