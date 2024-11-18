@@ -93,10 +93,7 @@ def analyze_attributes(
 
     # collect describe query details for telemetry
     stack = traceback.extract_stack(limit=10)[:-1]
-    if len(stack) >= 2:
-        stack_trace = [frame.line for frame in stack]
-    else:
-        stack_trace = None
+    stack_trace = [frame.line for frame in stack] if len(stack) > 0 else None
     start_time = time.time()
     attributes = session._get_result_attributes(sql)
     e2e_time = time.time() - start_time
