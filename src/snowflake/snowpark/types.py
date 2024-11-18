@@ -691,8 +691,9 @@ _all_complex_types: Dict[str, Type[Union[ArrayType, MapType, StructType]]] = {
     v.typeName(): v for v in _complex_types
 }
 
-_FIXED_DECIMAL = re.compile(r"decimal\(\s*(\d+)\s*,\s*(-?\d+)\s*\)")
 _FIXED_VECTOR = re.compile(r"vector\(\s*(int|float)\s*,\s*(-?\d+)\s*\)")
+_FIXED_DECIMAL_PATTERN = re.compile(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)")
+
 
 
 def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
@@ -701,9 +702,9 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
             return _all_atomic_types[json_value]()
         elif json_value == "decimal":
             return DecimalType()
-        elif _FIXED_DECIMAL.match(json_value):
-            m = _FIXED_DECIMAL.match(json_value)
-            return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]
+        elif _FIXED_DECIMAL_PATTERN.match(json_value):
+          m = _FIXED_DECIMAL_PATTERN.match(json_value)
+          return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]
         elif _FIXED_VECTOR.match(json_value):
             m = _FIXED_VECTOR.match(json_value)
             return VectorType(m.group(1), int(m.group(2)))  # type: ignore[union-attr]
