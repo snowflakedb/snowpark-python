@@ -286,6 +286,16 @@ class ArrayType(DataType):
     def is_primitive(self):
         return False
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "ArrayType":
+        return ArrayType(
+            _parse_datatype_json_value(
+                json_dict["elementType"]
+                if "elementType" in json_dict
+                else json_dict["element_type"]
+            )
+        )
+
     def simple_string(self) -> str:
         return f"array<{self.element_type.simple_string()}>"
 
@@ -297,6 +307,7 @@ class ArrayType(DataType):
 
     simpleString = simple_string
     jsonValue = json_value
+    fromJson = from_json
 
 
 class MapType(DataType):
@@ -318,6 +329,21 @@ class MapType(DataType):
     def is_primitive(self):
         return False
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "MapType":
+        return MapType(
+            _parse_datatype_json_value(
+                json_dict["keyType"]
+                if "keyType" in json_dict
+                else json_dict["key_type"]
+            ),
+            _parse_datatype_json_value(
+                json_dict["valueType"]
+                if "valueType" in json_dict
+                else json_dict["value_type"]
+            ),
+        )
+
     def simple_string(self) -> str:
         return f"map<{self.key_type.simple_string()},{self.value_type.simple_string()}>"
 
@@ -338,6 +364,7 @@ class MapType(DataType):
 
     simpleString = simple_string
     jsonValue = json_value
+    fromJson = from_json
 
 
 class VectorType(DataType):
@@ -461,6 +488,14 @@ class StructField:
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "StructField":
+        return StructField(
+            json_dict["name"],
+            _parse_datatype_json_value(json_dict["type"]),
+            json_dict["nullable"],
+        )
+
     def simple_string(self) -> str:
         return f"{self.name}:{self.datatype.simple_string()}"
 
@@ -482,6 +517,7 @@ class StructField:
     typeName = type_name
     simpleString = simple_string
     jsonValue = json_value
+    fromJson = from_json
 
 
 class StructType(DataType):
@@ -554,6 +590,10 @@ class StructType(DataType):
         """Returns the list of names of the :class:`StructField`"""
         return [f.name for f in self.fields]
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "StructType":
+        return StructType([StructField.fromJson(f) for f in json_dict["fields"]])
+
     def simple_string(self) -> str:
         return f"struct<{','.join(f.simple_string() for f in self)}>"
 
@@ -562,6 +602,8 @@ class StructType(DataType):
 
     simpleString = simple_string
     jsonValue = json_value
+    fieldNames = names
+    fromJson = from_json
 
 
 class VariantType(DataType):
@@ -612,6 +654,54 @@ class PandasDataFrameType(_PandasType):
             tp.element_type if isinstance(tp, PandasSeriesType) else tp
             for tp in self.col_types
         ]
+
+
+_atomic_types: List[Type[DataType]] = [
+    StringType,
+    BinaryType,
+    BooleanType,
+    DecimalType,
+    FloatType,
+    DoubleType,
+    ByteType,
+    ShortType,
+    IntegerType,
+    LongType,
+    DateType,
+    TimestampType,
+    NullType,
+]
+_all_atomic_types: Dict[str, Type[DataType]] = {t.typeName(): t for t in _atomic_types}
+
+_complex_types: List[Type[Union[ArrayType, MapType, StructType]]] = [
+    ArrayType,
+    MapType,
+    StructType,
+]
+_all_complex_types: Dict[str, Type[Union[ArrayType, MapType, StructType]]] = {
+    v.typeName(): v for v in _complex_types
+}
+
+_FIXED_DECIMAL_PATTERN = re.compile(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)")
+
+
+def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
+    if not isinstance(json_value, dict):
+        if json_value in _all_atomic_types.keys():
+            return _all_atomic_types[json_value]()
+        elif json_value == "decimal":
+            return DecimalType()
+        elif _FIXED_DECIMAL_PATTERN.match(json_value):
+            m = _FIXED_DECIMAL_PATTERN.match(json_value)
+            return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]
+        else:
+            raise ValueError(f"Cannot parse data type: {str(json_value)}")
+    else:
+        tpe = json_value["type"]
+        if tpe in _all_complex_types:
+            return _all_complex_types[tpe].fromJson(json_value)
+        else:
+            raise ValueError(f"Unsupported data type: {str(tpe)}")
 
 
 #: The type hint for annotating Variant data when registering UDFs.
