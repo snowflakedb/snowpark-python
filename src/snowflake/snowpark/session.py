@@ -672,6 +672,18 @@ class Session:
             )
         return self._thread_store.analyzer
 
+    @classmethod
+    def get_active_session(cls) -> Optional["Session"]:
+        """Gets the last created session."""
+        try:
+            return _get_active_session()
+        except SnowparkClientException as ex:
+            if ex.error_code == "1403":
+                return None
+            raise ex
+
+    getActiveSession = get_active_session
+
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
@@ -699,6 +711,11 @@ class Session:
     @property
     def conf(self) -> RuntimeConfig:
         return self._conf
+
+    @property
+    def version(self) -> str:
+        """Get the version of the Snowpark library."""
+        return get_version()
 
     @property
     def sql_simplifier_enabled(self) -> bool:
