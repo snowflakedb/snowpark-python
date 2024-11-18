@@ -520,6 +520,7 @@ class Session:
 "python.connector.session.id" : {self._session_id},
 "os.name" : {get_os_name()}
 """
+        self.version = get_version()
         self._session_stage = None
 
         if isinstance(conn, MockServerConnection):
@@ -712,11 +713,6 @@ class Session:
     @property
     def conf(self) -> RuntimeConfig:
         return self._conf
-
-    @property
-    def version(self) -> str:
-        """Get the version of the Snowpark library."""
-        return get_version()
 
     @property
     def sql_simplifier_enabled(self) -> bool:
