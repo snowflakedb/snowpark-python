@@ -62,6 +62,11 @@ def test_str(account, role, database, schema, warehouse):
     )
 
 
+def test_get_active_session_when_no_active_sessions():
+    assert Session.get_active_session() is None
+    assert Session.getActiveSession() is None
+
+
 def test_used_scoped_temp_object():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
