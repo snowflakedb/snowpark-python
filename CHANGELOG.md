@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added support for property `version` and class method `get_active_session` for `Session` class.
 - Added support for following methods in class `DataType`, derived class of `DataType` and `StructField`:
   - `type_name`
   - `simple_string`

@@ -5,7 +5,6 @@
 
 import os
 from functools import partial
-from unittest import mock
 from unittest.mock import patch
 
 import pytest
@@ -13,7 +12,11 @@ import pytest
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    get_version,
+    parse_table_name,
+)
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
@@ -122,9 +125,7 @@ def test_active_session(session):
 
 
 def test_session_version(session):
-    with mock.patch.object(snowflake.snowpark.session, "get_version") as mock_fn:
-        mock_fn.return_value = "0.0.1"
-        assert session.version == "0.0.1"
+    assert session.version == get_version()
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
