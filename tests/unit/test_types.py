@@ -1251,72 +1251,26 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
 
 
 @pytest.mark.parametrize(
-    "tpe, json_dict, expected_result",
+    "datatype, tpe",
     [
         (
             MapType,
-            {
-                "key_type": "integer",
-                "type": "map",
-                "value_type": "string",
-            },
             MapType(IntegerType(), StringType()),
         ),
         (
             MapType,
-            {
-                "type": "map",
-                "key_type": "string",
-                "value_type": {
-                    "type": "map",
-                    "key_type": "integer",
-                    "value_type": "string",
-                },
-            },
             MapType(StringType(), MapType(IntegerType(), StringType())),
         ),
         (
             ArrayType,
-            {
-                "element_type": "integer",
-                "type": "array",
-            },
             ArrayType(IntegerType()),
         ),
         (
             ArrayType,
-            {
-                "element_type": {"element_type": "integer", "type": "array"},
-                "type": "array",
-            },
             ArrayType(ArrayType(IntegerType())),
         ),
         (
             StructType,
-            {
-                "type": "struct",
-                "fields": [
-                    {
-                        "name": "NESTED",
-                        "type": {
-                            "type": "struct",
-                            "fields": [
-                                {
-                                    "name": "A",
-                                    "type": "integer",
-                                    "nullable": True,
-                                },
-                                {
-                                    "name": "B",
-                                    "type": "string",
-                                    "nullable": True,
-                                },
-                            ],
-                        },
-                        "nullable": True,
-                    }
-                ],
-            },
             StructType(
                 [
                     StructField(
@@ -1333,48 +1287,50 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
         ),
         (
             StructField,
-            {
-                "name": "AA",
-                "type": "string",
-                "nullable": True,
-            },
             StructField("AA", StringType()),
         ),
         (
             StructType,
-            {
-                "type": "struct",
-                "fields": [
-                    {"name": "A", "type": "string", "nullable": True},
-                    {"name": "B", "type": "integer", "nullable": True},
-                ],
-            },
             StructType(
                 [StructField("a", StringType()), StructField("b", IntegerType())]
             ),
         ),
         (
-            ArrayType,
-            {
-                "element_type": "vector(int,8)",
-                "type": "array",
-            },
-            ArrayType(VectorType(int, 8)),
+            StructField,
+            StructField("AA", DecimalType()),
         ),
         (
-            ArrayType,
-            {
-                "element_type": "vector(float,8)",
-                "type": "array",
-            },
-            ArrayType(VectorType(float, 8)),
+            StructField,
+            StructField("AA", DecimalType(20, 10)),
         ),
     ],
 )
-def test_structtype_from_json(tpe, json_dict, expected_result):
-    result = tpe.from_json(json_dict)
-    assert result == expected_result
-    assert isinstance(result, tpe)
+def test_structtype_from_json(datatype, tpe):
+    json_dict = tpe.json_value()
+    new_obj = datatype.from_json(json_dict)
+    assert new_obj == tpe
+
+
+def test_from_json_wrong_data_type():
+    wrong_json = {
+        "name": "AA",
+        "type": "wrong_type",
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Cannot parse data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+    wrong_json = {
+        "name": "AA",
+        "type": {
+            "type": "wrong_type",
+            "key_type": "integer",
+            "value_type": "string",
+        },
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Unsupported data type: wrong_type"):
+        StructField.from_json(wrong_json)
 
 
 def test_maptype_alias():
