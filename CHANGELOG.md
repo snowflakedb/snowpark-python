@@ -11,6 +11,7 @@
   - `simple_string`
   - `json_value`
   - `json`
+- Added support for variables `keyType` and `valueType` in class `MapType`
 
 #### Improvements
 
