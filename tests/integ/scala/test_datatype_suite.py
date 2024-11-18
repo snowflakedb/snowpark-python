@@ -943,3 +943,25 @@ def test_structured_type_print_schema(
         ' |   |   |   |-- "FIELD1": StringType() (nullable = True)\n'
         ' |   |   |   |-- "FIELD2": LongType() (nullable = True)\n'
     )
+
+    # Test that depth works as expected
+    assert df._format_schema(1) == ('root\n |-- "MAP": MapType (nullable = True)')
+    assert df._format_schema(2) == (
+        "root\n"
+        ' |-- "MAP": MapType (nullable = True)\n'
+        " |   |-- key: StringType()\n"
+        " |   |-- value: ArrayType"
+    )
+    assert df._format_schema(3) == (
+        "root\n"
+        ' |-- "MAP": MapType (nullable = True)\n'
+        " |   |-- key: StringType()\n"
+        " |   |-- value: ArrayType\n"
+        " |   |   |-- element: StructType"
+    )
+
+    # Check that column names can be translated
+    assert (
+        df._format_schema(1, translate_columns={'"MAP"': '"map"'})
+        == 'root\n |-- "map": MapType (nullable = True)'
+    )
