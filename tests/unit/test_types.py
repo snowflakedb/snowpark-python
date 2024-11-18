@@ -1234,3 +1234,14 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             tpe.typeName()
     else:
         assert tpe.typeName() == type_name
+
+
+def test_maptype_alias():
+    expected_key = StringType()
+    expected_value = IntegerType()
+    tpe = MapType(expected_key, expected_value)
+    assert tpe.valueType == expected_value
+    assert tpe.keyType == expected_key
+
+    assert tpe.valueType == tpe.value_type
+    assert tpe.keyType == tpe.key_type
