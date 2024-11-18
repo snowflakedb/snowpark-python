@@ -678,6 +678,7 @@ class Session:
         try:
             return _get_active_session()
         except SnowparkClientException as ex:
+            # If there is no active session, return None
             if ex.error_code == "1403":
                 return None
             raise ex
