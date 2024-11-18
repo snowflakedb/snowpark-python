@@ -6,19 +6,17 @@
 
 #### New Features
 
-- Added support for following methods in class `DataType`, derived class of `DataType` and `StructField`:
-  - `type_name`
-  - `simple_string`
-  - `json_value`
-  - `json`
-- Added support for method `from_json` in the following type classes:
-  - `ArrayType`
-  - `MapType`
-  - `StructField`
-  - `StructType`
-
-- Added support for variables `keyType` and `valueType` in class `MapType`
-
+- Added new methods and variables to enhance data type handling and JSON serialization/deserialization:
+  - To `DataType`, its derived classes, and `StructField`:
+    - `type_name`: Returns the type name of the data.
+    - `simple_string`: Provides a simple string representation of the data.
+    - `json_value`: Returns the data as a JSON-compatible value.
+    - `json`: Converts the data to a JSON string.
+  - To `ArrayType`, `MapType`, `StructField`, and `StructType`:
+    - `from_json`: Enables these types to be created from JSON data.
+  - To `MapType`:
+    - `keyType`: keys of the map
+    - `valueType`: values of the map
 
 #### Improvements
 
