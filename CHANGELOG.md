@@ -17,6 +17,7 @@
   - To `MapType`:
     - `keyType`: keys of the map
     - `valueType`: values of the map
+- Added support for `format` and `load` for `DataFrameReader`, and `format` and `save` for `DataFrameWriter`.
 
 #### Improvements
 
