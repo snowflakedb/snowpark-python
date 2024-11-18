@@ -327,6 +327,7 @@ class DataFrameReader:
             List["snowflake.snowpark.column.Column"]
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
+        self._format: Optional[str] = None
 
     @property
     def _infer_schema(self):

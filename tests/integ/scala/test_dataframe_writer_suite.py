@@ -647,6 +647,21 @@ def test_format_save(session, temp_stage, format_type):
     assert files[0].name.endswith(format_type)
 
 
+def test_format_save_negative(session):
+    df = session.sql("select 1 as a, 2 as b")
+    with pytest.raises(
+        ValueError,
+        match="Unsupported file format. Expected.*, got 'unsupported_format'",
+    ):
+        df.write.format("unsupported_format").save("test_path")
+
+    with pytest.raises(
+        ValueError,
+        match="File format type is not specified. Call `format` before calling `save`",
+    ):
+        df.write.save("test_path")
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'replace_repeated_subquery_with_cte'",

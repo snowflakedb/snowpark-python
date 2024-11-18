@@ -461,7 +461,7 @@ class DataFrameWriter:
         canon_file_format_name = file_format_name.strip().lower()
         if canon_file_format_name not in allowed_formats:
             raise ValueError(
-                f"Unsupported file format. Expected file formats: {allowed_formats}, got {file_format_name}"
+                f"Unsupported file format. Expected file formats: {allowed_formats}, got '{file_format_name}'"
             )
 
         self._file_format_name = canon_file_format_name
