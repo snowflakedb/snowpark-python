@@ -694,4 +694,4 @@ jobs:
         with:
           include-hidden-files: true
           name: docs
-          path: docs/build/html
+          path: .tox/docs_out

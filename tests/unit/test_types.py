@@ -1375,3 +1375,15 @@ def test_structtype_from_json(tpe, json_dict, expected_result):
     result = tpe.from_json(json_dict)
     assert result == expected_result
     assert isinstance(result, tpe)
+
+
+def test_maptype_alias():
+    expected_key = StringType()
+    expected_value = IntegerType()
+    tpe = MapType(expected_key, expected_value)
+    assert tpe.valueType == expected_value
+    assert tpe.keyType == expected_key
+
+    assert tpe.valueType == tpe.value_type
+    assert tpe.keyType == tpe.key_type
+
