@@ -4071,6 +4071,19 @@ class DataFrame:
         Returns:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
+
+        Note:
+            A temporary table is created to store the cached result and a :class:`Table` object is returned.
+            You can retrieve the table name by accessing :attr:`Table.table_name`. Note that this temporary
+            Snowflake table
+
+                - may be automatically removed when the Table object is no longer referenced if
+                  :attr:`Session.auto_clean_up_temp_table_enabled` is set to ``True``.
+
+                - will be dropped after the session is closed.
+
+            To retain a persistent table, consider using :meth:`DataFrameWriter.save_as_table` to persist
+            the cached result.
         """
         with open_telemetry_context_manager(self.cache_result, self):
             from snowflake.snowpark.mock._connection import MockServerConnection

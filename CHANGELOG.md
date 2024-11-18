@@ -6,11 +6,17 @@
 
 #### New Features
 
-- Added support for following methods in class `DataType`, derived class of `DataType` and `StructField`:
-  - `type_name`
-  - `simple_string`
-  - `json_value`
-  - `json`
+- Added new methods and variables to enhance data type handling and JSON serialization/deserialization:
+  - To `DataType`, its derived classes, and `StructField`:
+    - `type_name`: Returns the type name of the data.
+    - `simple_string`: Provides a simple string representation of the data.
+    - `json_value`: Returns the data as a JSON-compatible value.
+    - `json`: Converts the data to a JSON string.
+  - To `ArrayType`, `MapType`, `StructField`, and `StructType`:
+    - `from_json`: Enables these types to be created from JSON data.
+  - To `MapType`:
+    - `keyType`: keys of the map
+    - `valueType`: values of the map
 
 #### Improvements
 
@@ -36,8 +42,8 @@
 
 #### New Features
 
+- Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
-
 
 #### Bug Fixes
 
