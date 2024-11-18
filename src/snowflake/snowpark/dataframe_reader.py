@@ -4,7 +4,7 @@
 
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -411,6 +411,55 @@ class DataFrameReader:
             for col in metadata_cols
         ]
         return self
+
+    def format(
+        self, format: Literal["csv", "json", "avro", "parquet", "orc", "xml"]
+    ) -> "DataFrameReader":
+        """Specify the format of the file(s) to load.
+
+        Args:
+            format: The format of the file(s) to load. Supported formats are csv, json, avro, parquet, orc, and xml.
+
+        Returns:
+            a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
+        """
+        canon_format = format.strip().lower()
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml"]
+        if canon_format not in allowed_formats:
+            raise ValueError(
+                f"Invalid format '{format}'. Supported formats are {allowed_formats}."
+            )
+        self._format = canon_format
+        return self
+
+    def load(self, path: str) -> DataFrame:
+        """Specify the path of the file(s) to load.
+
+        Args:
+            path: The stage location of a file, or a stage location that has files.
+
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified file(s) in a Snowflake stage.
+        """
+        if self._format is None:
+            raise ValueError(
+                "Please specify the format of the file(s) to load using the format() method."
+            )
+
+        if self._format == "csv":
+            return self.csv(path)
+        elif self._format == "json":
+            return self.json(path)
+        elif self._format == "avro":
+            return self.avro(path)
+        elif self._format == "parquet":
+            return self.parquet(path)
+        elif self._format == "orc":
+            return self.orc(path)
+        elif self._format == "xml":
+            return self.xml(path)
+
+        raise ValueError(f"Invalid format '{self._format}'.")
 
     def csv(self, path: str) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
