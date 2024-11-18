@@ -328,6 +328,14 @@ class MapType(DataType):
             "value_type": self.value_type.json_value(),
         }
 
+    @property
+    def keyType(self):
+        return self.key_type
+
+    @property
+    def valueType(self):
+        return self.value_type
+
     simpleString = simple_string
     jsonValue = json_value
 
