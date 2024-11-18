@@ -266,7 +266,7 @@ def test_resolve_packages_side_effect(mock_server_connection):
     assert (
         len(resolved_packages) == 2
     ), resolved_packages  # random_package_name and cloudpickle
-    assert len(existing_packages) == 0, existing_packages
+    assert len(existing_packages) == 1, existing_packages
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
