@@ -659,6 +659,7 @@ def test_concurrent_update_on_sensitive_configs(
     threadsafe_session, config, value, caplog
 ):
     original_value = threadsafe_session.conf.get(config)
+
     def change_config_value(session_):
         session_.conf.set(config, value)
 
