@@ -1234,3 +1234,97 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             tpe.typeName()
     else:
         assert tpe.typeName() == type_name
+
+
+@pytest.mark.parametrize(
+    "datatype, tpe",
+    [
+        (
+            MapType,
+            MapType(IntegerType(), StringType()),
+        ),
+        (
+            MapType,
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+        ),
+        (
+            ArrayType,
+            ArrayType(IntegerType()),
+        ),
+        (
+            ArrayType,
+            ArrayType(ArrayType(IntegerType())),
+        ),
+        (
+            StructType,
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+        ),
+        (
+            StructField,
+            StructField("AA", StringType()),
+        ),
+        (
+            StructType,
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType()),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType(20, 10)),
+        ),
+    ],
+)
+def test_structtype_from_json(datatype, tpe):
+    json_dict = tpe.json_value()
+    new_obj = datatype.from_json(json_dict)
+    assert new_obj == tpe
+
+
+def test_from_json_wrong_data_type():
+    wrong_json = {
+        "name": "AA",
+        "type": "wrong_type",
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Cannot parse data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+    wrong_json = {
+        "name": "AA",
+        "type": {
+            "type": "wrong_type",
+            "key_type": "integer",
+            "value_type": "string",
+        },
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Unsupported data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+
+def test_maptype_alias():
+    expected_key = StringType()
+    expected_value = IntegerType()
+    tpe = MapType(expected_key, expected_value)
+    assert tpe.valueType == expected_value
+    assert tpe.keyType == expected_key
+
+    assert tpe.valueType == tpe.value_type
+    assert tpe.keyType == tpe.key_type
