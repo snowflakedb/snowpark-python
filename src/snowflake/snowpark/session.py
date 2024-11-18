@@ -1822,9 +1822,7 @@ class Session:
         # dictionary to avoid modifying it during intermediate steps.
         with self._package_lock:
             result_dict = (
-                existing_packages_dict.copy()
-                if existing_packages_dict is not None
-                else {}
+                existing_packages_dict if existing_packages_dict is not None else {}
             )
 
             # Retrieve list of dependencies that need to be added
