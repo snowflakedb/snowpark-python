@@ -213,6 +213,8 @@ _ONE_MILLION = 1000000
 _NUM_PREFIX_DIGITS = 4
 _UNALIASED_REGEX = re.compile(f"""._[a-zA-Z0-9]{{{_NUM_PREFIX_DIGITS}}}_(.*)""")
 
+_prefix_counter = itertools.count()
+
 
 def _generate_prefix(prefix: str) -> str:
     return f"{prefix}_{generate_random_alphanumeric(_NUM_PREFIX_DIGITS)}_"
@@ -222,11 +224,11 @@ def _generate_deterministic_prefix(prefix: str, exclude_prefixes: List[str]):
     """
     Generate deterministic prefix while ensuring it doesn't exist in the exclude list.
     """
-    candidate_prefix = f"{prefix}_{0:04}_"
-    counter = 1
+    counter = next(_prefix_counter)
+    candidate_prefix = f"{prefix}_{counter:04}_"
     while any([p.startswith(candidate_prefix) for p in exclude_prefixes]):
         candidate_prefix = f"{prefix}_{counter:04}_"
-        counter = counter + 1
+        counter = next(_prefix_counter)
     return candidate_prefix
 
 
