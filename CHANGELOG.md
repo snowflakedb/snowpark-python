@@ -17,6 +17,9 @@
   - `StructField`
   - `StructType`
 
+- Added support for variables `keyType` and `valueType` in class `MapType`
+
+
 #### Improvements
 
 - Added support for specifying the following to `DataFrame.create_or_replace_dynamic_table`:

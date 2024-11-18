@@ -1317,3 +1317,14 @@ def test_from_json_wrong_data_type():
     }
     with pytest.raises(ValueError, match="Unsupported data type: wrong_type"):
         StructField.from_json(wrong_json)
+
+
+def test_maptype_alias():
+    expected_key = StringType()
+    expected_value = IntegerType()
+    tpe = MapType(expected_key, expected_value)
+    assert tpe.valueType == expected_value
+    assert tpe.keyType == expected_key
+
+    assert tpe.valueType == tpe.value_type
+    assert tpe.keyType == tpe.key_type
