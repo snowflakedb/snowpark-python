@@ -1089,6 +1089,12 @@ class DataFrame:
         else:
             return Column(self._resolve(col_name))
 
+    def col_regex(self, col_name: str) -> Column:
+        if not isinstance(col_name, str):
+            raise ValueError(
+                f"regex provided to col_regex() must be string, got {type(col_name)} with value of {col_name} instead."
+            )
+
     @df_api_usage
     def select(
         self,
