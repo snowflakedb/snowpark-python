@@ -137,6 +137,7 @@ def test_multiple_active_sessions(session, db_parameters):
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_get_active_session(session, db_parameters):
     assert Session.get_active_session() == session
+    assert Session.getActiveSession() == session
 
     with Session.builder.configs(db_parameters).create():
         with pytest.raises(
