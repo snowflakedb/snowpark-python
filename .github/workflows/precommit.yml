@@ -127,7 +127,7 @@ jobs:
           - os: ubuntu-latest-64-cores
             python-version: "3.10"
             cloud-provider: gcp
-          # only run windows with py3.10 on gcp
+          # only run windows with py3.11 on gcp and py3.12 on azure
           - os: windows-latest-64-cores
             python-version: "3.9"
           - os: windows-latest-64-cores
@@ -143,7 +143,7 @@ jobs:
             cloud-provider: aws
           - os: windows-latest-64-cores
             python-version: "3.12"
-            cloud-provider: azure
+            cloud-provider: gcp
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -187,7 +187,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
-          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.13 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
@@ -384,7 +385,7 @@ jobs:
           - os: ubuntu-latest-64-cores
             python-version: "3.10"
             cloud-provider: gcp
-          # only run windows with py3.10 on gcp
+          # only run windows with py3.11 on gcp and py3.12 on azure
           - os: windows-latest-64-cores
             python-version: "3.9"
           - os: windows-latest-64-cores
@@ -400,7 +401,7 @@ jobs:
             cloud-provider: aws
           - os: windows-latest-64-cores
             python-version: "3.12"
-            cloud-provider: azure
+            cloud-provider: gcp
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -444,7 +445,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
-          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.11 with no server-side support
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.13 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
         # do not run other tests for macos on aws
