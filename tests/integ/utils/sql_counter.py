@@ -34,6 +34,7 @@ INSERT = "INSERT "
 WITH = "WITH "
 CREATE_TEMP_TABLE = "CREATE  TEMPORARY  TABLE"
 UNION = " UNION "
+WINDOW = " OVER "
 
 NO_CHECK = "no_check"
 
@@ -44,6 +45,7 @@ UDF_COUNT_PARAMETER = "udf_count"
 UDTF_COUNT_PARAMETER = "udtf_count"
 SELECT_COUNT_PARAMETER = "select_count"
 UNION_COUNT_PARAMETER = "union_count"
+WINDOW_COUNT_PARAMETER = "window_count"
 DESCRIBE_COUNT_PARAMETER = "describe_count"
 EXPECT_HIGH_COUNT = "expect_high_count"
 HIGH_COUNT_REASON = "high_count_reason"
@@ -57,6 +59,7 @@ SQL_COUNT_PARAMETERS = [
     SELECT_COUNT_PARAMETER,
     UNION_COUNT_PARAMETER,
     DESCRIBE_COUNT_PARAMETER,
+    WINDOW_COUNT_PARAMETER,
 ]
 BOOL_PARAMETERS = [EXPECT_HIGH_COUNT]
 
@@ -345,6 +348,9 @@ class SqlCounter:
     def actual_union_count(self):
         return self._count_instances_by_query_substr(contains=[UNION])
 
+    def actual_window_count(self):
+        return self._count_instances_by_query_substr(contains=[WINDOW])
+
     def actual_describe_count(self):
         return len([q for q in self._queries if q.is_describe])
 
@@ -377,6 +383,7 @@ def sql_count_checker(
     udf_count=None,
     udtf_count=None,
     union_count=None,
+    window_count=None,
     *args,
     **kwargs,
 ):
