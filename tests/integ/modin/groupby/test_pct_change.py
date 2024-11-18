@@ -124,3 +124,9 @@ def test_df_groupby_pct_change_nonnumeric_negative():
 def test_df_groupby_pct_change_unsupported(params):
     with pytest.raises(NotImplementedError):
         pd.DataFrame(BASIC_DATA).groupby(0).pct_change(**params).to_pandas()
+
+
+@sql_count_checker(query_count=0)
+def test_df_groupby_pct_change_bad_periods():
+    with pytest.raises(TypeError):
+        pd.DataFrame(BASIC_DATA).groupby(0).pct_change(periods=1.0).to_pandas()
