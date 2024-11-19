@@ -1098,8 +1098,8 @@ def test_udtf_call_and_invoke(session, resources_path):
 
     expected_data = {"func_name": "UDTFRegistration.register", "category": "create"}
     assert telemetry_tracker.find_message_in_log_data(
-        2, sum_udtf_partial, expected_data
-    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+        3, sum_udtf_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 3 message log entries"
 
     sum_udtf = sum_udtf_partial()
     select_partial = partial(df.select, sum_udtf(df.a, df.b))
@@ -1108,8 +1108,8 @@ def test_udtf_call_and_invoke(session, resources_path):
         "category": "usage",
     }
     assert telemetry_tracker.find_message_in_log_data(
-        2, select_partial, expected_data
-    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+        3, select_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 3 message log entries"
 
     # udtf register from file
     test_files = TestFiles(resources_path)
@@ -1127,8 +1127,8 @@ def test_udtf_call_and_invoke(session, resources_path):
         "category": "create",
     }
     assert telemetry_tracker.find_message_in_log_data(
-        2, my_udtf_partial, expected_data
-    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+        3, my_udtf_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 3 message log entries"
     my_udtf = my_udtf_partial()
 
     invoke_partial = partial(
@@ -1149,8 +1149,8 @@ def test_udtf_call_and_invoke(session, resources_path):
         "category": "usage",
     }
     assert telemetry_tracker.find_message_in_log_data(
-        2, invoke_partial, expected_data
-    ), f"could not find expected message: {expected_data} in the last 2 message log entries"
+        3, invoke_partial, expected_data
+    ), f"could not find expected message: {expected_data} in the last 3 message log entries"
 
 
 @pytest.mark.skip(
@@ -1284,3 +1284,28 @@ def test_cursor_created_telemetry(session):
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
     assert data == expected_data
     assert type_ == "snowpark_cursor_created"
+
+
+def test_describe_query_details(session):
+    client = session._conn._telemetry_client
+
+    def send_telemetry():
+        client.send_describe_query_details(
+            session.session_id,
+            sql_text="select 1 as a, 2 as b",
+            e2e_time=0.01,
+            stack_trace=["line1", "line2"],
+        )
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {
+        "session_id": session.session_id,
+        "sql_text": "select 1 as a, 2 as b",
+        "e2e_time": 0.01,
+        "stack_trace": ["line1", "line2"],
+    }
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_describe_query_details"
