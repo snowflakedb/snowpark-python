@@ -674,7 +674,7 @@ class UDTFRegistration:
         with open_telemetry_udf_context_manager(
             self.register, handler=handler, name=name
         ):
-            if not callable(handler) and "object_name" not in kwargs:
+            if not callable(handler) and kwargs.get("_registered_object_name") is None:
                 raise TypeError(
                     "Invalid function: not a function or callable "
                     f"(__call__ is not defined): {type(handler)}"
@@ -908,16 +908,18 @@ class UDTFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
-        if "object_name" in kwargs:
-            stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.udtf, stmt)
-            ast_id = stmt.var_id.bitfield1
+        if kwargs.get("_registered_object_name") is not None:
+            ast, ast_id = None, None
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.udtf, stmt)
+                ast_id = stmt.var_id.bitfield1
 
             return UserDefinedTableFunction(
                 handler,
                 output_schema,
                 input_types,
-                kwargs["object_name"],
+                kwargs["_registered_object_name"],
                 _ast=ast,
                 _ast_id=ast_id,
             )
