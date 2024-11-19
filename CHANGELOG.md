@@ -39,7 +39,7 @@
 
 #### New Features
 
-- Added partial support for `Series.map` with `arg` a pandas `Series` or a
+- Added partial support for `Series.map` when `arg` is a pandas `Series` or a
   `collections.abc.Mapping`. No support for instances of `dict` that implement
   `__missing__` but are not instances of `collections.defaultdict`.
 
