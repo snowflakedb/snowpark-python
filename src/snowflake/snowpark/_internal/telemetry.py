@@ -19,6 +19,9 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import Plan
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
 )
+from snowflake.snowpark._internal.analyzer.metadata_utils import (
+    DescribeQueryTelemetryField,
+)
 from snowflake.snowpark._internal.utils import (
     get_application_name,
     get_os_name,
@@ -558,6 +561,26 @@ class TelemetryClient:
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.TYPE_REDUCE_DESCRIBE_QUERY_ENABLED.value: value,
+            },
+        }
+        self.send(message)
+
+    def send_describe_query_details(
+        self,
+        session_id: int,
+        sql_text: str,
+        e2e_time: float,
+        stack_trace: Optional[List[Optional[str]]],
+    ):
+        message = {
+            **self._create_basic_telemetry_data(
+                DescribeQueryTelemetryField.TYPE_DESCRIBE_QUERY_DETAILS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                DescribeQueryTelemetryField.SQL_TEXT.value: sql_text,
+                DescribeQueryTelemetryField.E2E_TIME.value: e2e_time,
+                DescribeQueryTelemetryField.STACK_TRACE.value: stack_trace,
             },
         }
         self.send(message)
