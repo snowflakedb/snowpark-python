@@ -13,7 +13,7 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
 )
-from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
 
 
 def eval_series_align_result(
@@ -30,7 +30,7 @@ def eval_series_align_result(
     assert_series_equal(right, native_right)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2, join_count=2, window_count=10)
 @pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
 @pytest.mark.parametrize("axis", [0, None])
 def test_align_basic_series(join, axis):
@@ -39,7 +39,7 @@ def test_align_basic_series(join, axis):
     eval_series_align_result(native_ser, native_other_ser, join=join, axis=axis)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=2, join_count=2, window_count=10)
 @pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
 @pytest.mark.parametrize("axis", [0, None])
 def test_align_series_with_nulls(join, axis):
@@ -72,6 +72,29 @@ def test_align_basic_series_reorder_index(join, axis):
         index=["G", "H", "M", "A"],
     )
     eval_series_align_result(native_ser, native_other_ser, join=join, axis=axis)
+
+
+@pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
+def test_align_series_on_row_position_column(join):
+    num_cols = 2
+    select_data = [f'{i} as "{i}"' for i in range(num_cols)]
+    query = f"select {', '.join(select_data)}"
+
+    df1 = pd.read_snowflake(query)
+    df2 = pd.read_snowflake(query)
+    # construct series whose row position column is used as index column
+    ser1 = df1["0"]
+    ser2 = df2["1"]
+
+    native_ser1 = ser1.to_pandas()
+    native_ser2 = ser2.to_pandas()
+
+    native_left, native_right = native_ser1.align(native_ser2, join=join)
+
+    with SqlCounter(query_count=2, join_count=2, window_count=0):
+        left, right = ser1.align(ser2, join=join, axis=0)
+        assert_series_equal(left, native_left)
+        assert_series_equal(right, native_right)
 
 
 @sql_count_checker(query_count=2, join_count=2)
