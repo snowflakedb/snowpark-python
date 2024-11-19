@@ -814,6 +814,7 @@ def test_get_session_stage(session):
         session.use_schema(current_schema)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="sproc disallow new connection creation")
 def test_session_atexit(db_parameters):
     exit_funcs = []
     with patch("atexit.register", lambda func: exit_funcs.append(func)):
