@@ -1445,6 +1445,8 @@ class DataFrame:
         stmt = _ast_stmt
         ast = None
 
+        # Note it's intentional the column expressions are AST serializerd earlier (ast_cols) to ensure any
+        # AST IDs created preceed the AST ID of the select statement so they are deserialized in dependent order.
         if _emit_ast and _ast_stmt is None:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)

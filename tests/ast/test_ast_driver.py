@@ -108,6 +108,7 @@ def indent_lines(source: str, n_indents: int = 0):
 
 
 def normalize_temp_names(s: str):
+    """Replace random part of db object names with constant so value is deterministic for comparisons"""
     return re.sub(
         r"SNOWPARK_TEMP_([a-zA-Z]*(_FUNCTION)?)_(\w+)", r"SNOWPARK_TEMP_\1_xxx", s
     )

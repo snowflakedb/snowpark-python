@@ -71,16 +71,18 @@ class MockUDTFRegistration(UDTFRegistration):
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
-        if kwargs.get("object_name") is not None:
-            stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.udtf, stmt)
-            ast_id = stmt.var_id.bitfield1
+        if kwargs.get("_registered_object_name") is not None:
+            ast, ast_id = None, None
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.udtf, stmt)
+                ast_id = stmt.var_id.bitfield1
 
             return MockUserDefinedTableFunction(
                 handler,
                 output_schema,
                 input_types,
-                kwargs["object_name"],
+                kwargs["_registered_object_name"],
                 _ast=ast,
                 _ast_id=ast_id,
             )
