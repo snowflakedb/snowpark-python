@@ -1865,6 +1865,9 @@ class Series(BasePandasDataset):
 
         Note that in the above example, the missing value in Snowflake is NULL,
         it is mapped to ``None`` in a string/object column.
+
+        Snowpark pandas does not yet support `dict` subclasses other than
+        `collections.defaultdict` that define a `__missing__` method.
         """
 
     def mask():

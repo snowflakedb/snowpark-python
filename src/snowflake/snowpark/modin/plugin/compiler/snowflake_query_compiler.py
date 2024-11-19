@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from __future__ import annotations
 import calendar
 import collections
 import copy
@@ -16,11 +15,10 @@ import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from functools import reduce
-from typing import Any, Callable, Literal, TypeVar, get_args
+from typing import Any, Callable, List, Literal, Optional, TypeVar, Union, get_args
 
 import modin.pandas as pd
 import numpy as np
-from collections import defaultdict
 import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
@@ -198,6 +196,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     sort_apply_udtf_result_columns_by_pandas_positions,
     make_series_map_snowpark_function,
 )
+from collections import defaultdict
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
     BinaryOp,
     merge_label_and_identifier_pairs,
@@ -562,7 +561,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         It verifies the cached Snowpark pandas types should not be changed.
         """
 
-        def check_type(input: list, output: list) -> None:
+        def check_type(input: List, output: List) -> None:
             assert len(input) == len(
                 output
             ), "self frame and output frame have different number of columns"
@@ -596,8 +595,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return wrap
 
     def _get_dtypes(
-        self, snowflake_quoted_identifiers: list[str]
-    ) -> list[np.dtype | ExtensionDtype]:
+        self, snowflake_quoted_identifiers: List[str]
+    ) -> List[Union[np.dtype, ExtensionDtype]]:
         """
         Get dtypes for the input columns.
 
@@ -638,7 +637,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @property
-    def index_dtypes(self) -> list[np.dtype | ExtensionDtype]:
+    def index_dtypes(self) -> list[Union[np.dtype, ExtensionDtype]]:
         """
         Get index dtypes.
 
@@ -704,7 +703,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @classmethod
     def from_pandas(
         cls, df: native_pd.DataFrame, *args: Any, **kwargs: Any
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         # create copy of original dataframe
         df = df.copy()
         # encode column labels to snowflake compliant strings.
@@ -815,7 +814,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @classmethod
-    def from_arrow(cls, at: Any, *args: Any, **kwargs: Any) -> SnowflakeQueryCompiler:
+    def from_arrow(cls, at: Any, *args: Any, **kwargs: Any) -> "SnowflakeQueryCompiler":
         return cls(at.to_pandas())
 
     def to_dataframe(self, nan_as_null: bool = False, allow_copy: bool = True) -> None:
@@ -828,14 +827,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @classmethod
     def from_date_range(
         cls,
-        start: pd.Timestamp | None,
-        end: pd.Timestamp | None,
-        periods: int | None,
-        freq: pd.DateOffset | None,
-        tz: str | tzinfo,
+        start: Optional[pd.Timestamp],
+        end: Optional[pd.Timestamp],
+        periods: Optional[int],
+        freq: Optional[pd.DateOffset],
+        tz: Union[str, tzinfo],
         left_inclusive: bool,
         right_inclusive: bool,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Snowpark pandas implementation for generating date ranges.
 
@@ -923,7 +922,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return dt_series._query_compiler
 
     @snowpark_pandas_type_immutable_check
-    def copy(self) -> SnowflakeQueryCompiler:
+    def copy(self) -> "SnowflakeQueryCompiler":
         """
         Make a copy of this object.
 
@@ -939,7 +938,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def to_pandas(
         self,
         *,
-        statement_params: dict[str, str] | None = None,
+        statement_params: Optional[dict[str, str]] = None,
         **kwargs: Any,
     ) -> native_pd.DataFrame:
         """
@@ -969,8 +968,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def to_numpy(
         self,
-        dtype: npt.DTypeLike | None = None,
-        copy: bool | None = False,
+        dtype: Optional[npt.DTypeLike] = None,
+        copy: Optional[bool] = False,
         na_value: object = lib.no_default,
         **kwargs: Any,
     ) -> np.ndarray:
@@ -986,7 +985,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         return self.to_pandas().to_numpy(dtype=dtype, na_value=na_value, **kwargs)
 
-    def repartition(self, axis: Any = None) -> SnowflakeQueryCompiler:
+    def repartition(self, axis: Any = None) -> "SnowflakeQueryCompiler":
         # let Snowflake handle partitioning, it makes no sense to repartition the dataframe.
         return self
 
@@ -1008,10 +1007,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @classmethod
     def from_snowflake(
         cls,
-        name_or_query: str | Iterable[str],
-        index_col: str | list[str] | None = None,
-        columns: list[str] | None = None,
-    ) -> SnowflakeQueryCompiler:
+        name_or_query: Union[str, Iterable[str]],
+        index_col: Optional[Union[str, list[str]]] = None,
+        columns: Optional[list[str]] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
         src/snowflake/snowpark/modin/plugin/pd_extensions.py
@@ -1153,7 +1152,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         cls,
         filetype: SnowflakeSupportedFileTypeLit,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Returns a SnowflakeQueryCompiler whose internal frame holds the data read from
         a file or multiple files.
@@ -1217,7 +1216,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         filetype: SnowflakeSupportedFileTypeLit,
         path: str,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Returns a SnowflakeQueryCompiler whose internal frame holds the data read from
         a file or multiple files.
@@ -1278,10 +1277,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @classmethod
     def _post_process_file(
         cls,
-        qc: SnowflakeQueryCompiler,
+        qc: "SnowflakeQueryCompiler",
         filetype: SnowflakeSupportedFileTypeLit,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Performs final porocessing of a file and returns a SnowflakeQueryCompiler. When
         reading files into Snowpark pandas we need perform some work after the table has
@@ -1374,8 +1373,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _to_snowpark_dataframe_from_snowpark_pandas_dataframe(
         self,
         index: bool = True,
-        index_label: IndexLabel | None = None,
-        data_column_labels: list[Hashable] | None = None,
+        index_label: Optional[IndexLabel] = None,
+        data_column_labels: Optional[List[Hashable]] = None,
     ) -> SnowparkDataFrame:
         """
         Convert the Snowpark pandas Dataframe to Snowpark Dataframe. The Snowpark Dataframe is created by selecting
@@ -1547,10 +1546,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def to_snowflake(
         self,
-        name: str | Iterable[str],
-        if_exists: Literal["fail", "replace", "append"] | None = "fail",
+        name: Union[str, Iterable[str]],
+        if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
         index: bool = True,
-        index_label: IndexLabel | None = None,
+        index_label: Optional[IndexLabel] = None,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
         self._warn_lost_snowpark_pandas_type()
@@ -1580,7 +1579,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def to_snowpark(
-        self, index: bool = True, index_label: IndexLabel | None = None
+        self, index: bool = True, index_label: Optional[IndexLabel] = None
     ) -> SnowparkDataFrame:
         """
         Convert the Snowpark pandas Dataframe to Snowpark Dataframe. The Snowpark Dataframe is created by selecting
@@ -1605,14 +1604,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @snowpark_pandas_type_immutable_check
-    def cache_result(self) -> SnowflakeQueryCompiler:
+    def cache_result(self) -> "SnowflakeQueryCompiler":
         """
         Returns a materialized view of this QueryCompiler.
         """
         return SnowflakeQueryCompiler(self._modin_frame.persist_to_temporary_table())
 
     @snowpark_pandas_type_immutable_check
-    def set_columns(self, new_pandas_labels: Axes) -> SnowflakeQueryCompiler:
+    def set_columns(self, new_pandas_labels: Axes) -> "SnowflakeQueryCompiler":
         """
         Set pandas column labels with the new column labels
 
@@ -1674,8 +1673,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     columns: native_pd.Index = property(get_columns, set_columns)
 
     def _shift_values(
-        self, periods: int, axis: Literal[0] | Literal[1], fill_value: Hashable
-    ) -> SnowflakeQueryCompiler:
+        self, periods: int, axis: Union[Literal[0], Literal[1]], fill_value: Hashable
+    ) -> "SnowflakeQueryCompiler":
         """
         Implements logic to shift data of DataFrame or Series.
         Args:
@@ -1694,7 +1693,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _shift_values_axis_0(
         self, periods: int, fill_value: Hashable
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Shift rows and fill new columns with fill_value.
         Args:
@@ -1799,7 +1798,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _shift_values_axis_1(
         self, periods: int, fill_value: Hashable
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Shift columns and fill new columns with fill_value.
         Args:
@@ -1872,7 +1871,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return self.__constructor__(new_frame)
 
-    def _shift_index(self, periods: int, freq: Any) -> SnowflakeQueryCompiler:  # type: ignore[return]
+    def _shift_index(self, periods: int, freq: Any) -> "SnowflakeQueryCompiler":  # type: ignore[return]
         """
         Shift index, to be implemented in SNOW-1023324.
         Args:
@@ -1890,12 +1889,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def shift(
         self,
-        periods: int | Sequence[int] = 1,
+        periods: Union[int, Sequence[int]] = 1,
         freq: Any = None,
         axis: Literal[0, 1] = 0,
         fill_value: Hashable = no_default,
-        suffix: str | None = None,
-    ) -> SnowflakeQueryCompiler:
+        suffix: Optional[str] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Implements shift operation for DataFrame/Series.
         Args:
@@ -1925,7 +1924,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._shift_index(periods, freq)  # type: ignore  # pragma: no cover
 
     @property
-    def index(self) -> pd.Index | native_pd.MultiIndex:
+    def index(self) -> Union["pd.Index", native_pd.MultiIndex]:
         """
         Get index. If MultiIndex, the method eagerly pulls the values from Snowflake because index requires the values
         to be filled and returns a pandas MultiIndex. If not MultiIndex, create a modin index and pass itself
@@ -1944,10 +1943,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def set_index(
         self,
-        keys: list[Hashable | SnowflakeQueryCompiler],
-        drop: bool | None = True,
-        append: bool | None = False,
-    ) -> SnowflakeQueryCompiler:
+        keys: list[Union[Hashable, "SnowflakeQueryCompiler"]],
+        drop: Optional[bool] = True,
+        append: Optional[bool] = False,
+    ) -> "SnowflakeQueryCompiler":
         """
         This the implementation for DataFrame set_index API
         Args:
@@ -1974,9 +1973,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def set_index_from_series(
         self,
-        key: SnowflakeQueryCompiler,
-        append: bool | None = False,
-    ) -> SnowflakeQueryCompiler:
+        key: "SnowflakeQueryCompiler",
+        append: Optional[bool] = False,
+    ) -> "SnowflakeQueryCompiler":
         """
         The helper method implements set_index with a single series key. The basic idea is to join this series and use
         it as a new index column
@@ -2065,7 +2064,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _binary_op_scalar_rhs(
         self, op: str, other: Scalar, fill_value: Scalar
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Perform binary operation between a Series/DataFrame and a scalar.
 
@@ -2104,7 +2103,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         op: str,
         other: AnyArrayLike,
         fill_value: Scalar,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Perform binary operation between a Series/DataFrame and a list-like object on axis=0.
 
@@ -2177,7 +2176,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         op: str,
         other: AnyArrayLike,
         fill_value: Scalar,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Perform binary operation between a DataFrame and a list-like object on axis=1.
 
@@ -2234,13 +2233,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def binary_op(
         self,
         op: str,
-        other: Scalar | AnyArrayLike | pd.Series | pd.DataFrame,
+        other: Union[Scalar, AnyArrayLike, "pd.Series", "pd.DataFrame"],
         axis: int,
-        level: Level | None = None,
-        fill_value: Scalar | None = None,
+        level: Optional[Level] = None,
+        fill_value: Optional[Scalar] = None,
         squeeze_self: bool = False,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Perform binary operation.
 
@@ -2411,9 +2410,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         empty_value: bool,
         agg_func: Literal["all", "any"],
         axis: int,
-        _bool_only: bool | None,
-        skipna: bool | None,
-    ) -> SnowflakeQueryCompiler:
+        _bool_only: Optional[bool],
+        skipna: Optional[bool],
+    ) -> "SnowflakeQueryCompiler":
         """
         Performs a boolean reduction across either axis.
 
@@ -2474,9 +2473,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def all(
         self,
         axis: int,
-        bool_only: bool | None,
-        skipna: bool | None,
-    ) -> SnowflakeQueryCompiler:
+        bool_only: Optional[bool],
+        skipna: Optional[bool],
+    ) -> "SnowflakeQueryCompiler":
         return self._bool_reduce_helper(
             True, "all", axis=axis, _bool_only=bool_only, skipna=skipna
         )
@@ -2484,9 +2483,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def any(
         self,
         axis: int,
-        bool_only: bool | None,
-        skipna: bool | None,
-    ) -> SnowflakeQueryCompiler:
+        bool_only: Optional[bool],
+        skipna: Optional[bool],
+    ) -> "SnowflakeQueryCompiler":
         return self._bool_reduce_helper(
             False, "any", axis=axis, _bool_only=bool_only, skipna=skipna
         )
@@ -2494,9 +2493,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def reindex(
         self,
         axis: int,
-        labels: pandas.Index | pd.Index | list[Any] | SnowflakeQueryCompiler,
+        labels: Union[pandas.Index, "pd.Index", list[Any], "SnowflakeQueryCompiler"],
         **kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Align QueryCompiler data with a new index along specified axis.
 
@@ -2529,7 +2528,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             return self._reindex_axis_1(labels=labels, **kwargs)
 
-    def is_monotonic_decreasing(self) -> SnowflakeQueryCompiler:
+    def is_monotonic_decreasing(self) -> "SnowflakeQueryCompiler":
         """
         Returns a QueryCompiler containing only a column that checks for monotonically
         decreasing values in the first data column of this QueryCompiler.
@@ -2541,7 +2540,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return self._check_monotonic(increasing=False)
 
-    def is_monotonic_increasing(self) -> SnowflakeQueryCompiler:
+    def is_monotonic_increasing(self) -> "SnowflakeQueryCompiler":
         """
         Returns a QueryCompiler containing only a column that checks for monotonically
         increasing values in the first data column of this QueryCompiler.
@@ -2553,7 +2552,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return self._check_monotonic(increasing=True)
 
-    def _check_monotonic(self, increasing: bool) -> SnowflakeQueryCompiler:
+    def _check_monotonic(self, increasing: bool) -> "SnowflakeQueryCompiler":
         """
         Returns a QueryCompiler containing only a column that checks for monotonically
         decreasing or increasing values (depending on `increasing`) in the first data column of this QueryCompiler.
@@ -2605,8 +2604,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return qc.agg(func="all", args=(), kwargs={}, axis=0)
 
     def _add_columns_for_monotonicity_checks(
-        self, col_to_check: str, columns_to_add: str | None = None
-    ) -> tuple[SnowflakeQueryCompiler, str | None, str | None]:
+        self, col_to_check: str, columns_to_add: Optional[str] = None
+    ) -> tuple["SnowflakeQueryCompiler", Optional[str], Optional[str]]:
         """
         Adds columns that check for monotonicity (increasing or decreasing) in the
         specified column.
@@ -2702,9 +2701,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _reindex_axis_0(
         self,
-        labels: pandas.Index | pd.Index | list[Any] | SnowflakeQueryCompiler,
+        labels: Union[pandas.Index, "pd.Index", list[Any], "SnowflakeQueryCompiler"],
         **kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Align QueryCompiler data with a new index.
 
@@ -2993,9 +2992,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _reindex_axis_1(
         self,
-        labels: pandas.Index | list[Any],
+        labels: Union[pandas.Index, list[Any]],
         **kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Align QueryCompiler data with a new column.
 
@@ -3158,7 +3157,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         col_fill: Hashable = "",
         allow_duplicates: bool = False,
         names: IndexLabel = None,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Reset the index, or a level of it.
         Args:
@@ -3325,7 +3324,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(internal_frame)
 
     # TODO: Eliminate from Modin QC layer and call `first_last_valid_index` directly from frontend
-    def first_valid_index(self) -> Scalar | tuple[Scalar]:
+    def first_valid_index(self) -> Union[Scalar, tuple[Scalar]]:
         """
         Return index for first non-NA value or None, if no non-NA value is found.
 
@@ -3335,7 +3334,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self.first_last_valid_index(ValidIndex.FIRST)
 
     # TODO: Eliminate from Modin QC layer and call `first_last_valid_index` directly from frontend
-    def last_valid_index(self) -> Scalar | tuple[Scalar]:
+    def last_valid_index(self) -> Union[Scalar, tuple[Scalar]]:
         """
         Return index for last non-NA value or None, if no non-NA value is found.
 
@@ -3347,7 +3346,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def first_last_valid_index(
         self,
         first_or_last: ValidIndex,
-    ) -> Scalar | tuple[Scalar]:
+    ) -> Union[Scalar, tuple[Scalar]]:
         """
         Helper function to get first or last valid index.
 
@@ -3377,16 +3376,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         *,
         axis: int,
-        level: list[str | int] | None,
-        ascending: bool | list[bool],
+        level: Optional[list[Union[str, int]]],
+        ascending: Union[bool, list[bool]],
         inplace: bool = False,
         kind: SortKind,
         na_position: NaPosition,
         sort_remaining: bool,
         ignore_index: bool,
-        key: IndexKeyFunc | None = None,
+        key: Optional[IndexKeyFunc] = None,
         include_indexer: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Sort object by labels (along an axis).
 
@@ -3487,10 +3486,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         kind: SortKind,
         na_position: NaPosition,
         ignore_index: bool,
-        key: IndexKeyFunc | None = None,
+        key: Optional[IndexKeyFunc] = None,
         include_indexer: bool = False,
         include_index: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Reorder the rows based on the lexicographic order of the given columns.
 
@@ -3589,7 +3588,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         by: Any,
         axis: int,
-        level: IndexLabel | None,
+        level: Optional[IndexLabel],
     ) -> None:
         """
         This function only performs validation for groupby that need access to the information
@@ -3654,7 +3653,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         numeric_only: bool = False,
         is_series_groupby: bool = False,
         drop: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         compute groupby with aggregation functions.
         Note: groupby with categorical data type expands all categories during groupby, for example,
@@ -3757,7 +3756,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # turn each agg function into an AggFuncInfo named tuple, where is_dummy_agg is set to false;
         # i.e., none of the aggregations here can be dummy.
         def convert_func_to_agg_func_info(
-            func: AggFuncType | AggFuncWithLabel,
+            func: Union[AggFuncType, AggFuncWithLabel]
         ) -> AggFuncInfo:
             nonlocal uses_named_aggs
             if is_named_tuple(func):
@@ -3972,7 +3971,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         series_groupby: bool,
         force_single_group: bool = False,
         force_list_like_to_series: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Group according to `by` and `level`, apply a function to each group, and combine the results.
 
@@ -4335,7 +4334,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def _fill_null_values_in_groupby(
-        self, method: str, by_list: list[str], limit: int | None = None
+        self, method: str, by_list: list[str], limit: Optional[int] = None
     ) -> dict[str, ColumnOrName]:
         """
         Fill null values in each column using method within each group.
@@ -4387,7 +4386,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_kwargs: dict[str, Any],
         drop: bool = False,
         **kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Get the first or last non-null value for each group.
 
@@ -4463,7 +4462,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_kwargs: dict[str, Any],
         drop: bool = False,
         **kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Get the first non-null value for each group.
 
@@ -4496,7 +4495,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_kwargs: dict[str, Any],
         drop: bool = False,
         **kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Get the last non-null value for each group.
 
@@ -4531,7 +4530,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         na_option: Literal["keep", "top", "bottom"] = "keep",
         ascending: bool = True,
         pct: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Compute groupby with rank.
 
@@ -4676,7 +4675,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         freq: str,
         fill_value: Any,
         is_series_groupby: bool,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         compute groupby with shift.
         Note: this variant of pandas groupby is more of a window based LEAD/LAG calculation than a GROUPBY in SQL
@@ -4894,7 +4893,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_kwargs: dict[str, Any],
         drop: bool = False,
         **kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Get all rows that match a given group name in the `by` column.
 
@@ -4940,7 +4939,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_kwargs: dict[str, Any],
         drop: bool = False,
         **kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         compute groupby with size.
         With a dataframe created with following:
@@ -5019,7 +5018,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by: Any,
         axis: int,
         groupby_kwargs: dict[str, Any],
-    ) -> PrettyDict[Hashable, pd.Index]:
+    ) -> PrettyDict[Hashable, "pd.Index"]:
         """
         Get a PrettyDict mapping group keys to row labels.
 
@@ -5207,7 +5206,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         groupby_kwargs: dict[str, Any],
         ascending: bool,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Number each item in each group from 0 to the length of that group - 1.
 
@@ -5244,7 +5243,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         numeric_only: bool,
         groupby_kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Cumulative max for each group.
 
@@ -5280,7 +5279,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         numeric_only: int,
         groupby_kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Cumulative min for each group.
 
@@ -5315,7 +5314,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by: Any,
         axis: int,
         groupby_kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Cumulative sum for each group.
 
@@ -5352,7 +5351,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_kwargs: dict[str, Any],
         drop: bool = False,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
         # does not have **kwargs.
@@ -5375,7 +5374,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_kwargs: dict[str, Any],
         drop: bool = False,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
 
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
@@ -5399,7 +5398,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_kwargs: dict[str, Any],
         drop: bool = False,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
 
         # We have to override the Modin version of this function because our groupby frontend passes the
         # ignored numeric_only argument to this query compiler method, and BaseQueryCompiler
@@ -5419,13 +5418,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by: Any,
         axis: int,
         groupby_kwargs: dict[str, Any],
-        subset: list[str] | None,
+        subset: Optional[list[str]],
         normalize: bool = False,
         sort: bool = True,
         ascending: bool = False,
-        bins: int | None = None,
+        bins: Optional[int] = None,
         dropna: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         level = groupby_kwargs.get("level", None)
         as_index = groupby_kwargs.get("as_index", True)
         groupby_sort = groupby_kwargs.get("sort", True)
@@ -5574,13 +5573,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         by: Any,
         axis: int,
         groupby_kwargs: dict[str, Any],
-        value: None | (Scalar | Hashable | Mapping | pd.DataFrame | pd.Series) = None,
-        method: FillnaOptions | None = None,
-        fill_axis: int | None = None,
+        value: Optional[
+            Union[Scalar, Hashable, Mapping, "pd.DataFrame", "pd.Series"]
+        ] = None,
+        method: Optional[FillnaOptions] = None,
+        fill_axis: Optional[int] = None,
         inplace: bool = False,
-        limit: int | None = None,
-        downcast: dict | None = None,
-    ) -> SnowflakeQueryCompiler:
+        limit: Optional[int] = None,
+        downcast: Optional[dict] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Replace NaN values using provided method or value.
 
@@ -5653,7 +5654,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         def groupby_null_expr(
             col_expr: SnowparkColumn,
             col_snowflake_quoted_identifier: str,
-            by_list_snowflake_quoted_identifiers: list[str],
+            by_list_snowflake_quoted_identifiers: List[str],
         ) -> SnowparkColumn:
             return iff(
                 reduce(
@@ -5847,14 +5848,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def get_dummies(
         self,
-        prefix: Hashable | list[Hashable] | None,
+        prefix: Optional[Union[Hashable, list[Hashable]]],
         prefix_sep: str = "_",
         dummy_na: bool = False,
-        columns: Hashable | list[Hashable] | None = None,
+        columns: Optional[Union[Hashable, list[Hashable]]] = None,
         drop_first: bool = False,
-        dtype: npt.DTypeLike | None = None,
+        dtype: Optional[npt.DTypeLike] = None,
         is_series: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
 
         """
         Implement one-hot encoding.
@@ -5942,7 +5943,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         args: Any,
         kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Aggregate using one or more operations over the specified axis.
 
@@ -6296,7 +6297,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     # in the correct order, which we recieve from the frontend, so that when the concatenation occurs,
                     # the final QueryCompiler is ordered correctly.
                     index_label_to_generated_qcs: dict[
-                        Hashable, list[SnowflakeQueryCompiler]
+                        Hashable, list["SnowflakeQueryCompiler"]
                     ] = {}
                     for (
                         identifier_pair,
@@ -6393,10 +6394,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         loc: int,
         pandas_label: Hashable,
-        value: Scalar | SnowflakeQueryCompiler,
-        join_on_index: bool | None = False,
+        value: Union[Scalar, "SnowflakeQueryCompiler"],
+        join_on_index: Optional[bool] = False,
         replace: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Insert new column at specified location.
 
@@ -6518,10 +6519,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def set_index_from_columns(
         self,
         keys: list[Hashable],
-        drop: bool | None = True,
-        append: bool | None = False,
-        include_index: bool | None = True,
-    ) -> SnowflakeQueryCompiler:
+        drop: Optional[bool] = True,
+        append: Optional[bool] = False,
+        include_index: Optional[bool] = True,
+    ) -> "SnowflakeQueryCompiler":
         """
         Create or update index (row labels) from a list of columns.
 
@@ -6631,12 +6632,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def rename(
         self,
         *,
-        index_renamer: Renamer | None = None,
-        columns_renamer: Renamer | None = None,
+        index_renamer: Optional[Renamer] = None,
+        columns_renamer: Optional[Renamer] = None,
         # TODO: SNOW-800889 handle level is hashable
-        level: Hashable | int | None = None,
-        errors: IgnoreRaise | None = "ignore",
-    ) -> SnowflakeQueryCompiler:
+        level: Optional[Union[Hashable, int]] = None,
+        errors: Optional[IgnoreRaise] = "ignore",
+    ) -> "SnowflakeQueryCompiler":
         internal_frame = self._modin_frame
         if index_renamer is not None:
             # rename index means to update the values in the index columns
@@ -6751,12 +6752,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         dayfirst: bool = False,
         yearfirst: bool = False,
         utc: bool = False,
-        format: str | None = None,
-        exact: bool | lib.NoDefault = lib.no_default,
-        unit: str | None = None,
-        infer_datetime_format: lib.NoDefault | bool = lib.no_default,
+        format: Optional[str] = None,
+        exact: Union[bool, lib.NoDefault] = lib.no_default,
+        unit: Optional[str] = None,
+        infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
         origin: DateTimeOrigin = "unix",
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert dataframe to the datetime dtype.
 
@@ -6879,7 +6880,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         unit: str = "ns",
         errors: DateTimeErrorChoices = "raise",
         include_index: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert data to timedelta.
 
@@ -6942,13 +6943,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         dayfirst: bool = False,
         yearfirst: bool = False,
         utc: bool = False,
-        format: str | None = None,
-        exact: bool | lib.NoDefault = lib.no_default,
-        unit: str | None = None,
-        infer_datetime_format: lib.NoDefault | bool = lib.no_default,
+        format: Optional[str] = None,
+        exact: Union[bool, lib.NoDefault] = lib.no_default,
+        unit: Optional[str] = None,
+        infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
         origin: DateTimeOrigin = "unix",
         include_index: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert series to the datetime dtype.
 
@@ -7010,16 +7011,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def concat(
         self,
         axis: Axis,
-        other: list[SnowflakeQueryCompiler],
+        other: list["SnowflakeQueryCompiler"],
         *,
-        join: Literal["outer", "inner"] | None = "outer",
+        join: Optional[Literal["outer", "inner"]] = "outer",
         ignore_index: bool = False,
-        keys: Sequence[Hashable] | None = None,
-        levels: list[Sequence[Hashable]] | None = None,
-        names: list[Hashable] | None = None,
-        verify_integrity: bool | None = False,
-        sort: bool | None = False,
-    ) -> SnowflakeQueryCompiler:
+        keys: Optional[Sequence[Hashable]] = None,
+        levels: Optional[list[Sequence[Hashable]]] = None,
+        names: Optional[list[Hashable]] = None,
+        verify_integrity: Optional[bool] = False,
+        sort: Optional[bool] = False,
+    ) -> "SnowflakeQueryCompiler":
         """
         Concatenate `self` with passed query compilers along specified axis.
         Args:
@@ -7254,7 +7255,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def cumsum(
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return cumulative sum over a DataFrame or Series axis.
 
@@ -7283,7 +7284,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def cummin(
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return cumulative min over a DataFrame or Series axis.
 
@@ -7312,7 +7313,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def cummax(
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return cumulative max over a DataFrame or Series axis.
 
@@ -7343,11 +7344,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         id_vars: list[str],
         value_vars: list[str],
-        var_name: str | None,
-        value_name: str | None,
-        col_level: int | None = None,
+        var_name: Optional[str],
+        value_name: Optional[str],
+        col_level: Optional[int] = None,
         ignore_index: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Unpivot dataframe from wide to long format. The order
         of the data is sorted by column order. Mixed types are
@@ -7399,25 +7400,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def merge(
         self,
-        right: SnowflakeQueryCompiler,
+        right: "SnowflakeQueryCompiler",
         how: JoinTypeLit,
-        on: IndexLabel | None = None,
-        left_on: None
-        | (
-            Hashable | SnowflakeQueryCompiler | list[Hashable | SnowflakeQueryCompiler]
-        ) = None,
-        right_on: None
-        | (
-            Hashable | SnowflakeQueryCompiler | list[Hashable | SnowflakeQueryCompiler]
-        ) = None,
-        left_index: bool | None = False,
-        right_index: bool | None = False,
-        sort: bool | None = False,
+        on: Optional[IndexLabel] = None,
+        left_on: Optional[
+            Union[
+                Hashable,
+                "SnowflakeQueryCompiler",
+                list[Union[Hashable, "SnowflakeQueryCompiler"]],
+            ]
+        ] = None,
+        right_on: Optional[
+            Union[
+                Hashable,
+                "SnowflakeQueryCompiler",
+                list[Union[Hashable, "SnowflakeQueryCompiler"]],
+            ]
+        ] = None,
+        left_index: Optional[bool] = False,
+        right_index: Optional[bool] = False,
+        sort: Optional[bool] = False,
         suffixes: Suffixes = ("_x", "_y"),
-        copy: bool | None = True,
-        indicator: bool | str | None = False,
-        validate: str | None = None,
-    ) -> SnowflakeQueryCompiler:
+        copy: Optional[bool] = True,
+        indicator: Optional[Union[bool, str]] = False,
+        validate: Optional[str] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Merge with SnowflakeQueryCompiler object to perform Database-style join.
 
@@ -7643,20 +7650,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def merge_asof(
         self,
-        right: SnowflakeQueryCompiler,
-        on: str | None = None,
-        left_on: str | None = None,
-        right_on: str | None = None,
+        right: "SnowflakeQueryCompiler",
+        on: Optional[str] = None,
+        left_on: Optional[str] = None,
+        right_on: Optional[str] = None,
         left_index: bool = False,
         right_index: bool = False,
-        by: str | list[str] | None = None,
-        left_by: str | None = None,
-        right_by: str | None = None,
+        by: Optional[Union[str, list[str]]] = None,
+        left_by: Optional[str] = None,
+        right_by: Optional[str] = None,
         suffixes: Suffixes = ("_x", "_y"),
-        tolerance: int | Timedelta | None = None,
+        tolerance: Optional[Union[int, Timedelta]] = None,
         allow_exact_matches: bool = True,
         direction: str = "backward",
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Perform a merge by key distance.
 
@@ -7805,15 +7812,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _apply_with_udtf_and_dynamic_pivot_along_axis_1(
         self,
-        func: AggFuncType | UserDefinedFunction,
+        func: Union[AggFuncType, UserDefinedFunction],
         raw: bool,
-        result_type: Literal["expand", "reduce", "broadcast"] | None,
+        result_type: Optional[Literal["expand", "reduce", "broadcast"]],
         args: tuple,
         column_index: native_pd.Index,
         input_types: list[DataType],
         partition_size: int = DEFAULT_UDTF_PARTITION_SIZE,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Process apply along axis=1 via UDTF and dynamic pivot.
 
@@ -8088,14 +8095,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _apply_udf_row_wise_and_reduce_to_series_along_axis_1(
         self,
-        func: AggFuncType | UserDefinedFunction,
+        func: Union[AggFuncType, UserDefinedFunction],
         column_index: pandas.Index,
         input_types: list[DataType],
         return_type: DataType,
         session: Session,
         udf_args: tuple = (),
         udf_kwargs: dict = {},  # noqa: B006
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Calls pandas apply API per row yielding a Series. `func` is a function that expects a single input parameter which is passed
         each row as a Series object. E.g., for the following DataFrame
@@ -8213,7 +8220,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         level: Level = None,
         copy: bool = True,
         fill_value: Scalar = None,
-    ) -> tuple[SnowflakeQueryCompiler, SnowflakeQueryCompiler]:
+    ) -> tuple["SnowflakeQueryCompiler", "SnowflakeQueryCompiler"]:
         """
         Align two objects on their axes with the specified join method.
 
@@ -8294,13 +8301,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def apply(
         self,
-        func: AggFuncType | UserDefinedFunction,
+        func: Union[AggFuncType, UserDefinedFunction],
         axis: int = 0,
         raw: bool = False,
-        result_type: Literal["expand", "reduce", "broadcast"] | None = None,
+        result_type: Optional[Literal["expand", "reduce", "broadcast"]] = None,
         args: tuple = (),
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Apply passed function across given axis.
 
@@ -8618,7 +8625,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         snowpark_function: Callable,
         kwargs: dict[str, Any],  # possible named arguments which need to be added
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """Apply Snowpark Python function to columns."""
 
         def sf_function(col: SnowparkColumn) -> SnowparkColumn:
@@ -8656,10 +8663,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def applymap(
         self,
         func: AggFuncType,
-        na_action: Literal["ignore"] | None = None,
+        na_action: Optional[Literal["ignore"]] = None,
         args: tuple[Any, ...] = (),
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Apply passed function elementwise.
 
@@ -8718,8 +8725,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def _map_series_with_dict_like(
-        self, mapping: Mapping | native_pd.Series
-    ) -> SnowflakeQueryCompiler:
+        self, mapping: typing.Union[Mapping, native_pd.Series]
+    ) -> "SnowflakeQueryCompiler":
         """
         Map existing values to new values according to a dict-like mapping.
 
@@ -8762,13 +8769,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def map(
         self,
-        arg: AggFuncType | pd.Series,
-        na_action: Literal["ignore"] | None = None,
+        arg: Union[AggFuncType, "pd.Series"],
+        na_action: Optional[Literal["ignore"]] = None,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """This method will only be called from Series."""
         self._raise_not_implemented_error_for_timedelta()
 
+        # TODO SNOW-801847: support series.map when arg is a dict/series
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.
@@ -8778,7 +8786,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas map API doesn't yet support na_action == 'ignore'"
             )
-
         if callable(arg):
             return self.applymap(func=arg, na_action=na_action, **kwargs)
 
@@ -8792,7 +8799,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def apply_on_series(
         self, func: AggFuncType, args: tuple[Any, ...] = (), **kwargs: Any
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Apply passed function on underlying Series.
 
@@ -8837,9 +8844,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def pivot(
         self,
         columns: Any,
-        index: Any | None = None,
-        values: Any | None = None,
-    ) -> SnowflakeQueryCompiler:
+        index: Optional[Any] = None,
+        values: Optional[Any] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Return reshaped DataFrame organized by given index / column values.
 
@@ -8884,13 +8891,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         values: Any,
         columns: Any,
         aggfunc: AggFuncType,
-        fill_value: Scalar | None,
+        fill_value: Optional[Scalar],
         margins: bool,
         dropna: bool,
         margins_name: str,
         observed: bool,
         sort: bool,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         self._raise_not_implemented_error_for_timedelta()
 
         """
@@ -9226,9 +9233,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def take_2d_positional(
         self,
-        index: SnowflakeQueryCompiler | slice,
-        columns: SnowflakeQueryCompiler | slice | int | bool | list | AnyArrayLike,
-    ) -> SnowflakeQueryCompiler:
+        index: Union["SnowflakeQueryCompiler", slice],
+        columns: Union["SnowflakeQueryCompiler", slice, int, bool, list, AnyArrayLike],
+    ) -> "SnowflakeQueryCompiler":
         """
         Index QueryCompiler with passed keys.
 
@@ -9323,7 +9330,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _nunique_columns(
         self, dropna: bool, include_index: bool = False
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Helper function to compute the number of unique elements in each column.
 
@@ -9417,7 +9424,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def nunique(
         self, axis: Axis, dropna: bool, **kwargs: Any
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         if not isinstance(dropna, bool):
             raise ValueError("dropna must be of type bool")
         # support axis=0 only where unique values per column are counted using COUNT(DISTINCT)
@@ -9433,7 +9440,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Set the single column's name to MODIN_UNNAMED_SERIES_LABEL
         return result.set_columns([MODIN_UNNAMED_SERIES_LABEL])
 
-    def unique(self) -> SnowflakeQueryCompiler:
+    def unique(self) -> "SnowflakeQueryCompiler":
         """Compute unique elements for series. Preserves order of how elements are encountered. Keyword arguments are
         empty.
 
@@ -9461,7 +9468,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def to_numeric(
         self,
         errors: Literal["ignore", "raise", "coerce"] = "raise",
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert underlying data to numeric dtype.
 
@@ -9548,19 +9555,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def take_2d_labels(
         self,
-        index: (
-            SnowflakeQueryCompiler
-            | Scalar
-            | tuple
-            | slice
-            | list
-            | pd.Index
-            | np.ndarray
-        ),
-        columns: (
-            SnowflakeQueryCompiler | Scalar | slice | list | pd.Index | np.ndarray
-        ),
-    ) -> SnowflakeQueryCompiler:
+        index: Union[
+            "SnowflakeQueryCompiler", Scalar, tuple, slice, list, "pd.Index", np.ndarray
+        ],
+        columns: Union[
+            "SnowflakeQueryCompiler", Scalar, slice, list, "pd.Index", np.ndarray
+        ],
+    ) -> "SnowflakeQueryCompiler":
         """
         Index QueryCompiler with passed label keys.
 
@@ -9638,7 +9639,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return self._modin_frame.num_index_levels(axis=axis)
 
-    def isna(self) -> SnowflakeQueryCompiler:
+    def isna(self) -> "SnowflakeQueryCompiler":
         """
         Check for each element of self whether it's NaN.
 
@@ -9653,7 +9654,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def notna(self) -> SnowflakeQueryCompiler:
+    def notna(self) -> "SnowflakeQueryCompiler":
         """
         Check for each element of `self` whether it's existing (non-missing) value.
 
@@ -9669,7 +9670,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def transpose_single_row(self) -> SnowflakeQueryCompiler:
+    def transpose_single_row(self) -> "SnowflakeQueryCompiler":
         """
         Transposes this QueryCompiler, assumes that this QueryCompiler holds a single row. Does not explicitly
         check this is true, left to the caller to ensure this is true.
@@ -9721,7 +9722,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def transpose(self) -> SnowflakeQueryCompiler:
+    def transpose(self) -> "SnowflakeQueryCompiler":
         """
         Transpose this QueryCompiler.
 
@@ -9873,7 +9874,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def invert(self) -> SnowflakeQueryCompiler:
+    def invert(self) -> "SnowflakeQueryCompiler":
         """
         Apply bitwise inversion for each element of the QueryCompiler.
 
@@ -9902,9 +9903,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def astype(
         self,
-        col_dtypes_map: dict[str, np.dtype | ExtensionDtype],
+        col_dtypes_map: dict[str, Union[np.dtype, ExtensionDtype]],
         errors: Literal["raise", "ignore"] = "raise",
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert columns dtypes to given dtypes.
 
@@ -9975,8 +9976,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def astype_index(
         self,
-        col_dtypes_map: dict[Hashable, np.dtype | ExtensionDtype],
-    ) -> SnowflakeQueryCompiler:
+        col_dtypes_map: dict[Hashable, Union[np.dtype, ExtensionDtype]],
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert index columns dtypes to given dtypes.
 
@@ -10032,17 +10033,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def set_2d_labels(
         self,
-        index: Scalar | slice | SnowflakeQueryCompiler,
-        columns: (
-            SnowflakeQueryCompiler | tuple | slice | list | pd.Index | np.ndarray
-        ),
-        item: Scalar | AnyArrayLike | SnowflakeQueryCompiler,
+        index: Union[Scalar, slice, "SnowflakeQueryCompiler"],
+        columns: Union[
+            "SnowflakeQueryCompiler",
+            tuple,
+            slice,
+            list,
+            "pd.Index",
+            np.ndarray,
+        ],
+        item: Union[Scalar, AnyArrayLike, "SnowflakeQueryCompiler"],
         matching_item_columns_by_label: bool,
         matching_item_rows_by_label: bool,
         index_is_bool_indexer: bool,
         deduplicate_columns: bool = False,
         frame_is_df_and_item_is_series: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Create a new SnowflakeQueryCompiler with indexed columns and rows replaced by item.
 
@@ -10099,12 +10105,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def set_2d_positional(
         self,
-        index: SnowflakeQueryCompiler | slice | list | tuple | Scalar,
-        columns: SnowflakeQueryCompiler | slice | list | tuple | Scalar,
-        item: SnowflakeQueryCompiler | Scalar,
+        index: Union["SnowflakeQueryCompiler", slice, list, tuple, Scalar],
+        columns: Union["SnowflakeQueryCompiler", slice, list, tuple, Scalar],
+        item: Union["SnowflakeQueryCompiler", Scalar],
         set_as_coords: bool,
         is_item_series: bool,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Create a new SnowflakeQueryCompiler with indexed columns and rows replaced by item .
         Parameters
@@ -10139,8 +10145,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(result_frame)
 
     def getitem_row_array(
-        self, key: list[Any] | pd.Series | InternalFrame
-    ) -> SnowflakeQueryCompiler:
+        self, key: Union[list[Any], "pd.Series", InternalFrame]
+    ) -> "SnowflakeQueryCompiler":
         """
         Get row data for target (positional) indices.
 
@@ -10172,7 +10178,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
-    def case_when(self, caselist: list[tuple]) -> SnowflakeQueryCompiler:
+    def case_when(self, caselist: List[tuple]) -> "SnowflakeQueryCompiler":
         """
         Replace values where the conditions are True.
 
@@ -10214,7 +10220,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         orig_frame = self._modin_frame
         joined_frame = self._modin_frame
-        case_expr: CaseExpr | None = None
+        case_expr: Optional[CaseExpr] = None
         for cond, replacement in caselist:
             if isinstance(cond, SnowflakeQueryCompiler):
                 joined_frame, _ = join_utils.align_on_index(
@@ -10308,12 +10314,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def mask(
         self,
-        cond: SnowflakeQueryCompiler,
-        other: SnowflakeQueryCompiler | Scalar | None,
-        axis: int | None = None,
-        level: int | None = None,
+        cond: "SnowflakeQueryCompiler",
+        other: Optional[Union["SnowflakeQueryCompiler", Scalar]],
+        axis: Optional[int] = None,
+        level: Optional[int] = None,
         cond_fillna_with_true: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Replace values where the condition is True.
 
@@ -10369,12 +10375,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def where(
         self,
-        cond: SnowflakeQueryCompiler,
-        other: SnowflakeQueryCompiler | Scalar | None,
-        axis: int | None = None,
-        level: int | None = None,
+        cond: "SnowflakeQueryCompiler",
+        other: Optional[Union["SnowflakeQueryCompiler", Scalar]],
+        axis: Optional[int] = None,
+        level: Optional[int] = None,
         cond_fillna_with_true: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Replace values where the condition is False.
 
@@ -10776,8 +10782,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         snowflake_quoted_identifier: str,
         method: FillNAMethod,
-        limit: int | None = None,
-        _columns_to_ignore: list[bool] | None = None,
+        limit: Optional[int] = None,
+        _columns_to_ignore: Optional[list[bool]] = None,
     ) -> SnowparkColumn:
         """
         Helper function to get the Snowpark Column expression corresponding to snowflake_quoted_id when doing a column wise fillna.
@@ -10879,14 +10885,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def fillna(
         self,
-        value: Hashable | Mapping | pd.DataFrame | pd.Series | None = None,
+        value: Optional[Union[Hashable, Mapping, "pd.DataFrame", "pd.Series"]] = None,
         *,
         self_is_series: bool,
-        method: FillnaOptions | None = None,
-        axis: Axis | None = None,
-        limit: int | None = None,
-        downcast: dict | None = None,
-    ) -> SnowflakeQueryCompiler:
+        method: Optional[FillnaOptions] = None,
+        axis: Optional[Axis] = None,
+        limit: Optional[int] = None,
+        downcast: Optional[dict] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Replace NaN values using provided method.
 
@@ -10916,16 +10922,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _fillna_with_masking(
         self,
-        value: Hashable | Mapping | pd.DataFrame | pd.Series | None = None,
+        value: Optional[Union[Hashable, Mapping, "pd.DataFrame", "pd.Series"]] = None,
         *,
         self_is_series: bool,
-        method: FillnaOptions | None = None,
-        axis: Axis | None = None,
-        limit: int | None = None,
-        downcast: dict | None = None,
-        row_mask_snowflake_quoted_identifier: str | None = None,
-        columns_mask: list[bool] | None = None,
-    ) -> SnowflakeQueryCompiler:
+        method: Optional[FillnaOptions] = None,
+        axis: Optional[Axis] = None,
+        limit: Optional[int] = None,
+        downcast: Optional[dict] = None,
+        row_mask_snowflake_quoted_identifier: Optional[str] = None,
+        columns_mask: Optional[list[bool]] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Replace NaN values using provided method.
 
@@ -11114,9 +11120,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         axis: int,
         how: Literal["any", "all"],
-        thresh: int | lib.NoDefault | None = lib.no_default,
-        subset: Iterable | None = None,
-    ) -> SnowflakeQueryCompiler:
+        thresh: Optional[Union[int, lib.NoDefault]] = lib.no_default,
+        subset: Optional[Iterable] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Remove missing values. If 'thresh' is specified then the 'how' parameter is ignored.
 
@@ -11163,8 +11169,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def set_index_names(
-        self, names: list[Hashable], axis: int | None = 0
-    ) -> SnowflakeQueryCompiler:
+        self, names: list[Hashable], axis: Optional[int] = 0
+    ) -> "SnowflakeQueryCompiler":
         """
         Set index names for the specified axis.
 
@@ -11203,8 +11209,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         axis: int,
         key: IndexLabel,
-        value: SnowflakeQueryCompiler | list[Any] | Any,
-    ) -> SnowflakeQueryCompiler:
+        value: Union["SnowflakeQueryCompiler", list[Any], Any],
+    ) -> "SnowflakeQueryCompiler":
         """
         Set the row/column defined by `key` to the `value` provided.
 
@@ -11382,7 +11388,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         lambda: col2_dtype,
                     ).compute()
 
-    def diff(self, periods: int, axis: int) -> SnowflakeQueryCompiler:
+    def diff(self, periods: int, axis: int) -> "SnowflakeQueryCompiler":
         """
         Find discrete difference along axis.
         Args:
@@ -11414,11 +11420,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def drop(
         self,
-        index: Sequence[Hashable] | None = None,
-        columns: Sequence[Hashable] | None = None,
-        level: Level | None = None,
+        index: Optional[Sequence[Hashable]] = None,
+        columns: Optional[Sequence[Hashable]] = None,
+        level: Optional[Level] = None,
         errors: Literal["raise", "ignore"] = "raise",
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Drop specified rows or columns.
         Args:
@@ -11499,9 +11505,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _drop_axis_0(
         self,
         index: Sequence[Hashable],
-        level: Level | None = None,
+        level: Optional[Level] = None,
         errors: Literal["raise", "ignore"] = "raise",
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Drop specified rows from the frame.
         Args:
@@ -11560,7 +11566,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(frame)
 
-    def columnarize(self) -> SnowflakeQueryCompiler:
+    def columnarize(self) -> "SnowflakeQueryCompiler":
         """
         Transpose this QueryCompiler if it has a single row but multiple columns.
 
@@ -11596,43 +11602,43 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return self
 
-    def dt_date(self) -> SnowflakeQueryCompiler:
+    def dt_date(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("date")
 
-    def dt_time(self) -> SnowflakeQueryCompiler:
+    def dt_time(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("time")
 
-    def dt_timetz(self) -> SnowflakeQueryCompiler:
+    def dt_timetz(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("timetz")
 
-    def dt_year(self) -> SnowflakeQueryCompiler:
+    def dt_year(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("year")
 
-    def dt_month(self) -> SnowflakeQueryCompiler:
+    def dt_month(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("month")
 
-    def dt_day(self) -> SnowflakeQueryCompiler:
+    def dt_day(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("day")
 
-    def dt_hour(self) -> SnowflakeQueryCompiler:
+    def dt_hour(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("hour")
 
-    def dt_minute(self) -> SnowflakeQueryCompiler:
+    def dt_minute(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("minute")
 
-    def dt_second(self) -> SnowflakeQueryCompiler:
+    def dt_second(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("second")
 
-    def dt_microsecond(self) -> SnowflakeQueryCompiler:
+    def dt_microsecond(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("microsecond")
 
-    def dt_nanosecond(self) -> SnowflakeQueryCompiler:
+    def dt_nanosecond(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("nanosecond")
 
-    def dt_dayofweek(self) -> SnowflakeQueryCompiler:
+    def dt_dayofweek(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("dayofweek")
 
-    def dt_isocalendar(self) -> SnowflakeQueryCompiler:
+    def dt_isocalendar(self) -> "SnowflakeQueryCompiler":
         col_name = self.columns[0]
         year_col = self.dt_property("yearofweekiso").rename(
             columns_renamer={col_name: "year"}
@@ -11645,72 +11651,72 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return year_col.concat(axis=1, other=[week_col, day_col])
 
-    def dt_weekday(self) -> SnowflakeQueryCompiler:
+    def dt_weekday(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("weekday")
 
-    def dt_dayofyear(self) -> SnowflakeQueryCompiler:
+    def dt_dayofyear(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("dayofyear")
 
-    def dt_quarter(self) -> SnowflakeQueryCompiler:
+    def dt_quarter(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("quarter")
 
-    def dt_is_month_start(self) -> SnowflakeQueryCompiler:
+    def dt_is_month_start(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_month_start")
 
-    def dt_is_month_end(self) -> SnowflakeQueryCompiler:
+    def dt_is_month_end(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_month_end")
 
-    def dt_is_quarter_start(self) -> SnowflakeQueryCompiler:
+    def dt_is_quarter_start(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_quarter_start")
 
-    def dt_is_quarter_end(self) -> SnowflakeQueryCompiler:
+    def dt_is_quarter_end(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_quarter_end")
 
-    def dt_is_year_start(self) -> SnowflakeQueryCompiler:
+    def dt_is_year_start(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_year_start")
 
-    def dt_is_year_end(self) -> SnowflakeQueryCompiler:
+    def dt_is_year_end(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_year_end")
 
-    def dt_is_leap_year(self) -> SnowflakeQueryCompiler:
+    def dt_is_leap_year(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_leap_year")
 
-    def dt_daysinmonth(self) -> SnowflakeQueryCompiler:
+    def dt_daysinmonth(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("days_in_month")
 
-    def dt_days_in_month(self) -> SnowflakeQueryCompiler:
+    def dt_days_in_month(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("days_in_month")
 
-    def dt_freq(self) -> SnowflakeQueryCompiler:
+    def dt_freq(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("freq")
 
-    def dt_seconds(self) -> SnowflakeQueryCompiler:
+    def dt_seconds(self) -> "SnowflakeQueryCompiler":
         return self.timedelta_property("seconds")
 
-    def dt_days(self) -> SnowflakeQueryCompiler:
+    def dt_days(self) -> "SnowflakeQueryCompiler":
         return self.timedelta_property("days")
 
-    def dt_microseconds(self) -> SnowflakeQueryCompiler:
+    def dt_microseconds(self) -> "SnowflakeQueryCompiler":
         return self.timedelta_property("microseconds")
 
-    def dt_nanoseconds(self) -> SnowflakeQueryCompiler:
+    def dt_nanoseconds(self) -> "SnowflakeQueryCompiler":
         return self.timedelta_property("nanoseconds")
 
-    def dt_components(self) -> SnowflakeQueryCompiler:
+    def dt_components(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("components")
 
-    def dt_qyear(self) -> SnowflakeQueryCompiler:
+    def dt_qyear(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("qyear")
 
-    def dt_start_time(self) -> SnowflakeQueryCompiler:
+    def dt_start_time(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("start_time")
 
-    def dt_end_time(self) -> SnowflakeQueryCompiler:
+    def dt_end_time(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("end_time")
 
     def dt_property(
         self, property_name: str, include_index: bool = False
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Extracts the specified date or time part from the timestamp.
 
@@ -11857,10 +11863,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def isin(
         self,
-        values: (
-            list[Any] | np.ndarray | SnowflakeQueryCompiler | dict[Hashable, ListLike]
-        ),
-    ) -> SnowflakeQueryCompiler:  # noqa: PR02
+        values: Union[
+            list[Any], np.ndarray, "SnowflakeQueryCompiler", dict[Hashable, ListLike]
+        ],
+    ) -> "SnowflakeQueryCompiler":  # noqa: PR02
         """
         Check for each element of `self` whether it's contained in passed `values`.
         Parameters
@@ -11969,17 +11975,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return self._modin_frame.is_multiindex(axis=axis)
 
-    def abs(self) -> SnowflakeQueryCompiler:
+    def abs(self) -> "SnowflakeQueryCompiler":
         # TODO(SNOW-1620415): Implement abs() for timedelta.
         self._raise_not_implemented_error_for_timedelta()
         return self.unary_op("abs")
 
-    def negative(self) -> SnowflakeQueryCompiler:
+    def negative(self) -> "SnowflakeQueryCompiler":
         # TODO(SNOW-1620415): Implement __neg__() for timedelta.
         self._raise_not_implemented_error_for_timedelta()
         return self.unary_op("__neg__")
 
-    def unary_op(self, op: str) -> SnowflakeQueryCompiler:
+    def unary_op(self, op: str) -> "SnowflakeQueryCompiler":
         """
         Applies a unary operation `op` on each element of the `SnowflakeQueryCompiler`.
 
@@ -12123,7 +12129,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         na_option: Literal["keep", "top", "bottom"] = "keep",
         ascending: bool = True,
         pct: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Compute numerical rank along the specified axis.
 
@@ -12288,8 +12294,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method: Literal["backfill", "bfill", "pad", "ffill", None] = None,
         how: Literal["start", "end", None] = None,
         normalize: bool = False,
-        fill_value: Scalar | None = None,
-    ) -> SnowflakeQueryCompiler:
+        fill_value: Optional[Scalar] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert time series to specified frequency.
 
@@ -12409,7 +12415,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         resample_method_args: tuple[Any],
         resample_method_kwargs: dict[str, Any],
         is_series: bool,
-    ) -> SnowflakeQueryCompiler | collections.defaultdict[Hashable, list]:
+    ) -> Union["SnowflakeQueryCompiler", collections.defaultdict[Hashable, list]]:
         """
         Return new SnowflakeQueryCompiler whose ordered frame holds the result of a resample operation.
 
@@ -12596,7 +12602,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 qc._modin_frame, rule, start_date, end_date
             )
             if resample_method in ("sum", "count", "size", "nunique"):
-                values_arg: int | dict
+                values_arg: Union[int, dict]
                 if resample_method == "sum":
                     # For sum(), we need to fill NaN values as Timedelta(0)
                     # for timedelta columns and as 0 for other columns.
@@ -12640,9 +12646,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         normalize: bool = False,
         sort: bool = True,
         ascending: bool = False,
-        bins: int | None = None,
+        bins: Optional[int] = None,
         dropna: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Counts the frequency or number of unique values of Index SnowflakeQueryCompiler.
 
@@ -12676,13 +12682,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def value_counts(
         self,
-        subset: Sequence[Hashable] | None = None,
+        subset: Optional[Sequence[Hashable]] = None,
         normalize: bool = False,
         sort: bool = True,
         ascending: bool = False,
-        bins: int | None = None,
+        bins: Optional[int] = None,
         dropna: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Counts the frequency or number of unique values of SnowflakeQueryCompiler.
 
@@ -12728,8 +12734,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ascending: bool,
         dropna: bool,
         *,
-        normalize_within_groups: list[str] | None = None,
-    ) -> SnowflakeQueryCompiler:
+        normalize_within_groups: Optional[list[str]] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Helper method to obtain the frequency or number of unique values
         within a group.
@@ -12935,9 +12941,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "linear", "lower", "higher", "midpoint", "nearest"
         ] = "linear",
         method: Literal["single", "table"] = "single",
-        index: list[str] | list[float] | None = None,
+        index: Optional[Union[list[str], list[float]]] = None,
         index_dtype: npt.DTypeLike = float,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Returns values at the given quantiles for each column.
 
@@ -13084,9 +13090,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         q: list[float],
         interpolation: Literal["linear", "lower", "higher", "midpoint", "nearest"],
-        index: list[str] | list[float] | None = None,
+        index: Optional[Union[list[str], list[float]]] = None,
         index_dtype: npt.DTypeLike = float,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Helper method for ``qcut`` and ``quantile`` to compute quantiles over frames with a single column.
         ``q`` must be sorted in ascending order (see Notes section).
@@ -13251,7 +13257,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int,
         skipna: bool,
         numeric_only: bool,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return unbiased skew, normalized over n-1
 
@@ -13290,7 +13296,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def describe(
         self,
         percentiles: np.ndarray,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Summarizes statistics for the SnowflakeQueryCompiler.
 
@@ -13438,7 +13444,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             def count_freqs(
-                col_labels: str | tuple[str, ...], col_ident: str
+                col_labels: Union[str, tuple[str, ...]], col_ident: str
             ) -> OrderedDataFrame:
                 """
                 Helper function to compute the mode ("top") and frequency with which the mode
@@ -13713,14 +13719,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def sample(
         self,
-        n: int | None,
-        frac: float | None,
+        n: Optional[int],
+        frac: Optional[float],
         replace: bool,
-        weights: str | np.ndarray | None = None,
-        random_state: RandomState | None = None,
-        axis: int | None = 0,
-        ignore_index: bool | None = False,
-    ) -> SnowflakeQueryCompiler:
+        weights: Optional[Union[str, np.ndarray]] = None,
+        random_state: Optional[RandomState] = None,
+        axis: Optional[int] = 0,
+        ignore_index: Optional[bool] = False,
+    ) -> "SnowflakeQueryCompiler":
         """
         The implementation to sample rows on a dataframe
 
@@ -13849,7 +13855,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def window_mean(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         window_kwargs: dict,
         *args: Any,
         **kwargs: Any,
@@ -13860,7 +13866,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def window_sum(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         window_kwargs: dict,
         *args: Any,
         **kwargs: Any,
@@ -13871,7 +13877,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def window_var(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         window_kwargs: dict,
         ddof: int = 1,
         *args: Any,
@@ -13883,7 +13889,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def window_std(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         window_kwargs: dict,
         ddof: int = 1,
         *args: Any,
@@ -13897,12 +13903,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_count(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         numeric_only: bool = False,
         *args: Any,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func="count",
@@ -13912,14 +13918,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_sum(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
         *args: Any,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_sum", engine, engine_kwargs
         )
@@ -13932,14 +13938,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_mean(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
         *args: Any,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_mean", engine, engine_kwargs
         )
@@ -13952,26 +13958,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_median(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
         **kwargs: Any,
     ) -> None:
         ErrorMessage.method_not_implemented_error(name="median", class_="Rolling")
 
     def rolling_var(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         ddof: int = 1,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
         *args: Any,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -13984,15 +13990,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_std(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         ddof: int = 1,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
         *args: Any,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -14005,14 +14011,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_min(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
         *args: Any,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_min", engine, engine_kwargs
         )
@@ -14025,14 +14031,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_max(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
         *args: Any,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_max", engine, engine_kwargs
         )
@@ -14045,14 +14051,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_corr(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
-        other: SnowparkDataFrame | None = None,
-        pairwise: bool | None = None,
+        other: Optional[SnowparkDataFrame] = None,
+        pairwise: Optional[bool] = None,
         ddof: int = 1,
         numeric_only: bool = False,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         if other is None:
             ErrorMessage.parameter_not_implemented_error(
                 parameter_name="other = None", method_name="Rolling.corr"
@@ -14072,10 +14078,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_cov(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
-        other: SnowparkDataFrame | None = None,
-        pairwise: bool | None = None,
+        other: Optional[SnowparkDataFrame] = None,
+        pairwise: Optional[bool] = None,
         ddof: int = 1,
         numeric_only: bool = False,
         **kwargs: Any,
@@ -14084,7 +14090,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_skew(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         numeric_only: bool = False,
         **kwargs: Any,
@@ -14093,7 +14099,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_kurt(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         numeric_only: bool = False,
         **kwargs: Any,
@@ -14102,22 +14108,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_apply(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         func: Any,
         raw: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
-        args: tuple | None = None,
-        kwargs: dict | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        args: Optional[tuple] = None,
+        kwargs: Optional[dict] = None,
     ) -> None:
         ErrorMessage.method_not_implemented_error(name="apply", class_="Rolling")
 
     def rolling_aggregate(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
-        func: str | list | dict,
+        func: Union[str, list, dict],
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -14125,7 +14131,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_quantile(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         quantile: float,
         interpolation: str = "linear",
@@ -14136,13 +14142,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_sem(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         ddof: int = 1,
         numeric_only: bool = False,
         *args: Any,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func="sem",
@@ -14152,7 +14158,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def rolling_rank(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         rolling_kwargs: dict,
         method: str = "average",
         ascending: bool = True,
@@ -14168,7 +14174,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_func: AggFuncType,
         window_kwargs: dict[str, Any],
         agg_kwargs: dict[str, Any],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Compute rolling window with given aggregation.
         Args:
@@ -14402,10 +14408,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_count(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         numeric_only: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         return self._window_agg(
             window_func=WindowFunction.EXPANDING,
             agg_func="count",
@@ -14415,12 +14421,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_sum(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
-    ) -> SnowflakeQueryCompiler:
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_sum", engine, engine_kwargs
         )
@@ -14433,12 +14439,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_mean(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
-    ) -> SnowflakeQueryCompiler:
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_mean", engine, engine_kwargs
         )
@@ -14451,23 +14457,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_median(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
     ) -> None:
         ErrorMessage.method_not_implemented_error(name="median", class_="Expanding")
 
     def expanding_var(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         ddof: int = 1,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
-    ) -> SnowflakeQueryCompiler:
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -14480,13 +14486,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_std(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         ddof: int = 1,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
-    ) -> SnowflakeQueryCompiler:
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_std", engine, engine_kwargs
         )
@@ -14499,12 +14505,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_min(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
-    ) -> SnowflakeQueryCompiler:
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_min", engine, engine_kwargs
         )
@@ -14517,12 +14523,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_max(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         numeric_only: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
-    ) -> SnowflakeQueryCompiler:
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "expanding_max", engine, engine_kwargs
         )
@@ -14535,10 +14541,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_corr(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
-        other: SnowparkDataFrame | None = None,
-        pairwise: bool | None = None,
+        other: Optional[SnowparkDataFrame] = None,
+        pairwise: Optional[bool] = None,
         ddof: int = 1,
         numeric_only: bool = False,
     ) -> None:
@@ -14546,10 +14552,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_cov(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
-        other: SnowparkDataFrame | None = None,
-        pairwise: bool | None = None,
+        other: Optional[SnowparkDataFrame] = None,
+        pairwise: Optional[bool] = None,
         ddof: int = 1,
         numeric_only: bool = False,
     ) -> None:
@@ -14557,7 +14563,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_skew(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         numeric_only: bool = False,
     ) -> None:
@@ -14565,7 +14571,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_kurt(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         numeric_only: bool = False,
     ) -> None:
@@ -14573,20 +14579,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_apply(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         func: Any,
         raw: bool = False,
-        engine: Literal["cython", "numba"] | None = None,
-        engine_kwargs: dict[str, bool] | None = None,
-        args: tuple | None = None,
-        kwargs: dict | None = None,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        args: Optional[tuple] = None,
+        kwargs: Optional[dict] = None,
     ) -> None:
         ErrorMessage.method_not_implemented_error(name="apply", class_="Expanding")
 
     def expanding_aggregate(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         func: Any,
         *args: Any,
@@ -14596,7 +14602,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_quantile(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         quantile: float,
         interpolation: str = "linear",
@@ -14606,11 +14612,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_sem(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         ddof: int = 1,
         numeric_only: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         return self._window_agg(
             window_func=WindowFunction.EXPANDING,
             agg_func="sem",
@@ -14620,7 +14626,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def expanding_rank(
         self,
-        fold_axis: int | str,
+        fold_axis: Union[int, str],
         expanding_kwargs: dict,
         method: str = "average",
         ascending: bool = True,
@@ -14631,12 +14637,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def replace(
         self,
-        to_replace: str | int | float | ListLike | dict = None,
-        value: Scalar | ListLike | dict = lib.no_default,
-        limit: int | None = None,
-        regex: bool | str | int | float | ListLike | dict = False,
-        method: str | lib.NoDefault = lib.no_default,
-    ) -> SnowflakeQueryCompiler:
+        to_replace: Union[str, int, float, ListLike, dict] = None,
+        value: Union[Scalar, ListLike, dict] = lib.no_default,
+        limit: Optional[int] = None,
+        regex: Union[bool, str, int, float, ListLike, dict] = False,
+        method: Union[str, lib.NoDefault] = lib.no_default,
+    ) -> "SnowflakeQueryCompiler":
         """
         Replace values given in `to_replace` by `value`.
 
@@ -14803,7 +14809,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if is_scalar(value):
                 value = [value] * len(to_replace)  # type: ignore
             column = col(identifier)
-            expr: CaseExpr | None = None
+            expr: Optional[CaseExpr] = None
             for k, v in zip(to_replace, value):  # type: ignore
                 v = pandas_lit(v)
                 if native_pd.isna(k):
@@ -14823,13 +14829,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(result.frame)
 
     def add_prefix(
-        self, substring: Any, axis: int | None = 0
-    ) -> SnowflakeQueryCompiler:
+        self, substring: Any, axis: Optional[int] = 0
+    ) -> "SnowflakeQueryCompiler":
         return self.add_substring(str(substring), "prefix", axis)
 
     def add_suffix(
-        self, substring: Any, axis: int | None = 0
-    ) -> SnowflakeQueryCompiler:
+        self, substring: Any, axis: Optional[int] = 0
+    ) -> "SnowflakeQueryCompiler":
         return self.add_substring(str(substring), "suffix", axis)
 
     @snowpark_pandas_type_immutable_check
@@ -14837,8 +14843,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         substring: str,
         substring_type: Literal["prefix", "suffix"],
-        axis: int | None = 0,
-    ) -> SnowflakeQueryCompiler:
+        axis: Optional[int] = 0,
+    ) -> "SnowflakeQueryCompiler":
         """
         Add a substring to the current row or column labels.
 
@@ -14970,9 +14976,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def duplicated(
         self,
-        subset: Hashable | Sequence[Hashable] = None,
+        subset: Union[Hashable, Sequence[Hashable]] = None,
         keep: DropKeep = "first",
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return boolean Series denoting duplicate rows.
 
@@ -15110,9 +15116,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _binary_op_between_dataframe_and_series_along_axis_0(
         self,
         op: str,
-        other: SnowflakeQueryCompiler,
-        fill_value: Scalar | None = None,
-    ) -> SnowflakeQueryCompiler:
+        other: "SnowflakeQueryCompiler",
+        fill_value: Optional[Scalar] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Computes binary operation between DataFrame (self) and Series (other).
 
@@ -15276,8 +15282,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_frame)
 
     def round(
-        self, decimals: int | Mapping | pd.Series = 0, **kwargs: Any
-    ) -> SnowflakeQueryCompiler:
+        self, decimals: Union[int, Mapping, "pd.Series"] = 0, **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
         """
         Round every numeric value up to specified number of decimals.
 
@@ -15338,7 +15344,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int = 0,
         skipna: bool = True,
         numeric_only: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return index of first occurrence of maximum over requested axis.
 
@@ -15362,7 +15368,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int = 0,
         skipna: bool = True,
         numeric_only: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return index of first occurrence of minimum over requested axis.
 
@@ -15387,7 +15393,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int = 0,
         skipna: bool = True,
         numeric_only: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return index of first/last occurrence of maximum over requested axis.
 
@@ -15414,8 +15420,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ).set_columns([None])
 
     def _binary_op_between_dataframes(
-        self, op: str, other: SnowflakeQueryCompiler, fill_value: Scalar | None
-    ) -> SnowflakeQueryCompiler:
+        self, op: str, other: "SnowflakeQueryCompiler", fill_value: Optional[Scalar]
+    ) -> "SnowflakeQueryCompiler":
         """
         Compute binary operation between self and other, which both represent a DataFrame.
         Args:
@@ -15528,10 +15534,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _binary_op_between_dataframe_and_series_along_axis_1(
         self,
         op: str,
-        other: SnowflakeQueryCompiler,
+        other: "SnowflakeQueryCompiler",
         squeeze_self: bool,
-        fill_value: Scalar | None = None,
-    ) -> SnowflakeQueryCompiler:
+        fill_value: Optional[Scalar] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Compute result of DataFrame and Series (or vice-versa) along axis=1 (row-wise).
         Args:
@@ -15793,7 +15799,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         in_col: SnowparkColumn,
         out_col: SnowparkColumn,
-        replacement_value: object | None = None,
+        replacement_value: Optional[object] = None,
     ) -> SnowparkColumn:
         """
         Handle the case where the input column to the string method may contain mixed types.
@@ -15817,10 +15823,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def _str_startswith_endswith(
         self,
-        pat: str | tuple,
+        pat: Union[str, tuple],
         na: object = None,
         is_startswith: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Test if the start (or end) of each string element matches a pattern.
 
@@ -15873,8 +15879,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_cat(
         self,
         others: ListLike,
-        sep: str | None = None,
-        na_rep: str | None = None,
+        sep: Optional[str] = None,
+        na_rep: Optional[str] = None,
         join: Literal["left", "right", "outer", "inner"] = "left",
     ) -> None:
         ErrorMessage.method_not_implemented_error("cat", "Series.str")
@@ -15886,8 +15892,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error("encode", "Series.str")
 
     def str_startswith(
-        self, pat: str | tuple, na: object = None
-    ) -> SnowflakeQueryCompiler:
+        self, pat: Union[str, tuple], na: object = None
+    ) -> "SnowflakeQueryCompiler":
         """
         Test if the start of each string element matches a pattern.
 
@@ -15905,8 +15911,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self._str_startswith_endswith(pat, na, is_startswith=True)
 
     def str_endswith(
-        self, pat: str | tuple, na: object = None
-    ) -> SnowflakeQueryCompiler:
+        self, pat: Union[str, tuple], na: object = None
+    ) -> "SnowflakeQueryCompiler":
         """
         Test if the end of each string element matches a pattern.
 
@@ -15923,19 +15929,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         return self._str_startswith_endswith(pat, na, is_startswith=False)
 
-    def str_find(self, sub: str, start: int = 0, end: int | None = None) -> None:
+    def str_find(self, sub: str, start: int = 0, end: Optional[int] = None) -> None:
         ErrorMessage.method_not_implemented_error("find", "Series.str")
 
-    def str_rfind(self, sub: str, start: int = 0, end: int | None = None) -> None:
+    def str_rfind(self, sub: str, start: int = 0, end: Optional[int] = None) -> None:
         ErrorMessage.method_not_implemented_error("rfind", "Series.str")
 
     def str_findall(self, pat: str, flags: int = 0) -> None:
         ErrorMessage.method_not_implemented_error("findall", "Series.str")
 
-    def str_index(self, sub: str, start: int = 0, end: int | None = None) -> None:
+    def str_index(self, sub: str, start: int = 0, end: Optional[int] = None) -> None:
         ErrorMessage.method_not_implemented_error("index", "Series.str")
 
-    def str_rindex(self, sub: str, start: int = 0, end: int | None = None) -> None:
+    def str_rindex(self, sub: str, start: int = 0, end: Optional[int] = None) -> None:
         ErrorMessage.method_not_implemented_error("rindex", "Series.str")
 
     def str_fullmatch(
@@ -15945,7 +15951,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_match(
         self, pat: str, case: bool = True, flags: int = 0, na: object = None
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Determine if each string starts with a match of a regular expression.
 
@@ -15995,7 +16001,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_extractall(self, pat: str, flags: int = 0, expand: bool = True) -> None:
         ErrorMessage.method_not_implemented_error("extractall", "Series.str")
 
-    def str_capitalize(self) -> SnowflakeQueryCompiler:
+    def str_capitalize(self) -> "SnowflakeQueryCompiler":
         """
         Capitalize the string
 
@@ -16019,7 +16025,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_isalpha(self) -> None:
         ErrorMessage.method_not_implemented_error("isalpha", "Series.str")
 
-    def str_isdigit(self) -> SnowflakeQueryCompiler:
+    def str_isdigit(self) -> "SnowflakeQueryCompiler":
         """
         Check whether all characters in each string are digits.
 
@@ -16035,7 +16041,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_isspace(self) -> None:
         ErrorMessage.method_not_implemented_error("isspace", "Series.str")
 
-    def str_islower(self) -> SnowflakeQueryCompiler:
+    def str_islower(self) -> "SnowflakeQueryCompiler":
         """
         Check whether all characters in each string are lowercase.
 
@@ -16053,7 +16059,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_isupper(self) -> SnowflakeQueryCompiler:
+    def str_isupper(self) -> "SnowflakeQueryCompiler":
         """
         Check whether all characters in each string are uppercase.
 
@@ -16071,7 +16077,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_istitle(self) -> SnowflakeQueryCompiler:
+    def str_istitle(self) -> "SnowflakeQueryCompiler":
         """
         Check whether each string is titlecase.
         We do a regex matching as follows
@@ -16099,7 +16105,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_isdecimal(self) -> None:
         ErrorMessage.method_not_implemented_error("isdecimal", "Series.str")
 
-    def str_lower(self) -> SnowflakeQueryCompiler:
+    def str_lower(self) -> "SnowflakeQueryCompiler":
         """
         Convert strings to lowercase.
 
@@ -16112,7 +16118,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_upper(self) -> SnowflakeQueryCompiler:
+    def str_upper(self) -> "SnowflakeQueryCompiler":
         """
         Convert strings to uppercase.
 
@@ -16125,7 +16131,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_title(self) -> SnowflakeQueryCompiler:
+    def str_title(self) -> "SnowflakeQueryCompiler":
         """
         Titlecase the string
 
@@ -16166,7 +16172,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             params = params + "s"
         return params
 
-    def str___getitem__(self, key: Scalar | slice) -> SnowflakeQueryCompiler:
+    def str___getitem__(self, key: Union[Scalar, slice]) -> "SnowflakeQueryCompiler":
         """
         Retrieve character(s) or substring(s) from each element in the Series or Index according to `key`.
 
@@ -16204,7 +16210,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         flags: int = 0,
         na: object = None,
         regex: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Test if pattern or regex is contained within a string of a Series or Index.
 
@@ -16255,7 +16261,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_count(
         self, pat: str, flags: int = 0, **kwargs: Any
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Count occurrences of pattern in each string of the Series/Index.
 
@@ -16292,7 +16298,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return SnowflakeQueryCompiler(new_internal_frame)
 
-    def str_get(self, i: int) -> SnowflakeQueryCompiler:
+    def str_get(self, i: int) -> "SnowflakeQueryCompiler":
         """
         Extract element from each component at specified position or with specified key.
 
@@ -16362,7 +16368,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_rpartition(self, sep: str = " ", expand: bool = True) -> None:
         ErrorMessage.method_not_implemented_error("rpartition", "Series.str")
 
-    def str_len(self, **kwargs: Any) -> SnowflakeQueryCompiler:
+    def str_len(self, **kwargs: Any) -> "SnowflakeQueryCompiler":
         """
         Compute the length of each element in the Series/Index
 
@@ -16404,10 +16410,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_slice(
         self,
-        start: int | None = None,
-        stop: int | None = None,
-        step: int | None = None,
-    ) -> SnowflakeQueryCompiler:
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+        step: Optional[int] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Slice substrings from each element in the Series or Index.
 
@@ -16427,9 +16433,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         def output_col(
             column: SnowparkColumn,
-            start: int | None,
-            stop: int | None,
-            step: int | None,
+            start: Optional[int],
+            stop: Optional[int],
+            step: Optional[int],
         ) -> SnowparkColumn:
             if step is None:
                 step = 1
@@ -16539,19 +16545,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_slice_replace(
         self,
-        start: int | None = None,
-        stop: int | None = None,
-        repl: str | Callable | None = None,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+        repl: Optional[Union[str, Callable]] = None,
     ) -> None:
         ErrorMessage.method_not_implemented_error("slice_replace", "Series.str")
 
     def str_split(
         self,
-        pat: str | None = None,
+        pat: Optional[str] = None,
         n: int = -1,
         expand: bool = False,
-        regex: bool | None = None,
-    ) -> SnowflakeQueryCompiler:
+        regex: Optional[bool] = None,
+    ) -> "SnowflakeQueryCompiler":
         """
         Split strings around given separator/delimiter.
 
@@ -16601,7 +16607,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         def output_col(
-            column: SnowparkColumn, pat: str | None, n: int
+            column: SnowparkColumn, pat: Optional[str], n: int
         ) -> SnowparkColumn:
             if pandas.isnull(pat):
                 # When pat is null, it means we need to split on whitespace.
@@ -16680,19 +16686,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_rsplit(
-        self, pat: str | None = None, *, n: int = -1, expand: bool = False
+        self, pat: Optional[str] = None, *, n: int = -1, expand: bool = False
     ) -> None:
         ErrorMessage.method_not_implemented_error("rsplit", "Series.str")
 
     def str_replace(
         self,
         pat: str,
-        repl: str | Callable,
+        repl: Union[str, Callable],
         n: int = -1,
-        case: bool | None = None,
+        case: Optional[bool] = None,
         flags: int = 0,
         regex: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Replace each occurrence of pattern/regex in the Series/Index.
 
@@ -16809,8 +16815,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error("removesuffix", "Series.str")
 
     def _str_strip_variant(
-        self, sp_func: Callable, pd_func_name: str, to_strip: str | None = None
-    ) -> SnowflakeQueryCompiler:
+        self, sp_func: Callable, pd_func_name: str, to_strip: Union[str, None] = None
+    ) -> "SnowflakeQueryCompiler":
         """
         Remove leading and/or trailing characters depending on sp_func.
 
@@ -16846,7 +16852,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     @snowpark_pandas_type_immutable_check
-    def str_strip(self, to_strip: str | None = None) -> SnowflakeQueryCompiler:
+    def str_strip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
         Remove leading and trailing characters.
 
@@ -16866,7 +16872,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @snowpark_pandas_type_immutable_check
-    def str_lstrip(self, to_strip: str | None = None) -> SnowflakeQueryCompiler:
+    def str_lstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
         Remove leading characters.
 
@@ -16886,7 +16892,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @snowpark_pandas_type_immutable_check
-    def str_rstrip(self, to_strip: str | None = None) -> SnowflakeQueryCompiler:
+    def str_rstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
         Remove trailing characters.
 
@@ -16909,7 +16915,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error("swapcase", "Series.str")
 
     @snowpark_pandas_type_immutable_check
-    def str_translate(self, table: dict) -> SnowflakeQueryCompiler:
+    def str_translate(self, table: dict) -> "SnowflakeQueryCompiler":
         """
         Map all characters in the string through the given mapping table.
 
@@ -16978,11 +16984,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def qcut(
         self,
-        q: int | ListLike,
+        q: Union[int, ListLike],
         retbins: bool,
-        duplicates: Literal["raise", "drop"],
+        duplicates: Union[Literal["raise", "drop"]],
         precision: int = 3,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Computes for self (which is assumed to be representing a Series) into which bins data falls.
         Args:
@@ -17064,7 +17070,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # There will be 0, ..., len(unique_quantiles) - 1 cuts, result will be thus in this range.
         # We can find for values the cut they belong to by comparing against quantiled values.
-        case_expr: CaseExpr | None = None
+        case_expr: Optional[CaseExpr] = None
         for index, quantile in enumerate(unique_quantiles):
             bin = max(index - 1, 0)
             cond = data_column <= quantile
@@ -17096,9 +17102,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         n: int,
         op_type: Literal["head", "tail"],
         by: Any,
-        level: IndexLabel | None,
+        level: Optional[IndexLabel],
         dropna: bool,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Select the first or last n rows/entries in a group.
 
@@ -17275,13 +17281,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def cut(
         self,
-        bins: int | Sequence[Scalar] | pandas.IntervalIndex,
+        bins: Union[int, Sequence[Scalar], pandas.IntervalIndex],
         right: bool = True,
-        labels: ListLike | bool | None = None,
+        labels: Union[ListLike, bool, None] = None,
         precision: int = 3,
         include_lowest: bool = False,
         duplicates: str = "raise",
-    ) -> tuple[Sequence[Scalar], SnowflakeQueryCompiler]:
+    ) -> tuple[Sequence[Scalar], "SnowflakeQueryCompiler"]:
         """
         Compute result of pd.cut for self, which is assumed to be a Series.
 
@@ -17388,7 +17394,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def str_casefold(self) -> None:
         ErrorMessage.method_not_implemented_error("casefold", "Series.str")
 
-    def dt_to_period(self, freq: str | None = None) -> None:
+    def dt_to_period(self, freq: Optional[str] = None) -> None:
         """
         Convert underlying data to the period at a particular frequency.
 
@@ -17448,11 +17454,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def dt_tz_localize(
         self,
-        tz: str | tzinfo,
+        tz: Union[str, tzinfo],
         ambiguous: str = "raise",
         nonexistent: str = "raise",
         include_index: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Localize tz-naive to tz-aware.
         Args:
@@ -17490,9 +17496,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def dt_tz_convert(
         self,
-        tz: str | tzinfo,
+        tz: Union[str, tzinfo],
         include_index: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert time-series data to the specified time zone.
 
@@ -17525,7 +17531,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ambiguous: str = "raise",
         nonexistent: str = "raise",
         include_index: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             freq: The frequency level to ceil the index to.
@@ -17608,7 +17614,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ambiguous: str = "raise",
         nonexistent: str = "raise",
         include_index: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             freq: The frequency level to round the index to.
@@ -17769,7 +17775,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ambiguous: str = "raise",
         nonexistent: str = "raise",
         include_index: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             freq: The frequency level to floor the index to.
@@ -17838,7 +17844,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ),
         )
 
-    def dt_normalize(self, include_index: bool = False) -> SnowflakeQueryCompiler:
+    def dt_normalize(self, include_index: bool = False) -> "SnowflakeQueryCompiler":
         """
         Set the time component of each date-time value to midnight.
 
@@ -17862,8 +17868,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def dt_month_name(
-        self, locale: str | None = None, include_index: bool = False
-    ) -> SnowflakeQueryCompiler:
+        self, locale: Optional[str] = None, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             locale: Locale determining the language in which to return the month name.
@@ -17896,8 +17902,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def dt_day_name(
-        self, locale: str | None = None, include_index: bool = False
-    ) -> SnowflakeQueryCompiler:
+        self, locale: Optional[str] = None, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Args:
             locale: Locale determining the language in which to return the month name.
@@ -17929,7 +17935,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-    def dt_total_seconds(self, include_index: bool = False) -> SnowflakeQueryCompiler:
+    def dt_total_seconds(self, include_index: bool = False) -> "SnowflakeQueryCompiler":
         """
         Return total duration of each element expressed in seconds.
         Args:
@@ -17967,7 +17973,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def topn(
         self, n: int, columns: IndexLabel, keep: str, ascending: bool
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return the top 'n' rows ordered by 'columns'..
 
@@ -18053,7 +18059,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def nlargest(
         self, n: int, columns: IndexLabel, keep: str
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return the first 'n' rows ordered by 'columns' in descending order.
 
@@ -18073,7 +18079,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def nsmallest(
         self, n: int, columns: IndexLabel, keep: str
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Return the first 'n' rows ordered by 'columns' in ascending order.
 
@@ -18095,11 +18101,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         periods: int = 1,
         fill_method: Literal["backfill", "bfill", "pad", "ffill", None] = "pad",
-        limit: int | None = None,
-        freq: pd.DateOffset | timedelta | str | None = None,
+        limit: Optional[int] = None,
+        freq: Optional[Union[pd.DateOffset, timedelta, str]] = None,
         axis: Axis = 0,
         **kwargs: Any,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Fractional change between the current and a prior element.
 
@@ -18196,7 +18202,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ).frame
             )
 
-    def index_equals(self, other: SnowflakeQueryCompiler) -> bool:
+    def index_equals(self, other: "SnowflakeQueryCompiler") -> bool:
         """
         Compare self index against other index.
         The things that are being compared are:
@@ -18242,8 +18248,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return all(x is None for x in rows[0]) or all(rows[0])
 
     def equals(
-        self, other: SnowflakeQueryCompiler, include_index: bool = False
-    ) -> SnowflakeQueryCompiler:
+        self, other: "SnowflakeQueryCompiler", include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
         """
         Compare self against other, element-wise (binary operator equal_null).
         Notes:
@@ -18328,10 +18334,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def stack(
         self,
-        level: int | str | list = -1,
+        level: Union[int, str, list] = -1,
         dropna: bool = True,
         sort: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Stack the prescribed level(s) from columns to index.
 
@@ -18379,11 +18385,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def unstack(
         self,
-        level: int | str | list = -1,
-        fill_value: int | str | dict | None = None,
+        level: Union[int, str, list] = -1,
+        fill_value: Optional[Union[int, str, dict]] = None,
         sort: bool = True,
         is_series_input: bool = False,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Pivot a level of the (necessarily hierarchical) index labels.
 
@@ -18499,7 +18505,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _stack_helper(
         self,
         operation: StackOperation,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Helper function that performs stacking or unstacking operation on single index dataframe/series.
 
@@ -18573,9 +18579,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def corr(
         self,
-        method: str | Callable = "pearson",
-        min_periods: int | None = 1,
-    ) -> SnowflakeQueryCompiler:
+        method: Union[str, Callable] = "pearson",
+        min_periods: Optional[int] = 1,
+    ) -> "SnowflakeQueryCompiler":
         """
         Compute pairwise correlation of columns, excluding NA/null values.
 
@@ -18666,12 +18672,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def compare(
         self,
-        other: SnowflakeQueryCompiler,
+        other: "SnowflakeQueryCompiler",
         align_axis: Axis,
         keep_shape: bool,
         keep_equal: bool,
         result_names: tuple[str],
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Compare to another query compiler and show the differences.
 
@@ -19031,11 +19037,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def tz_convert(
         self,
-        tz: str | tzinfo,
+        tz: Union[str, tzinfo],
         axis: int = 0,
-        level: Level | None = None,
+        level: Optional[Level] = None,
         copy: bool = True,
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Convert tz-aware axis to target time zone.
 
@@ -19082,13 +19088,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def tz_localize(
         self,
-        tz: str | tzinfo,
+        tz: Union[str, tzinfo],
         axis: int = 0,
-        level: Level | None = None,
+        level: Optional[Level] = None,
         copy: bool = True,
         ambiguous: str = "raise",
         nonexistent: str = "raise",
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Localize tz-naive index of a Series or DataFrame to target time zone.
 
@@ -19158,7 +19164,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def timedelta_property(
         self, property_name: str, include_index: bool = False
-    ) -> SnowflakeQueryCompiler:
+    ) -> "SnowflakeQueryCompiler":
         """
         Extract a specified component of from Timedelta.
 
