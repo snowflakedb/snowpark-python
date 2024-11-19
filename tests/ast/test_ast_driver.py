@@ -207,7 +207,7 @@ def test_ast(session, tables, test_case):
         try:
             # Protobuf serialization is non-deterministic (cf. https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510)
             # Therefore unparse from base64, and then check equality using deterministic (python) protobuf serialization.
-            actual_message = base64_lines_to_request(base64_str.strip())
+            actual_message = textproto_to_request(normalize_temp_names(base64_lines_to_textproto(base64_str.strip())))
             expected_message = textproto_to_request(
                 test_case.expected_ast_encoded.strip()
             )
