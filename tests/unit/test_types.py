@@ -1222,6 +1222,61 @@ def test_snow_type_to_dtype_str():
             "vector",
             "vector(float,8)",
         ),
+        (
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+            "pandas<string,int,float>",
+            '{"fields":[{"name":"id","type":"string"},{"name":"col1","type":"integer"},{"name":"col2","type":"float"}],"type":"pandasdataframe"}',
+            "pandasdataframe",
+            {
+                "type": "pandasdataframe",
+                "fields": [
+                    {"name": "id", "type": "string"},
+                    {"name": "col1", "type": "integer"},
+                    {"name": "col2", "type": "float"},
+                ],
+            },
+        ),
+        (
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+            "pandas<array<array<int>>,int,float>",
+            '{"fields":[{"name":"","type":{"element_type":{"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandasdataframe"}',
+            "pandasdataframe",
+            {
+                "type": "pandasdataframe",
+                "fields": [
+                    {
+                        "name": "",
+                        "type": {
+                            "type": "array",
+                            "element_type": {
+                                "type": "array",
+                                "element_type": "integer",
+                            },
+                        },
+                    },
+                    {"name": "", "type": "integer"},
+                    {"name": "", "type": "float"},
+                ],
+            },
+        ),
+        (
+            PandasSeriesType(IntegerType()),
+            "pandasseries<int>",
+            '{"element_type":"integer","type":"pandasseries"}',
+            "pandasseries",
+            {"type": "pandasseries", "element_type": "integer"},
+        ),
+        (
+            PandasSeriesType(None),
+            "pandasseries<>",
+            '{"element_type":null,"type":"pandasseries"}',
+            "pandasseries",
+            {"type": "pandasseries", "element_type": None},
+        ),
     ],
 )
 def test_datatype(tpe, simple_string, json, type_name, json_value):
@@ -1303,6 +1358,20 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             StructField,
             StructField("AA", DecimalType(20, 10)),
         ),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+        ),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+        ),
+        (PandasSeriesType, PandasSeriesType(IntegerType())),
+        (PandasSeriesType, PandasSeriesType(None)),
     ],
 )
 def test_structtype_from_json(datatype, tpe):
@@ -1342,4 +1411,3 @@ def test_maptype_alias():
 
     assert tpe.valueType == tpe.value_type
     assert tpe.keyType == tpe.key_type
-
