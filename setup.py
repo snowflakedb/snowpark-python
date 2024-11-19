@@ -25,7 +25,8 @@ INSTALL_REQ_LIST = [
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
-    "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+    "cloudpickle==2.2.1;python_version=='3.11.*'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+    "cloudpickle>=3.0.0;python_version>'3.11'",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6",  # Snowpark IR
     "tzlocal",  # Snowpark IR
