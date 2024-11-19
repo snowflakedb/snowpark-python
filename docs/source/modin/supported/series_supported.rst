@@ -264,9 +264,9 @@ Methods
 | ``lt``                      | P                               | ``level``                        |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``map``                     | P                               |  ``na_action``                   | ``N`` if ``arg`` is an instance of a subclass of   |
-|                             |                                 |                                  |``dict`` that is not a subclass of                  |
-|                             |                                 |                                  |```collections.defaultdict``` but that does define a|
-|                             |                                 |                                  | ``__missing__`` method.                            |
+|                             |                                 |                                  | ``dict`` that is not a subclass of                 |
+|                             |                                 |                                  | ```collections.defaultdict``` but that does define |
+|                             |                                 |                                  | a ``__missing__`` method.                          |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``mask``                    | P                               |                                  | ``N`` if given ``axis`` or ``level`` parameters,   |
 |                             |                                 |                                  | ``N`` if ``cond`` or ``other`` is Callable         |
