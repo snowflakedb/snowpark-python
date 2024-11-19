@@ -56,7 +56,7 @@ from tests.utils import (
 )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def threadsafe_session(
     db_parameters,
     session,
@@ -658,8 +658,6 @@ def test_auto_temp_table_cleaner(threadsafe_session, caplog):
 def test_concurrent_update_on_sensitive_configs(
     threadsafe_session, config, value, caplog
 ):
-    original_value = threadsafe_session.conf.get(config)
-
     def change_config_value(session_):
         session_.conf.set(config, value)
 
@@ -678,7 +676,6 @@ def test_concurrent_update_on_sensitive_configs(
         f"You might have more than one threads sharing the Session object trying to update {config}"
         in caplog.text
     )
-    threadsafe_session.conf.set(config, original_value)
 
 
 @pytest.mark.xfail(
