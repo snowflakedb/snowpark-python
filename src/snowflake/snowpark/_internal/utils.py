@@ -11,6 +11,7 @@ import functools
 import hashlib
 import importlib
 import io
+import itertools
 import logging
 import os
 import platform
@@ -23,6 +24,7 @@ import traceback
 import zipfile
 from enum import Enum
 from functools import lru_cache
+from itertools import count
 from json import JSONEncoder
 from random import choice
 from typing import (
@@ -1428,3 +1430,20 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
 
 # Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
 COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
+
+
+class GlobalCounter:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._counter: count[int] = itertools.count()
+
+    def reset(self):
+        with self._lock:
+            self._counter = itertools.count()
+
+    def next(self) -> int:
+        with self._lock:
+            return next(self._counter)
+
+
+global_counter: GlobalCounter = GlobalCounter()
