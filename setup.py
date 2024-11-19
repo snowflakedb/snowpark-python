@@ -30,10 +30,8 @@ INSTALL_REQ_LIST = [
     "protobuf>=3.20, <6",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
-REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
-if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
-    REQUIRED_PYTHON_VERSION = ">=3.8"
+REQUIRED_PYTHON_VERSION = ">=3.8"
 
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
