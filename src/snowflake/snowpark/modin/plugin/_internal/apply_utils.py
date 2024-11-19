@@ -1,13 +1,14 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+from __future__ import annotations
 import inspect
 import json
 import sys
 from collections import namedtuple
 from collections.abc import Hashable
 from enum import Enum, auto
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, Literal
 
 import cloudpickle
 import numpy as np
@@ -17,8 +18,14 @@ from pandas.api.types import is_scalar
 
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
+from collections.abc import Mapping
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark.column import Column as SnowparkColumn
+from snowflake.snowpark.modin.plugin._internal.type_utils import (
+    infer_object_type,
+    pandas_lit,
+    is_compatible_snowpark_types,
+)
 from snowflake.snowpark.functions import (
     builtin,
     col,
@@ -28,6 +35,8 @@ from snowflake.snowpark.functions import (
     sin,
     snowflake_cortex_summarize,
     udf,
+    to_variant,
+    when,
     udtf,
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
@@ -42,6 +51,8 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_snowflake_object_construct_identifier_to_map,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+import itertools
+from collections import defaultdict
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -117,9 +128,9 @@ def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, Data
 
 def create_udtf_for_apply_axis_1(
     row_position_snowflake_quoted_identifier: str,
-    func: Union[Callable, UserDefinedFunction],
+    func: Callable | UserDefinedFunction,
     raw: bool,
-    result_type: Optional[Literal["expand", "reduce", "broadcast"]],
+    result_type: Literal["expand", "reduce", "broadcast"] | None,
     args: tuple,
     column_index: native_pd.Index,
     input_types: list[DataType],
@@ -687,10 +698,10 @@ def create_udtf_for_groupby_apply(
 
 
 def create_udf_for_series_apply(
-    func: Union[Callable, UserDefinedFunction],
+    func: Callable | UserDefinedFunction,
     return_type: DataType,
     input_type: DataType,
-    na_action: Optional[Literal["ignore"]],
+    na_action: Literal["ignore"] | None,
     session: Session,
     args: tuple[Any, ...],
     **kwargs: Any,
@@ -818,8 +829,8 @@ def convert_numpy_int_result_to_int(value: Any) -> Any:
 
 
 def deduce_return_type_from_function(
-    func: Union[AggFuncType, UserDefinedFunction]
-) -> Optional[DataType]:
+    func: AggFuncType | UserDefinedFunction,
+) -> DataType | None:
     """
     Deduce return type if possible from a function, list, dict or type object. List will be mapped to ArrayType(),
     dict to MapType(), and if a type object (e.g., str) is given a mapping will be consulted.
@@ -1388,3 +1399,95 @@ def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
             f"Snowpark Python function `{func.__name__}` is not supported yet."
         )
     return True
+
+
+def make_series_map_snowpark_function(
+    mapping: Mapping | native_pd.Series, self_type: DataType
+) -> Callable[[SnowparkColumn], SnowparkColumn]:
+    """
+    Make a snowpark function that implements Series.map() with a dict mapping.
+
+    Args:
+        mapping: The mapping. If this is a defaultdict. default_value must not
+                 be None.
+        self_type: The Snowpark type of this series.
+
+    Returns:
+        A function mapping the existing snowpark column to a snowpark column
+        that reflects the mapping.
+    """
+
+    if (
+        isinstance(mapping, dict)
+        and not isinstance(mapping, defaultdict)
+        and hasattr(mapping, "__missing__")
+    ):
+        # TODO(SNOW-1804017): Implement this case.
+        raise NotImplementedError(
+            "Cannot handle objects other than defaultdict with __missing__"
+        )
+
+    if isinstance(mapping, defaultdict):
+        # We should exclude this case earlier because applying built-in
+        # Snowpark functions cannot emulate raising a KeyError for values that
+        # are not in the mapping.
+        assert mapping.default_factory is not None
+
+    def do_map(col: SnowparkColumn) -> SnowparkColumn:
+        if len(mapping) == 0:
+            # An empty dict-like is an edge case that should not produce a
+            # conditional expression. Instead, we replace the column with the
+            # default value, which is mapping.default_factory() for
+            # defaultdict and None for other mappings.
+            return (
+                pandas_lit(mapping.default_factory())  # type: ignore
+                if isinstance(mapping, defaultdict)
+                else pandas_lit(None)
+            )
+
+        def make_condition(key: Any) -> SnowparkColumn:
+            # Cast one of the values in the comparison to variant so that we
+            # we can compare types that are otherwise not comparable in
+            # Snowflake, like timestamp and int.
+            return col.equal_null(to_variant(pandas_lit(key)))
+
+        # If any of the values we are mapping to have types that are
+        # incompatible with the current column's type, we have to cast the new
+        # values to variant type. For example, this could happen if we mapped a
+        # column of strings with the mapping {"cat": 1}. Some of the result
+        # values could have value 1. Note that we have to cast all the result
+        # values to variant even if only one of them is of an incompatible
+        # type, because otherwise Snowflake might coerce the values to an
+        # unexpected type.
+        should_cast_result_to_variant = any(
+            not is_compatible_snowpark_types(infer_object_type(v), self_type)
+            for _, v in mapping.items()
+        ) or (
+            isinstance(mapping, defaultdict)
+            and not is_compatible_snowpark_types(
+                infer_object_type(mapping.default_factory()), self_type  # type: ignore
+            )
+        )
+
+        def make_result(value: Any) -> SnowparkColumn:
+            value_expression = pandas_lit(value)
+            return (
+                to_variant(value_expression)
+                if should_cast_result_to_variant
+                else value_expression
+            )
+
+        map_items = mapping.items()
+        key, value = next(iter(map_items))
+        case_expression = when(make_condition(key), make_result(value))
+        for (key, value) in itertools.islice(map_items, 1, None):
+            case_expression = case_expression.when(
+                make_condition(key), make_result(value)
+            )
+        if isinstance(mapping, defaultdict):
+            case_expression = case_expression.otherwise(
+                make_result(pandas_lit(mapping.default_factory()))  # type: ignore
+            )
+        return case_expression
+
+    return do_map

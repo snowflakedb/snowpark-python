@@ -1825,7 +1825,7 @@ class Series(BasePandasDataset):
 
         Examples
         --------
-        >>> s = pd.Series(['cat', 'dog', np.nan, 'rabbit'])
+        >>> s = pd.Series(['cat', 'dog', None, 'rabbit'])
         >>> s
         0       cat
         1       dog
@@ -1835,9 +1835,9 @@ class Series(BasePandasDataset):
 
         ``map`` accepts a ``dict`` or a ``Series``. Values that are not found
         in the ``dict`` are converted to ``NaN``, unless the dict has a default
-        value (e.g. ``defaultdict``) (Currently not supported by Snowpark pandas):
+        value (e.g. ``defaultdict``):
 
-        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})  # doctest: +SKIP
+        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})
         0    kitten
         1     puppy
         2      None

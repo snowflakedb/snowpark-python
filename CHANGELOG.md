@@ -37,6 +37,12 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+
+- Added partial support for `Series.map` with `arg` a pandas `Series` or a
+  `collections.abc.Mapping`. No support for instances of `dict` that implement
+  `__missing__` but are not instances of `collections.defaultdict`.
+
 #### Dependency Updates
 
 
