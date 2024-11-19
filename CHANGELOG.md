@@ -31,6 +31,9 @@
 
 #### Bug Fixes
 
+- Removed warnings that dynamic pivot features were in private preview, because
+  dynamic pivot is now generally available.
+
 
 #### Dependency Updates
 
