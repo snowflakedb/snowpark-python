@@ -1359,6 +1359,14 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             StructField("AA", DecimalType(20, 10)),
         ),
         (
+            StructField,
+            StructField("AA", VectorType(int, 1)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(float, 8)),
+        ),
+        (
             PandasDataFrameType,
             PandasDataFrameType(
                 [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
