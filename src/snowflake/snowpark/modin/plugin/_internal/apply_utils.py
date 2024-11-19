@@ -20,6 +20,7 @@ from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
 from collections.abc import Mapping
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
+import functools
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.modin.plugin._internal.type_utils import (
     infer_object_type,
@@ -1408,7 +1409,7 @@ def make_series_map_snowpark_function(
     Make a snowpark function that implements Series.map() with a dict mapping.
 
     Args:
-        mapping: The mapping. If this is a defaultdict. default_value must not
+        mapping: The mapping. If this is a defaultdict, default_value must not
                  be None.
         self_type: The Snowpark type of this series.
 
@@ -1478,12 +1479,14 @@ def make_series_map_snowpark_function(
             )
 
         map_items = mapping.items()
-        key, value = next(iter(map_items))
-        case_expression = when(make_condition(key), make_result(value))
-        for (key, value) in itertools.islice(map_items, 1, None):
-            case_expression = case_expression.when(
-                make_condition(key), make_result(value)
-            )
+        first_key, first_value = next(iter(map_items))
+        case_expression = functools.reduce(
+            lambda case_expression, key_and_value: case_expression.when(
+                make_condition(key_and_value[0]), make_result(key_and_value[1])
+            ),
+            itertools.islice(map_items, 1, None),
+            when(make_condition(first_key), make_result(first_value)),
+        )
         if isinstance(mapping, defaultdict):
             case_expression = case_expression.otherwise(
                 make_result(pandas_lit(mapping.default_factory()))  # type: ignore
