@@ -663,9 +663,6 @@ def test_concurrent_update_on_sensitive_configs(
     def change_config_value(session_):
         session_.conf.set(config, value)
 
-    def reset_config_value(session_):
-        session_.conf.set(config, original_value)
-
     caplog.clear()
     change_config_value(threadsafe_session)
     assert (
@@ -677,11 +674,11 @@ def test_concurrent_update_on_sensitive_configs(
         with ThreadPoolExecutor(max_workers=5) as executor:
             for _ in range(5):
                 executor.submit(change_config_value, threadsafe_session)
-                executor.submit(reset_config_value, threadsafe_session)
     assert (
         f"You might have more than one threads sharing the Session object trying to update {config}"
         in caplog.text
     )
+    threadsafe_session.conf.set(config, original_value)
 
 
 @pytest.mark.xfail(
