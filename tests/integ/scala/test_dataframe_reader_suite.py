@@ -350,6 +350,11 @@ def test_read_csv(session, mode):
     assert "is out of range" in str(ex_info)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
+    run=False,
+)
 @pytest.mark.parametrize(
     "format,file,expected",
     [

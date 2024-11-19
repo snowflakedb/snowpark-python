@@ -630,6 +630,10 @@ def test_write_table_names(session, db_parameters):
         Utils.drop_schema(session, double_quoted_schema)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'schema_query'",
+)
 @pytest.mark.parametrize("format_type", ["csv", "json", "parquet"])
 def test_format_save(session, temp_stage, format_type):
     df = session.create_dataframe([[1, 2], [1, 3], [2, 4], [2, 5]], schema=["a", "b"])
@@ -648,7 +652,12 @@ def test_format_save(session, temp_stage, format_type):
 
 
 def test_format_save_negative(session):
-    df = session.sql("select 1 as a, 2 as b")
+    df = session.create_dataframe(
+        [
+            [1, 2],
+        ],
+        schema=["a", "b"],
+    )
     with pytest.raises(
         ValueError,
         match="Unsupported file format. Expected.*, got 'unsupported_format'",
