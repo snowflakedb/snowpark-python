@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.ast.utils import (
     base64_lines_to_textproto,
     textproto_to_request,
 )
+from snowflake.snowpark._internal.utils import global_counter
 from tests.ast.ast_test_utils import render
 
 _logger = logging.getLogger(__name__)
@@ -148,6 +149,7 @@ def run_test(session, tables):
     # that would otherwise be thrown.
     session._conn._suppress_not_implemented_error = True
 
+    global_counter.reset()
     # We use temp files to enable symbol capture in the AST. Having an underlying file instead of simply calling
     # `exec(source, globals)` allows the Python interpreter to correctly capture symbols, which we use in the AST.
     test_file = tempfile.NamedTemporaryFile(
