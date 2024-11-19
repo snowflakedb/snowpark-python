@@ -269,7 +269,7 @@ def test_stored_proc_error(
 ):
     function_name = f"oom_sp_{Utils.random_function_name()}"
 
-    @sproc(name=function_name, replace=True)
+    @sproc(name=function_name, session=profiler_session, replace=True)
     def oom_sp(session: snowflake.snowpark.Session) -> str:
         raise ValueError("fake out of memory")
 
