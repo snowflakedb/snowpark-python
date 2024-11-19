@@ -719,7 +719,11 @@ body {
       udtf {
         handler {
           name: "_ApplyInPandas"
-          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
         }
         input_types {
           list {

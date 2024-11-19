@@ -21,8 +21,8 @@ from snowflake.snowpark._internal.ast_utils import base64_lines_to_request
 from snowflake.snowpark.query_history import AstListener, QueryRecord
 
 
-suppress_ast_listener_reentry = False
-validation_query_record = None
+SUPPRESS_AST_LISTENER_REENTRY = False
+VALIDATION_QUERY_RECORD = None
 
 
 def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> str:
@@ -141,11 +141,11 @@ def notify_full_ast_validation_with_listener(
         query_record: The query record containing the AST payload.
         args, kwargs: Extra arguments that may be passed throuhg to the underlying listener's notify method.
     """
-    global suppress_ast_listener_reentry
-    global validation_query_record
-    if suppress_ast_listener_reentry:
+    global SUPPRESS_AST_LISTENER_REENTRY
+    global VALIDATION_QUERY_RECORD
+    if SUPPRESS_AST_LISTENER_REENTRY:
         if "dataframeAst" in kwargs:
-            validation_query_record = query_record
+            VALIDATION_QUERY_RECORD = query_record
 
         # This batch results from re-entry of executing the unparsed generated python code, so we need to ignore.
         full_ast_validation_listener._ast_batches.clear()
@@ -254,7 +254,7 @@ def notify_full_ast_validation_with_listener(
     globals_dict = full_ast_validation_listener._globals
     globals_dict["session"] = full_ast_validation_listener.session
     try:
-        suppress_ast_listener_reentry = True
+        SUPPRESS_AST_LISTENER_REENTRY = True
         # We don't want the validation queries to get added into any sql count in progress.
         suppress_sql_counting()
         try:
@@ -285,11 +285,11 @@ def notify_full_ast_validation_with_listener(
 
             compare_ast_result_query_validation(
                 full_ast_validation_listener.session,
-                validation_query_record.query_id,
+                VALIDATION_QUERY_RECORD.query_id,
                 query_record.query_id,
             )
     finally:
-        suppress_ast_listener_reentry = False
+        SUPPRESS_AST_LISTENER_REENTRY = False
         enable_sql_counting()
 
     # This batch has been processed so let's clear.
@@ -320,8 +320,8 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
     full_ast_validation_listener._current_test = ""
     full_ast_validation_listener._prev_stmts = {}
 
-    global suppress_ast_listener_reentry
-    suppress_ast_listener_reentry = False
+    global SUPPRESS_AST_LISTENER_REENTRY
+    SUPPRESS_AST_LISTENER_REENTRY = False
 
     return full_ast_validation_listener
 

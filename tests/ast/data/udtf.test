@@ -136,7 +136,11 @@ body {
       udtf {
         handler {
           name: "PrimeSieve"
-          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
         }
         input_types {
           list {
@@ -298,7 +302,11 @@ body {
         handler {
           id: 1
           name: "sum_udtf"
-          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
         }
         input_types {
           list {
@@ -568,7 +576,11 @@ body {
         handler {
           id: 2
           name: "GeneratorUDTF"
-          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
         }
         input_types {
           list {
@@ -734,7 +746,11 @@ body {
         handler {
           id: 3
           name: "Foo"
-          object_name: "foo"
+          object_name {
+            sp_table_name_flat {
+              name: "foo"
+            }
+          }
         }
         immutable: true
         imports {
@@ -993,7 +1009,11 @@ body {
         handler {
           id: 4
           name: "TwoXUDTF"
-          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
         }
         input_types {
           list {
@@ -1146,7 +1166,11 @@ body {
         handler {
           id: 5
           name: "TwoXSixXUDTF"
-          object_name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
         }
         input_types {
           list {

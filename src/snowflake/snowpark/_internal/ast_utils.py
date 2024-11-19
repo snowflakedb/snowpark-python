@@ -953,7 +953,7 @@ def build_proto_from_callable(
     expr_builder: proto.SpCallable,
     func: Union[Callable, Tuple[str, str]],
     ast_batch: Optional[AstBatch] = None,
-    object_name: Optional[str] = None,
+    object_name: Optional[Union[str, Iterable[str]]] = None,
 ):
     """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
 
@@ -979,7 +979,7 @@ def build_proto_from_callable(
         expr_builder.name = func.__name__
 
     if object_name is not None:
-        expr_builder.object_name = object_name
+        build_sp_table_name(expr_builder.object_name, object_name)
 
 
 def build_udf(
@@ -1171,7 +1171,7 @@ def build_udtf(
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
     session: "snowflake.snowpark.session.Session" = None,
-    udtf_name: str = None,
+    udtf_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):
     """Helper function to encode UDTF parameters (used in both regular and mock UDFRegistration)."""

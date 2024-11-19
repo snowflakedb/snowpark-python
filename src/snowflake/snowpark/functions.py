@@ -8758,7 +8758,7 @@ def udtf(
     else:
         udtf_registration_method = session.udtf.register
 
-    if handler is None and "object_name" not in kwargs:
+    if handler is None and kwargs.get("object_name") is None:
         return functools.partial(
             udtf_registration_method,
             output_schema=output_schema,

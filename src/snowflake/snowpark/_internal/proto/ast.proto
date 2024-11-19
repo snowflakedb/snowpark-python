@@ -534,7 +534,7 @@ message SpDataframeSchema_Struct {
 message SpCallable {
   int64 id = 1;
   string name = 2;
-  string object_name = 3;
+  SpTableName object_name = 3;
 }
 
 // sp-type.ir:106
