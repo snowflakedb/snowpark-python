@@ -18,7 +18,7 @@ df2 = session.create_dataframe([[1, 2, 3, 4, 5]], schema=["\"A\"", "\"B\"", "\"C
 
 df3_res1 = df1.filter(col("\"A\"") == 1)
 
-df3 = df2.select(col("\"A\"") + 1.as_("\"A\""), col("\"B\""), col("\"C\""), col("\"l_0001_C\""), col("\"l_0003_B\""))
+df3 = df2.select((col("\"A\"") + 1).as_("\"A\""), col("\"B\""), col("\"C\""), col("\"l_0001_C\""), col("\"l_0003_B\""))
 
 df3 = df3_res1.join(df3, how="inner")
 

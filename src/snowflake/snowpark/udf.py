@@ -628,7 +628,7 @@ class UDFRegistration:
         - :meth:`register_from_file`
         """
         with open_telemetry_udf_context_manager(self.register, func=func, name=name):
-            if not callable(func):
+            if not callable(func) and kwargs.get("_registered_object_name") is None:
                 raise TypeError(
                     "Invalid function: not a function or callable "
                     f"(__call__ is not defined): {type(func)}"
@@ -639,7 +639,7 @@ class UDFRegistration:
             )
 
             _from_pandas = kwargs.get("_from_pandas_udf_function", False)
-            native_app_params = kwargs.get("native_app_params", None)
+            native_app_params = kwargs.pop("native_app_params", None)
 
             # register udf
             return self._do_register_udf(
@@ -669,6 +669,7 @@ class UDFRegistration:
                 is_permanent=is_permanent,
                 copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     @publicapi
@@ -864,14 +865,41 @@ class UDFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
+        ast, ast_id = None, None
+        if kwargs.get("_registered_object_name") is not None:
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.udf, stmt)
+                ast_id = stmt.var_id.bitfield1
+
+            return UserDefinedFunction(
+                func,
+                return_type,
+                input_types or [],
+                kwargs["_registered_object_name"],
+                _ast=ast,
+                _ast_id=ast_id,
+            )
 
         check_imports_type(imports, "udf-level")
 
-        # AST. Capture original parameters, before any pre-processing.
-        ast = None
+        # Retrieve the UDF name, return and input types.
+        (
+            udf_name,
+            is_pandas_udf,
+            is_dataframe_input,
+            return_type,
+            input_types,
+            opt_arg_defaults,
+        ) = process_registration_inputs(
+            self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
+        )
+
+        # Capture original parameters.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udf, stmt)
+            ast_id = stmt.var_id.bitfield1
             build_udf(
                 ast,
                 func,
@@ -895,20 +923,9 @@ class UDFRegistration:
                 source_code_display=source_code_display,
                 is_permanent=is_permanent,
                 session=self._session,
+                _registered_object_name=udf_name,
                 **kwargs,
             )
-
-        # get the udf name, return and input types
-        (
-            udf_name,
-            is_pandas_udf,
-            is_dataframe_input,
-            return_type,
-            input_types,
-            opt_arg_defaults,
-        ) = process_registration_inputs(
-            self._session, TempObjectType.FUNCTION, func, return_type, input_types, name
-        )
 
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [
@@ -1009,11 +1026,13 @@ class UDFRegistration:
                 )
 
         udf = UserDefinedFunction(
-            func, return_type, input_types, udf_name, packages=packages
+            func,
+            return_type,
+            input_types,
+            udf_name,
+            packages=packages,
+            _ast=ast,
+            _ast_id=ast_id,
         )
-
-        udf._ast = ast
-        if _emit_ast:
-            udf._ast_id = stmt.var_id.bitfield1
 
         return udf

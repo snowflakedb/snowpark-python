@@ -445,7 +445,10 @@ class UDAFRegistration:
         with open_telemetry_udf_context_manager(
             self.register, handler=handler, name=name
         ):
-            if not isinstance(handler, type):
+            if (
+                not isinstance(handler, type)
+                and kwargs.get("_registered_object_name") is None
+            ):
                 raise TypeError(
                     f"Invalid handler: expecting a class type, but get {type(handler)}"
                 )
@@ -483,6 +486,7 @@ class UDAFRegistration:
                 native_app_params=native_app_params,
                 copy_grants=copy_grants,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     @publicapi
@@ -673,12 +677,44 @@ class UDAFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedAggregateFunction:
+        ast, ast_id = None, None
+        if kwargs.get("_registered_object_name") is not None:
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.udaf, stmt)
+                ast_id = stmt.var_id.bitfield1
 
-        # AST. Capture original parameters, before any pre-processing.
-        ast = None
+            return UserDefinedAggregateFunction(
+                handler,
+                kwargs["_registered_object_name"],
+                return_type,
+                input_types,
+                _ast=ast,
+                _ast_id=ast_id,
+            )
+
+        # Retrieve the UDAF name, return and input types.
+        (
+            udaf_name,
+            _,
+            _,
+            return_type,
+            input_types,
+            opt_arg_defaults,
+        ) = process_registration_inputs(
+            self._session,
+            TempObjectType.AGGREGATE_FUNCTION,
+            handler,
+            return_type,
+            input_types,
+            name,
+        )
+
+        # Capture original parameters.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udaf, stmt)
+            ast_id = stmt.var_id.bitfield1
             build_udaf(
                 ast,
                 handler,
@@ -696,28 +732,11 @@ class UDAFRegistration:
                 immutable=immutable,
                 comment=comment,
                 statement_params=statement_params,
-                source_code_display=source_code_display,
                 is_permanent=is_permanent,
                 session=self._session,
+                _registered_object_name=udaf_name,
                 **kwargs,
             )
-
-        # get the udaf name, return and input types
-        (
-            udaf_name,
-            _,
-            _,
-            return_type,
-            input_types,
-            opt_arg_defaults,
-        ) = process_registration_inputs(
-            self._session,
-            TempObjectType.AGGREGATE_FUNCTION,
-            handler,
-            return_type,
-            input_types,
-            name,
-        )
 
         arg_names = [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [
@@ -805,11 +824,13 @@ class UDAFRegistration:
                 )
 
         udaf = UserDefinedAggregateFunction(
-            handler, udaf_name, return_type, input_types, packages=packages
+            handler,
+            udaf_name,
+            return_type,
+            input_types,
+            packages=packages,
+            _ast=ast,
+            _ast_id=ast_id,
         )
-
-        udaf._ast = ast
-        if _emit_ast:
-            udaf._ast_id = stmt.var_id.bitfield1
 
         return udaf
