@@ -650,6 +650,10 @@ class PandasSeriesType(_PandasType):
         )
 
     @classmethod
+    def type_name(cls) -> str:
+        return "pandas_series"
+
+    @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "PandasSeriesType":
         return PandasSeriesType(
             _parse_datatype_json_value(json_dict["element_type"])
@@ -658,7 +662,7 @@ class PandasSeriesType(_PandasType):
         )
 
     def simple_string(self) -> str:
-        return f"pandasseries<{self.element_type.simple_string() if self.element_type else ''}>"
+        return f"pandas_series<{self.element_type.simple_string() if self.element_type else ''}>"
 
     def json_value(self) -> Dict[str, Any]:
         return {
@@ -671,6 +675,7 @@ class PandasSeriesType(_PandasType):
     simpleString = simple_string
     jsonValue = json_value
     fromJson = from_json
+    typeName = type_name
 
 
 class PandasDataFrameType(_PandasType):
@@ -695,6 +700,10 @@ class PandasDataFrameType(_PandasType):
             tp.element_type if isinstance(tp, PandasSeriesType) else tp
             for tp in self.col_types
         ]
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "pandas_dataframe"
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "PandasDataFrameType":
@@ -730,6 +739,7 @@ class PandasDataFrameType(_PandasType):
     simpleString = simple_string
     jsonValue = json_value
     fromJson = from_json
+    typeName = type_name
 
 
 _atomic_types: List[Type[DataType]] = [
@@ -759,7 +769,7 @@ _all_complex_types: Dict[str, Type[Union[ArrayType, MapType, StructType]]] = {
     v.typeName(): v for v in _complex_types
 }
 
-_FIXED_VECTOR = re.compile(r"vector\(\s*(int|float)\s*,\s*(\d+)\s*\)")
+_FIXED_VECTOR_PATTERN = re.compile(r"vector\(\s*(int|float)\s*,\s*(\d+)\s*\)")
 _FIXED_DECIMAL_PATTERN = re.compile(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)")
 
 
@@ -772,8 +782,8 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
         elif _FIXED_DECIMAL_PATTERN.match(json_value):
             m = _FIXED_DECIMAL_PATTERN.match(json_value)
             return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]
-        elif _FIXED_VECTOR.match(json_value):
-            m = _FIXED_VECTOR.match(json_value)
+        elif _FIXED_VECTOR_PATTERN.match(json_value):
+            m = _FIXED_VECTOR_PATTERN.match(json_value)
             return VectorType(m.group(1), int(m.group(2)))  # type: ignore[union-attr]
         else:
             raise ValueError(f"Cannot parse data type: {str(json_value)}")
