@@ -2,5 +2,7 @@ pyyaml==6.0
 matplotlib
 # Line below is empty on purpose
 
+# pin numpy to resolve issue SNOW-1818207 caused by numpy package conflict
+numpy==1.26.4
 scikit-fuzzy==0.4.2
 # Commented line
