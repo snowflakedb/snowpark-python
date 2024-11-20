@@ -74,7 +74,6 @@ Snowpark Session
       Session.use_schema
       Session.use_secondary_roles
       Session.use_warehouse
-      Session.version
       Session.write_pandas
 
 .. rubric:: Attributes
