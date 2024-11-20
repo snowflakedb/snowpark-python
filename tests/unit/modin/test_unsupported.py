@@ -53,7 +53,6 @@ def test_unsupported_general(general_method, kwargs):
 @pytest.mark.parametrize(
     "df_method, kwargs",
     [
-        ["align", {"other": ""}],
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
@@ -130,7 +129,6 @@ def test_unsupported_df(df_method, kwargs):
 @pytest.mark.parametrize(
     "series_method, kwargs",
     [
-        ["align", {"other": ""}],
         ["argmax", {}],
         ["argmin", {}],
         ["argsort", {}],
