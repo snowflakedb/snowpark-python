@@ -8725,7 +8725,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def _map_series_with_dict_like(
-        self, mapping: typing.Union[Mapping, native_pd.Series]
+        self, mapping: Union[Mapping, native_pd.Series]
     ) -> "SnowflakeQueryCompiler":
         """
         Map existing values to new values according to a dict-like mapping.

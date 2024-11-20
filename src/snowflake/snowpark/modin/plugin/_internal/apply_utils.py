@@ -1,14 +1,13 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from __future__ import annotations
 import inspect
 import json
 import sys
 from collections import namedtuple
 from collections.abc import Hashable
 from enum import Enum, auto
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, Optional, Union
 
 import cloudpickle
 import numpy as np
@@ -129,9 +128,9 @@ def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, Data
 
 def create_udtf_for_apply_axis_1(
     row_position_snowflake_quoted_identifier: str,
-    func: Callable | UserDefinedFunction,
+    func: Union[Callable, UserDefinedFunction],
     raw: bool,
-    result_type: Literal["expand", "reduce", "broadcast"] | None,
+    result_type: Optional[Literal["expand", "reduce", "broadcast"]],
     args: tuple,
     column_index: native_pd.Index,
     input_types: list[DataType],
@@ -699,10 +698,10 @@ def create_udtf_for_groupby_apply(
 
 
 def create_udf_for_series_apply(
-    func: Callable | UserDefinedFunction,
+    func: Union[Callable, UserDefinedFunction],
     return_type: DataType,
     input_type: DataType,
-    na_action: Literal["ignore"] | None,
+    na_action: Optional[Literal["ignore"]],
     session: Session,
     args: tuple[Any, ...],
     **kwargs: Any,
@@ -830,8 +829,8 @@ def convert_numpy_int_result_to_int(value: Any) -> Any:
 
 
 def deduce_return_type_from_function(
-    func: AggFuncType | UserDefinedFunction,
-) -> DataType | None:
+    func: Union[AggFuncType, UserDefinedFunction]
+) -> Optional[DataType]:
     """
     Deduce return type if possible from a function, list, dict or type object. List will be mapped to ArrayType(),
     dict to MapType(), and if a type object (e.g., str) is given a mapping will be consulted.
@@ -1403,7 +1402,7 @@ def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
 
 
 def make_series_map_snowpark_function(
-    mapping: Mapping | native_pd.Series, self_type: DataType
+    mapping: Union[Mapping, native_pd.Series], self_type: DataType
 ) -> Callable[[SnowparkColumn], SnowparkColumn]:
     """
     Make a snowpark function that implements Series.map() with a dict mapping.
