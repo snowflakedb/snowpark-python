@@ -7,8 +7,10 @@ from typing import Callable
 
 import modin.pandas as pd
 import numpy as np
+from collections import defaultdict
 import pandas as native_pd
 import pytest
+import re
 from pandas.testing import assert_series_equal
 from pytest import param
 
@@ -266,7 +268,7 @@ class TestApplyOrMapCallable:
             *create_test_series(
                 native_pd.Series([0], index=[native_pd.Timedelta(1)]),
             ),
-            lambda series: getattr(series, method)(lambda x: x)
+            lambda series: getattr(series, method)(lambda x: x),
         )
 
     def test_variant_input(self, method, session):
@@ -716,12 +718,104 @@ class TestMapOnly:
         with pytest.raises(NotImplementedError, match=msg):
             snow_series.map("I am a {}".format, na_action="ignore")
 
+    class CustomDefaultDict(dict):
+        def __missing__(self, key):
+            return key
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "arg",
+        [
+            param(
+                {"cat": "kitten", "dog": "puppy"}, id="dict_mapping_string_to_string"
+            ),
+            param(
+                {"cat": "kitten", "dog": None},
+                id="dict_mapping_string_to_string_or_null",
+            ),
+            param(
+                {"cat": "kitten", "dog": 0}, id="dict_mapping_string_to_string_and_int"
+            ),
+            param({"cat": 0, "dog": 1}, id="dict_mapping_some_strings_to_int"),
+            param(
+                {"cat": 0, "dog": 1, None: 2, "rabbit": 3},
+                id="dict_mapping_every_value_to_int",
+            ),
+            param(
+                {"cat": "kitten", pd.Timestamp(1): "timestamp_1"},
+                id="dict_mapping_string_to_string_and_timestamp_to_string",
+            ),
+            param({None: "cub"}, id="dict_mapping_null_to_string"),
+            param({}, id="empty_dict"),
+            param(
+                defaultdict((lambda: "kitten"), dog="puppy"),
+                id="defaultdict_mapping_string_to_string",
+            ),
+            param(
+                defaultdict((lambda: 0), dog="puppy"),
+                id="defaultdict_mapping_string_to_string_or_int",
+            ),
+            param(defaultdict(lambda: "kitten"), id="defaultdict_empty"),
+            param(
+                native_pd.Series({"cat": "kitten"}),
+                id="series_mapping_string_to_string",
+            ),
+            param(native_pd.Series(), id="empty_series"),
+            param(
+                CustomDefaultDict({"cat": "kitten"}),
+                id="custom_defaultdict_mapping_string_to_string",
+                marks=pytest.mark.xfail(
+                    strict=True, raises=NotImplementedError, reason="SNOW-1804017"
+                ),
+            ),
+            param(
+                CustomDefaultDict(),
+                id="custom_defaultdict_empty",
+                marks=pytest.mark.xfail(
+                    strict=True, raises=NotImplementedError, reason="SNOW-1804017"
+                ),
+            ),
+        ],
+    )
+    def test_dict(self, arg):
+        eval_snowpark_pandas_result(
+            *create_test_series(["cat", "dog", None, "rabbit"]),
+            lambda s: s.map(arg),
+        )
+
+    @sql_count_checker(query_count=4, udf_count=1)
+    def test_defaultdict_has_all_values_but_no_default_factory(self):
+        eval_snowpark_pandas_result(
+            *create_test_series(1),
+            lambda s: s.map(defaultdict(None, {1: 2})),
+        )
+
+    @sql_count_checker(query_count=3)
+    def test_defaultdict_missing_values_but_no_default_factory(self):
+        eval_snowpark_pandas_result(
+            *create_test_series(1),
+            lambda s: s.map(defaultdict()),
+            expect_exception=True,
+            expect_exception_match=re.escape("KeyError: 1"),
+            assert_exception_equal=False,
+            # Snowflake raises the KeyError from a UDF, so we get
+            # SnowparkSQLException instead of a KeyError.
+            expect_exception_type=SnowparkSQLException,
+        )
+
     @sql_count_checker(query_count=0)
-    def test_dict_arg_not_implemented(self):
-        s = pd.Series(["cat", "dog", np.nan, "rabbit"])
-        msg = "Snowpark pandas map API doesn't yet support non callable 'arg'"
-        with pytest.raises(NotImplementedError, match=msg):
-            s.map({"cat": "kitten", "dog": "puppy"})
+    def test_invalid_arg_type(self):
+        eval_snowpark_pandas_result(
+            *create_test_series(1),
+            lambda s: s.map(3),
+            expect_exception=True,
+            expect_exception_match=re.escape(
+                "`arg` should be a callable, a Mapping, or a pandas Series, "
+                + "but instead it is of type int"
+            ),
+            assert_exception_equal=False,
+            expect_exception_type=TypeError,
+        )
 
 
 # NOTE: Please add test cases to one of TestApplyOrMapCallable, TestApplyOnly,
