@@ -187,7 +187,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             return "PARSE_JSON('NULL') :: ARRAY"
         if isinstance(data_type, MapType) and not data_type.structured:
             return "PARSE_JSON('NULL') :: OBJECT"
-        if isinstance(data_type, VariantType) and not data_type.structured:
+        if isinstance(data_type, VariantType):
             return "PARSE_JSON('NULL') :: VARIANT"
         return "NULL :: " + convert_sp_to_sf_type(data_type)
 
