@@ -285,7 +285,7 @@ class MockServerConnection:
         self._cursor = Mock()
         self._options = options or {}
         session_params = self._options.get("session_parameters", {})
-        self._lock = threading.Rlock()
+        self._lock = threading.RLock()
         self._lower_case_parameters = {}
         self.remove_query_listener = Mock()
         self.add_query_listener = Mock()
