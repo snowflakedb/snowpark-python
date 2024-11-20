@@ -647,7 +647,7 @@ class DataFrameReader:
         self._cur_options[aliased_key] = value
         return self
 
-    def options(self, configs: Dict) -> "DataFrameReader":
+    def options(self, configs: Optional[Dict] = None, **kwargs) -> "DataFrameReader":
         """Sets multiple specified options in the DataFrameReader.
 
         This method is the same as the :meth:`option` except that you can set multiple options in one call.
@@ -656,6 +656,15 @@ class DataFrameReader:
             configs: Dictionary of the names of options (e.g. ``compression``,
                 ``skip_header``, etc.) and their corresponding values.
         """
+        if configs and kwargs:
+            raise ValueError(
+                "Cannot set options with both a dictionary and keyword arguments. Please use one or the other."
+            )
+        if configs is None:
+            if not kwargs:
+                raise ValueError("No options were provided")
+            configs = kwargs
+
         for k, v in configs.items():
             self.option(k, v)
         return self

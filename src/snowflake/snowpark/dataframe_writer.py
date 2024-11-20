@@ -111,7 +111,20 @@ class DataFrameWriter:
         self._cur_options[aliased_key] = value
         return self
 
-    def options(self, configs: Dict) -> "DataFrameWriter":
+    def options(self, configs: Optional[Dict] = None, **kwargs) -> "DataFrameWriter":
+        """Sets multiple specified options for this :class:`DataFrameWriter`.
+
+        This method is same as calling :meth:`option` except that you can set multiple options at once.
+        """
+        if configs and kwargs:
+            raise ValueError(
+                "Cannot set options with both a dictionary and keyword arguments. Please use one or the other."
+            )
+        if configs is None:
+            if not kwargs:
+                raise ValueError("No options were provided")
+            configs = kwargs
+
         for k, v in configs.items():
             self.option(k, v)
         return self

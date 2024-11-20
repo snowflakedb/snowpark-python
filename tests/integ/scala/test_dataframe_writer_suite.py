@@ -228,6 +228,30 @@ def test_writer_options(session, temp_stage):
     assert len(files) == 1
     assert (files[0].name).lower() == f"{temp_stage.lower()}/test_mixed_options"
 
+    # mixed case with options passed as kwargs
+    result = df.write.options(single=True, sep=";").csv(
+        f"@{temp_stage}/test_mixed_options_kwargs"
+    )
+    assert result[0].rows_unloaded == 4
+    files = session.sql(f"list @{temp_stage}/test_mixed_options_kwargs").collect()
+    assert len(files) == 1
+    assert (files[0].name).lower() == f"{temp_stage.lower()}/test_mixed_options_kwargs"
+
+
+def test_writer_options_negative(session):
+    with pytest.raises(
+        ValueError,
+        match="Cannot set options with both a dictionary and keyword arguments",
+    ):
+        session.create_dataframe([[1, 2]], schema=["a", "b"]).write.options(
+            {"overwrite": True}, overwrite=True
+        ).csv("test_path")
+
+    with pytest.raises(ValueError, match="No options were provided"):
+        session.create_dataframe([[1, 2]], schema=["a", "b"]).write.options().csv(
+            "test_path"
+        )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
