@@ -199,7 +199,6 @@ def session(
     sql_simplifier_enabled,
     local_testing_mode,
     cte_optimization_enabled,
-    multithreading_mode_enabled,
 ):
     rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
     rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
@@ -210,10 +209,6 @@ def session(
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
-        .config(
-            "session_parameters",
-            {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled},
-        )
         .create()
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
