@@ -534,9 +534,10 @@ message SpDataframeSchema_Struct {
 message SpCallable {
   int64 id = 1;
   string name = 2;
+  SpTableName object_name = 3;
 }
 
-// sp-type.ir:104
+// sp-type.ir:106
 message SpPivotValue {
   oneof sealed_value {
     SpPivotValue_Dataframe sp_pivot_value__dataframe = 1;
@@ -544,12 +545,12 @@ message SpPivotValue {
   }
 }
 
-// sp-type.ir:105
+// sp-type.ir:107
 message SpPivotValue_Expr {
   Expr v = 1;
 }
 
-// sp-type.ir:106
+// sp-type.ir:108
 message SpPivotValue_Dataframe {
   SpDataframeRef v = 1;
 }

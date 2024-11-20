@@ -12,10 +12,17 @@ import pytest
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.functions
 import snowflake.snowpark.types
-import tests.integ.utils.sql_counter
+from tests.integ.utils.sql_counter import (
+    enable_sql_counting,
+    suppress_sql_counting,
+)
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.ast_utils import base64_lines_to_request
 from snowflake.snowpark.query_history import AstListener, QueryRecord
+
+
+SUPPRESS_AST_LISTENER_REENTRY = False
+VALIDATION_QUERY_RECORD = None
 
 
 def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> str:
@@ -61,22 +68,11 @@ def generate_error_trace_info(python_text, exception=None):
     return error_msg
 
 
-def notify_compare_ast_validation(
-    compare_ast_validation_listener: AstListener,
-    query_record: QueryRecord,
-    *args,
-    **kwargs,
+def compare_ast_result_query_validation(
+    session: Session,
+    qid_result1: str,
+    qid_result2: str,
 ):
-    # For multi-query, we only want to do the comparison query after the *last* query.
-    if "dataframeAst" not in kwargs:
-        return
-
-    validation_session = compare_ast_validation_listener._validation_session
-
-    # Get query_id for the original and generated code python dataframe code.
-    qid_result1 = validation_session._ast_full_validation_result
-    qid_result2 = query_record.query_id
-
     error_msg = ""
     success = False
 
@@ -98,7 +94,7 @@ def notify_compare_ast_validation(
         """
 
         try:
-            results_cursor = validation_session._conn._cursor.execute(comparison_sql)
+            results_cursor = session._conn._cursor.execute(comparison_sql)
 
             # Ensure we are using a new cursor to avoid side effects on the connection reusing cursor state with
             # the validation query.
@@ -119,7 +115,7 @@ def notify_compare_ast_validation(
             error_msg = f"Full AST validation results differed.\n\nResult 1 Query Id: {qid_result1}\nResult 2 Query Id: {qid_result2}\n"
 
         error_msg = error_msg + generate_error_trace_info(
-            validation_session._debug_python_code_output
+            session._debug_python_code_output
         )
 
     pytest.assume(
@@ -145,6 +141,15 @@ def notify_full_ast_validation_with_listener(
         query_record: The query record containing the AST payload.
         args, kwargs: Extra arguments that may be passed throuhg to the underlying listener's notify method.
     """
+    global SUPPRESS_AST_LISTENER_REENTRY
+    global VALIDATION_QUERY_RECORD
+    if SUPPRESS_AST_LISTENER_REENTRY:
+        if "dataframeAst" in kwargs:
+            VALIDATION_QUERY_RECORD = query_record
+
+        # This batch results from re-entry of executing the unparsed generated python code, so we need to ignore.
+        full_ast_validation_listener._ast_batches.clear()
+        return
 
     # For tests that contain multiple actions, it's possible a later action depends on some dataframe code that
     # was provided as part of an earlier action.  Therefore we must keep all the previous statements and replay
@@ -213,7 +218,7 @@ def notify_full_ast_validation_with_listener(
         for stmt in prev_stmts
     }
 
-    # Unparse the AST into python code and execute in the validation_session.  This will notify the validation
+    # Unparse the AST into python code and execute in the session.  This will notify the validation
     # session query listener which will compute the diff and assert equals original.
     try:
         python_code_output = render(
@@ -234,67 +239,69 @@ def notify_full_ast_validation_with_listener(
         full_ast_validation_listener._ast_batches.clear()
         return
 
-    full_ast_validation_listener._validation_session._ast_full_validation_result = (
+    full_ast_validation_listener.session._ast_full_validation_result = (
         query_record.query_id
     )
-    full_ast_validation_listener._validation_session._debug_python_code_output = (
-        python_code_output
+    full_ast_validation_listener.session._debug_python_code_output = python_code_output
+
+    # Save the original cursor state since any subsequent executions in the session will override the
+    # active cursor and we need to restore when we return from here.
+    original_cursor_state = {}
+    original_cursor_state.update(
+        full_ast_validation_listener.session._conn._cursor.__dict__
     )
 
     globals_dict = full_ast_validation_listener._globals
-    globals_dict["session"] = full_ast_validation_listener._validation_session
+    globals_dict["session"] = full_ast_validation_listener.session
     try:
-        exec(python_code_output, globals_dict, globals_dict)
-    except Exception as ex:
-        if "exception" in kwargs:
-            validation_ex = ex.conn_error if hasattr(ex, "conn_error") else ex
-            if not isinstance(kwargs["exception"], type(validation_ex)):
+        SUPPRESS_AST_LISTENER_REENTRY = True
+        # We don't want the validation queries to get added into any sql count in progress.
+        suppress_sql_counting()
+        try:
+            exec(python_code_output, globals_dict, globals_dict)
+        except Exception as ex:
+            if "exception" in kwargs:
+                validation_ex = ex.conn_error if hasattr(ex, "conn_error") else ex
+                if not isinstance(kwargs["exception"], type(validation_ex)):
+                    error_msg = (
+                        f"Original exception: {kwargs['exception']}\nValidation exception: {validation_ex}\n"
+                        + generate_error_trace_info(python_code_output)
+                    )
+                    pytest.assume(
+                        False,
+                        f"""Full AST validation failed, failure exceptions do not match.\n{error_msg}""",
+                    )
+                else:
+                    # The original query failed with same exception as validation query, so this is expected.
+                    pass
+            else:
                 error_msg = (
-                    f"Original exception: {kwargs['exception']}\nValidation exception: {validation_ex}\n"
-                    + generate_error_trace_info(python_code_output)
+                    str(ex) + "\n" + generate_error_trace_info(python_code_output, ex)
                 )
                 pytest.assume(
                     False,
-                    f"""Full AST validation failed, failure exceptions do not match.\n{error_msg}""",
+                    f"""Full AST validation failed, could not run unparser generated python code.\n{error_msg}""",
                 )
-            else:
-                # The original query failed with same exception as validation query, so this is expected.
-                pass
-        else:
-            error_msg = (
-                str(ex) + "\n" + generate_error_trace_info(python_code_output, ex)
+
+            compare_ast_result_query_validation(
+                full_ast_validation_listener.session,
+                VALIDATION_QUERY_RECORD.query_id,
+                query_record.query_id,
             )
-            pytest.assume(
-                False,
-                f"""Full AST validation failed, could not run unparser generated python code.\n{error_msg}""",
-            )
+    finally:
+        SUPPRESS_AST_LISTENER_REENTRY = False
+        enable_sql_counting()
 
     # This batch has been processed so let's clear.
     full_ast_validation_listener._ast_batches.clear()
 
+    # Restore the original cursor state so the test can validate results as expected.
+    full_ast_validation_listener.session._conn._cursor.__dict__.update(
+        original_cursor_state
+    )
+
 
 def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
-    validation_session = (
-        Session.builder.configs(db_parameters).config("local_testing", False).create()
-    )
-    validation_session.sql_simplifier_enabled = session._sql_simplifier_enabled
-    validation_session._cte_optimization_enabled = session.cte_optimization_enabled
-    validation_session.ast_enabled = True
-    validation_session.full_ast_validation = False
-
-    compare_ast_validation_listener = validation_session.ast_listener(True)
-
-    def notify_compare_ast(query_record: QueryRecord, *args, **kwargs):
-        notify_compare_ast_validation(
-            compare_ast_validation_listener, query_record, *args, **kwargs
-        )
-
-    compare_ast_validation_listener._original_notify = (
-        compare_ast_validation_listener._notify
-    )
-    compare_ast_validation_listener._notify = notify_compare_ast
-    compare_ast_validation_listener._validation_session = validation_session
-
     full_ast_validation_listener = session.ast_listener(True)
     full_ast_validation_listener._original_notify = full_ast_validation_listener._notify
 
@@ -303,11 +310,7 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
             full_ast_validation_listener, query_record, *args, **kwargs
         )
 
-    full_ast_validation_listener._compare_ast_validation_listener = (
-        compare_ast_validation_listener
-    )
     full_ast_validation_listener._notify = notify_full_ast_validation
-    full_ast_validation_listener._validation_session = validation_session
     full_ast_validation_listener._unparser_jar = unparser_jar
     full_ast_validation_listener._globals = (
         vars(snowflake.snowpark.functions)
@@ -317,20 +320,13 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
     full_ast_validation_listener._current_test = ""
     full_ast_validation_listener._prev_stmts = {}
 
-    # Ensure sql counter uses the original session and not the validation session.
-    tests.integ.utils.sql_counter._active_session = session
+    global SUPPRESS_AST_LISTENER_REENTRY
+    SUPPRESS_AST_LISTENER_REENTRY = False
 
     return full_ast_validation_listener
 
 
 def close_full_ast_validation_mode(full_ast_validation_listener):
     # Remove the test hook for full ast validation so does not run for any clean up work.
-    compare_ast_validation_listener = (
-        full_ast_validation_listener._compare_ast_validation_listener
-    )
-    compare_ast_validation_listener._notify = (
-        compare_ast_validation_listener._original_notify
-    )
     full_ast_validation_listener._notify = full_ast_validation_listener._original_notify
-    full_ast_validation_listener._validation_session.close()
-    tests.integ.utils.sql_counter._active_session = None
+    enable_sql_counting()

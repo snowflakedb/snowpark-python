@@ -1359,31 +1359,24 @@ class DataFrame:
         if not exprs:
             raise ValueError("The input of select() cannot be empty")
 
-        # AST.
-        stmt = _ast_stmt
-        ast = None
-
-        if _emit_ast and _ast_stmt is None:
-            stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
-            self._set_ast_ref(ast.df)
-            ast.variadic = is_variadic
-
         names = []
         table_func = None
         join_plan = None
 
+        ast_cols = []
+
         for e in exprs:
             if isinstance(e, Column):
                 names.append(e._named())
-                if _emit_ast and ast:
-                    ast.cols.append(e._ast)
+                if _emit_ast and _ast_stmt is None:
+                    ast_cols.append(e._ast)
 
             elif isinstance(e, str):
                 col_expr_ast = None
-                if ast:
-                    col_expr_ast = ast.cols.add() if ast else proto.Expr()
+                if _emit_ast and _ast_stmt is None:
+                    col_expr_ast = proto.Expr()
                     fill_ast_for_column(col_expr_ast, e, None)
+                    ast_cols.append(col_expr_ast)
 
                 col = Column(e, _ast=col_expr_ast)
                 names.append(col._named())
@@ -1395,9 +1388,11 @@ class DataFrame:
                         f"Called '{table_func.user_visible_name}' and '{e.user_visible_name}'."
                     )
                 table_func = e
-                if _emit_ast and ast:
+                if _emit_ast and _ast_stmt is None:
                     add_intermediate_stmt(self._session._ast_batch, table_func)
-                    build_indirect_table_fn_apply(ast.cols.add(), table_func)
+                    ast_col = proto.Expr()
+                    build_indirect_table_fn_apply(ast_col, table_func)
+                    ast_cols.append(ast_col)
 
                 func_expr = _create_table_function_expression(func=table_func)
 
@@ -1445,6 +1440,23 @@ class DataFrame:
                 raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
+
+        # AST.
+        stmt = _ast_stmt
+        ast = None
+
+        # Note it's intentional the column expressions are AST serialized earlier (ast_cols) to ensure any
+        # AST IDs created preceed the AST ID of the select statement so they are deserialized in dependent order.
+        if _emit_ast and _ast_stmt is None:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_select__columns, stmt)
+            self._set_ast_ref(ast.df)
+            ast.variadic = is_variadic
+
+            # Add columns after the statement to ensure any dependent columns have lower ast id.
+            for ast_col in ast_cols:
+                if ast_col is not None:
+                    ast.cols.add().CopyFrom(ast_col)
 
         if self._select_statement:
             if join_plan:
