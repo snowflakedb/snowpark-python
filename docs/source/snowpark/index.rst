@@ -9,9 +9,9 @@ Snowpark APIs
    column
    types
    row
-   functions 
-   window 
-   grouping 
+   functions
+   window
+   grouping
    table_function
    table
    async_job
@@ -21,6 +21,7 @@ Snowpark APIs
    udtf
    observability
    files
+   catalog
    lineage
    context
    exceptions

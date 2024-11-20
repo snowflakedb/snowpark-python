@@ -27,9 +27,14 @@ class Column(NamedTuple):
 
 
 class Catalog:
+    """The Catalog class provides methods to interact with and manage the Snowflake objects.
+    It allows users to list, get, and drop various database objects such as databases, schemas, tables,
+    views, functions, etc.
+    """
+
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
-        self._root = Root(session)
+        self._root = Root(session.connection)
 
     def _parse_database(self, database: Optional[Union[str, Database]]) -> str:
         if isinstance(database, str):
