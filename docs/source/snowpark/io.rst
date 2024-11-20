@@ -22,7 +22,9 @@ Input/Output
 
     DataFrameReader.avro
     DataFrameReader.csv
+    DataFrameReader.format
     DataFrameReader.json
+    DataFrameReader.load
     DataFrameReader.option
     DataFrameReader.options
     DataFrameReader.orc
@@ -32,12 +34,16 @@ Input/Output
     DataFrameReader.with_metadata
     DataFrameReader.xml
     DataFrameWriter.copy_into_location
+    DataFrameWriter.csv
+    DataFrameWriter.format
+    DataFrameWriter.json
     DataFrameWriter.mode
+    DataFrameWriter.option
+    DataFrameWriter.options
+    DataFrameWriter.parquet
+    DataFrameWriter.save
     DataFrameWriter.saveAsTable
     DataFrameWriter.save_as_table
-    DataFrameWriter.csv
-    DataFrameWriter.json
-    DataFrameWriter.parquet
     FileOperation.get
     FileOperation.get_stream
     FileOperation.put

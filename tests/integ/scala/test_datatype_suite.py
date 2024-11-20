@@ -486,10 +486,15 @@ def test_structured_dtypes_iceberg(
         dynamic_ddl = structured_type_session._run_query(
             f"select get_ddl('table', '{dynamic_table_name}')"
         )
+        formatted_table_name = (
+            table_name
+            if structured_type_session.sql_simplifier_enabled
+            else f"({table_name})"
+        )
         assert dynamic_ddl[0][0] == (
             f"create or replace dynamic table {dynamic_table_name}(\n\tMAP,\n\tOBJ,\n\tARR\n) "
             f"target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
-            f"warehouse = {warehouse}\n as  SELECT  *  FROM ( SELECT  *  FROM {table_name});"
+            f"warehouse = {warehouse}\n as  SELECT  *  FROM ( SELECT  *  FROM {formatted_table_name});"
         )
 
     finally:
