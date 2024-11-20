@@ -70,7 +70,7 @@ class DataFrameWriter:
         self._save_mode = SaveMode.ERROR_IF_EXISTS
         self._partition_by: Optional[ColumnOrSqlExpr] = None
         self._cur_options: Dict[str, Any] = {}
-        self._file_format_name: Optional[str] = None
+        self.__format: Optional[str] = None
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
@@ -451,20 +451,28 @@ class DataFrameWriter:
             block=block,
         )
 
+    @property
+    def _format(self) -> str:
+        return self.__format
+
+    @_format.setter
+    def _format(self, value: str) -> None:
+        allowed_formats = ["csv", "json", "parquet"]
+        canon_file_format_name = value.strip().lower()
+        if canon_file_format_name not in allowed_formats:
+            raise ValueError(
+                f"Unsupported file format. Expected file formats: {allowed_formats}, got '{value}'"
+            )
+
+        self.__format = canon_file_format_name
+
     def format(
         self, file_format_name: Literal["csv", "json", "parquet"]
     ) -> "DataFrameWriter":
         """Specifies the file format type to use for unloading data from the table. Allowed values are "csv", "json", and "parquet".
         The file format name can be case insensitive and will be used when calling :meth:`save`.
         """
-        allowed_formats = ["csv", "json", "parquet"]
-        canon_file_format_name = file_format_name.strip().lower()
-        if canon_file_format_name not in allowed_formats:
-            raise ValueError(
-                f"Unsupported file format. Expected file formats: {allowed_formats}, got '{file_format_name}'"
-            )
-
-        self._file_format_name = canon_file_format_name
+        self._format = file_format_name
         return self
 
     def save(
@@ -503,14 +511,14 @@ class DataFrameWriter:
             >>> copy_result[0].rows_unloaded
             3
         """
-        if self._file_format_name is None:
+        if self._format is None:
             raise ValueError(
                 "File format type is not specified. Call `format` before calling `save`."
             )
 
         return self.copy_into_location(
             location,
-            file_format_type=self._file_format_name,
+            file_format_type=self._format,
             partition_by=partition_by,
             format_type_options=format_type_options,
             header=header,

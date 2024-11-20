@@ -327,7 +327,7 @@ class DataFrameReader:
             List["snowflake.snowpark.column.Column"]
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
-        self._format: Optional[str] = None
+        self.__format: Optional[str] = None
 
     @property
     def _infer_schema(self):
@@ -413,6 +413,20 @@ class DataFrameReader:
         ]
         return self
 
+    @property
+    def _format(self) -> Optional[str]:
+        return self.__format
+
+    @_format.setter
+    def _format(self, value: str) -> None:
+        canon_format = value.strip().lower()
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml"]
+        if canon_format not in allowed_formats:
+            raise ValueError(
+                f"Invalid format '{value}'. Supported formats are {allowed_formats}."
+            )
+        self.__format = canon_format
+
     def format(
         self, format: Literal["csv", "json", "avro", "parquet", "orc", "xml"]
     ) -> "DataFrameReader":
@@ -424,13 +438,7 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
         """
-        canon_format = format.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml"]
-        if canon_format not in allowed_formats:
-            raise ValueError(
-                f"Invalid format '{format}'. Supported formats are {allowed_formats}."
-            )
-        self._format = canon_format
+        self._format = format
         return self
 
     def load(self, path: str) -> DataFrame:
@@ -447,18 +455,9 @@ class DataFrameReader:
                 "Please specify the format of the file(s) to load using the format() method."
             )
 
-        if self._format == "csv":
-            return self.csv(path)
-        elif self._format == "json":
-            return self.json(path)
-        elif self._format == "avro":
-            return self.avro(path)
-        elif self._format == "parquet":
-            return self.parquet(path)
-        elif self._format == "orc":
-            return self.orc(path)
-        elif self._format == "xml":
-            return self.xml(path)
+        loader = getattr(self, self._format, None)
+        if loader is not None:
+            return loader(path)
 
         raise ValueError(f"Invalid format '{self._format}'.")
 
