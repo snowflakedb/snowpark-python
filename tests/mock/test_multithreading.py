@@ -157,8 +157,8 @@ def test_mocked_function_registry_created_once():
 
 
 @pytest.mark.parametrize("test_table", [True, False])
-def test_tabular_entity_registry(test_table, threadsafe_server_connection):
-    entity_registry = threadsafe_server_connection.entity_registry
+def test_tabular_entity_registry(test_table, mock_server_connection):
+    entity_registry = mock_server_connection.entity_registry
     num_threads = 10
 
     def write_read_and_drop_table():
@@ -195,8 +195,8 @@ def test_tabular_entity_registry(test_table, threadsafe_server_connection):
             future.result()
 
 
-def test_stage_entity_registry_put_and_get(threadsafe_server_connection):
-    stage_registry = StageEntityRegistry(threadsafe_server_connection)
+def test_stage_entity_registry_put_and_get(mock_server_connection):
+    stage_registry = StageEntityRegistry(mock_server_connection)
     num_threads = 10
 
     def put_and_get_file():
@@ -224,9 +224,9 @@ def test_stage_entity_registry_put_and_get(threadsafe_server_connection):
 
 
 def test_stage_entity_registry_upload_and_read(
-    threadsafe_session, threadsafe_server_connection
+    threadsafe_session, mock_server_connection
 ):
-    stage_registry = StageEntityRegistry(threadsafe_server_connection)
+    stage_registry = StageEntityRegistry(mock_server_connection)
     num_threads = 10
 
     def upload_and_read_json(thread_id: int):
@@ -255,8 +255,8 @@ def test_stage_entity_registry_upload_and_read(
             future.result()
 
 
-def test_stage_entity_registry_create_or_replace(threadsafe_server_connection):
-    stage_registry = StageEntityRegistry(threadsafe_server_connection)
+def test_stage_entity_registry_create_or_replace(mock_server_connection):
+    stage_registry = StageEntityRegistry(mock_server_connection)
     num_threads = 10
 
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
