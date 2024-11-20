@@ -944,7 +944,7 @@ class UDTFRegistration:
 
         # get the udtf name, input types
         (
-            udtf_name,
+            object_name,
             is_pandas_udf,
             is_dataframe_input,
             output_schema,
@@ -988,7 +988,7 @@ class UDTFRegistration:
                 statement_params=statement_params,
                 is_permanent=is_permanent,
                 session=self._session,
-                udtf_name=udtf_name,
+                _registered_object_name=object_name,
                 **kwargs,
             )
 
@@ -1008,7 +1008,7 @@ class UDTFRegistration:
             TempObjectType.TABLE_FUNCTION,
             handler,
             arg_names,
-            udtf_name,
+            object_name,
             stage_location,
             imports,
             packages,
@@ -1036,7 +1036,7 @@ class UDTFRegistration:
                 opt_arg_defaults=opt_arg_defaults,
                 handler=handler_name,
                 object_type=TempObjectType.FUNCTION,
-                object_name=udtf_name,
+                object_name=object_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
                 raw_imports=imports,
@@ -1078,7 +1078,7 @@ class UDTFRegistration:
             handler,
             output_schema,
             input_types,
-            udtf_name,
+            object_name,
             packages=packages,
             _ast=ast,
             _ast_id=ast_id,

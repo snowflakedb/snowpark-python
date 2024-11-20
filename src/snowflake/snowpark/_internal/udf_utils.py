@@ -100,7 +100,7 @@ REGISTER_KWARGS_ALLOWLIST = {
     "_from_pandas_udf_function",
     "input_names",  # for pandas_udtf
     "max_batch_size",  # for pandas_udtf
-    "_registered_object_name",  # db object name if already registered
+    "_registered_object_name",  # object name within Snowflake (post registration)
 }
 
 

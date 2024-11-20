@@ -78,14 +78,18 @@ class MockUDTFRegistration(UDTFRegistration):
                 ast = with_src_position(stmt.expr.udtf, stmt)
                 ast_id = stmt.var_id.bitfield1
 
-            return MockUserDefinedTableFunction(
+            object_name = kwargs["_registrated_object_name"]
+            udtf = MockUserDefinedTableFunction(
                 handler,
                 output_schema,
                 input_types,
-                kwargs["_registered_object_name"],
+                object_name,
                 _ast=ast,
                 _ast_id=ast_id,
             )
+            # Add to registry to MockPlan can execute.
+            self._registry[object_name] = udtf
+            return udtf
 
         if isinstance(output_schema, StructType):
             _validate_output_schema_names(output_schema.names)
@@ -108,7 +112,7 @@ class MockUDTFRegistration(UDTFRegistration):
 
         # get the udtf name, input types
         (
-            udtf_name,
+            object_name,
             is_pandas_udf,
             is_dataframe_input,
             output_schema,
@@ -153,21 +157,21 @@ class MockUDTFRegistration(UDTFRegistration):
                 statement_params=statement_params,
                 is_permanent=is_permanent,
                 session=self._session,
-                udtf_name=udtf_name,
+                _registered_object_name=object_name,
                 **kwargs,
             )
 
-        foo = MockUserDefinedTableFunction(
+        udtf = MockUserDefinedTableFunction(
             handler,
             output_schema,
             input_types,
-            udtf_name,
+            object_name,
             packages=packages,
             _ast=ast,
             _ast_id=ast_id,
         )
 
         # Add to registry to MockPlan can execute.
-        self._registry[udtf_name] = foo
+        self._registry[object_name] = udtf
 
-        return foo
+        return udtf

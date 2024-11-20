@@ -1171,7 +1171,7 @@ def build_udtf(
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
     session: "snowflake.snowpark.session.Session" = None,
-    udtf_name: Optional[Union[str, Iterable[str]]] = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):
     """Helper function to encode UDTF parameters (used in both regular and mock UDFRegistration)."""
@@ -1184,7 +1184,7 @@ def build_udtf(
         ast.handler,
         handler,
         session._ast_batch if session is not None else None,
-        udtf_name,
+        _registered_object_name,
     )
 
     if output_schema is not None:
