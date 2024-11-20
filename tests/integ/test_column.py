@@ -216,3 +216,10 @@ def test_column_with_builtins_that_shadow_functions(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.double1(session).select(sum(col("a"))).collect()
     assert iter_error_msg_text in str(ex_info)
+
+
+def test_column_regex(session):
+    df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
+        ["col1", "col2_a", "col2_b", "col3"]
+    )
+    Utils.check_answer(df.select(df.col_regex("col2_.*")), [Row(COL2_A=2, COL2_B=3)])
