@@ -520,6 +520,7 @@ class Session:
 "python.connector.session.id" : {self._session_id},
 "os.name" : {get_os_name()}
 """
+        self.version = get_version()
         self._session_stage = None
 
         if isinstance(conn, MockServerConnection):
@@ -671,6 +672,19 @@ class Session:
                 else MockAnalyzer(self)
             )
         return self._thread_store.analyzer
+
+    @classmethod
+    def get_active_session(cls) -> Optional["Session"]:
+        """Gets the last created session."""
+        try:
+            return _get_active_session()
+        except SnowparkClientException as ex:
+            # If there is no active session, return None
+            if ex.error_code == "1403":
+                return None
+            raise ex
+
+    getActiveSession = get_active_session
 
     def close(self) -> None:
         """Close this session."""

@@ -1825,7 +1825,7 @@ class Series(BasePandasDataset):
 
         Examples
         --------
-        >>> s = pd.Series(['cat', 'dog', np.nan, 'rabbit'])
+        >>> s = pd.Series(['cat', 'dog', None, 'rabbit'])
         >>> s
         0       cat
         1       dog
@@ -1835,9 +1835,9 @@ class Series(BasePandasDataset):
 
         ``map`` accepts a ``dict`` or a ``Series``. Values that are not found
         in the ``dict`` are converted to ``NaN``, unless the dict has a default
-        value (e.g. ``defaultdict``) (Currently not supported by Snowpark pandas):
+        value (e.g. ``defaultdict``):
 
-        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})  # doctest: +SKIP
+        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})
         0    kitten
         1     puppy
         2      None
@@ -1865,6 +1865,9 @@ class Series(BasePandasDataset):
 
         Note that in the above example, the missing value in Snowflake is NULL,
         it is mapped to ``None`` in a string/object column.
+
+        Snowpark pandas does not yet support `dict` subclasses other than
+        `collections.defaultdict` that define a `__missing__` method.
         """
 
     def mask():

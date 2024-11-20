@@ -229,14 +229,3 @@ if "modin.pandas" in sys.modules:
 # === OTHER SETUP ===
 # Upstream modin does not re-export the offsets module, so we need to do so here
 register_pd_accessor("offsets")(pandas.offsets)
-
-
-# Don't warn the user about our internal usage of private preview pivot
-# features. The user should have already been warned that Snowpark pandas
-# is in public or private preview. They likely don't know or care that we are
-# using Snowpark DataFrame pivot() internally, let alone that we are using
-# private preview features of Snowpark Python.
-
-snowflake.snowpark._internal.utils.should_warn_dynamic_pivot_is_in_private_preview = (
-    False
-)
