@@ -878,6 +878,11 @@ def test_temp_name_placeholder_for_async(
     assert len(unique_drop_file_format_queries) == 10
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="cursor are not created in local testing mode",
+    run=False,
+)
 def test_num_cursors_created(threadsafe_session):
     num_workers = 5
 
