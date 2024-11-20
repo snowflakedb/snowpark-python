@@ -46,6 +46,8 @@ Snowpark Session
       Session.create_dataframe
       Session.flatten
       Session.generator
+      Session.getActiveSession
+      Session.get_active_session
       Session.get_current_account
       Session.get_current_database
       Session.get_current_role
