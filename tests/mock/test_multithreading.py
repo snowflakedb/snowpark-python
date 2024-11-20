@@ -17,7 +17,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.utils import normalize_local_file
 from snowflake.snowpark.functions import lit, when_matched
-from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry
 from snowflake.snowpark.mock._plan import MockExecutionPlan
 from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
@@ -28,19 +27,9 @@ from snowflake.snowpark.session import Session
 from tests.utils import Utils
 
 
-@pytest.fixture(scope="function", autouse=True)
-def threadsafe_server_connection():
-    options = {
-        "session_parameters": {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True}
-    }
-    s = MockServerConnection(options)
-    yield s
-    s.close()
-
-
 @pytest.fixture(scope="function")
-def threadsafe_session(threadsafe_server_connection):
-    with Session(threadsafe_server_connection) as s:
+def threadsafe_session(mock_server_connection):
+    with Session(mock_server_connection) as s:
         yield s
 
 
