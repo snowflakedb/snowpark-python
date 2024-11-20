@@ -223,3 +223,23 @@ def test_column_regex(session):
         ["col1", "col2_a", "col2_b", "col3"]
     )
     Utils.check_answer(df.select(df.col_regex("col2_.*")), [Row(COL2_A=2, COL2_B=3)])
+
+    with pytest.raises(ValueError, match="No column match provided regex:no_match"):
+        df.select(df.col_regex("no_match"))
+
+
+def test_column_regex_with_translation(session):
+    df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
+        ["col1", "col2_a", "col2_b", "col3"]
+    )
+
+    translation = {
+        "col1": "COL1",
+        "col2_a": "COL2_A",
+        "col2_b": "COL2_B",
+        "col3": "COL3",
+    }
+    Utils.check_answer(
+        df.select(df._internal_col_regex("col2_.*", translation)),
+        [Row(COL2_A=2, COL2_B=3)],
+    )
