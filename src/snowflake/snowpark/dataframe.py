@@ -91,6 +91,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -1089,11 +1090,33 @@ class DataFrame:
         else:
             return Column(self._resolve(col_name))
 
-    def col_regex(self, col_name: str) -> Column:
-        if not isinstance(col_name, str):
+    def _internal_col_regex(
+        self,
+        regex: str,
+        case_sensitive: bool = False,
+        translate_columns: Optional[Dict[str, str]] = None,
+    ) -> Column:
+        if not isinstance(regex, str):
             raise ValueError(
-                f"regex provided to col_regex() must be string, got {type(col_name)} with value of {col_name} instead."
+                f"regex provided to col_regex() must be string, got {type(regex)} with value of {regex} instead."
             )
+        expressions = []
+        if case_sensitive:
+            for col in self._output:
+                if re.match(
+                    regex,
+                    translate_columns[unquote_if_quoted(col.name)],
+                    flags=re.IGNORECASE,
+                ):
+                    expressions.append(col)
+        else:
+            for col in self._output:
+                if re.match(regex, unquote_if_quoted(col.name), flags=re.IGNORECASE):
+                    expressions.append(col)
+        return Column(Star(expressions))
+
+    def col_regex(self, regex: str) -> Column:
+        return self._internal_col_regex(regex, False)
 
     @df_api_usage
     def select(
