@@ -70,6 +70,7 @@ class DataFrameWriter:
         self._save_mode = SaveMode.ERROR_IF_EXISTS
         self._partition_by: Optional[ColumnOrSqlExpr] = None
         self._cur_options: Dict[str, Any] = {}
+        self.__format: Optional[str] = None
 
     def mode(self, save_mode: str) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
@@ -110,7 +111,20 @@ class DataFrameWriter:
         self._cur_options[aliased_key] = value
         return self
 
-    def options(self, configs: Dict) -> "DataFrameWriter":
+    def options(self, configs: Optional[Dict] = None, **kwargs) -> "DataFrameWriter":
+        """Sets multiple specified options for this :class:`DataFrameWriter`.
+
+        This method is same as calling :meth:`option` except that you can set multiple options at once.
+        """
+        if configs and kwargs:
+            raise ValueError(
+                "Cannot set options with both a dictionary and keyword arguments. Please use one or the other."
+            )
+        if configs is None:
+            if not kwargs:
+                raise ValueError("No options were provided")
+            configs = kwargs
+
         for k, v in configs.items():
             self.option(k, v)
         return self
@@ -448,6 +462,82 @@ class DataFrameWriter:
         return df._internal_collect_with_tag(
             statement_params=statement_params or self._dataframe._statement_params,
             block=block,
+        )
+
+    @property
+    def _format(self) -> str:
+        return self.__format
+
+    @_format.setter
+    def _format(self, value: str) -> None:
+        allowed_formats = ["csv", "json", "parquet"]
+        canon_file_format_name = value.strip().lower()
+        if canon_file_format_name not in allowed_formats:
+            raise ValueError(
+                f"Unsupported file format. Expected file formats: {allowed_formats}, got '{value}'"
+            )
+
+        self.__format = canon_file_format_name
+
+    def format(
+        self, file_format_name: Literal["csv", "json", "parquet"]
+    ) -> "DataFrameWriter":
+        """Specifies the file format type to use for unloading data from the table. Allowed values are "csv", "json", and "parquet".
+        The file format name can be case insensitive and will be used when calling :meth:`save`.
+        """
+        self._format = file_format_name
+        return self
+
+    def save(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        **copy_options: Optional[str],
+    ) -> Union[List[Row], AsyncJob]:
+        """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into a file in a stage or external stage.
+        The file format type is determined by the last call to :meth:`format`.
+
+        Args:
+            location: The destination stage location.
+            partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
+            format_type_options: Depending on the ``file_format_type`` specified, you can include more format specific options. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
+            header: Specifies whether to include the table column headings in the output files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+        Returns:
+            A list of :class:`Row` objects containing unloading results.
+
+        Example::
+
+            >>> # save this dataframe to a csv file on the session stage
+            >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
+            >>> remote_file_path = f"{session.get_session_stage()}/names.csv"
+            >>> copy_result = df.write.format("csv").save(remote_file_path, overwrite=True, single=True)
+            >>> copy_result[0].rows_unloaded
+            3
+        """
+        if self._format is None:
+            raise ValueError(
+                "File format type is not specified. Call `format` before calling `save`."
+            )
+
+        return self.copy_into_location(
+            location,
+            file_format_type=self._format,
+            partition_by=partition_by,
+            format_type_options=format_type_options,
+            header=header,
+            statement_params=statement_params,
+            block=block,
+            **copy_options,
         )
 
     def csv(
