@@ -953,6 +953,7 @@ def build_proto_from_callable(
     expr_builder: proto.SpCallable,
     func: Union[Callable, Tuple[str, str]],
     ast_batch: Optional[AstBatch] = None,
+    object_name: Optional[Union[str, Iterable[str]]] = None,
 ):
     """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
 
@@ -976,6 +977,9 @@ def build_proto_from_callable(
     else:
         # Use the actual function name. Note: We do not support different scopes yet, need to be careful with this then.
         expr_builder.name = func.__name__
+
+    if object_name is not None:
+        build_sp_table_name(expr_builder.object_name, object_name)
 
 
 def build_udf(
@@ -1166,7 +1170,8 @@ def build_udtf(
     comment: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
-    session=None,
+    session: "snowflake.snowpark.session.Session" = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):
     """Helper function to encode UDTF parameters (used in both regular and mock UDFRegistration)."""
@@ -1176,7 +1181,10 @@ def build_udtf(
         _set_fn_name(name, ast)
 
     build_proto_from_callable(
-        ast.handler, handler, session._ast_batch if session is not None else None
+        ast.handler,
+        handler,
+        session._ast_batch if session is not None else None,
+        _registered_object_name,
     )
 
     if output_schema is not None:

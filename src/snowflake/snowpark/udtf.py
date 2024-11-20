@@ -674,7 +674,7 @@ class UDTFRegistration:
         with open_telemetry_udf_context_manager(
             self.register, handler=handler, name=name
         ):
-            if not callable(handler):
+            if not callable(handler) and kwargs.get("_registered_object_name") is None:
                 raise TypeError(
                     "Invalid function: not a function or callable "
                     f"(__call__ is not defined): {type(handler)}"
@@ -908,9 +908,57 @@ class UDTFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
+        if kwargs.get("_registered_object_name") is not None:
+            ast, ast_id = None, None
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.udtf, stmt)
+                ast_id = stmt.var_id.bitfield1
+
+            return UserDefinedTableFunction(
+                handler,
+                output_schema,
+                input_types,
+                kwargs["_registered_object_name"],
+                _ast=ast,
+                _ast_id=ast_id,
+            )
 
         check_output_schema_type(output_schema)
         check_imports_type(imports, "udtf-level")
+
+        if isinstance(output_schema, StructType):
+            _validate_output_schema_names(output_schema.names)
+            return_type = output_schema
+            output_schema = None
+        elif isinstance(output_schema, PandasDataFrameType):
+            _validate_output_schema_names(output_schema.col_names)
+            return_type = output_schema
+            output_schema = None
+        elif isinstance(
+            output_schema, Iterable
+        ):  # with column names instead of StructType. Read type hints to infer column types.
+            output_schema = tuple(output_schema)
+            _validate_output_schema_names(output_schema)
+            return_type = None
+
+        # get the udtf name, input types
+        (
+            object_name,
+            is_pandas_udf,
+            is_dataframe_input,
+            output_schema,
+            input_types,
+            opt_arg_defaults,
+        ) = process_registration_inputs(
+            self._session,
+            TempObjectType.TABLE_FUNCTION,
+            handler,
+            return_type,
+            input_types,
+            name,
+            output_schema=output_schema,
+        )
 
         # Capture original parameters.
         ast, ast_id = None, None
@@ -940,41 +988,9 @@ class UDTFRegistration:
                 statement_params=statement_params,
                 is_permanent=is_permanent,
                 session=self._session,
+                _registered_object_name=object_name,
                 **kwargs,
             )
-
-        if isinstance(output_schema, StructType):
-            _validate_output_schema_names(output_schema.names)
-            return_type = output_schema
-            output_schema = None
-        elif isinstance(output_schema, PandasDataFrameType):
-            _validate_output_schema_names(output_schema.col_names)
-            return_type = output_schema
-            output_schema = None
-        elif isinstance(
-            output_schema, Iterable
-        ):  # with column names instead of StructType. Read type hints to infer column types.
-            output_schema = tuple(output_schema)
-            _validate_output_schema_names(output_schema)
-            return_type = None
-
-        # get the udtf name, input types
-        (
-            udtf_name,
-            is_pandas_udf,
-            is_dataframe_input,
-            output_schema,
-            input_types,
-            opt_arg_defaults,
-        ) = process_registration_inputs(
-            self._session,
-            TempObjectType.TABLE_FUNCTION,
-            handler,
-            return_type,
-            input_types,
-            name,
-            output_schema=output_schema,
-        )
 
         arg_names = input_names or [f"arg{i + 1}" for i in range(len(input_types))]
         input_args = [
@@ -992,7 +1008,7 @@ class UDTFRegistration:
             TempObjectType.TABLE_FUNCTION,
             handler,
             arg_names,
-            udtf_name,
+            object_name,
             stage_location,
             imports,
             packages,
@@ -1020,7 +1036,7 @@ class UDTFRegistration:
                 opt_arg_defaults=opt_arg_defaults,
                 handler=handler_name,
                 object_type=TempObjectType.FUNCTION,
-                object_name=udtf_name,
+                object_name=object_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
                 raw_imports=imports,
@@ -1062,7 +1078,7 @@ class UDTFRegistration:
             handler,
             output_schema,
             input_types,
-            udtf_name,
+            object_name,
             packages=packages,
             _ast=ast,
             _ast_id=ast_id,
