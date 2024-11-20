@@ -1051,7 +1051,8 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
     is_permanent: bool = False,
-    session=None,
+    session: "snowflake.snowpark.session.Session" = None,
+    udf_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDF parameters (used in both regular and mock UDFRegistration)."""
@@ -1061,7 +1062,10 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
         _set_fn_name(name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "Udf"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
-        ast.func, func, session._ast_batch if session is not None else None
+        ast.func,
+        func,
+        session._ast_batch if session is not None else None,
+        udf_name,
     )
 
     if return_type is not None:
@@ -1135,7 +1139,8 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     comment: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
-    session=None,
+    session: "snowflake.snowpark.session.Session" = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDAF parameters (used in both regular and mock UDFRegistration)."""
@@ -1145,7 +1150,10 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         _set_fn_name(name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "Udaf"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
-        ast.handler, handler, session._ast_batch if session is not None else None
+        ast.handler,
+        handler,
+        session._ast_batch if session is not None else None,
+        _registered_object_name,
     )
 
     if return_type is not None:
@@ -1339,7 +1347,8 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     execute_as: typing.Literal["caller", "owner"] = "owner",
     source_code_display: bool = True,
     is_permanent: bool = False,
-    session=None,
+    session: "snowflake.snowpark.session.Session" = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ) -> None:  # pragma: no cover
     """Helper function to encode stored procedure parameters (used in both regular and mock StoredProcedureRegistration)."""
@@ -1348,7 +1357,10 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
         _set_fn_name(sp_name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "StoredProcedure"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
-        ast.func, func, session._ast_batch if session is not None else None
+        ast.func,
+        func,
+        session._ast_batch if session is not None else None,
+        _registered_object_name,
     )
 
     if return_type is not None:

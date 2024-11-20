@@ -596,7 +596,7 @@ class StoredProcedureRegistration:
             - :meth:`register_from_file`
         """
         with open_telemetry_udf_context_manager(self.register, func=func, name=name):
-            if not callable(func):
+            if not callable(func) and kwargs.get("_registered_object_name") is None:
                 raise TypeError(
                     "Invalid function: not a function or callable "
                     f"(__call__ is not defined): {type(func)}"
@@ -823,15 +823,51 @@ class StoredProcedureRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
+        if kwargs.get("_registered_object_name") is not None:
+            stmt, ast, ast_id = None, None, None
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.stored_procedure, stmt)
+                ast_id = stmt.var_id.bitfield1
+
+            return StoredProcedure(
+                func,
+                return_type,
+                input_types,
+                kwargs["_registered_object_name"],
+                execute_as=execute_as,
+                packages=packages,
+                _ast=ast,
+                _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
+                _ast_stmt=stmt,
+            )
 
         check_imports_type(imports, "stored-proc-level")
 
-        # AST. Capture original parameters, before any pre-processing.
-        ast = None
-        stmt = None
+        (
+            sproc_name,
+            is_pandas_udf,
+            is_dataframe_input,
+            return_type,
+            input_types,
+            opt_arg_defaults,
+        ) = process_registration_inputs(
+            self._session,
+            TempObjectType.PROCEDURE,
+            func,
+            return_type,
+            input_types,
+            sp_name,
+            anonymous,
+        )
+
+        # Capture original parameters.
+        stmt, ast, ast_id = None, None, None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.stored_procedure, stmt)
+            ast_id = stmt.var_id.bitfield1
+
             build_sproc(
                 ast,
                 func,
@@ -853,25 +889,9 @@ class StoredProcedureRegistration:
                 comment=comment,
                 is_permanent=is_permanent,
                 session=self._session,
+                _registered_object_name=sproc_name,
                 **kwargs,
             )
-
-        (
-            udf_name,
-            is_pandas_udf,
-            is_dataframe_input,
-            return_type,
-            input_types,
-            opt_arg_defaults,
-        ) = process_registration_inputs(
-            self._session,
-            TempObjectType.PROCEDURE,
-            func,
-            return_type,
-            input_types,
-            sp_name,
-            anonymous,
-        )
 
         if is_pandas_udf:
             raise TypeError("pandas stored procedure is not supported")
@@ -899,7 +919,7 @@ class StoredProcedureRegistration:
             TempObjectType.PROCEDURE,
             func,
             arg_names,
-            udf_name,
+            sproc_name,
             stage_location,
             imports,
             packages,
@@ -927,7 +947,7 @@ class StoredProcedureRegistration:
                 return_type=return_type,
                 input_args=input_args,
                 handler=handler,
-                object_name=udf_name,
+                object_name=sproc_name,
                 all_imports=all_imports,
                 all_packages=all_packages,
                 raw_imports=imports,
@@ -949,7 +969,7 @@ class StoredProcedureRegistration:
                     opt_arg_defaults=opt_arg_defaults,
                     handler=handler,
                     object_type=TempObjectType.PROCEDURE,
-                    object_name=udf_name,
+                    object_name=sproc_name,
                     all_imports=all_imports,
                     all_packages=all_packages,
                     raw_imports=imports,
@@ -992,17 +1012,13 @@ class StoredProcedureRegistration:
             func,
             return_type,
             input_types,
-            udf_name,
+            sproc_name,
             execute_as=execute_as,
             anonymous_sp_sql=anonymous_sp_sql,
             packages=packages,
             _ast=ast,
-            _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
+            _ast_id=ast_id,
             _ast_stmt=stmt,
         )
-
-        sproc._ast = ast
-        if _emit_ast:
-            sproc._ast_id = stmt.var_id.bitfield1
 
         return sproc

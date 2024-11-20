@@ -13,7 +13,7 @@ df2 = session.call("my_sproc", 2, "one", dict(), False)
 
 ## EXPECTED UNPARSER OUTPUT
 
-my_sproc_sp = sproc(my_sproc, name="my_sproc", replace=True, comment="The parameters are useless.")
+my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(), StringType(), MapType(StringType(), StringType(), structured=False), BooleanType()], name="my_sproc", replace=True, comment="The parameters are useless.", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_SPROC\"")
 
 df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
 
@@ -35,6 +35,41 @@ body {
         execute_as: "owner"
         func {
           name: "my_sproc"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_SPROC\""
+            }
+          }
+        }
+        input_types {
+          list {
+            sp_long_type: true
+          }
+          list {
+            sp_string_type {
+              length {
+              }
+            }
+          }
+          list {
+            sp_map_type {
+              key_ty {
+                sp_string_type {
+                  length {
+                  }
+                }
+              }
+              value_ty {
+                sp_string_type {
+                  length {
+                  }
+                }
+              }
+            }
+          }
+          list {
+            sp_boolean_type: true
+          }
         }
         name {
           fn_name_flat {
@@ -43,6 +78,12 @@ body {
         }
         parallel: 4
         replace: true
+        return_type {
+          sp_string_type {
+            length {
+            }
+          }
+        }
         source_code_display: true
         src {
           file: "SRC_POSITION_TEST_MODE"
