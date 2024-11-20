@@ -23,12 +23,17 @@
 
 - Added support for specifying the following to `DataFrame.create_or_replace_dynamic_table`:
   - `iceberg_config` A dictionary that can hold the following iceberg configuration options:
-      - `external_volume`
-      - `catalog`
-      - `base_location`
-      - `catalog_sync`
-      - `storage_serialization_policy`
+    - `external_volume`
+    - `catalog`
+    - `base_location`
+    - `catalog_sync`
+    - `storage_serialization_policy`
 - Added support for nested data types to `DataFrame.print_schema`
+- Improved flexibility of `DataFrameReader` and `DataFrameWriter` API by adding support for the following:
+  - Added `format` method to `DataFrameReader` and `DataFrameWriter` to specify file format when loading or unloading results.
+  - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
+  - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
+  - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
 
 #### Bug Fixes
 
