@@ -29,6 +29,7 @@ INSTALL_REQ_LIST = [
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6",  # Snowpark IR
     "tzlocal",  # Snowpark IR
+    "snowflake>=1.0.0, <2",  # Catalog
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
