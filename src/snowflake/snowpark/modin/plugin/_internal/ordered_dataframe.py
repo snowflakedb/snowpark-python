@@ -1560,10 +1560,10 @@ class OrderedDataFrame:
             extra_columns_to_append.append(col_matching_expr)
 
             # Define the final ordering column.
-            # As we mentioned in docstring, when left_on_cols and right_on_cols matches, the left
-            # and right frame is merged row by row with the original order, and the row order of
+            # As we mentioned in docstring, when left_on_cols and right_on_cols match, the left
+            # and right frames are merged row by row with the original order, and the row order of
             # original frame is retained.
-            # However, when left_on_cols and right_on_cols doesn't match, we need to sort lexicographically
+            # However, when left_on_cols and right_on_cols don't match, we need to sort lexicographically
             # on the join keys for `outer` align, and preserve left order followed by right order for `left` align.
             # This means the ordering column changes based on the result of column matching situation. Due
             # to lazy evaluation, we do not know the column matching situation util the query is evaluated.
@@ -1571,7 +1571,7 @@ class OrderedDataFrame:
             # input frames have matching left_on_cols and right_on_cols, otherwise this will be set to constant
             # 1 (a dummy ordering column has no effect).
             # Note that this is only needed by `outer` methods because it needs to sort on join keys. For `left`,
-            # preserve the left order followed by right order can give the correct order for both matching case
+            # preserving the left order followed by right order can give the correct order for both matching case
             # and non-matching case.
             if how == "outer":
                 global_order_col_identifier = (
