@@ -121,6 +121,7 @@ from snowflake.snowpark._internal.utils import (
     zip_file_or_directory_to_stream,
 )
 from snowflake.snowpark.async_job import AsyncJob
+from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -521,6 +522,7 @@ class Session:
 "os.name" : {get_os_name()}
 """
         self.version = get_version()
+        self.catalog = Catalog(self)
         self._session_stage = None
 
         if isinstance(conn, MockServerConnection):

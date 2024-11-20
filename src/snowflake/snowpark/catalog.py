@@ -3,7 +3,7 @@
 #
 
 import re
-from typing import List, NamedTuple, Optional, Tuple, Union
+from typing import List, NamedTuple, Optional, Union
 
 from snowflake.core import Root
 from snowflake.core.database import Database
@@ -19,10 +19,6 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark.types import DataType
 
-DatabaseOrStr = Union[str, Database]
-SchemaOrStr = Union[str, Schema]
-ArgumentType = Union[List[DataType], Tuple[DataType]]
-
 
 class Column(NamedTuple):
     name: str
@@ -35,7 +31,7 @@ class Catalog:
         self._session = session
         self._root = Root(session)
 
-    def _parse_database(self, database: Optional[DatabaseOrStr]) -> str:
+    def _parse_database(self, database: Optional[Union[str, Database]]) -> str:
         if isinstance(database, str):
             return database
         if isinstance(database, Database):
@@ -44,7 +40,7 @@ class Catalog:
             return self._session.get_current_database()
         raise ValueError("")
 
-    def _parse_schema(self, schema: Optional[SchemaOrStr]) -> str:
+    def _parse_schema(self, schema: Optional[Union[str, Schema]]) -> str:
         if isinstance(schema, str):
             return schema
         if isinstance(schema, Schema):
@@ -56,7 +52,7 @@ class Catalog:
     def _parse_function_or_procedure(
         self,
         fn: Union[str, Function, Procedure, UserDefinedFunction],
-        arg_types: Optional[ArgumentType],
+        arg_types: Optional[List[DataType]],
     ) -> str:
         if isinstance(fn, str):
             if arg_types is None:
@@ -75,6 +71,11 @@ class Catalog:
         *,
         pattern: Optional[str] = None,
     ) -> List[Database]:
+        """List databases in the current session.
+
+        Args:
+            pattern: the pattern of name to match. Defaults to None.
+        """
         iter = self._root.databases.iter()
         if pattern:
             iter = filter(lambda x: re.match(pattern, x.name), iter)
@@ -84,9 +85,16 @@ class Catalog:
     def list_schemas(
         self,
         *,
-        database: Optional[DatabaseOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
         pattern: Optional[str] = None,
     ) -> List[Schema]:
+        """List schemas in the current session. If database is provided, list schemas in the
+        database, otherwise list schemas in the current database.
+
+        Args:
+            database: database name or ``Database`` object. Defaults to None.
+            pattern: the pattern of name to match. Defaults to None.
+        """
         db_name = self._parse_database(database)
         iter = self._root.databases[db_name].schemas.iter()
         if pattern:
@@ -96,10 +104,18 @@ class Catalog:
     def list_tables(
         self,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
         pattern: Optional[str] = None,
     ) -> List[Table]:
+        """List tables in the current session. If database or schema are provided, list tables
+        in the given database or schema, otherwise list tables in the current database/schema.
+
+        Args:
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+            pattern: the pattern of name to match. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
@@ -112,10 +128,18 @@ class Catalog:
     def list_views(
         self,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
         pattern: Optional[str] = None,
     ) -> List[View]:
+        """List views in the current session. If database or schema are provided, list views
+        in the given database or schema, otherwise list views in the current database/schema.
+
+        Args:
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+            pattern: the pattern of name to match. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
@@ -129,9 +153,16 @@ class Catalog:
         self,
         table_name: str,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> List[Column]:
+        """List columns in the given table.
+
+        Args:
+            table_name: table name.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         if database is None:
             table = self._session.table(table_name)
         else:
@@ -146,10 +177,18 @@ class Catalog:
     def list_functions(
         self,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
         pattern: Optional[str] = None,
     ) -> List[Function]:
+        """List of functions in the given database and schema. If database or schema are not
+        provided, list functions in the current database and schema.
+
+        Args:
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+            pattern: the pattern of name to match. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
@@ -162,10 +201,18 @@ class Catalog:
     def list_procedures(
         self,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
         pattern: Optional[str] = None,
     ) -> List[Procedure]:
+        """List of procedures in the given database and schema. If database or schema are not
+        provided, list procedures in the current database and schema.
+
+        Args:
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+            pattern: the pattern of name to match. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
@@ -178,10 +225,18 @@ class Catalog:
     def list_user_defined_functions(
         self,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
         pattern: Optional[str] = None,
     ) -> List[UserDefinedFunction]:
+        """List of user defined functions in the given database and schema. If database or schema
+        are not provided, list user defined functions in the current database and schema.
+
+        Args:
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+            pattern: the pattern of name to match. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
@@ -191,14 +246,14 @@ class Catalog:
 
         return list(iter)
 
-    listUserDefinedFunctions = list_user_defined_functions
-
     # get methods
     def get_current_database(self) -> Database:
+        """Get the current database."""
         current_db_name = self._session.get_current_database()
         return self._root.databases[current_db_name]
 
     def get_current_schema(self) -> Schema:
+        """Get the current schema."""
         current_db = self.get_current_database()
         current_schema_name = self._session.get_current_schema()
         return current_db.schemas[current_schema_name]
@@ -207,9 +262,17 @@ class Catalog:
         self,
         table_name: str,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> Table:
+        """Get the table by name in given database and schema. If database or schema are not
+        provided, get the table in the current database and schema.
+
+        Args:
+            table_name: name of the table.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         return self._root.databases[db_name].schemas[schema_name].tables[table_name]
@@ -218,9 +281,17 @@ class Catalog:
         self,
         view_name: str,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> View:
+        """Get the view by name in given database and schema. If database or schema are not
+        provided, get the view in the current database and schema.
+
+        Args:
+            view_name: name of the view.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         return self._root.databases[db_name].schemas[schema_name].views[view_name]
@@ -228,11 +299,20 @@ class Catalog:
     def get_function(
         self,
         function_name: str,
-        arg_types: ArgumentType,
+        arg_types: List[DataType],
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> Function:
+        """Get the function by name and argument types in given database and schema. If database or
+        schema are not provided, get the function in the current database and schema.
+
+        Args:
+            function_name: name of the function.
+            arg_types: list of argument types to uniquely identify the function.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         function_id = self._parse_function_or_procedure(function_name, arg_types)
@@ -241,11 +321,20 @@ class Catalog:
     def get_procedure(
         self,
         procedure_name: str,
-        arg_types: ArgumentType,
+        arg_types: List[DataType],
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> Procedure:
+        """Get the procedure by name and argument types in given database and schema. If database or
+        schema are not provided, get the procedure in the current database and schema.
+
+        Args:
+            procedure_name: name of the procedure.
+            arg_types: list of argument types to uniquely identify the procedure.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         procedure_id = self._parse_function_or_procedure(procedure_name, arg_types)
@@ -256,11 +345,21 @@ class Catalog:
     def get_user_defined_function(
         self,
         udf_name: str,
-        arg_types: ArgumentType,
+        arg_types: List[DataType],
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> UserDefinedFunction:
+        """Get the user defined function by name and argument types in given database and schema.
+        If database or schema are not provided, get the user defined function in the current
+        database and schema.
+
+        Args:
+            udf_name: name of the user defined function.
+            arg_types: list of argument types to uniquely identify the user defined function.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         function_id = self._parse_function_or_procedure(udf_name, arg_types)
@@ -271,16 +370,31 @@ class Catalog:
         )
 
     # set methods
-    def set_current_database(self, database: DatabaseOrStr) -> None:
+    def set_current_database(self, database: Union[str, Database]) -> None:
+        """Set the current default database for the session.
+
+        Args:
+            database: database name or ``Database`` object.
+        """
         db_name = self._parse_database(database)
         self._session.sql(f"USE DATABASE {db_name}")._internal_collect_with_tag()
 
-    def set_current_schema(self, schema: SchemaOrStr) -> None:
+    def set_current_schema(self, schema: Union[str, Schema]) -> None:
+        """Set the current default schema for the session.
+
+        Args:
+            schema: schema name or ``Schema`` object.
+        """
         schema_name = self._parse_schema(schema)
         self._session.sql(f"USE SCHEMA {schema_name}")._internal_collect_with_tag()
 
     # exists methods
-    def database_exists(self, database: DatabaseOrStr) -> bool:
+    def database_exists(self, database: Union[str, Database]) -> bool:
+        """Check if the given database exists.
+
+        Args:
+            database: database name or ``Database`` object.
+        """
         db_name = self._parse_database(database)
         try:
             self._root.databases[db_name].fetch()
@@ -289,8 +403,18 @@ class Catalog:
             return False
 
     def schema_exists(
-        self, schema: SchemaOrStr, *, database: Optional[DatabaseOrStr] = None
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
     ) -> bool:
+        """Check if the given schema exists in the given database. If database is not provided,
+        check if the schema exists in the current database.
+
+        Args:
+            schema: schema name or ``Schema`` object.
+            database: database name or ``Database`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         try:
@@ -303,9 +427,17 @@ class Catalog:
         self,
         table: Union[str, Table],
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
+        """Check if the given table exists in the given database and schema. If database or schema
+        are not provided, check if the table exists in the current database and schema.
+
+        Args:
+            table: table name or ``Table`` object.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         table_name = table if isinstance(table, str) else table.name
@@ -321,9 +453,17 @@ class Catalog:
         self,
         view: Union[str, View],
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
+        """Check if the given view exists in the given database and schema. If database or schema
+        are not provided, check if the view exists in the current database and schema.
+
+        Args:
+            view: view name or ``View`` object.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         view_name = view if isinstance(view, str) else view.name
@@ -336,11 +476,20 @@ class Catalog:
     def function_exists(
         self,
         func: Union[str, Function],
-        arg_types: Optional[ArgumentType] = None,
+        arg_types: Optional[List[DataType]] = None,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr],
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]],
     ) -> bool:
+        """Check if the given function exists in the given database and schema. If database or
+        schema are not provided, check if the function exists in the current database and schema.
+
+        Args:
+            func: function name or ``Function`` object.
+            arg_types: list of argument types to uniquely identify the function. Defaults to None.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         function_id = self._parse_function_or_procedure(func, arg_types)
@@ -356,11 +505,20 @@ class Catalog:
     def procedure_exists(
         self,
         procedure: Union[str, Procedure],
-        arg_types: Optional[ArgumentType] = None,
+        arg_types: Optional[List[DataType]] = None,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
+        """Check if the given procedure exists in the given database and schema. If database or
+        schema are not provided, check if the procedure exists in the current database and schema.
+
+        Args:
+            procedure: procedure name or ``Procedure`` object.
+            arg_types: list of argument types to uniquely identify the procedure. Defaults to None.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         procedure_id = self._parse_function_or_procedure(procedure, arg_types)
@@ -376,11 +534,22 @@ class Catalog:
     def user_defined_function_exists(
         self,
         udf: Union[str, UserDefinedFunction],
-        arg_types: Optional[ArgumentType] = None,
+        arg_types: Optional[List[DataType]] = None,
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr],
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]],
     ) -> bool:
+        """Check if the given user defined function exists in the given database and schema. If
+        database or schema are not provided, check if the user defined function exists in the
+        current database and schema.
+
+        Args:
+            udf: user defined function name or ``UserDefinedFunction`` object.
+            arg_types: list of argument types to uniquely identify the user defined function.
+                Defaults to None.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         function_id = self._parse_function_or_procedure(udf, arg_types)
@@ -394,13 +563,28 @@ class Catalog:
             return False
 
     # drop methods
-    def drop_database(self, database: DatabaseOrStr) -> None:
+    def drop_database(self, database: Union[str, Database]) -> None:
+        """Drop the given database.
+
+        Args:
+            database: database name or ``Database`` object.
+        """
         db_name = self._parse_database(database)
         self._root.databases[db_name].drop()
 
     def drop_schema(
-        self, schema: SchemaOrStr, *, database: Optional[DatabaseOrStr] = None
+        self,
+        schema: Union[str, Schema],
+        *,
+        database: Optional[Union[str, Database]] = None,
     ) -> None:
+        """Drop the given schema in the given database. If database is not provided, drop the
+        schema in the current database.
+
+        Args:
+            schema: schema name or ``Schema`` object.
+            database: database name or ``Database`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         self._root.databases[db_name].schemas[schema_name].drop()
@@ -409,9 +593,17 @@ class Catalog:
         self,
         table: Union[str, Table],
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> None:
+        """Drop the given table in the given database and schema. If database or schema are not
+        provided, drop the table in the current database and schema.
+
+        Args:
+            table: table name or ``Table`` object.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         table_name = table if isinstance(table, str) else table.name
@@ -422,54 +614,53 @@ class Catalog:
         self,
         view: Union[str, View],
         *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
     ) -> None:
+        """Drop the given view in the given database and schema. If database or schema are not
+        provided, drop the view in the current database and schema.
+
+        Args:
+            view: view name or ``View`` object.
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+        """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         view_name = view if isinstance(view, str) else view.name
 
         self._root.databases[db_name].schemas[schema_name].views[view_name].drop()
 
-    def drop_function(
-        self,
-        func: Union[str, Function],
-        arg_types: Optional[ArgumentType] = None,
-        *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
-    ) -> None:
-        db_name = self._parse_database(database)
-        schema_name = self._parse_schema(schema)
-        function_id = self._parse_function_or_procedure(func, arg_types)
-        self._root.databases[db_name].schemas[schema_name].functions[function_id].drop()
+    # aliases
+    listDatabases = list_databases
+    listSchemas = list_schemas
+    listTables = list_tables
+    listViews = list_views
+    listColumns = list_columns
+    listFunctions = list_functions
+    listProcedures = list_procedures
+    listUserDefinedFunctions = list_user_defined_functions
 
-    def drop_procedure(
-        self,
-        procedure: Union[str, Procedure],
-        arg_types: Optional[ArgumentType] = None,
-        *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
-    ) -> None:
-        db_name = self._parse_database(database)
-        schema_name = self._parse_schema(schema)
-        procedure_id = self._parse_function_or_procedure(procedure, arg_types)
-        self._root.databases[db_name].schemas[schema_name].procedures[
-            procedure_id
-        ].drop()
+    getCurrentDatabase = get_current_database
+    getCurrentSchema = get_current_schema
+    getTable = get_table
+    getView = get_view
+    getFunction = get_function
+    getProcedure = get_procedure
+    getUserDefinedFunction = get_user_defined_function
 
-    def drop_user_defined_function(
-        self,
-        udf: Union[str, UserDefinedFunction],
-        arg_types: Optional[ArgumentType] = None,
-        *,
-        database: Optional[DatabaseOrStr] = None,
-        schema: Optional[SchemaOrStr] = None,
-    ) -> None:
-        db_name = self._parse_database(database)
-        schema_name = self._parse_schema(schema)
-        function_id = self._parse_function_or_procedure(udf, arg_types)
-        self._root.databases[db_name].schemas[schema_name].user_defined_functions[
-            function_id
-        ].drop()
+    setCurrentDatabase = set_current_database
+    setCurrentSchema = set_current_schema
+
+    databaseExists = database_exists
+    schemaExists = schema_exists
+    tableExists = table_exists
+    viewExists = view_exists
+    functionExists = function_exists
+    procedureExists = procedure_exists
+    userDefinedFunctionExists = user_defined_function_exists
+
+    dropDatabase = drop_database
+    dropSchema = drop_schema
+    dropTable = drop_table
+    dropView = drop_view
