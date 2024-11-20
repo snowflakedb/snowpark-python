@@ -263,37 +263,29 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
+        if kwargs.get("_registered_object_name") is not None:
+            ast, ast_id = None, None
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.stored_procedure, stmt)
+                ast_id = stmt.var_id.bitfield1
 
-        check_imports_type(imports, "stored-proc-level")
-
-        ast = None
-        stmt = None
-        if _emit_ast:
-            stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.stored_procedure, stmt)
-            build_sproc(
-                ast,
+            object_name = kwargs["_registered_object_name"]
+            sproc = MockStoredProcedure(
                 func,
                 return_type,
                 input_types,
-                sp_name,
-                stage_location,
-                imports,
-                packages,
-                replace,
-                if_not_exists,
-                parallel,
-                strict,
-                external_access_integrations,
-                secrets,
-                comment,
+                object_name,
+                Set(),
                 execute_as=execute_as,
-                statement_params=statement_params,
-                source_code_display=source_code_display,
-                is_permanent=is_permanent,
-                session=self._session,
-                **kwargs,
+                strict=strict,
+                _ast=ast,
+                _ast_id=ast_id,
             )
+            self._registry[object_name] = sproc
+            return sproc
+
+        check_imports_type(imports, "stored-proc-level")
 
         if is_permanent:
             self._session._conn.log_not_supported_error(
@@ -333,6 +325,36 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 sproc_name, current_schema, current_database
             )
 
+            ast, ast_id = None, None
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.stored_procedure, stmt)
+                ast_id = stmt.var_id.bitfield1
+                build_sproc(
+                    ast,
+                    func,
+                    return_type,
+                    input_types,
+                    sp_name,
+                    stage_location,
+                    imports,
+                    packages,
+                    replace,
+                    if_not_exists,
+                    parallel,
+                    strict,
+                    external_access_integrations,
+                    secrets,
+                    comment,
+                    execute_as=execute_as,
+                    statement_params=statement_params,
+                    source_code_display=source_code_display,
+                    is_permanent=is_permanent,
+                    session=self._session,
+                    _registered_object_name=sproc_name,
+                    **kwargs,
+                )
+
             check_python_runtime_version(
                 self._session._runtime_version_from_requirement
             )
@@ -343,7 +365,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             if sproc_name in self._registry and if_not_exists:
                 ans = self._registry[sproc_name]
                 ans._ast = ast
-                ans._ast_id = stmt.var_id.bitfield1 if _emit_ast else None
+                ans._ast_id = ast_id
                 return ans
 
             if sproc_name in self._registry and not replace:
@@ -397,7 +419,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 execute_as=execute_as,
                 strict=strict,
                 _ast=ast,
-                _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
+                _ast_id=ast_id,
             )
 
             self._registry[sproc_name] = sproc

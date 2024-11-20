@@ -115,37 +115,27 @@ class MockUDFRegistration(UDFRegistration):
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
+        if kwargs.get("_registered_object_name") is not None:
+            ast, ast_id = None, None
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.udf, stmt)
+                ast_id = stmt.var_id.bitfield1
 
-        ast = None
-        stmt = None
-        if _emit_ast:
-            stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.udf, stmt)
-            build_udf(
-                ast,
+            object_name = kwargs["_registered_object_name"]
+            udf = MockUserDefinedFunction(
                 func,
                 return_type,
                 input_types,
-                name,
-                stage_location,
-                imports,
-                packages,
-                replace,
-                if_not_exists,
-                parallel,
-                max_batch_size,
-                strict,
-                secure,
-                external_access_integrations,
-                secrets,
-                immutable,
-                comment,
-                statement_params=statement_params,
-                source_code_display=source_code_display,
-                is_permanent=is_permanent,
-                session=self._session,
-                **kwargs,
+                object_name,
+                strict=strict,
+                packages=packages,
+                use_session_imports=imports is None,
+                _ast=ast,
+                _ast_id=ast_id,
             )
+            self._registry[object_name] = udf
+            return udf
 
         if is_permanent:
             self._session._conn.log_not_supported_error(
@@ -154,7 +144,7 @@ class MockUDFRegistration(UDFRegistration):
                 raise_error=NotImplementedError,
             )
 
-        with self._lock:
+        with (self._lock):
             # get the udf name, return and input types
             (
                 udf_name,
@@ -178,6 +168,38 @@ class MockUDFRegistration(UDFRegistration):
                 udf_name, current_schema, current_database
             )
 
+            ast, ast_id = None, None
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.udf, stmt)
+                ast_id = stmt.var_id.bitfield1
+                build_udf(
+                    ast,
+                    func,
+                    return_type,
+                    input_types,
+                    name,
+                    stage_location,
+                    imports,
+                    packages,
+                    replace,
+                    if_not_exists,
+                    parallel,
+                    max_batch_size,
+                    strict,
+                    secure,
+                    external_access_integrations,
+                    secrets,
+                    immutable,
+                    comment,
+                    statement_params=statement_params,
+                    source_code_display=source_code_display,
+                    is_permanent=is_permanent,
+                    session=self._session,
+                    _registered_object_name=udf_name,
+                    **kwargs,
+                )
+
             # allow registering pandas UDF from udf(),
             # but not allow registering non-pandas UDF from pandas_udf()
             if from_pandas_udf_function and not is_pandas_udf:
@@ -199,7 +221,7 @@ class MockUDFRegistration(UDFRegistration):
             if udf_name in self._registry and if_not_exists:
                 ans = self._registry[udf_name]
                 ans._ast = ast
-                ans._ast_id = stmt.var_id.bitfield1 if stmt else None
+                ans._ast_id = ast_id
                 return ans
 
             if udf_name in self._registry and not replace:
@@ -221,7 +243,7 @@ class MockUDFRegistration(UDFRegistration):
                 packages=packages,
                 use_session_imports=imports is None,
                 _ast=ast,
-                _ast_id=stmt.var_id.bitfield1 if stmt else None,
+                _ast_id=ast_id,
             )
 
             if type(func) is tuple:  # update file registration

@@ -100,7 +100,7 @@ REGISTER_KWARGS_ALLOWLIST = {
     "_from_pandas_udf_function",
     "input_names",  # for pandas_udtf
     "max_batch_size",  # for pandas_udtf
-    "_registered_object_name",  # object name within Snowflake (post registration)
+    "_registered_object_name",  # object name within Snowflake (post-registration)
 }
 
 
@@ -1397,7 +1397,7 @@ def generate_anonymous_python_sp_sql(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
-):
+) -> str:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
         if not runtime_version
