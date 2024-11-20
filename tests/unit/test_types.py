@@ -1227,10 +1227,10 @@ def test_snow_type_to_dtype_str():
                 [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
             ),
             "pandas<string,int,float>",
-            '{"fields":[{"name":"id","type":"string"},{"name":"col1","type":"integer"},{"name":"col2","type":"float"}],"type":"pandasdataframe"}',
-            "pandasdataframe",
+            '{"fields":[{"name":"id","type":"string"},{"name":"col1","type":"integer"},{"name":"col2","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
             {
-                "type": "pandasdataframe",
+                "type": "pandas_dataframe",
                 "fields": [
                     {"name": "id", "type": "string"},
                     {"name": "col1", "type": "integer"},
@@ -1243,10 +1243,10 @@ def test_snow_type_to_dtype_str():
                 [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
             ),
             "pandas<array<array<int>>,int,float>",
-            '{"fields":[{"name":"","type":{"element_type":{"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandasdataframe"}',
-            "pandasdataframe",
+            '{"fields":[{"name":"","type":{"element_type":{"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
             {
-                "type": "pandasdataframe",
+                "type": "pandas_dataframe",
                 "fields": [
                     {
                         "name": "",
@@ -1265,17 +1265,17 @@ def test_snow_type_to_dtype_str():
         ),
         (
             PandasSeriesType(IntegerType()),
-            "pandasseries<int>",
-            '{"element_type":"integer","type":"pandasseries"}',
-            "pandasseries",
-            {"type": "pandasseries", "element_type": "integer"},
+            "pandas_series<int>",
+            '{"element_type":"integer","type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": "integer"},
         ),
         (
             PandasSeriesType(None),
-            "pandasseries<>",
-            '{"element_type":null,"type":"pandasseries"}',
-            "pandasseries",
-            {"type": "pandasseries", "element_type": None},
+            "pandas_series<>",
+            '{"element_type":null,"type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": None},
         ),
     ],
 )
