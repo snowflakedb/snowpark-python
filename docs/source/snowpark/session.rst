@@ -46,6 +46,7 @@ Snowpark Session
       Session.create_dataframe
       Session.flatten
       Session.generator
+      Session.get_active_session
       Session.get_current_account
       Session.get_current_database
       Session.get_current_role
@@ -72,6 +73,7 @@ Snowpark Session
       Session.use_schema
       Session.use_secondary_roles
       Session.use_warehouse
+      Session.version
       Session.write_pandas
 
 .. rubric:: Attributes
