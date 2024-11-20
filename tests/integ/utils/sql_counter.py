@@ -386,7 +386,17 @@ def sql_count_checker(
     *args,
     **kwargs,
 ):
-    """SqlCounter decorator that automatically validates the sql counts when test finishes."""
+    """
+    SqlCounter decorator that automatically validates the sql counts when test finishes.
+
+    The sql count checks are applied for all parameters in the format of *_count, for example,
+    join_count = 2 means we expect to see two joins in the sql queries.
+
+    Note that the *_count can be configured in two ways: clear declaration in the sql_count_check in
+    the signature, or passed through **kwargs. The check for count clearly declared in the signature
+    will be enforced, and 0 occurrence is expected if the value is None. Other count checks can be
+    optionally passed through the **kwargs, where the occurrence check will only be applied if specified.
+    """
     all_args = inspect.getargvalues(inspect.currentframe())
     count_kwargs = {
         key: value
@@ -394,7 +404,8 @@ def sql_count_checker(
             filter(lambda k: k[0].endswith("_count"), all_args.locals.items())
         )
     }
-    # also look into kwargs for count information
+    # also look into kwargs for count configuration. Right now, describe_count and window_count are the
+    # counts can be passed optionally
     for (key, value) in kwargs.items():
         if key.endswith("_count"):
             count_kwargs.update({key: value})
