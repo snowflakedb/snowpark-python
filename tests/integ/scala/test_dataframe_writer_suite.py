@@ -11,7 +11,7 @@ import snowflake.connector.errors
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, parse_json
+from snowflake.snowpark.functions import col, lit, object_construct, parse_json
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
@@ -227,6 +227,30 @@ def test_writer_options(session, temp_stage):
     files = session.sql(f"list @{temp_stage}/test_mixed_options").collect()
     assert len(files) == 1
     assert (files[0].name).lower() == f"{temp_stage.lower()}/test_mixed_options"
+
+    # mixed case with options passed as kwargs
+    result = df.write.options(single=True, sep=";").csv(
+        f"@{temp_stage}/test_mixed_options_kwargs"
+    )
+    assert result[0].rows_unloaded == 4
+    files = session.sql(f"list @{temp_stage}/test_mixed_options_kwargs").collect()
+    assert len(files) == 1
+    assert (files[0].name).lower() == f"{temp_stage.lower()}/test_mixed_options_kwargs"
+
+
+def test_writer_options_negative(session):
+    with pytest.raises(
+        ValueError,
+        match="Cannot set options with both a dictionary and keyword arguments",
+    ):
+        session.create_dataframe([[1, 2]], schema=["a", "b"]).write.options(
+            {"overwrite": True}, overwrite=True
+        ).csv("test_path")
+
+    with pytest.raises(ValueError, match="No options were provided"):
+        session.create_dataframe([[1, 2]], schema=["a", "b"]).write.options().csv(
+            "test_path"
+        )
 
 
 @pytest.mark.skipif(
@@ -628,6 +652,47 @@ def test_write_table_names(session, db_parameters):
         # drop schema
         Utils.drop_schema(session, schema)
         Utils.drop_schema(session, double_quoted_schema)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'schema_query'",
+)
+@pytest.mark.parametrize("format_type", ["csv", "json", "parquet"])
+def test_format_save(session, temp_stage, format_type):
+    df = session.create_dataframe([[1, 2], [1, 3], [2, 4], [2, 5]], schema=["a", "b"])
+
+    path = f"{temp_stage}/test_format_save"
+    result = (
+        df.select(object_construct("*"))
+        .write.option("compression", "None")
+        .format(format_type)
+        .save(path)
+    )
+    assert result[0].rows_unloaded == 4
+    files = session.sql(f"list @{path}").collect()
+    assert len(files) == 1
+    assert files[0].name.endswith(format_type)
+
+
+def test_format_save_negative(session):
+    df = session.create_dataframe(
+        [
+            [1, 2],
+        ],
+        schema=["a", "b"],
+    )
+    with pytest.raises(
+        ValueError,
+        match="Unsupported file format. Expected.*, got 'unsupported_format'",
+    ):
+        df.write.format("unsupported_format").save("test_path")
+
+    with pytest.raises(
+        ValueError,
+        match="File format type is not specified. Call `format` before calling `save`",
+    ):
+        df.write.save("test_path")
 
 
 @pytest.mark.skipif(
