@@ -13,7 +13,7 @@
     - `simple_string`: Provides a simple string representation of the data.
     - `json_value`: Returns the data as a JSON-compatible value.
     - `json`: Converts the data to a JSON string.
-  - To `ArrayType`, `MapType`, `StructField`, and `StructType`:
+  - To `ArrayType`, `MapType`, `StructField`, `PandasSeriesType`, `PandasDataFrameType` and `StructType`:
     - `from_json`: Enables these types to be created from JSON data.
   - To `MapType`:
     - `keyType`: keys of the map
