@@ -62,6 +62,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Star,
     UnresolvedAttribute,
     derive_dependent_columns,
+    UnresolvedColumnRegex,
 )
 from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
@@ -1711,7 +1712,9 @@ def derive_column_states_from_subquery(
     analyzer = from_.analyzer
     column_states = ColumnStateDict()
     for c in cols:
-        if isinstance(c, UnresolvedAlias) and isinstance(c.child, Star):
+        if isinstance(c, UnresolvedAlias) and (
+            isinstance(c.child, Star) or isinstance(c.child, UnresolvedColumnRegex)
+        ):
             if c.child.expressions:
                 # df.select(df["*"]) will have child expressions. df.select("*") doesn't.
                 columns_from_star = [copy(e) for e in c.child.expressions]

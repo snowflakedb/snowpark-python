@@ -47,6 +47,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     Star,
     UnresolvedAttribute,
+    UnresolvedColumnRegex,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -1090,39 +1091,30 @@ class DataFrame:
         else:
             return Column(self._resolve(col_name))
 
-    def _internal_col_regex(
-        self,
-        regex: str,
-        translate_columns: Optional[Dict[str, str]] = None,
-    ) -> Column:
+    def col_regex(self, regex: str, case_sensitive: bool = False) -> Column:
+        """Selects column based on the column name specified as a regex and returns a reference to it
+        Args:
+            regex: regular expression used to match columns
+        Examples:
+            >>> df = session.create_dataframe([[1, 2, 3, 4]]).to_df(["col1", "col2_a", "col2_b", "col3"])
+            >>> df.select(df.col_regex("col2_.*")).collect()
+            [Row(COL2_A=2, COL2_B=3)]
+
+        """
         if not isinstance(regex, str):
             raise ValueError(
                 f"regex provided to col_regex() must be string, got {type(regex)} with value of {regex} instead."
             )
         expressions = []
-        if translate_columns:
-            for key, value in translate_columns.items():
-                if re.match(regex, unquote_if_quoted(key)):
-                    expressions.append(self._resolve(value))
-        else:
-            for column in self._output:
-                if re.match(regex, unquote_if_quoted(column.name), flags=re.IGNORECASE):
-                    expressions.append(column)
+        flag = 0 if case_sensitive else re.IGNORECASE
+        for column in self._output:
+            if re.match(
+                unquote_if_quoted(regex), unquote_if_quoted(column.name), flags=flag
+            ):
+                expressions.append(column)
         if not expressions:
             raise ValueError(f"No column match provided regex:{regex}")
-        return Column(Star(expressions))
-
-    def col_regex(self, regex: str) -> Column:
-        """Selects column based on the column name specified as a regex and returns a reference to  it
-        Args:
-            regex: regular expression used to match columns
-        Examples:
-        >>> df = session.create_dataframe([[1, 2, 3, 4]]).to_df(["col1", "col2_a", "col2_b", "col3"])
-        >>> df.select(df.col_regex("col2_.*")).collect()
-        [Row(COL2_A=2, COL2_B=3)]
-
-        """
-        return self._internal_col_regex(regex)
+        return Column(UnresolvedColumnRegex(expressions))
 
     @df_api_usage
     def select(
