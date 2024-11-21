@@ -124,7 +124,7 @@ class Catalog:
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
-        iter = self._root.databases[db_name].schemas[schema_name].tables
+        iter = self._root.databases[db_name].schemas[schema_name].tables.iter()
         if pattern:
             iter = filter(lambda x: re.match(pattern, x.name), iter)
 
@@ -148,7 +148,7 @@ class Catalog:
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
-        iter = self._root.databases[db_name].schemas[schema_name].views
+        iter = self._root.databases[db_name].schemas[schema_name].views.iter()
         if pattern:
             iter = filter(lambda x: re.match(pattern, x.name), iter)
 
@@ -176,7 +176,7 @@ class Catalog:
             table = self._session.table(f"{db_name}.{schema_name}.{table_name}")
 
         return [
-            Column(col.name, col.data_type, col.nullable) for col in table.schema.fields
+            Column(col.name, col.datatype, col.nullable) for col in table.schema.fields
         ]
 
     def list_functions(
@@ -197,7 +197,7 @@ class Catalog:
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
-        iter = self._root.databases[db_name].schemas[schema_name].functions
+        iter = self._root.databases[db_name].schemas[schema_name].functions.iter()
         if pattern:
             iter = filter(lambda x: re.match(pattern, x.name), iter)
 
@@ -221,7 +221,7 @@ class Catalog:
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
-        iter = self._root.databases[db_name].schemas[schema_name].procedures
+        iter = self._root.databases[db_name].schemas[schema_name].procedures.iter()
         if pattern:
             iter = filter(lambda x: re.match(pattern, x.name), iter)
 
@@ -245,7 +245,11 @@ class Catalog:
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
-        iter = self._root.databases[db_name].schemas[schema_name].user_defined_functions
+        iter = (
+            self._root.databases[db_name]
+            .schemas[schema_name]
+            .user_defined_functions.iter()
+        )
         if pattern:
             iter = filter(lambda x: re.match(pattern, x.name), iter)
 
