@@ -34,7 +34,7 @@ class Catalog:
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
-        self._root = Root(session.connection)
+        self._root = Root(session)
 
     def _parse_database(self, database: Optional[Union[str, Database]]) -> str:
         if isinstance(database, str):
