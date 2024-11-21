@@ -292,6 +292,38 @@ class Star(Expression):
         )
 
 
+class UnresolvedColumnRegex(Expression):
+    def __init__(self, expressions: List[Attribute]) -> None:
+        super().__init__()
+        self.expressions = expressions
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        # When the column is `df['*']`, `expressions` contains Attributes from all columns
+        # When the column is `col('*')` or just '*' string, `expressions` is empty,
+        # but its dependent columns should be all columns too
+        return (
+            derive_dependent_columns(*self.expressions)
+            if self.expressions
+            else COLUMN_DEPENDENCY_ALL
+        )
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return (
+            derive_dependent_columns_with_duplication(*self.expressions)
+            if self.expressions
+            else []  # we currently do not handle * dependency
+        )
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        complexity = {} if self.expressions else {PlanNodeCategory.COLUMN: 1}
+
+        return sum_node_complexities(
+            complexity,
+            *(expr.cumulative_node_complexity for expr in self.expressions),
+        )
+
+
 class UnresolvedAttribute(Expression, NamedExpression):
     def __init__(
         self, name: str, is_sql_text: bool = False, df_alias: Optional[str] = None
