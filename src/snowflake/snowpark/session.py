@@ -497,6 +497,8 @@ class Session:
         def __get__(self, obj, objtype=None):
             return Session.SessionBuilder()
 
+        appName = app_name
+
     #: Returns a builder you can use to set configuration properties
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()

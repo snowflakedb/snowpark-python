@@ -18,6 +18,7 @@
   - To `MapType`:
     - `keyType`: keys of the map
     - `valueType`: values of the map
+- Added support for method `appName` in `SessionBuilder`.
 
 #### Improvements
 
