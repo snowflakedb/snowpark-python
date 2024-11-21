@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+option cc_generic_services = false;
+option java_outer_classname = "DataframeProcessorMsg";
+option java_package = "com.snowflake.snowpark.proto.dp";
+
+import "google/protobuf/descriptor.proto";
+
+package dataframe_processor;
+
+// The type of the dataframe
+enum DfType {
+  // The type is undefined
+  UNDEFINED = 0;
+  // Snowpark API
+  SNOWPARK_API = 1;
+  // Spark connect API
+  SPARK_CONNECT = 2;
+}
+
+// The dataframe process request
+message DpRequest {
+  // ID of the request
+  int64 request_id = 1;
+  // The type of the dataframe
+  DfType df_type = 2;
+  // The payload of the request, e.g., the Dataframe AST request.
+  bytes payload = 3;
+  // ... future extensions, e.g., telemetry, metrics config.
+}
+
+// Response of the dataframe processor request
+message DpResponse {
+  // The types of errors
+  enum StatusCode {
+    OK = 0;
+    // DP Failed to initialize
+    DP_INIT_ERROR = 1;
+    // DP Failed to execute the request
+    DP_EXECUTION_ERROR = 2;
+    // DP session requires to retransmit the dependencies
+    DP_SESSION_RESET_REQUIRED_ERROR = 3;
+    // ... other status codes
+  }
+
+  // Indicates that the request has failed
+  message Status {
+    StatusCode code = 1;
+    string error_message = 2;
+  }
+
+  // ID of the request with which this response is associated.
+  int64 request_id = 1;
+
+  // The type of the dataframe
+  DfType df_type = 2;
+
+  // The result of the DP request. It is either an error or an EvalOk result.
+  Status status = 3;
+
+  // The payload of the response, e.g., the Dataframe AST response.
+  bytes payload = 4;
+}
