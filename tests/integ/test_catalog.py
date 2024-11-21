@@ -62,10 +62,10 @@ def temp_schema1(session, temp_db1):
 
 
 @pytest.fixture(scope="module")
-def temp_schema2(session, temp_db2):
-    temp_schema = create_temp_schema(session, temp_db2)
+def temp_schema2(session, temp_db1):
+    temp_schema = create_temp_schema(session, temp_db1)
     yield temp_schema
-    session._run_query(f"drop schema if exists {temp_db2}.{temp_schema}")
+    session._run_query(f"drop schema if exists {temp_db1}.{temp_schema}")
 
 
 def create_temp_table(session, db: str, schema: str) -> str:
@@ -394,24 +394,32 @@ def test_exists_function_procedure_udf(
 def test_drop(session):
     catalog = session.catalog
 
-    temp_db = create_temp_db(session)
-    temp_schema = create_temp_schema(session, temp_db)
-    temp_table = create_temp_table(session, temp_db, temp_schema)
-    temp_view = create_temp_view(session, temp_db, temp_schema)
+    original_db = session.get_current_database()
+    original_schema = session.get_current_schema()
+    try:
+        temp_db = create_temp_db(session)
+        temp_schema = create_temp_schema(session, temp_db)
+        temp_table = create_temp_table(session, temp_db, temp_schema)
+        temp_view = create_temp_view(session, temp_db, temp_schema)
 
-    assert catalog.database_exists(temp_db)
-    assert catalog.schema_exists(temp_schema, database=temp_db)
-    assert catalog.table_exists(temp_table, database=temp_db, schema=temp_schema)
-    assert catalog.view_exists(temp_view, database=temp_db, schema=temp_schema)
+        assert catalog.database_exists(temp_db)
+        assert catalog.schema_exists(temp_schema, database=temp_db)
+        assert catalog.table_exists(temp_table, database=temp_db, schema=temp_schema)
+        assert catalog.view_exists(temp_view, database=temp_db, schema=temp_schema)
 
-    catalog.drop_table(temp_table, database=temp_db, schema=temp_schema)
-    catalog.drop_view(temp_view, database=temp_db, schema=temp_schema)
+        catalog.drop_table(temp_table, database=temp_db, schema=temp_schema)
+        catalog.drop_view(temp_view, database=temp_db, schema=temp_schema)
 
-    assert not catalog.table_exists(temp_table, database=temp_db, schema=temp_schema)
-    assert not catalog.view_exists(temp_view, database=temp_db, schema=temp_schema)
+        assert not catalog.table_exists(
+            temp_table, database=temp_db, schema=temp_schema
+        )
+        assert not catalog.view_exists(temp_view, database=temp_db, schema=temp_schema)
 
-    catalog.drop_schema(temp_schema, database=temp_db)
-    assert not catalog.schema_exists(temp_schema, database=temp_db)
+        catalog.drop_schema(temp_schema, database=temp_db)
+        assert not catalog.schema_exists(temp_schema, database=temp_db)
 
-    catalog.drop_database(temp_db)
-    assert not catalog.database_exists(temp_db)
+        catalog.drop_database(temp_db)
+        assert not catalog.database_exists(temp_db)
+    finally:
+        session.use_database(original_db)
+        session.use_schema(original_schema)
