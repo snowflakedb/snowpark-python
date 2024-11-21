@@ -379,9 +379,9 @@ def json_normalize():
     ... ]
     >>> pd.json_normalize(data)
         id name.first name.last name.given name.family        name
-    0  1.0     Coleen      Volk        NaN         NaN         NaN
-    1  NaN        NaN       NaN       Mark      Regner         NaN
-    2  2.0        NaN       NaN        NaN         NaN  Faye Raker
+    0  1.0     Coleen      Volk       None        None        None
+    1  NaN       None      None       Mark      Regner        None
+    2  2.0       None      None       None        None  Faye Raker
 
     >>> data = [
     ...     {
