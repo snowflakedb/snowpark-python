@@ -9,6 +9,7 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from tests.utils import Utils
 from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
@@ -75,26 +76,31 @@ def test_align_basic_series_reorder_index(join, axis):
 
 
 @pytest.mark.parametrize("join", ["outer", "inner", "left", "right"])
-def test_align_series_on_row_position_column(join):
-    num_cols = 2
-    select_data = [f'{i} as "{i}"' for i in range(num_cols)]
-    query = f"select {', '.join(select_data)}"
+def test_align_series_on_row_position_column(session, join):
+    temp_table_name = f"{Utils.random_table_name()}TESTTABLENAME"
+    try:
+        Utils.create_table(
+            session, temp_table_name, "col1 int, col2 int", is_temporary=True
+        )
+        session.sql(
+            f"insert into {temp_table_name} values (1, 2), (2, 2), (3, 2), (4, 2), (5, 2)"
+        ).collect()
+        df1 = pd.read_snowflake(f"select * from {temp_table_name} where col1 < 3")
+        df2 = pd.read_snowflake(f"select * from {temp_table_name} where col1 >= 3")
+        # construct series whose row position column is used as index column
+        ser1 = df1["COL1"]
+        ser2 = df2["COL1"]
+        native_ser1 = ser1.to_pandas()
+        native_ser2 = ser2.to_pandas()
 
-    df1 = pd.read_snowflake(query)
-    df2 = pd.read_snowflake(query)
-    # construct series whose row position column is used as index column
-    ser1 = df1["0"]
-    ser2 = df2["1"]
+        native_left, native_right = native_ser1.align(native_ser2, join=join)
 
-    native_ser1 = ser1.to_pandas()
-    native_ser2 = ser2.to_pandas()
-
-    native_left, native_right = native_ser1.align(native_ser2, join=join)
-
-    with SqlCounter(query_count=2, join_count=2, window_count=0):
-        left, right = ser1.align(ser2, join=join, axis=0)
-        assert_series_equal(left, native_left)
-        assert_series_equal(right, native_right)
+        with SqlCounter(query_count=2, join_count=2, window_count=0):
+            left, right = ser1.align(ser2, join=join, axis=0)
+            assert_series_equal(left, native_left)
+            assert_series_equal(right, native_right)
+    finally:
+        Utils.drop_table(session, temp_table_name)
 
 
 @sql_count_checker(query_count=2, join_count=2)

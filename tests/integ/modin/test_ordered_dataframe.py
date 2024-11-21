@@ -397,8 +397,7 @@ def test_join_with_column_conflict(session, df1, df2, how):
 
 @pytest.mark.parametrize(
     "how",
-    ["outer"],
-    # ["left", "outer", "inner"],
+    ["left", "outer", "inner"],
 )
 @sql_count_checker(query_count=1, join_count=1)
 def test_align_on_matching_columns(session, how):
