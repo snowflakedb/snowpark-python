@@ -567,7 +567,8 @@ def test_add_requirements_unsupported_usable_by_sproc(session, resources_path):
 def test_add_requirements_with_native_dependency_force_push(session):
     session.custom_package_usage_config = {"enabled": True, "force_push": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        session.add_packages(["catboost==1.2"])
+        # pin numpy to resolve issue SNOW-1818207 caused by numpy package conflict
+        session.add_packages(["numpy==1.26.4", "catboost==1.2"])
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     @udf(name=udf_name)
@@ -729,7 +730,8 @@ def test_add_packages_unsupported_during_udf_registration(session):
     """
     session.custom_package_usage_config = {"enabled": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        packages = ["scikit-fuzzy==0.4.2"]
+        # pin numpy to resolve issue SNOW-1818207 caused by numpy package conflict
+        packages = ["numpy==1.26.4", "scikit-fuzzy==0.4.2"]
         udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @udf(name=udf_name, packages=packages)
@@ -758,7 +760,8 @@ def test_add_packages_unsupported_during_sproc_registration(session):
     """
     session.custom_package_usage_config = {"enabled": True}
     with patch.object(session, "_is_anaconda_terms_acknowledged", lambda: True):
-        packages = ["scikit-fuzzy==0.4.2", "snowflake-snowpark-python"]
+        # pin numpy to resolve issue SNOW-1818207 caused by numpy package conflict
+        packages = ["numpy==1.26.4", "scikit-fuzzy==0.4.2", "snowflake-snowpark-python"]
         sproc_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
         @sproc(name=sproc_name, packages=packages, return_type=StringType())

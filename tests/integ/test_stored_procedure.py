@@ -1937,7 +1937,8 @@ def test_stored_proc_register_with_module(session):
     session.custom_package_usage_config["enabled"] = True
     packages = list(session.get_packages().values())
     assert "pd" not in packages
-    packages = [pd] + packages
+    # pin numpy to resolve issue SNOW-1818207 caused by numpy package conflict
+    packages = [pd] + packages + ["numpy==1.26.4"]
 
     def proc_function(session_: Session) -> str:
         return "test response"
