@@ -1717,6 +1717,7 @@ def derive_column_states_from_subquery(
         ):
             if c.child.expressions:
                 # df.select(df["*"]) will have child expressions. df.select("*") doesn't.
+                # df.select(df.colRegex(...)) will have a column expressions
                 columns_from_star = [copy(e) for e in c.child.expressions]
             elif isinstance(c.child, Star) and c.child.df_alias:
                 if c.child.df_alias not in from_.df_aliased_col_name_to_real_col_name:

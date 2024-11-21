@@ -219,7 +219,9 @@ def test_column_with_builtins_that_shadow_functions(session):
 
 
 @pytest.mark.parametrize("enable_sql_simplifier", [True, False])
-def test_column_regex(session, enable_sql_simplifier):
+def test_column_regex(session, enable_sql_simplifier, local_testing_mode):
+    if not enable_sql_simplifier and local_testing_mode:
+        pytest.skip("disable sql simplifier is not supported in local testing mode")
     original_sql_simplifier = session.sql_simplifier_enabled
     try:
         session.sql_simplifier_enabled = enable_sql_simplifier
