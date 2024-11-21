@@ -29,6 +29,7 @@
     - `catalog_sync`
     - `storage_serialization_policy`
 - Added support for nested data types to `DataFrame.print_schema`
+- Added support for `level` parameter to `DataFrame.print_schema`
 - Improved flexibility of `DataFrameReader` and `DataFrameWriter` API by adding support for the following:
   - Added `format` method to `DataFrameReader` and `DataFrameWriter` to specify file format when loading or unloading results.
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
