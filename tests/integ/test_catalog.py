@@ -47,9 +47,12 @@ def temp_db2(session):
 
 
 def create_temp_schema(session, db: str) -> str:
+    original_db = session.get_current_database()
     original_schema = session.get_current_schema()
     temp_schema = get_temp_name("SCHEMA")
     session._run_query(f"create or replace schema {db}.{temp_schema}")
+
+    session.use_database(original_db)
     session.use_schema(original_schema)
     return temp_schema
 
@@ -338,10 +341,11 @@ def test_set_db_schema(session, temp_db1, temp_db2, temp_schema1, temp_schema2):
         assert session.get_current_database() == f'"{temp_db1}"'
         assert session.get_current_schema() == f'"{temp_schema1}"'
 
-        catalog.set_current_database(temp_db2)
         catalog.set_current_schema(temp_schema2)
-        assert session.get_current_database() == f'"{temp_db2}"'
         assert session.get_current_schema() == f'"{temp_schema2}"'
+
+        catalog.set_current_database(temp_db2)
+        assert session.get_current_database() == f'"{temp_db2}"'
     finally:
         session.use_database(original_db)
         session.use_schema(original_schema)
