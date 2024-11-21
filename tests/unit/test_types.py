@@ -1208,6 +1208,75 @@ def test_snow_type_to_dtype_str():
                 ],
             },
         ),
+        (
+            VectorType(int, 8),
+            "vector(int,8)",
+            '"vector(int,8)"',
+            "vector",
+            "vector(int,8)",
+        ),
+        (
+            VectorType(float, 8),
+            "vector(float,8)",
+            '"vector(float,8)"',
+            "vector",
+            "vector(float,8)",
+        ),
+        (
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+            "pandas<string,int,float>",
+            '{"fields":[{"name":"id","type":"string"},{"name":"col1","type":"integer"},{"name":"col2","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {"name": "id", "type": "string"},
+                    {"name": "col1", "type": "integer"},
+                    {"name": "col2", "type": "float"},
+                ],
+            },
+        ),
+        (
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+            "pandas<array<array<int>>,int,float>",
+            '{"fields":[{"name":"","type":{"element_type":{"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {
+                        "name": "",
+                        "type": {
+                            "type": "array",
+                            "element_type": {
+                                "type": "array",
+                                "element_type": "integer",
+                            },
+                        },
+                    },
+                    {"name": "", "type": "integer"},
+                    {"name": "", "type": "float"},
+                ],
+            },
+        ),
+        (
+            PandasSeriesType(IntegerType()),
+            "pandas_series<int>",
+            '{"element_type":"integer","type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": "integer"},
+        ),
+        (
+            PandasSeriesType(None),
+            "pandas_series<>",
+            '{"element_type":null,"type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": None},
+        ),
     ],
 )
 def test_datatype(tpe, simple_string, json, type_name, json_value):
@@ -1289,6 +1358,28 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             StructField,
             StructField("AA", DecimalType(20, 10)),
         ),
+        (
+            StructField,
+            StructField("AA", VectorType(int, 1)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(float, 8)),
+        ),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+        ),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+        ),
+        (PandasSeriesType, PandasSeriesType(IntegerType())),
+        (PandasSeriesType, PandasSeriesType(None)),
     ],
 )
 def test_structtype_from_json(datatype, tpe):

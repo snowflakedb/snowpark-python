@@ -194,7 +194,9 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     groupby_apply_sort_method,
     is_supported_snowpark_python_function,
     sort_apply_udtf_result_columns_by_pandas_positions,
+    make_series_map_snowpark_function,
 )
+from collections import defaultdict
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
     BinaryOp,
     merge_label_and_identifier_pairs,
@@ -8765,6 +8767,49 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).frame
         )
 
+    def _map_series_with_dict_like(
+        self, mapping: Union[Mapping, native_pd.Series]
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Map existing values to new values according to a dict-like mapping.
+
+        Parameters
+        ----------
+        mapping : Mapping or native_pd.Series
+            Mapping from current values to new values.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+        """
+        if isinstance(mapping, defaultdict) and mapping.default_factory is None:
+            # defaultdict with default_factory = None raises a KeyError if the
+            # series includes a key that's not in the defaultdict. We would have
+            # to check every element of the series to determine whether to raise
+            # a KeyError, so we fall back to the `applymap` implementation
+            # using a UD(T)F.
+            return self.applymap(lambda v: mapping[v])
+
+        # We implement the mapping as a single CASE/WHEN/ELSE expression. We
+        # could implement this method with Series.case_when() or a series of
+        # Series.mask() calls, but while both of those implementations also
+        # avoid self-joins, they produce much larger queries than this
+        # implementation does. case_when() projects out at least one extra
+        # variable for each value in the dictionary, while each mask() call adds
+        # one level to the query depth.
+
+        assert len(self.columns) == 1, "Internal error: Only Series has a map() method."
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                snowpark_func=make_series_map_snowpark_function(
+                    mapping=mapping,
+                    self_type=self._modin_frame.get_snowflake_type(
+                        self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+                    ),
+                )
+            )
+        )
+
     def map(
         self,
         arg: Union[AggFuncType, "pd.Series"],
@@ -8778,16 +8823,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.
-        # TODO SNOW-1332314: linked jira is fixed now. Verify and enable this.
+        # TODO SNOW-1332314: linked jira is fixed now. Verify and enable this
+        # both when `arg` is a callable and when it's dict-like.
         if na_action == "ignore":
             ErrorMessage.not_implemented(
                 "Snowpark pandas map API doesn't yet support na_action == 'ignore'"
             )
-        if not callable(arg):
-            ErrorMessage.not_implemented(
-                "Snowpark pandas map API doesn't yet support non callable 'arg'"
+        if callable(arg):
+            return self.applymap(func=arg, na_action=na_action, **kwargs)
+
+        if not isinstance(arg, (Mapping, native_pd.Series)):
+            raise TypeError(
+                "`arg` should be a callable, a Mapping, or a pandas Series, "
+                + f"but instead it is of type {type(arg).__name__}"
             )
-        return self.applymap(func=arg, na_action=na_action, **kwargs)
+
+        return self._map_series_with_dict_like(arg)
 
     def apply_on_series(
         self, func: AggFuncType, args: tuple[Any, ...] = (), **kwargs: Any
