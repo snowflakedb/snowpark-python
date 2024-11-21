@@ -6567,7 +6567,7 @@ def to_binary(e: ColumnOrName, fmt: Optional[str] = None) -> Column:
     return builtin("to_binary")(c, fmt) if fmt else builtin("to_binary")(c)
 
 
-def to_array(e: ColumnOrName) -> Column:
+def to_array(*e: Union[ColumnOrName, List[ColumnOrName]]) -> Column:
     """Converts any value to an ARRAY value or NULL (if input is NULL).
 
     Example::
@@ -6581,9 +6581,19 @@ def to_array(e: ColumnOrName) -> Column:
         >>> df = session.create_dataframe([Row(a=[1, 2, 3]), Row(a=None)])
         >>> df.select(to_array(col('a')).as_('ans')).collect()
         [Row(ANS='[\\n  1,\\n  2,\\n  3\\n]'), Row(ANS=None)]
+
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([Row('Eva', 4), Row('Alice', 2)],schema=["name", "age"])
+        >>> df.select(to_array([df.age, df.age])).collect()
+        [Row(ANS='[\\n  4,\\n  4\\n]'), Row(ANS='[\\n  2,\\n  2\\n]')]
     """
-    c = _to_col_if_str(e, "to_array")
-    return builtin("to_array")(c)
+    if len(e) == 1 and isinstance(e[0], list):
+        cols = e[0]
+    else:
+        cols = e
+    # Convert string arguments to Column objects
+    cs = [_to_col_if_str(c, "array_construct") for c in cols]
+    return builtin("array_construct")(*cs)
 
 
 def to_json(e: ColumnOrName) -> Column:

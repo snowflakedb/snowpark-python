@@ -408,6 +408,23 @@ def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
     )
 
 
+@patch("array_construct")
+def mock_array_construct(*cols: ColumnEmulator) -> ColumnEmulator:
+    num_rows = len(cols[0])
+    array_data = []
+
+    # Iterate over each row index
+    for i in range(num_rows):
+        row_array = []
+        for col in cols:
+            # Append the i-th element of each column to the row's array
+            row_array.append(col[i] if i < len(col) else None)
+        array_data.append(row_array)
+
+    # Return a ColumnEmulator with the array data
+    return ColumnEmulator(data=array_data, sf_type=ColumnType(ArrayType(), False))
+
+
 @patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column

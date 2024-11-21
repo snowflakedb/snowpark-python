@@ -78,6 +78,7 @@
 ## 1.25.0 (2024-11-14)
 
 ### Snowpark Python API Updates
+- Improved `functions.to_array` to accept multiple input columns.
 
 #### New Features
 
