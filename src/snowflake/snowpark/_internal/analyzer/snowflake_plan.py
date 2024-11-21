@@ -1190,7 +1190,7 @@ class SnowflakePlanBuilder:
             "String": str,
             "List": process_list,
             "Integer": int,
-            "Boolean": bool,
+            "Boolean": lambda x: str(x).lower() == "true",
         }
         new_options = {**file_format_options}
         # SNOW-1628625: This query and subsequent merge operations should be done lazily
