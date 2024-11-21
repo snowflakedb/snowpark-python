@@ -504,7 +504,7 @@ class Catalog:
         arg_types: Optional[List[DataType]] = None,
         *,
         database: Optional[Union[str, Database]] = None,
-        schema: Optional[Union[str, Schema]],
+        schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
         """Check if the given function exists in the given database and schema. If database or
         schema are not provided, check if the function exists in the current database and schema.
@@ -562,7 +562,7 @@ class Catalog:
         arg_types: Optional[List[DataType]] = None,
         *,
         database: Optional[Union[str, Database]] = None,
-        schema: Optional[Union[str, Schema]],
+        schema: Optional[Union[str, Schema]] = None,
     ) -> bool:
         """Check if the given user defined function exists in the given database and schema. If
         database or schema are not provided, check if the user defined function exists in the
