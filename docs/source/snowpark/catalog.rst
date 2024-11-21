@@ -20,25 +20,20 @@ Catalog module for Snowpark.
     Catalog.drop_schema
     Catalog.drop_table
     Catalog.drop_view
-    Catalog.functionExists
-    Catalog.function_exists
     Catalog.getCurrentDatabase
     Catalog.getCurrentSchema
-    Catalog.getFunction
     Catalog.getProcedure
     Catalog.getTable
     Catalog.getUserDefinedFunction
     Catalog.getView
     Catalog.get_current_database
     Catalog.get_current_schema
-    Catalog.get_function
     Catalog.get_procedure
     Catalog.get_table
     Catalog.get_user_defined_function
     Catalog.get_view
     Catalog.listColumns
     Catalog.listDatabases
-    Catalog.listFunctions
     Catalog.listProcedures
     Catalog.listSchemas
     Catalog.listTables
@@ -46,7 +41,6 @@ Catalog module for Snowpark.
     Catalog.listViews
     Catalog.list_columns
     Catalog.list_databases
-    Catalog.list_functions
     Catalog.list_procedures
     Catalog.list_schemas
     Catalog.list_tables
@@ -66,4 +60,10 @@ Catalog module for Snowpark.
     Catalog.user_defined_function_exists
     Catalog.viewExists
     Catalog.view_exists
+    .. Catalog.functionExists
+    .. Catalog.function_exists
+    .. Catalog.getFunction
+    .. Catalog.get_function
+    .. Catalog.listFunctions
+    .. Catalog.list_functions
 
