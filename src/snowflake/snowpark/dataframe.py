@@ -161,6 +161,8 @@ from snowflake.snowpark.table_function import (
     _get_cols_after_join_table,
 )
 from snowflake.snowpark.types import (
+    ArrayType,
+    MapType,
     PandasDataFrameType,
     StringType,
     StructField,
@@ -3464,6 +3466,7 @@ class DataFrame:
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        iceberg_config: Optional[dict] = None,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
 
@@ -3498,6 +3501,15 @@ class DataFrame:
                 the data retention period of the dynamic table to prevent streams on the dynamic table
                 from becoming stale.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+                - external_volume: specifies the identifier for the external volume where
+                  the Iceberg table stores its metadata files and data in Parquet format.
+                - catalog: specifies either Snowflake or a catalog integration to use for this table.
+                - base_location: the base directory that snowflake can write iceberg metadata and files to.
+                - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
+                - storage_serialization_policy: specifies the storage serialization policy for the table.
+
 
         Note:
             See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
@@ -3539,6 +3551,7 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
+            iceberg_config=iceberg_config,
         )
 
     @df_collect_api_telemetry
@@ -3616,6 +3629,7 @@ class DataFrame:
         is_transient: bool = False,
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
+        iceberg_config: Optional[dict] = None,
         **kwargs,
     ):
         validate_object_name(name)
@@ -3642,6 +3656,7 @@ class DataFrame:
             data_retention_time=data_retention_time,
             max_data_extension_time=max_data_extension_time,
             child=self._plan,
+            iceberg_config=iceberg_config,
         )
 
         return self._session._conn.execute(
@@ -4056,6 +4071,19 @@ class DataFrame:
         Returns:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
+
+        Note:
+            A temporary table is created to store the cached result and a :class:`Table` object is returned.
+            You can retrieve the table name by accessing :attr:`Table.table_name`. Note that this temporary
+            Snowflake table
+
+                - may be automatically removed when the Table object is no longer referenced if
+                  :attr:`Session.auto_clean_up_temp_table_enabled` is set to ``True``.
+
+                - will be dropped after the session is closed.
+
+            To retain a persistent table, consider using :meth:`DataFrameWriter.save_as_table` to persist
+            the cached result.
         """
         with open_telemetry_context_manager(self.cache_result, self):
             from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4302,14 +4330,82 @@ Query List:
         exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
 
-    def print_schema(self) -> None:
+    def _format_schema(
+        self, level: Optional[int] = None, translate_columns: Optional[dict] = None
+    ) -> str:
+        def _format_datatype(name, dtype, nullable=None, depth=0):
+            if level is not None and depth >= level:
+                return ""
+            prefix = " |  " * depth
+            depth = depth + 1
+
+            nullable_str = (
+                f" (nullable = {str(nullable)})" if nullable is not None else ""
+            )
+            extra_lines = []
+            type_str = dtype.__class__.__name__
+
+            # Structured Type format their parameters on multiple lines.
+            if isinstance(dtype, ArrayType):
+                extra_lines = [
+                    _format_datatype("element", dtype.element_type, depth=depth),
+                ]
+            elif isinstance(dtype, MapType):
+                extra_lines = [
+                    _format_datatype("key", dtype.key_type, depth=depth),
+                    _format_datatype("value", dtype.value_type, depth=depth),
+                ]
+            elif isinstance(dtype, StructType):
+                extra_lines = [
+                    _format_datatype(
+                        quote_name(field.name, keep_case=True),
+                        field.datatype,
+                        field.nullable,
+                        depth,
+                    )
+                    for field in dtype.fields
+                ]
+            else:
+                # By default include all parameters in type string instead
+                type_str = str(dtype)
+
+            return "\n".join(
+                [
+                    f"{prefix} |-- {name}: {type_str}{nullable_str}",
+                ]
+                + [f"{line}" for line in extra_lines if line]
+            )
+
+        translate_columns = translate_columns or {}
+
         schema_tmp_str = "\n".join(
             [
-                f" |-- {attr.name}: {attr.datatype} (nullable = {str(attr.nullable)})"
+                _format_datatype(
+                    translate_columns.get(attr.name, attr.name),
+                    attr.datatype,
+                    attr.nullable,
+                )
                 for attr in self._plan.attributes
             ]
         )
-        print(f"root\n{schema_tmp_str}")  # noqa: T201: we need to print here.
+
+        return f"root\n{schema_tmp_str}"
+
+    def print_schema(self, level: Optional[int] = None) -> None:
+        """
+        Prints the schema of a dataframe in tree format.
+
+        Args:
+            level: The level to print to for nested schemas.
+
+        Examples::
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
+            >>> df.print_schema()
+            root
+             |-- "A": LongType() (nullable = False)
+             |-- "B": StringType() (nullable = False)
+        """
+        print(self._format_schema(level))  # noqa: T201: we need to print here.
 
     where = filter
 
