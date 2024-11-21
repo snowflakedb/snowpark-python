@@ -1723,7 +1723,7 @@ class OrderedDataFrame:
         elif join_filter is not None:
             joined_ordered_frame = joined_ordered_frame.filter(join_filter)
 
-        joined_ordered_frame.sort(ordering_columns)
+        joined_ordered_frame = joined_ordered_frame.sort(ordering_columns)
 
         # call select to make sure only the result_projected_column_snowflake_quoted_identifiers are projected
         # in the join result
