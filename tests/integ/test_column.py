@@ -218,46 +218,58 @@ def test_column_with_builtins_that_shadow_functions(session):
     assert iter_error_msg_text in str(ex_info)
 
 
-def test_column_regex(session):
-    df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
-        ["COL1", "col2_a", "col2_b", "Col3"]
-    )
-    Utils.check_answer(df.select(df.col_regex("col2_.*")), [Row(COL2_A=2, COL2_B=3)])
-    Utils.check_answer(df.select(df.col_regex("COL2_.*")), [Row(COL2_A=2, COL2_B=3)])
-    Utils.check_answer(df.select(df.col_regex("Col2_.*")), [Row(COL2_A=2, COL2_B=3)])
-
-    Utils.check_answer(df.select(df.col_regex("COL1")), [Row(COL1=1)])
-    Utils.check_answer(df.select(df.col_regex("col1")), [Row(COL1=1)])
-    Utils.check_answer(df.select(df.col_regex("Col1")), [Row(COL1=1)])
-
-    Utils.check_answer(df.select(df.col_regex("COL3")), [Row(COL3=4)])
-    Utils.check_answer(df.select(df.col_regex("col3")), [Row(COL3=4)])
-    Utils.check_answer(df.select(df.col_regex("Col3")), [Row(COL3=4)])
-
-    with pytest.raises(ValueError, match="No column match provided regex:no_match"):
-        df.select(df.col_regex("no_match"))
-
-    case_sensitive_df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
-        ['"COL1"', '"Col2_a"', '"Col2_b"', '"col3"']
-    )
-    Utils.check_answer(
-        case_sensitive_df.select(
-            case_sensitive_df.col_regex("Col2_.*", case_sensitive=True)
-        ).collect(),
-        [Row(Col2_a=2, Col2_b=3)],
-    )
-    Utils.check_answer(
-        case_sensitive_df.select(
-            case_sensitive_df.col_regex('"Col2_.*"', case_sensitive=True)
-        ).collect(),
-        [Row(Col2_a=2, Col2_b=3)],
-    )
-    with pytest.raises(ValueError, match="No column match provided regex:col2_.*"):
-        case_sensitive_df.select(
-            case_sensitive_df.col_regex("col2_.*", case_sensitive=True)
+@pytest.mark.parametrize("enable_sql_simplifier", [True, False])
+def test_column_regex(session, enable_sql_simplifier):
+    original_sql_simplifier = session.sql_simplifier_enabled
+    try:
+        session.sql_simplifier_enabled = enable_sql_simplifier
+        df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
+            ["COL1", "col2_a", "col2_b", "Col3"]
+        )
+        Utils.check_answer(
+            df.select(df.col_regex("col2_.*")), [Row(COL2_A=2, COL2_B=3)]
+        )
+        Utils.check_answer(
+            df.select(df.col_regex("COL2_.*")), [Row(COL2_A=2, COL2_B=3)]
+        )
+        Utils.check_answer(
+            df.select(df.col_regex("Col2_.*")), [Row(COL2_A=2, COL2_B=3)]
         )
 
-    with pytest.raises(ValueError, match="No column match provided regex:COL2.*"):
-        case_sensitive_df.select(
-            case_sensitive_df.col_regex("COL2_.*", case_sensitive=True)
+        Utils.check_answer(df.select(df.col_regex("COL1")), [Row(COL1=1)])
+        Utils.check_answer(df.select(df.col_regex("col1")), [Row(COL1=1)])
+        Utils.check_answer(df.select(df.col_regex("Col1")), [Row(COL1=1)])
+
+        Utils.check_answer(df.select(df.col_regex("COL3")), [Row(COL3=4)])
+        Utils.check_answer(df.select(df.col_regex("col3")), [Row(COL3=4)])
+        Utils.check_answer(df.select(df.col_regex("Col3")), [Row(COL3=4)])
+
+        with pytest.raises(ValueError, match="No column match provided regex:no_match"):
+            df.select(df.col_regex("no_match"))
+
+        case_sensitive_df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
+            ['"COL1"', '"Col2_a"', '"Col2_b"', '"col3"']
         )
+        Utils.check_answer(
+            case_sensitive_df.select(
+                case_sensitive_df.col_regex("Col2_.*", case_sensitive=True)
+            ).collect(),
+            [Row(Col2_a=2, Col2_b=3)],
+        )
+        Utils.check_answer(
+            case_sensitive_df.select(
+                case_sensitive_df.col_regex('"Col2_.*"', case_sensitive=True)
+            ).collect(),
+            [Row(Col2_a=2, Col2_b=3)],
+        )
+        with pytest.raises(ValueError, match="No column match provided regex:col2_.*"):
+            case_sensitive_df.select(
+                case_sensitive_df.col_regex("col2_.*", case_sensitive=True)
+            )
+
+        with pytest.raises(ValueError, match="No column match provided regex:COL2.*"):
+            case_sensitive_df.select(
+                case_sensitive_df.col_regex("COL2_.*", case_sensitive=True)
+            )
+    finally:
+        session.sql_simplifier_enabled = original_sql_simplifier

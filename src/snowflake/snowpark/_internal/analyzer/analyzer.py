@@ -74,6 +74,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
     WithinGroup,
+    UnresolvedColumnRegex,
 )
 from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
@@ -416,6 +417,14 @@ class Analyzer:
                         for e in expr.expressions
                     ]
                 )
+
+        if isinstance(expr, UnresolvedColumnRegex):
+            return ",".join(
+                [
+                    self.analyze(e, df_aliased_col_name_to_real_col_name)
+                    for e in expr.expressions
+                ]
+            )
 
         if isinstance(expr, SnowflakeUDF):
             if expr.api_call_source is not None:
