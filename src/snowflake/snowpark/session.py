@@ -677,7 +677,7 @@ class Session:
 
     @classmethod
     def get_active_session(cls) -> Optional["Session"]:
-        """Gets the last created session."""
+        """Gets the active session if one is created. If no session is created, returns None."""
         try:
             return _get_active_session()
         except SnowparkClientException as ex:
