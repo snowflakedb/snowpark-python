@@ -522,7 +522,6 @@ class Session:
 "os.name" : {get_os_name()}
 """
         self.version = get_version()
-        self.catalog = Catalog(self)
         self._session_stage = None
 
         if isinstance(conn, MockServerConnection):
@@ -628,6 +627,7 @@ class Session:
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._catalog = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -687,6 +687,18 @@ class Session:
             raise ex
 
     getActiveSession = get_active_session
+
+    @property
+    def catalog(self) -> Catalog:
+        """Returns the catalog object."""
+        if self._catalog is None:
+            if isinstance(self._conn, MockServerConnection):
+                self._conn.log_not_supported_error(
+                    external_feature_name="Session.catalog",
+                    raise_error=NotImplementedError,
+                )
+            self._catalog = Catalog(self)
+        return self._catalog
 
     def close(self) -> None:
         """Close this session."""
