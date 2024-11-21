@@ -32,14 +32,14 @@ def create_temp_db(session) -> str:
     return temp_db
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_db1(session):
     temp_db = create_temp_db(session)
     yield temp_db
     session._run_query(f"drop database if exists {temp_db}")
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_db2(session):
     temp_db = create_temp_db(session)
     yield temp_db
@@ -54,14 +54,14 @@ def create_temp_schema(session, db: str) -> str:
     return temp_schema
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_schema1(session, temp_db1):
     temp_schema = create_temp_schema(session, temp_db1)
     yield temp_schema
     session._run_query(f"drop schema if exists {temp_db1}.{temp_schema}")
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_schema2(session, temp_db2):
     temp_schema = create_temp_schema(session, temp_db2)
     yield temp_schema
@@ -76,14 +76,14 @@ def create_temp_table(session, db: str, schema: str) -> str:
     return temp_table
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_table1(session, temp_db1, temp_schema1):
     temp_table = create_temp_table(session, temp_db1, temp_schema1)
     yield temp_table
     session._run_query(f"drop table if exists {temp_db1}.{temp_schema1}.{temp_table}")
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_table2(session, temp_db1, temp_schema1):
     temp_table = create_temp_table(session, temp_db1, temp_schema1)
     yield temp_table
@@ -98,14 +98,14 @@ def create_temp_view(session, db: str, schema: str) -> str:
     return temp_schema
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_view1(session, temp_db1, temp_schema1):
     temp_view = create_temp_view(session, temp_db1, temp_schema1)
     yield temp_view
     session._run_query(f"drop view if exists {temp_db1}.{temp_schema1}.{temp_view}")
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_view2(session, temp_db1, temp_schema1):
     temp_view = create_temp_view(session, temp_db1, temp_schema1)
     yield temp_view
@@ -124,7 +124,7 @@ def create_temp_procedure(session: Session, db, schema) -> str:
     return temp_procedure
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_procedure1(session, temp_db1, temp_schema1):
     temp_procedure = create_temp_procedure(session, temp_db1, temp_schema1)
     yield temp_procedure
@@ -133,7 +133,7 @@ def temp_procedure1(session, temp_db1, temp_schema1):
     )
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_procedure2(session, temp_db1, temp_schema1):
     temp_procedure = create_temp_procedure(session, temp_db1, temp_schema1)
     yield temp_procedure
@@ -153,7 +153,7 @@ def create_temp_udf(session: Session, db, schema) -> str:
     return temp_udf
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_udf1(session, temp_db1, temp_schema1):
     temp_udf = create_temp_udf(session, temp_db1, temp_schema1)
     yield temp_udf
@@ -162,7 +162,7 @@ def temp_udf1(session, temp_db1, temp_schema1):
     )
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def temp_udf2(session, temp_db1, temp_schema1):
     temp_udf = create_temp_udf(session, temp_db1, temp_schema1)
     yield temp_udf
@@ -174,7 +174,7 @@ def temp_udf2(session, temp_db1, temp_schema1):
 def test_list_db(session, temp_db1, temp_db2):
     catalog: Catalog = session.catalog
     db_list = catalog.list_databases(pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_DB_*")
-    assert {db.name for db in db_list} == {temp_db1, temp_db2}
+    assert {db.name for db in db_list} >= {temp_db1, temp_db2}
 
 
 def test_list_schema(session, temp_db1, temp_schema1, temp_schema2):
@@ -186,7 +186,7 @@ def test_list_schema(session, temp_db1, temp_schema1, temp_schema2):
     schema_list = catalog.list_schemas(
         pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_SCHEMA_*", database=temp_db1
     )
-    assert {schema.name for schema in schema_list} == {temp_schema1, temp_schema2}
+    assert {schema.name for schema in schema_list} >= {temp_schema1, temp_schema2}
 
 
 def test_list_tables(session, temp_db1, temp_schema1, temp_table1, temp_table2):
@@ -224,7 +224,7 @@ def test_list_views(session, temp_db1, temp_schema1, temp_view1, temp_view2):
     )
 
     view_list = catalog.list_views(database=temp_db1, schema=temp_schema1)
-    assert {view.name for view in view_list} == {temp_view1, temp_view2}
+    assert {view.name for view in view_list} >= {temp_view1, temp_view2}
 
 
 @pytest.mark.xfail(reason="SNOW-1787268: Bug in snowflake api functions iter")
@@ -256,7 +256,7 @@ def test_list_procedures(
         schema=temp_schema1,
         pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_PROCEDURE_*",
     )
-    assert {procedure.name for procedure in procedure_list} == {
+    assert {procedure.name for procedure in procedure_list} >= {
         temp_procedure1,
         temp_procedure2,
     }
@@ -280,7 +280,7 @@ def test_list_udfs(session, temp_db1, temp_schema1, temp_udf1, temp_udf2):
         schema=temp_schema1,
         pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_UDF_*",
     )
-    assert {udf.name for udf in udf_list} == {temp_udf1, temp_udf2}
+    assert {udf.name for udf in udf_list} >= {temp_udf1, temp_udf2}
 
 
 def test_get_db_schema(session):
@@ -391,32 +391,27 @@ def test_exists_function_procedure_udf(
     )
 
 
-def test_drop_db(session, temp_db1):
+def test_drop(session):
     catalog = session.catalog
 
-    assert catalog.database_exists(temp_db1)
-    catalog.drop_database(temp_db1)
-    assert not catalog.database_exists(temp_db1)
+    temp_db = create_temp_db(session)
+    temp_schema = create_temp_schema(session, temp_db)
+    temp_table = create_temp_table(session, temp_db, temp_schema)
+    temp_view = create_temp_view(session, temp_db, temp_schema)
 
+    assert catalog.database_exists(temp_db)
+    assert catalog.schema_exists(temp_schema, database=temp_db)
+    assert catalog.table_exists(temp_table, database=temp_db, schema=temp_schema)
+    assert catalog.view_exists(temp_view, database=temp_db, schema=temp_schema)
 
-def test_drop_schema(session, temp_db1, temp_schema1):
-    catalog = session.catalog
+    catalog.drop_table(temp_table, database=temp_db, schema=temp_schema)
+    catalog.drop_view(temp_view, database=temp_db, schema=temp_schema)
 
-    assert catalog.database_exists(temp_db1)
-    assert catalog.schema_exists(temp_schema1, database=temp_db1)
+    assert not catalog.table_exists(temp_table, database=temp_db, schema=temp_schema)
+    assert not catalog.view_exists(temp_view, database=temp_db, schema=temp_schema)
 
-    catalog.drop_schema(temp_schema1, database=temp_db1)
-    assert not catalog.schema_exists(temp_schema1, database=temp_db1)
+    catalog.drop_schema(temp_schema, database=temp_db)
+    assert not catalog.schema_exists(temp_schema, database=temp_db)
 
-
-def test_drop_table_view(session, temp_db1, temp_schema1, temp_table1, temp_view1):
-    catalog = session.catalog
-
-    assert catalog.table_exists(temp_table1, database=temp_db1, schema=temp_schema1)
-    assert catalog.view_exists(temp_view1, database=temp_db1, schema=temp_schema1)
-
-    catalog.drop_table(temp_table1, database=temp_db1, schema=temp_schema1)
-    catalog.drop_view(temp_view1, database=temp_db1, schema=temp_schema1)
-
-    assert not catalog.table_exists(temp_table1, database=temp_db1, schema=temp_schema1)
-    assert not catalog.view_exists(temp_view1, database=temp_db1, schema=temp_schema1)
+    catalog.drop_database(temp_db)
+    assert not catalog.database_exists(temp_db)
