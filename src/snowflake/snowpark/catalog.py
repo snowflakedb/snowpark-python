@@ -284,7 +284,12 @@ class Catalog:
         """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
-        return self._root.databases[db_name].schemas[schema_name].tables[table_name]
+        return (
+            self._root.databases[db_name]
+            .schemas[schema_name]
+            .tables[table_name]
+            .fetch()
+        )
 
     def get_view(
         self,
@@ -303,7 +308,9 @@ class Catalog:
         """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
-        return self._root.databases[db_name].schemas[schema_name].views[view_name]
+        return (
+            self._root.databases[db_name].schemas[schema_name].views[view_name].fetch()
+        )
 
     def get_function(
         self,
@@ -325,7 +332,12 @@ class Catalog:
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         function_id = self._parse_function_or_procedure(function_name, arg_types)
-        return self._root.databases[db_name].schemas[schema_name].functions[function_id]
+        return (
+            self._root.databases[db_name]
+            .schemas[schema_name]
+            .functions[function_id]
+            .fetch()
+        )
 
     def get_procedure(
         self,
@@ -348,7 +360,10 @@ class Catalog:
         schema_name = self._parse_schema(schema)
         procedure_id = self._parse_function_or_procedure(procedure_name, arg_types)
         return (
-            self._root.databases[db_name].schemas[schema_name].procedures[procedure_id]
+            self._root.databases[db_name]
+            .schemas[schema_name]
+            .procedures[procedure_id]
+            .fetch()
         )
 
     def get_user_defined_function(
@@ -376,6 +391,7 @@ class Catalog:
             self._root.databases[db_name]
             .schemas[schema_name]
             .user_defined_functions[function_id]
+            .fetch()
         )
 
     # set methods
@@ -386,7 +402,7 @@ class Catalog:
             database: database name or ``Database`` object.
         """
         db_name = self._parse_database(database)
-        self._session.sql(f"USE DATABASE {db_name}")._internal_collect_with_tag()
+        self._session.use_database(db_name)
 
     def set_current_schema(self, schema: Union[str, Schema]) -> None:
         """Set the current default schema for the session.
@@ -395,7 +411,7 @@ class Catalog:
             schema: schema name or ``Schema`` object.
         """
         schema_name = self._parse_schema(schema)
-        self._session.sql(f"USE SCHEMA {schema_name}")._internal_collect_with_tag()
+        self._session.use_schema(schema_name)
 
     # exists methods
     def database_exists(self, database: Union[str, Database]) -> bool:
