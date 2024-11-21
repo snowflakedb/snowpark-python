@@ -1931,14 +1931,16 @@ def test_force_inline_code(session):
     assert any("AS $$" in query.sql_text for query in query_history.queries)
 
 
+@pytest.mark.skip(
+    reason="SNOW-1818207 conflict numpy dependency in snowpark python backend"
+)
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_stored_proc_register_with_module(session):
     # use pandas module here
     session.custom_package_usage_config["enabled"] = True
     packages = list(session.get_packages().values())
     assert "pd" not in packages
-    # pin numpy to resolve issue SNOW-1818207 caused by numpy package conflict
-    packages = [pd] + packages + ["numpy==1.26.4"]
+    packages = [pd] + packages
 
     def proc_function(session_: Session) -> str:
         return "test response"
