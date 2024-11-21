@@ -230,15 +230,6 @@ def test_list_views(session, temp_db1, temp_schema1, temp_view1, temp_view2):
     assert {view.name for view in view_list} >= {temp_view1, temp_view2}
 
 
-@pytest.mark.xfail(reason="SNOW-1787268: Bug in snowflake api functions iter")
-def test_list_functions(session):
-    catalog: Catalog = session.catalog
-
-    assert len(catalog.list_functions(pattern="does_not_exist_*")) == 0
-    seq_functions = catalog.list_functions(pattern="seq_*")
-    assert {func.name for func in seq_functions} == {"seq0", "seq2"}
-
-
 def test_list_procedures(
     session, temp_db1, temp_schema1, temp_procedure1, temp_procedure2
 ):
@@ -312,9 +303,6 @@ def test_get_function_procedure_udf(
 ):
     catalog: Catalog = session.catalog
 
-    # function = catalog.get_function("seq1", [])
-    # assert function.name == "seq1"
-
     procedure = catalog.get_procedure(
         temp_procedure1, [IntegerType()], database=temp_db1, schema=temp_schema1
     )
@@ -362,12 +350,21 @@ def test_exists_db_schema(session, temp_db1, temp_schema1):
 
 def test_exists_table_view(session, temp_db1, temp_schema1, temp_table1, temp_view1):
     catalog = session.catalog
+    db1_obj = catalog._root.databases[temp_db1].fetch()
+    schema1_obj = catalog._root.databases[temp_db1].schemas[temp_schema1].fetch()
+
     assert catalog.table_exists(temp_table1, database=temp_db1, schema=temp_schema1)
+    assert catalog.table_exists(temp_table1, database=db1_obj, schema=schema1_obj)
+    table = catalog.get_table(temp_table1, database=temp_db1, schema=temp_schema1)
+    assert catalog.table_exists(table)
     assert not catalog.table_exists(
         "does_not_exist", database=temp_db1, schema=temp_schema1
     )
 
     assert catalog.view_exists(temp_view1, database=temp_db1, schema=temp_schema1)
+    assert catalog.view_exists(temp_view1, database=db1_obj, schema=schema1_obj)
+    view = catalog.get_view(temp_view1, database=temp_db1, schema=temp_schema1)
+    assert catalog.view_exists(view)
     assert not catalog.view_exists(
         "does_not_exist", database=temp_db1, schema=temp_schema1
     )
@@ -377,12 +374,19 @@ def test_exists_function_procedure_udf(
     session, temp_db1, temp_schema1, temp_procedure1, temp_udf1
 ):
     catalog = session.catalog
-    # assert catalog.function_exists("seq1", [])
-    # assert not catalog.function_exists("does_not_exist", [])
+    db1_obj = catalog._root.databases[temp_db1].fetch()
+    schema1_obj = catalog._root.databases[temp_db1].schemas[temp_schema1].fetch()
 
     assert catalog.procedure_exists(
         temp_procedure1, [IntegerType()], database=temp_db1, schema=temp_schema1
     )
+    assert catalog.procedure_exists(
+        temp_procedure1, [IntegerType()], database=db1_obj, schema=schema1_obj
+    )
+    proc = catalog.get_procedure(
+        temp_procedure1, [IntegerType()], database=temp_db1, schema=temp_schema1
+    )
+    assert catalog.procedure_exists(proc)
     assert not catalog.procedure_exists(
         "does_not_exist", [], database=temp_db1, schema=temp_schema1
     )
@@ -390,12 +394,20 @@ def test_exists_function_procedure_udf(
     assert catalog.user_defined_function_exists(
         temp_udf1, [IntegerType()], database=temp_db1, schema=temp_schema1
     )
+    assert catalog.user_defined_function_exists(
+        temp_udf1, [IntegerType()], database=db1_obj, schema=schema1_obj
+    )
+    udf = catalog.get_user_defined_function(
+        temp_udf1, [IntegerType()], database=temp_db1, schema=temp_schema1
+    )
+    assert catalog.user_defined_function_exists(udf)
     assert not catalog.user_defined_function_exists(
         "does_not_exist", [], database=temp_db1, schema=temp_schema1
     )
 
 
-def test_drop(session):
+@pytest.mark.parametrize("use_object", [True, False])
+def test_drop(session, use_object):
     catalog = session.catalog
 
     original_db = session.get_current_database()
@@ -405,6 +417,9 @@ def test_drop(session):
         temp_schema = create_temp_schema(session, temp_db)
         temp_table = create_temp_table(session, temp_db, temp_schema)
         temp_view = create_temp_view(session, temp_db, temp_schema)
+        if use_object:
+            temp_schema = catalog._root.databases[temp_db].schemas[temp_schema].fetch()
+            temp_db = catalog._root.databases[temp_db].fetch()
 
         assert catalog.database_exists(temp_db)
         assert catalog.schema_exists(temp_schema, database=temp_db)
@@ -427,3 +442,23 @@ def test_drop(session):
     finally:
         session.use_database(original_db)
         session.use_schema(original_schema)
+
+
+def test_parse_names_negative(session):
+    catalog = session.catalog
+    with pytest.raises(
+        ValueError,
+        match="Unexpected type. Expected str or Database, got '<class 'int'>'",
+    ):
+        catalog.database_exists(123)
+
+    with pytest.raises(
+        ValueError, match="Unexpected type. Expected str or Schema, got '<class 'int'>'"
+    ):
+        catalog.schema_exists(123)
+
+    with pytest.raises(
+        ValueError,
+        match="arg_types must be provided when function/procedure is a string",
+    ):
+        catalog.procedure_exists("proc")
