@@ -347,9 +347,76 @@ def test_set_db_schema(session, temp_db1, temp_db2, temp_schema1, temp_schema2):
         session.use_schema(original_schema)
 
 
-def test_exists_methods(session):
-    pass
+def test_exists_db_schema(session, temp_db1, temp_schema1):
+    catalog = session.catalog
+    assert catalog.database_exists(temp_db1)
+    assert not catalog.database_exists("does_not_exist")
+
+    assert catalog.schema_exists(temp_schema1, database=temp_db1)
+    assert not catalog.schema_exists(temp_schema1, database="does_not_exist")
 
 
-def test_drop_methods(session):
-    pass
+def test_exists_table_view(session, temp_db1, temp_schema1, temp_table1, temp_view1):
+    catalog = session.catalog
+    assert catalog.table_exists(temp_table1, database=temp_db1, schema=temp_schema1)
+    assert not catalog.table_exists(
+        "does_not_exist", database=temp_db1, schema=temp_schema1
+    )
+
+    assert catalog.view_exists(temp_view1, database=temp_db1, schema=temp_schema1)
+    assert not catalog.view_exists(
+        "does_not_exist", database=temp_db1, schema=temp_schema1
+    )
+
+
+def test_exists_function_procedure_udf(
+    session, temp_db1, temp_schema1, temp_procedure1, temp_udf1
+):
+    catalog = session.catalog
+    # assert catalog.function_exists("seq1", [])
+    # assert not catalog.function_exists("does_not_exist", [])
+
+    assert catalog.procedure_exists(
+        temp_procedure1, [IntegerType()], database=temp_db1, schema=temp_schema1
+    )
+    assert not catalog.procedure_exists(
+        "does_not_exist", [], database=temp_db1, schema=temp_schema1
+    )
+
+    assert catalog.user_defined_function_exists(
+        temp_udf1, [IntegerType()], database=temp_db1, schema=temp_schema1
+    )
+    assert not catalog.user_defined_function_exists(
+        "does_not_exist", [], database=temp_db1, schema=temp_schema1
+    )
+
+
+def test_drop_db(session, temp_db1):
+    catalog = session.catalog
+
+    assert catalog.database_exists(temp_db1)
+    catalog.drop_database(temp_db1)
+    assert not catalog.database_exists(temp_db1)
+
+
+def test_drop_schema(session, temp_db1, temp_schema1):
+    catalog = session.catalog
+
+    assert catalog.database_exists(temp_db1)
+    assert catalog.schema_exists(temp_schema1, database=temp_db1)
+
+    catalog.drop_schema(temp_schema1, database=temp_db1)
+    assert not catalog.schema_exists(temp_schema1, database=temp_db1)
+
+
+def test_drop_table_view(session, temp_db1, temp_schema1, temp_table1, temp_view1):
+    catalog = session.catalog
+
+    assert catalog.table_exists(temp_table1, database=temp_db1, schema=temp_schema1)
+    assert catalog.view_exists(temp_view1, database=temp_db1, schema=temp_schema1)
+
+    catalog.drop_table(temp_table1, database=temp_db1, schema=temp_schema1)
+    catalog.drop_view(temp_view1, database=temp_db1, schema=temp_schema1)
+
+    assert not catalog.table_exists(temp_table1, database=temp_db1, schema=temp_schema1)
+    assert not catalog.view_exists(temp_view1, database=temp_db1, schema=temp_schema1)
