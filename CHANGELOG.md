@@ -1,6 +1,81 @@
 # Release History
 
-## 1.25.0 (TBD)
+## 1.26.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for property `version` and class method `get_active_session` for `Session` class.
+- Added new methods and variables to enhance data type handling and JSON serialization/deserialization:
+  - To `DataType`, its derived classes, and `StructField`:
+    - `type_name`: Returns the type name of the data.
+    - `simple_string`: Provides a simple string representation of the data.
+    - `json_value`: Returns the data as a JSON-compatible value.
+    - `json`: Converts the data to a JSON string.
+  - To `ArrayType`, `MapType`, `StructField`, `PandasSeriesType`, `PandasDataFrameType` and `StructType`:
+    - `from_json`: Enables these types to be created from JSON data.
+  - To `MapType`:
+    - `keyType`: keys of the map
+    - `valueType`: values of the map
+
+#### Improvements
+
+- Added support for specifying the following to `DataFrame.create_or_replace_dynamic_table`:
+  - `iceberg_config` A dictionary that can hold the following iceberg configuration options:
+    - `external_volume`
+    - `catalog`
+    - `base_location`
+    - `catalog_sync`
+    - `storage_serialization_policy`
+- Added support for nested data types to `DataFrame.print_schema`
+- Added support for `level` parameter to `DataFrame.print_schema`
+- Improved flexibility of `DataFrameReader` and `DataFrameWriter` API by adding support for the following:
+  - Added `format` method to `DataFrameReader` and `DataFrameWriter` to specify file format when loading or unloading results.
+  - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
+  - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
+  - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
+
+#### Bug Fixes
+
+- Removed warnings that dynamic pivot features were in private preview, because
+  dynamic pivot is now generally available.
+
+
+#### Dependency Updates
+
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added partial support for `Series.map` when `arg` is a pandas `Series` or a
+  `collections.abc.Mapping`. No support for instances of `dict` that implement
+  `__missing__` but are not instances of `collections.defaultdict`.
+
+#### Dependency Updates
+
+
+#### New Features
+
+- Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
+
+#### Bug Fixes
+
+
+#### Improvements
+
+
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+
+#### Bug Fixes
+
+
+## 1.25.0 (2024-11-14)
 
 ### Snowpark Python API Updates
 
@@ -46,6 +121,7 @@
 - Added support for `pd.read_html` (Uses native pandas for processing).
 - Added support for `pd.read_xml` (Uses native pandas for processing).
 - Added support for aggregation functions `"size"` and `len` in `GroupBy.aggregate`, `DataFrame.aggregate`, and `Series.aggregate`.
+- Added support for list values in `Series.str.len`.
 
 #### Bug Fixes
 
@@ -60,6 +136,8 @@
 #### Improvements
 
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
+- Improve get_dummies performance by flattening the pivot with join.
+
 
 
 ### Snowpark Local Testing Updates

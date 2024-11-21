@@ -447,7 +447,8 @@ def test_structured_dtypes_iceberg(
         pytest.skip("Test requires iceberg support and structured type support.")
     query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
 
-    table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
+    table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}".upper()
+    dynamic_table_name = f"snowpark_dynamic_iceberg_{uuid.uuid4().hex[:5]}".upper()
     try:
         create_df = structured_type_session.create_dataframe([], schema=expected_schema)
         create_df.write.save_as_table(table_name, iceberg_config=ICEBERG_CONFIG)
@@ -471,8 +472,34 @@ def test_structured_dtypes_iceberg(
             "BASE_LOCATION = 'python_connector_merge_gate/';"
         )
 
+        # Try saving as dynamic table
+        dyn_df = structured_type_session.table(table_name)
+        warehouse = structured_type_session.get_current_warehouse().strip('"')
+        dyn_df.create_or_replace_dynamic_table(
+            dynamic_table_name,
+            warehouse=warehouse,
+            lag="1000 minutes",
+            mode="errorifexists",
+            iceberg_config=ICEBERG_CONFIG,
+        )
+
+        dynamic_ddl = structured_type_session._run_query(
+            f"select get_ddl('table', '{dynamic_table_name}')"
+        )
+        formatted_table_name = (
+            table_name
+            if structured_type_session.sql_simplifier_enabled
+            else f"({table_name})"
+        )
+        assert dynamic_ddl[0][0] == (
+            f"create or replace dynamic table {dynamic_table_name}(\n\tMAP,\n\tOBJ,\n\tARR\n) "
+            f"target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
+            f"warehouse = {warehouse}\n as  SELECT  *  FROM ( SELECT  *  FROM {formatted_table_name});"
+        )
+
     finally:
         Utils.drop_table(structured_type_session, table_name)
+        Utils.drop_dynamic_table(structured_type_session, dynamic_table_name)
 
 
 @pytest.mark.skipif(
@@ -871,3 +898,75 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
     assert cast_df.collect() == [
         Row([1, 2, 3], {"k1": 1, "k2": 2}, {"A": 1.0, "B": "foobar"})
     ]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_structured_type_print_schema(
+    structured_type_session, local_testing_mode, structured_type_support, capsys
+):
+    if not (
+        structured_type_support
+        and iceberg_supported(structured_type_session, local_testing_mode)
+    ):
+        pytest.skip("Test requires iceberg support and structured type support.")
+
+    schema = StructType(
+        [
+            StructField(
+                "map",
+                MapType(
+                    StringType(),
+                    ArrayType(
+                        StructType(
+                            [
+                                StructField("Field1", StringType()),
+                                StructField("Field2", IntegerType()),
+                            ],
+                            structured=True,
+                        ),
+                        structured=True,
+                    ),
+                    structured=True,
+                ),
+            )
+        ],
+        structured=True,
+    )
+
+    df = structured_type_session.create_dataframe([], schema=schema)
+    df.printSchema()
+    captured = capsys.readouterr()
+    assert captured.out == (
+        "root\n"
+        ' |-- "MAP": MapType (nullable = True)\n'
+        " |   |-- key: StringType()\n"
+        " |   |-- value: ArrayType\n"
+        " |   |   |-- element: StructType\n"
+        ' |   |   |   |-- "FIELD1": StringType() (nullable = True)\n'
+        ' |   |   |   |-- "FIELD2": LongType() (nullable = True)\n'
+    )
+
+    # Test that depth works as expected
+    assert df._format_schema(1) == ('root\n |-- "MAP": MapType (nullable = True)')
+    assert df._format_schema(2) == (
+        "root\n"
+        ' |-- "MAP": MapType (nullable = True)\n'
+        " |   |-- key: StringType()\n"
+        " |   |-- value: ArrayType"
+    )
+    assert df._format_schema(3) == (
+        "root\n"
+        ' |-- "MAP": MapType (nullable = True)\n'
+        " |   |-- key: StringType()\n"
+        " |   |-- value: ArrayType\n"
+        " |   |   |-- element: StructType"
+    )
+
+    # Check that column names can be translated
+    assert (
+        df._format_schema(1, translate_columns={'"MAP"': '"map"'})
+        == 'root\n |-- "map": MapType (nullable = True)'
+    )

@@ -52,6 +52,9 @@ jobs:
         run: python -m pip install -U setuptools pip
       - name: Install tox
         run: python -m pip install tox
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Run pyright on Selected Files
         run: python -m tox -e pyright
 
@@ -679,22 +682,16 @@ jobs:
           python-version: '3.9'
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
+      - name: Install tox
+        run: python -m pip install tox
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
-      - name: Install Snowpark
-        run: python -m pip install ".[modin-development]"
-      - name: Install Sphinx
-        run: python -m pip install sphinx
       - name: Build document
-        working-directory: docs
-        # treat warning as failure but complete the entire process
-        run: |
-          make clean
-          make html SPHINXOPTS="-W --keep-going"
+        run: python -m tox -e docs
       - name: Upload html files
         uses: actions/upload-artifact@v4
         with:
           include-hidden-files: true
           name: docs
-          path: docs/build/html
+          path: .tox/docs_out

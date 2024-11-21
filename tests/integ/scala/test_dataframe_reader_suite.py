@@ -355,6 +355,74 @@ def test_read_csv(session, mode):
     reason="SNOW-1435112: csv infer schema option is not supported",
     run=False,
 )
+@pytest.mark.parametrize(
+    "format,file,expected",
+    [
+        ("csv", test_file_csv, [Row(1, "one", 1.2), Row(2, "two", 2.2)]),
+        (
+            "json",
+            test_file_json,
+            [
+                Row(
+                    COL1='{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}'
+                )
+            ],
+        ),
+        (
+            "avro",
+            test_file_avro,
+            [
+                Row(str="str1", num=1),
+                Row(str="str2", num=2),
+            ],
+        ),
+        (
+            "parquet",
+            test_file_parquet,
+            [
+                Row(str="str1", num=1),
+                Row(str="str2", num=2),
+            ],
+        ),
+        (
+            "orc",
+            test_file_orc,
+            [
+                Row(str="str1", num=1),
+                Row(str="str2", num=2),
+            ],
+        ),
+        (
+            "xml",
+            test_file_xml,
+            [
+                Row("<test>\n  <num>1</num>\n  <str>str1</str>\n</test>"),
+                Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>"),
+            ],
+        ),
+    ],
+)
+def test_format_load(session, format, file, expected):
+    test_file_on_stage = f"@{tmp_stage_name1}/{file}"
+    df = session.read.format(format).load(test_file_on_stage)
+    Utils.check_answer(df, expected)
+
+
+def test_format_load_negative(session):
+    with pytest.raises(
+        ValueError, match="Invalid format 'unsupported_format'. Supported formats are"
+    ):
+        session.read.format("unsupported_format")
+
+    with pytest.raises(ValueError, match="Please specify the format of the file"):
+        session.read.load("path")
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
+    run=False,
+)
 def test_read_csv_with_default_infer_schema(session):
     test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
@@ -576,7 +644,7 @@ def test_read_csv_with_more_operations(session):
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_csv_with_format_type_options(session, mode, local_testing_mode):
+def test_read_csv_with_format_type_options(session, mode):
     test_file_colon = f"@{tmp_stage_name1}/{test_file_csv_colon}"
     options = {
         "field_delimiter": "';'",
@@ -606,8 +674,7 @@ def test_read_csv_with_format_type_options(session, mode, local_testing_mode):
         .option("field_delimiter", ";")
         .option("ENCODING", "wrongEncoding")
         .option("ENCODING", "UTF8")
-        .option("COMPRESSION", "NONE")
-        .option("skip_header", 1)
+        .options(compression="NONE", skip_header=1)
         .csv(test_file_colon)
     )
     res = df3.collect()
@@ -633,6 +700,19 @@ def test_read_csv_with_format_type_options(session, mode, local_testing_mode):
         Row(1, "one", 1.2),
         Row(2, "two", 2.2),
     ]
+
+
+def test_reader_options_negative(session):
+    with pytest.raises(
+        ValueError,
+        match="Cannot set options with both a dictionary and keyword arguments",
+    ):
+        session.read.options({"field_delimiter": ";"}, compression="NONE").csv(
+            test_file_csv_colon
+        )
+
+    with pytest.raises(ValueError, match="No options were provided"):
+        session.read.options().csv(test_file_csv_colon)
 
 
 @multithreaded_run()

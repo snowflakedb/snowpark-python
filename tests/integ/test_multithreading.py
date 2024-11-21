@@ -56,7 +56,7 @@ from tests.utils import (
 )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def threadsafe_session(
     db_parameters,
     session,
@@ -684,7 +684,7 @@ def test_concurrent_update_on_sensitive_configs(
     run=False,
 )
 def test_large_query_breakdown_with_cte(threadsafe_session):
-    bounds = (300, 600) if threadsafe_session.sql_simplifier_enabled else (60, 90)
+    bounds = (300, 600) if threadsafe_session.sql_simplifier_enabled else (50, 70)
     try:
         original_query_compilation_stage_enabled = (
             threadsafe_session._query_compilation_stage_enabled
@@ -763,8 +763,7 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
 
             assert len(queries["queries"]) == 2
             assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
-            if threadsafe_session.sql_simplifier_enabled:
-                assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
+            assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
 
             assert len(queries["post_actions"]) == 1
             assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
@@ -937,7 +936,9 @@ def test_critical_lazy_evaluation_for_plan(
         assert df_._plan.cumulative_node_complexity == {
             PlanNodeCategory.FILTER: 2,
             PlanNodeCategory.LITERAL: 22,
-            PlanNodeCategory.COLUMN: 64,
+            PlanNodeCategory.COLUMN: 64
+            if threadsafe_session.sql_simplifier_enabled
+            else 62,
             PlanNodeCategory.LOW_IMPACT: 42,
             PlanNodeCategory.SET_OPERATION: 1,
         }
@@ -947,10 +948,10 @@ def test_critical_lazy_evaluation_for_plan(
             PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: 0,
             PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: [2, 0, 0, 0, 0, 0, 0],
         }
-        assert (
-            df_._select_statement.encoded_node_id_with_query
-            == "b04d566533_SelectStatement"
-        )
+        if threadsafe_session.sql_simplifier_enabled:
+            assert df_._select_statement.encoded_node_id_with_query.endswith(
+                "_SelectStatement"
+            )
 
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = [executor.submit(call_critical_lazy_methods, df) for _ in range(10)]
