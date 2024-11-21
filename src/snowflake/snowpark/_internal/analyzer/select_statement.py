@@ -1718,7 +1718,7 @@ def derive_column_states_from_subquery(
             if c.child.expressions:
                 # df.select(df["*"]) will have child expressions. df.select("*") doesn't.
                 columns_from_star = [copy(e) for e in c.child.expressions]
-            elif c.child.df_alias:
+            elif isinstance(c.child, Star) and c.child.df_alias:
                 if c.child.df_alias not in from_.df_aliased_col_name_to_real_col_name:
                     raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
                         c.child.df_alias
