@@ -5582,6 +5582,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         inplace: bool = False,
         limit: Optional[int] = None,
         downcast: Optional[dict] = None,
+        drop_data_by_columns: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
         Replace NaN values using provided method or value.
@@ -5597,6 +5598,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             inplace: Not supported
             limit: Maximum number of consecutive NA values to fill.
             downcast: Not supported
+            drop_data_by_columns: Internal argument used to determine whether to drop any data columns
+                that appear in the "by" list.
 
         Returns:
             SnowflakeQueryCompiler: with a NaN values using method or value.
@@ -5817,7 +5820,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         #     The methods ffill, bfill, pad and backfill of DataFrameGroupBy previously included the group labels in
         #      the return value, which was inconsistent with other groupby transforms. Now only the filled values
         #      are returned. (GH 21521)
-        if len(data_column_group_keys) > 0:
+        if drop_data_by_columns and len(data_column_group_keys) > 0:
             data_column_pandas_labels, data_column_snowflake_quoted_identifiers = zip(
                 *[
                     (pandas_label, snowflake_quoted_identifier)
@@ -5850,16 +5853,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def groupby_pct_change(
         self,
         by: Any,
-        axis: int,
         agg_kwargs: dict[str, Any],
         groupby_kwargs: dict[str, Any],
         is_series_groupby: bool,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         periods = agg_kwargs.get("periods", 1)
-        fill_method = agg_kwargs.get("fill_method", "pad")
+        fill_method = agg_kwargs.get("fill_method", None)
         limit = agg_kwargs.get("limit", None)
         freq = agg_kwargs.get("freq", None)
+        axis = agg_kwargs.get("axis", 0)
         level = groupby_kwargs.get("level", None)
         # Per testing, this function does not respect sort/as_index/dropna/group_keys
         is_supported = check_is_groupby_supported_by_snowflake(
@@ -5871,19 +5874,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Snowpark pandas GroupBy.pct_change {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
             )
 
+        by_labels = by
         if by is not None and not is_list_like(by):
-            by = [by]
+            by_labels = [by]
 
         if level is not None:
-            by = extract_groupby_column_pandas_labels(self, by, level)
+            by_labels = extract_groupby_column_pandas_labels(self, by, level)
 
-        return self.pct_change(
+        # Perform fillna before pct_change to account for filling within the group.
+        qc = self
+        if fill_method is not None:
+            qc = qc.groupby_fillna(
+                by=by,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                method=fill_method,
+                drop_data_by_columns=False,
+            )
+
+        return qc.pct_change(
             periods=periods,
-            fill_method=fill_method,
+            fill_method=None,  # fillna was already done explicitly to account for the groupby
             limit=limit,
             freq=freq,
             axis=axis,
-            by_labels=by,
+            by_labels=by_labels,
             # Exclude the `by` columns from the result if this is a DF groupby where labels
             # were explicitly specified, and not generated from a multi-index level.
             drop_by_labels=not is_series_groupby and level is None,
@@ -18214,7 +18229,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     for snowflake_quoted_identifier in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                         by_labels, include_index=True, include_data=True
                     )
-                    if len(snowflake_quoted_identifier) > 0
                 ]
 
             result_qc = SnowflakeQueryCompiler(

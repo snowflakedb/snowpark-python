@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import modin.pandas as pd
+import numpy as np
 import pandas as native_pd
 import pytest
 
@@ -24,14 +25,27 @@ BASIC_DATA = [
     ["c", 1, 0.9],
 ]
 
+DATA_WITH_NULLS = [
+    ["a", 1, 1.1],
+    ["a", 1, np.nan],
+    ["a", 2, np.nan],
+    ["b", 1, 1.2],
+    ["b", 1, 1.3],
+    ["a", 1, 1.4],
+    ["b", 1, np.nan],
+    ["b", 1, 1.5],
+    ["c", 1, np.nan],
+]
 
+
+@pytest.mark.parametrize("data", [BASIC_DATA, DATA_WITH_NULLS])
 @pytest.mark.parametrize("periods", [0, 1, 2, -1])
-@pytest.mark.parametrize("fill_method", ["bfill", "ffill"])
+@pytest.mark.parametrize("fill_method", ["bfill", "ffill", None])
 @pytest.mark.parametrize("by", [0, [0, 1]])
 @sql_count_checker(query_count=1)
-def test_df_groupby_pct_change_basic(by, periods, fill_method):
+def test_df_groupby_pct_change_basic(data, by, periods, fill_method):
     eval_snowpark_pandas_result(
-        *create_test_dfs(BASIC_DATA),
+        *create_test_dfs(data),
         lambda df: df.groupby(by).pct_change(periods=periods, fill_method=fill_method),
     )
 
@@ -102,7 +116,7 @@ def test_series_groupby_pct_change_division_by_zero_negative():
 
 
 @sql_count_checker(query_count=0)
-def test_df_groupby_pct_change_nonnumeric_negative():
+def test_series_groupby_pct_change_nonnumeric_negative():
     # Using non-numeric columns raises a SnowparkSQLException
     snow_series, native_series = create_test_series(
         ["a", "b", "c"], index=native_pd.Index([0, 0, 1])
@@ -113,11 +127,24 @@ def test_df_groupby_pct_change_nonnumeric_negative():
         snow_series.groupby(level=0).pct_change().to_pandas()
 
 
+@sql_count_checker(query_count=0)
+def test_df_groupby_missing_by_negative():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(BASIC_DATA),
+        lambda df: df.groupby("missing").pct_change(),
+        expect_exception=True,
+        expect_exception_match="'missing'",
+        assert_exception_equal=True,
+        expect_exception_type=KeyError,
+    )
+
+
 @pytest.mark.parametrize(
     "params",
     [
         {"limit": 1},
         {"freq": 1},
+        {"axis": 1},
     ],
 )
 @sql_count_checker(query_count=0)
