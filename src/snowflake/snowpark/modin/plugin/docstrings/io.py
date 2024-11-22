@@ -448,12 +448,12 @@ def json_normalize():
     ...     data, "counties", ["state", "shortname", ["info", "governor"]]
     ... )
     >>> result
-            name  population    state shortname info.governor
-    0        Dade       12345   Florida    FL    Rick Scott
-    1     Broward       40000   Florida    FL    Rick Scott
-    2  Palm Beach       60000   Florida    FL    Rick Scott
-    3      Summit        1234   Ohio       OH    John Kasich
-    4    Cuyahoga        1337   Ohio       OH    John Kasich
+             name  population    state shortname info.governor
+    0        Dade       12345  Florida        FL    Rick Scott
+    1     Broward       40000  Florida        FL    Rick Scott
+    2  Palm Beach       60000  Florida        FL    Rick Scott
+    3      Summit        1234     Ohio        OH   John Kasich
+    4    Cuyahoga        1337     Ohio        OH   John Kasich
 
     >>> data = {"A": [1, 2]}
     >>> pd.json_normalize(data, "A", record_prefix="Prefix.")
