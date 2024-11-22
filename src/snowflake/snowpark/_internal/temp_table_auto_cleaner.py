@@ -7,6 +7,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Dict
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
+from snowflake.snowpark._internal.utils import create_rlock, is_in_stored_procedure
 
 _logger = logging.getLogger(__name__)
 
@@ -32,9 +33,12 @@ class TempTableAutoCleaner:
         # to its reference count for later temp table management
         # this dict will still be maintained even if the cleaner is stopped (`stop()` is called)
         self.ref_count_map: Dict[str, int] = defaultdict(int)
+        # Lock to protect the ref_count_map
+        self.lock = create_rlock(session._conn._thread_safe_session_enabled)
 
     def add(self, table: SnowflakeTable) -> None:
-        self.ref_count_map[table.name] += 1
+        with self.lock:
+            self.ref_count_map[table.name] += 1
         # the finalizer will be triggered when it gets garbage collected
         # and this table will be dropped finally
         _ = weakref.finalize(table, self._delete_ref_count, table.name)
@@ -44,8 +48,24 @@ class TempTableAutoCleaner:
         Decrements the reference count of a temporary table,
         and if the count reaches zero, puts this table in the queue for cleanup.
         """
-        self.ref_count_map[name] -= 1
-        if self.ref_count_map[name] == 0:
+        with self.lock:
+            self.ref_count_map[name] -= 1
+            current_ref_count = self.ref_count_map[name]
+        if current_ref_count == 0:
+            if (
+                is_in_stored_procedure()
+                and not self.session._conn._get_client_side_session_parameter(
+                    "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
+                )
+            ):
+                warning_message = "Drop table requires async query which is not supported in stored procedure yet"
+                _logger.warning(warning_message)
+                self.session._conn._telemetry_client.send_temp_table_cleanup_abnormal_exception_telemetry(
+                    self.session.session_id,
+                    name,
+                    warning_message,
+                )
+                return
             if (
                 self.session.auto_clean_up_temp_table_enabled
                 # if the session is already closed before garbage collection,
@@ -53,9 +73,9 @@ class TempTableAutoCleaner:
                 and not self.session._conn.is_closed()
             ):
                 self.drop_table(name)
-        elif self.ref_count_map[name] < 0:
+        elif current_ref_count < 0:
             _logger.debug(
-                f"Unexpected reference count {self.ref_count_map[name]} for table {name}"
+                f"Unexpected reference count {current_ref_count} for table {name}"
             )
 
     def drop_table(self, name: str) -> None:  # pragma: no cover
@@ -63,13 +83,14 @@ class TempTableAutoCleaner:
         _logger.debug(f"Ready to drop {common_log_text}")
         query_id = None
         try:
-            async_job = self.session.sql(
-                f"drop table if exists {name} /* internal query to drop unused temp table */",
-            )._internal_collect_with_tag_no_telemetry(
-                block=False, statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name}
-            )
-            query_id = async_job.query_id
-            _logger.debug(f"Dropping {common_log_text} with query id {query_id}")
+            with self.session.connection.cursor() as cursor:
+                async_job_query_id = cursor.execute_async(
+                    command=f"drop table if exists {name}",
+                    _statement_params={DROP_TABLE_STATEMENT_PARAM_NAME: name},
+                )["queryId"]
+                _logger.debug(
+                    f"Dropping {common_log_text} with query id {async_job_query_id}"
+                )
         except Exception as ex:  # pragma: no cover
             warning_message = f"Failed to drop {common_log_text}, exception: {ex}"
             _logger.warning(warning_message)
@@ -96,9 +117,11 @@ class TempTableAutoCleaner:
 
     @property
     def num_temp_tables_created(self) -> int:
-        return len(self.ref_count_map)
+        with self.lock:
+            return len(self.ref_count_map)
 
     @property
     def num_temp_tables_cleaned(self) -> int:
         # TODO SNOW-1662536: we may need a separate counter for the number of tables cleaned when parameter is enabled
-        return sum(v == 0 for v in self.ref_count_map.values())
+        with self.lock:
+            return sum(v == 0 for v in self.ref_count_map.values())

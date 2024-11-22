@@ -388,8 +388,8 @@ def test_stored_procedure_with_structured_returns(
                 "OBJ",
                 StructType(
                     [
-                        StructField("A", StringType(16777216), nullable=True),
-                        StructField("B", DoubleType(), nullable=True),
+                        StructField('"a"', StringType(16777216), nullable=True),
+                        StructField('"b"', DoubleType(), nullable=True),
                     ],
                     structured=True,
                 ),
@@ -1935,6 +1935,9 @@ def test_force_inline_code(session):
     assert any("AS $$" in query.sql_text for query in query_history.queries)
 
 
+@pytest.mark.skip(
+    reason="SNOW-1818207 conflict numpy dependency in snowpark python backend"
+)
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_stored_proc_register_with_module(session):
     # use pandas module here

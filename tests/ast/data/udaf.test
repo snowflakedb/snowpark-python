@@ -89,7 +89,7 @@ df.agg(u2("a"))
 
 ## EXPECTED UNPARSER OUTPUT
 
-sum_udaf = udaf(PythonSumUDAF, return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, source_code_display=True)
+sum_udaf = udaf(PythonSumUDAF, return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, source_code_display=True, copy_grants=False)
 
 df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]])
 
@@ -97,7 +97,7 @@ df = df.to_df("a", "b")
 
 df.agg(sum_udaf("a")).collect()
 
-u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params=, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", source_code_display=True)
+u2 = udaf(PythonTopK, return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params=, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", source_code_display=True, copy_grants=False)
 
 res3 = df.agg(u2("a"))
 
@@ -124,6 +124,17 @@ body {
                 start_line: 45
               }
               v: true
+            }
+          }
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 45
+              }
             }
           }
         }
@@ -427,6 +438,17 @@ body {
             }
           }
         }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 105
+              }
+            }
+          }
+        }
         name {
           fn_name_flat {
             name: "top_k"
@@ -537,5 +559,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 23
+  minor: 25
 }

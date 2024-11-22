@@ -23,7 +23,11 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     append_columns,
     extract_pandas_label_from_snowflake_quoted_identifier,
 )
-from snowflake.snowpark.modin.plugin._typing import AlignTypeLit, JoinTypeLit
+from snowflake.snowpark.modin.plugin._typing import (
+    AlignSortLit,
+    AlignTypeLit,
+    JoinTypeLit,
+)
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
 from snowflake.snowpark.types import VariantType
 
@@ -1154,6 +1158,29 @@ def join_on_index_columns(
     return JoinOrAlignInternalFrameResult(joined_frame, result_column_mapper)
 
 
+def convert_index_type_to_variant(
+    frame: InternalFrame,
+) -> InternalFrame:
+    """
+    Converts types of given index identifier if it is not Variant or Timestamp type.
+    Args:
+        frame: InternalFrame whose type needs to be converted.
+    Returns:
+        Frame with updated columns.
+    """
+    frame_ids = frame.data_column_snowflake_quoted_identifiers
+    frame_id_to_type_map = frame.quoted_identifier_to_snowflake_type(frame_ids)
+    frame_to_variant = {}
+    for frame_id in frame_ids:
+        frame_type = frame_id_to_type_map[frame_id]
+        if not isinstance(frame_type, VariantType):
+            frame_to_variant[frame_id] = to_variant(frame_id)
+    frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+        frame_to_variant
+    ).frame
+    return frame
+
+
 def convert_incompatible_types_to_variant(
     left: InternalFrame,
     right: InternalFrame,
@@ -1208,6 +1235,7 @@ def align(
     left_on: list[str],
     right_on: list[str],
     how: AlignTypeLit = "outer",
+    sort: AlignSortLit = "default_sort",
 ) -> JoinOrAlignInternalFrameResult:
     """
     Align the left and the right frame on given columns 'left_on' and 'right_on' with
@@ -1223,7 +1251,13 @@ def align(
             * left: use only index from left frame, preserve left order.
             * coalesce: use only index from left frame, preserve left order. If left
               frame is empty left_on columns are coalesced with right_on columns.
-            * outer: use union of index from both frames, sort index lexicographically.
+            * outer: use union of index from both frames.
+            * inner: use intersection of index from both frames, preserve left order.
+        sort: the sort strategy.
+            * default_sort, outer align result will sort the align key lexicographically
+                if the original frame is not aligned, no sort happen for others align methods.
+            * sort, always sort the result based on the align key
+            * no_sort, do not sort the result
     Returns:
         New aligned InternalFrame by aligning left frame with right frame.
     """
@@ -1254,6 +1288,7 @@ def align(
         left_on_cols=left_on,
         right_on_cols=right_on,
         how=how,
+        enable_default_sort=(sort == "default_sort"),
     )
     # aligned_ordered_frame after aligning on row_position columns
     # Example 1 (left is empty not empty):
@@ -1273,6 +1308,8 @@ def align(
     if how == "outer":
         coalesce_key_config = [JoinKeyCoalesceConfig.LEFT] * len(left_on)
         inherit_join_index = InheritJoinIndex.FROM_BOTH
+
+    sort_result = sort == "sort"
     (
         aligned_frame,
         result_column_mapper,
@@ -1283,7 +1320,7 @@ def align(
         left_on=left_on,
         right_on=right_on,
         how=how,
-        sort=False,
+        sort=sort_result,
         key_coalesce_config=coalesce_key_config,
         inherit_index=inherit_join_index,
     )
@@ -1294,6 +1331,7 @@ def align_on_index(
     left: InternalFrame,
     right: InternalFrame,
     how: AlignTypeLit = "outer",
+    sort: AlignSortLit = "default_sort",
 ) -> JoinOrAlignInternalFrameResult:
     """
     Align the left and the right frame on the index columns with given join method (`how`).
@@ -1307,12 +1345,18 @@ def align_on_index(
     Args:
         left: Left DataFrame.
         right: right DataFrame.
-        how: the align method {{'left', 'coalesce', 'outer'}}, by default is outer
+        how: the align method {{'left', 'coalesce', 'outer', 'inner'}}, by default is outer
             * left: use only index from left frame, preserve left order.
             * coalesce: if left frame has non-zero rows use only index from left
                 frame, preserve left order otherwise use only right index and preserver
                 right order.
             * outer: use union of index from both frames, sort index lexicographically.
+            * inner: use intersection of index from both frames, preserve left order.
+        sort: the sort strategy.
+            * default_sort, outer align result will sort the align key lexicographically
+                if the original frame is not aligned, no sort happen for others align methods.
+            * sort, always sort the result based on the align key
+            * no_sort, do not sort the result
     Returns:
         An InternalFrame for the aligned result.
         A JoinOrAlignResultColumnMapper that provides quoted identifiers mapping from the
@@ -1333,6 +1377,7 @@ def align_on_index(
         left_on=index_join_info.left_join_quoted_identifiers,
         right_on=index_join_info.right_join_quoted_identifiers,
         how=how,
+        sort=sort,
     )
     if how == "outer":
         # index reorder should only be needed for outer join since this is the only method inherent

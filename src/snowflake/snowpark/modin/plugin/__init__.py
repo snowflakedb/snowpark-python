@@ -21,11 +21,17 @@ install_msg = 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 # since modin may raise its own warnings/errors on the wrong pandas version
 import pandas  # isort: skip  # noqa: E402
 
-supported_pandas_version = "2.2.1"
-if pandas.__version__ != supported_pandas_version:
+# TODO SNOW-1758773: perform version check in modin instead
+supported_pandas_major_version = 2
+supported_pandas_minor_version = 2
+actual_pandas_version = version.parse(pandas.__version__)
+if (
+    actual_pandas_version.major != supported_pandas_major_version
+    and actual_pandas_version.minor != supported_pandas_minor_version
+):
     raise RuntimeError(
         f"The pandas version installed ({pandas.__version__}) does not match the supported pandas version in"
-        + f" Snowpark pandas ({supported_pandas_version}). "
+        + f" Snowpark pandas ({supported_pandas_major_version}.{supported_pandas_minor_version}.x). "
         + install_msg
     )  # pragma: no cover
 
@@ -36,7 +42,7 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_msg
     )  # pragma: no cover
 
-supported_modin_version = "0.28.1"
+supported_modin_version = "0.30.1"
 if version.parse(modin.__version__) != version.parse(supported_modin_version):
     raise ImportError(
         f"The Modin version installed ({modin.__version__}) does not match the supported Modin version in"
@@ -91,6 +97,21 @@ inherit_modules = [
 for (doc_module, target_object) in inherit_modules:
     _inherit_docstrings(doc_module, overwrite_existing=True)(target_object)
 
+# _inherit_docstrings needs a function or class as argument, so we must explicitly iterate over
+# all members of io and general
+function_inherit_modules = [
+    (docstrings.io, modin.pandas.io),
+    (docstrings.general, modin.pandas.general),
+]
+
+for (doc_module, target_module) in function_inherit_modules:
+    for name in dir(target_module):
+        doc_obj = getattr(doc_module, name, None)
+        if not name.startswith("_") and doc_obj is not None:
+            _inherit_docstrings(doc_obj, overwrite_existing=True)(
+                getattr(target_module, name)
+            )
+
 
 # === SET UP I/O ===
 # Configure Modin engine so it detects our Snowflake I/O classes.
@@ -136,6 +157,7 @@ from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
     register_pd_accessor,
     register_series_accessor,
 )
+from modin.pandas.accessor import ModinAPI  # isort: skip  # noqa: E402,F401
 
 from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
     TELEMETRY_PRIVATE_METHODS,
@@ -143,10 +165,26 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip
     try_add_telemetry_to_attribute,
 )
 
+# Add telemetry on the ModinAPI accessor object.
+# modin 0.30.1 introduces the pd.DataFrame.modin accessor object for non-pandas methods,
+# such as pd.DataFrame.modin.to_pandas and pd.DataFrame.modin.to_ray. We will automatically
+# raise NotImplementedError for all methods on this accessor object except to_pandas, but
+# we still want to record telemetry.
+for attr_name in dir(ModinAPI):
+    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+        setattr(
+            ModinAPI,
+            attr_name,
+            try_add_telemetry_to_attribute(attr_name, getattr(ModinAPI, attr_name)),
+        )
+
 for attr_name in dir(Series):
     # Since Series is defined in upstream Modin, all of its members were either defined upstream
     # or overridden by extension.
-    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+    # Skip the `modin` accessor object, since we apply telemetry to all its fields.
+    if attr_name != "modin" and (
+        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
+    ):
         register_series_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
         )
@@ -154,7 +192,10 @@ for attr_name in dir(Series):
 for attr_name in dir(DataFrame):
     # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
     # or overridden by extension.
-    if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
+    # Skip the `modin` accessor object, since we apply telemetry to all its fields.
+    if attr_name != "modin" and (
+        not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
+    ):
         register_dataframe_accessor(attr_name)(
             try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
         )
@@ -188,14 +229,3 @@ if "modin.pandas" in sys.modules:
 # === OTHER SETUP ===
 # Upstream modin does not re-export the offsets module, so we need to do so here
 register_pd_accessor("offsets")(pandas.offsets)
-
-
-# Don't warn the user about our internal usage of private preview pivot
-# features. The user should have already been warned that Snowpark pandas
-# is in public or private preview. They likely don't know or care that we are
-# using Snowpark DataFrame pivot() internally, let alone that we are using
-# private preview features of Snowpark Python.
-
-snowflake.snowpark._internal.utils.should_warn_dynamic_pivot_is_in_private_preview = (
-    False
-)

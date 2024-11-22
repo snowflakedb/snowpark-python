@@ -779,6 +779,11 @@ class Analyzer:
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
+            # Perform in-place update of the pre and post actions for selectable
+            # if it has subqueries. Also updated attached resolved snowflake plan
+            # for the selectable
+            if isinstance(logical_plan, Selectable):
+                logical_plan.with_subqueries(self.subquery_plans, result)
 
         return result
 
@@ -1165,6 +1170,7 @@ class Analyzer:
                 max_data_extension_time=logical_plan.max_data_extension_time,
                 child=resolved_children[logical_plan.child],
                 source_plan=logical_plan,
+                iceberg_config=logical_plan.iceberg_config,
             )
 
         if isinstance(logical_plan, CopyIntoTableNode):

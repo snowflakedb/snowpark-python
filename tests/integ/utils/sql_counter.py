@@ -34,6 +34,7 @@ INSERT = "INSERT "
 WITH = "WITH "
 CREATE_TEMP_TABLE = "CREATE  TEMPORARY  TABLE"
 UNION = " UNION "
+WINDOW = " OVER "
 
 NO_CHECK = "no_check"
 
@@ -44,6 +45,7 @@ UDF_COUNT_PARAMETER = "udf_count"
 UDTF_COUNT_PARAMETER = "udtf_count"
 SELECT_COUNT_PARAMETER = "select_count"
 UNION_COUNT_PARAMETER = "union_count"
+WINDOW_COUNT_PARAMETER = "window_count"
 DESCRIBE_COUNT_PARAMETER = "describe_count"
 EXPECT_HIGH_COUNT = "expect_high_count"
 HIGH_COUNT_REASON = "high_count_reason"
@@ -57,6 +59,7 @@ SQL_COUNT_PARAMETERS = [
     SELECT_COUNT_PARAMETER,
     UNION_COUNT_PARAMETER,
     DESCRIBE_COUNT_PARAMETER,
+    WINDOW_COUNT_PARAMETER,
 ]
 BOOL_PARAMETERS = [EXPECT_HIGH_COUNT]
 
@@ -77,12 +80,15 @@ HIGH_QUERY_COUNT_THRESHOLD = 9
 # it only runs at the first time of creating a fallback stored procedure
 # 5. test_table_fixture does a drop table which is inconsistently included but ultimately not related to the tested code
 # These cases should be excluded in our query counts.
+# 6. Unused temp tables to be dropped to temp table cleaner may happen any time when garbage collection kicks in,
+# so we should not count it
 FILTER_OUT_QUERIES = [
     ["create SCOPED TEMPORARY", "stage if not exists"],
     ["PUT", "file:///tmp/placeholder/snowpark.zip"],
     ["PUT", "file:///tmp/placeholder/udf_py_"],
     ['SELECT "PACKAGE_NAME"', 'array_agg("VERSION")'],
     ["drop table if exists", "TESTTABLENAME"],
+    ["drop table if exists", "/* internal query to drop unused temp table */"],
 ]
 
 # define global at module-level
@@ -228,7 +234,7 @@ class SqlCounter(QueryListener):
         for key in kwargs.keys():
             if key in BOOL_PARAMETERS:
                 continue
-            actual_count = actual_counts[key]
+            actual_count = actual_counts[key] if key in actual_counts else 0
             expected_count = kwargs[key]
             if expected_count is None:
                 expected_count = 0
@@ -347,6 +353,9 @@ class SqlCounter(QueryListener):
     def actual_union_count(self):
         return self._count_instances_by_query_substr(contains=[UNION])
 
+    def actual_window_count(self):
+        return self._count_instances_by_query_substr(contains=[WINDOW])
+
     def actual_describe_count(self):
         return len([q for q in self._queries if q.is_describe])
 
@@ -382,7 +391,17 @@ def sql_count_checker(
     *args,
     **kwargs,
 ):
-    """SqlCounter decorator that automatically validates the sql counts when test finishes."""
+    """
+    SqlCounter decorator that automatically validates the sql counts when test finishes.
+
+    The sql count checks are applied for all parameters in the format of *_count, for example,
+    join_count = 2 means we expect to see two joins in the sql queries.
+
+    Note that the *_count can be configured in two ways: clear declaration in the sql_count_check in
+    the signature, or passed through **kwargs. The check for count clearly declared in the signature
+    will be enforced, and 0 occurrence is expected if the value is None. Other count checks can be
+    optionally passed through the **kwargs, where the occurrence check will only be applied if specified.
+    """
     all_args = inspect.getargvalues(inspect.currentframe())
     count_kwargs = {
         key: value
@@ -390,6 +409,11 @@ def sql_count_checker(
             filter(lambda k: k[0].endswith("_count"), all_args.locals.items())
         )
     }
+    # also look into kwargs for count configuration. Right now, describe_count and window_count are the
+    # counts can be passed optionally
+    for (key, value) in kwargs.items():
+        if key.endswith("_count"):
+            count_kwargs.update({key: value})
 
     def decorator(func):
         @functools.wraps(func)

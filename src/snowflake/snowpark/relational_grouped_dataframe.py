@@ -25,7 +25,7 @@ from snowflake.snowpark._internal.analyzer.unary_expression import (
     UnresolvedAlias,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Aggregate, Pivot
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
     build_proto_from_callable,
@@ -195,22 +195,27 @@ class RelationalGroupedDataFrame:
         used = set()
         unique = [a for a in aliased_agg if a not in used and (used.add(a) or True)]
         aliased_agg = [_alias(a) for a in unique]
+        # Aliases cannot be used in grouping statements, but the child expresion can
+        unaliased_grouping = [
+            expr.child if isinstance(expr, Alias) else expr
+            for expr in self._grouping_exprs
+        ]
 
         if isinstance(self._group_type, _GroupByType):
             group_plan = Aggregate(
-                self._grouping_exprs,
+                unaliased_grouping,
                 aliased_agg,
                 self._dataframe._select_statement or self._dataframe._plan,
             )
         elif isinstance(self._group_type, _RollupType):
             group_plan = Aggregate(
-                [Rollup(self._grouping_exprs)],
+                [Rollup(unaliased_grouping)],
                 aliased_agg,
                 self._dataframe._select_statement or self._dataframe._plan,
             )
         elif isinstance(self._group_type, _CubeType):
             group_plan = Aggregate(
-                [Cube(self._grouping_exprs)],
+                [Cube(unaliased_grouping)],
                 aliased_agg,
                 self._dataframe._select_statement or self._dataframe._plan,
             )
@@ -218,7 +223,7 @@ class RelationalGroupedDataFrame:
             if len(agg_exprs) != 1:
                 raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             group_plan = Pivot(
-                self._grouping_exprs,
+                unaliased_grouping,
                 self._group_type.pivot_col,
                 self._group_type.values,
                 agg_exprs,

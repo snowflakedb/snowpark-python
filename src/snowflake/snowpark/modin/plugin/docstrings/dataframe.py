@@ -600,6 +600,7 @@ class DataFrame(BasePandasDataset):
         """
 
     def applymap():
+        # TODO SNOW-1818207 unskip tests once package resolution is fixed
         """
         Apply a function to a Dataframe elementwise.
 
@@ -635,7 +636,7 @@ class DataFrame(BasePandasDataset):
         0  1.000  2.120
         1  3.356  4.567
 
-        >>> df.applymap(lambda x: len(str(x)))
+        >>> df.applymap(lambda x: len(str(x)))  # doctest: +SKIP
            0  1
         0  3  4
         1  5  5
@@ -645,7 +646,7 @@ class DataFrame(BasePandasDataset):
         more efficiently by utilizing alternative dataframe operations instead of applymap.
         For example, You could square each number elementwise.
 
-        >>> df.applymap(lambda x: x**2)
+        >>> df.applymap(lambda x: x**2)  # doctest: +SKIP
                    0          1
         0   1.000000   4.494400
         1  11.262736  20.857489
@@ -713,6 +714,8 @@ class DataFrame(BasePandasDataset):
     agg = aggregate
 
     def apply():
+        # TODO SNOW-1818207 unskip tests once package resolution is fixed
+        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Apply a function along an axis of the DataFrame.
 
@@ -821,7 +824,7 @@ class DataFrame(BasePandasDataset):
 
         Using a reducing function on ``axis=1``:
 
-        >>> df.apply(np.sum, axis=1)
+        >>> df.apply(np.sum, axis=1)  # doctest: +SKIP
         0     2
         1    10
         2    13
@@ -829,7 +832,7 @@ class DataFrame(BasePandasDataset):
 
         Returning a list-like object will result in a Series:
 
-        >>> df.apply(lambda x: [1, 2], axis=1)
+        >>> df.apply(lambda x: [1, 2], axis=1)  # doctest: +SKIP
         0    [1, 2]
         1    [1, 2]
         2    [1, 2]
@@ -840,7 +843,7 @@ class DataFrame(BasePandasDataset):
         >>> import scipy.stats
         >>> pd.session.custom_package_usage_config['enabled'] = True
         >>> pd.session.add_packages(['numpy', scipy])
-        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)
+        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)  # doctest: +SKIP
         0     1.00
         1    14.50
         2    24.25
@@ -1022,6 +1025,7 @@ class DataFrame(BasePandasDataset):
         """
 
     def transform():
+        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Call ``func`` on self producing a Snowpark pandas DataFrame with the same axis shape as self.
 
@@ -1055,7 +1059,7 @@ class DataFrame(BasePandasDataset):
         0     1     3
         1     2     4
         2     3     5
-        >>> df.transform(lambda x: x + 1, axis=1)
+        >>> df.transform(lambda x: x + 1, axis=1)  # doctest: +SKIP
            col1  col2
         0     2     4
         1     3     5
@@ -1063,7 +1067,7 @@ class DataFrame(BasePandasDataset):
 
         Apply a numpy ufunc to every value in the DataFrame.
 
-        >>> df.transform(np.square, axis=1)
+        >>> df.transform(np.square, axis=1)  # doctest: +SKIP
            col1  col2
         0     1     9
         1     4    16
@@ -5125,7 +5129,26 @@ class DataFrame(BasePandasDataset):
 
     @property
     def style():
-        pass
+        """
+        Returns a Styler object.
+
+        Contains methods for building a styled HTML representation of the DataFrame.
+
+        Snowpark pandas uses native pandas for this functionality.
+
+        See Also
+        --------
+        io.formats.style.Styler
+        Helps style a DataFrame or Series according to the data with HTML and CSS.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame({'A': [1, 2, 3]})
+        >>> df.style.to_string()
+        ' A\\n0 1\\n1 2\\n2 3\\n'
+
+        Please see `Table Visualization <https://pandas.pydata.org/docs/user_guide/style.html>`_ for more examples.
+        """
 
     def isin():
         """

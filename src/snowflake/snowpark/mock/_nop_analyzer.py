@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Union
+from typing import List, Union
 
 from snowflake.snowpark._internal.analyzer.expression import Expression, Star
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -106,9 +106,7 @@ class NopSelectableEntity(MockSelectableEntity):
 
 
 class NopAnalyzer(MockAnalyzer):
-    def do_resolve(
-        self, logical_plan: LogicalPlan, expr_to_alias: Dict[str, str]
-    ) -> MockExecutionPlan:
+    def do_resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
         return NopExecutionPlan(logical_plan, self.session)
 
     def create_select_statement(self, *args, **kwargs):

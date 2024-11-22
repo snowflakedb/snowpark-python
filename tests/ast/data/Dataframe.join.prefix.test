@@ -18,11 +18,11 @@ df2 = session.create_dataframe([[1, 2, 3, 4, 5]], schema=["\"A\"", "\"B\"", "\"C
 
 df3_res1 = df1.filter(col("\"A\"") == 1)
 
-df3 = df2.select((col("\"A\"") + 1).as_("\"A\""), col("\"B\""), col("\"C\""), col("\"l_0001_C\""), col("\"l_0003_B\""))
+df3 = df2.select(col("\"A\"") + 1.as_("\"A\""), col("\"B\""), col("\"C\""), col("\"l_0001_C\""), col("\"l_0003_B\""))
 
 df3 = df3_res1.join(df3, how="inner")
 
-df4 = df3.sort(["\"l_0004_A\"", "\"l_0004_B\"", "\"l_0004_C\"", "\"r_0000_A\"", "\"l_0000_A\"", "\"l_0002_A\"", "\"r_0001_A\"", "\"r_0001_B\"", "\"r_0001_C\"", "\"l_0001_C\"", "\"l_0003_B\""])
+df4 = df3.sort(["\"l_0004_A\"", "\"l_0004_B\"", "\"l_0004_C\"", "\"r_0000_A\"", "\"l_0000_A\"", "\"l_0002_A\"", "\"r_0006_A\"", "\"r_0006_B\"", "\"r_0006_C\"", "\"l_0001_C\"", "\"l_0003_B\""])
 
 df4.collect()
 
@@ -563,7 +563,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"r_0001_A\""
+            v: "\"r_0006_A\""
           }
         }
         cols {
@@ -572,7 +572,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"r_0001_B\""
+            v: "\"r_0006_B\""
           }
         }
         cols {
@@ -581,7 +581,7 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
             }
-            v: "\"r_0001_C\""
+            v: "\"r_0006_C\""
           }
         }
         cols {
@@ -668,5 +668,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 23
+  minor: 25
 }

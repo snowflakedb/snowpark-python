@@ -4,7 +4,7 @@
 
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -16,7 +16,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_proto_from_struct_type,
     build_sp_table_name,
@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
+    SNOWFLAKE_PATH_PREFIXES,
     TempObjectType,
     get_aliased_option_name,
     get_copy_into_table_options,
@@ -66,6 +67,15 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
+
+
+def _validate_stage_path(path: str) -> str:
+    stripped_path = path.strip("\"'")
+    if not any(stripped_path.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
+        raise ValueError(
+            f"'{path}' is an invalid Snowflake stage location. DataFrameReader can only read files from stage locations."
+        )
+    return path
 
 
 class DataFrameReader:
@@ -329,6 +339,7 @@ class DataFrameReader:
             List["snowflake.snowpark.column.Column"]
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
+        self.__format: Optional[str] = None
 
         self._ast = None
         if _emit_ast:
@@ -460,6 +471,54 @@ class DataFrameReader:
         ]
         return self
 
+    @property
+    def _format(self) -> Optional[str]:
+        return self.__format
+
+    @_format.setter
+    def _format(self, value: str) -> None:
+        canon_format = value.strip().lower()
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml"]
+        if canon_format not in allowed_formats:
+            raise ValueError(
+                f"Invalid format '{value}'. Supported formats are {allowed_formats}."
+            )
+        self.__format = canon_format
+
+    def format(
+        self, format: Literal["csv", "json", "avro", "parquet", "orc", "xml"]
+    ) -> "DataFrameReader":
+        """Specify the format of the file(s) to load.
+
+        Args:
+            format: The format of the file(s) to load. Supported formats are csv, json, avro, parquet, orc, and xml.
+
+        Returns:
+            a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
+        """
+        self._format = format
+        return self
+
+    def load(self, path: str) -> DataFrame:
+        """Specify the path of the file(s) to load.
+
+        Args:
+            path: The stage location of a file, or a stage location that has files.
+
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified file(s) in a Snowflake stage.
+        """
+        if self._format is None:
+            raise ValueError(
+                "Please specify the format of the file(s) to load using the format() method."
+            )
+
+        loader = getattr(self, self._format, None)
+        if loader is not None:
+            return loader(path)
+
+        raise ValueError(f"Invalid format '{self._format}'.")
+
     @publicapi
     def csv(self, path: str, _emit_ast: bool = True) -> DataFrame:
         """Specify the path of the CSV file(s) to load.
@@ -470,6 +529,7 @@ class DataFrameReader:
         Returns:
             a :class:`DataFrame` that is set up to load data from the specified CSV file(s) in a Snowflake stage.
         """
+        path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = "CSV"
 
@@ -723,7 +783,9 @@ class DataFrameReader:
         return self
 
     @publicapi
-    def options(self, configs: Dict, _emit_ast: bool = True) -> "DataFrameReader":
+    def options(
+        self, configs: Optional[Dict] = None, _emit_ast: bool = True, **kwargs
+    ) -> "DataFrameReader":
         """Sets multiple specified options in the DataFrameReader.
 
         This method is the same as the :meth:`option` except that you can set multiple options in one call.
@@ -732,6 +794,14 @@ class DataFrameReader:
             configs: Dictionary of the names of options (e.g. ``compression``,
                 ``skip_header``, etc.) and their corresponding values.
         """
+        if configs and kwargs:
+            raise ValueError(
+                "Cannot set options with both a dictionary and keyword arguments. Please use one or the other."
+            )
+        if configs is None:
+            if not kwargs:
+                raise ValueError("No options were provided")
+            configs = kwargs
 
         # AST.
         if _emit_ast:
@@ -854,6 +924,7 @@ class DataFrameReader:
 
         if self._user_schema:
             raise ValueError(f"Read {format} does not support user schema")
+        path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = format
 

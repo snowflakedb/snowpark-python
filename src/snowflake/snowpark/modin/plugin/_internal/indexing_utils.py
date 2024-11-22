@@ -60,7 +60,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     rindex,
 )
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
-from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
+from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL, ErrorMessage
 from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
@@ -96,6 +96,7 @@ LOC_SET_ITEM_KV_MISMATCH_ERROR_MESSAGE = (
     "Must have equal len keys and value when setting with an iterable"
 )
 LOC_SET_ITEM_EMPTY_ERROR = "The length of the value/item to set is empty"
+_LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR = "Snowpark pandas does not yet support assigning timedelta values to an existing column."
 
 
 # Used for `first_valid_index` and `last_valid_index` Snowpark pandas APIs
@@ -479,18 +480,38 @@ def get_frame_by_row_pos_slice_frame(
     frame = internal_frame.ensure_row_position_column()
     row_pos_col = col(frame.row_position_snowflake_quoted_identifier)
 
-    # create a count column which will be used to check step
-    frame = frame.append_column("count", pandas_lit(1) + max_(row_pos_col).over())
-    count_col = col(frame.data_column_snowflake_quoted_identifiers[-1])
+    def get_count_col() -> Column:
+        """
+        The purpose of this helper function is to avoid creating row count column if it is not needed. Creating row
+        count column will cause the query to scan the whole table.
+        """
+        nonlocal frame
+        frame = frame.ensure_row_count_column()
+        return col(frame.row_count_snowflake_quoted_identifier)
 
     ordering_columns = internal_frame.ordering_columns
     start, stop, step = key.start, key.stop, key.step
 
     def make_positive(val: int) -> Column:
         # Helper to turn negative start and stop values to positive values. Example: -1 --> num_rows - 1.
-        return val + count_col if val < 0 else pandas_lit(val)
+        return val + get_count_col() if val < 0 else pandas_lit(val)
 
     step = 1 if step is None else step
+
+    # if `limit_n` is not None, use limit in the query to narrow down the search.
+    limit_n = None
+    if step < 0:
+        # Switch start and stop; convert given slice key into a similar slice key with positive step.
+        start, stop = stop, start
+    if (stop is not None and stop >= 0) and (start is None or start >= 0):
+        # set limit_n = abs(stop - start) // step when we exactly know how many rows it is going to return.
+        limit_n = stop
+        if start is not None:
+            limit_n = abs(limit_n - start)
+        if step < 0 and start is None:
+            limit_n += 1  # e.g., df.iloc[1:None:-1] return 2 rows
+        limit_n = 1 + (limit_n - 1) // abs(step)
+
     if step < 0:
         # Set ascending to False if step is negative.
         ordering_columns = [
@@ -498,14 +519,12 @@ def get_frame_by_row_pos_slice_frame(
                 internal_frame.row_position_snowflake_quoted_identifier, ascending=False
             )
         ]
-        # Switch start and stop; convert given slice key into a similar slice key with positive step.
-        start, stop = stop, start
         start = 0 if start is None else make_positive(start) + 1
-        stop = count_col - 1 if stop is None else make_positive(stop)
+        stop = get_count_col() - 1 if stop is None else make_positive(stop)
     else:  # step > 0
         # Assign default values or convert to positive values.
         start = pandas_lit(0) if start is None else make_positive(start)
-        stop = (count_col if stop is None else make_positive(stop)) - 1
+        stop = (get_count_col() if stop is None else make_positive(stop)) - 1
 
     # Both start and stop are inclusive.
     left_bound_filter = row_pos_col >= start
@@ -514,13 +533,13 @@ def get_frame_by_row_pos_slice_frame(
     if step > 1:
         # start can be negative --> make the lower-bound 0.
         step_bound_filter = (
-            (row_pos_col - greatest(pandas_lit(0), least(start, count_col - 1)))
+            (row_pos_col - greatest(pandas_lit(0), least(start, get_count_col() - 1)))
             % pandas_lit(step)
         ) == 0
     elif step < -1:
         # Similarly, stop can be too large --> make the upper-bound the max row number.
         step_bound_filter = (
-            (greatest(pandas_lit(0), least(stop, count_col - 1)) - row_pos_col)
+            (greatest(pandas_lit(0), least(stop, get_count_col() - 1)) - row_pos_col)
             % pandas_lit(abs(step))
         ) == 0
     else:  # abs(step) == 1, so all values in range are included.
@@ -528,6 +547,10 @@ def get_frame_by_row_pos_slice_frame(
 
     filter_cond = left_bound_filter & right_bound_filter & step_bound_filter
     ordered_dataframe = frame.ordered_dataframe.filter(filter_cond)
+    if limit_n is not None:
+        # adding limit here could improve performance when the filter is applied directly on a table, because it can
+        # exit the scanning of table once enough record is found
+        ordered_dataframe = ordered_dataframe.limit(limit_n, sort=False)
     ordered_dataframe = ordered_dataframe.sort(ordering_columns)
     return InternalFrame.create(
         ordered_dataframe=ordered_dataframe,
@@ -1913,21 +1936,29 @@ def _set_2d_labels_helper_for_single_column_wise_item(
         [item.row_position_snowflake_quoted_identifier]
     )[0]
 
+    new_left_ids = index_with_item_mapper.map_left_quoted_identifiers(
+        index.data_column_snowflake_quoted_identifiers
+    )
     # If the item values is shorter than the index, we will fill in with the last item value.
+    last_item_id = index_with_item.data_column_snowflake_quoted_identifiers[-1]
     index_with_item = index_with_item.project_columns(
         index_with_item.data_column_pandas_labels,
-        [
-            col(col_id)
-            for col_id in index_with_item_mapper.map_left_quoted_identifiers(
-                index.data_column_snowflake_quoted_identifiers
-            )
-        ]
+        [col(col_id) for col_id in new_left_ids]
         + [
             iff(
                 col(item_row_position_column).is_null(),
                 pandas_lit(item_values[-1]),
-                col(index_with_item.data_column_snowflake_quoted_identifiers[-1]),
+                col(last_item_id),
             )
+        ],
+        column_types=[
+            index_with_item.snowflake_quoted_identifier_to_snowpark_pandas_type[id]
+            for id in new_left_ids
+        ]
+        + [
+            index_with_item.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                last_item_id
+            ]
         ],
     )
 
@@ -2382,13 +2413,36 @@ def set_frame_2d_labels(
         elif index_is_frame:
             col_obj = iff(index_data_col.is_null(), original_col, col_obj)
 
-        col_obj_type = (
-            origin_col_type
-            if col_obj_type == origin_col_type or (is_scalar(item) and pd.isna(item))
-            else None
-        )
-
-        return SnowparkPandasColumn(col_obj, col_obj_type)
+        if (
+            # In these cases, we can infer that the resulting column has a
+            # SnowparkPandasType of `col_obj_type`:
+            # Case 1: The values we are inserting have the same type as the
+            # original column. For example, we are inserting Timedelta values
+            # into a timedelta column, or int values into an int column. In
+            # this case, we just propagate the original column type.
+            col_obj_type == origin_col_type
+            or  # noqa: W504
+            # Case 2: We are inserting a null value. Inserting a scalar null
+            # value should not change a column from TimedeltaType to a
+            # non-timedelta type, or vice versa.
+            (is_scalar(item) and pd.isna(item))
+            or  # noqa: W504
+            # Case 3: We are inserting a list-like of null values. Inserting
+            # null values should not change a column from TimedeltaType to a
+            # non-timedelta type, or vice versa.
+            (item_column_values and (pd.isna(v) for v in item_column_values))
+        ):
+            final_col_obj_type = origin_col_type
+        else:
+            # In these cases, we can't necessarily infer the type of the
+            # resulting column. For example, inserting 3 timedelta values
+            # into a column of 3 integer values would change the
+            # SnowparkPandasType from None to TimedeltaType, but inserting
+            # only 1 timedelta value into a column of 3 integer values would
+            # produce a mixed column of integers and timedelta values.
+            # TODO(SNOW-1738952): Deduce the result types in these cases.
+            ErrorMessage.not_implemented(_LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR)
+        return SnowparkPandasColumn(col_obj, final_col_obj_type)
 
     def generate_updated_expr_for_new_col(
         col_label: Hashable,

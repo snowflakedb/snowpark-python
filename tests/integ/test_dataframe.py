@@ -15,6 +15,7 @@ from itertools import product
 from typing import Tuple
 from unittest import mock
 
+from snowflake.snowpark.dataframe import map
 from snowflake.snowpark.session import Session
 from tests.conftest import local_testing_mode
 
@@ -89,6 +90,7 @@ from tests.utils import (
     TestData,
     TestFiles,
     Utils,
+    multithreaded_run,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1278,6 +1280,37 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="schema_query is not supported in Local Testing",
+    run=False,
+)
+def test_in_with_subquery_multiple_query(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+
+        df0 = session.create_dataframe([[1], [2], [3]], schema=["a"])
+        df1 = session.create_dataframe(
+            [[1, 11, 111], [2, 22, 222], [3, 33, 333]], schema=["a", "b", "c"]
+        )
+        df_filter = df0.filter(df0.a < 3)
+        df_in = df1.filter(~df1.a.in_(df_filter))
+
+        df_in = df_in.select("a", "b")
+        Utils.check_answer(df_in, [Row(3, 33)])
+        # check that schema query does not depend on temp tables
+        assert "SNOWPARK_TEMP_TABLE_" not in df_in._plan.schema_query
+        assert df_in.schema == StructType(
+            [StructField("A", LongType(), False), StructField("B", LongType(), False)]
+        )
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+
+
 def test_join_right_outer(session):
     """Test for right-outer join of dataframes."""
 
@@ -1338,6 +1371,7 @@ def test_join_left_semi(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@multithreaded_run()
 def test_join_cross(session):
     """Test for cross join of dataframes."""
 
@@ -1707,6 +1741,7 @@ def test_create_dataframe_with_dict_given_schema(session):
     Utils.check_answer(df, [Row(None, None), Row(None, None)])
 
 
+@multithreaded_run()
 def test_create_dataframe_with_namedtuple(session):
     Data = namedtuple("Data", [f"snow_{idx + 1}" for idx in range(5)])
     data = Data(*[idx**3 for idx in range(5)])
@@ -2223,6 +2258,7 @@ def test_dropna(session, local_testing_mode):
     assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
 
+@multithreaded_run()
 def test_dropna_large_num_of_columns(session):
     n = 1000
     data = [str(i) for i in range(n)]
@@ -3801,10 +3837,6 @@ def test_to_df_then_copy(session):
     Utils.check_answer(df1, Row("2023-01-01"))
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="DataFrame alias is not supported in Local Testing",
-)
 def test_to_df_then_alias_and_join(session):
     data = [
         ["2023-01-01", 101, 200],
@@ -4237,3 +4269,160 @@ def test_dataframe_to_local_iterator_with_to_pandas_isolation(
     # local testing always give 1 chunk
     if not local_testing_mode:
         assert batch_count > 1
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.udf
+@pytest.mark.parametrize("overlapping_columns", [True, False])
+@pytest.mark.parametrize(
+    "func,output_types,output_col_names,expected",
+    [
+        (lambda row: row[1] + 1, [IntegerType()], ["A"], [(i + 1,) for i in range(5)]),
+        (
+            lambda row: (row.B * 2, row.C),
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [
+                (
+                    i * 2,
+                    f"w{i}",
+                )
+                for i in range(5)
+            ],
+        ),
+        (
+            lambda row: Row(row.B * row.B, f"-{row.C}"),
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [(i * i, f"-w{i}") for i in range(5)],
+        ),
+    ],
+)
+def test_map_basic(
+    session, func, output_types, output_col_names, expected, overlapping_columns
+):
+    df = session.create_dataframe(
+        [
+            (
+                True,
+                i,
+                f"w{i}",
+            )
+            for i in range(5)
+        ],
+        schema=["A", "B", "C"],
+    )
+
+    if overlapping_columns:
+        row = Row(*output_col_names)
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(
+            map(df, func, output_types, output_column_names=output_col_names), expected
+        )
+    else:
+        row = Row(*[f"c_{i+1}" for i in range(len(output_types))])
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(map(df, func, output_types), expected)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
+@pytest.mark.udf
+@pytest.mark.parametrize(
+    "func,output_types,expected",
+    [
+        (lambda df: df["B"] + 1, [IntegerType()], [(i + 1,) for i in range(5)]),
+        (
+            lambda df: pd.concat([df["B"] * 2, df["C"]], axis=1),
+            [IntegerType(), StringType()],
+            [
+                (
+                    i * 2,
+                    f"w{i}",
+                )
+                for i in range(5)
+            ],
+        ),
+    ],
+)
+def test_map_vectorized(session, func, output_types, expected):
+    df = session.create_dataframe(
+        [
+            (
+                True,
+                i,
+                f"w{i}",
+            )
+            for i in range(5)
+        ],
+        schema=["A", "B", "C"],
+    )
+
+    Utils.check_answer(
+        map(df, func, output_types, vectorized=True, packages=["pandas"]), expected
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.udf
+def test_map_chained(session):
+    df = session.create_dataframe(
+        [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
+    )
+
+    new_df = map(
+        map(
+            df,
+            lambda x: (x.B * x.B, f"_{x.C}_"),
+            output_types=[IntegerType(), StringType()],
+        ),
+        lambda x: len(x[1]) + x[0],
+        output_types=[IntegerType()],
+    )
+    expected = [(len(f"_w{i}_") + i * i,) for i in range(5)]
+
+    Utils.check_answer(new_df, expected)
+
+    # chained calls with repeated column names
+    new_df = map(
+        map(
+            df,
+            lambda x: Row(x.B * x.B, f"_{x.C}_"),
+            output_types=[IntegerType(), StringType()],
+            output_column_names=["A", "B"],
+        ),
+        lambda x: Row(len(x.B) + x.A),
+        output_types=[IntegerType()],
+        output_column_names=["A"],
+        packages=["snowflake-snowpark-python"],
+    )
+    Utils.check_answer(new_df, expected)
+
+
+def test_map_negative(session):
+    df1 = session.create_dataframe(
+        [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
+    )
+
+    with pytest.raises(ValueError, match="output_types cannot be empty."):
+        map(df1, lambda row: [row.B, row.C], output_types=[])
+
+    with pytest.raises(
+        ValueError,
+        match="'output_column_names' and 'output_types' must be of the same size.",
+    ):
+        map(
+            df1,
+            lambda row: [row.B, row.C],
+            output_types=[IntegerType(), StringType()],
+            output_column_names=["a", "b", "c"],
+        )

@@ -10,9 +10,11 @@ import sys
 from collections import Counter
 from functools import cached_property
 from logging import getLogger
+from types import ModuleType
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
     Iterator,
     List,
@@ -24,7 +26,7 @@ from typing import (
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.connector.options import installed_pandas
+from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -95,7 +97,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     add_intermediate_stmt,
     build_expr_from_dict_str_str,
     build_expr_from_python_val,
@@ -125,6 +127,7 @@ from snowflake.snowpark._internal.type_utils import (
     LiteralType,
     snow_type_to_dtype_str,
 )
+from snowflake.snowpark._internal.udf_utils import add_package_to_existing_packages
 from snowflake.snowpark._internal.utils import (
     SKIP_LEVELS_THREE,
     SKIP_LEVELS_TWO,
@@ -151,6 +154,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     str_to_enum,
     validate_object_name,
+    global_counter,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -182,7 +186,15 @@ from snowflake.snowpark.table_function import (
     _get_cols_after_explode_join,
     _get_cols_after_join_table,
 )
-from snowflake.snowpark.types import StringType, StructType, _NumericType
+from snowflake.snowpark.types import (
+    ArrayType,
+    MapType,
+    PandasDataFrameType,
+    StringType,
+    StructField,
+    StructType,
+    _NumericType,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -211,11 +223,11 @@ def _generate_deterministic_prefix(prefix: str, exclude_prefixes: List[str]):
     """
     Generate deterministic prefix while ensuring it doesn't exist in the exclude list.
     """
-    candidate_prefix = f"{prefix}_{0:04}_"
-    counter = 1
+    counter = global_counter.next()
+    candidate_prefix = f"{prefix}_{counter:04}_"
     while any([p.startswith(candidate_prefix) for p in exclude_prefixes]):
         candidate_prefix = f"{prefix}_{counter:04}_"
-        counter = counter + 1
+        counter = global_counter.next()
     return candidate_prefix
 
 
@@ -959,6 +971,11 @@ class DataFrame:
 
             2. If you use :func:`Session.sql` with this method, the input query of
             :func:`Session.sql` can only be a SELECT statement.
+
+            3. For TIMESTAMP columns:
+            - TIMESTAMP_LTZ and TIMESTAMP_TZ are both converted to `datetime64[ns, tz]` in pandas,
+            as pandas cannot distinguish between the two.
+            - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
         """
 
         if _emit_ast:
@@ -1223,12 +1240,10 @@ class DataFrame:
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
         import modin.pandas as pd  # isort: skip
         # fmt: on
-
         if _emit_ast:
             raise NotImplementedError(
                 "TODO SNOW-1672579: Support Snowpark pandas API handover."
             )
-
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
             TempObjectType.TABLE
@@ -2695,12 +2710,13 @@ class DataFrame:
         ]
 
         names = right_project_list + not_found_attrs
-        if self._session.sql_simplifier_enabled and other._select_statement:
+        sql_simplifier_enabled = self._session.sql_simplifier_enabled
+        if sql_simplifier_enabled and other._select_statement:
             right_child = self._with_plan(other._select_statement.select(names))
         else:
             right_child = self._with_plan(Project(names, other._plan))
 
-        if self._session.sql_simplifier_enabled:
+        if sql_simplifier_enabled:
             df = self._with_plan(
                 self._select_statement.set_operator(
                     right_child._select_statement
@@ -4503,6 +4519,7 @@ class DataFrame:
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        iceberg_config: Optional[dict] = None,
         _emit_ast: bool = True,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -4538,6 +4555,15 @@ class DataFrame:
                 the data retention period of the dynamic table to prevent streams on the dynamic table
                 from becoming stale.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            iceberg_config: A dictionary that can contain the following iceberg configuration values:
+
+                - external_volume: specifies the identifier for the external volume where
+                  the Iceberg table stores its metadata files and data in Parquet format.
+                - catalog: specifies either Snowflake or a catalog integration to use for this table.
+                - base_location: the base directory that snowflake can write iceberg metadata and files to.
+                - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
+                - storage_serialization_policy: specifies the storage serialization policy for the table.
+
 
         Note:
             See `understanding dynamic table refresh <https://docs.snowflake.com/en/user-guide/dynamic-tables-refresh>`_.
@@ -4623,6 +4649,7 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params, self._session.query_tag, SKIP_LEVELS_TWO
             ),
+            iceberg_config=iceberg_config,
         )
 
     @df_collect_api_telemetry
@@ -4720,6 +4747,7 @@ class DataFrame:
         is_transient: bool = False,
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
+        iceberg_config: Optional[dict] = None,
         **kwargs,
     ):
         validate_object_name(name)
@@ -4746,6 +4774,7 @@ class DataFrame:
             data_retention_time=data_retention_time,
             max_data_extension_time=max_data_extension_time,
             child=self._plan,
+            iceberg_config=iceberg_config,
         )
 
         return self._session._conn.execute(
@@ -5261,8 +5290,22 @@ class DataFrame:
         Returns:
              A :class:`Table` object that holds the cached result in a temporary table.
              All operations on this new DataFrame have no effect on the original.
+
+        Note:
+            A temporary table is created to store the cached result and a :class:`Table` object is returned.
+            You can retrieve the table name by accessing :attr:`Table.table_name`. Note that this temporary
+            Snowflake table
+
+                - may be automatically removed when the Table object is no longer referenced if
+                  :attr:`Session.auto_clean_up_temp_table_enabled` is set to ``True``.
+
+                - will be dropped after the session is closed.
+
+            To retain a persistent table, consider using :meth:`DataFrameWriter.save_as_table` to persist
+            the cached result.
         """
-        from snowflake.snowpark.mock._connection import MockServerConnection
+        with open_telemetry_context_manager(self.cache_result, self):
+            from snowflake.snowpark.mock._connection import MockServerConnection
 
         # AST.
         stmt = None
@@ -5280,7 +5323,7 @@ class DataFrame:
         # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
 
         if isinstance(self._session._conn, MockServerConnection):
-            self._writer.save_as_table(
+            self.write.save_as_table(
                 temp_table_name, create_temp_table=True, _emit_ast=False
             )
         else:
@@ -5294,10 +5337,14 @@ class DataFrame:
                     table_type="temp",
                 )
             )
+            statement_params_for_cache_result = {
+                **(statement_params or self._statement_params or {}),
+                "cache_result_temp_table": temp_table_name,
+            }
             self._session._conn.execute(
                 df._plan,
                 _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params or self._statement_params,
+                    statement_params_for_cache_result,
                     self._session.query_tag,
                     SKIP_LEVELS_TWO,
                 ),
@@ -5577,14 +5624,82 @@ Query List:
         exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
 
-    def print_schema(self) -> None:
+    def _format_schema(
+        self, level: Optional[int] = None, translate_columns: Optional[dict] = None
+    ) -> str:
+        def _format_datatype(name, dtype, nullable=None, depth=0):
+            if level is not None and depth >= level:
+                return ""
+            prefix = " |  " * depth
+            depth = depth + 1
+
+            nullable_str = (
+                f" (nullable = {str(nullable)})" if nullable is not None else ""
+            )
+            extra_lines = []
+            type_str = dtype.__class__.__name__
+
+            # Structured Type format their parameters on multiple lines.
+            if isinstance(dtype, ArrayType):
+                extra_lines = [
+                    _format_datatype("element", dtype.element_type, depth=depth),
+                ]
+            elif isinstance(dtype, MapType):
+                extra_lines = [
+                    _format_datatype("key", dtype.key_type, depth=depth),
+                    _format_datatype("value", dtype.value_type, depth=depth),
+                ]
+            elif isinstance(dtype, StructType):
+                extra_lines = [
+                    _format_datatype(
+                        quote_name(field.name, keep_case=True),
+                        field.datatype,
+                        field.nullable,
+                        depth,
+                    )
+                    for field in dtype.fields
+                ]
+            else:
+                # By default include all parameters in type string instead
+                type_str = str(dtype)
+
+            return "\n".join(
+                [
+                    f"{prefix} |-- {name}: {type_str}{nullable_str}",
+                ]
+                + [f"{line}" for line in extra_lines if line]
+            )
+
+        translate_columns = translate_columns or {}
+
         schema_tmp_str = "\n".join(
             [
-                f" |-- {attr.name}: {attr.datatype} (nullable = {str(attr.nullable)})"
+                _format_datatype(
+                    translate_columns.get(attr.name, attr.name),
+                    attr.datatype,
+                    attr.nullable,
+                )
                 for attr in self._plan.attributes
             ]
         )
-        print(f"root\n{schema_tmp_str}")  # noqa: T201: we need to print here.
+
+        return f"root\n{schema_tmp_str}"
+
+    def print_schema(self, level: Optional[int] = None) -> None:
+        """
+        Prints the schema of a dataframe in tree format.
+
+        Args:
+            level: The level to print to for nested schemas.
+
+        Examples::
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
+            >>> df.print_schema()
+            root
+             |-- "A": LongType() (nullable = False)
+             |-- "B": StringType() (nullable = False)
+        """
+        print(self._format_schema(level))  # noqa: T201: we need to print here.
 
     where = filter
 
@@ -5624,3 +5739,221 @@ Query List:
     # joinTableFunction = join_table_function
     # naturalJoin = natural_join
     # withColumns = with_columns
+
+
+def map(
+    dataframe: DataFrame,
+    func: Callable,
+    output_types: List[StructType],
+    *,
+    output_column_names: Optional[List[str]] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    immutable: bool = False,
+    partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
+    vectorized: bool = False,
+    max_batch_size: Optional[int] = None,
+):
+    """Returns a new DataFrame with the result of applying `func` to each of the
+    rows of the specified DataFrame.
+
+    This function registers a temporary `UDTF
+    <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ and
+    returns a new DataFrame with the result of applying the `func` function to each row of the
+    given DataFrame.
+
+    Args:
+        dataframe: The DataFrame instance.
+        func: A function to be applied to every row of the DataFrame.
+        output_types: A list of types for values generated by the ``func``
+        output_column_names: A list of names to be assigned to the resulting columns.
+        imports: A list of imports that are required to run the function. This argument is passed
+            on when registering the UDTF.
+        packages: A list of packages that are required to run the function. This argument is passed
+            on when registering the UDTF.
+        immutable: A flag to specify if the result of the func is deterministic for the same input.
+        partition_by: Specify the partitioning column(s) for the UDTF.
+        vectorized: A flag to determine if the UDTF process should be vectorized. See
+            `vectorized UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-vectorized#udtfs-with-a-vectorized-process-method>`_.
+        max_batch_size: The maximum number of rows per input pandas DataFrame when using vectorized option.
+
+    Example 1::
+
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> from snowflake.snowpark.dataframe import map
+        >>> import pandas as pd
+        >>> df = session.create_dataframe([[10, "a", 22], [20, "b", 22]], schema=["col1", "col2", "col3"])
+        >>> new_df = map(df, lambda row: row[0] * row[0], output_types=[IntegerType()])
+        >>> new_df.order_by("c_1").show()
+        ---------
+        |"C_1"  |
+        ---------
+        |100    |
+        |400    |
+        ---------
+        <BLANKLINE>
+
+    Example 2::
+
+        >>> new_df = map(df, lambda row: (row[1], row[0] * 3), output_types=[StringType(), IntegerType()])
+        >>> new_df.order_by("c_1").show()
+        -----------------
+        |"C_1"  |"C_2"  |
+        -----------------
+        |a      |30     |
+        |b      |60     |
+        -----------------
+        <BLANKLINE>
+
+    Example 3::
+
+        >>> new_df = map(
+        ...     df,
+        ...     lambda row: (row[1], row[0] * 3),
+        ...     output_types=[StringType(), IntegerType()],
+        ...     output_column_names=['col1', 'col2']
+        ... )
+        >>> new_df.order_by("col1").show()
+        -------------------
+        |"COL1"  |"COL2"  |
+        -------------------
+        |a       |30      |
+        |b       |60      |
+        -------------------
+        <BLANKLINE>
+
+    Example 4::
+
+        >>> new_df = map(df, lambda pdf: pdf['COL1']*3, output_types=[IntegerType()], vectorized=True, packages=["pandas"])
+        >>> new_df.order_by("c_1").show()
+        ---------
+        |"C_1"  |
+        ---------
+        |30     |
+        |60     |
+        ---------
+        <BLANKLINE>
+
+    Example 5::
+
+        >>> new_df = map(
+        ...     df,
+        ...     lambda pdf: (pdf['COL1']*3, pdf['COL2']+"b"),
+        ...     output_types=[IntegerType(), StringType()],
+        ...     output_column_names=['A', 'B'],
+        ...     vectorized=True,
+        ...     packages=["pandas"],
+        ... )
+        >>> new_df.order_by("A").show()
+        -------------
+        |"A"  |"B"  |
+        -------------
+        |30   |ab   |
+        |60   |bb   |
+        -------------
+        <BLANKLINE>
+
+    Example 6::
+
+        >>> new_df = map(
+        ...     df,
+        ...     lambda pdf: ((pdf.shape[0],) * len(pdf), (pdf.shape[1],) * len(pdf)),
+        ...     output_types=[IntegerType(), IntegerType()],
+        ...     output_column_names=['rows', 'cols'],
+        ...     partition_by="col3",
+        ...     vectorized=True,
+        ...     packages=["pandas"],
+        ... )
+        >>> new_df.show()
+        -------------------
+        |"ROWS"  |"COLS"  |
+        -------------------
+        |2       |3       |
+        |2       |3       |
+        -------------------
+        <BLANKLINE>
+
+    Note:
+        1. The result of the `func` function must be either a scalar value or
+        a tuple containing the same number of elements as specified in the
+        `output_types` argument.
+
+        2. When using the `vectorized` option, the `func` function must accept
+        a pandas DataFrame as input and return either a pandas DataFrame, or a
+        tuple of pandas Series/arrays.
+    """
+    if len(output_types) == 0:
+        raise ValueError("output_types cannot be empty.")
+
+    if output_column_names is None:
+        output_column_names = [f"c_{i+1}" for i in range(len(output_types))]
+    elif len(output_column_names) != len(output_types):
+        raise ValueError(
+            "'output_column_names' and 'output_types' must be of the same size."
+        )
+
+    df_columns = dataframe.columns
+    packages = packages or list(dataframe._session.get_packages().values())
+    packages = add_package_to_existing_packages(packages, "snowflake-snowpark-python")
+
+    input_types = [field.datatype for field in dataframe.schema.fields]
+    udtf_output_cols = [f"c{i}" for i in range(len(output_types))]
+    output_schema = StructType(
+        [StructField(col, type_) for col, type_ in zip(udtf_output_cols, output_types)]
+    )
+
+    if vectorized:
+        # If the map is vectorized, we need to add pandas to packages if not
+        # already added. Also update the input_types and output_schema to
+        # be PandasDataFrameType.
+        packages = add_package_to_existing_packages(packages, pandas)
+        input_types = [PandasDataFrameType(input_types)]
+        output_schema = PandasDataFrameType(output_types, udtf_output_cols)
+
+    output_columns = [
+        col(f"${i + len(df_columns) + 1}").alias(
+            col_name
+        )  # this is done to avoid collision with original table columns
+        for i, col_name in enumerate(output_column_names)
+    ]
+
+    if vectorized:
+
+        def wrap_result(result):
+            if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
+                return result
+            return (result,)
+
+        class _MapFunc:
+            def process(self, pdf):
+                return wrap_result(func(pdf))
+
+    else:
+
+        def wrap_result(result):
+            if isinstance(result, Row):
+                return tuple(result)
+            elif isinstance(result, tuple):
+                return result
+            else:
+                return (result,)
+
+        class _MapFunc:
+            def process(self, *argv):
+                input_args_to_row = Row(*df_columns)
+                yield wrap_result(func(input_args_to_row(*argv)))
+
+    map_udtf = dataframe._session.udtf.register(
+        _MapFunc,
+        output_schema=output_schema,
+        input_types=input_types,
+        input_names=df_columns,
+        imports=imports,
+        packages=packages,
+        immutable=immutable,
+        max_batch_size=max_batch_size,
+    )
+
+    return dataframe.join_table_function(
+        map_udtf(*df_columns).over(partition_by=partition_by)
+    ).select(*output_columns)

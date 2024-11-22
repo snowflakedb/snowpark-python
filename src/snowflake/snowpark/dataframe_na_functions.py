@@ -11,7 +11,7 @@ from typing import Dict, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import ColumnSum
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     with_src_position,
 )

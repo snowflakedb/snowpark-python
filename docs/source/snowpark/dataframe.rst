@@ -63,6 +63,8 @@ DataFrame
     DataFrame.orderBy
     DataFrame.order_by
     DataFrame.pivot
+    DataFrame.print_schema
+    DataFrame.printSchema
     DataFrame.randomSplit
     DataFrame.random_split
     DataFrame.rename
@@ -115,6 +117,7 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lag
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
+    dataframe.map
 
 
 

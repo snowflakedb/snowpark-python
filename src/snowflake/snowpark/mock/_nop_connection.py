@@ -2,7 +2,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+from copy import copy
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
@@ -36,6 +36,7 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._nop_plan import NopExecutionPlan
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock._util import get_fully_qualified_name
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.row import Row, canonicalize_field
 from snowflake.snowpark.types import (
     ArrayType,
@@ -65,6 +66,20 @@ logger = getLogger(__name__)
 
 class NopConnection(MockServerConnection):
     class NopEntityRegistry(MockServerConnection.TabularEntityRegistry):
+        def read_table(self, name: Union[str, Iterable[str]]) -> LogicalPlan:
+            current_schema = self.conn._get_current_parameter("schema")
+            current_database = self.conn._get_current_parameter("database")
+            qualified_name = get_fully_qualified_name(
+                name, current_schema, current_database
+            )
+
+            if qualified_name in self.table_registry:
+                return copy(self.table_registry[qualified_name])
+            else:
+                raise SnowparkLocalTestingException(
+                    f"Object '{name}' does not exist or not authorized."
+                )
+
         def write_table(
             self,
             name: Union[str, Iterable[str]],

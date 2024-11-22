@@ -184,7 +184,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     LastValue,
     Lead,
 )
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_builtin_fn_apply,
     build_call_table_function_apply,
     build_expr_from_python_val,
@@ -204,6 +204,7 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import check_decorator_args
 from snowflake.snowpark._internal.utils import (
+    parse_duration_string,
     parse_positional_args_to_list,
     publicapi,
     validate_object_name,
@@ -227,6 +228,7 @@ from snowflake.snowpark.types import (
     PandasDataFrameType,
     StringType,
     StructType,
+    TimestampTimeZone,
     TimestampType,
 )
 from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
@@ -2857,6 +2859,15 @@ def log(
     return builtin("log", _emit_ast=_emit_ast)(b, arg)
 
 
+# Create base 2 and base 10 wrappers for use with the Modin log2 and log10 functions
+def _log2(x: Union[ColumnOrName, int, float], _emit_ast: bool = True) -> Column:
+    return log(2, x, _emit_ast=_emit_ast)
+
+
+def _log10(x: Union[ColumnOrName, int, float], _emit_ast: bool = True) -> Column:
+    return log(10, x, _emit_ast=_emit_ast)
+
+
 @publicapi
 def pow(
     left: Union[ColumnOrName, int, float],
@@ -5321,6 +5332,123 @@ def dayofyear(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin("dayofyear", _emit_ast=_emit_ast)(c)
 
 
+def window(
+    time_column: ColumnOrName,
+    window_duration: str,
+    slide_duration: Optional[str] = None,
+    start_time: Optional[str] = None,
+) -> Column:
+    """
+    Converts a time column into a window object with start and end times. Window start times are
+    inclusive while end times are exclusive. For example 9:30 is in the window [9:30, 10:00), but not [9:00, 9:30).
+
+    Args:
+        time_column: The column to apply the window transformation to.
+        window_duration: An interval string that determines the length of each window.
+        slide_duration: An interval string representing the amount of time in-between the start of
+            each window. Note that this parameter is not supported yet. Specifying it will raise a
+            NotImplementedError exception.
+        start_time: An interval string representing the amount of time the start of each window is
+            offset. eg. a five minute window with start_time of '2 minutes' will be from [9:02, 9:07)
+            instead of [9:00, 9:05)
+
+    Note:
+        Interval strings are of the form 'quantity unit' where quantity is an integer and unitis
+        is a supported time unit. This function supports the same time units as dateadd. see
+        `supported time units <https://docs.snowflake.com/en/sql-reference/functions-date-time#label-supported-date-time-parts>`_
+        for more information.
+
+    Example::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.functions import window
+        >>> df = session.createDataFrame(
+        ...      [(datetime.datetime.strptime("2024-10-31 09:05:00.000", "%Y-%m-%d %H:%M:%S.%f"),)],
+        ...      schema=["time"]
+        ... )
+        >>> df.select(window(df.time, "5 minutes")).show()
+        ----------------------------------------
+        |"WINDOW"                              |
+        ----------------------------------------
+        |{                                     |
+        |  "end": "2024-10-31 09:10:00.000",   |
+        |  "start": "2024-10-31 09:05:00.000"  |
+        |}                                     |
+        ----------------------------------------
+        <BLANKLINE>
+        >>> df.select(window(df.time, "5 minutes", start_time="2 minutes")).show()
+        ----------------------------------------
+        |"WINDOW"                              |
+        ----------------------------------------
+        |{                                     |
+        |  "end": "2024-10-31 09:07:00.000",   |
+        |  "start": "2024-10-31 09:02:00.000"  |
+        |}                                     |
+        ----------------------------------------
+        <BLANKLINE>
+
+    Example::
+
+        >>> import datetime
+        >>> from snowflake.snowpark.functions import sum, window
+        >>> df = session.createDataFrame([
+        ...         (datetime.datetime(2024, 10, 31, 1, 0, 0), 1),
+        ...         (datetime.datetime(2024, 10, 31, 2, 0, 0), 1),
+        ...         (datetime.datetime(2024, 10, 31, 3, 0, 0), 1),
+        ...         (datetime.datetime(2024, 10, 31, 4, 0, 0), 1),
+        ...         (datetime.datetime(2024, 10, 31, 5, 0, 0), 1),
+        ...     ], schema=["time", "value"]
+        ... )
+        >>> df.group_by(window(df.time, "2 hours")).agg(sum(df.value)).show()
+        -------------------------------------------------------
+        |"WINDOW"                              |"SUM(VALUE)"  |
+        -------------------------------------------------------
+        |{                                     |1             |
+        |  "end": "2024-10-31 02:00:00.000",   |              |
+        |  "start": "2024-10-31 00:00:00.000"  |              |
+        |}                                     |              |
+        |{                                     |2             |
+        |  "end": "2024-10-31 04:00:00.000",   |              |
+        |  "start": "2024-10-31 02:00:00.000"  |              |
+        |}                                     |              |
+        |{                                     |2             |
+        |  "end": "2024-10-31 06:00:00.000",   |              |
+        |  "start": "2024-10-31 04:00:00.000"  |              |
+        |}                                     |              |
+        -------------------------------------------------------
+        <BLANKLINE>
+    """
+    if slide_duration:
+        # SNOW-1063685: slide_duration changes this function from a 1:1 mapping to a 1:N mapping. That
+        # currently would require a udtf which may have significantly different performance.
+        raise NotImplementedError(
+            "snowflake.snowpark.functions.window does not support slide_duration parameter yet."
+        )
+
+    epoch = lit("1970-01-01 00:00:00").cast(
+        TimestampType(timezone=TimestampTimeZone.NTZ)
+    )
+    time = _to_col_if_str(time_column, "window")
+
+    window_duration, window_unit = parse_duration_string(window_duration)
+    window_duration = lit(window_duration)
+    window_unit = f"{window_unit}s"
+
+    base = epoch
+    if start_time:
+        start_duration, start_unit = parse_duration_string(start_time)
+        base += make_interval(**{f"{start_unit}s": start_duration})
+
+    window = floor(datediff(window_unit, base, time) / window_duration)
+    window_start = dateadd(window_unit, window * window_duration, base)
+    return object_construct_keep_null(
+        lit("start"),
+        window_start,
+        lit("end"),
+        dateadd(window_unit, window_duration, window_start),
+    ).alias("window")
+
+
 @publicapi
 def is_array(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
@@ -6201,6 +6329,16 @@ def array_remove(
         -------------
         <BLANKLINE>
 
+        >>> df.select(array_remove(array_remove(df.data, 1), "2").alias("objects")).show()
+        -------------
+        |"OBJECTS"  |
+        -------------
+        |[          |
+        |  3.1      |
+        |]          |
+        -------------
+        <BLANKLINE>
+
     See Also:
         - `ARRAY <https://docs.snowflake.com/en/sql-reference/data-types-semistructured#label-data-type-array>`_ for more details on semi-structured arrays.
     """
@@ -6212,7 +6350,8 @@ def array_remove(
         build_builtin_fn_apply(ast, "array_remove", array, element)
 
     a = _to_col_if_str(array, "array_remove")
-    ans = builtin("array_remove", _emit_ast=False)(a, element)
+    e = lit(element).cast("VARIANT") if isinstance(element, str) else element
+    ans = builtin("array_remove", _emit_ast=False)(a, e)
     ans._ast = ast
     return ans
 
@@ -6889,7 +7028,7 @@ def ln(c: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "ln", c)
 
-    c = Column(c, _emit_ast=False) if isinstance(c, str) else c
+    c = _to_col_if_str(c, "ln")
     ans = builtin("ln", _emit_ast=False)(c)
     ans._ast = ast
     return ans
@@ -9901,3 +10040,18 @@ def make_interval(
 
     res._ast = ast
     return res
+
+
+def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
+    """
+    Summarizes the given English-language input text.
+
+    Args:
+        text: A string containing the English text from which a summary should be generated.
+
+    Returns:
+        A string containing a summary of the original text.
+    """
+    sql_func_name = "snowflake.cortex.summarize"
+    text_col = _to_col_if_lit(text, sql_func_name)
+    return builtin(sql_func_name)(text_col)

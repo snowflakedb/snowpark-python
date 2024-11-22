@@ -19,11 +19,12 @@ import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
 
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     ClearTempTables,
     base64_lines_to_textproto,
     textproto_to_request,
 )
+from snowflake.snowpark._internal.utils import global_counter
 from tests.ast.ast_test_utils import render
 
 _logger = logging.getLogger(__name__)
@@ -122,8 +123,8 @@ import snowflake.snowpark.functions as functions
 from snowflake.snowpark.functions import *
 from snowflake.snowpark.types import *
 from snowflake.snowpark import Table
-from snowflake.snowpark._internal.ast import AstBatch
-import snowflake.snowpark._internal.ast_utils as ast_utils
+from snowflake.snowpark._internal.ast.batch import AstBatch
+import snowflake.snowpark._internal.ast.utils as ast_utils
 
 import uuid
 
@@ -154,6 +155,7 @@ def run_test(session, tables):
     # that would otherwise be thrown.
     session._conn._suppress_not_implemented_error = True
 
+    global_counter.reset()
     # We use temp files to enable symbol capture in the AST. Having an underlying file instead of simply calling
     # `exec(source, globals)` allows the Python interpreter to correctly capture symbols, which we use in the AST.
     test_file = tempfile.NamedTemporaryFile(

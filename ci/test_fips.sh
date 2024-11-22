@@ -14,7 +14,7 @@ export PATH=/usr/local/bin:$PATH
 export LD_LIBRARY_PATH=/usr/local/lib64/:/usr/local/lib/:$LD_LIBRARY_PATH
 
 pip install -U setuptools pip
-pip install protoc-wheel-0
+pip install protoc-wheel-0==21.1
 pip install "${SNOWPARK_WHL}[pandas,secure-local-storage,development,opentelemetry]"
 pip install "pytest-timeout"
 
