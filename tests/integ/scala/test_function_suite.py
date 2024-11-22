@@ -2821,7 +2821,9 @@ def test_array_append(session):
             Row('[\n  1,\n  2,\n  3,\n  2,\n  "e1"\n]'),
             Row('[\n  6,\n  7,\n  8,\n  1,\n  "e2"\n]'),
         ],
-        TestData.array2(session).select(array_append(array_append("arr1", "d"), "e")),
+        TestData.array2(session).select(
+            array_append(array_append("arr1", col("d")), col("e"))
+        ),
     )
 
 
@@ -3064,7 +3066,7 @@ def test_array_contains(session):
     assert (
         TestData.zero1(session)
         .select(
-            array_contains(lit(1), array_construct(lit(1), lit(1.2), lit("string")))
+            array_contains(array_construct(lit(1), lit(1.2), lit("string")), lit(1))
         )
         .collect()[0][0]
     )
@@ -3072,23 +3074,14 @@ def test_array_contains(session):
     assert (
         not TestData.zero1(session)
         .select(
-            array_contains(lit(-1), array_construct(lit(1), lit(1.2), lit("string")))
+            array_contains(array_construct(lit(1), lit(1.2), lit("string")), lit(-1))
         )
         .collect()[0][0]
     )
 
     Utils.check_answer(
         TestData.integer1(session).select(
-            array_contains(col("a"), array_construct(lit(1), lit(1.2), lit("string")))
-        ),
-        [Row(True), Row(False), Row(False)],
-        sort=False,
-    )
-
-    # Same as above, but pass str instead of Column
-    Utils.check_answer(
-        TestData.integer1(session).select(
-            array_contains("a", array_construct(lit(1), lit(1.2), lit("string")))
+            array_contains(array_construct(lit(1), lit(1.2), lit("string")), col("a"))
         ),
         [Row(True), Row(False), Row(False)],
         sort=False,
@@ -3106,10 +3099,10 @@ def test_array_insert(session):
         sort=False,
     )
 
-    # Same as above, but pass str instead of Column
+    # Calling with a literal inserts the literal instead
     Utils.check_answer(
         TestData.array2(session).select(array_insert("arr1", "d", "e")),
-        [Row('[\n  1,\n  2,\n  "e1",\n  3\n]'), Row('[\n  6,\n  "e2",\n  7,\n  8\n]')],
+        [Row('[\n  1,\n  2,\n  "e",\n  3\n]'), Row('[\n  6,\n  "e",\n  7,\n  8\n]')],
         sort=False,
     )
 
@@ -3120,15 +3113,15 @@ def test_array_insert(session):
 )
 def test_array_position(session):
     Utils.check_answer(
-        TestData.array2(session).select(array_position(col("d"), col("arr1"))),
+        TestData.array2(session).select(array_position(col("arr1"), col("d"))),
         [Row(1), Row(None)],
         sort=False,
     )
 
-    # Same as above, but pass str instead of Column
+    # When called with a literal search for that instead
     Utils.check_answer(
-        TestData.array2(session).select(array_position("d", "arr1")),
-        [Row(1), Row(None)],
+        TestData.array2(session).select(array_position("arr1", 1)),
+        [Row(0), Row(None)],
         sort=False,
     )
 
@@ -3160,10 +3153,9 @@ def test_array_prepend(session):
         sort=False,
     )
 
-    # Same as above, but pass str instead of Column
     Utils.check_answer(
         TestData.array1(session).select(
-            array_prepend(array_prepend("arr1", lit("amount")), lit(32.21))
+            array_prepend(array_prepend("arr1", "amount"), lit(32.21))
         ),
         [
             Row('[\n  32.21,\n  "amount",\n  1,\n  2,\n  3\n]'),
@@ -3172,11 +3164,12 @@ def test_array_prepend(session):
         sort=False,
     )
 
+    # Literals are passed as literals not columns
     Utils.check_answer(
         TestData.array2(session).select(array_prepend(array_prepend("arr1", "d"), "e")),
         [
-            Row('[\n  "e1",\n  2,\n  1,\n  2,\n  3\n]'),
-            Row('[\n  "e2",\n  1,\n  6,\n  7,\n  8\n]'),
+            Row('[\n  "e",\n  "d",\n  1,\n  2,\n  3\n]'),
+            Row('[\n  "e",\n  "d",\n  6,\n  7,\n  8\n]'),
         ],
         sort=False,
     )

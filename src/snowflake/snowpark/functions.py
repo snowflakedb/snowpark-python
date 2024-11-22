@@ -5422,20 +5422,20 @@ def array_agg(col: ColumnOrName, is_distinct: bool = False) -> Column:
     return _call_function("array_agg", is_distinct, c)
 
 
-def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
+def array_append(array: ColumnOrName, element: ColumnOrLiteral) -> Column:
     """Returns an ARRAY containing all elements from the source ARRAY as well as the new element.
     The new element is located at end of the ARRAY.
 
     Args:
         array: The column containing the source ARRAY.
-        element: The column containing the element to be appended. The element may be of almost
+        element: A column or literal value representing the element to be appended. The element may be of almost
             any data type. The data type does not need to match the data type(s) of the
             existing elements in the ARRAY.
 
     Example::
         >>> from snowflake.snowpark import Row
         >>> df = session.create_dataframe([Row(a=[1, 2, 3])])
-        >>> df.select(array_append("a", lit(4)).alias("result")).show()
+        >>> df.select(array_append("a", 4).alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -5449,7 +5449,7 @@ def array_append(array: ColumnOrName, element: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     a = _to_col_if_str(array, "array_append")
-    e = _to_col_if_str(element, "array_append")
+    e = Column._to_expr(element)
     return builtin("array_append")(a, e)
 
 
@@ -5626,17 +5626,17 @@ def array_construct_compact(*cols: ColumnOrName) -> Column:
     return builtin("array_construct_compact")(*cs)
 
 
-def array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
+def array_contains(array: ColumnOrName, value: ColumnOrLiteral) -> Column:
     """Returns True if the specified VARIANT is found in the specified ARRAY.
 
     Args:
-        variant: Column containing the VARIANT to find.
         array: Column containing the ARRAY to search.
+        value: Literal or Column containg the value to search for.
 
     Example::
         >>> from snowflake.snowpark import Row
         >>> df = session.create_dataframe([Row([1, 2]), Row([1, 3])], schema=["a"])
-        >>> df.select(array_contains(lit(2), "a").alias("result")).show()
+        >>> df.select(array_contains(col("a"), lit(2)).alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -5644,34 +5644,42 @@ def array_contains(variant: ColumnOrName, array: ColumnOrName) -> Column:
         |False     |
         ------------
         <BLANKLINE>
+        >>> df.select(array_contains("a", 1).alias("result")).show()
+        ------------
+        |"RESULT"  |
+        ------------
+        |True      |
+        |True      |
+        ------------
+        <BLANKLINE>
     """
-    v = _to_col_if_str(variant, "array_contains")
     a = _to_col_if_str(array, "array_contains")
+    v = Column._to_expr(value)
     return builtin("array_contains")(v, a)
 
 
 def array_insert(
-    array: ColumnOrName, pos: ColumnOrName, element: ColumnOrName
+    array: ColumnOrName, pos: Union[ColumnOrName, int], element: ColumnOrLiteral
 ) -> Column:
     """Returns an ARRAY containing all elements from the source ARRAY as well as the new element.
 
     Args:
         array: Column containing the source ARRAY.
-        pos: Column containing a (zero-based) position in the source ARRAY.
+        pos: Integer or Column containing a (zero-based) position in the source ARRAY.
             The new element is inserted at this position. The original element from this
             position (if any) and all subsequent elements (if any) are shifted by one position
             to the right in the resulting array (i.e. inserting at position 0 has the same
             effect as using array_prepend).
             A negative position is interpreted as an index from the back of the array (e.g.
             -1 results in insertion before the last element in the array).
-        element: Column containing the element to be inserted. The new element is located at
+        element: Literal or Column containing the element to be inserted. The new element is located at
             position pos. The relative order of the other elements from the source
             array is preserved.
 
     Example::
         >>> from snowflake.snowpark import Row
         >>> df = session.create_dataframe([Row([1, 2]), Row([1, 3])], schema=["a"])
-        >>> df.select(array_insert("a", lit(0), lit(10)).alias("result")).show()
+        >>> df.select(array_insert("a", 0, 10).alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -5689,23 +5697,27 @@ def array_insert(
         <BLANKLINE>
     """
     a = _to_col_if_str(array, "array_insert")
-    p = _to_col_if_str(pos, "array_insert")
-    e = _to_col_if_str(element, "array_insert")
+    p = (
+        Column._to_expr(pos)
+        if isinstance(pos, int)
+        else _to_col_if_str(pos, "array_insert")
+    )
+    e = Column._to_expr(element)
     return builtin("array_insert")(a, p, e)
 
 
-def array_position(variant: ColumnOrName, array: ColumnOrName) -> Column:
+def array_position(array: ColumnOrName, value: ColumnOrLiteral) -> Column:
     """Returns the index of the first occurrence of an element in an ARRAY.
 
     Args:
-        variant: Column containing the VARIANT value that you want to find. The function
-            searches for the first occurrence of this value in the array.
         array: Column containing the ARRAY to be searched.
+        value: Literal or Column containing the value that you want to find. The function
+            searches for the first occurrence of this value in the array.
 
     Example::
         >>> from snowflake.snowpark import Row
         >>> df = session.create_dataframe([Row([2, 1]), Row([1, 3])], schema=["a"])
-        >>> df.select(array_position(lit(1), "a").alias("result")).show()
+        >>> df.select(array_position("a", 1).alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -5714,8 +5726,8 @@ def array_position(variant: ColumnOrName, array: ColumnOrName) -> Column:
         ------------
         <BLANKLINE>
     """
-    v = _to_col_if_str(variant, "array_position")
     a = _to_col_if_str(array, "array_position")
+    v = Column._to_expr(value)
     return builtin("array_position")(v, a)
 
 
@@ -5724,13 +5736,13 @@ def array_prepend(array: ColumnOrName, element: ColumnOrName) -> Column:
     The new element is positioned at the beginning of the ARRAY.
 
     Args:
-        array Column containing the source ARRAY.
-        element Column containing the element to be prepended.
+        array: Column containing the source ARRAY.
+        element: Literal or Column containing the element to be prepended.
 
     Example::
         >>> from snowflake.snowpark import Row
         >>> df = session.create_dataframe([Row(a=[1, 2, 3])])
-        >>> df.select(array_prepend("a", lit(4)).alias("result")).show()
+        >>> df.select(array_prepend("a", 4).alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -5744,7 +5756,7 @@ def array_prepend(array: ColumnOrName, element: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     a = _to_col_if_str(array, "array_prepend")
-    e = _to_col_if_str(element, "array_prepend")
+    e = Column._to_expr(element)
     return builtin("array_prepend")(a, e)
 
 
