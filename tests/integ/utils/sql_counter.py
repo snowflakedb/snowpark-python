@@ -234,7 +234,7 @@ class SqlCounter(QueryListener):
         for key in kwargs.keys():
             if key in BOOL_PARAMETERS:
                 continue
-            actual_count = actual_counts[key]
+            actual_count = actual_counts[key] if key in actual_counts else 0
             expected_count = kwargs[key]
             if expected_count is None:
                 expected_count = 0
