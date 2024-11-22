@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_sproc,
     build_sproc_apply,
     with_src_position,
@@ -259,6 +259,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         force_inline_code: bool = False,
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
@@ -437,7 +438,6 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
 
             sproc = self._registry[sproc_name]
             res = sproc(*args, session=session, statement_params=statement_params)
-
             sproc_expr = None
             if _emit_ast and sproc._ast is not None:
                 assert (
@@ -454,5 +454,4 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 # such as `collect` or `show`.
                 # If the result is a scalar, it is taken care of in `__call__` in MockStoredProcedure.
                 res._ast = sproc_expr
-
             return res

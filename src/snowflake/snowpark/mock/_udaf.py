@@ -4,7 +4,7 @@
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from snowflake.snowpark._internal.ast_utils import build_udaf, with_src_position
+from snowflake.snowpark._internal.ast.utils import build_udaf, with_src_position
 from snowflake.snowpark._internal.udf_utils import process_registration_inputs
 from snowflake.snowpark._internal.utils import TempObjectType, check_imports_type
 from snowflake.snowpark.types import DataType

@@ -17,7 +17,7 @@ from tests.integ.utils.sql_counter import (
     suppress_sql_counting,
 )
 from snowflake.snowpark import Session
-from snowflake.snowpark._internal.ast_utils import base64_lines_to_request
+from snowflake.snowpark._internal.ast.utils import base64_lines_to_request
 from snowflake.snowpark.query_history import AstListener, QueryRecord
 
 

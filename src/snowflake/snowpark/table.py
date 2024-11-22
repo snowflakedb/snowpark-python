@@ -20,7 +20,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_dict_str_str,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_python_val,

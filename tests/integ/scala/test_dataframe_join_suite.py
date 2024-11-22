@@ -25,7 +25,7 @@ from snowflake.snowpark.types import (
     StructType,
     TimestampType,
 )
-from tests.utils import Utils
+from tests.utils import Utils, multithreaded_run
 
 
 def test_join_using(session):
@@ -68,6 +68,7 @@ def test_full_outer_join_followed_by_inner_join(session):
     assert abc.collect() == [Row(3, None, 4, 1)]
 
 
+@multithreaded_run()
 def test_limit_with_join(session):
     df = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
@@ -1508,3 +1509,71 @@ def test_dataframe_basic_diamond_shaped_join(session):
     df3 = df1.filter(col("b") < 6).with_column("d", lit(8))
     assert df2.b._expression.expr_id != df3.b._expression.expr_id
     Utils.check_answer(df3.join(df2, df2.b == df3.b).select(df2.a, df3.d), [Row(3, 8)])
+
+
+def test_dataframe_join_and_select_same_column_name_from_one_df(session):
+    # original case
+    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    a_schema = StructType(
+        [
+            StructField("a_common", IntegerType()),
+            StructField("b_common", StringType()),
+            StructField("a_specific", StringType(), nullable=True),
+        ]
+    )
+
+    b_schema = StructType(
+        [
+            StructField("a_common", IntegerType()),
+            StructField("b_common", StringType()),
+            StructField("b_specific", StringType(), nullable=True),
+        ]
+    )
+
+    mock_df_1 = session.create_dataframe(
+        data=[[1, "a", "a_specific_1"], [2, "b", "a_specific_2"]],
+        schema=a_schema,
+    )
+    mock_df_1.write.save_as_table(
+        table_name=table_name1,
+        mode="overwrite",
+        table_type="temporary",
+    )
+
+    mock_df_2 = session.create_dataframe(
+        data=[[1, "a", "b_specific_1"], [2, "b", "b_specific_2"]],
+        schema=b_schema,
+    )
+    mock_df_2.write.save_as_table(
+        table_name=table_name2,
+        mode="overwrite",
+        table_type="temporary",
+    )
+
+    df_table_1 = session.table(table_name1)
+    df_table_2 = session.table(table_name2)
+
+    df_join = df_table_1.join(
+        df_table_2,
+        on=(
+            (df_table_1.col("a_common") == df_table_2.col("a_common"))
+            & (df_table_1.col("b_common") == df_table_2.col("b_common"))
+        ),
+    )
+    df_selected = df_join.select(df_table_1.col("a_common"))
+    assert df_selected.collect() == [Row(1), Row(2)]
+
+    # simplified case
+    df1 = session.create_dataframe(
+        data=[[1]],
+        schema=["a"],
+    )
+
+    df2 = session.create_dataframe(
+        data=[[2]],
+        schema=["a"],
+    )
+    assert df1.join(df2,).select(
+        df2.col("a")
+    ).collect() == [Row(2)]

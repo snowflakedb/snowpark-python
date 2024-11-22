@@ -1048,3 +1048,374 @@ def test_snow_type_to_dtype_str():
 
     with pytest.raises(TypeError, match="invalid DataType"):
         snow_type_to_dtype_str(None)
+
+
+@pytest.mark.parametrize(
+    "tpe, simple_string, json, type_name, json_value",
+    [
+        (DataType(), "data", '"data"', "data", "data"),
+        (BinaryType(), "binary", '"binary"', "binary", "binary"),
+        (BooleanType(), "boolean", '"boolean"', "boolean", "boolean"),
+        (ByteType(), "tinyint", '"byte"', "byte", "byte"),
+        (DateType(), "date", '"date"', "date", "date"),
+        (
+            DecimalType(20, 10),
+            "decimal(20,10)",
+            '"decimal(20,10)"',
+            "decimal",
+            "decimal(20,10)",
+        ),
+        (DoubleType(), "double", '"double"', "double", "double"),
+        (FloatType(), "float", '"float"', "float", "float"),
+        (IntegerType(), "int", '"integer"', "integer", "integer"),
+        (LongType(), "bigint", '"long"', "long", "long"),
+        (ShortType(), "smallint", '"short"', "short", "short"),
+        (StringType(), "string", '"string"', "string", "string"),
+        (
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+            "struct<A:string,B:int>",
+            '{"fields":[{"name":"A","nullable":true,"type":"string"},{"name":"B","nullable":true,"type":"integer"}],"type":"struct"}',
+            "struct",
+            {
+                "type": "struct",
+                "fields": [
+                    {"name": "A", "type": "string", "nullable": True},
+                    {"name": "B", "type": "integer", "nullable": True},
+                ],
+            },
+        ),
+        (
+            StructField("AA", StringType()),
+            "AA:string",
+            '{"name":"AA","nullable":true,"type":"string"}',
+            "",
+            {
+                "name": "AA",
+                "type": "string",
+                "nullable": True,
+            },
+        ),
+        (TimestampType(), "timestamp", '"timestamp"', "timestamp", "timestamp"),
+        (
+            TimestampType(TimestampTimeZone.TZ),
+            "timestamp_tz",
+            '"timestamp_tz"',
+            "timestamp",
+            "timestamp_tz",
+        ),
+        (
+            TimestampType(TimestampTimeZone.LTZ),
+            "timestamp_ltz",
+            '"timestamp_ltz"',
+            "timestamp",
+            "timestamp_ltz",
+        ),
+        (
+            TimestampType(TimestampTimeZone.NTZ),
+            "timestamp_ntz",
+            '"timestamp_ntz"',
+            "timestamp",
+            "timestamp_ntz",
+        ),
+        (TimeType(), "time", '"time"', "time", "time"),
+        (
+            ArrayType(IntegerType()),
+            "array<int>",
+            '{"element_type":"integer","type":"array"}',
+            "array",
+            {
+                "element_type": "integer",
+                "type": "array",
+            },
+        ),
+        (
+            ArrayType(ArrayType(IntegerType())),
+            "array<array<int>>",
+            '{"element_type":{"element_type":"integer","type":"array"},"type":"array"}',
+            "array",
+            {
+                "element_type": {"element_type": "integer", "type": "array"},
+                "type": "array",
+            },
+        ),
+        (
+            MapType(IntegerType(), StringType()),
+            "map<int,string>",
+            '{"key_type":"integer","type":"map","value_type":"string"}',
+            "map",
+            {
+                "key_type": "integer",
+                "type": "map",
+                "value_type": "string",
+            },
+        ),
+        (
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+            "map<string,map<int,string>>",
+            '{"key_type":"string","type":"map","value_type":{"key_type":"integer","type":"map","value_type":"string"}}',
+            "map",
+            {
+                "type": "map",
+                "key_type": "string",
+                "value_type": {
+                    "type": "map",
+                    "key_type": "integer",
+                    "value_type": "string",
+                },
+            },
+        ),
+        (
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+            "struct<NESTED:struct<A:int,B:string>>",
+            '{"fields":[{"name":"NESTED","nullable":true,"type":{"fields":[{"name":"A","nullable":true,"type":"integer"},{"name":"B","nullable":true,"type":"string"}],"type":"struct"}}],"type":"struct"}',
+            "struct",
+            {
+                "type": "struct",
+                "fields": [
+                    {
+                        "name": "NESTED",
+                        "type": {
+                            "type": "struct",
+                            "fields": [
+                                {
+                                    "name": "A",
+                                    "type": "integer",
+                                    "nullable": True,
+                                },
+                                {
+                                    "name": "B",
+                                    "type": "string",
+                                    "nullable": True,
+                                },
+                            ],
+                        },
+                        "nullable": True,
+                    }
+                ],
+            },
+        ),
+        (
+            VectorType(int, 8),
+            "vector(int,8)",
+            '"vector(int,8)"',
+            "vector",
+            "vector(int,8)",
+        ),
+        (
+            VectorType(float, 8),
+            "vector(float,8)",
+            '"vector(float,8)"',
+            "vector",
+            "vector(float,8)",
+        ),
+        (
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+            "pandas<string,int,float>",
+            '{"fields":[{"name":"id","type":"string"},{"name":"col1","type":"integer"},{"name":"col2","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {"name": "id", "type": "string"},
+                    {"name": "col1", "type": "integer"},
+                    {"name": "col2", "type": "float"},
+                ],
+            },
+        ),
+        (
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+            "pandas<array<array<int>>,int,float>",
+            '{"fields":[{"name":"","type":{"element_type":{"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {
+                        "name": "",
+                        "type": {
+                            "type": "array",
+                            "element_type": {
+                                "type": "array",
+                                "element_type": "integer",
+                            },
+                        },
+                    },
+                    {"name": "", "type": "integer"},
+                    {"name": "", "type": "float"},
+                ],
+            },
+        ),
+        (
+            PandasSeriesType(IntegerType()),
+            "pandas_series<int>",
+            '{"element_type":"integer","type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": "integer"},
+        ),
+        (
+            PandasSeriesType(None),
+            "pandas_series<>",
+            '{"element_type":null,"type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": None},
+        ),
+    ],
+)
+def test_datatype(tpe, simple_string, json, type_name, json_value):
+    assert tpe.simple_string() == simple_string
+    assert tpe.json_value() == json_value
+    assert tpe.json() == json
+    if isinstance(tpe, StructField):
+        with pytest.raises(
+            TypeError,
+            match="StructField does not have typeName. Use typeName on its type explicitly instead",
+        ):
+            tpe.type_name()
+    else:
+        assert tpe.type_name() == type_name
+
+    # test alias
+    assert tpe.simpleString() == simple_string
+    assert tpe.jsonValue() == json_value
+    if isinstance(tpe, StructField):
+        with pytest.raises(
+            TypeError,
+            match="StructField does not have typeName. Use typeName on its type explicitly instead",
+        ):
+            tpe.typeName()
+    else:
+        assert tpe.typeName() == type_name
+
+
+@pytest.mark.parametrize(
+    "datatype, tpe",
+    [
+        (
+            MapType,
+            MapType(IntegerType(), StringType()),
+        ),
+        (
+            MapType,
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+        ),
+        (
+            ArrayType,
+            ArrayType(IntegerType()),
+        ),
+        (
+            ArrayType,
+            ArrayType(ArrayType(IntegerType())),
+        ),
+        (
+            StructType,
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+        ),
+        (
+            StructField,
+            StructField("AA", StringType()),
+        ),
+        (
+            StructType,
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType()),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType(20, 10)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(int, 1)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(float, 8)),
+        ),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+        ),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+        ),
+        (PandasSeriesType, PandasSeriesType(IntegerType())),
+        (PandasSeriesType, PandasSeriesType(None)),
+    ],
+)
+def test_structtype_from_json(datatype, tpe):
+    json_dict = tpe.json_value()
+    new_obj = datatype.from_json(json_dict)
+    assert new_obj == tpe
+
+
+def test_from_json_wrong_data_type():
+    wrong_json = {
+        "name": "AA",
+        "type": "wrong_type",
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Cannot parse data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+    wrong_json = {
+        "name": "AA",
+        "type": {
+            "type": "wrong_type",
+            "key_type": "integer",
+            "value_type": "string",
+        },
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Unsupported data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+
+def test_maptype_alias():
+    expected_key = StringType()
+    expected_value = IntegerType()
+    tpe = MapType(expected_key, expected_value)
+    assert tpe.valueType == expected_value
+    assert tpe.keyType == expected_key
+
+    assert tpe.valueType == tpe.value_type
+    assert tpe.keyType == tpe.key_type

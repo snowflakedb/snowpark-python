@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.snowpark._internal.ast_utils import build_expr_from_python_val
+from snowflake.snowpark._internal.ast.utils import build_expr_from_python_val
 
 
 @pytest.mark.parametrize(

@@ -11,6 +11,7 @@ import functools
 import hashlib
 import importlib
 import io
+import itertools
 import logging
 import os
 import platform
@@ -18,10 +19,12 @@ import random
 import re
 import string
 import sys
+import threading
 import traceback
 import zipfile
 from enum import Enum
 from functools import lru_cache
+from itertools import count
 from json import JSONEncoder
 from random import choice
 from typing import (
@@ -35,6 +38,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Set,
     Tuple,
     Type,
     Union,
@@ -148,7 +152,7 @@ GENERATED_PY_FILE_EXT = (".pyc", ".pyo", ".pyd", ".pyi")
 
 INFER_SCHEMA_FORMAT_TYPES = ("PARQUET", "ORC", "AVRO", "JSON", "CSV")
 
-COPY_OPTIONS = {
+COPY_INTO_TABLE_COPY_OPTIONS = {
     "ON_ERROR",
     "SIZE_LIMIT",
     "PURGE",
@@ -158,6 +162,14 @@ COPY_OPTIONS = {
     "TRUNCATECOLUMNS",
     "FORCE",
     "LOAD_UNCERTAIN_FILES",
+}
+
+COPY_INTO_LOCATION_COPY_OPTIONS = {
+    "OVERWRITE",
+    "SINGLE",
+    "MAX_FILE_SIZE",
+    "INCLUDE_QUERY_ID",
+    "DETAILED_OUTPUT",
 }
 
 NON_FORMAT_TYPE_OPTIONS = {
@@ -229,6 +241,66 @@ class TempObjectType(Enum):
     DYNAMIC_TABLE = "DYNAMIC_TABLE"
     AGGREGATE_FUNCTION = "AGGREGATE_FUNCTION"
     CTE = "CTE"
+
+
+# More info about all allowed aliases here:
+# https://docs.snowflake.com/en/sql-reference/functions-date-time#label-supported-date-time-parts
+
+DATETIME_PART_TO_ALIASES = {
+    "year": {"year", "y", "yy", "yyy", "yyyy", "yr", "years", "yrs"},
+    "quarter": {"quarter", "q", "qtr", "qtrs", "quarters"},
+    "month": {"month", "mm", "mon", "mons", "months"},
+    "week": {"week", "w", "wk", "weekofyear", "woy", "wy"},
+    "day": {"day", "d", "dd", "days", "dayofmonth"},
+    "hour": {"hour", "h", "hh", "hr", "hours", "hrs"},
+    "minute": {"minute", "m", "mi", "min", "minutes", "mins"},
+    "second": {"second", "s", "sec", "seconds", "secs"},
+    "millisecond": {"millisecond", "ms", "msec", "milliseconds"},
+    "microsecond": {"microsecond", "us", "usec", "microseconds"},
+    "nanosecond": {
+        "nanosecond",
+        "ns",
+        "nsec",
+        "nanosec",
+        "nsecond",
+        "nanoseconds",
+        "nanosecs",
+        "nseconds",
+    },
+    "dayofweek": {"dayofweek", "weekday", "dow", "dw"},
+    "dayofweekiso": {"dayofweekiso", "weekday_iso", "dow_iso", "dw_iso"},
+    "dayofyear": {"dayofyear", "yearday", "doy", "dy"},
+    "weekiso": {"weekiso", "week_iso", "weekofyeariso", "weekofyear_iso"},
+    "yearofweek": {"yearofweek"},
+    "yearofweekiso": {"yearofweekiso"},
+    "epoch_second": {"epoch_second", "epoch", "epoch_seconds"},
+    "epoch_millisecond": {"epoch_millisecond", "epoch_milliseconds"},
+    "epoch_microsecond": {"epoch_microsecond", "epoch_microseconds"},
+    "epoch_nanosecond": {"epoch_nanosecond", "epoch_nanoseconds"},
+    "timezone_hour": {"timezone_hour", "tzh"},
+    "timezone_minute": {"timezone_minute", "tzm"},
+}
+
+DATETIME_PARTS = set(DATETIME_PART_TO_ALIASES.keys())
+ALIASES_TO_DATETIME_PART = {
+    v: k for k, l in DATETIME_PART_TO_ALIASES.items() for v in l
+}
+DATETIME_ALIASES = set(ALIASES_TO_DATETIME_PART.keys())
+
+
+def unalias_datetime_part(part):
+    lowered_part = part.lower()
+    if lowered_part in DATETIME_ALIASES:
+        return ALIASES_TO_DATETIME_PART[lowered_part]
+    else:
+        raise ValueError(f"{part} is not a recognized date or time part.")
+
+
+def parse_duration_string(duration: str) -> Tuple[int, str]:
+    length, unit = duration.split(" ")
+    length = int(length)
+    unit = unalias_datetime_part(unit)
+    return length, unit
 
 
 def validate_object_name(name: str):
@@ -312,6 +384,20 @@ def normalize_path(path: str, is_local: bool) -> str:
     if not any(path.startswith(prefix) for prefix in prefixes):
         path = f"{prefixes[0]}{path}"
     return f"'{path}'"
+
+
+def warn_session_config_update_in_multithreaded_mode(
+    config: str, thread_safe_mode_enabled: bool
+) -> None:
+    if not thread_safe_mode_enabled:
+        return
+
+    if threading.active_count() > 1:
+        _logger.warning(
+            "You might have more than one threads sharing the Session object trying to update "
+            f"{config}. Updating this while other tasks are running can potentially cause "
+            "unexpected behavior. Please update the session configuration before starting the threads."
+        )
 
 
 def normalize_remote_file_or_dir(name: str) -> str:
@@ -687,6 +773,47 @@ class WarningHelper:
         self.count += 1
 
 
+# TODO: SNOW-1720855: Remove DummyRLock and DummyThreadLocal after the rollout
+class DummyRLock:
+    """This is a dummy lock that is used in place of threading.Rlock when multithreading is
+    disabled."""
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def acquire(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+    def release(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+
+class DummyThreadLocal:
+    """This is a dummy thread local class that is used in place of threading.local when
+    multithreading is disabled."""
+
+    pass
+
+
+def create_thread_local(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.local, DummyThreadLocal]:
+    if thread_safe_session_enabled:
+        return threading.local()
+    return DummyThreadLocal()
+
+
+def create_rlock(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.RLock, DummyRLock]:
+    if thread_safe_session_enabled:
+        return threading.RLock()
+    return DummyRLock()
+
+
 warning_dict: Dict[str, WarningHelper] = {}
 
 
@@ -696,7 +823,8 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     warning_dict[name].warning(text)
 
 
-def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:
+# TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
+def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:  # pragma: no cover
     session = None
     try:
         # Multiple default session attempts:
@@ -737,8 +865,9 @@ def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:
 def publicapi(func) -> Callable:
     """decorator to safeguard public APIs with global feature flags."""
 
+    # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
     @functools.wraps(func)
-    def func_call_wrapper(*args, **kwargs):
+    def func_call_wrapper(*args, **kwargs):  # pragma: no cover
         # warning(func.__qualname__, warning_text)
 
         # Handle AST encoding, by modifying default behavior.
@@ -998,17 +1127,38 @@ def check_output_schema_type(  # noqa: F821
         )
 
 
-def get_copy_into_table_options(
-    options: Dict[str, Any]
+def _get_options(
+    options: Dict[str, Any], allowed_options: Set[str]
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Helper method that extracts common logic for getting options for
+    COPY INTO TABLE and COPY INTO LOCATION command.
+    """
     file_format_type_options = options.get("FORMAT_TYPE_OPTIONS", {})
     copy_options = options.get("COPY_OPTIONS", {})
     for k, v in options.items():
-        if k in COPY_OPTIONS:
+        if k in allowed_options:
             copy_options[k] = v
         elif k not in NON_FORMAT_TYPE_OPTIONS:
             file_format_type_options[k] = v
     return file_format_type_options, copy_options
+
+
+def get_copy_into_table_options(
+    options: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Method that extracts options for COPY INTO TABLE command into file
+    format type options and copy options.
+    """
+    return _get_options(options, COPY_INTO_TABLE_COPY_OPTIONS)
+
+
+def get_copy_into_location_options(
+    options: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Method that extracts options for COPY INTO LOCATION command into file
+    format type options and copy options.
+    """
+    return _get_options(options, COPY_INTO_LOCATION_COPY_OPTIONS)
 
 
 def get_aliased_option_name(
@@ -1133,9 +1283,6 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
-should_warn_dynamic_pivot_is_in_private_preview = True
-
-
 def prepare_pivot_arguments(
     df: "snowflake.snowpark.DataFrame",
     df_name: str,
@@ -1155,18 +1302,6 @@ def prepare_pivot_arguments(
         DateFrame, pivot column, pivot_values and default_on_null value.
     """
     from snowflake.snowpark.dataframe import DataFrame
-
-    if should_warn_dynamic_pivot_is_in_private_preview:
-        if values is None or isinstance(values, DataFrame):
-            warning(
-                df_name,
-                PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
-            )
-        if default_on_null is not None:
-            warning(
-                df_name,
-                PIVOT_DEFAULT_ON_NULL_WARNING,
-            )
 
     if values is not None and not values:
         raise ValueError("values cannot be empty")
@@ -1280,3 +1415,20 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
 
 # Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
 COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
+
+
+class GlobalCounter:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._counter: count[int] = itertools.count()
+
+    def reset(self):
+        with self._lock:
+            self._counter = itertools.count()
+
+    def next(self) -> int:
+        with self._lock:
+            return next(self._counter)
+
+
+global_counter: GlobalCounter = GlobalCounter()

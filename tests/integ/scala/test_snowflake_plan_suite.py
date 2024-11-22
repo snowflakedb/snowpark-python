@@ -246,7 +246,7 @@ def test_plan_height(session, temp_table, sql_simplifier_enabled):
 def test_plan_num_duplicate_nodes_describe_query(session, temp_table):
     df1 = session.sql(f"describe table {temp_table}")
     with session.query_history() as query_history:
-        assert df1._plan.num_duplicate_nodes == 0
+        assert df1._plan.plan_state[PlanState.NUM_CTE_NODES] == 0
     assert len(query_history.queries) == 0
     with session.query_history() as query_history:
         df1.collect()

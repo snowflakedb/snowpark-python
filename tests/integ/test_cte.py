@@ -42,14 +42,12 @@ binary_operations = [
 
 WITH = "WITH"
 
-paramList = [False, True]
 
-
-@pytest.fixture(params=paramList, autouse=True)
+@pytest.fixture(autouse=True)
 def setup(request, session):
     is_cte_optimization_enabled = session._cte_optimization_enabled
     is_query_compilation_enabled = session._query_compilation_stage_enabled
-    session._query_compilation_stage_enabled = request.param
+    session._query_compilation_stage_enabled = True
     session._cte_optimization_enabled = True
     yield
     session._cte_optimization_enabled = is_cte_optimization_enabled
@@ -229,7 +227,7 @@ def test_binary(session, type, action):
     assert len(plan_queries["post_actions"]) == 1
 
 
-@sql_count_checker(query_count=2, describe_count=1, join_count=2)
+@sql_count_checker(query_count=2, describe_count=5, join_count=2)
 def test_join_with_alias_dataframe(session):
     df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
     df_res = (
@@ -291,11 +289,6 @@ def test_variable_binding_binary(session, type, action):
 
 
 def test_variable_binding_multiple(session):
-    if not session._query_compilation_stage_enabled:
-        pytest.skip(
-            "CTE query generation without the new query generation doesn't work correctly"
-        )
-
     df1 = session.sql(
         "select $1 as a, $2 as b from values (?, ?), (?, ?)", params=[1, "a", 2, "b"]
     )
@@ -747,6 +740,44 @@ def test_sql(session, query):
         assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
+def test_sql_non_select(session):
+    df1 = session.sql("show tables in schema limit 10")
+    df2 = session.sql("show tables in schema limit 10")
+
+    df_result = df1.union(df2).select('"name"').filter(lit(True))
+
+    check_result(
+        session,
+        df_result,
+        # since the two show tables are called in two different dataframe, we
+        # won't be able to detect those as common subquery.
+        expect_cte_optimized=False,
+        query_count=3,
+        describe_count=0,
+        union_count=1,
+        join_count=0,
+    )
+
+
+def test_sql_with(session):
+    df1 = session.sql("with t as (select 1 as A) select * from t")
+    df2 = session.sql("with t as (select 1 as A) select * from t")
+
+    df_result = df1.union(df2).select("A").filter(lit(True))
+
+    check_result(
+        session,
+        df_result,
+        # with ... select is also treated as a select query
+        # see is_sql_select_statement() function
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=1,
+        join_count=0,
+    )
+
+
 @pytest.mark.parametrize(
     "action",
     [
@@ -883,10 +914,6 @@ def test_window_function(session):
 
 
 def test_in_with_subquery_multiple_query(session):
-    if session._sql_simplifier_enabled:
-        pytest.skip(
-            "SNOW-1678419 pre and post actions are not propagated properly for SelectStatement"
-        )
     # multiple queries
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:
@@ -940,6 +967,42 @@ def test_select_with_column_expr_alias(session):
         union_count=1,
         join_count=0,
     )
+
+
+@pytest.mark.parametrize("enable_sql_simplifier", [True, False])
+def test_time_series_aggregation_grouping(session, enable_sql_simplifier):
+    original_sql_simplifier_enabled = session.sql_simplifier_enabled
+    try:
+        session.sql_simplifier_enabled = enable_sql_simplifier
+        data = [
+            ["2024-02-01 00:00:00", "product_A", "transaction_1", 10],
+            ["2024-02-15 00:00:00", "product_A", "transaction_2", 15],
+            ["2024-02-15 08:00:00", "product_A", "transaction_3", 7],
+            ["2024-02-17 00:00:00", "product_A", "transaction_4", 3],
+        ]
+        df = session.create_dataframe(data).to_df(
+            "TS", "PRODUCT_ID", "TRANSACTION_ID", "QUANTITY"
+        )
+
+        res = df.analytics.time_series_agg(
+            time_col="TS",
+            group_by=["PRODUCT_ID"],
+            aggs={"QUANTITY": ["SUM"]},
+            windows=["-1D", "-7D"],
+            sliding_interval="1D",
+        )
+        check_result(
+            session,
+            res,
+            expect_cte_optimized=True,
+            query_count=1,
+            describe_count=0,
+            union_count=0,
+            join_count=8,
+            cte_join_count=4,
+        )
+    finally:
+        session.sql_simplifier_enabled = original_sql_simplifier_enabled
 
 
 @pytest.mark.skipif(

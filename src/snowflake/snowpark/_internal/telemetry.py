@@ -4,6 +4,7 @@
 #
 
 import functools
+import threading
 from enum import Enum, unique
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +18,9 @@ from snowflake.connector.time_util import get_time_millis
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
+)
+from snowflake.snowpark._internal.analyzer.metadata_utils import (
+    DescribeQueryTelemetryField,
 )
 from snowflake.snowpark._internal.utils import (
     get_application_name,
@@ -38,6 +42,7 @@ class TelemetryField(Enum):
     TYPE_PERFORMANCE_DATA = "snowpark_performance_data"
     TYPE_FUNCTION_USAGE = "snowpark_function_usage"
     TYPE_SESSION_CREATED = "snowpark_session_created"
+    TYPE_CURSOR_CREATED = "snowpark_cursor_created"
     TYPE_SQL_SIMPLIFIER_ENABLED = "snowpark_sql_simplifier_enabled"
     TYPE_CTE_OPTIMIZATION_ENABLED = "snowpark_cte_optimization_enabled"
     # telemetry for optimization that eliminates the extra cast expression generated for expressions
@@ -46,6 +51,7 @@ class TelemetryField(Enum):
     )
     TYPE_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = "snowpark_auto_clean_up_temp_table_enabled"
     TYPE_LARGE_QUERY_BREAKDOWN_ENABLED = "snowpark_large_query_breakdown_enabled"
+    TYPE_REDUCE_DESCRIBE_QUERY_ENABLED = "snowpark_reduce_describe_query_enabled"
     TYPE_ERROR = "snowpark_error"
     # Message keys for telemetry
     KEY_START_TIME = "start_time"
@@ -90,6 +96,8 @@ class TelemetryField(Enum):
     TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_MESSAGE = (
         "temp_table_cleanup_abnormal_exception_message"
     )
+    # multi-threading
+    THREAD_IDENTIFIER = "thread_ident"
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -178,24 +186,30 @@ def df_collect_api_telemetry(func):
             0
         ]._session.sql_simplifier_enabled
         try:
+            plan_state = plan.plan_state
             api_calls[0][
                 CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value
-            ] = plan.plan_state[PlanState.PLAN_HEIGHT]
+            ] = plan_state[PlanState.PLAN_HEIGHT]
             api_calls[0][
                 CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
-            ] = plan.plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
+            ] = plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
+            api_calls[0][
+                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+            ] = plan_state[PlanState.NUM_CTE_NODES]
+            api_calls[0][
+                CompilationStageTelemetryField.QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION.value
+            ] = plan_state[PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION]
+
             # The uuid for df._select_statement can be different from df._plan. Since plan
             # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
             # to track the queries.
             uuid = args[0]._plan.uuid
             api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
-            ] = plan.num_duplicate_nodes
             api_calls[0][CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
                 key.value: value
                 for key, value in plan.cumulative_node_complexity.items()
             }
+            api_calls[0][TelemetryField.THREAD_IDENTIFIER.value] = threading.get_ident()
         except Exception:
             pass
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
@@ -343,6 +357,7 @@ class TelemetryClient:
                 TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_UPLOAD_FILE.value,
                 TelemetryField.KEY_FUNC_NAME.value: func_name,
                 TelemetryField.KEY_DURATION.value: duration,
+                TelemetryField.THREAD_IDENTIFIER.value: threading.get_ident(),
             },
         }
         self.send(message)
@@ -467,20 +482,6 @@ class TelemetryClient:
         }
         self.send(message)
 
-    def send_large_query_optimization_skipped_telemetry(
-        self, session_id: int, reason: str
-    ) -> None:
-        message = {
-            **self._create_basic_telemetry_data(
-                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value
-            ),
-            TelemetryField.KEY_DATA.value: {
-                TelemetryField.SESSION_ID.value: session_id,
-                CompilationStageTelemetryField.KEY_REASON.value: reason,
-            },
-        }
-        self.send(message)
-
     def send_temp_table_cleanup_telemetry(
         self,
         session_id: str,
@@ -534,6 +535,52 @@ class TelemetryClient:
                         upper_bound,
                     ),
                 },
+            },
+        }
+        self.send(message)
+
+    def send_cursor_created_telemetry(self, session_id: int, thread_id: int):
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_CURSOR_CREATED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.THREAD_IDENTIFIER.value: thread_id,
+            },
+        }
+        self.send(message)
+
+    def send_reduce_describe_query_telemetry(
+        self, session_id: str, value: bool
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_REDUCE_DESCRIBE_QUERY_ENABLED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.TYPE_REDUCE_DESCRIBE_QUERY_ENABLED.value: value,
+            },
+        }
+        self.send(message)
+
+    def send_describe_query_details(
+        self,
+        session_id: int,
+        sql_text: str,
+        e2e_time: float,
+        stack_trace: Optional[List[Optional[str]]],
+    ):
+        message = {
+            **self._create_basic_telemetry_data(
+                DescribeQueryTelemetryField.TYPE_DESCRIBE_QUERY_DETAILS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                DescribeQueryTelemetryField.SQL_TEXT.value: sql_text,
+                DescribeQueryTelemetryField.E2E_TIME.value: e2e_time,
+                DescribeQueryTelemetryField.STACK_TRACE.value: stack_trace,
             },
         }
         self.send(message)

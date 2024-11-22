@@ -14,7 +14,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeCreateTable,
     TableCreationSource,
 )
-from snowflake.snowpark._internal.ast_utils import (
+from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     debug_check_missing_ast,
     fill_sp_save_mode,
@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName, ColumnOrSqlExp
 from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     get_aliased_option_name,
+    get_copy_into_location_options,
     normalize_remote_file_or_dir,
     parse_table_name,
     publicapi,
@@ -84,6 +85,9 @@ class DataFrameWriter:
     ) -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
+        self._partition_by: Optional[ColumnOrSqlExpr] = None
+        self._cur_options: Dict[str, Any] = {}
+        self.__format: Optional[str] = None
         self._ast_stmt = _ast_stmt
 
     @publicapi
@@ -122,6 +126,39 @@ class DataFrameWriter:
                     self._ast_stmt.expr.sp_dataframe_write.save_mode, self._save_mode
                 )
 
+        return self
+
+    def partition_by(self, expr: ColumnOrSqlExpr) -> "DataFrameWriter":
+        """Specifies an expression used to partition the unloaded table rows into separate files. It can be a
+        :class:`Column`, a column name, or a SQL expression.
+        """
+        self._partition_by = expr
+        return self
+
+    def option(self, key: str, value: Any) -> "DataFrameWriter":
+        """Depending on the ``file_format_type`` specified, you can include more format specific options.
+        Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
+        """
+        aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
+        self._cur_options[aliased_key] = value
+        return self
+
+    def options(self, configs: Optional[Dict] = None, **kwargs) -> "DataFrameWriter":
+        """Sets multiple specified options for this :class:`DataFrameWriter`.
+
+        This method is same as calling :meth:`option` except that you can set multiple options at once.
+        """
+        if configs and kwargs:
+            raise ValueError(
+                "Cannot set options with both a dictionary and keyword arguments. Please use one or the other."
+            )
+        if configs is None:
+            if not kwargs:
+                raise ValueError("No options were provided")
+            configs = kwargs
+
+        for k, v in configs.items():
+            self.option(k, v)
         return self
 
     @overload
@@ -206,8 +243,9 @@ class DataFrameWriter:
 
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
             table_type: The table type of table to be created. The supported values are: ``temp``, ``temporary``,
-                        and ``transient``. An empty string means to create a permanent table. Learn more about table
-                        types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+                        and ``transient``. An empty string means to create a permanent table. Not applicable
+                        for iceberg tables. Learn more about table types
+                        `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
             clustering_keys: Specifies one or more columns or column expressions in the table as the clustering key.
                 See `Clustering Keys & Clustered Tables <https://docs.snowflake.com/en/user-guide/tables-clustering-keys#defining-a-clustering-key-for-a-table>`_
                 for more details.
@@ -534,6 +572,7 @@ class DataFrameWriter:
             _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
 
         stage_location = normalize_remote_file_or_dir(location)
+        partition_by = partition_by if partition_by is not None else self._partition_by
         if isinstance(partition_by, str):
             partition_by = sql_expr(partition_by)._expression
         elif isinstance(partition_by, Column):
@@ -543,13 +582,21 @@ class DataFrameWriter:
                 f"'partition_by' is expected to be a column name, a Column object, or a sql expression. Got type {type(partition_by)}"
             )
 
-        # apply writer option alias mapping
-        format_type_aliased_options = None
+        # read current options and update them with the new options
+        cur_format_type_options, cur_copy_options = get_copy_into_location_options(
+            self._cur_options
+        )
+        if copy_options:
+            cur_copy_options.update(copy_options)
+
         if format_type_options:
+            # apply writer option alias mapping
             format_type_aliased_options = {}
             for key, value in format_type_options.items():
                 aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
                 format_type_aliased_options[aliased_key] = value
+
+            cur_format_type_options.update(format_type_aliased_options)
 
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
@@ -558,8 +605,8 @@ class DataFrameWriter:
                 partition_by=partition_by,
                 file_format_name=file_format_name,
                 file_format_type=file_format_type,
-                format_type_options=format_type_aliased_options,
-                copy_options=copy_options,
+                format_type_options=cur_format_type_options,
+                copy_options=cur_copy_options,
                 header=header,
             )
         )
@@ -568,6 +615,82 @@ class DataFrameWriter:
             statement_params=statement_params or self._dataframe._statement_params,
             block=block,
             **kwargs,
+        )
+
+    @property
+    def _format(self) -> str:
+        return self.__format
+
+    @_format.setter
+    def _format(self, value: str) -> None:
+        allowed_formats = ["csv", "json", "parquet"]
+        canon_file_format_name = value.strip().lower()
+        if canon_file_format_name not in allowed_formats:
+            raise ValueError(
+                f"Unsupported file format. Expected file formats: {allowed_formats}, got '{value}'"
+            )
+
+        self.__format = canon_file_format_name
+
+    def format(
+        self, file_format_name: Literal["csv", "json", "parquet"]
+    ) -> "DataFrameWriter":
+        """Specifies the file format type to use for unloading data from the table. Allowed values are "csv", "json", and "parquet".
+        The file format name can be case insensitive and will be used when calling :meth:`save`.
+        """
+        self._format = file_format_name
+        return self
+
+    def save(
+        self,
+        location: str,
+        *,
+        partition_by: Optional[ColumnOrSqlExpr] = None,
+        format_type_options: Optional[Dict[str, str]] = None,
+        header: bool = False,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        **copy_options: Optional[str],
+    ) -> Union[List[Row], AsyncJob]:
+        """Executes internally a `COPY INTO <location> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html>`__ to unload data from a ``DataFrame`` into a file in a stage or external stage.
+        The file format type is determined by the last call to :meth:`format`.
+
+        Args:
+            location: The destination stage location.
+            partition_by: Specifies an expression used to partition the unloaded table rows into separate files. It can be a :class:`Column`, a column name, or a SQL expression.
+            format_type_options: Depending on the ``file_format_type`` specified, you can include more format specific options. Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
+            header: Specifies whether to include the table column headings in the output files.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            copy_options: The kwargs that are used to specify the copy options. Use the options documented in the `Copy Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#copy-options-copyoptions>`__.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+        Returns:
+            A list of :class:`Row` objects containing unloading results.
+
+        Example::
+
+            >>> # save this dataframe to a csv file on the session stage
+            >>> df = session.create_dataframe([["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]], schema = ["FIRST_NAME", "LAST_NAME"])
+            >>> remote_file_path = f"{session.get_session_stage()}/names.csv"
+            >>> copy_result = df.write.format("csv").save(remote_file_path, overwrite=True, single=True)
+            >>> copy_result[0].rows_unloaded
+            3
+        """
+        if self._format is None:
+            raise ValueError(
+                "File format type is not specified. Call `format` before calling `save`."
+            )
+
+        return self.copy_into_location(
+            location,
+            file_format_type=self._format,
+            partition_by=partition_by,
+            format_type_options=format_type_options,
+            header=header,
+            statement_params=statement_params,
+            block=block,
+            **copy_options,
         )
 
     @publicapi
