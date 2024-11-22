@@ -13,11 +13,12 @@
     - `simple_string`: Provides a simple string representation of the data.
     - `json_value`: Returns the data as a JSON-compatible value.
     - `json`: Converts the data to a JSON string.
-  - To `ArrayType`, `MapType`, `StructField`, and `StructType`:
+  - To `ArrayType`, `MapType`, `StructField`, `PandasSeriesType`, `PandasDataFrameType` and `StructType`:
     - `from_json`: Enables these types to be created from JSON data.
   - To `MapType`:
     - `keyType`: keys of the map
     - `valueType`: values of the map
+- Added support for `include_nulls` argument in `DataFrame.unpivot`.
 
 #### Improvements
 
@@ -29,6 +30,7 @@
     - `catalog_sync`
     - `storage_serialization_policy`
 - Added support for nested data types to `DataFrame.print_schema`
+- Added support for `level` parameter to `DataFrame.print_schema`
 - Improved flexibility of `DataFrameReader` and `DataFrameWriter` API by adding support for the following:
   - Added `format` method to `DataFrameReader` and `DataFrameWriter` to specify file format when loading or unloading results.
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
@@ -58,6 +60,8 @@
 #### New Features
 
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
+- Added support fot `pd.json_normalize`.
+- Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
 
 #### Bug Fixes
 
@@ -136,6 +140,7 @@
 
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
 - Improve get_dummies performance by flattening the pivot with join.
+- Improve align performance when aligning on row position column by removing unnecessary window functions.
 
 
 

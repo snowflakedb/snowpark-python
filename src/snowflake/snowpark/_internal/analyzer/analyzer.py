@@ -1123,6 +1123,7 @@ class Analyzer:
                     self.analyze(c, df_aliased_col_name_to_real_col_name)
                     for c in logical_plan.column_list
                 ],
+                logical_plan.include_nulls,
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
