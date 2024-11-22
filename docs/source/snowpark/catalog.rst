@@ -60,10 +60,4 @@ Catalog module for Snowpark.
     Catalog.user_defined_function_exists
     Catalog.viewExists
     Catalog.view_exists
-    .. Catalog.functionExists
-    .. Catalog.function_exists
-    .. Catalog.getFunction
-    .. Catalog.get_function
-    .. Catalog.listFunctions
-    .. Catalog.list_functions
 

@@ -205,7 +205,6 @@ def test_list_tables(session, temp_db1, temp_schema1, temp_table1, temp_table2):
         == 0
     )
 
-    print(f"list tables {temp_db1} {temp_schema1}")
     table_list = catalog.list_tables(database=temp_db1, schema=temp_schema1)
     assert {table.name for table in table_list} == {temp_table1, temp_table2}
 
