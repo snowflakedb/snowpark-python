@@ -5624,35 +5624,30 @@ Query List:
         exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
 
-    def print_schema(self) -> None:
-        """
-        Prints the schema of a dataframe in tree format.
+    def _format_schema(
+        self, level: Optional[int] = None, translate_columns: Optional[dict] = None
+    ) -> str:
+        def _format_datatype(name, dtype, nullable=None, depth=0):
+            if level is not None and depth >= level:
+                return ""
+            prefix = " |  " * depth
+            depth = depth + 1
 
-        Examples::
-            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
-            >>> df.print_schema()
-            root
-             |-- "A": LongType() (nullable = False)
-             |-- "B": StringType() (nullable = False)
-        """
-
-        def _format_datatype(name, dtype, nullable=None, prefix=""):
             nullable_str = (
                 f" (nullable = {str(nullable)})" if nullable is not None else ""
             )
-            indent = f" |  {prefix}"
             extra_lines = []
             type_str = dtype.__class__.__name__
 
             # Structured Type format their parameters on multiple lines.
             if isinstance(dtype, ArrayType):
                 extra_lines = [
-                    _format_datatype("element", dtype.element_type, prefix=indent),
+                    _format_datatype("element", dtype.element_type, depth=depth),
                 ]
             elif isinstance(dtype, MapType):
                 extra_lines = [
-                    _format_datatype("key", dtype.key_type, prefix=indent),
-                    _format_datatype("value", dtype.value_type, prefix=indent),
+                    _format_datatype("key", dtype.key_type, depth=depth),
+                    _format_datatype("value", dtype.value_type, depth=depth),
                 ]
             elif isinstance(dtype, StructType):
                 extra_lines = [
@@ -5660,7 +5655,7 @@ Query List:
                         quote_name(field.name, keep_case=True),
                         field.datatype,
                         field.nullable,
-                        indent,
+                        depth,
                     )
                     for field in dtype.fields
                 ]
@@ -5672,16 +5667,39 @@ Query List:
                 [
                     f"{prefix} |-- {name}: {type_str}{nullable_str}",
                 ]
-                + extra_lines
+                + [f"{line}" for line in extra_lines if line]
             )
+
+        translate_columns = translate_columns or {}
 
         schema_tmp_str = "\n".join(
             [
-                _format_datatype(attr.name, attr.datatype, attr.nullable)
+                _format_datatype(
+                    translate_columns.get(attr.name, attr.name),
+                    attr.datatype,
+                    attr.nullable,
+                )
                 for attr in self._plan.attributes
             ]
         )
-        print(f"root\n{schema_tmp_str}")  # noqa: T201: we need to print here.
+
+        return f"root\n{schema_tmp_str}"
+
+    def print_schema(self, level: Optional[int] = None) -> None:
+        """
+        Prints the schema of a dataframe in tree format.
+
+        Args:
+            level: The level to print to for nested schemas.
+
+        Examples::
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
+            >>> df.print_schema()
+            root
+             |-- "A": LongType() (nullable = False)
+             |-- "B": StringType() (nullable = False)
+        """
+        print(self._format_schema(level))  # noqa: T201: we need to print here.
 
     where = filter
 
