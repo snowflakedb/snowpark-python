@@ -349,10 +349,10 @@ def test_dtypes(session):
         ("STRING", "string(22)"),
         ("BOOLEAN", "boolean"),
         ("BINARY", "binary"),
-        ("BYTE", "bigint"),
-        ("SHORT", "bigint"),
-        ("INT", "bigint"),
-        ("LONG", "bigint"),
+        ("BYTE", "int"),
+        ("SHORT", "int"),
+        ("INT", "int"),
+        ("LONG", "int"),
         ("FLOAT", "double"),
         ("DOUBLE", "double"),
         ("DECIMAL", "decimal(10,2)"),
@@ -621,10 +621,10 @@ def test_struct_dtype_iceberg_lqb(
                 2 as b
     """
     expected_dtypes = [
-        ("ARR", "array<bigint>"),
-        ("MAP", "map<string(16777216),bigint>"),
-        ("A", "bigint"),
-        ("B", "bigint"),
+        ("ARR", "array<int>"),
+        ("MAP", "map<string(16777216),int>"),
+        ("A", "int"),
+        ("B", "int"),
     ]
     expected_schema = StructType(
         [
