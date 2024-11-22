@@ -999,6 +999,7 @@ def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-14911
     expr_builder: proto.SpCallable,
     func: Union[Callable, Tuple[str, str]],
     ast_batch: Optional[AstBatch] = None,
+    object_name: Optional[Union[str, Iterable[str]]] = None,
 ):  # pragma: no cover
     """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
 
@@ -1022,6 +1023,9 @@ def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-14911
     else:
         # Use the actual function name. Note: We do not support different scopes yet, need to be careful with this then.
         expr_builder.name = func.__name__  # type: ignore[union-attr] # TODO(SNOW-1491199) # error: Item "Tuple[str, ...]" of "Union[Callable[..., Any], Tuple[str, str]]" has no attribute "__name__"
+
+    if object_name is not None:
+        build_sp_table_name(expr_builder.object_name, object_name)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
@@ -1215,7 +1219,8 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     comment: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
-    session=None,
+    session: "snowflake.snowpark.session.Session" = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDTF parameters (used in both regular and mock UDFRegistration)."""
@@ -1225,7 +1230,10 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         _set_fn_name(name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "Udtf"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
-        ast.handler, handler, session._ast_batch if session is not None else None
+        ast.handler,
+        handler,
+        session._ast_batch if session is not None else None,
+        _registered_object_name,
     )
 
     if output_schema is not None:

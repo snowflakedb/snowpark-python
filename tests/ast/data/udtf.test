@@ -66,21 +66,67 @@ foo = udtf(Foo,  output_schema= ["a", "b"],
            immutable = True,
            comment = "fufufufu")
 
+df = session.create_dataframe(
+    [(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)]
+).to_df(["a", "b", "c"])
+
+class TwoXUDTF:
+    def process(self, n: int):
+        yield (2 * n,)
+
+twox_udtf = udtf(
+    TwoXUDTF,
+    output_schema=StructType([StructField("two_x", IntegerType())]),
+    input_types=[IntegerType()],
+)
+
+df.select(twox_udtf("a")).collect()
+
+class TwoXSixXUDTF:
+    def process(self, n: int):
+        yield (2 * n, 6 * n)
+
+twoxsix_udtf = udtf(
+    TwoXSixXUDTF,
+    output_schema=StructType(
+        [StructField("two_x", IntegerType()), StructField("six_x", IntegerType())]
+    ),
+    input_types=[IntegerType()],
+)
+
+df.select(df.a, twoxsix_udtf(df.a)).collect()
+
+df.select("a", twoxsix_udtf("a").alias("double", "six_x"), "c").collect()
+
 ## EXPECTED UNPARSER OUTPUT
 
-prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False)
+prime_udtf = udtf("PrimeSieve", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(prime_udtf(lit(20))).collect()
 
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df.with_column("total", udtf(sum_udtf, output_schema=["number"], copy_grants=False)(df["a"], df["b"])).sort(df["a"]).show()
+df.with_column("total", udtf("sum_udtf", output_schema=StructType([StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
 
-generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False)
+generator_udtf = udtf("GeneratorUDTF", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
 session.table_function(generator_udtf(lit(3))).collect()
 
-foo = udtf(Foo, output_schema=["a", "b"], input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params=, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", copy_grants=False, force_inline_code=True)
+foo = udtf("Foo", output_schema=StructType([StructField("a", LongType(), nullable=True), StructField("b", LongType(), nullable=True)], structured=False), input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", force_inline_code=True, _registered_object_name="foo")
+
+df = session.create_dataframe([(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)])
+
+df = df.to_df(["a", "b", "c"])
+
+twox_udtf = udtf("TwoXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df.select((twox_udtf("a"))).collect()
+
+twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
+
+df.select(df["a"], (twoxsix_udtf(df["a"]))).collect()
+
+df.select(col("a"), (twoxsix_udtf("a").alias("double", "six_x")), col("c")).collect()
 
 ## EXPECTED ENCODED AST
 
@@ -90,21 +136,15 @@ body {
       udtf {
         handler {
           name: "PrimeSieve"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
         }
         input_types {
           list {
             sp_integer_type: true
-          }
-        }
-        kwargs {
-          _1: "copy_grants"
-          _2 {
-            bool_val {
-              src {
-                file: "SRC_POSITION_TEST_MODE"
-                start_line: 46
-              }
-            }
           }
         }
         output_schema {
@@ -262,21 +302,35 @@ body {
         handler {
           id: 1
           name: "sum_udtf"
-        }
-        kwargs {
-          _1: "copy_grants"
-          _2 {
-            bool_val {
-              src {
-                file: "SRC_POSITION_TEST_MODE"
-                start_line: 51
-              }
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
             }
           }
         }
+        input_types {
+          list {
+            sp_long_type: true
+          }
+          list {
+            sp_long_type: true
+          }
+        }
         output_schema {
-          udtf_schema__names {
-            schema: "number"
+          udtf_schema__type {
+            return_type {
+              sp_struct_type {
+                fields {
+                  column_identifier {
+                    name: "number"
+                  }
+                  data_type {
+                    sp_long_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
           }
         }
         parallel: 4
@@ -522,21 +576,15 @@ body {
         handler {
           id: 2
           name: "GeneratorUDTF"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
         }
         input_types {
           list {
             sp_integer_type: true
-          }
-        }
-        kwargs {
-          _1: "copy_grants"
-          _2 {
-            bool_val {
-              src {
-                file: "SRC_POSITION_TEST_MODE"
-                start_line: 63
-              }
-            }
           }
         }
         output_schema {
@@ -698,6 +746,11 @@ body {
         handler {
           id: 3
           name: "Foo"
+          object_name {
+            sp_table_name_flat {
+              name: "foo"
+            }
+          }
         }
         immutable: true
         imports {
@@ -721,17 +774,6 @@ body {
         }
         is_permanent: true
         kwargs {
-          _1: "copy_grants"
-          _2 {
-            bool_val {
-              src {
-                file: "SRC_POSITION_TEST_MODE"
-                start_line: 72
-              }
-            }
-          }
-        }
-        kwargs {
           _1: "force_inline_code"
           _2 {
             bool_val {
@@ -749,9 +791,29 @@ body {
           }
         }
         output_schema {
-          udtf_schema__names {
-            schema: "a"
-            schema: "b"
+          udtf_schema__type {
+            return_type {
+              sp_struct_type {
+                fields {
+                  column_identifier {
+                    name: "a"
+                  }
+                  data_type {
+                    sp_long_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    name: "b"
+                  }
+                  data_type {
+                    sp_long_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
           }
         }
         packages: "snowflake.snowpark"
@@ -783,6 +845,696 @@ body {
     }
   }
 }
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 91
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 91
+                    }
+                    v: 1
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 91
+                    }
+                    v: "one o one"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 91
+                    }
+                    v: 10
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 91
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 91
+                    }
+                    v: 2
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 91
+                    }
+                    v: "twenty two"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 91
+                    }
+                    v: 20
+                  }
+                }
+              }
+            }
+            vs {
+              tuple_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 91
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 91
+                    }
+                    v: 3
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 91
+                    }
+                    v: "thirty three"
+                  }
+                }
+                vs {
+                  int64_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 91
+                    }
+                    v: 30
+                  }
+                }
+              }
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 91
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 18
+    var_id {
+      bitfield1: 18
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_df {
+        col_names: "a"
+        col_names: "b"
+        col_names: "c"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 18
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 91
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 19
+    var_id {
+      bitfield1: 19
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      udtf {
+        handler {
+          id: 4
+          name: "TwoXUDTF"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              sp_struct_type {
+                fields {
+                  column_identifier {
+                    name: "two_x"
+                  }
+                  data_type {
+                    sp_integer_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
+          }
+        }
+        parallel: 4
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 99
+        }
+      }
+    }
+    symbol {
+      value: "twox_udtf"
+    }
+    uid: 20
+    var_id {
+      bitfield1: 20
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 20
+            }
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 105
+            }
+            v: "a"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 105
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 21
+    var_id {
+      bitfield1: 21
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 21
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 105
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 19
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 105
+        }
+        variadic: true
+      }
+    }
+    symbol {
+    }
+    uid: 22
+    var_id {
+      bitfield1: 22
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 22
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 105
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 23
+    var_id {
+      bitfield1: 23
+    }
+  }
+}
+body {
+  eval {
+    uid: 24
+    var_id {
+      bitfield1: 23
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      udtf {
+        handler {
+          id: 5
+          name: "TwoXSixXUDTF"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            }
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+        }
+        output_schema {
+          udtf_schema__type {
+            return_type {
+              sp_struct_type {
+                fields {
+                  column_identifier {
+                    name: "two_x"
+                  }
+                  data_type {
+                    sp_integer_type: true
+                  }
+                  nullable: true
+                }
+                fields {
+                  column_identifier {
+                    name: "six_x"
+                  }
+                  data_type {
+                    sp_integer_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
+          }
+        }
+        parallel: 4
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 111
+        }
+      }
+    }
+    symbol {
+      value: "twoxsix_udtf"
+    }
+    uid: 25
+    var_id {
+      bitfield1: 25
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 25
+            }
+          }
+        }
+        pos_args {
+          sp_dataframe_col {
+            col_name: "a"
+            df {
+              sp_dataframe_ref {
+                id {
+                  bitfield1: 19
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 119
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 119
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 26
+    var_id {
+      bitfield1: 26
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_dataframe_col {
+            col_name: "a"
+            df {
+              sp_dataframe_ref {
+                id {
+                  bitfield1: 19
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 119
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 26
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 119
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 19
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 119
+        }
+        variadic: true
+      }
+    }
+    symbol {
+    }
+    uid: 27
+    var_id {
+      bitfield1: 27
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 27
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 119
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 28
+    var_id {
+      bitfield1: 28
+    }
+  }
+}
+body {
+  eval {
+    uid: 29
+    var_id {
+      bitfield1: 28
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table_fn_call_alias {
+        aliases {
+          args {
+            string_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 121
+              }
+              v: "double"
+            }
+          }
+          args {
+            string_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 121
+              }
+              v: "six_x"
+            }
+          }
+          variadic: true
+        }
+        lhs {
+          apply_expr {
+            fn {
+              sp_fn_ref {
+                id {
+                  bitfield1: 25
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 121
+                }
+                v: "a"
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 121
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 121
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 30
+    var_id {
+      bitfield1: 30
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 121
+                }
+                v: "a"
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 121
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 30
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 121
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 121
+                }
+                v: "c"
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 121
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 19
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 121
+        }
+        variadic: true
+      }
+    }
+    symbol {
+    }
+    uid: 31
+    var_id {
+      bitfield1: 31
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 31
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 121
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 32
+    var_id {
+      bitfield1: 32
+    }
+  }
+}
+body {
+  eval {
+    uid: 33
+    var_id {
+      bitfield1: 32
+    }
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -796,5 +1548,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 23
 }
