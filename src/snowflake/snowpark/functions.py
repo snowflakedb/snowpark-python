@@ -2859,6 +2859,15 @@ def log(
     return builtin("log", _emit_ast=_emit_ast)(b, arg)
 
 
+# Create base 2 and base 10 wrappers for use with the Modin log2 and log10 functions
+def _log2(x: Union[ColumnOrName, int, float], _emit_ast: bool = True) -> Column:
+    return log(2, x, _emit_ast=_emit_ast)
+
+
+def _log10(x: Union[ColumnOrName, int, float], _emit_ast: bool = True) -> Column:
+    return log(10, x, _emit_ast=_emit_ast)
+
+
 @publicapi
 def pow(
     left: Union[ColumnOrName, int, float],
