@@ -41,6 +41,7 @@
 
 - Removed warnings that dynamic pivot features were in private preview, because
   dynamic pivot is now generally available.
+- Fixed a bug in `session.read.options` where `False` Boolean values were incorrectly parsed as `True` in the generated file format.
 
 
 #### Dependency Updates
