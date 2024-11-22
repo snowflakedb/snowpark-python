@@ -948,7 +948,7 @@ def test_structured_type_print_schema(
         ' |   |   |   |-- "FIELD1": StringType() (nullable = True)\n'
         ' |   |   |   |-- "FIELD2": LongType() (nullable = True)\n'
     )
-    
+
     # Test that depth works as expected
     assert df._format_schema(1) == ('root\n |-- "MAP": MapType (nullable = True)')
     assert df._format_schema(2) == (
@@ -970,6 +970,7 @@ def test_structured_type_print_schema(
         df._format_schema(1, translate_columns={'"MAP"': '"map"'})
         == 'root\n |-- "map": MapType (nullable = True)'
     )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",

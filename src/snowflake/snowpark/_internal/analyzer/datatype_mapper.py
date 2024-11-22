@@ -215,16 +215,13 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, ArrayType):
         if data_type.structured:
             element = schema_expression(data_type.element_type, is_nullable)
-            return f"to_array({element}) ::" + convert_sp_to_sf_type(data_type)
+            return f"to_array({element}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_array(0)"
     if isinstance(data_type, MapType):
         if data_type.structured:
             key = schema_expression(data_type.key_type, is_nullable)
             value = schema_expression(data_type.value_type, is_nullable)
-            return (
-                f"object_construct_keep_null({key}, {value}) :: "
-                + convert_sp_to_sf_type(data_type)
-            )
+            return f"object_construct_keep_null({key}, {value}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_object(parse_json('0'))"
     if isinstance(data_type, StructType):
         if data_type.structured:
@@ -235,10 +232,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
                     f"'{field.name}'",
                     schema_expression(field.datatype, is_nullable=False),
                 ]
-            return (
-                f"object_construct_keep_null({', '.join(schema_strings)}) :: "
-                + convert_sp_to_sf_type(data_type)
-            )
+            return f"object_construct_keep_null({', '.join(schema_strings)}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_object(parse_json('{}'))"
     if isinstance(data_type, VariantType):
         return "to_variant(0)"
