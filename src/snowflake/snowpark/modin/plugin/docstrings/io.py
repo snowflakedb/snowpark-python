@@ -457,7 +457,7 @@ def json_normalize():
 
     >>> data = {"A": [1, 2]}
     >>> pd.json_normalize(data, "A", record_prefix="Prefix.")
-        Prefix.0
+       Prefix.0
     0         1
     1         2
 
