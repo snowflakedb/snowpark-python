@@ -1817,7 +1817,11 @@ class DataFrame:
 
     @df_api_usage
     def unpivot(
-        self, value_column: str, name_column: str, column_list: List[ColumnOrName]
+        self,
+        value_column: str,
+        name_column: str,
+        column_list: List[ColumnOrName],
+        include_nulls: bool = False,
     ) -> "DataFrame":
         """Rotates a table by transforming columns into rows.
         UNPIVOT is a relational operator that accepts two columns (from a table or subquery), along with a list of columns, and generates a row for each column specified in the list. In a query, it is specified in the FROM clause after the table name or subquery.
@@ -1827,6 +1831,7 @@ class DataFrame:
             value_column: The name to assign to the generated column that will be populated with the values from the columns in the column list.
             name_column: The name to assign to the generated column that will be populated with the names of the columns in the column list.
             column_list: The names of the columns in the source table or subequery that will be narrowed into a single pivot column. The column names will populate ``name_column``, and the column values will populate ``value_column``.
+            include_nulls: If True, include rows with NULL values in ``name_column``. The default value is False.
 
         Example::
 
@@ -1847,7 +1852,9 @@ class DataFrame:
             <BLANKLINE>
         """
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
-        unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
+        unpivot_plan = Unpivot(
+            value_column, name_column, column_exprs, include_nulls, self._plan
+        )
 
         if self._select_statement:
             return self._with_plan(
