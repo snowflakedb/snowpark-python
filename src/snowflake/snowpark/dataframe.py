@@ -1107,12 +1107,11 @@ class DataFrame:
             )
         expressions = []
         flag = 0 if case_sensitive else re.IGNORECASE
-        # unquote regex if case-insensitive otherwise remain as is
-        modified_regex = regex if case_sensitive else unquote_if_quoted(regex)
         for column in self._output:
-            if re.match(
-                modified_regex, unquote_if_quoted(column.name), flags=flag
-            ) or re.match(modified_regex, column.name, flags=flag):
+            # test for both quoted or unquoted since user could write regex for both scenario
+            if re.match(regex, unquote_if_quoted(column.name), flags=flag) or re.match(
+                regex, quote_name(column.name), flags=flag
+            ):
                 expressions.append(column)
         if not expressions:
             raise ValueError(f"No column match provided regex:{regex}")
