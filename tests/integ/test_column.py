@@ -238,6 +238,11 @@ def test_column_regex(session, enable_sql_simplifier, local_testing_mode):
             df.select(df.col_regex("Col2_.*")), [Row(COL2_A=2, COL2_B=3)]
         )
 
+        # regex work in case-sensitive mode should work in case-insensitive mode
+        Utils.check_answer(
+            df.select(df.col_regex('"Col2_.*"')), [Row(COL2_A=2, COL2_B=3)]
+        )
+
         Utils.check_answer(df.select(df.col_regex("COL1")), [Row(COL1=1)])
         Utils.check_answer(df.select(df.col_regex("col1")), [Row(COL1=1)])
         Utils.check_answer(df.select(df.col_regex("Col1")), [Row(COL1=1)])
@@ -273,5 +278,27 @@ def test_column_regex(session, enable_sql_simplifier, local_testing_mode):
             case_sensitive_df.select(
                 case_sensitive_df.col_regex("COL2_.*", case_sensitive=True)
             )
+
+        # fail because it requires to start without double quote and end with double quote, which is an illegal regex
+        with pytest.raises(ValueError, match='No column match provided regex:Col2_.*"'):
+            case_sensitive_df.select(
+                case_sensitive_df.col_regex('Col2_.*"', case_sensitive=True)
+            )
+
+        Utils.check_answer(
+            case_sensitive_df.select(
+                case_sensitive_df.col_regex('^"Col2_.*', case_sensitive=True)
+            ).collect(),
+            [Row(Col2_a=2, Col2_b=3)],
+        )
+
+        # succeed because it only requires matching last double quote
+        Utils.check_answer(
+            case_sensitive_df.select(
+                case_sensitive_df.col_regex('.*Col2_.*"', case_sensitive=True)
+            ).collect(),
+            [Row(Col2_a=2, Col2_b=3)],
+        )
+
     finally:
         session.sql_simplifier_enabled = original_sql_simplifier
