@@ -60,6 +60,7 @@
 
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
 - Added support fot `pd.json_normalize`.
+- Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
 
 #### Bug Fixes
 
