@@ -195,6 +195,19 @@ def replace_child(
         raise ValueError(f"parent type {type(parent)} not supported")
 
 
+def valid_for_replacement(node: TreeNode) -> bool:
+    if node._is_valid_for_replacement:
+        return True
+
+    if isinstance(node, SnowflakePlan) and node.source_plan is not None:
+        return node._is_valid_for_replacement
+
+    if isinstance(node, SelectSnowflakePlan):
+        return valid_for_replacement(node.snowflake_plan)
+
+    return False
+
+
 def update_resolvable_node(
     node: TreeNode,
     query_generator: QueryGenerator,
@@ -219,7 +232,7 @@ def update_resolvable_node(
     resolve_node(SelectSnowflakePlan, query_generator) will resolve both SelectSnowflakePlan and SnowflakePlan nodes.
     """
 
-    if not node._is_valid_for_replacement:
+    if not valid_for_replacement(node):
         raise ValueError(f"node {node} is not valid for update.")
 
     if not isinstance(node, (SnowflakePlan, Selectable)):
@@ -415,7 +428,8 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         next_level = []
         for node in curr_level:
             node_id = hex(id(node))
-            g.node(node_id, get_stat(node))
+            color = "lightblue" if valid_for_replacement(node) else "red"
+            g.node(node_id, get_stat(node), color=color)
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
             else:
