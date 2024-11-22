@@ -1092,7 +1092,7 @@ class DataFrame:
             return Column(self._resolve(col_name))
 
     def col_regex(self, regex: str, case_sensitive: bool = False) -> Column:
-        """Selects column based on the column name specified as a regex and returns a reference to it
+        """Selects column based on the column name specified as a regex and returns a ``Column`` reference to it.
         Args:
             regex: regular expression used to match columns
         Examples:
@@ -1107,10 +1107,12 @@ class DataFrame:
             )
         expressions = []
         flag = 0 if case_sensitive else re.IGNORECASE
+        # unquote regex if case-insensitive otherwise remain as is
+        modified_regex = regex if case_sensitive else unquote_if_quoted(regex)
         for column in self._output:
             if re.match(
-                unquote_if_quoted(regex), unquote_if_quoted(column.name), flags=flag
-            ):
+                modified_regex, unquote_if_quoted(column.name), flags=flag
+            ) or re.match(modified_regex, column.name, flags=flag):
                 expressions.append(column)
         if not expressions:
             raise ValueError(f"No column match provided regex:{regex}")

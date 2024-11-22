@@ -295,33 +295,20 @@ class Star(Expression):
 class UnresolvedColumnRegex(Expression):
     def __init__(self, expressions: List[Attribute]) -> None:
         super().__init__()
+        assert len(expressions) > 0
         self.expressions = expressions
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
-        # When the column is `df['*']`, `expressions` contains Attributes from all columns
-        # When the column is `col('*')` or just '*' string, `expressions` is empty,
-        # but its dependent columns should be all columns too
-        return (
-            derive_dependent_columns(*self.expressions)
-            if self.expressions
-            else COLUMN_DEPENDENCY_ALL
-        )
+        return derive_dependent_columns(*self.expressions)
 
     def dependent_column_names_with_duplication(self) -> List[str]:
-        return (
-            derive_dependent_columns_with_duplication(*self.expressions)
-            if self.expressions
-            else []  # we currently do not handle * dependency
-        )
+        return derive_dependent_columns_with_duplication(*self.expressions)
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        complexity = {} if self.expressions else {PlanNodeCategory.COLUMN: 1}
-
-        return sum_node_complexities(
-            complexity,
-            *(expr.cumulative_node_complexity for expr in self.expressions),
-        )
+        # expressions contain column names that match given regex. The generated sql is
+        # SELECT col1, col2, .... FROM child
+        return {PlanNodeCategory.COLUMN: len(self.expressions)}
 
 
 class UnresolvedAttribute(Expression, NamedExpression):
