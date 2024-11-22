@@ -71,12 +71,69 @@ class MockUDTFRegistration(UDTFRegistration):
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
+        if kwargs.get("_registered_object_name") is not None:
+            ast, ast_id = None, None
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.udtf, stmt)
+                ast_id = stmt.var_id.bitfield1
+
+            object_name = kwargs["_registrated_object_name"]
+            udtf = MockUserDefinedTableFunction(
+                handler,
+                output_schema,
+                input_types,
+                object_name,
+                _ast=ast,
+                _ast_id=ast_id,
+            )
+            # Add to registry to MockPlan can execute.
+            self._registry[object_name] = udtf
+            return udtf
+
+        if isinstance(output_schema, StructType):
+            _validate_output_schema_names(output_schema.names)
+            return_type = output_schema
+            output_schema = None
+        elif isinstance(output_schema, PandasDataFrameType):
+            _validate_output_schema_names(output_schema.col_names)
+            return_type = output_schema
+            output_schema = None
+        elif isinstance(
+            output_schema, Iterable
+        ):  # with column names instead of StructType. Read type hints to infer column types.
+            output_schema = tuple(output_schema)
+            _validate_output_schema_names(output_schema)
+            return_type = None
+        else:
+            raise ValueError(
+                f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
+            )
+
+        # get the udtf name, input types
+        (
+            object_name,
+            is_pandas_udf,
+            is_dataframe_input,
+            output_schema,
+            input_types,
+            opt_arg_defaults,
+        ) = process_registration_inputs(
+            self._session,
+            TempObjectType.TABLE_FUNCTION,
+            handler,
+            return_type,
+            input_types,
+            name,
+            output_schema=output_schema,
+        )
 
         # Capture original parameters.
-        ast = None
+        ast, ast_id = None, None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udtf, stmt)
+            ast_id = stmt.var_id.bitfield1
 
             build_udtf(
                 ast,
@@ -100,57 +157,21 @@ class MockUDTFRegistration(UDTFRegistration):
                 statement_params=statement_params,
                 is_permanent=is_permanent,
                 session=self._session,
+                _registered_object_name=object_name,
                 **kwargs,
             )
 
-        if isinstance(output_schema, StructType):
-            _validate_output_schema_names(output_schema.names)
-            return_type = output_schema
-            output_schema = None
-        elif isinstance(output_schema, PandasDataFrameType):
-            _validate_output_schema_names(output_schema.col_names)
-            return_type = output_schema
-            output_schema = None
-        elif isinstance(
-            output_schema, Iterable
-        ):  # with column names instead of StructType. Read type hints to infer column types.
-            output_schema = tuple(output_schema)
-            _validate_output_schema_names(output_schema)
-            return_type = None
-        else:
-            raise ValueError(
-                f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
-            )
-
-        # get the udtf name, input types
-        (
-            udtf_name,
-            is_pandas_udf,
-            is_dataframe_input,
+        udtf = MockUserDefinedTableFunction(
+            handler,
             output_schema,
             input_types,
-            opt_arg_defaults,
-        ) = process_registration_inputs(
-            self._session,
-            TempObjectType.TABLE_FUNCTION,
-            handler,
-            return_type,
-            input_types,
-            name,
-            output_schema=output_schema,
-        )
-
-        foo = MockUserDefinedTableFunction(
-            handler, output_schema, input_types, udtf_name, packages=packages
+            object_name,
+            packages=packages,
+            _ast=ast,
+            _ast_id=ast_id,
         )
 
         # Add to registry to MockPlan can execute.
-        self._registry[udtf_name] = foo
+        self._registry[object_name] = udtf
 
-        if _emit_ast:
-            foo._ast = ast
-            foo._ast_id = (
-                stmt.var_id.bitfield1
-            )  # Reference UDTF by its assign/statement id.
-
-        return foo
+        return udtf

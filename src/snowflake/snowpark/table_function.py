@@ -114,25 +114,25 @@ class TableFunctionCall:
             expr = with_src_position(ast.sp_table_fn_call_over)
             expr.lhs.CopyFrom(self._ast)
             if partition_by is not None:
-                if isinstance(partition_by, Iterable):
+                if isinstance(partition_by, (str, Column)):
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.partition_by.add(), partition_by
+                    )
+                else:
                     for partition_clause in partition_by:
                         build_expr_from_snowpark_column_or_col_name(
                             expr.partition_by.add(), partition_clause
                         )
-                else:
-                    build_expr_from_snowpark_column_or_col_name(
-                        expr.partition_by.add(), partition_by
-                    )
             if order_by is not None:
-                if isinstance(order_by, Iterable):
+                if isinstance(order_by, (str, Column)):
+                    build_expr_from_snowpark_column_or_col_name(
+                        expr.order_by.add(), order_by
+                    )
+                else:
                     for order_clause in order_by:
                         build_expr_from_snowpark_column_or_col_name(
                             expr.order_by.add(), order_clause
                         )
-                else:
-                    build_expr_from_snowpark_column_or_col_name(
-                        expr.order_by.add(), order_by
-                    )
 
         new_table_function = TableFunctionCall(
             self.name, *self.arguments, _ast=ast, **self.named_arguments
