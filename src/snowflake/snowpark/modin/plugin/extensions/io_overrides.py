@@ -133,7 +133,6 @@ def read_xml(
 
 @_inherit_docstrings(native_pd.json_normalize, apilink="pandas.json_normalize")
 @register_pd_accessor("json_normalize")
-@pandas_module_level_function_not_implemented()
 def json_normalize(
     data: dict | list[dict],
     record_path: str | list | None = None,
@@ -146,7 +145,14 @@ def json_normalize(
 ) -> pd.DataFrame:  # noqa: PR01, RT01, D200
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    pass  # pragma: no cover
+    _pd_json_normalize_signature = {
+        val.name
+        for val in inspect.signature(native_pd.json_normalize).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_json_normalize_signature}
+
+    return pd.DataFrame(query_compiler=PandasOnSnowflakeIO.json_normalize(**kwargs))
 
 
 @_inherit_docstrings(native_pd.read_orc, apilink="pandas.read_orc")

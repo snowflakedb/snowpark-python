@@ -600,6 +600,7 @@ class DataFrame(BasePandasDataset):
         """
 
     def applymap():
+        # TODO SNOW-1818207 unskip tests once package resolution is fixed
         """
         Apply a function to a Dataframe elementwise.
 
@@ -635,7 +636,7 @@ class DataFrame(BasePandasDataset):
         0  1.000  2.120
         1  3.356  4.567
 
-        >>> df.applymap(lambda x: len(str(x)))
+        >>> df.applymap(lambda x: len(str(x)))  # doctest: +SKIP
            0  1
         0  3  4
         1  5  5
@@ -645,7 +646,7 @@ class DataFrame(BasePandasDataset):
         more efficiently by utilizing alternative dataframe operations instead of applymap.
         For example, You could square each number elementwise.
 
-        >>> df.applymap(lambda x: x**2)
+        >>> df.applymap(lambda x: x**2)  # doctest: +SKIP
                    0          1
         0   1.000000   4.494400
         1  11.262736  20.857489
@@ -713,6 +714,7 @@ class DataFrame(BasePandasDataset):
     agg = aggregate
 
     def apply():
+        # TODO SNOW-1818207 unskip tests once package resolution is fixed
         # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Apply a function along an axis of the DataFrame.
@@ -841,7 +843,7 @@ class DataFrame(BasePandasDataset):
         >>> import scipy.stats
         >>> pd.session.custom_package_usage_config['enabled'] = True
         >>> pd.session.add_packages(['numpy', scipy])
-        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)
+        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)  # doctest: +SKIP
         0     1.00
         1    14.50
         2    24.25

@@ -4,7 +4,7 @@
 
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -339,6 +339,7 @@ class DataFrameReader:
             List["snowflake.snowpark.column.Column"]
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
+        self.__format: Optional[str] = None
 
         self._ast = None
         if _emit_ast:
@@ -469,6 +470,54 @@ class DataFrameReader:
             for col in metadata_cols
         ]
         return self
+
+    @property
+    def _format(self) -> Optional[str]:
+        return self.__format
+
+    @_format.setter
+    def _format(self, value: str) -> None:
+        canon_format = value.strip().lower()
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml"]
+        if canon_format not in allowed_formats:
+            raise ValueError(
+                f"Invalid format '{value}'. Supported formats are {allowed_formats}."
+            )
+        self.__format = canon_format
+
+    def format(
+        self, format: Literal["csv", "json", "avro", "parquet", "orc", "xml"]
+    ) -> "DataFrameReader":
+        """Specify the format of the file(s) to load.
+
+        Args:
+            format: The format of the file(s) to load. Supported formats are csv, json, avro, parquet, orc, and xml.
+
+        Returns:
+            a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
+        """
+        self._format = format
+        return self
+
+    def load(self, path: str) -> DataFrame:
+        """Specify the path of the file(s) to load.
+
+        Args:
+            path: The stage location of a file, or a stage location that has files.
+
+        Returns:
+            a :class:`DataFrame` that is set up to load data from the specified file(s) in a Snowflake stage.
+        """
+        if self._format is None:
+            raise ValueError(
+                "Please specify the format of the file(s) to load using the format() method."
+            )
+
+        loader = getattr(self, self._format, None)
+        if loader is not None:
+            return loader(path)
+
+        raise ValueError(f"Invalid format '{self._format}'.")
 
     @publicapi
     def csv(self, path: str, _emit_ast: bool = True) -> DataFrame:
@@ -734,7 +783,9 @@ class DataFrameReader:
         return self
 
     @publicapi
-    def options(self, configs: Dict, _emit_ast: bool = True) -> "DataFrameReader":
+    def options(
+        self, configs: Optional[Dict] = None, _emit_ast: bool = True, **kwargs
+    ) -> "DataFrameReader":
         """Sets multiple specified options in the DataFrameReader.
 
         This method is the same as the :meth:`option` except that you can set multiple options in one call.
@@ -743,6 +794,14 @@ class DataFrameReader:
             configs: Dictionary of the names of options (e.g. ``compression``,
                 ``skip_header``, etc.) and their corresponding values.
         """
+        if configs and kwargs:
+            raise ValueError(
+                "Cannot set options with both a dictionary and keyword arguments. Please use one or the other."
+            )
+        if configs is None:
+            if not kwargs:
+                raise ValueError("No options were provided")
+            configs = kwargs
 
         # AST.
         if _emit_ast:
