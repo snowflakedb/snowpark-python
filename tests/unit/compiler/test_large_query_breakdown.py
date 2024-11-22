@@ -49,7 +49,10 @@ empty_selectable = SelectSQL("dummy_query", analyzer=mock.create_autospec(Analyz
     "node_generator,expected",
     [
         (lambda _: Pivot([], empty_expression, [], [], None, empty_logical_plan), True),
-        (lambda _: Unpivot("value_col", "name_col", [], empty_logical_plan), True),
+        (
+            lambda _: Unpivot("value_col", "name_col", [], False, empty_logical_plan),
+            True,
+        ),
         (lambda _: Sort([], empty_logical_plan), True),
         (lambda _: Aggregate([], [], empty_logical_plan), True),
         (lambda _: Sample(empty_logical_plan, None, 2, None), True),

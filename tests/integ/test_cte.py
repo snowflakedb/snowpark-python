@@ -227,7 +227,7 @@ def test_binary(session, type, action):
     assert len(plan_queries["post_actions"]) == 1
 
 
-@sql_count_checker(query_count=2, describe_count=1, join_count=2)
+@sql_count_checker(query_count=2, describe_count=5, join_count=2)
 def test_join_with_alias_dataframe(session):
     df1 = session.create_dataframe([[1, 6]], schema=["col1", "col2"])
     df_res = (

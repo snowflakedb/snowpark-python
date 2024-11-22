@@ -1817,7 +1817,11 @@ class DataFrame:
 
     @df_api_usage
     def unpivot(
-        self, value_column: str, name_column: str, column_list: List[ColumnOrName]
+        self,
+        value_column: str,
+        name_column: str,
+        column_list: List[ColumnOrName],
+        include_nulls: bool = False,
     ) -> "DataFrame":
         """Rotates a table by transforming columns into rows.
         UNPIVOT is a relational operator that accepts two columns (from a table or subquery), along with a list of columns, and generates a row for each column specified in the list. In a query, it is specified in the FROM clause after the table name or subquery.
@@ -1827,6 +1831,7 @@ class DataFrame:
             value_column: The name to assign to the generated column that will be populated with the values from the columns in the column list.
             name_column: The name to assign to the generated column that will be populated with the names of the columns in the column list.
             column_list: The names of the columns in the source table or subequery that will be narrowed into a single pivot column. The column names will populate ``name_column``, and the column values will populate ``value_column``.
+            include_nulls: If True, include rows with NULL values in ``name_column``. The default value is False.
 
         Example::
 
@@ -1847,7 +1852,9 @@ class DataFrame:
             <BLANKLINE>
         """
         column_exprs = self._convert_cols_to_exprs("unpivot()", column_list)
-        unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
+        unpivot_plan = Unpivot(
+            value_column, name_column, column_exprs, include_nulls, self._plan
+        )
 
         if self._select_statement:
             return self._with_plan(
@@ -4330,35 +4337,30 @@ Query List:
         exprs = [convert(col) for col in parse_positional_args_to_list(*cols)]
         return exprs
 
-    def print_schema(self) -> None:
-        """
-        Prints the schema of a dataframe in tree format.
+    def _format_schema(
+        self, level: Optional[int] = None, translate_columns: Optional[dict] = None
+    ) -> str:
+        def _format_datatype(name, dtype, nullable=None, depth=0):
+            if level is not None and depth >= level:
+                return ""
+            prefix = " |  " * depth
+            depth = depth + 1
 
-        Examples::
-            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
-            >>> df.print_schema()
-            root
-             |-- "A": LongType() (nullable = False)
-             |-- "B": StringType() (nullable = False)
-        """
-
-        def _format_datatype(name, dtype, nullable=None, prefix=""):
             nullable_str = (
                 f" (nullable = {str(nullable)})" if nullable is not None else ""
             )
-            indent = f" |  {prefix}"
             extra_lines = []
             type_str = dtype.__class__.__name__
 
             # Structured Type format their parameters on multiple lines.
             if isinstance(dtype, ArrayType):
                 extra_lines = [
-                    _format_datatype("element", dtype.element_type, prefix=indent),
+                    _format_datatype("element", dtype.element_type, depth=depth),
                 ]
             elif isinstance(dtype, MapType):
                 extra_lines = [
-                    _format_datatype("key", dtype.key_type, prefix=indent),
-                    _format_datatype("value", dtype.value_type, prefix=indent),
+                    _format_datatype("key", dtype.key_type, depth=depth),
+                    _format_datatype("value", dtype.value_type, depth=depth),
                 ]
             elif isinstance(dtype, StructType):
                 extra_lines = [
@@ -4366,7 +4368,7 @@ Query List:
                         quote_name(field.name, keep_case=True),
                         field.datatype,
                         field.nullable,
-                        indent,
+                        depth,
                     )
                     for field in dtype.fields
                 ]
@@ -4378,16 +4380,39 @@ Query List:
                 [
                     f"{prefix} |-- {name}: {type_str}{nullable_str}",
                 ]
-                + extra_lines
+                + [f"{line}" for line in extra_lines if line]
             )
+
+        translate_columns = translate_columns or {}
 
         schema_tmp_str = "\n".join(
             [
-                _format_datatype(attr.name, attr.datatype, attr.nullable)
+                _format_datatype(
+                    translate_columns.get(attr.name, attr.name),
+                    attr.datatype,
+                    attr.nullable,
+                )
                 for attr in self._plan.attributes
             ]
         )
-        print(f"root\n{schema_tmp_str}")  # noqa: T201: we need to print here.
+
+        return f"root\n{schema_tmp_str}"
+
+    def print_schema(self, level: Optional[int] = None) -> None:
+        """
+        Prints the schema of a dataframe in tree format.
+
+        Args:
+            level: The level to print to for nested schemas.
+
+        Examples::
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
+            >>> df.print_schema()
+            root
+             |-- "A": LongType() (nullable = False)
+             |-- "B": StringType() (nullable = False)
+        """
+        print(self._format_schema(level))  # noqa: T201: we need to print here.
 
     where = filter
 
