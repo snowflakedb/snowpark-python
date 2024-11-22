@@ -158,7 +158,6 @@ class PlanCompiler:
             }
             # add the extra optimization status
             summary_value.update(extra_optimization_status)
-            print(summary_value)
             session._conn._telemetry_client.send_query_compilation_summary_telemetry(
                 session_id=session.session_id,
                 plan_uuid=self._plan.uuid,
