@@ -838,7 +838,7 @@ class StoredProcedureRegistration:
                 execute_as=execute_as,
                 packages=packages,
                 _ast=ast,
-                _ast_id=stmt.var_id.bitfield1 if _emit_ast else None,
+                _ast_id=ast_id,
                 _ast_stmt=stmt,
             )
 

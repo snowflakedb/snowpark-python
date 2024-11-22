@@ -1052,7 +1052,7 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     source_code_display: bool = True,
     is_permanent: bool = False,
     session: "snowflake.snowpark.session.Session" = None,
-    udf_name: Optional[Union[str, Iterable[str]]] = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDF parameters (used in both regular and mock UDFRegistration)."""
@@ -1065,7 +1065,7 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
         ast.func,
         func,
         session._ast_batch if session is not None else None,
-        udf_name,
+        _registered_object_name,
     )
 
     if return_type is not None:
