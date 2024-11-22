@@ -736,14 +736,8 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
         if snow_type.length:
             return f"string({snow_type.length})"
         return "string"
-    if isinstance(snow_type, ByteType):
-        return "tinyint"
-    if isinstance(snow_type, ShortType):
-        return "smallint"
-    if isinstance(snow_type, IntegerType):
+    if isinstance(snow_type, _IntegralType):
         return "int"
-    if isinstance(snow_type, LongType):
-        return "bigint"
     if isinstance(snow_type, ArrayType):
         return f"array<{snow_type_to_dtype_str(snow_type.element_type)}>"
     if isinstance(snow_type, DecimalType):
