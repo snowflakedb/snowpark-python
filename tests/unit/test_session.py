@@ -543,7 +543,7 @@ def test_session_builder_app_name_no_existing_query_tag(
     ) as m:
         assert builder.app_name(app_name, format_json=format_json) is builder
         # test alias
-        assert builder.appNname(app_name, format_json=format_json) is builder
+        assert builder.appName(app_name, format_json=format_json) is builder
         created_session = builder.getOrCreate()
         m.assert_called_once()
         assert created_session.query_tag == expected_query_tag
