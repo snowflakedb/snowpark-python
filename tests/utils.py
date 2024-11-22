@@ -1307,6 +1307,7 @@ class TestData:
                 (1, "electronics", 100, 200, 300, 100),
                 (2, "clothes", 100, 300, 150, 200),
                 (3, "cars", 200, 400, 100, 50),
+                (4, "appliances", 100, None, 100, 50),
             ],
             schema=["empid", "dept", "jan", "feb", "mar", "apr"],
         )
