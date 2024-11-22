@@ -34,7 +34,10 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableMerge,
     TableUpdate,
 )
-from snowflake.snowpark._internal.analyzer.unary_plan_node import UnaryNode
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    CreateViewCommand,
+    UnaryNode,
+)
 from snowflake.snowpark._internal.compiler.query_generator import (
     QueryGenerator,
     SnowflakeCreateTablePlanInfo,
@@ -123,7 +126,7 @@ def replace_child(
         snowflake_plan = query_generator.resolve(plan)
         return SelectSnowflakePlan(snowflake_plan, analyzer=query_generator)
 
-    if not parent._is_valid_for_replacement:
+    if not valid_for_replacement(parent):
         raise ValueError(f"parent node {parent} is not valid for replacement.")
 
     if old_child not in getattr(parent, "children_plan_nodes", parent.children):
@@ -319,7 +322,17 @@ def get_snowflake_plan_queries(
 
     plan_queries = plan.queries
     post_action_queries = plan.post_actions
-    if len(plan.referenced_ctes) > 0:
+    if len(plan.referenced_ctes) > 0 and not isinstance(
+        plan.source_plan,
+        (
+            SnowflakeCreateTable,
+            CreateViewCommand,
+            TableUpdate,
+            TableDelete,
+            TableMerge,
+            CopyIntoLocationNode,
+        ),
+    ):
         # make a copy of the original query to avoid any update to the
         # original query object
         plan_queries = copy.deepcopy(plan.queries)
@@ -362,6 +375,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     saved in the directory `snowpark_query_plan_plots` with the given `filename`. For example,
     we can set the environment variables as follows:
 
+        $ export SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD = 10  # minimum complexity score to start plotting
         $ export ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING=true
         $ export TMPDIR="/tmp"
         $ ls /tmp/snowpark_query_plan_plots/  # to see the plots
@@ -375,6 +389,11 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     if (
         os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING", "false").lower()
         != "true"
+    ):
+        return
+
+    if get_complexity_score(root) < int(
+        os.environ.get("SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD", 0)
     ):
         return
 
@@ -410,6 +429,9 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             name = f"{name} :: ({'| '.join(properties)})"
 
         score = get_complexity_score(node)
+        num_ref_ctes = -1
+        if isinstance(node, (SnowflakePlan, Selectable)):
+            num_ref_ctes = len(node.referenced_ctes)
         sql_text = ""
         if isinstance(node, Selectable):
             sql_text = node.sql_query
@@ -418,7 +440,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         sql_size = len(sql_text)
         sql_preview = sql_text[:50]
 
-        return f"{name=}\n{score=}, {sql_size=}\n{sql_preview=}"
+        return f"{name=}\n{score=}, {num_ref_ctes=}, {sql_size=}\n{sql_preview=}"
 
     g = graphviz.Graph(format="png")
 
