@@ -59,6 +59,7 @@
 #### New Features
 
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
+- Added support fot `pd.json_normalize`.
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
 
 #### Bug Fixes
@@ -138,6 +139,7 @@
 
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
 - Improve get_dummies performance by flattening the pivot with join.
+- Improve align performance when aligning on row position column by removing unnecessary window functions.
 
 
 
