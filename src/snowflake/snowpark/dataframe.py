@@ -1114,7 +1114,7 @@ class DataFrame:
                     Attribute(column.name, column.datatype, column.nullable)
                 )
         if not expressions:
-            raise ValueError(f"No column match provided regex:{regex}")
+            raise ValueError(f"No columns matched for the provided regex:{regex}")
         return Column(UnresolvedColumnRegex(expressions))
 
     @df_api_usage
