@@ -74,6 +74,10 @@ def test_runtime_config(db_parameters):
         in err.value.args[0]
     )
 
+    # test conf with compatibility_mode=True
+    session.conf.set("property1", "value1")
+    assert session.conf.get("property1") == "value1"
+
     session.close()
 
 
