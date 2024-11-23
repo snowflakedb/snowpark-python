@@ -641,7 +641,6 @@ class UDFRegistration:
             _from_pandas = kwargs.get("_from_pandas_udf_function", False)
             native_app_params = kwargs.pop("native_app_params", None)
 
-
             # register udf
             return self._do_register_udf(
                 func,
