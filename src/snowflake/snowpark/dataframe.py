@@ -92,7 +92,6 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Unpivot,
     ViewType,
 )
-from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -1107,12 +1106,12 @@ class DataFrame:
             )
         expressions = []
         flag = 0 if case_sensitive else re.IGNORECASE
-        for column in self._output:
+        for column in self.schema:
             # test for both quoted or unquoted since user could write regex for both scenario
-            if re.match(regex, unquote_if_quoted(column.name), flags=flag) or re.match(
-                regex, quote_name(column.name), flags=flag
-            ):
-                expressions.append(column)
+            if re.match(regex, column.name, flags=flag):
+                expressions.append(
+                    Attribute(column.name, column.datatype, column.nullable)
+                )
         if not expressions:
             raise ValueError(f"No column match provided regex:{regex}")
         return Column(UnresolvedColumnRegex(expressions))

@@ -252,30 +252,14 @@ def test_column_regex(session, enable_sql_simplifier, local_testing_mode):
         with pytest.raises(ValueError, match='No column match provided regex:Col2_.*"'):
             df.select(df.col_regex('Col2_.*"'))
 
-        # regex work in case-sensitive mode should work in case-insensitive mode
-        Utils.check_answer(
-            df.select(df.col_regex('"Col2_.*"')), [Row(COL2_A=2, COL2_B=3)]
-        )
-
-        Utils.check_answer(
-            df.select(df.col_regex('^"Col2_.*')).collect(),
-            [Row(Col2_a=2, Col2_b=3)],
-        )
-
-        Utils.check_answer(
-            df.select(df.col_regex('.*Col2_.*"')).collect(),
-            [Row(Col2_a=2, Col2_b=3)],
-        )
-
         case_sensitive_df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
             ['"COL1"', '"Col2_a"', '"Col2_b"', '"col3"']
         )
-        Utils.check_answer(
+        with pytest.raises(ValueError, match="No column match provided regex:Col2_.*"):
             case_sensitive_df.select(
                 case_sensitive_df.col_regex("Col2_.*", case_sensitive=True)
-            ).collect(),
-            [Row(Col2_a=2, Col2_b=3)],
-        )
+            )
+
         Utils.check_answer(
             case_sensitive_df.select(
                 case_sensitive_df.col_regex('"Col2_.*"', case_sensitive=True)
