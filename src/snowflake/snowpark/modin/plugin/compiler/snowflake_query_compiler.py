@@ -13240,8 +13240,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ordered_dataframe = original_frame.ordered_dataframe.agg(
             *[
                 to_variant(
-                        column_quantile(col(col_identifier), interpolation, quantile)
-                    ).as_(new_ident)
+                    column_quantile(col(col_identifier), interpolation, quantile)
+                ).as_(new_ident)
                 for new_ident, quantile in zip(new_identifiers, q)
             ]
         )
@@ -13266,17 +13266,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Restore NULL values in the data column and cast back to float
         ordered_dataframe = ordered_dataframe.select(
             index_identifier,
-            col(col_identifier)
-            .cast(FloatType())
-            .as_(col_after_cast_identifier),
+            col(col_identifier).cast(FloatType()).as_(col_after_cast_identifier),
         ).ensure_row_position_column()
         internal_frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
             data_column_pandas_labels=[col_label],
             data_column_pandas_index_names=[None],
-            data_column_snowflake_quoted_identifiers=[
-                col_after_cast_identifier
-            ],
+            data_column_snowflake_quoted_identifiers=[col_after_cast_identifier],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[index_identifier],
             data_column_types=original_frame.cached_data_column_snowpark_pandas_types,

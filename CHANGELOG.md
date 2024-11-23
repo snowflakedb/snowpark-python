@@ -68,7 +68,7 @@
 
 
 #### Improvements
-
+- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinal values
 
 
 ### Snowpark Local Testing Updates

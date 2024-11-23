@@ -10,7 +10,7 @@ from typing import Optional
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
-from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
+from snowflake.snowpark.column import CaseExpr
 from snowflake.snowpark.functions import (
     cast,
     col,
@@ -31,7 +31,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     append_columns,
     generate_column_identifier_random,
     pandas_lit,
-    unquote_name_if_quoted,
 )
 from snowflake.snowpark.types import ArrayType, MapType, StringType, VariantType
 
@@ -760,9 +759,7 @@ def _simple_unpivot(
             )[0]
         )
         unpivot_columns_normalized_types.append(
-            to_variant(c).alias(
-                renamed_quoted_unpivot_col
-            )
+            to_variant(c).alias(renamed_quoted_unpivot_col)
         )
         renamed_quoted_unpivot_cols.append(renamed_quoted_unpivot_col)
         # create the column name mapper which is passed to unpivot
