@@ -1094,6 +1094,7 @@ class DataFrame:
         """Selects column based on the column name specified as a regex and returns a ``Column`` reference to it.
         Args:
             regex: regular expression used to match columns
+
         Examples:
             >>> df = session.create_dataframe([[1, 2, 3, 4]]).to_df(["col1", "col2_a", "col2_b", "col3"])
             >>> df.select(df.col_regex("col2_.*")).collect()
