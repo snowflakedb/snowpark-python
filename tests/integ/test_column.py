@@ -218,7 +218,9 @@ def test_column_with_builtins_that_shadow_functions(session):
     assert iter_error_msg_text in str(ex_info)
 
 
-def test_column_regex(session):
+def test_column_regex(session, local_testing_mode):
+    if not session.sql_simplifier_enabled and local_testing_mode:
+        pytest.skip("disable sql simplifier is not supported in local testing mode")
     df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
         ["COL1", "col2_a", "col2_b", "Col3"]
     )
