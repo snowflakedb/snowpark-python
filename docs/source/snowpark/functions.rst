@@ -92,6 +92,7 @@ Functions
     col
     collate
     collation
+    collect_list
     collect_set
     column
     concat

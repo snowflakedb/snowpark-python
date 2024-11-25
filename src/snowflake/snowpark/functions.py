@@ -8738,6 +8738,7 @@ def sproc(
 # Add these alias for user code migration
 call_builtin = call_function
 collect_set = array_unique_agg
+collect_list = array_agg
 builtin = function
 countDistinct = count_distinct
 substr = substring
