@@ -23,6 +23,8 @@ INSTALL_REQ_LIST = [
     CONNECTOR_DEPENDENCY,
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
+    "protobuf>=5.28",
+    "tzlocal",
     "pyyaml",
     "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
@@ -37,6 +39,8 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
 
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
+    # When using HEAD of connector.
+    # f"{CONNECTOR_DEPENDENCY}[pandas]",
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
@@ -45,6 +49,7 @@ MODIN_REQUIREMENTS = [
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
     "pytest-cov",
+    "wrapt",
     "coverage",
     "sphinx==5.0.2",
     "cachetools",  # used in UDF doctest
@@ -191,6 +196,8 @@ setup(
         "modin": MODIN_REQUIREMENTS,
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
+            # When using HEAD, use this.
+            # f"{CONNECTOR_DEPENDENCY}[secure-local-storage]",
         ],
         "development": DEVELOPMENT_REQUIREMENTS,
         "modin-development": [

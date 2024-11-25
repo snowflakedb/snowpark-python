@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import ast
+import base64
 import datetime
 import decimal
 import inspect
@@ -10,6 +11,7 @@ import os
 import platform
 import sys
 import typing
+from array import array
 from functools import reduce
 from logging import getLogger
 from pathlib import Path
@@ -18,6 +20,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 
 import dateutil
 from dateutil.tz import tzlocal
+from google.protobuf.text_format import MessageToString, Parse
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -51,7 +54,7 @@ from snowflake.snowpark.types import DataType, StructType
 FAIL_ON_MISSING_AST = True
 
 # The path to the snowpark package.
-SNOWPARK_LIB_PATH = Path(__file__).parent.parent.resolve()
+SNOWPARK_LIB_PATH = Path(__file__).parent.parent.parent.resolve()
 
 # Test mode. In test mode, the source filename is ignored.
 SRC_POSITION_TEST_MODE = False
@@ -158,9 +161,15 @@ def fill_timezone(
                 ast.tz.offset_seconds = int(tzlocal().utcoffset(obj).total_seconds())  # type: ignore[arg-type, attr-defined, union-attr] # TODO(SNOW-1491199) # "Expr" has no attribute "tz", Item "None" of "Optional[timedelta]" has no attribute "total_seconds", Argument 1 to "utcoffset" of "tzlocal" has incompatible type "Union[datetime, time]"; expected "Optional[datetime]"
                 tz_name = datetime.datetime.now(tzlocal()).tzname()
         else:
-            ast.tz.offset_seconds = int(  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "tz"
-                tzlocal().utcoffset(datetime_val).total_seconds()  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "None" of "Optional[timedelta]" has no attribute "total_seconds"
-            )
+            try:
+                ast.tz.offset_seconds = int(  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "tz"
+                    tzlocal().utcoffset(datetime_val).total_seconds()  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "None" of "Optional[timedelta]" has no attribute "total_seconds"
+                )
+            except OverflowError:
+                # This happens when e.g. using datetime.datetime.min. Use instead tzlocal() and offset to now.
+                ast.tz.offset_seconds = int(
+                    tzlocal().utcoffset(datetime.datetime.now()).total_seconds()  # type: ignore[union-attr]
+                )
             tz_name = datetime.datetime.now(tzlocal()).tzname()
         ast.tz.name.value = tz_name  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "tz"
 
@@ -230,16 +239,22 @@ def build_expr_from_python_val(
     elif isinstance(obj, decimal.Decimal):
         ast = with_src_position(expr_builder.big_decimal_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "BigDecimalVal"; expected "Expr"
         dec_tuple = obj.as_tuple()
-        unscaled_val = reduce(lambda val, digit: val * 10 + digit, dec_tuple.digits)
-        if dec_tuple.sign != 0:
-            unscaled_val *= -1
+        if not obj.is_finite():
+            # For special values, like nan, snan, inf, the exponent is special string value.
+            ast.special.value = (
+                "-" if dec_tuple.sign else "+"
+            ) + dec_tuple.exponent  # type:ignore[operator]  # TODO(SNOW-1491199) # Fix operand types
+        else:
+            unscaled_val = reduce(lambda val, digit: val * 10 + digit, dec_tuple.digits)
+            if dec_tuple.sign != 0:
+                unscaled_val *= -1
 
-        # In two-complement -1 with one byte is 0xFF. We encode arbitrary length integers
-        # in full bytes. Therefore, round up to fullest byte. To restore the sign, add another byte.
-        req_bytes = unscaled_val.bit_length() // 8 + 1
+            # In two-complement -1 with one byte is 0xFF. We encode arbitrary length integers
+            # in full bytes. Therefore, round up to fullest byte. To restore the sign, add another byte.
+            req_bytes = unscaled_val.bit_length() // 8 + 1
 
-        ast.unscaled_value = unscaled_val.to_bytes(req_bytes, "big", signed=True)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "unscaled_value"
-        ast.scale = dec_tuple.exponent  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "scale"
+            ast.unscaled_value = unscaled_val.to_bytes(req_bytes, "big", signed=True)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "unscaled_value"
+            ast.scale = dec_tuple.exponent  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "scale"
 
     elif isinstance(obj, datetime.datetime):
         ast = with_src_position(expr_builder.python_timestamp_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "PythonTimestampVal"; expected "Expr"
@@ -281,7 +296,13 @@ def build_expr_from_python_val(
         ast = with_src_position(expr_builder.list_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ListVal"; expected "Expr"
         for v in obj:
             build_expr_from_python_val(ast.vs.add(), v)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "vs"
-
+    elif isinstance(obj, array):
+        # Encode for now as List, this removes the type information
+        # that the origin is an array (https://docs.python.org/3/library/array.html).
+        # If need be, introduce new array type closer to python type.
+        ast = with_src_position(expr_builder.list_val)
+        for v in obj:
+            build_expr_from_python_val(ast.vs.add(), v)
     elif isinstance(obj, tuple):
         ast = with_src_position(expr_builder.tuple_val)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "TupleVal"; expected "Expr"
         for v in obj:
@@ -474,9 +495,14 @@ def build_indirect_table_fn_apply(
     if isinstance(
         func, (snowflake.snowpark.table_function.TableFunctionCall, Callable)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "isinstance" has incompatible type "tuple[type[TableFunctionCall], <typing special form>]"; expected "_ClassInfo"
     ):
-        stmt = func._ast_stmt  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "str" of "Union[str, list[str], TableFunctionCall, Callable[..., Any]]" has no attribute "_ast_stmt", Item "list[str]" of "Union[str, list[str], TableFunctionCall, Callable[..., Any]]" has no attribute "_ast_stmt", Item "TableFunctionCall" of "Union[str, list[str], TableFunctionCall, Callable[..., Any]]" has no attribute "_ast_stmt", Item "function" of "Union[str, list[str], TableFunctionCall, Callable[..., Any]]" has no attribute "_ast_stmt"
-        fn_expr = expr.fn.indirect_table_fn_id_ref  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
-        fn_expr.id.bitfield1 = stmt.var_id.bitfield1
+        # The if stmt here is required to make test_permanent_udtf_negative pass.
+        # Ultimately, it should be removed. Needed because check for non-existing UDTF is
+        # carried out in snowflake-connector. In phase1, this should be done server-side.
+        # TODO: Remove if in phase1.
+        if hasattr(func, "_ast_stmt"):
+            stmt = func._ast_stmt  # type: ignore[union-attr] # TODO(SNOW-1491199) # Item "str" of "Union[str, list[str], TableFunctionCall, Callable[..., Any]]" has no attribute "_ast_stmt", Item "list[str]" of "Union[str, list[str], TableFunctionCall, Callable[..., Any]]" has no attribute "_ast_stmt", Item "TableFunctionCall" of "Union[str, list[str], TableFunctionCall, Callable[..., Any]]" has no attribute "_ast_stmt", Item "function" of "Union[str, list[str], TableFunctionCall, Callable[..., Any]]" has no attribute "_ast_stmt"
+            fn_expr = expr.fn.indirect_table_fn_id_ref  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
+            fn_expr.id.bitfield1 = stmt.var_id.bitfield1
     else:
         fn_expr = expr.fn.indirect_table_fn_name_ref  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
         _set_fn_name(func, fn_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "_set_fn_name" has incompatible type "Union[str, list[str], TableFunctionCall, Callable[..., Any]]"; expected "Union[str, Iterable[str]]"
@@ -876,8 +902,10 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no co
         # we don't need an AST.
         return None  # type: ignore[return-value] # TODO(SNOW-1491199) # Incompatible return value type (got "None", expected "Expr")
     elif isinstance(expr, Star):
-        # Comes up in count(), handled there.
-        return None  # type: ignore[return-value] # TODO(SNOW-1491199) # Incompatible return value type (got "None", expected "Expr")
+        # Be compatible with whichever AST col('*') produces.
+        from snowflake.snowpark.functions import col
+
+        return col("*")._ast
     elif isinstance(expr, FunctionExpression):
         # Snowpark pandas API has some usage where injecting the publicapi decorator would lead to issues.
         # Directly translate here.
@@ -971,6 +999,7 @@ def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-14911
     expr_builder: proto.SpCallable,
     func: Union[Callable, Tuple[str, str]],
     ast_batch: Optional[AstBatch] = None,
+    object_name: Optional[Union[str, Iterable[str]]] = None,
 ):  # pragma: no cover
     """Registers a python callable (i.e., a function or lambda) to the AstBatch and encodes it as SpCallable protobuf."""
 
@@ -994,6 +1023,9 @@ def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-14911
     else:
         # Use the actual function name. Note: We do not support different scopes yet, need to be careful with this then.
         expr_builder.name = func.__name__  # type: ignore[union-attr] # TODO(SNOW-1491199) # error: Item "Tuple[str, ...]" of "Union[Callable[..., Any], Tuple[str, str]]" has no attribute "__name__"
+
+    if object_name is not None:
+        build_sp_table_name(expr_builder.object_name, object_name)
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
@@ -1187,7 +1219,8 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     comment: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
-    session=None,
+    session: "snowflake.snowpark.session.Session" = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDTF parameters (used in both regular and mock UDFRegistration)."""
@@ -1197,7 +1230,10 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         _set_fn_name(name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "Udtf"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
-        ast.handler, handler, session._ast_batch if session is not None else None
+        ast.handler,
+        handler,
+        session._ast_batch if session is not None else None,
+        _registered_object_name,
     )
 
     if output_schema is not None:
@@ -1275,8 +1311,11 @@ def add_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:  # pragma: no co
     ):
         return
     stmt = ast_batch.assign()
-    stmt.expr.CopyFrom(o._ast)
-    o._ast_stmt = stmt
+    # In tests like test_permanent_udtf_negative, where a non-existent UDTF is used this will lead to o=None
+    # being passed here. Safeguard as the check is carried out in the connector.
+    if o is not None and o._ast is not None:
+        stmt.expr.CopyFrom(o._ast)
+        o._ast_stmt = stmt
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
@@ -1328,8 +1367,11 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     if packages is not None and len(packages) != 0:
         for package in packages:
             if isinstance(package, ModuleType):
-                raise NotImplementedError
-            ast.packages.append(package)
+                # Use similar to session._resolve_packages the pypi string notation to capture the version.
+                # Package resolution (existing vs. new) should be done server-side in phase1.
+                ast.packages.append(f"{package.__name__}=={package.__version__}")
+            else:
+                ast.packages.append(package)
     ast.replace = replace
     ast.if_not_exists = if_not_exists
     ast.parallel = parallel
@@ -1375,3 +1417,61 @@ def build_expr_from_dict_str_str(
         t = ast_dict.add()  # type: ignore[attr-defined, arg-type] # TODO(SNOW-1491199) # "Tuple_String_String" has no attribute "add"
         t._1 = k
         t._2 = v
+
+
+def ClearTempTables(message: proto.Request) -> None:
+    """Removes temp table when passing pandas data."""
+    for stmt in message.body:
+        if str(
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.temp_table
+        ):
+            stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
+                "temp_table"
+            )
+
+
+def base64_str_to_request(base64_str: str) -> proto.Request:
+    message = proto.Request()
+    message.ParseFromString(base64.b64decode(base64_str))
+    return message
+
+
+def merge_requests(requests: List[proto.Request]) -> proto.Request:
+    """Merge list of requests into a single request through accumulating the request body segments in same order."""
+    request = proto.Request()
+
+    # Copy the client_version, etc as part of first message.
+    request.CopyFrom(requests[0])
+
+    for next_request in requests[1:]:
+        for next_stmt in next_request.body:
+            stmt = request.body.add()
+            stmt.CopyFrom(next_stmt)
+
+    return request
+
+
+def base64_lines_to_request(base64_lines: str) -> proto.Request:
+    messages = [base64_str_to_request(s) for s in base64_lines.split("\n")]
+    return merge_requests(messages)
+
+
+def base64_lines_to_textproto(base64_str: str) -> str:
+    request = base64_lines_to_request(base64_str)
+
+    # Force a fixed python version to avoid unnecessary diffs
+    request.client_language.python_language.version.major = 3
+    request.client_language.python_language.version.minor = 9
+    request.client_language.python_language.version.patch = 1
+    request.client_language.python_language.version.label = "final"
+
+    ClearTempTables(request)
+
+    message = MessageToString(request)
+
+    return message
+
+
+def textproto_to_request(textproto_str: str) -> proto.Request:
+    request = Parse(textproto_str, proto.Request())
+    return request
