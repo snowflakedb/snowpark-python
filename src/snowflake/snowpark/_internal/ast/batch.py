@@ -13,7 +13,6 @@ from typing import Callable, Optional
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
-from snowflake.snowpark import Session
 from snowflake.snowpark.version import VERSION
 
 # TODO(SNOW-1791994): Enable pyright type checks for this file.
@@ -52,7 +51,10 @@ class AstBatch:
     # Function used to generate request IDs. This is overridden in some tests.
     generate_request_id = uuid.uuid4
 
-    def __init__(self, session: Session) -> None:
+    def __init__(
+        self,
+        session: "snowflake.snowpark.Session",  # type: ignore[name-defined]  # noqa: F821
+    ) -> None:
         """
         Initializes a new AST batch.
 

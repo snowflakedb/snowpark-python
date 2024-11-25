@@ -12,7 +12,8 @@ import pytest
 
 from snowflake.snowpark import Session
 
-logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
+_logger = logging.getLogger("snowflake.connector")
+_logger.setLevel(logging.ERROR)
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
