@@ -7,12 +7,9 @@ from typing import TYPE_CHECKING, List, Union
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name_without_upper_casing,
-)
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import convert_metadata_to_sp_type
-from snowflake.snowpark.types import DecimalType, LongType, StringType
+from snowflake.snowpark.types import DecimalType, LongType, StringType, ColumnIdentifier
 
 if TYPE_CHECKING:
     import snowflake.snowpark.session
@@ -113,10 +110,9 @@ def convert_result_meta_to_attribute(
 
     attributes = []
     for column_metadata in meta:
-        quoted_name = quote_name_without_upper_casing(column_metadata.name)
         attributes.append(
             Attribute(
-                quoted_name,
+                ColumnIdentifier(column_metadata.name).name,
                 convert_metadata_to_sp_type(column_metadata, max_string_size),
                 column_metadata.is_nullable,
             )

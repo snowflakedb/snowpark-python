@@ -106,7 +106,7 @@ STRUCTURED_TYPES_EXAMPLES = {
                     StructType(
                         [
                             StructField("A", StringType(16777216), nullable=True),
-                            StructField('"b"', DoubleType(), nullable=True),
+                            StructField("b", DoubleType(), nullable=True),
                         ],
                         structured=True,
                     ),
@@ -395,7 +395,7 @@ def test_structured_dtypes_select(structured_type_session, examples):
         [
             StructField("VALUE1", LongType(), nullable=True),
             StructField("A", StringType(16777216), nullable=True),
-            StructField("b", DoubleType(), nullable=True),
+            StructField("B", DoubleType(), nullable=True),
             StructField("VALUE2", DoubleType(), nullable=True),
             StructField("VALUE3", DoubleType(), nullable=True),
             StructField("VALUE4", DoubleType(), nullable=True),
@@ -524,27 +524,27 @@ def test_iceberg_nested_fields(
                 "NESTED_DATA",
                 StructType(
                     [
-                        StructField('"camelCase"', StringType(), nullable=True),
-                        StructField('"snake_case"', StringType(), nullable=True),
-                        StructField('"PascalCase"', StringType(), nullable=True),
+                        StructField("camelCase", StringType(), nullable=True),
+                        StructField("snake_case", StringType(), nullable=True),
+                        StructField("PascalCase", StringType(), nullable=True),
                         StructField(
-                            '"nested_map"',
+                            "nested_map",
                             MapType(
                                 StringType(),
                                 StructType(
                                     [
                                         StructField(
-                                            '"inner_camelCase"',
+                                            "inner_camelCase",
                                             StringType(),
                                             nullable=True,
                                         ),
                                         StructField(
-                                            '"inner_snake_case"',
+                                            "inner_snake_case",
                                             StringType(),
                                             nullable=True,
                                         ),
                                         StructField(
-                                            '"inner_PascalCase"',
+                                            "inner_PascalCase",
                                             StringType(),
                                             nullable=True,
                                         ),
@@ -941,25 +941,25 @@ def test_structured_type_print_schema(
     captured = capsys.readouterr()
     assert captured.out == (
         "root\n"
-        ' |-- "MAP": MapType (nullable = True)\n'
+        " |-- MAP: MapType (nullable = True)\n"
         " |   |-- key: StringType()\n"
         " |   |-- value: ArrayType\n"
         " |   |   |-- element: StructType\n"
-        ' |   |   |   |-- "Field1": StringType() (nullable = True)\n'
-        ' |   |   |   |-- "Field2": LongType() (nullable = True)\n'
+        " |   |   |   |-- Field1: StringType() (nullable = True)\n"
+        " |   |   |   |-- Field2: LongType() (nullable = True)\n"
     )
 
     # Test that depth works as expected
-    assert df._format_schema(1) == ('root\n |-- "MAP": MapType (nullable = True)')
+    assert df._format_schema(1) == ("root\n |-- MAP: MapType (nullable = True)")
     assert df._format_schema(2) == (
         "root\n"
-        ' |-- "MAP": MapType (nullable = True)\n'
+        " |-- MAP: MapType (nullable = True)\n"
         " |   |-- key: StringType()\n"
         " |   |-- value: ArrayType"
     )
     assert df._format_schema(3) == (
         "root\n"
-        ' |-- "MAP": MapType (nullable = True)\n'
+        " |-- MAP: MapType (nullable = True)\n"
         " |   |-- key: StringType()\n"
         " |   |-- value: ArrayType\n"
         " |   |   |-- element: StructType"
@@ -967,8 +967,8 @@ def test_structured_type_print_schema(
 
     # Check that column names can be translated
     assert (
-        df._format_schema(1, translate_columns={'"MAP"': '"map"'})
-        == 'root\n |-- "map": MapType (nullable = True)'
+        df._format_schema(1, translate_columns={"MAP": "map"})
+        == "root\n |-- map: MapType (nullable = True)"
     )
 
 

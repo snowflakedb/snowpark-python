@@ -4365,7 +4365,7 @@ Query List:
             elif isinstance(dtype, StructType):
                 extra_lines = [
                     _format_datatype(
-                        quote_name(field.name, keep_case=True),
+                        field.name,
                         field.datatype,
                         field.nullable,
                         depth,
