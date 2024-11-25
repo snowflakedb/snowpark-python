@@ -1050,6 +1050,7 @@ def test_snow_type_to_dtype_str():
         snow_type_to_dtype_str(None)
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="Includes testing for pandas types")
 @pytest.mark.parametrize(
     "tpe, simple_string, json, type_name, json_value",
     [
@@ -1279,7 +1280,6 @@ def test_snow_type_to_dtype_str():
         ),
     ],
 )
-@pytest.mark.skipif(not is_pandas_available, reason="Includes testing for pandas types")
 def test_datatype(tpe, simple_string, json, type_name, json_value):
     assert tpe.simple_string() == simple_string
     assert tpe.json_value() == json_value
@@ -1306,6 +1306,7 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
         assert tpe.typeName() == type_name
 
 
+@pytest.mark.skipif(not is_pandas_available, reason="Includes testing for pandas types")
 @pytest.mark.parametrize(
     "datatype, tpe",
     [
@@ -1383,7 +1384,6 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
         (PandasSeriesType, PandasSeriesType(None)),
     ],
 )
-@pytest.mark.skipif(not is_pandas_available, reason="Includes testing for pandas types")
 def test_structtype_from_json(datatype, tpe):
     json_dict = tpe.json_value()
     new_obj = datatype.from_json(json_dict)
