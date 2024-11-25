@@ -213,8 +213,8 @@ numpy_to_pandas_universal_func_map = {
     "exp": NotImplemented,
     "exp2": NotImplemented,
     "log": lambda obj, inputs: obj.apply(sp_func.ln),  # use built-in function
-    "log2": lambda obj, inputs: obj.apply(sp_func.log, base=2),
-    "log10": lambda obj, inputs: obj.apply(sp_func.log, base=10),
+    "log2": lambda obj, inputs: obj.apply(sp_func._log2),
+    "log10": lambda obj, inputs: obj.apply(sp_func._log10),
     "expm1": NotImplemented,
     "log1p": NotImplemented,
     "sqrt": NotImplemented,

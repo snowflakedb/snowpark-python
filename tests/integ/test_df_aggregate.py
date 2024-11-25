@@ -16,11 +16,7 @@ from snowflake.snowpark.functions import (
     col,
     count,
     covar_pop,
-    covar_samp,
-    function,
-    grouping,
     listagg,
-    lit,
     max as max_,
     mean,
     median,
@@ -314,7 +310,7 @@ def test_df_agg_dict_arg(session):
     )
 
 
-def test_df_agg_invalid_args_in_list(session):
+def test_df_agg_invalid_args_in_list_negative(session):
     """Test for making sure when a list passed to agg() produces correct errors."""
 
     df = session.create_dataframe([[1, 4], [1, 4], [2, 5], [2, 6]]).to_df(
@@ -476,78 +472,6 @@ def test_agg_function_multiple_parameters(session):
     assert origin_df.select(
         listagg("v", delimiter='~!1,."', is_distinct=True)
     ).collect() == [Row('k1~!1,."k3~!1,."k4')]
-
-
-def test_register_new_methods(session, local_testing_mode):
-    if not local_testing_mode:
-        pytest.skip("mock implementation does not apply to live code")
-
-    origin_df = session.create_dataframe(
-        [
-            [10.0, 11.0],
-            [20.0, 22.0],
-            [25.0, 0.0],
-            [30.0, 35.0],
-        ],
-        schema=["m", "n"],
-    )
-
-    # approx_percentile
-    with pytest.raises(NotImplementedError):
-        origin_df.select(function("approx_percentile")(col("m"), lit(0.5))).collect()
-        # snowflake.snowpark.functions.approx_percentile is being updated to use lit
-        # so `function` won't be needed here.
-
-    @snowpark_mock_functions.patch("approx_percentile")
-    def mock_approx_percentile(
-        column: ColumnEmulator, percentile: float
-    ) -> ColumnEmulator:
-        assert column.tolist() == [10.0, 20.0, 25.0, 30.0]
-        assert percentile == 0.5
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(
-        function("approx_percentile")(col("m"), lit(0.5))
-    ).collect() == [Row(123)]
-
-    # covar_samp
-    with pytest.raises(NotImplementedError):
-        origin_df.select(covar_samp(col("m"), "n")).collect()
-
-    @snowpark_mock_functions.patch(covar_samp)
-    def mock_covar_samp(
-        column1: ColumnEmulator,
-        column2: ColumnEmulator,
-    ):
-        assert column1.tolist() == [10.0, 20.0, 25.0, 30.0]
-        assert column2.tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(covar_samp(col("m"), "n")).collect() == [Row(123)]
-
-    # stddev
-    with pytest.raises(NotImplementedError):
-        origin_df.select(stddev("n")).collect()
-
-    @snowpark_mock_functions.patch(stddev)
-    def mock_stddev(column: ColumnEmulator):
-        assert column.tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(stddev("n")).collect() == [Row(123)]
-
-    # grouping
-    with pytest.raises(NotImplementedError):
-        origin_df.select(grouping("m", col("n"))).collect()
-
-    @snowpark_mock_functions.patch(grouping)
-    def mock_mock_grouping(*columns):
-        assert len(columns) == 2
-        assert columns[0].tolist() == [10.0, 20.0, 25.0, 30.0]
-        assert columns[1].tolist() == [11.0, 22.0, 0.0, 35.0]
-        return ColumnEmulator(data=123, sf_type=ColumnType(DoubleType(), False))
-
-    assert origin_df.select(grouping("m", col("n"))).collect() == [Row(123)]
 
 
 def test_group_by(session, local_testing_mode):

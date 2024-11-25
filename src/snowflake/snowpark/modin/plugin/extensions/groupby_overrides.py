@@ -740,59 +740,9 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         ErrorMessage.method_not_implemented_error(name="ohlc", class_="GroupBy")
 
     @_inherit_docstrings(pandas.core.groupby.DataFrameGroupBy.pct_change)
-    def pct_change(
-        self,
-        periods=1,
-        fill_method=no_default,
-        limit=no_default,
-        freq=no_default,
-        axis=no_default,
-        **kwargs,
-    ):
+    def pct_change(self, *args, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        if fill_method not in (no_default, None) or limit is not no_default:
-            WarningMessage.single_warning(
-                "The 'fill_method' keyword being not None and the 'limit' keyword in "
-                + f"{type(self).__name__}.pct_change are deprecated and will be removed "
-                + "in a future version. Either fill in any non-leading NA values prior "
-                + "to calling pct_change or specify 'fill_method=None' to not fill NA "
-                + "values.",
-            )
-        if fill_method is no_default:
-            WarningMessage.single_warning(
-                f"The default fill_method='ffill' in {type(self).__name__}.pct_change is "
-                + "deprecated and will be removed in a future version. Either fill in any "
-                + "non-leading NA values prior to calling pct_change or specify 'fill_method=None' "
-                + "to not fill NA values.",
-            )
-            fill_method = "ffill"
-
-        if limit is no_default:
-            limit = None
-
-        if freq is no_default:
-            freq = None
-
-        if axis is not no_default:
-            axis = self._df._get_axis_number(axis)
-        else:
-            axis = 0
-
-        if not isinstance(periods, int):
-            raise TypeError(
-                f"Periods must be integer, but {periods} is {type(periods)}."
-            )
-
-        return self._wrap_aggregation(
-            type(self._query_compiler).groupby_pct_change,
-            agg_kwargs=dict(
-                periods=periods,
-                fill_method=fill_method,
-                limit=limit,
-                freq=freq,
-                axis=axis,
-            ),
-        )
+        ErrorMessage.method_not_implemented_error(name="pct_change", class_="GroupBy")
 
     def prod(self, numeric_only=False, min_count=0):
         ErrorMessage.method_not_implemented_error(name="prod", class_="GroupBy")

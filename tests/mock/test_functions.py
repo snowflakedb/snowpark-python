@@ -258,7 +258,7 @@ def test_show(session):
 
     origin_df.show()
     assert (
-        origin_df._show_string()
+        origin_df._show_string(_emit_ast=False)
         == """
 --------------------
 |"A"  |"B"  |"C"   |
@@ -272,7 +272,7 @@ def test_show(session):
     )
 
     assert (
-        origin_df._show_string(2, 2)
+        origin_df._show_string(2, 2, _emit_ast=False)
         == """
 ----------------
 |"A...|"B...|"C...|

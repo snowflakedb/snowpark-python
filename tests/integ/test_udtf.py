@@ -881,7 +881,7 @@ def test_register_vectorized_udtf_process_basic(session, from_file, resources_pa
     Utils.check_answer(
         df.select(process_udtf("id", "col1", "col2")),
         data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -935,7 +935,7 @@ def test_register_vectorized_udtf_process_basic_with_end_partition(
     Utils.check_answer(
         df.select(process_udtf("id", "col1", "col2").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -993,7 +993,7 @@ def test_register_vectorized_udtf_process_sum_rows(session, from_file, resources
     Utils.check_answer(
         df.select(process_udtf("id", "col1").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -1042,7 +1042,7 @@ def test_register_vectorized_udtf_process_max_batch_size(
     Utils.check_answer(
         df.select(process_udtf("id", "col1", "col2").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -1092,7 +1092,7 @@ def test_register_vectorized_udtf_process_with_output_schema(session):
     Utils.check_answer(
         df.select(process_udtf("id", "col1").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -1140,7 +1140,7 @@ def test_register_vectorized_udtf_process_with_type_hints(session):
     Utils.check_answer(
         df.select(process_udtf("id", "col1").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 
@@ -1192,7 +1192,7 @@ def test_register_vectorized_udtf_process_with_type_hints_and_output_schema(sess
     Utils.check_answer(
         df.select(process_udtf("id", "col1").over(partition_by="id")),
         expected_data,
-        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": True},
+        statement_params={"PYTHON_UDTF_ENABLE_PROCESS_DATAFRAME_ENCODING": "True"},
     )
 
 

@@ -89,6 +89,11 @@ SUPPORT_READ_OPTIONS = {
         "PATTERN": None,
         "ENCODING": ("UTF8", "UTF-8"),
     },
+    # TODO: Support avro, xml, parquet, orc in local test.
+    "avro": {},
+    "xml": {},
+    "parquet": {},
+    "orc": {},
 }
 
 

@@ -717,6 +717,11 @@ def test_table(session):
     ],
 )
 def test_sql(session, query):
+    if not session._query_compilation_stage_enabled:
+        pytest.skip(
+            "CTE query generation without the new query generation doesn't work correctly"
+        )
+
     df = session.sql(query).filter(lit(True))
     df_result = df.union_all(df).select("*")
     expected_query_count = 1

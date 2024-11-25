@@ -32,6 +32,8 @@ from snowflake.snowpark.functions import (
     dense_rank,
     ln,
     log,
+    _log2,
+    _log10,
     sin,
     snowflake_cortex_summarize,
     udf,
@@ -85,6 +87,8 @@ cloudpickle.register_pickle_by_value(sys.modules[__name__])
 SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
     ln,
     log,
+    _log2,
+    _log10,
     sin,
     snowflake_cortex_summarize,
 }
