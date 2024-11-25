@@ -96,8 +96,8 @@ This section covers guidelines for developers that wish to contribute code to `S
 
 Once you have decided that the new component being added with required protection during concurrent access, following can be used:
 
-- `Session._thread_store` is a `threading.local()` object which can be used to store a per-thread instance of the component. The python connector cursor object is an example of this.
-- `Session._lock` is a `RLock` object which can be used to protect shared resources. `query_tag` is an example of this.
+- `Session._thread_store`, `ServerConnection._thread_store` are `threading.local()` objects which can be used to store a per-thread instance of the component. The python connector cursor object is an example of this.
+- `Session._lock` and `ServerConnection._lock` are `RLock` objects which can be used to serialize access to shared resources. `Session.query_tag` is an example of this.
 - `Session._package_lock` is a `RLock` object which can be used to protect `packages` and `imports` for stored procedures and user defined functions.
 - `Session._plan_lock` is a `RLock` object which can be used to serialize `SnowflakePlan` and `Selectable` method calls. `SnowflakePlan.plan_state` is an example.
 - `QueryHistory(session, include_thread_id=True)` can be used to log the query history with thread id.
