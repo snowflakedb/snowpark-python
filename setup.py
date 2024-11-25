@@ -39,8 +39,6 @@ if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
 
 PANDAS_REQUIREMENTS = [
     f"snowflake-connector-python[pandas]{CONNECTOR_DEPENDENCY_VERSION}",
-    # When using HEAD of connector.
-    # f"{CONNECTOR_DEPENDENCY}[pandas]",
 ]
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
@@ -196,8 +194,6 @@ setup(
         "modin": MODIN_REQUIREMENTS,
         "secure-local-storage": [
             f"snowflake-connector-python[secure-local-storage]{CONNECTOR_DEPENDENCY_VERSION}",
-            # When using HEAD, use this.
-            # f"{CONNECTOR_DEPENDENCY}[secure-local-storage]",
         ],
         "development": DEVELOPMENT_REQUIREMENTS,
         "modin-development": [
