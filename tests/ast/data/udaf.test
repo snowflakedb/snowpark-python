@@ -89,7 +89,7 @@ df.agg(u2("a"))
 
 ## EXPECTED UNPARSER OUTPUT
 
-sum_udaf = udaf("PythonSumUDAF", return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, _registered_object_name="sum_int")
+sum_udaf = udaf("PythonSumUDAF", return_type=IntegerType(), input_types=[IntegerType()], name="sum_int", replace=True, copy_grants=False, _registered_object_name="sum_int")
 
 df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]])
 
@@ -97,7 +97,7 @@ df = df.to_df("a", "b")
 
 df.agg(sum_udaf("a")).collect()
 
-u2 = udaf("PythonTopK", return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", force_inline_code=True, _registered_object_name="top_k")
+u2 = udaf("PythonTopK", return_type=IntegerType(), input_types=[IntegerType()], name="top_k", is_permanent=True, stage_location="@", imports=["numpy"], packages=["numpy"], replace=True, parallel=8, statement_params={"a": "b", "d": "e"}, external_access_integrations=["s3"], secrets={"a": "c", "e": "f"}, immutable=True, comment="test udaf", copy_grants=False, force_inline_code=True, _registered_object_name="top_k")
 
 res3 = df.agg(u2("a"))
 
@@ -118,6 +118,17 @@ body {
         input_types {
           list {
             sp_integer_type: true
+          }
+        }
+        kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 45
+              }
+            }
           }
         }
         name {
@@ -414,6 +425,17 @@ body {
         }
         is_permanent: true
         kwargs {
+          _1: "copy_grants"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 105
+              }
+            }
+          }
+        }
+        kwargs {
           _1: "force_inline_code"
           _2 {
             bool_val {
@@ -422,17 +444,6 @@ body {
                 start_line: 105
               }
               v: true
-            }
-          }
-        }
-        kwargs {
-          _1: "copy_grants"
-          _2 {
-            bool_val {
-              src {
-                file: "SRC_POSITION_TEST_MODE"
-                start_line: 105
-              }
             }
           }
         }

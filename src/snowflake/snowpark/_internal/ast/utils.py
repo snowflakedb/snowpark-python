@@ -551,12 +551,8 @@ def build_fn_apply_args(
             build_expr_from_python_val(pos_arg, arg)
             expr.pos_args.append(pos_arg)
 
-<<<<<<< HEAD:src/snowflake/snowpark/_internal/ast/utils.py
-    for name, arg in kwargs.items():  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "dict[str, Union[Expr, Any]]", variable has type "tuple[Union[Expr, Any]]")
-=======
     sorted_kwargs = dict(sorted(kwargs.items()))
-    for name, arg in sorted_kwargs.items():
->>>>>>> d19cdbbd1 (Update):src/snowflake/snowpark/_internal/ast_utils.py
+    for name, arg in sorted_kwargs.items():  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "dict[str, Union[Expr, Any]]", variable has type "tuple[Union[Expr, Any]]")
         kwarg = proto.Tuple_String_Expr()
         kwarg._1 = name
         if isinstance(arg, proto.Expr):
@@ -1119,14 +1115,9 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     ast.immutable = immutable
     if comment is not None:
         ast.comment.value = comment
-<<<<<<< HEAD:src/snowflake/snowpark/_internal/ast/utils.py
-    for k, v in kwargs.items():
-        t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
-=======
     sorted_kwargs = dict(sorted(kwargs.items()))
     for k, v in sorted_kwargs.items():
-        t = ast.kwargs.add()
->>>>>>> d19cdbbd1 (Update):src/snowflake/snowpark/_internal/ast_utils.py
+        t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
         t._1 = k
         build_expr_from_python_val(t._2, v)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "build_expr_from_python_val" has incompatible type "str"; expected "Expr"
 
@@ -1208,14 +1199,9 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     ast.immutable = immutable
     if comment is not None:
         ast.comment.value = comment
-<<<<<<< HEAD:src/snowflake/snowpark/_internal/ast/utils.py
-    for k, v in kwargs.items():
-        t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
-=======
     sorted_kwargs = dict(sorted(kwargs.items()))
     for k, v in sorted_kwargs.items():
-        t = ast.kwargs.add()
->>>>>>> d19cdbbd1 (Update):src/snowflake/snowpark/_internal/ast_utils.py
+        t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
         t._1 = k
         build_expr_from_python_val(t._2, v)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "build_expr_from_python_val" has incompatible type "str"; expected "Expr"
 
@@ -1312,14 +1298,9 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     ast.immutable = immutable
     if comment is not None:
         ast.comment.value = comment
-<<<<<<< HEAD:src/snowflake/snowpark/_internal/ast/utils.py
-    for k, v in kwargs.items():
-        t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
-=======
     sorted_kwargs = dict(sorted(kwargs.items()))
     for k, v in sorted_kwargs.items():
-        t = ast.kwargs.add()
->>>>>>> d19cdbbd1 (Update):src/snowflake/snowpark/_internal/ast_utils.py
+        t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
         t._1 = k
         build_expr_from_python_val(t._2, v)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "build_expr_from_python_val" has incompatible type "str"; expected "Expr"
 
@@ -1432,14 +1413,9 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
             t._2 = v
     if comment is not None:
         ast.comment.value = comment
-<<<<<<< HEAD:src/snowflake/snowpark/_internal/ast/utils.py
-    for k, v in kwargs.items():
-        t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
-=======
     sorted_kwargs = dict(sorted(kwargs.items()))
     for k, v in sorted_kwargs.items():
-        t = ast.kwargs.add()
->>>>>>> d19cdbbd1 (Update):src/snowflake/snowpark/_internal/ast_utils.py
+        t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
         t._1 = k
         build_expr_from_python_val(t._2, v)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "build_expr_from_python_val" has incompatible type "str"; expected "Expr"
 
