@@ -257,6 +257,7 @@ Functions
     sha2
     sin
     sinh
+    size
     skew
     snowflake_cortex_summarize
     sort_array
