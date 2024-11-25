@@ -236,16 +236,22 @@ def test_column_regex(session, local_testing_mode):
     Utils.check_answer(df.select(df.col_regex("col3")), [Row(COL3=4)])
     Utils.check_answer(df.select(df.col_regex("Col3")), [Row(COL3=4)])
 
-    with pytest.raises(ValueError, match="No column match provided regex:no_match"):
+    with pytest.raises(
+        ValueError, match="No columns matched for the provided regex:no_match"
+    ):
         df.select(df.col_regex("no_match"))
 
-    with pytest.raises(ValueError, match='No column match provided regex:Col2_.*"'):
+    with pytest.raises(
+        ValueError, match='No columns matched for the provided regex:Col2_.*"'
+    ):
         df.select(df.col_regex('Col2_.*"'))
 
     case_sensitive_df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
         ['"COL1"', '"Col2_a"', '"Col2_b"', '"col3"']
     )
-    with pytest.raises(ValueError, match="No column match provided regex:Col2_.*"):
+    with pytest.raises(
+        ValueError, match="No columns matched for the provided regex:Col2_.*"
+    ):
         case_sensitive_df.select(
             case_sensitive_df.col_regex("Col2_.*", case_sensitive=True)
         )
@@ -256,18 +262,24 @@ def test_column_regex(session, local_testing_mode):
         ).collect(),
         [Row(Col2_a=2, Col2_b=3)],
     )
-    with pytest.raises(ValueError, match="No column match provided regex:col2_.*"):
+    with pytest.raises(
+        ValueError, match="No columns matched for the provided regex:col2_.*"
+    ):
         case_sensitive_df.select(
             case_sensitive_df.col_regex("col2_.*", case_sensitive=True)
         )
 
-    with pytest.raises(ValueError, match="No column match provided regex:COL2.*"):
+    with pytest.raises(
+        ValueError, match="No columns matched for the provided regex:COL2.*"
+    ):
         case_sensitive_df.select(
             case_sensitive_df.col_regex("COL2_.*", case_sensitive=True)
         )
 
     # fail because it requires to start without double quote and end with double quote, which is an illegal regex
-    with pytest.raises(ValueError, match='No column match provided regex:Col2_.*"'):
+    with pytest.raises(
+        ValueError, match='No columns matched for the provided regex:Col2_.*"'
+    ):
         case_sensitive_df.select(
             case_sensitive_df.col_regex('Col2_.*"', case_sensitive=True)
         )
