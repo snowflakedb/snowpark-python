@@ -5853,6 +5853,33 @@ def array_unique_agg(col: ColumnOrName) -> Column:
     return _call_function("array_unique_agg", True, c)
 
 
+def size(col: ColumnOrName) -> Column:
+    """Returns the size of the input ARRAY, OBJECT or MAP. Returns NULL if the
+    input column does not match any of these types.
+
+    Args:
+        col: A :class:`Column` object or column name that determines the values.
+
+    Example::
+        >>> df = session.create_dataframe([([1,2,3], {'a': 1, 'b': 2}, 3)], ['col1', 'col2', 'col3'])
+        >>> df.select(size(df.col1), size(df.col2), size(df.col3)).show()
+        ----------------------------------------------------------
+        |"SIZE(""COL1"")"  |"SIZE(""COL2"")"  |"SIZE(""COL3"")"  |
+        ----------------------------------------------------------
+        |3                 |2                 |NULL              |
+        ----------------------------------------------------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(col, "size")
+    v = to_variant(c)
+    return (
+        when(is_array(v), array_size(v))
+        .when(is_object(v), array_size(object_keys(v)))
+        .otherwise(lit(None))
+        .alias(f"SIZE({c.get_name()})")
+    )
+
+
 def object_agg(key: ColumnOrName, value: ColumnOrName) -> Column:
     """Returns one OBJECT per group. For each key-value input pair, where key must be a VARCHAR
     and value must be a VARIANT, the resulting OBJECT contains a key-value field.

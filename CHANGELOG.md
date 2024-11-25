@@ -19,6 +19,7 @@
     - `keyType`: keys of the map
     - `valueType`: values of the map
 - Added support for `include_nulls` argument in `DataFrame.unpivot`.
+- Added support for `size` in `functions.py` to get size of array, object, or map columns.
 
 #### Improvements
 

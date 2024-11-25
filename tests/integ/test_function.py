@@ -126,6 +126,7 @@ from snowflake.snowpark.functions import (
     regexp_replace,
     reverse,
     sequence,
+    size,
     snowflake_cortex_summarize,
     split,
     sqrt,
@@ -1740,6 +1741,10 @@ def test_array_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(array_size([1])).collect()
     assert "'ARRAY_SIZE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(TypeError) as ex_info:
+        df.select(size([1])).collect()
+    assert "'SIZE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         df.select(array_slice([1], "col1", "col2")).collect()
