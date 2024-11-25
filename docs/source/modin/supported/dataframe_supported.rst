@@ -65,15 +65,9 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``add_suffix``              | Y                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``agg``                     | P                               | ``margins``, ``observed``,       | If ``axis == 0``: ``Y`` when  function is one of   |
-|                             |                                 | ``sort``                         | ``count``, ``mean``, ``min``, ``max``, ``sum``,    |
-|                             |                                 |                                  | ``median``, ``size``; ``std`` and ``var``          |
-|                             |                                 |                                  | supported with ``ddof=0`` or ``ddof=1``;           |
-|                             |                                 |                                  | ``quantile`` is supported when ``q`` is the        |
-|                             |                                 |                                  | default value or a scalar.                         |
-|                             |                                 |                                  | If ``axis == 1``: ``Y`` when function is           |
-|                             |                                 |                                  | ``count``, ``min``, ``max``, or ``sum`` and the    |
-|                             |                                 |                                  | index is not a MultiIndex.                         |
+| ``agg``                     | P                               | ``margins``, ``observed``,       | Check                                              |
+|                             |                                 | ``sort``                         | `Supported Aggregation Functions <agg_supp.html>`_ |
+|                             |                                 |                                  | for a list of supported functions.                 |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``aggregate``               | P                               | ``margins``, ``observed``,       | See ``agg``                                        |
 |                             |                                 | ``sort``                         |                                                    |
