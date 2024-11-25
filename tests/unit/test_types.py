@@ -1050,7 +1050,6 @@ def test_snow_type_to_dtype_str():
         snow_type_to_dtype_str(None)
 
 
-@pytest.mark.skipif(not is_pandas_available, reason="Includes testing for pandas types")
 @pytest.mark.parametrize(
     "tpe, simple_string, json, type_name, json_value",
     [
@@ -1238,7 +1237,9 @@ def test_snow_type_to_dtype_str():
                     {"name": "col2", "type": "float"},
                 ],
             },
-        ),
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
         (
             PandasDataFrameType(
                 [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
@@ -1263,24 +1264,32 @@ def test_snow_type_to_dtype_str():
                     {"name": "", "type": "float"},
                 ],
             },
-        ),
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
         (
             PandasSeriesType(IntegerType()),
             "pandas_series<int>",
             '{"element_type":"integer","type":"pandas_series"}',
             "pandas_series",
             {"type": "pandas_series", "element_type": "integer"},
-        ),
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
         (
             PandasSeriesType(None),
             "pandas_series<>",
             '{"element_type":null,"type":"pandas_series"}',
             "pandas_series",
             {"type": "pandas_series", "element_type": None},
-        ),
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
     ],
 )
 def test_datatype(tpe, simple_string, json, type_name, json_value):
+    if tpe is None:
+        pytest.skip("skip because pandas is not available")
     assert tpe.simple_string() == simple_string
     assert tpe.json_value() == json_value
     assert tpe.json() == json
@@ -1306,7 +1315,6 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
         assert tpe.typeName() == type_name
 
 
-@pytest.mark.skipif(not is_pandas_available, reason="Includes testing for pandas types")
 @pytest.mark.parametrize(
     "datatype, tpe",
     [
@@ -1373,18 +1381,28 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             PandasDataFrameType(
                 [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
             ),
-        ),
+        )
+        if is_pandas_available
+        else (None, None),
         (
             PandasDataFrameType,
             PandasDataFrameType(
                 [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
             ),
-        ),
-        (PandasSeriesType, PandasSeriesType(IntegerType())),
-        (PandasSeriesType, PandasSeriesType(None)),
+        )
+        if is_pandas_available
+        else (None, None),
+        (PandasSeriesType, PandasSeriesType(IntegerType()))
+        if is_pandas_available
+        else (None, None),
+        (PandasSeriesType, PandasSeriesType(None))
+        if is_pandas_available
+        else (None, None),
     ],
 )
 def test_structtype_from_json(datatype, tpe):
+    if datatype is None:
+        pytest.skip("skip because pandas is not available")
     json_dict = tpe.json_value()
     new_obj = datatype.from_json(json_dict)
     assert new_obj == tpe
