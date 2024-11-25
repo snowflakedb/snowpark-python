@@ -639,7 +639,7 @@ def test_struct_dtype_iceberg_lqb(
     is_query_compilation_stage_enabled = (
         structured_type_session._query_compilation_stage_enabled
     )
-    is_cte_optimization_enabled = (structured_type_session._cte_optimization_enabled)
+    is_cte_optimization_enabled = structured_type_session._cte_optimization_enabled
     is_large_query_breakdown_enabled = (
         structured_type_session._large_query_breakdown_enabled
     )
