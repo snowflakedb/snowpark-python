@@ -3849,9 +3849,6 @@ class Session:
                 is a table return type. This skips infer check and returns a dataframe with appropriate sql call.
         """
 
-        # TODO SNOW-1672561: The implementation here treats .call as an assign. However, technically it may
-        #  be either only assign or assign+eval depending on the path taken.
-
         # AST.
         stmt = None
         if _emit_ast:
@@ -3890,7 +3887,9 @@ class Session:
         # TODO SNOW-1672561: This here needs to emit an eval as well.
         df = self.sql(query, _ast_stmt=stmt)
         set_api_call_source(df, "Session.call")
-        return df.collect(statement_params=statement_params)[0][0]
+
+        # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
+        return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
 
     @deprecated(
         version="0.7.0",

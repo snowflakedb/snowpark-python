@@ -1475,10 +1475,11 @@ message EvalResult {
     PythonDateVal python_date_val = 14;
     PythonTimeVal python_time_val = 15;
     PythonTimestampVal python_timestamp_val = 16;
-    SpDatatypeVal sp_datatype_val = 17;
-    StringVal string_val = 18;
-    TimeVal time_val = 19;
-    TimestampVal timestamp_val = 20;
+    SfQueryResult sf_query_result = 17;
+    SpDatatypeVal sp_datatype_val = 18;
+    StringVal string_val = 19;
+    TimeVal time_val = 20;
+    TimestampVal timestamp_val = 21;
   }
 }
 
@@ -1499,6 +1500,11 @@ message Error {
 message SessionResetRequiredError {
   int64 uid = 1;
   VarId var_id = 2;
+}
+
+// result.ir:23
+message SfQueryResult {
+  string uuid = 1;
 }
 
 message SpColumnExpr {

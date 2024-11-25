@@ -111,45 +111,45 @@ df = df.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timez
 
 df = df.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name="UTC-03:15")))
 
-df = df.select(col("A") + Infinity)
+df = df.select(col("A") + float('inf'))
 
-df = df.select(col("A") - Infinity)
+df = df.select(col("A") - float('inf'))
 
-df = df.select(col("A") + NaN)
+df = df.select(col("A") + float('nan'))
 
-df = df.select(col("A") + Infinity)
+df = df.select(col("A") + float('inf'))
 
-df = df.select(col("A") + -Infinity)
+df = df.select(col("A") + float('-inf'))
 
-df = df.select(col("A") + NaN)
+df = df.select(col("A") + float('nan'))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168.681545"))
+df = df.select(col("A") + Decimal("403487.436973"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168.681547"))
+df = df.select(col("A") + Decimal("-403487.436973"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168681549"))
+df = df.select(col("A") + Decimal("403487"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168681551"))
+df = df.select(col("A") + Decimal("403487000"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168681553"))
+df = df.select(col("A") + Decimal("403487000"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168681555"))
+df = df.select(col("A") + Decimal("infinity"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168681557"))
+df = df.select(col("A") + Decimal("-infinity"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168681559"))
+df = df.select(col("A") + Decimal("nan"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168681561"))
+df = df.select(col("A") + Decimal("-nan"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168681563"))
+df = df.select(col("A") + Decimal("snan"))
 
-df = df.select(col("A") + decimal.Decimal("41920528422237148206301592341820650469147669718938836168681565"))
+df = df.select(col("A") + Decimal("-snan"))
 
-df = df.select(col("A") + {0: "test", 42.24: None, "hello": bytes("test", "utf-8"), True: decimal.Decimal("41920528422237148206301592341820650469147669718938836168.681567"), None: datetime.date(2024, 6, 7)})
+df = df.select(col("A") + {0: "test", 42.24: None, "hello": bytes("test", "utf-8"), True: Decimal("-403487.436973"), None: datetime.date(2024, 6, 7)})
 
-df = df.select(col("A") + [(0, "test", 42.24), None, "hello", bytes("test", "utf-8"), {True: decimal.Decimal("41920528422237148206301592341820650469147669718938836168.681569"), None: datetime.date(2024, 6, 7)}])
+df = df.select(col("A") + [(0, "test", 42.24), None, "hello", bytes("test", "utf-8"), {True: Decimal("-403487.436973"), None: datetime.date(2024, 6, 7)}])
 
-df = df.select(col("A") + (0, ("test", 42.24, {None: ("hello", bytes("test", "utf-8"))}), [True, decimal.Decimal("41920528422237148206301592341820650469147669718938836168.681571"), {None: datetime.date(2024, 6, 7)}]))
+df = df.select(col("A") + (0, ("test", 42.24, {None: ("hello", bytes("test", "utf-8"))}), [True, Decimal("-403487.436973"), {None: datetime.date(2024, 6, 7)}]))
 
 ## EXPECTED ENCODED AST
 

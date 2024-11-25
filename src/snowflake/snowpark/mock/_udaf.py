@@ -66,14 +66,50 @@ class MockUDAFRegistration(UDAFRegistration):
         _emit_ast: bool = True,
         **kwargs
     ) -> UserDefinedAggregateFunction:
+        ast, ast_id = None, None
+        if kwargs.get("_registered_object_name") is not None:
+            if _emit_ast:
+                stmt = self._session._ast_batch.assign()
+                ast = with_src_position(stmt.expr.udaf, stmt)
+                ast_id = stmt.var_id.bitfield1
+
+            object_name = kwargs["_registered_object_name"]
+            udaf = MockUserDefinedAggregateFunction(
+                handler,
+                object_name,
+                return_type,
+                input_types,
+                packages=packages,
+                _ast=ast,
+                _ast_id=ast,
+            )
+            self._registry[object_name] = udaf
+            return udaf
 
         check_imports_type(imports)
 
-        # AST. Capture original parameters, before any pre-processing.
-        ast = None
+        # Retrieve the UDAF name, return and input types.
+        (
+            object_name,
+            _,
+            _,
+            return_type,
+            input_types,
+            opt_arg_defaults,
+        ) = process_registration_inputs(
+            self._session,
+            TempObjectType.AGGREGATE_FUNCTION,
+            handler,
+            return_type,
+            input_types,
+            name,
+        )
+
+        # Capture original parameters.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udaf, stmt)
+            ast_id = stmt.var_id.bitfield1
             build_udaf(
                 ast,
                 handler,
@@ -91,36 +127,22 @@ class MockUDAFRegistration(UDAFRegistration):
                 immutable=immutable,
                 comment=comment,
                 statement_params=statement_params,
-                source_code_display=source_code_display,
                 is_permanent=is_permanent,
                 session=self._session,
+                _registered_object_name=object_name,
                 **kwargs,
             )
 
-        # Get the udaf name, return and input types.
-        (
-            udaf_name,
-            _,
-            _,
-            return_type,
-            input_types,
-            opt_arg_defaults,
-        ) = process_registration_inputs(
-            self._session,
-            TempObjectType.AGGREGATE_FUNCTION,
-            handler,
-            return_type,
-            input_types,
-            name,
-        )
-
         udaf = MockUserDefinedAggregateFunction(
-            handler, udaf_name, return_type, input_types, packages=packages
+            handler,
+            object_name,
+            return_type,
+            input_types,
+            packages=packages,
+            _ast=ast,
+            _ast_id=ast_id,
         )
 
-        self._registry[udaf_name] = udaf
+        self._registry[object_name] = udaf
 
-        udaf._ast = ast
-        if _emit_ast:
-            udaf._ast_id = stmt.var_id.bitfield1
         return udaf

@@ -62,7 +62,7 @@ view2 = f'"{Utils.random_name_for_temp_object(TempObjectType.VIEW)}"'
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session, resources_path, local_testing_mode):
+def setup(session, resources_path, local_testing_mode, validate_ast):
     if not local_testing_mode:
         # Stages not supported in local testing yet
         test_files = TestFiles(resources_path)
@@ -72,10 +72,16 @@ def setup(session, resources_path, local_testing_mode):
             session, tmp_stage_name, test_files.test_file_parquet, compress=False
         )
 
-    session.create_dataframe([[1], [2], [3]], schema=["a"]).write.save_as_table(table1)
+    session.create_dataframe([[1], [2], [3]], schema=["a"]).write.save_as_table(
+        table1,
+        mode="ignore" if validate_ast else "errorifexists",
+    )
     session.create_dataframe(
         [[1, 2], [2, 3], [3, 4]], schema=["a", "b"]
-    ).write.save_as_table(table2)
+    ).write.save_as_table(
+        table2,
+        mode="ignore" if validate_ast else "errorifexists",
+    )
     yield
 
     Utils.drop_table(session, tmp_table_name)
