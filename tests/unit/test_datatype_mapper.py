@@ -290,3 +290,4 @@ def test_schema_expression():
         schema_expression(VectorType(float, 3), False)
         == "[0.0, 1.0, 2.0] :: VECTOR(float,3)"
     )
+    assert schema_expression(StructType([]), False) == "to_object(parse_json('{}'))"
