@@ -407,7 +407,6 @@ class ColumnIdentifier:
     """Represents a column identifier."""
 
     def __init__(self, normalized_name: str) -> None:
-        self.raw_name = normalized_name
         self.normalized_name = quote_name(normalized_name)
 
     @property
@@ -475,26 +474,20 @@ class StructField:
         datatype: DataType,
         nullable: bool = True,
     ) -> None:
-        self.column_identifier = (
-            ColumnIdentifier(column_identifier)
-            if isinstance(column_identifier, str)
-            else column_identifier
-        )
+        self.name = column_identifier
         self.datatype = datatype
         self.nullable = nullable
 
     @property
     def name(self) -> str:
         """Returns the column name."""
-        return self.column_identifier.name
-
-    @property
-    def raw_name(self) -> str:
-        return self.column_identifier.raw_name
+        return self._name
 
     @name.setter
     def name(self, n: str) -> None:
-        self.column_identifier = ColumnIdentifier(n)
+        if not isinstance(n, str):
+            raise RuntimeError(f"{n}")
+        self._name = n
 
     def __repr__(self) -> str:
         return f"StructField({self.name!r}, {repr(self.datatype)}, nullable={self.nullable})"
@@ -571,10 +564,7 @@ class StructType(DataType):
 
     def _to_attributes(self) -> List["expression.Attribute"]:
         return [
-            expression.Attribute(
-                f.column_identifier.quoted_name, f.datatype, f.nullable
-            )
-            for f in self.fields
+            expression.Attribute(f.name, f.datatype, f.nullable) for f in self.fields
         ]
 
     def __repr__(self) -> str:
