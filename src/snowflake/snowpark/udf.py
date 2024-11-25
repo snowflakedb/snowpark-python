@@ -865,8 +865,8 @@ class UDFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
+        ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
-            ast, ast_id = None, None
             if _emit_ast:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.udf, stmt)
@@ -883,7 +883,7 @@ class UDFRegistration:
 
         check_imports_type(imports, "udf-level")
 
-        # get the udf name, return and input types
+        # Retrieve the UDF name, return and input types.
         (
             udf_name,
             is_pandas_udf,
@@ -896,7 +896,6 @@ class UDFRegistration:
         )
 
         # Capture original parameters.
-        ast, ast_id = None, None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udf, stmt)

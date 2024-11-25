@@ -263,8 +263,8 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
+        ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
-            ast, ast_id = None, None
             if _emit_ast:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.stored_procedure, stmt)
@@ -325,7 +325,6 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 sproc_name, current_schema, current_database
             )
 
-            ast, ast_id = None, None
             if _emit_ast:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.stored_procedure, stmt)

@@ -66,8 +66,8 @@ class MockUDAFRegistration(UDAFRegistration):
         _emit_ast: bool = True,
         **kwargs
     ) -> UserDefinedAggregateFunction:
+        ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
-            ast, ast_id = None, None
             if _emit_ast:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.udaf, stmt)
@@ -88,7 +88,7 @@ class MockUDAFRegistration(UDAFRegistration):
 
         check_imports_type(imports)
 
-        # Get the udaf name, return and input types.
+        # Retrieve the UDAF name, return and input types.
         (
             object_name,
             _,
@@ -106,7 +106,6 @@ class MockUDAFRegistration(UDAFRegistration):
         )
 
         # Capture original parameters.
-        ast, ast_id = None, None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udaf, stmt)
