@@ -72,13 +72,8 @@ def generate_error_trace_info(python_text, exception=None):
     return error_msg
 
 
-def is_valid_ast_obj(ast):
-    return isinstance(ast, Iterable) or (
-        isinstance(ast, Message) and ast.ByteSize() > 0
-    )
-
-
 def get_dependent_var_ids(ast):
+    """Retrieve the dependent AST IDs required for this AST object."""
     dependent_ids = set()
 
     if isinstance(ast, Iterable) and not isinstance(ast, str):
@@ -100,7 +95,8 @@ def get_dependent_var_ids(ast):
     return dependent_ids
 
 
-def create_minimal_full_ast_request(cur_request, prev_stmts, dependency_cache):
+def create_full_ast_request(cur_request, prev_stmts, dependency_cache):
+    """Create fully contained AST request with all dependent AST objects required for execution replay."""
     eval_stmts = []
 
     for stmt in cur_request.body:
@@ -254,7 +250,7 @@ def notify_full_ast_validation_with_listener(
         full_ast_validation_listener._dependency_cache = {}
         full_ast_validation_listener._current_test = test_name
 
-    request = create_minimal_full_ast_request(
+    request = create_full_ast_request(
         cur_request,
         full_ast_validation_listener._prev_stmts,
         full_ast_validation_listener._dependency_cache,

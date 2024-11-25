@@ -115,8 +115,8 @@ class MockUDFRegistration(UDFRegistration):
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedFunction:
+        ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
-            ast, ast_id = None, None
             if _emit_ast:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.udf, stmt)
@@ -144,8 +144,8 @@ class MockUDFRegistration(UDFRegistration):
                 raise_error=NotImplementedError,
             )
 
-        with (self._lock):
-            # get the udf name, return and input types
+        with self._lock:
+            # Retrieve the UDF name, return and input types.
             (
                 udf_name,
                 is_pandas_udf,
@@ -168,7 +168,6 @@ class MockUDFRegistration(UDFRegistration):
                 udf_name, current_schema, current_database
             )
 
-            ast, ast_id = None, None
             if _emit_ast:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.udf, stmt)

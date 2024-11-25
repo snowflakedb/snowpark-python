@@ -823,8 +823,8 @@ class StoredProcedureRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
+        stmt, ast, ast_id = None, None, None
         if kwargs.get("_registered_object_name") is not None:
-            stmt, ast, ast_id = None, None, None
             if _emit_ast:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.stored_procedure, stmt)
@@ -862,7 +862,6 @@ class StoredProcedureRegistration:
         )
 
         # Capture original parameters.
-        stmt, ast, ast_id = None, None, None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.stored_procedure, stmt)
