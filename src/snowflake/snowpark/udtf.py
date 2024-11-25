@@ -917,8 +917,8 @@ class UDTFRegistration:
         _emit_ast: bool = True,
         **kwargs,
     ) -> UserDefinedTableFunction:
+        ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
-            ast, ast_id = None, None
             if _emit_ast:
                 stmt = self._session._ast_batch.assign()
                 ast = with_src_position(stmt.expr.udtf, stmt)
@@ -951,7 +951,7 @@ class UDTFRegistration:
             _validate_output_schema_names(output_schema)
             return_type = None
 
-        # get the udtf name, input types
+        # Retrieve the UDTF name, input types.
         (
             object_name,
             is_pandas_udf,
@@ -970,7 +970,6 @@ class UDTFRegistration:
         )
 
         # Capture original parameters.
-        ast, ast_id = None, None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.udtf, stmt)
