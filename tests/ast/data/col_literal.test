@@ -111,17 +111,17 @@ df = df.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timez
 
 df = df.select(col("A") + datetime.time(5, 42, 23, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-11700), name="UTC-03:15")))
 
-df = df.select(col("A") + Infinity)
+df = df.select(col("A") + float('inf'))
 
-df = df.select(col("A") - Infinity)
+df = df.select(col("A") - float('inf'))
 
-df = df.select(col("A") + NaN)
+df = df.select(col("A") + float('nan'))
 
-df = df.select(col("A") + Infinity)
+df = df.select(col("A") + float('inf'))
 
-df = df.select(col("A") + -Infinity)
+df = df.select(col("A") + float('-inf'))
 
-df = df.select(col("A") + NaN)
+df = df.select(col("A") + float('nan'))
 
 df = df.select(col("A") + Decimal("403487.436973"))
 
