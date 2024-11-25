@@ -2380,6 +2380,7 @@ class DataFrame:
         value_column: str,
         name_column: str,
         column_list: List[ColumnOrName],
+        include_nulls: bool = False,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Rotates a table by transforming columns into rows.
@@ -2390,7 +2391,7 @@ class DataFrame:
             value_column: The name to assign to the generated column that will be populated with the values from the columns in the column list.
             name_column: The name to assign to the generated column that will be populated with the names of the columns in the column list.
             column_list: The names of the columns in the source table or subequery that will be narrowed into a single pivot column. The column names will populate ``name_column``, and the column values will populate ``value_column``.
-
+            include_nulls: If True, include rows with NULL values in ``name_column``. The default value is False.
         Example::
 
             >>> df = session.create_dataframe([
@@ -2423,7 +2424,9 @@ class DataFrame:
             for c in column_list:
                 build_expr_from_snowpark_column_or_col_name(ast.column_list.add(), c)
 
-        unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
+        unpivot_plan = Unpivot(
+            value_column, name_column, column_exprs, include_nulls, self._plan
+        )
 
         # TODO: Support unpivot in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
