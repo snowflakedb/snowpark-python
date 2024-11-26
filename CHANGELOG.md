@@ -61,7 +61,7 @@
 #### Dependency Updates
 
 #### Bug Fixes
-- Fixed a bug in `df.loc` where setting a single column from a series results unexpected `None` values.
+- Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
 
 #### Improvements
