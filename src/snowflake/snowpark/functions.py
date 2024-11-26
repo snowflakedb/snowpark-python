@@ -2616,7 +2616,7 @@ def split(
 
 
 def substring(
-    str: ColumnOrName, pos: Union[Column, int], len: Union[Column, int]
+    str: ColumnOrName, pos: Union[Column, int], len: Optional[Union[Column, int]] = None
 ) -> Column:
     """Returns the portion of the string or binary value str, starting from the
     character/byte specified by pos, with limited length. The length should be greater
@@ -2638,8 +2638,10 @@ def substring(
     """
     s = _to_col_if_str(str, "substring")
     p = pos if isinstance(pos, Column) else lit(pos)
-    length = len if isinstance(len, Column) else lit(len)
-    return builtin("substring")(s, p, length)
+    if len is not None:
+        length = len if isinstance(len, Column) else lit(len)
+        return builtin("substring")(s, p, length)
+    return builtin("substring")(s, p)
 
 
 def substring_index(
@@ -2933,6 +2935,39 @@ def concat_ws(*cols: ColumnOrName) -> Column:
     """
     columns = [_to_col_if_str(c, "concat_ws") for c in cols]
     return builtin("concat_ws")(*columns)
+
+
+def concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
+    """Concatenates two or more strings, or concatenates two or more binary values. Null values are ignored.
+
+    Args:
+        sep: The separator to use between the strings.
+
+    Examples::
+        >>> df = session.create_dataframe([
+        ...     ['Hello', 'World', None],
+        ...     [None, None, None],
+        ...     ['Hello', None, None],
+        ... ], schema=['a', 'b', 'c'])
+        >>> df.select(concat_ws_ignore_nulls(',', df.a, df.b, df.c)).show()
+        ----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS(',', ""A"",""B"",""C"")"  |
+        ----------------------------------------------------
+        |Hello,World                                       |
+        |                                                  |
+        |Hello                                             |
+        ----------------------------------------------------
+        <BLANKLINE>
+    """
+    columns = [_to_col_if_str(c, "concat_ws_ignore_nulls") for c in cols]
+    names = ",".join([c.get_name() for c in columns])
+    input_column_array = array_construct_compact(*columns)
+    reduced_result = builtin("reduce")(
+        input_column_array, lit(""), sql_expr(f"(l, r) -> l || '{sep}' || r")
+    )
+    return substring(reduced_result, 2).alias(
+        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})"
+    )
 
 
 def translate(
