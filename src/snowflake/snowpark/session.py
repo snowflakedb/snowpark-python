@@ -239,8 +239,8 @@ _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZA
 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
     "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
 )
-_PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED = (
-    "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED"
+_PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION = (
+    "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION"
 )
 _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED = (
     "PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED"
@@ -602,10 +602,16 @@ class Session:
                 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
             )
         )
-        self._auto_clean_up_temp_table_enabled: bool = (
+        auto_clean_up_temp_table_enabled_version = (
             self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED, False
+                _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION, ""
             )
+        )
+        self._auto_clean_up_temp_table_enabled: bool = (
+            isinstance(auto_clean_up_temp_table_enabled_version, str)
+            and auto_clean_up_temp_table_enabled_version != ""
+            and pkg_resources.parse_version(self.version)
+            >= pkg_resources.parse_version(auto_clean_up_temp_table_enabled_version)
         )
         self._reduce_describe_query_enabled: bool = (
             self._conn._get_client_side_session_parameter(
