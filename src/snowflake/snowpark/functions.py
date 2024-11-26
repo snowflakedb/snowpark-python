@@ -2646,10 +2646,9 @@ def substring(
     """
     s = _to_col_if_str(str, "substring")
     p = pos if isinstance(pos, Column) else lit(pos)
-    if len is not None:
-        length = len if isinstance(len, Column) else lit(len)
-        return builtin("substring")(s, p, length)
-    return builtin("substring")(s, p)
+    if len is None:
+        return builtin("substring")(s, p)
+    return builtin("substring")(s, p, Column._to_expr(len))
 
 
 def substring_index(
