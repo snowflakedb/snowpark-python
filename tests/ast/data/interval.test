@@ -3,12 +3,12 @@
 from snowflake.snowpark._internal.analyzer.expression import Interval
 
 df1 = session.create_dataframe(
-        [
-            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
-            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
-        ],
-        schema=["a", "b"],
-    )
+    [
+        [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
+        [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+    ],
+    schema=["a", "b"],
+)
 
 df2 = df1.select(
     df1["a"]
