@@ -2628,13 +2628,21 @@ def substring(
 
     :func:`substr` is an alias of :func:`substring`.
 
-    Example::
+    Example 1::
         >>> df = session.create_dataframe(
         ...     ["abc", "def"],
         ...     schema=["S"],
-        ... ).select(substring(col("S"), 1, 1))
-        >>> df.collect()
+        ... )
+        >>> df.select(substring(col("S"), 1, 1)).collect()
         [Row(SUBSTRING("S", 1, 1)='a'), Row(SUBSTRING("S", 1, 1)='d')]
+
+    Example 2::
+        >>> df = session.create_dataframe(
+        ...     ["abc", "def"],
+        ...     schema=["S"],
+        ... )
+        >>> df.select(substring(col("S"), 2)).collect()
+        [Row(SUBSTRING("S", 2)='bc'), Row(SUBSTRING("S", 2)='ef')]
     """
     s = _to_col_if_str(str, "substring")
     p = pos if isinstance(pos, Column) else lit(pos)
