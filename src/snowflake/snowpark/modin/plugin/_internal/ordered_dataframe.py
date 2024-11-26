@@ -906,6 +906,7 @@ class OrderedDataFrame:
                     value_column=value_column,
                     name_column=name_column,
                     column_list=unpivot_column_list,
+                    include_nulls=True,
                 ),
                 snowflake_quoted_identifiers=result_column_quoted_identifiers,
             ),
