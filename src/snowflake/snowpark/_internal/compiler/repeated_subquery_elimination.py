@@ -178,7 +178,6 @@ class RepeatedSubqueryElimination:
                 _update_parents(
                     node, should_replace_child=True, new_child=resolved_with_block
                 )
-                self._total_number_ctes += 1
             elif node in updated_nodes:
                 # if the node is updated, make sure all nodes up to parent is updated
                 _update_parents(node, should_replace_child=False)
