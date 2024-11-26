@@ -169,12 +169,14 @@ class Unpivot(UnaryNode):
         value_column: str,
         name_column: str,
         column_list: List[Expression],
+        include_nulls: bool,
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
         self.value_column = value_column
         self.name_column = name_column
         self.column_list = column_list
+        self.include_nulls = include_nulls
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
