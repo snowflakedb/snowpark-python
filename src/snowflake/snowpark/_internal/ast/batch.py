@@ -123,7 +123,7 @@ class AstBatch:
         self._request.client_ast_version = CLIENT_AST_VERSION
 
     # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-    def register_callable(self, func: Callable) -> int:  # pragma: no cover
+    def register_callable(self, func: Callable) -> int:
         """Tracks client-side an actual callable and returns an ID."""
         k = id(func)
 
