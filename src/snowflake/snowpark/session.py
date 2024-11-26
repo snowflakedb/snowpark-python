@@ -329,8 +329,6 @@ class Session:
 
     class RuntimeConfig:
         def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
-            self.compatibility_mode = False
-            self.__props_dict = {}
             self._session = session
             self._conf = {
                 "use_constant_subquery_alias": True,
@@ -347,7 +345,7 @@ class Session:
                     return getattr(self._session, key)
                 if hasattr(self._session._conn._conn, key):
                     return getattr(self._session._conn._conn, key)
-                return self._conf.get(key, default) or self.__props_dict.get(key, default)
+                return self._conf.get(key, default)
 
         def is_mutable(self, key: str) -> bool:
             with self._lock:
@@ -368,15 +366,8 @@ class Session:
                         setattr(self._session, key, value)
                     if hasattr(SnowflakeConnection, key):
                         setattr(self._session._conn._conn, key, value)
-                    if key in self._conf:
-                        self._conf[key] = value
-                else:
-                    if self.compatibility_mode:
-                        self.__props_dict[key] = value
-                    else:
-                        raise AttributeError(
-                            f'Configuration "{key}" does not exist or is not mutable in runtime'
-                        )
+                else:    
+                    self._conf[key] = value
 
     class SessionBuilder:
         """
