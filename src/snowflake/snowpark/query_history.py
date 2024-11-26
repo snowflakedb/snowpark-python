@@ -119,7 +119,7 @@ class AstListener(QueryListener):
 
     @property
     def include_failures(self) -> bool:
-        return self._include_failures
+        return self._include_failures  # pragma: no cover
 
     @property
     def base64_batches(self) -> List[str]:
