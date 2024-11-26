@@ -47,6 +47,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     Query,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
@@ -426,8 +427,8 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
         notify_kwargs = {}
-        if "_dataframe_ast" in kwargs:
-            notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
+        if DATAFRAME_AST_PARAMETER in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
 
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
@@ -707,9 +708,9 @@ class ServerConnection:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
                 # Only send dataframe AST on the last query.
-                if "_dataframe_ast" in kwargs:
-                    dataframe_ast = kwargs["_dataframe_ast"]
-                    del kwargs["_dataframe_ast"]
+                if DATAFRAME_AST_PARAMETER in kwargs:
+                    dataframe_ast = kwargs[DATAFRAME_AST_PARAMETER]
+                    del kwargs[DATAFRAME_AST_PARAMETER]
                 else:
                     dataframe_ast = None
 
@@ -722,7 +723,7 @@ class ServerConnection:
                         for holder, id_ in placeholders.items():
                             final_query = final_query.replace(holder, id_)
                         if i == len(main_queries) - 1 and dataframe_ast:
-                            kwargs["_dataframe_ast"] = dataframe_ast
+                            kwargs[DATAFRAME_AST_PARAMETER] = dataframe_ast
                         result = self.run_query(
                             final_query,
                             to_pandas,
@@ -747,8 +748,8 @@ class ServerConnection:
         finally:
             # delete created tmp object
             if block:
-                if "_dataframe_ast" in kwargs:
-                    del kwargs["_dataframe_ast"]
+                if DATAFRAME_AST_PARAMETER in kwargs:
+                    del kwargs[DATAFRAME_AST_PARAMETER]
                 for action in post_actions:
                     self.run_query(
                         action.sql,
