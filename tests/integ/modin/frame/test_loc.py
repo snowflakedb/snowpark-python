@@ -4306,3 +4306,31 @@ def test_df_loc_set_series_value_slice_key(key, row_loc):
             snow_df.loc[row_loc, key] = pd.Series([1, 4, 9], index=list("ABC"))
             native_df.loc[row_loc, key] = native_pd.Series([1, 4, 9], index=list("ABC"))
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=3)
+def test_fix_1829928():
+    vars = [
+        -0.974507,
+        0.407267,
+        -0.035405,
+        0.578839,
+        0.286799,
+        1.096326,
+        -1.911032,
+        0.583056,
+        0.244446,
+        0.118878,
+    ]
+    targets = [1, 0, 0, 1, 0, 1, 0, 1, 1, 0]
+    native_df = native_pd.DataFrame(data={"Variable A": vars, "target": targets})
+
+    df = pd.DataFrame(native_df)
+
+    native_df.loc[:, "test"] = native_pd.qcut(
+        native_df["Variable A"], 10, labels=False, duplicates="drop"
+    )
+
+    df.loc[:, "test"] = pd.qcut(df["Variable A"], 10, labels=False, duplicates="drop")
+
+    assert_frame_equal(df, native_df, check_dtype=False)
