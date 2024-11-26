@@ -312,7 +312,6 @@ from snowflake.snowpark.modin.plugin._internal.type_utils import (
     is_compatible_snowpark_types,
 )
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
-    UNPIVOT_NULL_REPLACE_VALUE,
     StackOperation,
     unpivot,
     unpivot_empty_df,
@@ -13240,12 +13239,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         ordered_dataframe = original_frame.ordered_dataframe.agg(
             *[
-                # Replace NULL values so they are preserved through the UNPIVOT
-                coalesce(
-                    to_variant(
-                        column_quantile(col(col_identifier), interpolation, quantile)
-                    ),
-                    to_variant(pandas_lit(UNPIVOT_NULL_REPLACE_VALUE)),
+                to_variant(
+                    column_quantile(col(col_identifier), interpolation, quantile)
                 ).as_(new_ident)
                 for new_ident, quantile in zip(new_identifiers, q)
             ]
@@ -13263,7 +13258,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if index is not None
             else dict(zip(new_identifiers, new_labels)),
         )
-        col_after_null_replace_identifier = (
+        col_after_cast_identifier = (
             ordered_dataframe.generate_snowflake_quoted_identifiers(
                 pandas_labels=[col_label]
             )[0]
@@ -13271,21 +13266,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Restore NULL values in the data column and cast back to float
         ordered_dataframe = ordered_dataframe.select(
             index_identifier,
-            when(
-                col(col_identifier) == pandas_lit(UNPIVOT_NULL_REPLACE_VALUE),
-                pandas_lit(None),
-            )
-            .otherwise(col(col_identifier))
-            .cast(FloatType())
-            .as_(col_after_null_replace_identifier),
+            col(col_identifier).cast(FloatType()).as_(col_after_cast_identifier),
         ).ensure_row_position_column()
         internal_frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
             data_column_pandas_labels=[col_label],
             data_column_pandas_index_names=[None],
-            data_column_snowflake_quoted_identifiers=[
-                col_after_null_replace_identifier
-            ],
+            data_column_snowflake_quoted_identifiers=[col_after_cast_identifier],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[index_identifier],
             data_column_types=original_frame.cached_data_column_snowpark_pandas_types,
@@ -18648,9 +18635,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 na_position="last",
                 ignore_index=False,
             )
-
-        # TODO: SNOW-1524695: Remove the following replace once "NULL_REPLACE" values are fixed for 'melt'
-        qc = qc.replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
 
         if operation == StackOperation.STACK:
             qc = qc.set_index_from_columns(index_cols + [col_label])  # type: ignore
