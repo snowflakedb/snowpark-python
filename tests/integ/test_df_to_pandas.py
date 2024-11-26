@@ -271,7 +271,12 @@ def test_df_to_pandas_df(session):
                 "abc",
                 b"abc",
                 datetime.datetime(
-                    year=2023, month=10, day=30, hour=12, minute=12, second=12
+                    year=2023,
+                    month=10,
+                    day=30,
+                    hour=12,
+                    minute=12,
+                    second=12,
                 ),
             ]
         ],
@@ -297,7 +302,12 @@ def test_df_to_pandas_df(session):
             " gg": pd.Series(
                 [
                     datetime.datetime(
-                        year=2023, month=10, day=30, hour=12, minute=12, second=12
+                        year=2023,
+                        month=10,
+                        day=30,
+                        hour=12,
+                        minute=12,
+                        second=12,
                     )
                 ]
             ),
