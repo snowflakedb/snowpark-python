@@ -438,6 +438,7 @@ _RESET_ATTRS_METHODS = [
     "groupby_nunique",
     "groupby_rank",
     "groupby_size",
+    "groupby_pct_change",
     # expanding and rolling methods also do not propagate; we check them by prefix matching
     # agg, crosstab, and concat depend on their inputs, and are handled separately
 ]
@@ -5581,6 +5582,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         inplace: bool = False,
         limit: Optional[int] = None,
         downcast: Optional[dict] = None,
+        drop_data_by_columns: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
         Replace NaN values using provided method or value.
@@ -5596,6 +5598,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             inplace: Not supported
             limit: Maximum number of consecutive NA values to fill.
             downcast: Not supported
+            drop_data_by_columns: Internal argument used to determine whether to drop any data columns
+                that appear in the "by" list.
 
         Returns:
             SnowflakeQueryCompiler: with a NaN values using method or value.
@@ -5816,7 +5820,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         #     The methods ffill, bfill, pad and backfill of DataFrameGroupBy previously included the group labels in
         #      the return value, which was inconsistent with other groupby transforms. Now only the filled values
         #      are returned. (GH 21521)
-        if len(data_column_group_keys) > 0:
+        if drop_data_by_columns and len(data_column_group_keys) > 0:
             data_column_pandas_labels, data_column_snowflake_quoted_identifiers = zip(
                 *[
                     (pandas_label, snowflake_quoted_identifier)
@@ -5845,6 +5849,60 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         return SnowflakeQueryCompiler(new_frame)
+
+    def groupby_pct_change(
+        self,
+        by: Any,
+        agg_kwargs: dict[str, Any],
+        groupby_kwargs: dict[str, Any],
+        is_series_groupby: bool,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        periods = agg_kwargs.get("periods", 1)
+        fill_method = agg_kwargs.get("fill_method", None)
+        limit = agg_kwargs.get("limit", None)
+        freq = agg_kwargs.get("freq", None)
+        axis = agg_kwargs.get("axis", 0)
+        level = groupby_kwargs.get("level", None)
+        # Per testing, this function does not respect sort/as_index/dropna/group_keys
+        is_supported = check_is_groupby_supported_by_snowflake(
+            by=by, level=level, axis=axis
+        )
+        # Remaining parameters are validated in pct_change method
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas GroupBy.pct_change {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
+            )
+
+        by_labels = by
+        if by is not None and not is_list_like(by):
+            by_labels = [by]
+
+        if level is not None:
+            by_labels = extract_groupby_column_pandas_labels(self, by, level)
+
+        # Perform fillna before pct_change to account for filling within the group.
+        qc = self
+        if fill_method is not None:
+            qc = qc.groupby_fillna(
+                by=by,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                method=fill_method,
+                drop_data_by_columns=False,
+            )
+
+        return qc.pct_change(
+            periods=periods,
+            fill_method=None,  # fillna was already done explicitly to account for the groupby
+            limit=limit,
+            freq=freq,
+            axis=axis,
+            by_labels=by_labels,
+            # Exclude the `by` columns from the result if this is a DF groupby where labels
+            # were explicitly specified, and not generated from a multi-index level.
+            drop_by_labels=not is_series_groupby and level is None,
+        )
 
     def get_dummies(
         self,
@@ -18104,6 +18162,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         limit: Optional[int] = None,
         freq: Optional[Union[pd.DateOffset, timedelta, str]] = None,
         axis: Axis = 0,
+        by_labels: Optional[List[str]] = None,
+        drop_by_labels: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         """
@@ -18134,6 +18194,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             This is not part of the documented `pct_change` API, but pandas forwards kwargs like this
             to `shift`. To avoid unnecessary JOIN operations, we cannot compositionally use `QueryCompiler.shift`,
             and instead have to validate the axis argument here.
+
+        by_labels : List[str], optional
+            A list of pandas labels used during a groupby. This is not part of the pandas `pct_change`
+            API, and used only as an internal helper for `groupby_pct_change`. Only valid if axis=0.
+
+            We must pass labels instead of quoted identifiers in case we perform a fillna,
+            which would change quoted identifiers in the filled frame.
+
+        drop_by_labels : bool, default False
+            Whether the `by` labels need to be dropped from the result. This is not part of the pandas `pct_change`
+            API, and used only as an internal helper for `groupby_pct_change`. Only valid if axis=0.
         """
         # `periods` is validated by the frontend
         if limit is not None:
@@ -18149,8 +18220,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             frame = self.fillna(
                 self_is_series=False, method=fill_method, axis=axis
             )._modin_frame
+
         if axis == 0:
-            return SnowflakeQueryCompiler(
+            by_identifiers = None
+            if by_labels:
+                by_identifiers = [
+                    snowflake_quoted_identifier[0]
+                    for snowflake_quoted_identifier in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                        by_labels, include_index=True, include_data=True
+                    )
+                ]
+
+            result_qc = SnowflakeQueryCompiler(
                 frame.update_snowflake_quoted_identifiers_with_expressions(
                     {
                         quoted_identifier:
@@ -18164,16 +18245,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         else (
                             col(quoted_identifier)
                             / lag(quoted_identifier, offset=periods).over(
-                                Window.orderBy(
+                                (
+                                    # If this is a groupby, add a PARTITION BY clause
+                                    Window
+                                    if by_identifiers is None
+                                    else Window.partition_by(by_identifiers)
+                                ).orderBy(
                                     col(frame.row_position_snowflake_quoted_identifier)
                                 )
                             )
                             - 1
                         )
                         for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+                        # If this is a groupby, don't include the grouping column
+                        if not by_identifiers or quoted_identifier not in by_identifiers
                     }
                 ).frame
             )
+            if drop_by_labels:
+                result_qc = result_qc.drop(columns=by_labels)
+            return result_qc
         else:
             quoted_identifiers = frame.data_column_snowflake_quoted_identifiers
             return SnowflakeQueryCompiler(

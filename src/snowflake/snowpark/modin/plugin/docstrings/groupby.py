@@ -926,7 +926,75 @@ class DataFrameGroupBy:
         """
 
     def pct_change():
-        pass
+        """
+        Calculate pct_change of each value to previous entry in group.
+
+        Parameters
+        ----------
+        periods : int, default 1
+            Periods to shift for forming percent change.
+        fill_method : {"bfill", "ffill", "pad"}, default "ffill"
+            How to handle NAs before computing percent changes.
+
+            .. deprecated:: 2.1.0
+                All options of fill_method are deprecated except fill_method=None.
+
+        limit : int, optional
+            The number of consecutive NAs to fill before stopping.
+            Snowpark pandas does not yet support this parameter.
+
+            .. deprecated:: 2.1.0
+
+        freq : DateOffset, timedelta, or str, optional
+            Increment to use from time series API (e.g. ‘ME’ or BDay()).
+            Snowpark pandas does not yet support this parameter.
+
+        Returns
+        -------
+        Series or DataFrame
+            Percentage changes within each group.
+
+        Notes
+        -----
+        This function ignores the `as_index`, `sort`, `group_keys`, and `dropna` arguments passed
+        to the initial `groupby` call.
+
+        Examples
+        --------
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b', 'b']
+        >>> ser = pd.Series([1, 2, 3, 4], index=lst)
+        >>> ser
+        a    1
+        a    2
+        b    3
+        b    4
+        dtype: int64
+        >>> ser.groupby(level=0).pct_change()
+        a         NaN
+        a    1.000000
+        b         NaN
+        b    0.333333
+        dtype: float64
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [2, 5, 8], [2, 6, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"], index=["tuna", "salmon", "catfish", "goldfish"])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                   a  b  c
+            tuna   1  2  3
+          salmon   1  5  6
+         catfish   2  5  8
+        goldfish   2  6  9
+        >>> df.groupby("a").pct_change()  # doctest: +NORMALIZE_WHITESPACE
+                    b  c
+            tuna    NaN    NaN
+          salmon    1.5  1.000
+         catfish    NaN    NaN
+        goldfish    0.2  0.125
+        """
 
     def filter():
         pass
