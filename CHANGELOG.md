@@ -19,7 +19,7 @@
     - `keyType`: keys of the map
     - `valueType`: values of the map
 - Added support for `include_nulls` argument in `DataFrame.unpivot`.
-- Added client-side thin-client mode which can be enabled with `session.ast_enabled=True` (default: `False`).
+- Added parameter `ast_enabled` to session for internal usage (default: `False`).
 
 #### Improvements
 
