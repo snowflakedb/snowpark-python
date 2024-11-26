@@ -100,7 +100,7 @@ message Version {
   int64 patch = 4;
 }
 
-// const.ir:99
+// const.ir:100
 message PythonTimeZone {
   google.protobuf.StringValue name = 1;
   int64 offset_seconds = 2;
@@ -154,7 +154,7 @@ message SpWindowRelativePosition {
 
 // expr-window.ir:10
 message SpWindowRelativePosition_Position {
-  int64 n = 1;
+  Expr n = 1;
 }
 
 // pd-indexing.ir:2
@@ -534,9 +534,10 @@ message SpDataframeSchema_Struct {
 message SpCallable {
   int64 id = 1;
   string name = 2;
+  SpTableName object_name = 3;
 }
 
-// sp-type.ir:104
+// sp-type.ir:106
 message SpPivotValue {
   oneof sealed_value {
     SpPivotValue_Dataframe sp_pivot_value__dataframe = 1;
@@ -544,12 +545,12 @@ message SpPivotValue {
   }
 }
 
-// sp-type.ir:105
+// sp-type.ir:107
 message SpPivotValue_Expr {
   Expr v = 1;
 }
 
-// sp-type.ir:106
+// sp-type.ir:108
 message SpPivotValue_Dataframe {
   SpDataframeRef v = 1;
 }
@@ -647,41 +648,42 @@ message BigIntVal {
 // const.ir:43
 message BigDecimalVal {
   int64 scale = 1;
-  SrcPosition src = 2;
-  bytes unscaled_value = 3;
+  google.protobuf.StringValue special = 2;
+  SrcPosition src = 3;
+  bytes unscaled_value = 4;
 }
 
-// const.ir:48
+// const.ir:49
 message StringVal {
   SrcPosition src = 1;
   string v = 2;
 }
 
-// const.ir:52
+// const.ir:53
 message BinaryVal {
   SrcPosition src = 1;
   bytes v = 2;
 }
 
-// const.ir:60
+// const.ir:61
 message TimestampVal {
   SrcPosition src = 1;
   int64 v = 2;
 }
 
-// const.ir:64
+// const.ir:65
 message DateVal {
   SrcPosition src = 1;
   int64 v = 2;
 }
 
-// const.ir:68
+// const.ir:69
 message TimeVal {
   SrcPosition src = 1;
   int64 v = 2;
 }
 
-// const.ir:72
+// const.ir:73
 message PythonTimestampVal {
   int64 day = 1;
   int64 hour = 2;
@@ -694,7 +696,7 @@ message PythonTimestampVal {
   int64 year = 9;
 }
 
-// const.ir:83
+// const.ir:84
 message PythonDateVal {
   int64 day = 1;
   int64 month = 2;
@@ -702,7 +704,7 @@ message PythonDateVal {
   int64 year = 4;
 }
 
-// const.ir:89
+// const.ir:90
 message PythonTimeVal {
   int64 hour = 1;
   int64 microsecond = 2;
@@ -712,14 +714,14 @@ message PythonTimeVal {
   PythonTimeZone tz = 6;
 }
 
-// const.ir:105
+// const.ir:106
 message FnVal {
   Expr body = 1;
   repeated string params = 2;
   SrcPosition src = 3;
 }
 
-// const.ir:111
+// const.ir:112
 message SpDatatypeVal {
   SpDataType datatype = 1;
   SrcPosition src = 2;
@@ -1473,10 +1475,11 @@ message EvalResult {
     PythonDateVal python_date_val = 14;
     PythonTimeVal python_time_val = 15;
     PythonTimestampVal python_timestamp_val = 16;
-    SpDatatypeVal sp_datatype_val = 17;
-    StringVal string_val = 18;
-    TimeVal time_val = 19;
-    TimestampVal timestamp_val = 20;
+    SfQueryResult sf_query_result = 17;
+    SpDatatypeVal sp_datatype_val = 18;
+    StringVal string_val = 19;
+    TimeVal time_val = 20;
+    TimestampVal timestamp_val = 21;
   }
 }
 
@@ -1497,6 +1500,11 @@ message Error {
 message SessionResetRequiredError {
   int64 uid = 1;
   VarId var_id = 2;
+}
+
+// result.ir:23
+message SfQueryResult {
+  string uuid = 1;
 }
 
 message SpColumnExpr {

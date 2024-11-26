@@ -18,6 +18,8 @@
   - To `MapType`:
     - `keyType`: keys of the map
     - `valueType`: values of the map
+- Added support for `include_nulls` argument in `DataFrame.unpivot`.
+- Added parameter `ast_enabled` to session for internal usage (default: `False`).
 
 #### Improvements
 
@@ -40,6 +42,7 @@
 
 - Removed warnings that dynamic pivot features were in private preview, because
   dynamic pivot is now generally available.
+- Fixed a bug in `session.read.options` where `False` Boolean values were incorrectly parsed as `True` in the generated file format.
 
 
 #### Dependency Updates
@@ -56,19 +59,20 @@
   `DataFrame.__dataframe__()`. Snowpark pandas does not yet support columns of
   `Timdelta` type or columns containing list objects.
 
-#### Dependency Updates
-
-
 #### New Features
 
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
 - Added support fot `pd.json_normalize`.
+- Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
+
+#### Dependency Updates
 
 #### Bug Fixes
+- Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
 
 #### Improvements
-
+- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinal values
 
 
 ### Snowpark Local Testing Updates
