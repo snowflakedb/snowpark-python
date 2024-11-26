@@ -216,7 +216,9 @@ _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE = (
     "PYTHON_SNOWPARK_COMPILATION_STAGE_ENABLED"
 )
-_PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION"
+_PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION = (
+    "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION"
+)
 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
     "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
 )
@@ -558,10 +560,16 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
-        self._cte_optimization_enabled: bool = (
+        cte_optimization_enabled_version = (
             self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING, False
+                _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION, ""
             )
+        )
+        self._cte_optimization_enabled: bool = (
+            isinstance(cte_optimization_enabled_version, str)
+            and cte_optimization_enabled_version != ""
+            and pkg_resources.parse_version(self.version)
+            >= pkg_resources.parse_version(cte_optimization_enabled_version)
         )
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
