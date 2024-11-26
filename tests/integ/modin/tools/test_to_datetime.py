@@ -597,7 +597,7 @@ class TestToDatetime:
     @pytest.mark.parametrize(
         "dt", [np.datetime64("2000-01-01"), np.datetime64("2000-01-02")]
     )
-    @sql_count_checker(query_count=1, join_count=0)
+    @sql_count_checker(query_count=1)
     def test_to_datetime_dt64s(self, cache, dt):
         assert to_datetime(pd.Index([dt]), cache=cache)[0] == Timestamp(dt)
 
