@@ -600,6 +600,11 @@ def test_iceberg_nested_fields(
         Utils.drop_table(structured_type_session, transformed_table_name)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+    run=False,
+)
 @pytest.mark.parametrize("cte_enabled", [True, False])
 def test_struct_dtype_iceberg_lqb(
     structured_type_session, local_testing_mode, structured_type_support, cte_enabled
