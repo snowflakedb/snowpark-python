@@ -12,6 +12,7 @@ import re
 import sys
 import tempfile
 import time
+from base64 import b64decode
 from dataclasses import dataclass
 
 import dateutil
@@ -26,6 +27,8 @@ from snowflake.snowpark._internal.ast_utils import (
     textproto_to_request,
 )
 from tests.ast.ast_test_utils import render
+from tests.ast.decoder import Decoder
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 _logger = logging.getLogger(__name__)
 
@@ -179,9 +182,10 @@ def run_test(session, tables):
 def test_ast(session, tables, test_case):
     _logger.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
 
-    actual, base64_str = run_test(
-        session, tables, test_case.filename.replace(".", "_"), test_case.source
-    )
+    test_case_filename = test_case.filename.replace(".", "_")
+    actual, base64_str = run_test(session, tables, test_case_filename, test_case.source)
+    stripped_base64_str = base64_str.strip()
+
     if pytest.update_expectations:
         assert pytest.unparser_jar, (
             "Can only update expectations with unparser jar set. Either run the test with --unparser-jar=<path> or"
@@ -195,14 +199,14 @@ def test_ast(session, tables, test_case):
                     "## EXPECTED UNPARSER OUTPUT\n\n",
                     actual.strip(),
                     "\n\n## EXPECTED ENCODED AST\n\n",
-                    base64_lines_to_textproto(base64_str.strip()),
+                    base64_lines_to_textproto(stripped_base64_str),
                 ]
             )
     else:
         try:
             # Protobuf serialization is non-deterministic (cf. https://gist.github.com/kchristidis/39c8b310fd9da43d515c4394c3cd9510)
             # Therefore unparse from base64, and then check equality using deterministic (python) protobuf serialization.
-            actual_message = base64_lines_to_request(base64_str.strip())
+            actual_message = base64_lines_to_request(stripped_base64_str)
             expected_message = textproto_to_request(
                 test_case.expected_ast_encoded.strip()
             )
@@ -225,6 +229,34 @@ def test_ast(session, tables, test_case):
 
             if pytest.unparser_jar:
                 assert actual.strip() == test_case.expected_ast_unparsed.strip()
+
+            if pytest.decoder:
+                # Check whether the same encoding is produced by the original Snowpark code and the encode-decode-encode
+                # version of the Snowpark code.
+                decoder = Decoder(session)
+
+                # Turn base64 input into protobuf objects. ParseFromString can retrieve multiple statements.
+                protobuf_request = proto.Request()
+                protobuf_request.ParseFromString(b64decode(stripped_base64_str))
+
+                # The listener helps capture the third step -- encode the AST back to base64.
+                with session.ast_listener() as al:
+                    # protobuf_request.body is a repeated field of assign/eval statements.
+                    for stmt in protobuf_request.body:
+                        decoder.decode_stmt(stmt)
+                    # Perform extra-flush for any pending statements.
+                    _, last_batch = session._ast_batch.flush()
+
+                # Retrieve the ASTs corresponding to the test.
+                decoder_result = al.base64_batches
+                if last_batch:
+                    decoder_result.append(last_batch)
+
+                # Compare the original base64 string with the base64 string obtained from the decoder.
+                for i, (dec, orig) in enumerate(
+                    zip(decoder_result, base64_str.splitlines(), strict=True)
+                ):
+                    assert dec == orig, f"Base64 string at line {i + 1} differs."
 
         except AssertionError as e:
 
