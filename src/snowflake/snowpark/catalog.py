@@ -3,7 +3,7 @@
 #
 
 import re
-from typing import List, NamedTuple, Optional, Union
+from typing import List, Optional, Union
 
 from snowflake.core import Root
 from snowflake.core.database import Database
@@ -11,19 +11,14 @@ from snowflake.core.exceptions import NotFoundError
 from snowflake.core.function import Function
 from snowflake.core.procedure import Procedure
 from snowflake.core.schema import Schema
-from snowflake.core.table import Table
+from snowflake.core.table import Table, TableColumn
 from snowflake.core.user_defined_function import UserDefinedFunction
 from snowflake.core.view import View
+
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark.types import DataType
-
-
-class Column(NamedTuple):
-    name: str
-    datatype: str
-    nullable: bool
 
 
 class Catalog:
@@ -188,7 +183,7 @@ class Catalog:
         *,
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
-    ) -> List[Column]:
+    ) -> List[TableColumn]:
         """List columns in the given table.
 
         Args:
@@ -196,16 +191,8 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        if database is None:
-            table = self._session.table(table_name)
-        else:
-            db_name = self._parse_database(database)
-            schema_name = self._parse_schema(schema)
-            table = self._session.table(f"{db_name}.{schema_name}.{table_name}")
-
-        return [
-            Column(col.name, col.datatype, col.nullable) for col in table.schema.fields
-        ]
+        table = self.get_table(table_name, database=database, schema=schema)
+        return table.columns
 
     def list_procedures(
         self,
