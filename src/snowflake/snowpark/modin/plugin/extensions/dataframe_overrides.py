@@ -754,15 +754,6 @@ def __dataframe__(self, nan_as_null: bool = False, allow_copy: bool = True):
     ProtocolDataframe
         A dataframe object following the dataframe protocol specification.
     """
-    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    ErrorMessage.not_implemented(
-        "Snowpark pandas does not support the DataFrame interchange "
-        + "protocol method `__dataframe__`. To use Snowpark pandas "
-        + "DataFrames with third-party libraries that try to call the "
-        + "`__dataframe__` method, please convert this Snowpark pandas "
-        + "DataFrame to pandas with `to_pandas()`."
-    )
-
     return self._query_compiler.to_dataframe(
         nan_as_null=nan_as_null, allow_copy=allow_copy
     )
