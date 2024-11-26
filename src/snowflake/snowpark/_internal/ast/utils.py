@@ -48,6 +48,8 @@ from snowflake.snowpark.types import DataType, StructType
 
 # TODO(SNOW-1791994): Enable pyright type checks for this file.
 
+# JSON field name in REST request to send AST over.
+DATAFRAME_AST_PARAMETER = "_dataframe_ast"
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
