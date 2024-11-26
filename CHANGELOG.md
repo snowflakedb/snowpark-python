@@ -19,6 +19,9 @@
     - `keyType`: keys of the map
     - `valueType`: values of the map
 - Added support for `include_nulls` argument in `DataFrame.unpivot`.
+- Made the following improvements to `functions.py`:
+  - `concat_ws_ignore_nulls` to concatenate strings with a separator, ignoring null values.
+  - `substring` makes `len` argument optional.
 
 #### Improvements
 
