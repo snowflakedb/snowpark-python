@@ -5,9 +5,9 @@
 import uuid
 import pytest
 
-from snowflake.snowpark.catalog import Catalog, Column
+from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.session import Session
-from snowflake.snowpark.types import IntegerType, LongType, StringType
+from snowflake.snowpark.types import IntegerType
 
 pytestmark = [
     pytest.mark.xfail(
@@ -209,7 +209,13 @@ def test_list_tables(session, temp_db1, temp_schema1, temp_table1, temp_table2):
     assert {table.name for table in table_list} == {temp_table1, temp_table2}
 
     cols = catalog.list_columns(temp_table1, database=temp_db1, schema=temp_schema1)
-    assert cols == [Column("A", LongType(), True), Column("B", StringType(), True)]
+    assert len(cols) == 2
+    assert cols[0].name == "A"
+    assert cols[0].datatype == "NUMBER(38,0)"
+    assert cols[0].nullable is True
+    assert cols[1].name == "B"
+    assert cols[1].datatype == "VARCHAR(16777216)"
+    assert cols[1].nullable is True
 
 
 def test_list_views(session, temp_db1, temp_schema1, temp_view1, temp_view2):
