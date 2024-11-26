@@ -9,7 +9,10 @@ import uuid
 
 import pytest
 
+from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.lineage import LineageDirection
+from snowflake.snowpark.types import StringType
+from tests.utils import Utils
 
 try:
     import pandas as pd
@@ -342,3 +345,17 @@ def test_lineage_trace(session):
     df = session.lineage.trace(
         f'{db}.{schema}."v7"', "view", direction=LineageDirection.UPSTREAM
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="cannot run in local testing mode",
+)
+def test_role_in_owners_right_stored_proc(session):
+    name = Utils.random_function_name()
+
+    @sproc(name=name, replace=True, execute_as="owner", return_type=StringType())
+    def run(session_):
+        sql = session_.sql("select current_role();").collect()[0][0]
+        sp = session_.get_current_role()
+        return f"{sql},{sp}"
