@@ -12,6 +12,7 @@ import pytest
 
 import snowflake.snowpark.session
 from snowflake.connector import ProgrammingError, SnowflakeConnection
+from snowflake.snowpark._internal.utils import get_version
 
 try:
     import pandas
@@ -617,3 +618,19 @@ def test_session_builder_app_name_existing_invalid_json_query_tag():
         app_name = "my_app_name"
         assert builder.app_name(app_name, format_json=True) is builder
         builder.getOrCreate()
+
+
+@pytest.mark.parametrize(
+    "version_value,expected_parameter_value",
+    [("", False), (get_version(), True), ("0.0.0", True)],
+)
+@pytest.mark.parametrize("parameter_name", ["_auto_clean_up_temp_table_enabled"])
+def test_parameter_version(version_value, expected_parameter_value, parameter_name):
+    fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
+    fake_server_connection._get_client_side_session_parameter.return_value = (
+        version_value
+    )
+    session = Session(fake_server_connection)
+    print(parameter_name)
+    assert getattr(session, parameter_name, None) is expected_parameter_value
