@@ -35,8 +35,8 @@
   - Added `format` method to `DataFrameReader` and `DataFrameWriter` to specify file format when loading or unloading results.
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
   - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
-  - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`
-- Allow setting custom properties in `session.conf` to allow similar usages to ease migration scenarios.
+  - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
+- Allow setting and reading custom properties in `session.conf`.
 
 #### Bug Fixes
 
