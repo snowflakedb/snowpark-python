@@ -1,0 +1,31 @@
+## TEST CASE
+
+data = [
+    ["2023-01-01", 101, 200],
+    ["2023-01-02", 101, 100],
+    ["2023-01-03", 101, 300],
+    ["2023-01-04", 102, 250],
+]
+
+df = session.create_dataframe(data).to_df(
+    "ORDERDATE", "PRODUCTKEY", "SALESAMOUNT"
+)
+
+df1 = df.to_snowpark_pandas()
+
+# df2 = df.to_snowpark_pandas(index_col="ORDERDATE")
+
+# df3 = df.to_snowpark_pandas(index_col="ORDERDATE", columns=["PRODUCTKEY"])
+
+# df4 = df.to_snowpark_pandas(columns=["PRODUCTKEY", "SALESAMOUNT"])
+
+# df5 = df.to_snowpark_pandas(columns=["PRODUCTKEY", "SALESAMOUNT"], index_col="ORDERDATE")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.create_dataframe([["2023-01-01", 101, 200], ["2023-01-02", 101, 100], ["2023-01-03", 101, 300], ["2023-01-04", 102, 250]])
+
+
+## EXPECTED ENCODED AST
+
+;;
