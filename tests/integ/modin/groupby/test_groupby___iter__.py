@@ -10,7 +10,6 @@ from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
-@sql_count_checker(query_count=4, join_count=6)
 @pytest.mark.parametrize(
     "by, expected_query_count, expected_join_count",
     [
