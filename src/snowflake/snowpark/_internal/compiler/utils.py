@@ -198,7 +198,7 @@ def replace_child(
         raise ValueError(f"parent type {type(parent)} not supported")
 
 
-def valid_for_replacement(node: TreeNode) -> bool:
+def valid_for_replacement(node: LogicalPlan) -> bool:
     if node._is_valid_for_replacement:
         return True
 
