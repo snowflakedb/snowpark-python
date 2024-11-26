@@ -17,8 +17,6 @@ from functools import cached_property, partial, reduce
 from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
-import pandas
-
 from snowflake.snowpark._internal.analyzer.select_statement import SelectTableFunction
 from snowflake.snowpark._internal.analyzer.table_function import TableFunctionJoin
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
@@ -713,6 +711,7 @@ def handle_udtf_expression(
         }
 
         # Aliases? Use them then instead of output columns.
+        # TODO SNOW-1826001: Clarify whether there will be ever a case when only some columns are aliased.
         if exp.aliases:
             output_columns = exp.aliases
 
@@ -836,7 +835,9 @@ def handle_sproc_expression(
                     idx: ColumnType(datatype=f.datatype, nullable=f.nullable)
                     for idx, f in enumerate(sproc._output_schema.fields)
                 }
+
                 # Aliases? Use them then instead of output columns.
+                # TODO SNOW-1826001: Clarify whether there will be ever a case when only some columns are aliased.
                 if exp.aliases:
                     output_columns = exp.aliases
                 res = TableEmulator(
@@ -900,7 +901,7 @@ def execute_mock_plan(
         from_df = execute_mock_plan(from_, expr_to_alias)
 
         if from_df is None:
-            return pandas.DataFrame()
+            return TableEmulator()
 
         columns = []
         data = []
