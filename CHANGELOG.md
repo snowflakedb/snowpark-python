@@ -54,17 +54,14 @@
 - Added partial support for `Series.map` when `arg` is a pandas `Series` or a
   `collections.abc.Mapping`. No support for instances of `dict` that implement
   `__missing__` but are not instances of `collections.defaultdict`.
-
-#### Dependency Updates
-
-
-#### New Features
-
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
 - Added support fot `pd.json_normalize`.
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
 
+#### Dependency Updates
+
 #### Bug Fixes
+- Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
 
 #### Improvements
