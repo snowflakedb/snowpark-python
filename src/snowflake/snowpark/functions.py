@@ -6742,19 +6742,21 @@ def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(col, "size")
     v = to_variant(c)
+
+    # TODO: SNOW-1831923 build AST
     return (
         when(
-            is_array(v, _emit_ast=_emit_ast),
-            array_size(v, _emit_ast=_emit_ast),
-            _emit_ast=_emit_ast,
+            is_array(v, _emit_ast=False),
+            array_size(v, _emit_ast=False),
+            _emit_ast=False,
         )
         .when(
-            is_object(v, _emit_ast=_emit_ast),
-            array_size(object_keys(v, _emit_ast=_emit_ast), _emit_ast=_emit_ast),
-            _emit_ast=_emit_ast,
+            is_object(v, _emit_ast=False),
+            array_size(object_keys(v, _emit_ast=False), _emit_ast=False),
+            _emit_ast=False,
         )
-        .otherwise(lit(None), _emit_ast=_emit_ast)
-        .alias(f"SIZE({c.get_name()})", _emit_ast=_emit_ast)
+        .otherwise(lit(None), _emit_ast=False)
+        .alias(f"SIZE({c.get_name()})", _emit_ast=False)
     )
 
 
