@@ -3050,7 +3050,8 @@ def substring(
     p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=_emit_ast)
     if len is None:
         return builtin("substring", _emit_ast=_emit_ast)(s, p)
-    return builtin("substring", _emit_ast=_emit_ast)(s, p, Column._to_expr(len))
+    length = len if isinstance(len, Column) else lit(len, _emit_ast=_emit_ast)
+    return builtin("substring", _emit_ast=_emit_ast)(s, p, length)
 
 
 @publicapi
