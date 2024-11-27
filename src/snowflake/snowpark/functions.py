@@ -8658,7 +8658,7 @@ def udf(
     else:
         udf_registration_method = session.udf.register
 
-    if func is None:
+    if func is None and kwargs.get("_registered_object_name") is None:
         return functools.partial(
             udf_registration_method,
             return_type=return_type,
@@ -9138,7 +9138,7 @@ def udaf(
     else:
         udaf_registration_method = session.udaf.register
 
-    if handler is None:
+    if handler is None and kwargs.get("_registered_object_name") is None:
         return functools.partial(
             udaf_registration_method,
             return_type=return_type,
@@ -9814,7 +9814,7 @@ def sproc(
     else:
         sproc_registration_method = session.sproc.register
 
-    if func is None:
+    if func is None and kwargs.get("_registered_object_name") is None:
         return functools.partial(
             sproc_registration_method,
             return_type=return_type,

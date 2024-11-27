@@ -115,7 +115,7 @@ select_sp(1, 2).show()
 
 ## EXPECTED UNPARSER OUTPUT
 
-my_copy_sp = sproc(my_copy, name="my_copy_sp", replace=True, comment="This is a comment")
+my_copy_sp = sproc("my_copy", return_type=StringType(), input_types=[StringType(), StringType(), LongType()], name="my_copy_sp", replace=True, comment="This is a comment", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\"")
 
 _ = session.sql("create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))")
 
@@ -145,7 +145,7 @@ my_copy_sp("test_from", "test_to", 10)
 
 session.table("test_to").count()
 
-add_one_sp = sproc(<lambda [1]>, return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller")
+add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
 
 session.sql("select 1 + 1").collect()
 
@@ -157,29 +157,29 @@ _ = session.sql("create or replace temp stage mystage")
 
 _.collect()
 
-_ = sproc(<lambda [2]>, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True)
+_ = sproc("<lambda [2]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
 
 session.sql("call mul_sp(5, 6)").collect()
 
-_ = sproc(<lambda [3]>, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", if_not_exists=True)
+_ = sproc("<lambda [3]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", if_not_exists=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
 
 session.sql("call mul_sp(5, 6)").collect()
 
-_ = sproc(<lambda [4]>, return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"})
+_ = sproc("<lambda [4]>", return_type=IntegerType(), input_types=[IntegerType(), IntegerType()], name="mul_sp", is_permanent=True, stage_location="@mystage", replace=True, strict=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\"")
 
 session.sql("call mul_sp(5, 6)").collect()
 
-sproc(sin_sp, , statement_params={"SF_PARTNER": "FAKE_PARTNER"}packages=["snowflake-snowpark-python", "numpy"])(1.5707963267948966)
+sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
 
-res34 = sproc(select_sp, return_type=StructType([StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()])(1, 2)
+res34 = sproc("select_sp", return_type=StructType([StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res38 = sproc(select_sp, return_type=StructType([], structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False)(1, 2)
+res38 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res42 = sproc(select_sp)(1, 2)
+res42 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
@@ -195,6 +195,28 @@ body {
         execute_as: "owner"
         func {
           name: "my_copy"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\""
+            }
+          }
+        }
+        input_types {
+          list {
+            sp_string_type {
+              length {
+              }
+            }
+          }
+          list {
+            sp_string_type {
+              length {
+              }
+            }
+          }
+          list {
+            sp_long_type: true
+          }
         }
         name {
           fn_name_flat {
@@ -203,6 +225,12 @@ body {
         }
         parallel: 4
         replace: true
+        return_type {
+          sp_string_type {
+            length {
+            }
+          }
+        }
         source_code_display: true
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -955,6 +983,11 @@ body {
         func {
           id: 1
           name: "<lambda [1]>"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            }
+          }
         }
         input_types {
           list {
@@ -1182,6 +1215,11 @@ body {
         func {
           id: 2
           name: "<lambda [2]>"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+            }
+          }
         }
         input_types {
           list {
@@ -1277,6 +1315,11 @@ body {
         func {
           id: 3
           name: "<lambda [3]>"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+            }
+          }
         }
         if_not_exists: true
         input_types {
@@ -1373,6 +1416,11 @@ body {
         func {
           id: 4
           name: "<lambda [4]>"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+            }
+          }
         }
         input_types {
           list {
@@ -1477,10 +1525,23 @@ body {
         func {
           id: 5
           name: "sin_sp"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            }
+          }
+        }
+        input_types {
+          list {
+            sp_float_type: true
+          }
         }
         packages: "snowflake-snowpark-python"
         packages: "numpy"
         parallel: 4
+        return_type {
+          sp_float_type: true
+        }
         source_code_display: true
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1550,6 +1611,11 @@ body {
         func {
           id: 6
           name: "select_sp"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            }
+          }
         }
         input_types {
           list {
@@ -1692,6 +1758,11 @@ body {
         func {
           id: 7
           name: "select_sp"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            }
+          }
         }
         input_types {
           list {
@@ -1815,8 +1886,25 @@ body {
         func {
           id: 8
           name: "select_sp"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            }
+          }
+        }
+        input_types {
+          list {
+            sp_long_type: true
+          }
+          list {
+            sp_long_type: true
+          }
         }
         parallel: 4
+        return_type {
+          sp_struct_type {
+          }
+        }
         source_code_display: true
         src {
           file: "SRC_POSITION_TEST_MODE"

@@ -199,15 +199,23 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
-PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING = (
-    "Calling pivot() with the `value` parameter set to None or to a Snowpark "
-    + "DataFrame is in private preview since v1.15.0. Do not use this feature "
-    + "in production."
-)
-PIVOT_DEFAULT_ON_NULL_WARNING = (
-    "Calling pivot() with a non-None value for `default_on_null` is in "
-    + "private preview since v1.15.0. Do not use this feature in production."
-)
+# TODO: merge fixed pandas importer changes to connector.
+def _pandas_importer():  # noqa: E302
+    """Helper function to lazily import pandas and return MissingPandas if not installed."""
+    from snowflake.connector.options import MissingPandas
+
+    pandas = MissingPandas()
+    try:
+        pandas = importlib.import_module("pandas")
+        # since we enable relative imports without dots this import gives us an issues when ran from test directory
+        from pandas import DataFrame  # NOQA
+    except ImportError as e:
+        _logger.error(f"pandas is not installed {e}")
+    return pandas
+
+
+pandas = _pandas_importer()
+installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 # TODO: merge fixed pandas importer changes to connector.
 def _pandas_importer():  # noqa: E302

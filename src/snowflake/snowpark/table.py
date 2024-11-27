@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_python_val,
     debug_check_missing_ast,
     with_src_position,
+    DATAFRAME_AST_PARAMETER,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
@@ -535,7 +536,7 @@ class Table(DataFrame):
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         new_df = self._with_plan(
             TableUpdate(
@@ -662,7 +663,7 @@ class Table(DataFrame):
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         new_df = self._with_plan(
             TableDelete(
@@ -848,7 +849,7 @@ class Table(DataFrame):
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         new_df = self._with_plan(
             TableMerge(
@@ -905,7 +906,7 @@ class Table(DataFrame):
             self._session._ast_batch.eval(stmt)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         if isinstance(self._session._conn, MockServerConnection):
             # only mock connection has entity_registry

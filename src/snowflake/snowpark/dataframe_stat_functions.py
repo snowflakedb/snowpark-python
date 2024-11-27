@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
+    DATAFRAME_AST_PARAMETER,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import adjust_api_subcalls
@@ -118,7 +119,10 @@ class DataFrameStatFunctions:
             self._dataframe._session._ast_batch.eval(repr)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+            (
+                _,
+                kwargs[DATAFRAME_AST_PARAMETER],
+            ) = self._dataframe._session._ast_batch.flush()
 
         temp_col_name = "t"
         if isinstance(col, (Column, str)):
@@ -212,7 +216,10 @@ class DataFrameStatFunctions:
             self._dataframe._session._ast_batch.eval(repr)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+            (
+                _,
+                kwargs[DATAFRAME_AST_PARAMETER],
+            ) = self._dataframe._session._ast_batch.flush()
 
         df = self._dataframe.select(corr_func(col1, col2), _emit_ast=False)
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)
@@ -266,7 +273,10 @@ class DataFrameStatFunctions:
             self._dataframe._session._ast_batch.eval(repr)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+            (
+                _,
+                kwargs[DATAFRAME_AST_PARAMETER],
+            ) = self._dataframe._session._ast_batch.flush()
 
         df = self._dataframe.select(covar_samp(col1, col2), _emit_ast=False)
         adjust_api_subcalls(df, "DataFrameStatFunctions.corr", len_subcalls=1)

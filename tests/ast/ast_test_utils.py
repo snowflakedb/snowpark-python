@@ -2,14 +2,18 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import base64
+import decimal
 import os
 import subprocess
 import traceback
-from typing import List, Optional, Union
+from typing import Iterable, List, Optional, Union
+
+from google.protobuf.message import Message
 
 import pytest
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark.exceptions import SnowparkFetchDataException
 import snowflake.snowpark.functions
 import snowflake.snowpark.types
 from tests.integ.utils.sql_counter import (
@@ -66,6 +70,72 @@ def generate_error_trace_info(python_text, exception=None):
     error_msg = "*" * 80 + "\n" + python_text + "\n" + "*" * 80 + "\n" + error_msg
 
     return error_msg
+
+
+def get_dependent_var_ids(ast):
+    """Retrieve the dependent AST IDs required for this AST object."""
+    dependent_ids = set()
+
+    if isinstance(ast, Iterable) and not isinstance(ast, str):
+        for c in ast:
+            dependent_ids.update(get_dependent_var_ids(c))
+    elif hasattr(ast, "DESCRIPTOR"):
+        descriptor = ast.DESCRIPTOR
+
+        if descriptor.name == "VarId":
+            dependent_ids.add(ast.bitfield1)
+        else:
+            for f in descriptor.fields:
+                c = getattr(ast, f.name)
+                if (
+                    isinstance(c, Iterable) and not isinstance(c, str) and len(c) > 0
+                ) or (isinstance(c, Message) and c.ByteSize() > 0):
+                    dependent_ids.update(get_dependent_var_ids(c))
+
+    return dependent_ids
+
+
+def create_full_ast_request(cur_request, prev_stmts, dependency_cache):
+    """Create fully contained AST request with all dependent AST objects required for execution replay."""
+    eval_stmts = []
+
+    for stmt in cur_request.body:
+        if stmt.eval.uid != 0:
+            eval_stmts.append(stmt)
+            prev_stmts[stmt.eval.uid] = stmt
+        else:
+            prev_stmts[stmt.assign.uid] = stmt
+
+    visited_var_ids = set()
+    queue_var_ids = {stmt.eval.uid for stmt in eval_stmts}
+    while queue_var_ids:
+        var_id = queue_var_ids.pop()
+        visited_var_ids.add(var_id)
+
+        if var_id in dependency_cache:
+            dependent_var_ids = dependency_cache[var_id]
+        else:
+            dependent_var_ids = get_dependent_var_ids(prev_stmts[var_id])
+            dependency_cache[var_id] = dependent_var_ids
+
+        new_dependent_var_ids = dependent_var_ids.difference(visited_var_ids)
+        queue_var_ids.update(new_dependent_var_ids)
+
+    request_var_ids = list(visited_var_ids)
+    request_var_ids.sort()
+
+    # Create new request including dependencies.
+    request = proto.Request()
+    request.client_language.python_language.version.major = 3
+    request.client_language.python_language.version.minor = 9
+    request.client_language.python_language.version.patch = 1
+    request.client_language.python_language.version.label = "final"
+
+    for var_id in request_var_ids:
+        stmt = request.body.add()
+        stmt.CopyFrom(prev_stmts[var_id])
+
+    return request
 
 
 def compare_ast_result_query_validation(
@@ -174,49 +244,19 @@ def notify_full_ast_validation_with_listener(
         return
 
     cur_request = base64_lines_to_request(base64_batches[0])
-    first_stmt = cur_request.body[0]
-    first_uid = (
-        first_stmt.eval.uid if first_stmt.eval.uid != 0 else first_stmt.assign.uid
-    )
 
     if test_name != full_ast_validation_listener._current_test:
         full_ast_validation_listener._prev_stmts = {}
+        full_ast_validation_listener._dependency_cache = {}
         full_ast_validation_listener._current_test = test_name
 
-    # Create list of previous statements that may be required for this request.  To keep it simple, we just include
-    # all prior statements (except for actions) that occurred previously in this action.  This may create dataframes
-    # that are not used, but there shouldn't be a downside to that.  This can be improved further to walk the request
-    # and only include the subset of statements for which a dependency exists for this test method (future improvement)
-    prev_stmts = [
-        stmt_val
-        for stmt_id, stmt_val in full_ast_validation_listener._prev_stmts.items()
-        if stmt_id < first_uid
-    ]
-
-    # Create new request including dependencies.
-    request = proto.Request()
-    request.client_language.python_language.version.major = 3
-    request.client_language.python_language.version.minor = 9
-    request.client_language.python_language.version.patch = 1
-    request.client_language.python_language.version.label = "final"
-
-    for next_stmt in prev_stmts + list(cur_request.body):
-        stmt = request.body.add()
-        stmt.CopyFrom(next_stmt)
+    request = create_full_ast_request(
+        cur_request,
+        full_ast_validation_listener._prev_stmts,
+        full_ast_validation_listener._dependency_cache,
+    )
 
     base64_batches = str(base64.b64encode(request.SerializeToString()), "utf-8")
-
-    eval_stmt = request.body[len(request.body) - 1]
-    prev_stmts = [
-        stmt
-        for stmt in request.body
-        if stmt.eval.uid != eval_stmt.eval.uid
-        and stmt.assign.uid != eval_stmt.eval.var_id.bitfield1
-    ]
-    full_ast_validation_listener._prev_stmts = {
-        stmt.eval.uid if stmt.eval.uid != 0 else stmt.assign.uid: stmt
-        for stmt in prev_stmts
-    }
 
     # Unparse the AST into python code and execute in the session.  This will notify the validation
     # session query listener which will compute the diff and assert equals original.
@@ -252,7 +292,7 @@ def notify_full_ast_validation_with_listener(
     )
 
     globals_dict = full_ast_validation_listener._globals
-    globals_dict["session"] = full_ast_validation_listener.session
+    skip_validation = False
     try:
         SUPPRESS_AST_LISTENER_REENTRY = True
         # We don't want the validation queries to get added into any sql count in progress.
@@ -273,7 +313,14 @@ def notify_full_ast_validation_with_listener(
                     )
                 else:
                     # The original query failed with same exception as validation query, so this is expected.
-                    pass
+                    skip_validation = True
+            elif isinstance(ex, SnowparkFetchDataException):
+                # Fetch Data Exception is a post-processing exception and only occurs when the query succeeded, for
+                # example the client failed to convert the result to pandas.  In full ast validation mode, the original
+                # test has not yet run this post processing step so we can't validate the same post processing step, however
+                # we do know the underlying query succeeded in both cases.  So we will simply validate the query results
+                # match and otherwise ignore this post processing failure as it should behave the same.
+                pass
             else:
                 error_msg = (
                     str(ex) + "\n" + generate_error_trace_info(python_code_output, ex)
@@ -283,11 +330,12 @@ def notify_full_ast_validation_with_listener(
                     f"""Full AST validation failed, could not run unparser generated python code.\n{error_msg}""",
                 )
 
-            compare_ast_result_query_validation(
-                full_ast_validation_listener.session,
-                VALIDATION_QUERY_RECORD.query_id,
-                query_record.query_id,
-            )
+            if not skip_validation:
+                compare_ast_result_query_validation(
+                    full_ast_validation_listener.session,
+                    VALIDATION_QUERY_RECORD.query_id,
+                    query_record.query_id,
+                )
     finally:
         SUPPRESS_AST_LISTENER_REENTRY = False
         enable_sql_counting()
@@ -313,12 +361,18 @@ def setup_full_ast_validation_mode(session, db_parameters, unparser_jar):
     full_ast_validation_listener._notify = notify_full_ast_validation
     full_ast_validation_listener._unparser_jar = unparser_jar
     full_ast_validation_listener._globals = (
-        vars(snowflake.snowpark.functions)
+        vars(snowflake.snowpark)
+        | vars(snowflake.snowpark.functions)
         | vars(snowflake.snowpark.types)
         | vars(snowflake.snowpark.window)
+        | vars(decimal)
     )
+
+    full_ast_validation_listener._globals["session"] = session
+
     full_ast_validation_listener._current_test = ""
     full_ast_validation_listener._prev_stmts = {}
+    full_ast_validation_listener._dependency_cache = {}
 
     global SUPPRESS_AST_LISTENER_REENTRY
     SUPPRESS_AST_LISTENER_REENTRY = False

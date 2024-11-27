@@ -332,6 +332,18 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
           TZ: EST
         shell: bash
+      - name: Combine coverages
+        run: python -m tox -e coverage --skip-missing-interpreters false
+        shell: bash
+        env:
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+          path: |
+            .tox/.coverage
+            .tox/coverage.xml
 
   doctest-ast-phase0:
     name: Doctest AST (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
@@ -430,6 +442,18 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
+      - name: Combine coverages
+        run: python -m tox -e coverage --skip-missing-interpreters false
+        shell: bash
+        env:
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+          path: |
+            .tox/.coverage
+            .tox/coverage.xml
 
   test-snowpark-pandas:
     name: Test modin-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}

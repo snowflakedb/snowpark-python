@@ -22,7 +22,7 @@ df7 = session.table_function(fn4)
 
 df = session.table_function("my_fn", lit(1), lit("two"))
 
-df2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
+df2 = session.table_function("my_fn", foo=lit("bar"), kwd=lit(3))
 
 df3 = session.table_function(["foo", "bar"])
 
@@ -140,35 +140,6 @@ body {
               }
             }
             named_args {
-              _1: "kwd"
-              _2 {
-                apply_expr {
-                  fn {
-                    builtin_fn {
-                      name {
-                        fn_name_flat {
-                          name: "lit"
-                        }
-                      }
-                    }
-                  }
-                  pos_args {
-                    int64_val {
-                      src {
-                        file: "SRC_POSITION_TEST_MODE"
-                        start_line: 27
-                      }
-                      v: 3
-                    }
-                  }
-                  src {
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_line: 27
-                  }
-                }
-              }
-            }
-            named_args {
               _1: "foo"
               _2 {
                 apply_expr {
@@ -188,6 +159,35 @@ body {
                         start_line: 27
                       }
                       v: "bar"
+                    }
+                  }
+                  src {
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_line: 27
+                  }
+                }
+              }
+            }
+            named_args {
+              _1: "kwd"
+              _2 {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 27
+                      }
+                      v: 3
                     }
                   }
                   src {

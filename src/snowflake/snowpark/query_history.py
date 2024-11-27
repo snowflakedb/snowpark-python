@@ -95,6 +95,14 @@ class AstListener(QueryListener):
         session: "snowflake.snowpark.session.Session",
         include_failures: bool = False,
     ) -> None:
+        """
+        Initializes the AstListener.
+
+        Args:
+            session: The session to listen to.
+            include_failures: When True, the listener will include failed queries in the history. This can be useful
+                 for debugging and testing.
+        """
         self.session = session
         self._ast_batches: List[str] = []
         self._include_failures = include_failures
@@ -111,7 +119,7 @@ class AstListener(QueryListener):
 
     @property
     def include_failures(self) -> bool:
-        return self._include_failures
+        return self._include_failures  # pragma: no cover
 
     @property
     def base64_batches(self) -> List[str]:

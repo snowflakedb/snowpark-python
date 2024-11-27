@@ -111,6 +111,7 @@ from snowflake.snowpark._internal.ast.utils import (
     fill_ast_for_column,
     fill_sp_save_mode,
     with_src_position,
+    DATAFRAME_AST_PARAMETER,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -703,7 +704,7 @@ class DataFrame:
             self._session._ast_batch.eval(repr)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -752,7 +753,7 @@ class DataFrame:
             self._session._ast_batch.eval(repr)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -884,7 +885,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         return self._session._conn.execute(
             self._plan,
@@ -989,7 +990,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
@@ -1090,7 +1091,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         return self._session._conn.execute(
             self._plan,
@@ -1240,28 +1241,16 @@ class DataFrame:
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
         import modin.pandas as pd  # isort: skip
         # fmt: on
-
         if _emit_ast:
-            stmt = self._dataself._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.pd_dataframe_to_snowpark_pandas, stmt)
-            debug_check_missing_ast(self._ast_id, self)
-            ast.id.bitfield1 = self._ast_id
-            if index_col is not None:
-                ast.index_col.extend(
-                    index_col if isinstance(index_col, list) else [index_col]
-                )
-            if columns is not None:
-                ast.columns.extend(columns if isinstance(columns, list) else [columns])
-
+            raise NotImplementedError(
+                "TODO SNOW-1672579: Support Snowpark pandas API handover."
+            )
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
             TempObjectType.TABLE
         )  # pragma: no cover
         self.write.save_as_table(
-            temporary_table_name,
-            mode="errorifexists",
-            table_type="temporary",
-            _emit_ast=False,
+            temporary_table_name, mode="errorifexists", table_type="temporary"
         )  # pragma: no cover
 
         snowpandas_df = pd.read_snowflake(
@@ -2392,6 +2381,7 @@ class DataFrame:
         value_column: str,
         name_column: str,
         column_list: List[ColumnOrName],
+        include_nulls: bool = False,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Rotates a table by transforming columns into rows.
@@ -2402,7 +2392,7 @@ class DataFrame:
             value_column: The name to assign to the generated column that will be populated with the values from the columns in the column list.
             name_column: The name to assign to the generated column that will be populated with the names of the columns in the column list.
             column_list: The names of the columns in the source table or subequery that will be narrowed into a single pivot column. The column names will populate ``name_column``, and the column values will populate ``value_column``.
-
+            include_nulls: If True, include rows with NULL values in ``name_column``. The default value is False.
         Example::
 
             >>> df = session.create_dataframe([
@@ -2435,7 +2425,9 @@ class DataFrame:
             for c in column_list:
                 build_expr_from_snowpark_column_or_col_name(ast.column_list.add(), c)
 
-        unpivot_plan = Unpivot(value_column, name_column, column_exprs, self._plan)
+        unpivot_plan = Unpivot(
+            value_column, name_column, column_exprs, include_nulls, self._plan
+        )
 
         # TODO: Support unpivot in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -3898,7 +3890,7 @@ class DataFrame:
             self._session._ast_batch.eval(repr)
 
             # Flush AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
@@ -4069,7 +4061,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4368,7 +4360,7 @@ class DataFrame:
                 repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
             self._session._ast_batch.eval(repr)
 
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
@@ -4860,7 +4852,7 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._session._ast_batch.flush()
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
 
         if n is None:
             df = self.limit(1, _emit_ast=False)
