@@ -522,6 +522,8 @@ class Session:
             _add_session(new_session)
             return new_session
 
+        appName = app_name
+
         def __get__(self, obj, objtype=None):
             return Session.SessionBuilder()
 
