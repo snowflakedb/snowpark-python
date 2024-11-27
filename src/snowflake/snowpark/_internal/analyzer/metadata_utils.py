@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+from enum import Enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional
 
@@ -15,6 +15,13 @@ from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAli
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
+
+
+class DescribeQueryTelemetryField(Enum):
+    TYPE_DESCRIBE_QUERY_DETAILS = "snowpark_describe_query_details"
+    SQL_TEXT = "sql_text"
+    E2E_TIME = "e2e_time"
+    STACK_TRACE = "stack_trace"
 
 
 @dataclass(frozen=True)

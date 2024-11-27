@@ -461,7 +461,9 @@ def test_binary_logic_operations_between_df_and_list_like(op, rhs):
     ],
 )
 @pytest.mark.parametrize("rhs", list_like_rhs_params([0, 2, -11, -12, -99]))
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(
+    query_count=1, join_count=1, window_count=1
+)  # before optimization, the window count is 5
 def test_binary_comparison_between_series_and_list_like(op, rhs):
     lhs = [1, 2, -10, 3.14, -99]
     eval_snowpark_pandas_result(
@@ -481,7 +483,7 @@ def test_binary_comparison_between_series_and_list_like(op, rhs):
     ],
 )
 @pytest.mark.parametrize("rhs", list_like_rhs_params([1, 2, 3]))
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=1, window_count=1)
 def test_binary_comparison_between_df_and_list_like_on_axis_0(op, rhs):
     lhs = [[1, 2], [2, 3], [1, 3]]
     eval_snowpark_pandas_result(
@@ -501,7 +503,7 @@ def test_binary_comparison_between_df_and_list_like_on_axis_0(op, rhs):
     ],
 )
 @pytest.mark.parametrize("rhs", list_like_rhs_params([1, 2, 3]))
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=0, window_count=0)
 def test_binary_comparison_between_df_and_list_like_on_axis_1(op, rhs):
     lhs = [[1, 2, 2], [3, 1, 3]]
     eval_snowpark_pandas_result(

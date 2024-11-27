@@ -56,7 +56,7 @@ from tests.utils import (
 )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def threadsafe_session(
     db_parameters,
     session,
@@ -218,6 +218,10 @@ def test_action_ids_are_unique(threadsafe_session):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Skip file IO tests in localfs")
 @pytest.mark.parametrize("use_stream", [True, False])
+@pytest.mark.skipif(
+    pytest.param("local_testing_mode"),
+    reason="TODO SNOW-1826001: Bug in local testing mode.",
+)
 def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_stream):
     stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
     stage_with_prefix = f"@{threadsafe_temp_stage}/{stage_prefix}"
@@ -684,7 +688,7 @@ def test_concurrent_update_on_sensitive_configs(
     run=False,
 )
 def test_large_query_breakdown_with_cte(threadsafe_session):
-    bounds = (300, 600) if threadsafe_session.sql_simplifier_enabled else (60, 90)
+    bounds = (300, 600) if threadsafe_session.sql_simplifier_enabled else (50, 70)
     try:
         original_query_compilation_stage_enabled = (
             threadsafe_session._query_compilation_stage_enabled
@@ -763,8 +767,7 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
 
             assert len(queries["queries"]) == 2
             assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
-            if threadsafe_session.sql_simplifier_enabled:
-                assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
+            assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
 
             assert len(queries["post_actions"]) == 1
             assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")

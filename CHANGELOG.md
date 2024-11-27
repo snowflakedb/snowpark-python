@@ -6,25 +6,43 @@
 
 #### New Features
 
-- Added support for following methods in class `DataType`, derived class of `DataType` and `StructField`:
-  - `type_name`
-  - `simple_string`
-  - `json_value`
-  - `json`
-- Added support for variables `keyType` and `valueType` in class `MapType`
+- Added support for property `version` and class method `get_active_session` for `Session` class.
+- Added new methods and variables to enhance data type handling and JSON serialization/deserialization:
+  - To `DataType`, its derived classes, and `StructField`:
+    - `type_name`: Returns the type name of the data.
+    - `simple_string`: Provides a simple string representation of the data.
+    - `json_value`: Returns the data as a JSON-compatible value.
+    - `json`: Converts the data to a JSON string.
+  - To `ArrayType`, `MapType`, `StructField`, `PandasSeriesType`, `PandasDataFrameType` and `StructType`:
+    - `from_json`: Enables these types to be created from JSON data.
+  - To `MapType`:
+    - `keyType`: keys of the map
+    - `valueType`: values of the map
+- Added support for `include_nulls` argument in `DataFrame.unpivot`.
+- Added parameter `ast_enabled` to session for internal usage (default: `False`).
 
 #### Improvements
 
 - Added support for specifying the following to `DataFrame.create_or_replace_dynamic_table`:
   - `iceberg_config` A dictionary that can hold the following iceberg configuration options:
-      - `external_volume`
-      - `catalog`
-      - `base_location`
-      - `catalog_sync`
-      - `storage_serialization_policy`
+    - `external_volume`
+    - `catalog`
+    - `base_location`
+    - `catalog_sync`
+    - `storage_serialization_policy`
 - Added support for nested data types to `DataFrame.print_schema`
+- Added support for `level` parameter to `DataFrame.print_schema`
+- Improved flexibility of `DataFrameReader` and `DataFrameWriter` API by adding support for the following:
+  - Added `format` method to `DataFrameReader` and `DataFrameWriter` to specify file format when loading or unloading results.
+  - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
+  - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
+  - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
 
 #### Bug Fixes
+
+- Removed warnings that dynamic pivot features were in private preview, because
+  dynamic pivot is now generally available.
+- Fixed a bug in `session.read.options` where `False` Boolean values were incorrectly parsed as `True` in the generated file format.
 
 
 #### Dependency Updates
@@ -32,18 +50,23 @@
 
 ### Snowpark pandas API Updates
 
-#### Dependency Updates
-
-
 #### New Features
 
+- Added partial support for `Series.map` when `arg` is a pandas `Series` or a
+  `collections.abc.Mapping`. No support for instances of `dict` that implement
+  `__missing__` but are not instances of `collections.defaultdict`.
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
+- Added support fot `pd.json_normalize`.
+- Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
+
+#### Dependency Updates
 
 #### Bug Fixes
+- Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
 
 #### Improvements
-
+- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinal values
 
 
 ### Snowpark Local Testing Updates
@@ -116,6 +139,7 @@
 
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
 - Improve get_dummies performance by flattening the pivot with join.
+- Improve align performance when aligning on row position column by removing unnecessary window functions.
 
 
 

@@ -1208,9 +1208,88 @@ def test_snow_type_to_dtype_str():
                 ],
             },
         ),
+        (
+            VectorType(int, 8),
+            "vector(int,8)",
+            '"vector(int,8)"',
+            "vector",
+            "vector(int,8)",
+        ),
+        (
+            VectorType(float, 8),
+            "vector(float,8)",
+            '"vector(float,8)"',
+            "vector",
+            "vector(float,8)",
+        ),
+        (
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+            "pandas<string,int,float>",
+            '{"fields":[{"name":"id","type":"string"},{"name":"col1","type":"integer"},{"name":"col2","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {"name": "id", "type": "string"},
+                    {"name": "col1", "type": "integer"},
+                    {"name": "col2", "type": "float"},
+                ],
+            },
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+        (
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+            "pandas<array<array<int>>,int,float>",
+            '{"fields":[{"name":"","type":{"element_type":{"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {
+                        "name": "",
+                        "type": {
+                            "type": "array",
+                            "element_type": {
+                                "type": "array",
+                                "element_type": "integer",
+                            },
+                        },
+                    },
+                    {"name": "", "type": "integer"},
+                    {"name": "", "type": "float"},
+                ],
+            },
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+        (
+            PandasSeriesType(IntegerType()),
+            "pandas_series<int>",
+            '{"element_type":"integer","type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": "integer"},
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+        (
+            PandasSeriesType(None),
+            "pandas_series<>",
+            '{"element_type":null,"type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": None},
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
     ],
 )
 def test_datatype(tpe, simple_string, json, type_name, json_value):
+    if tpe is None:
+        pytest.skip("skip because pandas is not available")
     assert tpe.simple_string() == simple_string
     assert tpe.json_value() == json_value
     assert tpe.json() == json
@@ -1234,6 +1313,121 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             tpe.typeName()
     else:
         assert tpe.typeName() == type_name
+
+
+@pytest.mark.parametrize(
+    "datatype, tpe",
+    [
+        (
+            MapType,
+            MapType(IntegerType(), StringType()),
+        ),
+        (
+            MapType,
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+        ),
+        (
+            ArrayType,
+            ArrayType(IntegerType()),
+        ),
+        (
+            ArrayType,
+            ArrayType(ArrayType(IntegerType())),
+        ),
+        (
+            StructType,
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+        ),
+        (
+            StructField,
+            StructField("AA", StringType()),
+        ),
+        (
+            StructType,
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType()),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType(20, 10)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(int, 1)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(float, 8)),
+        ),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+        )
+        if is_pandas_available
+        else (None, None),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+        )
+        if is_pandas_available
+        else (None, None),
+        (PandasSeriesType, PandasSeriesType(IntegerType()))
+        if is_pandas_available
+        else (None, None),
+        (PandasSeriesType, PandasSeriesType(None))
+        if is_pandas_available
+        else (None, None),
+    ],
+)
+def test_structtype_from_json(datatype, tpe):
+    if datatype is None:
+        pytest.skip("skip because pandas is not available")
+    json_dict = tpe.json_value()
+    new_obj = datatype.from_json(json_dict)
+    assert new_obj == tpe
+
+
+def test_from_json_wrong_data_type():
+    wrong_json = {
+        "name": "AA",
+        "type": "wrong_type",
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Cannot parse data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+    wrong_json = {
+        "name": "AA",
+        "type": {
+            "type": "wrong_type",
+            "key_type": "integer",
+            "value_type": "string",
+        },
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Unsupported data type: wrong_type"):
+        StructField.from_json(wrong_json)
 
 
 def test_maptype_alias():
