@@ -18,6 +18,9 @@ from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
 )
+from tests.integ.test_deepcopy import (
+    create_df_with_deep_nested_with_column_dependencies,
+)
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, Utils
 
@@ -602,6 +605,31 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
         Utils.drop_dynamic_table(session, table_name)
         Utils.drop_view(session, view_name)
         Utils.drop_table(session, source_table)
+
+
+def test_large_query_breakdown_with_nested_select(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip(
+            "the nested select optimization is only enabled with sql simplifier"
+        )
+
+    temp_table_name = Utils.random_table_name()
+    final_df = create_df_with_deep_nested_with_column_dependencies(
+        session, temp_table_name, 8
+    )
+
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = final_df.queries
+    assert len(queries["queries"]) == 3
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert queries["queries"][1].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+
+    assert len(queries["post_actions"]) == 2
+    assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+    assert queries["post_actions"][1].startswith("DROP  TABLE  If  EXISTS")
+
+    with SqlCounter(query_count=7, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
 
 
 @pytest.mark.skipif(
