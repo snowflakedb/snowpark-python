@@ -67,8 +67,8 @@
 
 
 #### Improvements
-- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinal values
-
+- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinal values.
+- Improved documentation for pd.read_excel.
 
 ### Snowpark Local Testing Updates
 
