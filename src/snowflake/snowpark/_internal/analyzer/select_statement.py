@@ -997,7 +997,7 @@ class SelectStatement(Selectable):
                     #       - {PlanNodeCategory.COLUMN: 1} + col2_complexity
                     #       - {PlanNodeCategory.COLUMN: 1} + col1_complexity
                     dependent_columns = proj.dependent_column_names_with_duplication()
-                    projection_complexity = proj.cumulative_node_complexity
+                    projection_complexity = proj.cumulative_node_complexity.copy()
                     for dependent_column in dependent_columns:
                         dependent_column_complexity = (
                             subquery_projection_name_complexity_map[dependent_column]
