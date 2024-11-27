@@ -2005,6 +2005,51 @@ class DataFrameGroupBy:
         -------
         Generator
             A generator yielding a sequence of (name, subsetted object) for each group.
+
+        Examples
+        --------
+
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b']
+        >>> ser = pd.Series([1, 2, 3], index=lst)
+        >>> ser
+        a    1
+        a    2
+        b    3
+        dtype: int64
+        >>> for x, y in ser.groupby(level=0):
+        ...     print(f'{x}\\n{y}\\n')
+        a
+        a    1
+        a    2
+        dtype: int64
+        <BLANKLINE>
+        b
+        b    3
+        dtype: int64
+        <BLANKLINE>
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"])
+        >>> df
+           a  b  c
+        0  1  2  3
+        1  1  5  6
+        2  7  8  9
+        >>> for x, y in df.groupby(by=["a"]):
+        ...     print(f'{x}\\n{y}\\n')
+        (1,)
+           a  b  c
+        0  1  2  3
+        1  1  5  6
+        <BLANKLINE>
+        (7,)
+           a  b  c
+        2  7  8  9
+        <BLANKLINE>
         """
 
     def cov():

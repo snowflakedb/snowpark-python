@@ -6773,6 +6773,44 @@ def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Returns the size of the input ARRAY, OBJECT or MAP. Returns NULL if the
+    input column does not match any of these types.
+
+    Args:
+        col: A :class:`Column` object or column name that determines the values.
+
+    Example::
+        >>> df = session.create_dataframe([([1,2,3], {'a': 1, 'b': 2}, 3)], ['col1', 'col2', 'col3'])
+        >>> df.select(size(df.col1), size(df.col2), size(df.col3)).show()
+        ----------------------------------------------------------
+        |"SIZE(""COL1"")"  |"SIZE(""COL2"")"  |"SIZE(""COL3"")"  |
+        ----------------------------------------------------------
+        |3                 |2                 |NULL              |
+        ----------------------------------------------------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(col, "size")
+    v = to_variant(c)
+
+    # TODO: SNOW-1831923 build AST
+    return (
+        when(
+            is_array(v, _emit_ast=False),
+            array_size(v, _emit_ast=False),
+            _emit_ast=False,
+        )
+        .when(
+            is_object(v, _emit_ast=False),
+            array_size(object_keys(v, _emit_ast=False), _emit_ast=False),
+            _emit_ast=False,
+        )
+        .otherwise(lit(None), _emit_ast=False)
+        .alias(f"SIZE({c.get_name()})", _emit_ast=False)
+    )
+
+
+@publicapi
 def object_agg(
     key: ColumnOrName, value: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
@@ -9915,6 +9953,7 @@ def sproc(
 # Add these alias for user code migration
 call_builtin = call_function
 collect_set = array_unique_agg
+collect_list = array_agg
 builtin = function
 countDistinct = count_distinct
 substr = substring

@@ -19,6 +19,9 @@
     - `keyType`: keys of the map
     - `valueType`: values of the map
 - Added support for `include_nulls` argument in `DataFrame.unpivot`.
+- Added support for following functions in `functions.py`:
+  - `size` to get size of array, object, or map columns.
+  - `collect_list` an alias of `array_agg`.
 - Added parameter `ast_enabled` to session for internal usage (default: `False`).
 - Made the following improvements to `functions.py`:
   - `concat_ws_ignore_nulls` to concatenate strings with a separator, ignoring null values.
@@ -61,6 +64,7 @@
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
 - Added support fot `pd.json_normalize`.
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
+- Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
 
 #### Dependency Updates
 
