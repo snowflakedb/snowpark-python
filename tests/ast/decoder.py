@@ -550,7 +550,10 @@ class Decoder:
                     ]
                 else:
                     cols = [self.decode_expr(expr.sp_dataframe_select__columns.cols)]
-                val = df.select(cols)
+                if hasattr(expr.sp_dataframe_select__columns, "variadic"):
+                    val = df.select(*cols)
+                else:
+                    val = df.select(cols)
                 if hasattr(expr, "var_id"):
                     self.symbol_table[expr.var_id.bitfield1] = (
                         self.capture_local_variable_name(expr),

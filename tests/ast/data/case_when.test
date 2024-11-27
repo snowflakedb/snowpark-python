@@ -1137,13 +1137,13 @@ body {
             cases {
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
+                start_line: 44
               }
               value {
                 string_val {
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 43
+                    start_line: 44
                   }
                   v: "other_one"
                 }
@@ -1195,13 +1195,13 @@ body {
               }
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
+                start_line: 45
               }
               value {
                 string_val {
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 43
+                    start_line: 45
                   }
                   v: "two"
                 }
@@ -1210,13 +1210,13 @@ body {
             cases {
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
+                start_line: 46
               }
               value {
                 string_val {
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 43
+                    start_line: 46
                   }
                   v: "other_two"
                 }
@@ -1268,13 +1268,13 @@ body {
               }
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
+                start_line: 47
               }
               value {
                 string_val {
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 43
+                    start_line: 47
                   }
                   v: "three"
                 }
@@ -1283,13 +1283,13 @@ body {
             cases {
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
+                start_line: 48
               }
               value {
                 string_val {
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 43
+                    start_line: 48
                   }
                   v: "other_three"
                 }
@@ -1341,13 +1341,13 @@ body {
               }
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
+                start_line: 49
               }
               value {
                 string_val {
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 43
+                    start_line: 49
                   }
                   v: "four"
                 }
@@ -1356,13 +1356,13 @@ body {
             cases {
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
+                start_line: 50
               }
               value {
                 string_val {
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 43
+                    start_line: 50
                   }
                   v: "other_four"
                 }
@@ -1414,13 +1414,13 @@ body {
               }
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
+                start_line: 51
               }
               value {
                 string_val {
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 43
+                    start_line: 51
                   }
                   v: "five"
                 }
@@ -1429,13 +1429,13 @@ body {
             cases {
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
+                start_line: 52
               }
               value {
                 string_val {
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 43
+                    start_line: 52
                   }
                   v: "other_five"
                 }

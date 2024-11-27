@@ -526,7 +526,7 @@ body {
           string_val {
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 34
+              start_line: 36
             }
             v: "C1_L"
           }
@@ -535,7 +535,7 @@ body {
           string_val {
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 34
+              start_line: 36
             }
             v: "C2_L"
           }
@@ -550,7 +550,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 34
+          start_line: 36
         }
       }
     }
@@ -573,7 +573,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 34
+          start_line: 36
         }
       }
     }

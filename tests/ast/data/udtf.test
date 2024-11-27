@@ -68,19 +68,19 @@ foo = udtf(Foo,  output_schema= ["a", "b"],
 
 ## EXPECTED UNPARSER OUTPUT
 
-prime_udtf = udtf(PrimeSieve, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
+prime_udtf = udtf("PrimeSieve", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
 
 session.table_function(prime_udtf(lit(20))).collect()
 
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df.with_column("total", udtf(sum_udtf, output_schema=["number"])(df["a"], df["b"])).sort(df["a"]).show()
+df.with_column("total", udtf("sum_udtf", output_schema=["number"])(df["a"], df["b"])).sort(df["a"]).show()
 
-generator_udtf = udtf(GeneratorUDTF, output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
+generator_udtf = udtf("GeneratorUDTF", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()])
 
 session.table_function(generator_udtf(lit(3))).collect()
 
-foo = udtf(Foo, output_schema=["a", "b"], input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params=, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", force_inline_code=True)
+foo = udtf("Foo", output_schema=["a", "b"], input_types=[IntegerType(), LongType()], name="foo", is_permanent=True, stage_location="@", imports=["numpy", ["seaborn", "sns"]], packages=["snowflake.snowpark"], replace=True, parallel=7, statement_params={"a": "b"}, strict=True, secure=True, external_access_integrations=["gs"], secrets={"test": "verysecret"}, immutable=True, comment="fufufufu", force_inline_code=True)
 
 ## EXPECTED ENCODED AST
 
