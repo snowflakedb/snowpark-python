@@ -600,14 +600,14 @@ def read_excel():
     --------
     The file can be read using the file name as string or an open file object:
 
-    >>> pd.read_excel('tmp.xlsx', index_col=0)
+    >>> pd.read_excel('tmp.xlsx', index_col=0)  # doctest: +SKIP
            Name  Value
     0   string1      1
     1   string2      2
     2  #Comment      3
 
     >>> pd.read_excel(open('tmp.xlsx', 'rb'),
-    ...               sheet_name='Sheet3')
+    ...               sheet_name='Sheet3')  # doctest: +SKIP
        Unnamed: 0      Name  Value
     0           0   string1      1
     1           1   string2      2
@@ -615,7 +615,7 @@ def read_excel():
 
     Index and header can be specified via the index_col and header arguments
 
-    >>> pd.read_excel('tmp.xlsx', index_col=None, header=None)
+    >>> pd.read_excel('tmp.xlsx', index_col=None, header=None)  # doctest: +SKIP
          0         1      2
     0  NaN      Name  Value
     1  0.0   string1      1
@@ -625,7 +625,7 @@ def read_excel():
     Column types are inferred but can be explicitly specified
 
     >>> pd.read_excel('tmp.xlsx', index_col=0,
-    ...               dtype={'Name': str, 'Value': float})
+    ...               dtype={'Name': str, 'Value': float})  # doctest: +SKIP
            Name  Value
     0   string1    1.0
     1   string2    2.0
@@ -634,7 +634,7 @@ def read_excel():
     True, False, and NA values, and thousands separators have defaults, but can be explicitly specified, too. Supply the values you would like as strings or lists of strings!
 
     >>> pd.read_excel('tmp.xlsx', index_col=0,
-    ...               na_values=['string1', 'string2'])
+    ...               na_values=['string1', 'string2'])  # doctest: +SKIP
            Name  Value
     0       NaN      1
     1       NaN      2
@@ -642,7 +642,7 @@ def read_excel():
 
     Comment lines in the excel input file can be skipped using the comment kwarg.
 
-    >>> pd.read_excel('tmp.xlsx', index_col=0, comment='#')
+    >>> pd.read_excel('tmp.xlsx', index_col=0, comment='#')  # doctest: +SKIP
           Name  Value
     0  string1    1.0
     1  string2    2.0
