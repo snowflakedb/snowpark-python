@@ -12,7 +12,11 @@ import pytest
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    get_version,
+    parse_table_name,
+)
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
@@ -120,10 +124,27 @@ def test_active_session(session):
     assert not session._conn._conn.expired
 
 
+def test_session_version(session):
+    assert session.version == get_version()
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_active_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as session2:
         assert {session, session2} == _get_active_sessions()
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_get_active_session(session, db_parameters):
+    assert Session.get_active_session() == session
+    assert Session.getActiveSession() == session
+
+    with Session.builder.configs(db_parameters).create():
+        with pytest.raises(
+            SnowparkClientException, match="More than one active session is detected"
+        ) as ex:
+            Session.get_active_session()
+        assert ex.value.error_code == "1409"
 
 
 def test_get_or_create(session):
@@ -814,6 +835,7 @@ def test_get_session_stage(session):
         session.use_schema(current_schema)
 
 
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="sproc disallows new connection creation")
 def test_session_atexit(db_parameters):
     exit_funcs = []
     with patch("atexit.register", lambda func: exit_funcs.append(func)):

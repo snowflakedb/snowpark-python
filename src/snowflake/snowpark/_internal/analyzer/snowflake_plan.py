@@ -1071,11 +1071,14 @@ class SnowflakePlanBuilder:
         value_column: str,
         name_column: str,
         column_list: List[str],
+        include_nulls: bool,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: unpivot_statement(value_column, name_column, column_list, x),
+            lambda x: unpivot_statement(
+                value_column, name_column, column_list, include_nulls, x
+            ),
             child,
             source_plan,
         )
@@ -1190,7 +1193,7 @@ class SnowflakePlanBuilder:
             "String": str,
             "List": process_list,
             "Integer": int,
-            "Boolean": bool,
+            "Boolean": lambda x: str(x).lower() == "true",
         }
         new_options = {**file_format_options}
         # SNOW-1628625: This query and subsequent merge operations should be done lazily
