@@ -18,7 +18,7 @@
   - To `MapType`:
     - `keyType`: keys of the map
     - `valueType`: values of the map
-- Added support for property `appName` in `SessionBuilder`.
+- Added support for method `appName` in `SessionBuilder`.
 - Added support for `include_nulls` argument in `DataFrame.unpivot`.
 
 #### Improvements
