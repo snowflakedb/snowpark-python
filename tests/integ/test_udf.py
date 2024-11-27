@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import os
+import re
 from typing import Callable
 
 import pytest
@@ -1277,11 +1278,11 @@ def test_udf_negative(session, local_testing_mode):
     assert "Invalid function: not a function or callable" in str(ex_info)
 
     # if return_type is specified, it must be passed passed with keyword argument
-    with pytest.raises(TypeError) as ex_info:
+    with pytest.raises(
+        TypeError,
+        match=re.escape("udf() takes from 0 to 1 positional arguments but 2") + ".*",
+    ):
         udf(f, IntegerType())
-    assert "udf() takes from 0 to 1 positional arguments but 2 were given" in str(
-        ex_info
-    )
 
     udf1 = udf(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:
