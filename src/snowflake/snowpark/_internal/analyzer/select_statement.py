@@ -1002,9 +1002,6 @@ class SelectStatement(Selectable):
                         dependent_column_complexity = (
                             subquery_projection_name_complexity_map[dependent_column]
                         )
-                        assert (
-                            PlanNodeCategory.COLUMN in projection_complexity
-                        ), projection_complexity
                         projection_complexity[PlanNodeCategory.COLUMN] -= 1
                         projection_complexity = sum_node_complexities(
                             projection_complexity, dependent_column_complexity
