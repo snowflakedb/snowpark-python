@@ -86,7 +86,6 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
-    is_feature_enabled_for_version,
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
@@ -561,8 +560,8 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
-        self._cte_optimization_enabled: bool = is_feature_enabled_for_version(
-            self, _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
+        self._cte_optimization_enabled: bool = self.is_feature_enabled_for_version(
+            _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
         )
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
@@ -574,8 +573,10 @@ class Session:
                 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
             )
         )
-        self._auto_clean_up_temp_table_enabled: bool = is_feature_enabled_for_version(
-            self, _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION
+        self._auto_clean_up_temp_table_enabled: bool = (
+            self.is_feature_enabled_for_version(
+                _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION
+            )
         )
         self._reduce_describe_query_enabled: bool = (
             self._conn._get_client_side_session_parameter(
@@ -655,6 +656,19 @@ class Session:
             f"<{self.__class__.__module__}.{self.__class__.__name__}: account={self.get_current_account()}, "
             f"role={self.get_current_role()}, database={self.get_current_database()}, "
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
+        )
+
+    def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
+        """
+        This method checks if a feature is enabled for the current session based on
+        the server side parameter.
+        """
+        version = self._conn._get_client_side_session_parameter(parameter_name, "")
+        return (
+            isinstance(version, str)
+            and version != ""
+            and pkg_resources.parse_version(self.version)
+            >= pkg_resources.parse_version(version)
         )
 
     def _generate_new_action_id(self) -> int:
