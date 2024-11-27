@@ -13,7 +13,7 @@ df2 = session.call("my_sproc", 2, "one", dict(), False)
 
 ## EXPECTED UNPARSER OUTPUT
 
-my_sproc_sp = sproc(my_sproc, name="my_sproc", replace=True, comment="The parameters are useless.")
+my_sproc_sp = sproc("my_sproc", name="my_sproc", replace=True, comment="The parameters are useless.")
 
 df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
 
