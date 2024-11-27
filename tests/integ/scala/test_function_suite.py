@@ -4143,7 +4143,7 @@ def test_timestamp_from_parts_internal():
 
 def test_timestamp_from_parts_internal_negative():
     func_name = "negative test"
-    with pytest.raises(ValueError, match="expected 2 or 6 required arguments"):
+    with pytest.raises(ValueError, match="expected 2, 6, 7 or 8"):
         _timestamp_from_parts_internal(func_name, 1)
 
     with pytest.raises(ValueError, match="does not accept timezone as an argument"):
