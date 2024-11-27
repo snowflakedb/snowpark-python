@@ -47,6 +47,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     NamedExpression,
     Star,
     UnresolvedAttribute,
+    UnresolvedColumnRegex,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
@@ -1088,6 +1089,33 @@ class DataFrame:
             return Column(Star(self._output))
         else:
             return Column(self._resolve(col_name))
+
+    def col_regex(self, regex: str, case_sensitive: bool = False) -> Column:
+        """Selects column based on the column name specified as a regex and returns a ``Column`` reference to it.
+        Args:
+            regex: regular expression used to match columns
+
+        Examples:
+            >>> df = session.create_dataframe([[1, 2, 3, 4]]).to_df(["col1", "col2_a", "col2_b", "col3"])
+            >>> df.select(df.col_regex("col2_.*")).collect()
+            [Row(COL2_A=2, COL2_B=3)]
+
+        """
+        if not isinstance(regex, str):
+            raise ValueError(
+                f"regex provided to col_regex() must be string, got {type(regex)} with value of {regex} instead."
+            )
+        expressions = []
+        flag = 0 if case_sensitive else re.IGNORECASE
+        for column in self.schema:
+            # test for both quoted or unquoted since user could write regex for both scenario
+            if re.match(regex, column.name, flags=flag):
+                expressions.append(
+                    Attribute(column.name, column.datatype, column.nullable)
+                )
+        if not expressions:
+            raise ValueError(f"No columns matched for the provided regex:{regex}")
+        return Column(UnresolvedColumnRegex(expressions))
 
     @df_api_usage
     def select(
