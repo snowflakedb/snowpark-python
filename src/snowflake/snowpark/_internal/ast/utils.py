@@ -9,6 +9,7 @@ import inspect
 import logging
 import os
 import platform
+import re
 import sys
 import typing
 from array import array
@@ -1448,6 +1449,19 @@ def ClearTempTables(message: proto.Request) -> None:
             stmt.assign.expr.sp_create_dataframe.data.sp_dataframe_data__pandas.v.ClearField(
                 "temp_table"
             )
+
+
+def clear_symbols(message: proto.Request) -> None:
+    """Clears the symbol field in the given AST."""
+    for stmt in message.body:
+        if hasattr(stmt, "assign"):
+            stmt.assign.ClearField("symbol")
+
+
+def clear_line_numbers(message: str) -> str:
+    """Clears the line number fields in the given string representation of an AST."""
+    message = re.sub(r"start_line: \d+", "", message)
+    return message
 
 
 def base64_str_to_request(base64_str: str) -> proto.Request:

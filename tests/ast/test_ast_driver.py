@@ -19,12 +19,15 @@ import dateutil
 import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
+from google.protobuf.text_format import MessageToString
 
 from snowflake.snowpark._internal.ast.utils import (
     ClearTempTables,
     base64_lines_to_textproto,
-    clear_line_no_in_request,
     textproto_to_request,
+    clear_symbols,
+    clear_line_numbers,
+    base64_lines_to_request,
 )
 from snowflake.snowpark._internal.utils import global_counter
 from tests.ast.ast_test_utils import render
@@ -185,6 +188,53 @@ def run_test(session, tables):
         os.unlink(test_file.name)
 
 
+def compare_base64_results(
+    actual_message: proto.Request,
+    expected_message: proto.Request,
+    serialize_to_string: bool = True,
+    exclude_symbols_and_src: bool = False,
+):
+    """
+    Serialize and deterministically compare two protobuf results.
+
+    Parameters
+    ----------
+    actual_message : proto.Request
+        The actual protobuf message.
+    expected_message : proto.Request
+        The expected protobuf message.
+    serialize_to_string : bool
+        If True, serialize the messages to string before comparison.
+    exclude_symbols_and_src : bool
+        If True, do not compare symbols and src information in the messages.
+
+    Raises
+    ------
+    AssertionError
+        If the messages are not equal.
+    """
+    # Actual and expected may have been encoded by different client language versions, e.g. Python 3.8.10 and
+    # Python 3.9.3. Make comparison here client-language agnostic by removing the data from the message.
+    actual_message.ClearField("client_language")
+    expected_message.ClearField("client_language")
+
+    # Similarly, for create_dataframe with temporary tables clear them as they may differ from session to session.
+    ClearTempTables(actual_message)
+    ClearTempTables(expected_message)
+
+    # For decoder testing, clear the symbols and src information.
+    if exclude_symbols_and_src:
+        clear_symbols(actual_message)
+        clear_symbols(expected_message)
+        actual_message = clear_line_numbers(MessageToString(actual_message))
+        expected_message = clear_line_numbers(MessageToString(expected_message))
+    else:
+        actual_message = actual_message.SerializeToString(deterministic=True)
+        expected_message = expected_message.SerializeToString(deterministic=True)
+
+    assert actual_message == expected_message
+
+
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, tables, test_case):
     _logger.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
@@ -222,28 +272,7 @@ def test_ast(session, tables, test_case):
             expected_message = textproto_to_request(
                 test_case.expected_ast_encoded.strip()
             )
-
-            # Actual and expected may have been encoded by different client language versions, e.g. Python 3.8.10 and
-            # Python 3.9.3. Make comparison here client-language agnostic by removing the data from the message.
-            actual_message.ClearField("client_language")
-            expected_message.ClearField("client_language")
-
-            # Similarly, for create_dataframe with temporary tables clear them as they may differ from session to session.
-            ClearTempTables(actual_message)
-            ClearTempTables(expected_message)
-
-            # If this is not python 3.11+, then for the purposes of the expectation tests we will ignore the line_no
-            # information since it can be different based on various python bug fixes.
-            if sys.version_info.minor <= 10:
-                clear_line_no_in_request(actual_message)
-                clear_line_no_in_request(expected_message)
-
-            det_actual_message = actual_message.SerializeToString(deterministic=True)
-            det_expected_message = expected_message.SerializeToString(
-                deterministic=True
-            )
-
-            assert det_actual_message == det_expected_message
+            compare_base64_results(actual_message, expected_message)
 
             if pytest.unparser_jar:
                 assert actual.strip() == test_case.expected_ast_unparsed.strip()
@@ -252,6 +281,8 @@ def test_ast(session, tables, test_case):
                 # Check whether the same encoding is produced by the original Snowpark code and the encode-decode-encode
                 # version of the Snowpark code.
                 decoder = Decoder(session)
+                session._ast_batch.reset_id_gen()  # Reset the entity ID generator.
+                session._ast_batch.flush()  # Clear the AST.
 
                 # Turn base64 input into protobuf objects. ParseFromString can retrieve multiple statements.
                 protobuf_request = proto.Request()
@@ -271,10 +302,9 @@ def test_ast(session, tables, test_case):
                     decoder_result.append(last_batch)
 
                 # Compare the original base64 string with the base64 string obtained from the decoder.
-                for i, (dec, orig) in enumerate(
-                    zip(decoder_result, base64_str.splitlines(), strict=True)
-                ):
-                    assert dec == orig, f"Base64 string at line {i + 1} differs."
+                actual = base64_lines_to_request(("\n".join(decoder_result)).strip())
+                expected = base64_lines_to_request(stripped_base64_str)
+                compare_base64_results(actual, expected, exclude_symbols_and_src=True)
 
         except AssertionError as e:
 
