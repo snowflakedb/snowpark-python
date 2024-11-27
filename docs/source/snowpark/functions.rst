@@ -97,6 +97,7 @@ Functions
     column
     concat
     concat_ws
+    concat_ws_ignore_nulls
     contains
     convert_timezone
     corr
