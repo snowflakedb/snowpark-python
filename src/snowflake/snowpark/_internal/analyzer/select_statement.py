@@ -1002,10 +1002,14 @@ class SelectStatement(Selectable):
                         dependent_column_complexity = (
                             subquery_projection_name_complexity_map[dependent_column]
                         )
-                        projection_complexity[PlanNodeCategory.COLUMN] -= 1
-                        projection_complexity = sum_node_complexities(
-                            projection_complexity, dependent_column_complexity
-                        )
+                        if (
+                            dependent_column_complexity.get(PlanNodeCategory.COLUMN, 0)
+                            > 0
+                        ):
+                            projection_complexity[PlanNodeCategory.COLUMN] -= 1
+                            projection_complexity = sum_node_complexities(
+                                projection_complexity, dependent_column_complexity
+                            )
 
                     self._projection_complexities.append(projection_complexity)
             else:
