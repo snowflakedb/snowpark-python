@@ -1284,7 +1284,7 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
 
 
 def is_feature_enabled_for_version(
-    session: snowflake.snowpark.Session, parameter_name: str
+    session: "snowflake.snowpark.Session", parameter_name: str
 ) -> bool:
     """
     This function checks if a feature is enabled for the given session based on
