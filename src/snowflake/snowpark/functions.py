@@ -3430,9 +3430,12 @@ def concat_ws_ignore_nulls(
     # TODO: SNOW-1831917 create ast
     columns = [_to_col_if_str(c, "concat_ws_ignore_nulls") for c in cols]
     names = ",".join([c.get_name() for c in columns])
+
     input_column_array = array_construct_compact(*columns, _emit_ast=False)
     reduced_result = builtin("reduce", _emit_ast=False)(
-        input_column_array, lit(""), sql_expr(f"(l, r) -> l || '{sep}' || r")
+        input_column_array,
+        lit("", _emit_ast=False),
+        sql_expr(f"(l, r) -> l || '{sep}' || r", _emit_ast=False),
     )
     return substring(reduced_result, 2, _emit_ast=False).alias(
         f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False
