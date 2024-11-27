@@ -375,7 +375,6 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     saved in the directory `snowpark_query_plan_plots` with the given `filename`. For example,
     we can set the environment variables as follows:
 
-        $ export SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD = 10  # minimum complexity score to start plotting
         $ export ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING=true
         $ export TMPDIR="/tmp"
         $ ls /tmp/snowpark_query_plan_plots/  # to see the plots
@@ -389,11 +388,6 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     if (
         os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING", "false").lower()
         != "true"
-    ):
-        return
-
-    if get_complexity_score(root) < int(
-        os.environ.get("SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD", 0)
     ):
         return
 
@@ -429,7 +423,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             name = f"{name} :: ({'| '.join(properties)})"
 
         score = get_complexity_score(node)
-        num_ref_ctes = -1
+        num_ref_ctes = "nil"
         if isinstance(node, (SnowflakePlan, Selectable)):
             num_ref_ctes = len(node.referenced_ctes)
         sql_text = ""

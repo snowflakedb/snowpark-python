@@ -731,21 +731,16 @@ def test_large_query_breakdown_enabled_parameter(session, caplog):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="requires graphviz")
 @pytest.mark.parametrize("enabled", [False, True])
-@pytest.mark.parametrize("score_threshold", [0, 3000000000000])
-def test_plotter(session, large_query_df, enabled, score_threshold):
+def test_plotter(session, large_query_df, enabled):
     original_plotter_enabled = os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING")
-    original_threshold = os.environ.get("SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD")
     try:
         os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"] = str(enabled)
-        os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD"] = str(score_threshold)
-        render_expected = enabled and (score_threshold == 0)
-
         tmp_dir = tempfile.gettempdir()
 
         with patch("graphviz.Graph.render") as mock_render:
             large_query_df.collect()
-            assert mock_render.called == render_expected
-            if not render_expected:
+            assert mock_render.called == enabled
+            if not enabled:
                 return
 
             assert mock_render.call_count == 5
@@ -767,7 +762,3 @@ def test_plotter(session, large_query_df, enabled, score_threshold):
             ] = original_plotter_enabled
         else:
             del os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"]
-        if original_threshold is not None:
-            os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD"] = original_threshold
-        else:
-            del os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD"]
