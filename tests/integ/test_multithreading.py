@@ -218,6 +218,10 @@ def test_action_ids_are_unique(threadsafe_session):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Skip file IO tests in localfs")
 @pytest.mark.parametrize("use_stream", [True, False])
+@pytest.mark.skipif(
+    pytest.param("local_testing_mode"),
+    reason="TODO SNOW-1826001: Bug in local testing mode.",
+)
 def test_file_io(threadsafe_session, resources_path, threadsafe_temp_stage, use_stream):
     stage_prefix = f"prefix_{Utils.random_alphanumeric_str(10)}"
     stage_with_prefix = f"@{threadsafe_temp_stage}/{stage_prefix}"
