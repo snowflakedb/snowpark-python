@@ -48,6 +48,8 @@ from snowflake.snowpark.types import DataType, StructType
 
 # TODO(SNOW-1791994): Enable pyright type checks for this file.
 
+# JSON field name in REST request to send AST over.
+DATAFRAME_AST_PARAMETER = "_dataframe_ast"
 
 # This flag causes an explicit error to be raised if any Snowpark object instance is missing an AST or field, when this
 # AST or field is required to populate the AST field of a different Snowpark object instance.
@@ -551,7 +553,8 @@ def build_fn_apply_args(
             build_expr_from_python_val(pos_arg, arg)
             expr.pos_args.append(pos_arg)
 
-    for name, arg in kwargs.items():  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "dict[str, Union[Expr, Any]]", variable has type "tuple[Union[Expr, Any]]")
+    sorted_kwargs = dict(sorted(kwargs.items()))
+    for name, arg in sorted_kwargs.items():  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "dict[str, Union[Expr, Any]]", variable has type "tuple[Union[Expr, Any]]")
         kwarg = proto.Tuple_String_Expr()
         kwarg._1 = name
         if isinstance(arg, proto.Expr):
@@ -1051,7 +1054,8 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     statement_params: Optional[Dict[str, str]] = None,
     source_code_display: bool = True,
     is_permanent: bool = False,
-    session=None,
+    session: "snowflake.snowpark.session.Session" = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDF parameters (used in both regular and mock UDFRegistration)."""
@@ -1061,7 +1065,10 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
         _set_fn_name(name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "Udf"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
-        ast.func, func, session._ast_batch if session is not None else None
+        ast.func,
+        func,
+        session._ast_batch if session is not None else None,
+        _registered_object_name,
     )
 
     if return_type is not None:
@@ -1110,7 +1117,8 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     ast.immutable = immutable
     if comment is not None:
         ast.comment.value = comment
-    for k, v in kwargs.items():
+    sorted_kwargs = dict(sorted(kwargs.items()))
+    for k, v in sorted_kwargs.items():
         t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
         t._1 = k
         build_expr_from_python_val(t._2, v)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "build_expr_from_python_val" has incompatible type "str"; expected "Expr"
@@ -1135,7 +1143,8 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     comment: Optional[str] = None,
     statement_params: Optional[Dict[str, str]] = None,
     is_permanent: bool = False,
-    session=None,
+    session: "snowflake.snowpark.session.Session" = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDAF parameters (used in both regular and mock UDFRegistration)."""
@@ -1145,7 +1154,10 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         _set_fn_name(name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "Udaf"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
-        ast.handler, handler, session._ast_batch if session is not None else None
+        ast.handler,
+        handler,
+        session._ast_batch if session is not None else None,
+        _registered_object_name,
     )
 
     if return_type is not None:
@@ -1189,7 +1201,8 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     ast.immutable = immutable
     if comment is not None:
         ast.comment.value = comment
-    for k, v in kwargs.items():
+    sorted_kwargs = dict(sorted(kwargs.items()))
+    for k, v in sorted_kwargs.items():
         t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
         t._1 = k
         build_expr_from_python_val(t._2, v)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "build_expr_from_python_val" has incompatible type "str"; expected "Expr"
@@ -1287,7 +1300,8 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     ast.immutable = immutable
     if comment is not None:
         ast.comment.value = comment
-    for k, v in kwargs.items():
+    sorted_kwargs = dict(sorted(kwargs.items()))
+    for k, v in sorted_kwargs.items():
         t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
         t._1 = k
         build_expr_from_python_val(t._2, v)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "build_expr_from_python_val" has incompatible type "str"; expected "Expr"
@@ -1339,7 +1353,8 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     execute_as: typing.Literal["caller", "owner"] = "owner",
     source_code_display: bool = True,
     is_permanent: bool = False,
-    session=None,
+    session: "snowflake.snowpark.session.Session" = None,
+    _registered_object_name: Optional[Union[str, Iterable[str]]] = None,
     **kwargs,
 ) -> None:  # pragma: no cover
     """Helper function to encode stored procedure parameters (used in both regular and mock StoredProcedureRegistration)."""
@@ -1348,7 +1363,10 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
         _set_fn_name(sp_name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "StoredProcedure"; expected "FnNameRefExpr"
 
     build_proto_from_callable(
-        ast.func, func, session._ast_batch if session is not None else None
+        ast.func,
+        func,
+        session._ast_batch if session is not None else None,
+        _registered_object_name,
     )
 
     if return_type is not None:
@@ -1397,7 +1415,8 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
             t._2 = v
     if comment is not None:
         ast.comment.value = comment
-    for k, v in kwargs.items():
+    sorted_kwargs = dict(sorted(kwargs.items()))
+    for k, v in sorted_kwargs.items():
         t = ast.kwargs.add()  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Tuple_String_Expr", variable has type "Tuple_String_String")
         t._1 = k
         build_expr_from_python_val(t._2, v)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "build_expr_from_python_val" has incompatible type "str"; expected "Expr"

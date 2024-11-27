@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.ast.utils import (
     fill_sp_save_mode,
     fill_sp_write_file,
     with_src_position,
+    DATAFRAME_AST_PARAMETER,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -364,7 +365,10 @@ class DataFrameWriter:
             self._dataframe._session._ast_batch.eval(repr)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+            (
+                _,
+                kwargs[DATAFRAME_AST_PARAMETER],
+            ) = self._dataframe._session._ast_batch.flush()
 
         with open_telemetry_context_manager(self.save_as_table, self._dataframe):
             save_mode = (
@@ -569,7 +573,10 @@ class DataFrameWriter:
             self._dataframe._session._ast_batch.eval(repr)
 
             # Flush the AST and encode it as part of the query.
-            _, kwargs["_dataframe_ast"] = self._dataframe._session._ast_batch.flush()
+            (
+                _,
+                kwargs[DATAFRAME_AST_PARAMETER],
+            ) = self._dataframe._session._ast_batch.flush()
 
         stage_location = normalize_remote_file_or_dir(location)
         partition_by = partition_by if partition_by is not None else self._partition_by

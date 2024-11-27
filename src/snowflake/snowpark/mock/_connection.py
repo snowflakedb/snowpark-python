@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
+from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
@@ -719,8 +720,8 @@ class MockServerConnection:
 
     def notify_mock_query_record_listener(self, **kwargs: Dict[Any, Any]):
         notify_kwargs = {"requestId": str(uuid.uuid4())}
-        if "_dataframe_ast" in kwargs:
-            notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
+        if DATAFRAME_AST_PARAMETER in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
         from snowflake.snowpark.query_history import QueryRecord
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
@@ -786,8 +787,8 @@ class MockServerConnection:
 
         # This should be internally backed by get_result_set. Need to notify query listeners here manually.
         notify_kwargs = {"requestId": str(uuid.uuid4())}
-        if "_dataframe_ast" in kwargs:
-            notify_kwargs["dataframeAst"] = kwargs["_dataframe_ast"]
+        if DATAFRAME_AST_PARAMETER in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
         from snowflake.snowpark.query_history import QueryRecord
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)

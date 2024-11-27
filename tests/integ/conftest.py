@@ -42,15 +42,6 @@ SNOWFLAKE_CREDENTIAL_HEADER_FIELDS = [
 ]
 
 
-def _process_response_recording(response):
-    """Process response recording"""
-    # Remove Snowflake credentials.
-    for key in SNOWFLAKE_CREDENTIAL_HEADER_FIELDS:
-        response["headers"].pop(key, None)
-
-    return response
-
-
 def print_help() -> None:
     print(
         """Connection parameter must be specified in parameters.py,

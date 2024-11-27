@@ -56,7 +56,7 @@ _TIMESTAMP_TYPE_TIMEZONE_MAPPING = {
 def infer_sp_type_from_python_type(p: Any) -> DataType:
     """helper function to map python types (using pandas) to Snowpark types."""
 
-    # TODO: refactor this with Snowpark pandas to avoid redundancy.
+    # TODO SNOW-1826001: refactor this with Snowpark pandas to avoid redundancy.
 
     if is_object_dtype(p):
         return VariantType()
@@ -528,7 +528,7 @@ class ColumnEmulator(PandasSeriesType):
         if self._sf_type is not None:
             return self._sf_type
 
-        # TODO: Else branch is taken when using UDTFs.
+        # TODO SNOW-1826001: Else branch is taken when using UDTFs. (Remove comment if not applicable anymore)
         # If a snowflake type has not been explicitly set before, infer one from the underlying pandas Series.
         else:
             # Can not use short cut self.isna().any() as this leads to endless recursion
