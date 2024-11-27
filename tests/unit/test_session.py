@@ -541,6 +541,8 @@ def test_session_builder_app_name_no_existing_query_tag(
         builder, "_create_internal", return_value=mocked_session
     ) as m:
         assert builder.app_name(app_name, format_json=format_json) is builder
+        # test alias
+        assert builder.appName(app_name, format_json=format_json) is builder
         created_session = builder.getOrCreate()
         m.assert_called_once()
         assert created_session.query_tag == expected_query_tag
