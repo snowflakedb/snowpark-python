@@ -20,6 +20,7 @@ import string
 import threading
 import traceback
 import zipfile
+import pkg_resources
 from enum import Enum
 from functools import lru_cache
 from json import JSONEncoder
@@ -1280,3 +1281,19 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         return modin, True
     except ImportError:
         return MissingModin(), False
+
+
+def is_feature_enabled_for_version(
+    session: snowflake.snowpark.Session, parameter_name: str
+) -> bool:
+    """
+    This function checks if a feature is enabled for the given session based on
+    the server side parameter.
+    """
+    version = session._conn._get_client_side_session_parameter(parameter_name, "")
+    return (
+        isinstance(version, str)
+        and version != ""
+        and pkg_resources.parse_version(session.version)
+        >= pkg_resources.parse_version(version)
+    )

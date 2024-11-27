@@ -86,6 +86,7 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
+    is_feature_enabled_for_version,
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
@@ -560,16 +561,8 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
-        cte_optimization_enabled_version = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION, ""
-            )
-        )
-        self._cte_optimization_enabled: bool = (
-            isinstance(cte_optimization_enabled_version, str)
-            and cte_optimization_enabled_version != ""
-            and pkg_resources.parse_version(self.version)
-            >= pkg_resources.parse_version(cte_optimization_enabled_version)
+        self._cte_optimization_enabled: bool = is_feature_enabled_for_version(
+            self, _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
         )
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
@@ -581,16 +574,8 @@ class Session:
                 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
             )
         )
-        auto_clean_up_temp_table_enabled_version = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION, ""
-            )
-        )
-        self._auto_clean_up_temp_table_enabled: bool = (
-            isinstance(auto_clean_up_temp_table_enabled_version, str)
-            and auto_clean_up_temp_table_enabled_version != ""
-            and pkg_resources.parse_version(self.version)
-            >= pkg_resources.parse_version(auto_clean_up_temp_table_enabled_version)
+        self._auto_clean_up_temp_table_enabled: bool = is_feature_enabled_for_version(
+            self, _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION
         )
         self._reduce_describe_query_enabled: bool = (
             self._conn._get_client_side_session_parameter(
