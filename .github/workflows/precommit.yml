@@ -332,6 +332,128 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
           TZ: EST
         shell: bash
+      - name: Combine coverages
+        run: python -m tox -e coverage --skip-missing-interpreters false
+        shell: bash
+        env:
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+          path: |
+            .tox/.coverage
+            .tox/coverage.xml
+
+  doctest-ast-phase0:
+    name: Doctest AST (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-latest ]
+        python-version: [ "3.9"]
+        cloud-provider: [ aws ]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Download wheel(s)
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - name: Show wheels downloaded
+        run: ls -lh dist
+        shell: bash
+      - name: Upgrade setuptools, pip and wheel
+        run: python -m pip install -U setuptools pip wheel
+      - name: Install tox
+        run: python -m pip install tox
+      - name: Run doctests for AST (I/II)
+        run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+
+  test-ast-phase0:
+    name: Test AST enabled (phase0) py-${{ matrix.os }}-${{ matrix.python-version }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest ]
+        python-version: [ "3.9", "3.11" ]
+        cloud-provider: [ aws ]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Download wheel(s)
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - name: Show wheels downloaded
+        run: ls -lh dist
+        shell: bash
+      - name: Upgrade setuptools, pip and wheel
+        run: python -m pip install -U setuptools pip wheel
+      - name: Install tox
+        run: python -m pip install tox
+      - name: Run tests for AST (II/II)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - name: Combine coverages
+        run: python -m tox -e coverage --skip-missing-interpreters false
+        shell: bash
+        env:
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+          path: |
+            .tox/.coverage
+            .tox/coverage.xml
 
   test-snowpark-pandas:
     name: Test modin-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}

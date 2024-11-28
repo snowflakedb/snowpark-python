@@ -8,7 +8,6 @@ from typing import Tuple
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
@@ -1202,7 +1201,7 @@ def test_chained_sort(session):
         # Flattened
         (
             lambda df: df.filter(col("A") > 1)
-            .select(col("A"), col("B"), col(Literal(12)).alias("TWELVE"))
+            .select(col("A"), col("B"), lit(12).alias("TWELVE"))
             .filter(col("A") > 2),
             'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1{POSTFIX}) AND ("A" > 2{POSTFIX}))',
         ),
