@@ -507,6 +507,7 @@ def read_excel():
         - If list of int, then indicates list of column numbers to be parsed (0-indexed).
         - If list of string, then indicates list of column names to be parsed.
         - If callable, then evaluate each column name against it and parse the column if the callable returns True.
+
         Returns a subset of the columns according to behavior above.
     dtype : Type name or dict of column -> type, default None
         Data type for data or columns. E.g. {‘a’: np.float64, ‘b’: np.int32} Use object to preserve data as stored in Excel and not interpret dtype, which will necessarily result in object dtype. If converters are specified, they will be applied INSTEAD of dtype conversion. If you use None, it will infer the dtype of each column based on the data.
@@ -517,6 +518,7 @@ def read_excel():
         - odf supports OpenDocument file formats (.odf, .ods, .odt).
         - pyxlsb supports Binary Excel files.
         - xlrd supports old-style Excel files (.xls).
+
         When engine=None, the following logic will be used to determine the engine:
         - If path_or_buffer is an OpenDocument format (.odf, .ods, .odt), then odf will be used.
         - Otherwise if path_or_buffer is an xls format, xlrd will be used.
@@ -540,6 +542,7 @@ def read_excel():
         - If keep_default_na is True, and na_values are not specified, only the default NaN values are used for parsing.
         - If keep_default_na is False, and na_values are specified, only the NaN values specified na_values are used for parsing.
         - If keep_default_na is False, and na_values are not specified, no strings will be parsed as NaN.
+
         Note that if na_filter is passed in as False, the keep_default_na and na_values parameters will be ignored.
     na_filter : bool, default True
         Detect missing value markers (empty strings and the value of na_values). In data without any NAs, passing na_filter=False can improve the performance of reading a large file.
@@ -551,6 +554,7 @@ def read_excel():
         - list of int or names. e.g. If [1, 2, 3] -> try parsing columns 1, 2, 3 each as a separate date column.
         - list of lists. e.g. If [[1, 3]] -> combine columns 1 and 3 and parse as a single date column.
         - dict, e.g. {‘foo’ : [1, 3]} -> parse columns 1, 3 as date and call result ‘foo’
+
         If a column or index contains an unparsable date, the entire column or index will be returned unaltered as an object data type. If you don`t want to parse some cells as date just change their type in Excel to “Text”. For non-standard datetime parsing, use pd.to_datetime after pd.read_excel.
         Note: A fast-path exists for iso8601-formatted dates.
     date_parser : function, optional
