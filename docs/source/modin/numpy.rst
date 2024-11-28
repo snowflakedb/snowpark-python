@@ -102,6 +102,7 @@ NumPy ufuncs called with Snowpark pandas arguments will ignore kwargs.
 +-----------------------------+----------------------------------------------------+
 | ``np.tanh``                 | Mapped to df.apply(snowpark.functions.tanh)        |
 +-----------------------------+----------------------------------------------------+
+
 NEP18 Implementation Details
 ----------------------------
 NumPy differs from pandas and Snowflake pandas in several key respects. It is
