@@ -629,7 +629,9 @@ def test_session_builder_app_name_existing_invalid_json_query_tag():
         (".".join([str(d + 5) for d in snowpark_version if d is not None]), False),
     ],
 )
-@pytest.mark.parametrize("parameter_name", ["_auto_clean_up_temp_table_enabled"])
+@pytest.mark.parametrize(
+    "parameter_name", ["_auto_clean_up_temp_table_enabled", "_cte_optimization_enabled"]
+)
 def test_parameter_version(version_value, expected_parameter_value, parameter_name):
     fake_server_connection = mock.create_autospec(ServerConnection)
     fake_server_connection._thread_safe_session_enabled = True
