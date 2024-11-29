@@ -903,6 +903,7 @@ class SelectStatement(Selectable):
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self._cumulative_node_complexity is None:
             self._cumulative_node_complexity = super().cumulative_node_complexity
+            print(f"ORIGINAL CUMULATIVE NODE COMPLEXITY: {self._cumulative_node_complexity}")
             if self._merge_projection_complexity_with_subquery:
                 # if _merge_projection_complexity_with_subquery is true, the subquery
                 # projection complexity has already been merged with the current projection
@@ -913,7 +914,8 @@ class SelectStatement(Selectable):
                     self._cumulative_node_complexity,
                     sum_node_complexities(*self.from_.projection_complexities),
                 )
-
+                print(f"COMPLEXITY AFTER ADJUSTMENT: {self._cumulative_node_complexity}")
+        print(f"CUMULATIVE NODE COMPLEXITY: {self._cumulative_node_complexity}")
         return self._cumulative_node_complexity
 
     @cumulative_node_complexity.setter
@@ -997,15 +999,19 @@ class SelectStatement(Selectable):
                     #       - {PlanNodeCategory.COLUMN: 1} + col2_complexity
                     #       - {PlanNodeCategory.COLUMN: 1} + col1_complexity
                     dependent_columns = proj.dependent_column_names_with_duplication()
-                    projection_complexity = proj.cumulative_node_complexity
+                    projection_complexity = proj.cumulative_node_complexity.copy()
+                    print(f"CURRENT_PROJECTION: {proj} PROJECTION_COMPLEXITY: {projection_complexity}")
+                    print(f"DEPENDENT_COLUMNS: {dependent_columns}")
                     for dependent_column in dependent_columns:
                         dependent_column_complexity = (
                             subquery_projection_name_complexity_map[dependent_column]
                         )
+                        print(f"dependent_column_complexity: {dependent_column_complexity}")
                         projection_complexity[PlanNodeCategory.COLUMN] -= 1
                         projection_complexity = sum_node_complexities(
-                            projection_complexity, dependent_column_complexity
+                            projection_complexity, dependent_column_complexity,
                         )
+                        print(f"NEW_PROJECTION_COMPLEXITY: {projection_complexity}")
 
                     self._projection_complexities.append(projection_complexity)
             else:

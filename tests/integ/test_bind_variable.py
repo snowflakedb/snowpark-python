@@ -21,6 +21,7 @@ from snowflake.snowpark.types import (
 )
 from tests.integ.scala.test_dataframe_suite import SAMPLING_DEVIATION
 from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from snowflake.snowpark import functions as F
 
 try:
     import pandas as pd  # noqa: F401
@@ -457,3 +458,51 @@ def test_explain(session):
         params=[1, "a", 2, "b"],
     )
     df.explain()
+
+
+def test_describe_call(session):
+    import time
+    start = time.time()
+    df = session.table("snowpark_performance_db.snowpark_performance_schema.JSUN03_LTARSV3_TUDL_RI_BK_FULL_INFO_FNL_MDL")
+    """
+    table_time = time.time()
+    print(f"STEP 1: table time {table_time - start}")
+    col_posfix = ["_INC21", "_INC18", "_INC6", "_INC3", "_T24"]
+    select_columns = ["ACXIOM_SEQUENCE_NUMBER", "VINTAGE", '"l_k7xk_CO_BK_IN_24M"']
+    existing_columns = df.columns
+    for postfix in col_posfix:
+        filtered_columns = [col for col in existing_columns if col.endswith(postfix)]
+        select_columns.extend(filtered_columns)
+    extract_column = time.time()
+    print(f"STEP 2: extract column {extract_column - table_time}")
+    df = df.select(select_columns).rename(F.col('"l_k7xk_CO_BK_IN_24M"'), "co_bk_in_24m")
+    select_time = time.time()
+    print(f"STEP 3: select column {select_time - extract_column}")
+    df = df.describe()
+    describe_time = time.time()
+    print(f"STEP 4: describe df {describe_time - select_time}")
+    df.show()
+    """
+    all_col_group_postfix = ["_T24", "_INC21", "_INC18", "_INC6", "_INC3"]
+    # select a subset of columns out of the 5000 columns
+    col_group_postfix = all_col_group_postfix[:1]
+    stat_columns = []
+    existing_columns = df.columns
+    for postfix in col_group_postfix:
+        filtered_columns = [col for col in existing_columns if (col.endswith(postfix) and col != "ARCHIVE_DATE_TUDL_T24")]
+        stat_columns.extend(filtered_columns)
+
+    extra_select_columns = ["ACXIOM_SEQUENCE_NUMBER", "VINTAGE", '"l_k7xk_CO_BK_IN_24M"']
+    base_df = df.select(extra_select_columns + stat_columns).rename(F.col('"l_k7xk_CO_BK_IN_24M"'),
+                                                                    "co_bk_in_24m").select(stat_columns)
+    df = base_df.describe()
+    # df.show()
+
+    # append the percentile state
+    percentiles = [(0.1, 'Q01'), (0.25, 'Q25'), (0.5, 'Q50'), (0.75, 'Q75'), (0.9, 'Q90'), (0.95, 'Q95')]
+    for (percentile, name) in percentiles:
+        print(f"get percentile {percentile}")
+        percentile_cols = [F.approx_percentile(col, percentile).as_(col) for col in stat_columns]
+        percentile_df = base_df.select(F.lit(name).as_("summary"), *percentile_cols)
+        df = df.union(percentile_df)
+    df.show()

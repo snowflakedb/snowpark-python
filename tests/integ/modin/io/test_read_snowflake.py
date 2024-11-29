@@ -548,3 +548,135 @@ def test_read_snowflake_with_table_in_different_db(
         # recover the origin db and schema
         session.use_database(origin_db)
         session.use_schema(origin_schema)
+
+
+def test_pandas_simple_aggregate(session):
+    """
+    # Data in RandomDummyData table:
+    rows = 1000000
+    df = pd.DataFrame(data={
+        'Variable A': np.random.randn(rows),
+        'Variable B': np.random.randn(rows),
+        'Variable C': np.random.randn(rows),
+        'target': np.random.randint(0, 2, rows)
+    })
+
+    df.to_snowflake(name="RandomDummyData", index=False)
+    # save it to table RandomDummyData
+    """
+
+    import timeit
+    import time
+    # Create the DataFrame
+    # dfLarge = pd.read_snowflake('dev_sandbox.modelling.RandomDummyData')
+    dfLarge = pd.read_snowflake('RandomDummyData')
+
+    dfLargePandas = dfLarge.to_pandas()
+
+    print(f'Snowflake Pandas Memory Size {dfLarge.memory_usage().sum() / 1000000000} GB')
+    print(f'Pandas Memory Size {dfLargePandas.memory_usage().sum() / 1000000000} GB')
+
+    # Define the functions to be timed
+    def evaluate_snowpark_cache():
+        table = dfLarge[['Variable A', 'target']].cache_result()
+
+        # replace empty strings or nan results with "Missing"
+        table['Variable A'] = table['Variable A'].fillna('Missing')
+        table['Variable A'] = table['Variable A'].replace(r'^\s*$', 'Missing', regex=True)
+
+        # Create aggregate information
+        aggTable = table[['Variable A', 'target']].groupby(by=['Variable A'], dropna=False, sort=False,
+                                                           observed=False).agg(
+            target_sum=pd.NamedAgg(column='target', aggfunc='sum')
+            , target_mean=pd.NamedAgg(column='target', aggfunc='mean')
+            , volume=pd.NamedAgg(column='target', aggfunc='count')
+        )
+
+        aggTablePandas = aggTable.to_pandas()
+        aggTablePandas['target_sum_sqrt'] = np.sqrt(aggTablePandas['target_sum'])
+
+    def evaluate_snowpark_copy():
+        start = time.time()
+        table = dfLarge[['Variable A', 'target']]
+        step1 = time.time()
+        print(f"STEP 1: {step1 - start}")
+
+        # replace empty strings or nan results with "Missing"
+        table['Variable A'] = table['Variable A'].fillna('Missing')
+        step2 = time.time()
+        print(f"STEP 2: {step2 - step1}")
+        table['Variable A'] = table['Variable A'].replace(r'^\s*$', 'Missing', regex=True)
+        step3 = time.time()
+        print(f"STEP 3: {step3 - step2}")
+
+        # Create aggregate information
+        aggTable = table[['Variable A', 'target']].groupby(by=['Variable A'], dropna=False, sort=False,
+                                                           observed=False).agg(
+            target_sum=pd.NamedAgg(column='target', aggfunc='sum')
+            , target_mean=pd.NamedAgg(column='target', aggfunc='mean')
+            , volume=pd.NamedAgg(column='target', aggfunc='count')
+        )
+        step4 = time.time()
+        print(f"STEP 4: {step4 - step3}")
+
+        # return aggTable
+        # aggTable['target_sum_sqrt'] = np.sqrt(aggTable['target_sum'])
+        # aggTablePandas = aggTable.to_pandas()
+        import random
+        aggTable.to_snowflake(f"temp_pandas_{random.randint(0, 20)}", index=False, table_type="temp")
+        step5 = time.time()
+        print(f"STEP 5: {step5 - step4}")
+        # aggTablePandas['target_sum_sqrt'] = np.sqrt(aggTablePandas['target_sum'])
+
+    def evaluate_pandas():
+        table = dfLarge[['Variable A', 'target']].to_pandas().copy()
+
+        # replace empty strings or nan results with "Missing"
+        table['Variable A'] = table['Variable A'].fillna('Missing')
+        table['Variable A'] = table['Variable A'].replace(r'^\s*$', 'Missing', regex=True)
+
+        # Create aggregate information
+        aggTable = table[['Variable A', 'target']].groupby(by=['Variable A'], dropna=False, sort=False,
+                                                           observed=False).agg(
+            target_sum=pd.NamedAgg(column='target', aggfunc='sum')
+            , target_mean=pd.NamedAgg(column='target', aggfunc='mean')
+            , volume=pd.NamedAgg(column='target', aggfunc='count')
+        )
+
+        aggTable['target_sum_sqrt'] = np.sqrt(aggTable['target_sum'])
+
+    def evaluate_pandas_converted():
+        table = dfLargePandas[['Variable A', 'target']].copy()
+
+        # replace empty strings or nan results with "Missing"
+        table['Variable A'] = table['Variable A'].fillna('Missing')
+        table['Variable A'] = table['Variable A'].replace(r'^\s*$', 'Missing', regex=True)
+
+        # Create aggregate information
+        aggTable = table[['Variable A', 'target']].groupby(by=['Variable A'], dropna=False, sort=False,
+                                                           observed=False).agg(
+            target_sum=pd.NamedAgg(column='target', aggfunc='sum')
+            , target_mean=pd.NamedAgg(column='target', aggfunc='mean')
+            , volume=pd.NamedAgg(column='target', aggfunc='count')
+        )
+
+        # aggTable['target_sum_sqrt'] = np.sqrt(aggTable['target_sum'])
+
+    # Time the functions
+    # snowpark_time_cache = timeit.timeit(evaluate_snowpark_cache, number=5)
+    snowpark_time_copy = timeit.timeit(evaluate_snowpark_copy, number=5)
+
+    # pandas_time = timeit.timeit(evaluate_pandas, number=1)
+    # pandas_converted_time = timeit.timeit(evaluate_pandas_converted, number=5)
+    # import time
+    # start = time.time()
+    # snowpark_pandas_df = evaluate_snowpark_copy()
+    # snowpark_pandas_df.to_pandas()
+    # end = time.time()
+    # snowpark_time_copy = end - start
+
+
+    # print(f"Snowpark evaluation time with cache: {snowpark_time_cache:.4f} seconds")
+    print(f"Snowpark evaluation time with copy: {snowpark_time_copy:.4f} seconds")
+    # print(f"Pandas evaluation time with copy: {pandas_time:.4f} seconds")
+    # print(f"Pandas pre-converted evaluation time with copy: {pandas_converted_time:.4f} seconds")
