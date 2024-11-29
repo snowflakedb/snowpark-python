@@ -1318,6 +1318,9 @@ def snowpark_to_pandas_helper(
     Returns:
         pandas dataframe
     """
+    import time
+
+    start = time.time()
     ids = frame.index_column_snowflake_quoted_identifiers
     cached_snowpark_pandas_types = frame.cached_index_column_snowpark_pandas_types
 
@@ -1326,6 +1329,8 @@ def snowpark_to_pandas_helper(
         cached_snowpark_pandas_types += frame.cached_data_column_snowpark_pandas_types
 
     ordered_dataframe = frame.ordered_dataframe.select(*ids)
+    pre_check = time.time()
+    print(f"PRE-CHECK: {pre_check - start}")
     # Step 1: preprocessing on Snowpark pandas types
     # Here we convert Timedelta to string before to_pandas to avoid precision loss.
     if cached_snowpark_pandas_types is not None:
@@ -1367,6 +1372,9 @@ def snowpark_to_pandas_helper(
                 [old_to_new_id_mapping.get(id, id) for id in ids]
             )
 
+    step1 = time.time()
+    print(f"STEP 1: {step1 - pre_check}")
+
     # Step 2: Retrieve schema of Snowpark dataframe and
     # capture information about each quoted identifier and its corresponding datatype, store
     # as list to keep information about order of columns.
@@ -1381,6 +1389,9 @@ def snowpark_to_pandas_helper(
         filter(lambda t: isinstance(t[1], VariantType), columns_info)
     )
     variant_type_identifiers = list(map(lambda t: t[0], variant_type_columns_info))
+
+    step2 = time.time()
+    print(f"STEP 2: {step2 - step1}")
 
     # Step 3.1: Create for each variant type column a separate type column (append at end), and retrieve data values
     # (and types for variant type columns).
@@ -1400,6 +1411,9 @@ def snowpark_to_pandas_helper(
             variant_type_typeof_identifiers,
             [typeof(col(id)) for id in variant_type_identifiers],
         )
+
+    step31 = time.time()
+    print(f"STEP 31: {step31 - step2}")
 
     # Step 3.2: cast timestamp_tz to string to preserve their original timezone offsets
     timestamp_tz_identifiers = [
@@ -1424,6 +1438,8 @@ def snowpark_to_pandas_helper(
                 for id in timestamp_tz_identifiers
             ],
         )
+    step32 = time.time()
+    print(f"STEP 32: {step32 - step31}")
 
     # ensure that snowpark_df has unique identifiers, so the native pandas DataFrame object created here
     # also does have unique column names which is a prerequisite for the post-processing logic following.
@@ -1433,6 +1449,9 @@ def snowpark_to_pandas_helper(
         + timestamp_tz_str_identifiers
     ), "Snowpark DataFrame to convert must have unique column identifiers"
     pandas_df = ordered_dataframe.to_pandas(statement_params=statement_params, **kwargs)
+
+    to_pandas_time = time.time()
+    print(f"to_pandas: {to_pandas_time - step32}")
 
     # Step 4: perform post-processing
     # If the dataframe has no rows, do not perform this. Using the result of the `apply` on

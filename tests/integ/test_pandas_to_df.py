@@ -8,6 +8,7 @@ import json
 import logging
 import math
 from datetime import date, datetime, time, timedelta, timezone
+import numpy as np
 
 import pytest
 

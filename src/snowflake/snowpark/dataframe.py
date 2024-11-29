@@ -819,6 +819,8 @@ class DataFrame:
             as pandas cannot distinguish between the two.
             - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
         """
+        import time
+        start = time.time()
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
                 self._plan,
@@ -832,7 +834,8 @@ class DataFrame:
                 ),
                 **kwargs,
             )
-
+        execute_time = time.time()
+        print(f"SNOWPARK to_pandas {execute_time - start}")
         # if the returned result is not a pandas dataframe, raise Exception
         # this might happen when calling this method with non-select commands
         # e.g., session.sql("create ...").to_pandas()
