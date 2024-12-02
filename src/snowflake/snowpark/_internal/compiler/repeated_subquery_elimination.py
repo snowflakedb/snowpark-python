@@ -171,6 +171,7 @@ class RepeatedSubqueryElimination:
                     with_block._is_valid_for_replacement = True
 
                     resolved_with_block = self._query_generator.resolve(with_block)
+                    resolved_with_block._is_valid_for_replacement = True
                     resolved_with_block_map[
                         node.encoded_node_id_with_query
                     ] = resolved_with_block
