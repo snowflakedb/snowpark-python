@@ -61,7 +61,7 @@ def single_chunk_column_to_pandas(column: InterchangeColumn) -> native_pd.Series
     native_pd.core.interchange.from_dataframe.protocol_df_chunk_to_pandas. The
     difference is that it takes as input a Column instead of a DataFrame object.
     We need to implement a method like this ourselves, because pandas does not
-    provide a method to convert an intercahnge column to pandas.
+    provide a method to convert an interchange column to pandas.
 
     This method uses pandas methods like `primitive_column_to_ndarray`, which
     use the `data`, `validity`, and `offsets` attributes of the `Buffer`
