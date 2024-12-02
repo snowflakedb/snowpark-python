@@ -28,6 +28,7 @@ INSTALL_REQ_LIST = [
     "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6",  # Snowpark IR
+    "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
