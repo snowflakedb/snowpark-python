@@ -63,6 +63,10 @@ def single_chunk_column_to_pandas(column: InterchangeColumn) -> native_pd.Series
     We need to implement a method like this ourselves, because pandas does not
     provide a method to convert an intercahnge column to pandas.
 
+    This method uses pandas methods like `primitive_column_to_ndarray`, which
+    use the `data`, `validity`, and `offsets` attributes of the `Buffer`
+    objects to fetch data and convert it to pandas.
+
     Parameters
     ----------
     column : InterchangeColumn
@@ -484,8 +488,9 @@ class TestBuffer:
         """
         Check that bufsize is a positive integer.
 
-        We validate in other test cases that we can use bufsize to read the
-        data that we expect.
+        In other test cases, we use `single_chunk_column_to_pandas` to test
+        that that we can use `bufsize`, along with other attributes of each
+        buffer, to read the data that we expect.
         """
         bufsize = (
             pd.DataFrame(pandas_df)
@@ -502,8 +507,9 @@ class TestBuffer:
         """
         Check that ptr is a positive integer.
 
-        We validate in other test cases that we can use ptr to read the data
-        that we expect.
+        In other test cases, we use `single_chunk_column_to_pandas` to test
+        that that we can use `ptr`, along with other attributes of each buffer,
+        to read the data that we expect.
         """
         ptr = (
             pd.DataFrame(pandas_df)

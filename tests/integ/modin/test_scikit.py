@@ -10,23 +10,15 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-# SNOW-1344931 Support MaxAbsScalar on earlier versions of
-# scikit-learn by supporting numpy.may_share_memory
 @sql_count_checker(query_count=5)
-def test_scikit_maxabs():
+def test_maxabs():
     data = [[1.0, -1.0, 2.0], [2.0, 0.0, 0.0], [0.0, 1.0, -1.0]]
     X = pd.DataFrame(data)
-    # the following will result in a TypeError on earlier versions
-    # of scikit-learn if `numpy.may_share_memory' is not implemented as an
-    # array function. In later versions a NotImplementedError is
-    # thrown.
     MaxAbsScaler().fit_transform(X)
 
 
-# SNOW-1518382 Support PCA  on earlier versions of
-# scikit-learn by supporting numpy.may_share_memory
 @sql_count_checker(query_count=3)
-def test_scikit_pca():
+def test_pca():
     data = [[1.0, -1.0, 2.0], [2.0, 0.0, 0.0], [0.0, 1.0, -1.0]]
     X = pd.DataFrame(data)
     pca = PCA()

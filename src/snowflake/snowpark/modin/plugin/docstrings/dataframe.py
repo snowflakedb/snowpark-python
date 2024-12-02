@@ -5099,7 +5099,7 @@ class DataFrame(BasePandasDataset):
 
     def __dataframe__():
         """
-        Get a Modin DataFrame that implements the dataframe exchange protocol.
+        Get an object that implements the dataframe interchange protocol for this dataframe.
 
         See more about the protocol in https://data-apis.org/dataframe-protocol/latest/index.html.
 
