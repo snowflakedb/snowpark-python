@@ -961,6 +961,7 @@ def groupby(
 
     idx_name = None
 
+    return_tuple_when_iterating = False
     if (
         not isinstance(by, Series)
         and is_list_like(by)
@@ -970,6 +971,7 @@ def groupby(
         # `None`, and by=None wold mean that there is no `by` param.
         and by[0] is not None
     ):
+        return_tuple_when_iterating = True
         by = by[0]
 
     if hashable(by) and (
@@ -1020,6 +1022,7 @@ def groupby(
         idx_name,
         observed=observed,
         dropna=dropna,
+        return_tuple_when_iterating=return_tuple_when_iterating,
     )
 
 
