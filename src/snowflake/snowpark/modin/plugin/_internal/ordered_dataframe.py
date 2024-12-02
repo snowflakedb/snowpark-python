@@ -1753,6 +1753,37 @@ class OrderedDataFrame:
             ordering_columns=self.ordering_columns,
         )
 
+    def get_head_tail(self, num_rows: int) -> "OrderedDataFrame":
+        """
+        Gets the head and tail of this DataFrame.
+        """
+        from snowflake.snowpark.functions import col
+
+        projected_dataframe_ref = self._to_projected_snowpark_dataframe_reference(
+            include_ordering_columns=True
+        )
+        snowpark_dataframe = projected_dataframe_ref.snowpark_dataframe
+        snowpark_dataframe = (
+            snowpark_dataframe.sort(
+                col(self.row_position_snowflake_quoted_identifier), ascending=True
+            )
+            .limit(num_rows)
+            .union(
+                snowpark_dataframe.sort(
+                    col(self.row_position_snowflake_quoted_identifier), ascending=False
+                ).limit(num_rows)
+            )
+        )
+        return OrderedDataFrame(
+            DataFrameReference(
+                snowpark_dataframe,
+                # same columns are retained after filtering
+                snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
+            ),
+            projected_column_snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
+            ordering_columns=self.ordering_columns,
+        )
+
     def limit(self, n: int, offset: int = 0, sort: bool = True) -> "OrderedDataFrame":
         """
         Returns a new DataFrame that contains at most ``n`` rows from the current
