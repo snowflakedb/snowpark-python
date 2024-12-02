@@ -8,8 +8,11 @@ import json
 import uuid
 
 import pytest
+import snowflake
 
+from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.lineage import LineageDirection
+from tests.utils import Utils
 
 try:
     import pandas as pd
@@ -342,3 +345,36 @@ def test_lineage_trace(session):
     df = session.lineage.trace(
         f'{db}.{schema}."v7"', "view", direction=LineageDirection.UPSTREAM
     )
+
+
+@pytest.mark.skip("unskip test when changes get to sever side")
+def test_role_in_owners_right_stored_proc(session, db_parameters):
+    session.add_packages("snowflake-snowpark-python")
+    name = Utils.random_function_name()
+    primary_role = session.get_current_role().replace('"', "")
+    test_role = "test_role_consistency"
+
+    try:
+
+        @sproc(name=name, replace=True)
+        def run(session_: snowflake.snowpark.Session) -> str:
+            sql = session_.sql("select current_role();").collect()[0][0]
+            sp = session_.get_current_role()
+            return f"{sql},{sp}"
+
+        session.sql(f"grant usage on procedure {name}() to role {test_role}").collect()
+        session.sql(
+            f"GRANT USAGE ON database {db_parameters['database']} TO ROLE {test_role}"
+        ).collect()
+        session.sql(
+            f"GRANT USAGE ON schema {db_parameters['database']}.{db_parameters['schema']} TO ROLE {test_role}"
+        ).collect()
+        session.sql(
+            f"GRANT USAGE ON warehouse {db_parameters['warehouse']} TO ROLE {test_role}"
+        ).collect()
+        session.sql(f"use role {test_role}").collect()
+        session.sql(f"use warehouse {db_parameters['warehouse']}").collect()
+        res = session.sql(f"call {name}()").collect()[0][0]
+        assert res.split(",")[0] == res.split(",")[0].replace('"', "")
+    finally:
+        session.sql(f"use role {primary_role}")
