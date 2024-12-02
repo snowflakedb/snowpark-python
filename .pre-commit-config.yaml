@@ -55,11 +55,13 @@ repos:
     -   id: debug-statements
         exclude: >
             (?x)^(
+                # Excluding decoder.py because it uses match that's only available in Python 3.10
                 tests/ast/decoder.py
             )$
     -   id: check-ast
         exclude: >
             (?x)^(
+                # Excluding decoder.py because it uses match that's only available in Python 3.10
                 tests/ast/decoder.py
             )$
 -   repo: https://github.com/Lucas-C/pre-commit-hooks.git
@@ -91,6 +93,7 @@ repos:
         args:
           - --per-file-ignores=tests/*.py:T201 # prints are allowed in test files
           # Ignore errors for generated protocol buffer stubs
+          # Excluding decoder.py because it uses match that's only available in Python 3.10
           - --exclude=src/snowflake/snowpark/_internal/proto/generated/ast_pb2.py,tests/ast/decoder.py
     # Use mypy for static type checking.
 -   repo: https://github.com/pre-commit/mirrors-mypy
