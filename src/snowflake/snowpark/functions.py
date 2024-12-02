@@ -3017,7 +3017,7 @@ def split(str: ColumnOrName, pattern: ColumnOrName, _emit_ast: bool = True) -> C
 def substring(
     str: ColumnOrName,
     pos: Union[Column, int],
-    len: Union[Column, int],
+    len: Optional[Union[Column, int]] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """Returns the portion of the string or binary value str, starting from the
@@ -3030,16 +3030,26 @@ def substring(
 
     :func:`substr` is an alias of :func:`substring`.
 
-    Example::
+    Example 1::
         >>> df = session.create_dataframe(
         ...     ["abc", "def"],
         ...     schema=["S"],
-        ... ).select(substring(col("S"), 1, 1))
-        >>> df.collect()
+        ... )
+        >>> df.select(substring(col("S"), 1, 1)).collect()
         [Row(SUBSTRING("S", 1, 1)='a'), Row(SUBSTRING("S", 1, 1)='d')]
+
+    Example 2::
+        >>> df = session.create_dataframe(
+        ...     ["abc", "def"],
+        ...     schema=["S"],
+        ... )
+        >>> df.select(substring(col("S"), 2)).collect()
+        [Row(SUBSTRING("S", 2)='bc'), Row(SUBSTRING("S", 2)='ef')]
     """
     s = _to_col_if_str(str, "substring")
     p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=_emit_ast)
+    if len is None:
+        return builtin("substring", _emit_ast=_emit_ast)(s, p)
     length = len if isinstance(len, Column) else lit(len, _emit_ast=_emit_ast)
     return builtin("substring", _emit_ast=_emit_ast)(s, p, length)
 
@@ -3390,6 +3400,46 @@ def concat_ws(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     columns = [_to_col_if_str(c, "concat_ws") for c in cols]
     return builtin("concat_ws", _emit_ast=_emit_ast)(*columns)
+
+
+@publicapi
+def concat_ws_ignore_nulls(
+    sep: str, *cols: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """Concatenates two or more strings, or concatenates two or more binary values. Null values are ignored.
+
+    Args:
+        sep: The separator to use between the strings.
+
+    Examples::
+        >>> df = session.create_dataframe([
+        ...     ['Hello', 'World', None],
+        ...     [None, None, None],
+        ...     ['Hello', None, None],
+        ... ], schema=['a', 'b', 'c'])
+        >>> df.select(concat_ws_ignore_nulls(',', df.a, df.b, df.c)).show()
+        ----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS(',', ""A"",""B"",""C"")"  |
+        ----------------------------------------------------
+        |Hello,World                                       |
+        |                                                  |
+        |Hello                                             |
+        ----------------------------------------------------
+        <BLANKLINE>
+    """
+    # TODO: SNOW-1831917 create ast
+    columns = [_to_col_if_str(c, "concat_ws_ignore_nulls") for c in cols]
+    names = ",".join([c.get_name() for c in columns])
+
+    input_column_array = array_construct_compact(*columns, _emit_ast=False)
+    reduced_result = builtin("reduce", _emit_ast=False)(
+        input_column_array,
+        lit("", _emit_ast=False),
+        sql_expr(f"(l, r) -> l || '{sep}' || r", _emit_ast=False),
+    )
+    return substring(reduced_result, 2, _emit_ast=False).alias(
+        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False
+    )
 
 
 @publicapi
@@ -6723,6 +6773,44 @@ def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Returns the size of the input ARRAY, OBJECT or MAP. Returns NULL if the
+    input column does not match any of these types.
+
+    Args:
+        col: A :class:`Column` object or column name that determines the values.
+
+    Example::
+        >>> df = session.create_dataframe([([1,2,3], {'a': 1, 'b': 2}, 3)], ['col1', 'col2', 'col3'])
+        >>> df.select(size(df.col1), size(df.col2), size(df.col3)).show()
+        ----------------------------------------------------------
+        |"SIZE(""COL1"")"  |"SIZE(""COL2"")"  |"SIZE(""COL3"")"  |
+        ----------------------------------------------------------
+        |3                 |2                 |NULL              |
+        ----------------------------------------------------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(col, "size")
+    v = to_variant(c)
+
+    # TODO: SNOW-1831923 build AST
+    return (
+        when(
+            is_array(v, _emit_ast=False),
+            array_size(v, _emit_ast=False),
+            _emit_ast=False,
+        )
+        .when(
+            is_object(v, _emit_ast=False),
+            array_size(object_keys(v, _emit_ast=False), _emit_ast=False),
+            _emit_ast=False,
+        )
+        .otherwise(lit(None), _emit_ast=False)
+        .alias(f"SIZE({c.get_name()})", _emit_ast=False)
+    )
+
+
+@publicapi
 def object_agg(
     key: ColumnOrName, value: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
@@ -9865,6 +9953,7 @@ def sproc(
 # Add these alias for user code migration
 call_builtin = call_function
 collect_set = array_unique_agg
+collect_list = array_agg
 builtin = function
 countDistinct = count_distinct
 substr = substring
