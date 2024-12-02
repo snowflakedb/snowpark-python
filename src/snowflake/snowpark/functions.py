@@ -6790,11 +6790,17 @@ def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
         ----------------------------------------------------------
         <BLANKLINE>
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "size", col)
+
     c = _to_col_if_str(col, "size")
     v = to_variant(c)
 
-    # TODO: SNOW-1831923 build AST
-    return (
+    result = (
         when(
             is_array(v, _emit_ast=False),
             array_size(v, _emit_ast=False),
@@ -6808,6 +6814,8 @@ def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
         .otherwise(lit(None), _emit_ast=False)
         .alias(f"SIZE({c.get_name()})", _emit_ast=False)
     )
+    result._ast = ast
+    return result
 
 
 @publicapi
