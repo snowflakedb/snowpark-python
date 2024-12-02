@@ -12,10 +12,10 @@ is whether or not the aggregation is supported by ``DataFrameGroupBy.agg``. The 
 the aggregation is supported by ``SeriesGroupBy.agg``.
 
 .. note::
-    ``Y`` stands for yes, i.e., supports distributed implementation, ``N`` stands for no and API simply errors out,
+    ``Y`` stands for yes (supports distributed implementation), ``N`` stands for no (API simply errors out),
     and ``P`` stands for partial (meaning some parameters may not be supported yet).
 
-    Both Python and NumPy functions are supported for ``DataFrameGroupBy.agg`` and ``SeriesGroupBy.agg``.
+    Both Python builtin and NumPy functions are supported for ``DataFrameGroupBy.agg`` and ``SeriesGroupBy.agg``.
 
 +-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
 | Aggregation Function        | ``DataFrame.agg`` supports? (Y/N/P) | ``Series.agg`` supports? (Y/N/P) | ``DataFrameGroupBy.agg`` supports? (Y/N/P) | ``SeriesGroupBy.agg`` supports? (Y/N/P) |
