@@ -429,6 +429,8 @@ def test_telemetry_getitem_setitem():
             "__dataframe__",
             "DataFrame.__dataframe__",
             lambda df: df.__dataframe__(),
+            # The interchange protocol method will trigger a query to convert
+            # the Snowpark pandas dataframe to native pandas.
             1,
         ],
     ],
