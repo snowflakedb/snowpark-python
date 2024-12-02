@@ -27,7 +27,10 @@ body {
           }
         }
         src {
+          end_column: 41
+          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -64,20 +67,29 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 32
+                      end_line: 27
                       file: "SRC_POSITION_TEST_MODE"
+                      start_column: 24
                       start_line: 27
                     }
                     v: "A"
                   }
                 }
                 src {
+                  end_column: 32
+                  end_line: 27
                   file: "SRC_POSITION_TEST_MODE"
+                  start_column: 24
                   start_line: 27
                 }
               }
             }
             src {
+              end_column: 32
+              end_line: 27
               file: "SRC_POSITION_TEST_MODE"
+              start_column: 23
               start_line: 27
             }
           }
@@ -90,7 +102,10 @@ body {
           }
         }
         src {
+          end_column: 33
+          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 27
         }
         variadic: true
@@ -125,20 +140,29 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 32
+                      end_line: 29
                       file: "SRC_POSITION_TEST_MODE"
+                      start_column: 24
                       start_line: 29
                     }
                     v: "A"
                   }
                 }
                 src {
+                  end_column: 32
+                  end_line: 29
                   file: "SRC_POSITION_TEST_MODE"
+                  start_column: 24
                   start_line: 29
                 }
               }
             }
             src {
+              end_column: 32
+              end_line: 29
               file: "SRC_POSITION_TEST_MODE"
+              start_column: 23
               start_line: 29
             }
           }
@@ -151,7 +175,10 @@ body {
           }
         }
         src {
+          end_column: 33
+          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 29
         }
         variadic: true
