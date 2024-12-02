@@ -30,7 +30,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -65,7 +68,10 @@ body {
           value: 100
         }
         src {
+          end_column: 38
+          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
           start_line: 27
         }
       }
@@ -100,7 +106,10 @@ body {
           value: 123
         }
         src {
+          end_column: 72
+          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
           start_line: 29
         }
       }
@@ -132,7 +141,10 @@ body {
           value: "SYSTEM"
         }
         src {
+          end_column: 59
+          end_line: 31
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
           start_line: 31
         }
       }
