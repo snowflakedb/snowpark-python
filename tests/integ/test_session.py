@@ -24,7 +24,6 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED,
-    _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING,
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
     _active_sessions,
     _get_active_session,
@@ -707,12 +706,13 @@ def test_cte_optimization_enabled_on_session(session, db_parameters):
         new_session.cte_optimization_enabled = default_value
         assert new_session.cte_optimization_enabled is default_value
 
-    parameters = db_parameters.copy()
-    parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING: not default_value
-    }
-    with Session.builder.configs(parameters).create() as new_session2:
-        assert new_session2.cte_optimization_enabled is not default_value
+    # TODO SNOW-1830248: add back the test when the parameter is available on the server side
+    # parameters = db_parameters.copy()
+    # parameters["session_parameters"] = {
+    #     _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: get_version() if default_value else ""
+    # }
+    # with Session.builder.configs(parameters).create() as new_session2:
+    #     assert new_session2.cte_optimization_enabled is not default_value
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")

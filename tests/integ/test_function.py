@@ -126,6 +126,7 @@ from snowflake.snowpark.functions import (
     regexp_replace,
     reverse,
     sequence,
+    size,
     snowflake_cortex_summarize,
     split,
     sqrt,
@@ -1113,8 +1114,9 @@ def test_as_negative(session):
     assert "'AS_DECIMAL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
+        # as_number is an alias to as_decimal.
         td.select(as_number(["a"])).collect()
-    assert "'AS_NUMBER' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'AS_DECIMAL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         td.select(as_double(["a"])).collect()
@@ -1199,7 +1201,7 @@ def test_as_negative(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_number("a")).collect()
     assert (
-        "invalid type [VARCHAR(5)] for parameter 'AS_NUMBER(variantValue...)'"
+        "invalid type [VARCHAR(5)] for parameter 'AS_DECIMAL(variantValue...)'"
         in str(ex_info)
     )
 
@@ -1209,13 +1211,13 @@ def test_as_negative(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_number(col("decimal1"), -1)).collect()
-    assert "invalid value [-1] for parameter 'AS_NUMBER(?, precision...)'" in str(
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, precision...)'" in str(
         ex_info
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_number(col("decimal1"), 6, -1)).collect()
-    assert "invalid value [-1] for parameter 'AS_NUMBER(?, ?, scale)'" in str(ex_info)
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, ?, scale)'" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_double("a")).collect()
@@ -1740,6 +1742,11 @@ def test_array_negative(session):
     with pytest.raises(TypeError) as ex_info:
         df.select(array_size([1])).collect()
     assert "'ARRAY_SIZE' expected Column or str, got: <class 'list'>" in str(ex_info)
+
+    with pytest.raises(
+        TypeError, match="'SIZE' expected Column or str, got: <class 'list'>"
+    ):
+        df.select(size([1])).collect()
 
     with pytest.raises(TypeError) as ex_info:
         df.select(array_slice([1], "col1", "col2")).collect()

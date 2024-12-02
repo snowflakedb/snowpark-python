@@ -18,7 +18,14 @@
   - To `MapType`:
     - `keyType`: keys of the map
     - `valueType`: values of the map
+- Added support for method `appName` in `SessionBuilder`.
 - Added support for `include_nulls` argument in `DataFrame.unpivot`.
+- Added support for following functions in `functions.py`:
+  - `size` to get size of array, object, or map columns.
+  - `collect_list` an alias of `array_agg`.
+  - `concat_ws_ignore_nulls` to concatenate strings with a separator, ignoring null values.
+  - `substring` makes `len` argument optional.
+- Added parameter `ast_enabled` to session for internal usage (default: `False`).
 
 #### Improvements
 
@@ -54,22 +61,21 @@
 - Added partial support for `Series.map` when `arg` is a pandas `Series` or a
   `collections.abc.Mapping`. No support for instances of `dict` that implement
   `__missing__` but are not instances of `collections.defaultdict`.
+- Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
+- Added support for `pd.json_normalize`.
+- Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
+- Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
+- Added support for `np.sqrt`, `np.trunc`, `np.floor`, numpy trig functions, `np.exp`, `np.abs`, `np.positive` and `np.negative`.
 
 #### Dependency Updates
 
-
-#### New Features
-
-- Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
-- Added support fot `pd.json_normalize`.
-- Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
-
 #### Bug Fixes
+- Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
 
 #### Improvements
-
-
+- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinel values.
+- Improved documentation for pd.read_excel.
 
 ### Snowpark Local Testing Updates
 
