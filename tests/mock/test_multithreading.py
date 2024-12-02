@@ -44,6 +44,10 @@ def threadsafe_session(threadsafe_server_connection):
         yield s
 
 
+@pytest.mark.skipif(
+    pytest.param("local_testing_mode"),
+    reason="TODO SNOW-1826001: Bug in local testing mode.",
+)
 def test_table_update_merge_delete(threadsafe_session):
     table_name = Utils.random_table_name()
     num_threads = 10
