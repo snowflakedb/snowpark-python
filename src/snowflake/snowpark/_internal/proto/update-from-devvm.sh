@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 # This is a little helper script to build the python protobuf file and copy it over to this directory.
 # If not pulling from the devvm, please provide the SSH Host as an argument.
-# Cloud workspace ssh is set up via ~/.local/share/sfcli/ssh_config (or simply provide your workspace ID)
-# For this script to succeed with the DevVM, you need to configure the SSH devvm host according to
-# https://snowflakecomputing.atlassian.net/wiki/spaces/EN/pages/3019015180/DevVM+Troubleshooting#Symptom:-Need-to-ssh-into-the-certified-DevVM
-# I.e., add the following lines to ~/.ssh/config
 # Host devvm
 #	  HostName sdp-devvm-<ldap user>
 # Example usage from the repo root to pull from the devvm
