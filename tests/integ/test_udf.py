@@ -9,6 +9,7 @@ import json
 import logging
 import math
 import os
+import re
 from typing import Callable
 
 import pytest
@@ -1007,6 +1008,49 @@ def return_dict(v: dict) -> Dict[str, str]:
     run=False,
 )
 @pytest.mark.parametrize("register_from_file", [True, False])
+def test_register_udf_with_empty_optional_args(
+    session: Session, tmpdir, register_from_file, caplog
+):
+    func_body = """
+def empty_args() -> str:
+    return "success"
+
+def only_type_hint(s: str) -> str:
+    return s
+"""
+    session.add_packages("snowflake-snowpark-python")
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        if register_from_file:
+            file_path = os.path.join(tmpdir, "register_from_file_optional_args.py")
+            with open(file_path, "w") as f:
+                source = f"{func_body}"
+                f.write(source)
+
+            empty_args_udf = session.udf.register_from_file(file_path, "empty_args")
+            only_type_hint_udf = session.udf.register_from_file(
+                file_path, "only_type_hint"
+            )
+        else:
+            d = {}
+            exec(func_body, {**globals(), **locals()}, d)
+
+            empty_args_udf = session.udf.register(d["empty_args"])
+            only_type_hint_udf = session.udf.register(d["only_type_hint"])
+
+    # assert that no warnings are raised here
+    # SNOW-1734254 for suppressing opentelemetry warning log
+    assert len(caplog.records) == 0 or [
+        all("opentelemetry" in str(record) for record in caplog.records)
+    ]
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1412530 to fix bug",
+    run=False,
+)
+@pytest.mark.parametrize("register_from_file", [True, False])
 def test_register_udf_with_optional_args(session: Session, tmpdir, register_from_file):
     import_body = """
 import datetime
@@ -1234,11 +1278,11 @@ def test_udf_negative(session, local_testing_mode):
     assert "Invalid function: not a function or callable" in str(ex_info)
 
     # if return_type is specified, it must be passed passed with keyword argument
-    with pytest.raises(TypeError) as ex_info:
+    with pytest.raises(
+        TypeError,
+        match=re.escape("udf() takes from 0 to 1 positional arguments but 2") + ".*",
+    ):
         udf(f, IntegerType())
-    assert "udf() takes from 0 to 1 positional arguments but 2 were given" in str(
-        ex_info
-    )
 
     udf1 = udf(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:

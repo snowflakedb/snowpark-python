@@ -92,10 +92,12 @@ Functions
     col
     collate
     collation
+    collect_list
     collect_set
     column
     concat
     concat_ws
+    concat_ws_ignore_nulls
     contains
     convert_timezone
     corr
@@ -257,7 +259,9 @@ Functions
     sha2
     sin
     sinh
+    size
     skew
+    snowflake_cortex_summarize
     sort_array
     soundex
     split
@@ -276,6 +280,7 @@ Functions
     sum
     sum_distinct
     sysdate
+    system_reference
     table_function
     tan
     tanh
@@ -320,5 +325,6 @@ Functions
     when
     when_matched
     when_not_matched
+    window
     xmlget
     year

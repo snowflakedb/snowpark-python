@@ -10,6 +10,7 @@ import re
 import shutil
 import tempfile
 import uuid
+from collections import defaultdict
 from functools import partial
 from logging import getLogger
 from typing import IO, TYPE_CHECKING, Dict, List, Tuple
@@ -88,6 +89,11 @@ SUPPORT_READ_OPTIONS = {
         "PATTERN": None,
         "ENCODING": ("UTF8", "UTF-8"),
     },
+    # TODO: Support avro, xml, parquet, orc in local test.
+    "avro": {},
+    "xml": {},
+    "parquet": {},
+    "orc": {},
 }
 
 
@@ -461,7 +467,7 @@ class StageEntity:
             result_df_sf_types = {}
             converters_dict = {}
             for i in range(len(schema)):
-                column_name = analyzer.analyze(schema[i])
+                column_name = analyzer.analyze(schema[i], defaultdict(dict))
                 column_series = ColumnEmulator(
                     data=None,
                     dtype=object,

@@ -206,7 +206,7 @@ def test_inplace_fillna_from_df():
 
 
 @pytest.mark.parametrize("index", [list(range(8)), list(string.ascii_lowercase[:8])])
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 def test_inplace_fillna_from_series(index):
     def inplace_fillna(series):
         series.iloc[:4].fillna(14, inplace=True)

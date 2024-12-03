@@ -153,7 +153,9 @@ def test_negative_test_for_missing_required_parameter_schema(
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="client is regression test specific")
 def test_select_current_client(session):
-    current_client = session.sql("select current_client()")._show_string(10)
+    current_client = session.sql("select current_client()")._show_string(
+        10, _emit_ast=session.ast_enabled
+    )
     assert get_application_name() in current_client
     assert get_version() in current_client
 
@@ -261,8 +263,7 @@ def test_dataframe_close_session(session, db_parameters):
     run=False,
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
-def test_create_temp_table_no_commit(session):
-    # test large local relation
+def test_large_local_relation_no_commit(session):
     session.sql("begin").collect()
     assert Utils.is_active_transaction(session)
     session.range(1000000).to_df("id").collect()
@@ -270,7 +271,14 @@ def test_create_temp_table_no_commit(session):
     session.sql("commit").collect()
     assert not Utils.is_active_transaction(session)
 
-    # test cache result
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="transactions not supported by local testing.",
+    run=False,
+)
+def test_create_temp_table_no_commit(session):
+    # cache_result creates a temp table
     test_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         Utils.create_table(session, test_table, "c1 int", is_temporary=True)

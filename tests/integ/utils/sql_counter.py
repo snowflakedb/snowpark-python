@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Union
 
 import pytest
 
-from snowflake.snowpark.query_history import QueryRecord
+from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
 
@@ -34,6 +34,7 @@ INSERT = "INSERT "
 WITH = "WITH "
 CREATE_TEMP_TABLE = "CREATE  TEMPORARY  TABLE"
 UNION = " UNION "
+WINDOW = " OVER "
 
 NO_CHECK = "no_check"
 
@@ -44,6 +45,7 @@ UDF_COUNT_PARAMETER = "udf_count"
 UDTF_COUNT_PARAMETER = "udtf_count"
 SELECT_COUNT_PARAMETER = "select_count"
 UNION_COUNT_PARAMETER = "union_count"
+WINDOW_COUNT_PARAMETER = "window_count"
 DESCRIBE_COUNT_PARAMETER = "describe_count"
 EXPECT_HIGH_COUNT = "expect_high_count"
 HIGH_COUNT_REASON = "high_count_reason"
@@ -57,6 +59,7 @@ SQL_COUNT_PARAMETERS = [
     SELECT_COUNT_PARAMETER,
     UNION_COUNT_PARAMETER,
     DESCRIBE_COUNT_PARAMETER,
+    WINDOW_COUNT_PARAMETER,
 ]
 BOOL_PARAMETERS = [EXPECT_HIGH_COUNT]
 
@@ -77,19 +80,24 @@ HIGH_QUERY_COUNT_THRESHOLD = 9
 # it only runs at the first time of creating a fallback stored procedure
 # 5. test_table_fixture does a drop table which is inconsistently included but ultimately not related to the tested code
 # These cases should be excluded in our query counts.
+# 6. Unused temp tables to be dropped to temp table cleaner may happen any time when garbage collection kicks in,
+# so we should not count it
 FILTER_OUT_QUERIES = [
     ["create SCOPED TEMPORARY", "stage if not exists"],
     ["PUT", "file:///tmp/placeholder/snowpark.zip"],
     ["PUT", "file:///tmp/placeholder/udf_py_"],
     ['SELECT "PACKAGE_NAME"', 'array_agg("VERSION")'],
     ["drop table if exists", "TESTTABLENAME"],
+    ["drop table if exists", "/* internal query to drop unused temp table */"],
 ]
 
 # define global at module-level
 sql_count_records = {}
 
+sql_counter_state = threading.local()
 
-class SqlCounter:
+
+class SqlCounter(QueryListener):
     """
     SqlCounter is an object that counts metrics related to snowpark queries.  This includes things like query counts
     and join counts.  It can be extended to cover other counts as well.
@@ -156,6 +164,8 @@ class SqlCounter:
             self.session = None
         else:
             self.session = Session.SessionBuilder().getOrCreate()
+
+        if self.session:
             # Add SqlCounter as a snowpark query listener.
             self.session._conn.add_query_listener(self)
 
@@ -190,8 +200,9 @@ class SqlCounter:
             self.session._conn.remove_query_listener(self)
         self._mark_as_dead()
 
-    def _add_query(self, query_record: QueryRecord):
-        self._queries.append(query_record)
+    def _notify(self, query_record: QueryRecord, **kwargs: dict):
+        if not is_suppress_sql_counter_listener():
+            self._queries.append(query_record)
 
     def expects(self, **kwargs):
         """
@@ -223,7 +234,7 @@ class SqlCounter:
         for key in kwargs.keys():
             if key in BOOL_PARAMETERS:
                 continue
-            actual_count = actual_counts[key]
+            actual_count = actual_counts[key] if key in actual_counts else 0
             expected_count = kwargs[key]
             if expected_count is None:
                 expected_count = 0
@@ -342,6 +353,9 @@ class SqlCounter:
     def actual_union_count(self):
         return self._count_instances_by_query_substr(contains=[UNION])
 
+    def actual_window_count(self):
+        return self._count_instances_by_query_substr(contains=[WINDOW])
+
     def actual_describe_count(self):
         return len([q for q in self._queries if q.is_describe])
 
@@ -377,7 +391,17 @@ def sql_count_checker(
     *args,
     **kwargs,
 ):
-    """SqlCounter decorator that automatically validates the sql counts when test finishes."""
+    """
+    SqlCounter decorator that automatically validates the sql counts when test finishes.
+
+    The sql count checks are applied for all parameters in the format of *_count, for example,
+    join_count = 2 means we expect to see two joins in the sql queries.
+
+    Note that the *_count can be configured in two ways: clear declaration in the sql_count_check in
+    the signature, or passed through **kwargs. The check for count clearly declared in the signature
+    will be enforced, and 0 occurrence is expected if the value is None. Other count checks can be
+    optionally passed through the **kwargs, where the occurrence check will only be applied if specified.
+    """
     all_args = inspect.getargvalues(inspect.currentframe())
     count_kwargs = {
         key: value
@@ -385,6 +409,11 @@ def sql_count_checker(
             filter(lambda k: k[0].endswith("_count"), all_args.locals.items())
         )
     }
+    # also look into kwargs for count configuration. Right now, describe_count and window_count are the
+    # counts can be passed optionally
+    for (key, value) in kwargs.items():
+        if key.endswith("_count"):
+            count_kwargs.update({key: value})
 
     def decorator(func):
         @functools.wraps(func)
@@ -635,3 +664,18 @@ def is_sql_counter_called():
     if SQL_COUNTER_CALLED in threading.current_thread().__dict__:
         return threading.current_thread().__dict__.get(SQL_COUNTER_CALLED)
     return False
+
+
+def enable_sql_counting():
+    sql_counter_state.suppress_sql_counter_listener = False
+
+
+def suppress_sql_counting():
+    sql_counter_state.suppress_sql_counter_listener = True
+
+
+def is_suppress_sql_counter_listener():
+    return (
+        hasattr(sql_counter_state, "suppress_sql_counter_listener")
+        and sql_counter_state.suppress_sql_counter_listener
+    )

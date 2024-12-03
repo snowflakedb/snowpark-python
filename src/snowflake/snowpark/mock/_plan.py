@@ -4,17 +4,21 @@
 
 import importlib
 import inspect
+import json
 import math
 import re
 import statistics
 import typing
 import uuid
+from collections import defaultdict
 from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property, partial, reduce
 from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
 from unittest.mock import MagicMock
 
+from snowflake.snowpark._internal.analyzer.select_statement import SelectTableFunction
+from snowflake.snowpark._internal.analyzer.table_function import TableFunctionJoin
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     DeleteMergeExpression,
     InsertMergeExpression,
@@ -83,6 +87,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     FunctionExpression,
     InExpression,
+    Interval,
     Like,
     ListAgg,
     Literal,
@@ -187,20 +192,21 @@ class MockExecutionPlan(LogicalPlan):
         super().__init__()
         self.source_plan = source_plan
         self.session = session
+        self.schema_query = None
         mock_query = MagicMock()
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
         self.queries = [mock_query]
         self.child = child
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
         self.df_aliased_col_name_to_real_col_name = (
-            df_aliased_col_name_to_real_col_name or {}
+            df_aliased_col_name_to_real_col_name or defaultdict(dict)
         )
         self.api_calls = []
+        self._attributes = None
 
     @property
     def attributes(self) -> List[Attribute]:
-        output = describe(self)
-        return output
+        return describe(self)
 
     @cached_property
     def output(self) -> List[Attribute]:
@@ -212,15 +218,9 @@ class MockExecutionPlan(LogicalPlan):
         return {
             PlanState.PLAN_HEIGHT: -1,
             PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED: -1,
+            PlanState.NUM_CTE_NODES: -1,
+            PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION: [],
         }
-
-    @cached_property
-    def num_duplicate_nodes(self) -> int:
-        # dummy return
-        return -1
-
-    def replace_repeated_subquery_with_cte(self):
-        return self
 
     @property
     def post_actions(self):
@@ -232,6 +232,9 @@ class MockExecutionPlan(LogicalPlan):
             PlanQueryType.QUERIES: self.queries,
             PlanQueryType.POST_ACTIONS: self.post_actions,
         }
+
+    def add_aliases(self, to_add: Dict) -> None:
+        self.expr_to_alias.update(to_add)
 
 
 class MockFileOperation(MockExecutionPlan):
@@ -394,18 +397,27 @@ def handle_function_expression(
             importlib.import_module("snowflake.snowpark.functions"), func.name
         )
     except AttributeError:
-        # this is missing function in snowpark-python, need support for both live and local test
+        original_func = None
+        # raise error depending on whether users has a provided a patch for function not available in snowpark-python
         analyzer.session._conn.log_not_supported_error(
             external_feature_name=func.name,
             error_message=f"Function {func.name} is not supported in snowpark-python.",
-            raise_error=NotImplementedError,
+            raise_error=NotImplementedError if func is None else None,
         )
 
-    signatures = inspect.signature(original_func)
-    spec = inspect.getfullargspec(original_func)
+    to_mock_func = original_func or func.impl
+    # Use the non-decorated function.
+    if "__wrapped__" in to_mock_func.__dict__:
+        to_mock_func = to_mock_func.__wrapped__
+    signatures = inspect.signature(to_mock_func)
+    spec = inspect.getfullargspec(to_mock_func)
     to_pass_args = []
-    type_hints = typing.get_type_hints(original_func)
-    for idx, key in enumerate(signatures.parameters):
+    type_hints = typing.get_type_hints(to_mock_func)
+    parameters_except_ast = list(signatures.parameters)
+    if "_emit_ast" in parameters_except_ast:
+        parameters_except_ast.remove("_emit_ast")
+        del type_hints["_emit_ast"]
+    for idx, key in enumerate(parameters_except_ast):
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
         if key == spec.varargs:
@@ -453,9 +465,22 @@ def handle_function_expression(
     try:
         result = func(*to_pass_args, row_number=current_row, input_data=input_data)
     except Exception as err:
+        extra_err_info = (
+            (
+                f"\nA patch is provided for '{func.name}' which is not supported in Snowpark Python."
+                f" Please ensure the implementation follows specifications outlined at:"
+                f" https://docs.snowflake.com/en/sql-reference/functions-all and refer to"
+                f" https://github.com/snowflakedb/snowpark-python/blob/main/src/snowflake/snowpark/mock/_functions.py"
+                f" for patterns on creating a compatible patch function for input and output types."
+            )
+            if not original_func and func
+            else ""
+        )
+
         SnowparkLocalTestingException.raise_from_error(
             err,
-            error_message=f"Error executing mocked function '{func.name}'. See error traceback for detailed information.",
+            error_message=f"Error executing mocked function '{func.name}'."
+            f" See error traceback for detailed information.{extra_err_info}",
         )
 
     return result
@@ -521,7 +546,7 @@ def handle_udf_expression(
             # however, we want NaT for the former case and None for the latter case.
             # using dtype object + function execution does not have the limitation
             # In the future maybe we could call fix_drift_between_column_sf_type_and_dtype in methods like set_sf_type.
-            # And these code would look like:
+            # The code would look like:
             # res=input.apply(...)
             # res.set_sf_type(ColumnType(exp.datatype, exp.nullable))  # fixes the drift and removes NaT
 
@@ -541,6 +566,286 @@ def handle_udf_expression(
                 ),
                 dtype=object,
             )
+        except Exception as err:
+            SnowparkLocalTestingException.raise_from_error(
+                err, error_message=f"Python Interpreter Error: {err}"
+            )
+
+        return res
+
+
+def handle_udaf_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Dict[str, str],
+    current_row=None,
+):
+    udaf_registry = analyzer.session.udaf
+    udaf_name = exp.udf_name
+    udaf = udaf_registry.get_udaf(udaf_name)
+
+    with ImportContext(udaf_registry.get_udaf_imports(udaf_name)):
+        # Resolve handler callable
+        if type(udaf.handler) is tuple:
+            module_name, handler_name = udaf.func
+            exec(f"from {module_name} import {handler_name}")
+            udaf_class = eval(handler_name)
+        else:
+            udaf_class = udaf.handler
+
+        # Compute input data and validate typing
+        if len(exp.children) != len(udaf._input_types):
+            raise SnowparkLocalTestingException(
+                f"Expected {len(udaf._input_types)} arguments, but received {len(exp.children)}"
+            )
+
+        function_input = TableEmulator(index=input_data.index)
+        for child, expected_type in zip(exp.children, udaf._input_types):
+            col_name = analyzer.analyze(child, expr_to_alias)
+            column_data = calculate_expression(
+                child, input_data, analyzer, expr_to_alias
+            )
+
+            # Variant Data is often cast to specific python types when passed to a udf.
+            if isinstance(expected_type, VariantType):
+                column_data = column_data.apply(coerce_variant_input)
+
+            coerce_result = get_coerce_result_type(
+                column_data.sf_type, ColumnType(expected_type, False)
+            )
+            if coerce_result is None:
+                raise SnowparkLocalTestingException(
+                    f"UDAF received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
+                )
+
+            function_input[col_name] = cast_column_to(
+                column_data, ColumnType(expected_type, False)
+            )
+
+        try:
+            # Initialize Aggregation handler class, i.e. the aggregation accumulator.
+            AggregationAccumulator = udaf_class()
+            # Init its state.
+            some_agg_state = AggregationAccumulator.aggregate_state
+
+            for _, row in function_input.iterrows():
+                # Call Agg.accumulate
+                if udaf.strict and any([v is None for v in row]):
+                    AggregationAccumulator.accumulate(None)
+                else:
+                    AggregationAccumulator.accumulate(*row)
+
+            # Call merge with empty state
+            AggregationAccumulator.merge(some_agg_state)
+            result = AggregationAccumulator.finish()
+
+            # Single row result for aggregation.
+            res = ColumnEmulator(
+                data=[result],
+                sf_type=ColumnType(exp.datatype, exp.nullable),
+                name=quote_name(
+                    f"{exp.udf_name}({', '.join(input_data.columns)})".upper()
+                ),
+                dtype=object,
+            )
+        except Exception as err:
+            SnowparkLocalTestingException.raise_from_error(
+                err, error_message=f"Python Interpreter Error: {err}"
+            )
+
+        return res
+
+
+def handle_udtf_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Dict[str, str],
+    current_row=None,
+    join_with_input_columns=True,
+):
+
+    # TODO: handle and support imports + other udtf attributes.
+
+    udtf_registry = analyzer.session.udtf
+    udtf_name = exp.func_name
+    udtf = udtf_registry.get_udtf(udtf_name)
+
+    # calls __init__ in UDTF handler.
+    handler = udtf.handler()
+
+    # Vectorized or non-vectorized UDTF?
+    if hasattr(handler, "end_partition") and hasattr(
+        handler.end_partition, "_sf_vectorized_input"
+    ):
+        # vectorized
+        df = input_data.copy()
+        df.columns = [c.strip('"') for c in df.columns]
+
+        data = handler.end_partition(df)
+
+        if join_with_input_columns:
+            # Join input data with output data together.
+            # For now carried out as horizontal concat. Need to address join case separately.
+            # suffix df accordingly, todo proper check.
+            data = pd.concat(
+                (df.rename(columns={c: c + "_R" for c in df.columns}), data), axis=1
+            )
+
+        return data
+    else:
+
+        res = TableEmulator(
+            data=[],
+        )
+
+        output_columns = udtf._output_schema.names
+        sf_types = {
+            f.name: ColumnType(datatype=f.datatype, nullable=f.nullable)
+            for f in udtf._output_schema.fields
+        }
+        sf_types_by_col_index = {
+            idx: ColumnType(datatype=f.datatype, nullable=f.nullable)
+            for idx, f in enumerate(udtf._output_schema.fields)
+        }
+
+        # Aliases? Use them then instead of output columns.
+        # TODO SNOW-1826001: Clarify whether there will be ever a case when only some columns are aliased.
+        if exp.aliases:
+            output_columns = exp.aliases
+
+        if join_with_input_columns:
+            output_columns = list(input_data.columns) + output_columns
+
+            assert len(output_columns) == len(input_data.columns) + len(
+                udtf._output_schema.names
+            ), "non-unique identifiers found, can't carry out table function join."
+
+            sf_types.update(input_data.sf_types)
+            sf_types_by_col_index.update(input_data.sf_types_by_col_index)
+
+        # Process each row
+        if hasattr(handler, "process"):
+            data = []
+
+            # Special case: No data, but args provided. This implies that `process` of the UDTF handler may
+            # be a generator called with literals.
+            if len(input_data) == 0 and exp.args:
+
+                assert all(
+                    isinstance(arg, Literal) for arg in exp.args
+                ), "Arguments must be literals when no data is provided."
+                args = tuple(arg.value for arg in exp.args)
+
+                if udtf.strict:
+                    data = [None]
+                else:
+                    result = remove_null_wrapper(handler.process(*args))
+                    for result_row in result:
+                        data.append(tuple(result_row))
+            else:
+                # input_data provided, TODO: args/kwargs.
+                for _, row in input_data.iterrows():
+                    if udtf.strict and any([v is None for v in row]):
+                        result = None
+                    else:
+                        result = remove_null_wrapper(handler.process(*row))
+                        for result_row in result:
+                            if join_with_input_columns:
+                                data.append(tuple(row.values) + tuple(result_row))
+                            else:
+                                data.append(tuple(result_row))
+
+            res = TableEmulator(
+                data=data,
+                columns=output_columns,
+                sf_types=sf_types,
+                sf_types_by_col_index=sf_types_by_col_index,
+            )
+
+            res.columns = [c.strip('"') for c in res.columns]
+
+        # Finish partition
+        if hasattr(handler, "end_partition"):
+            handler.end_partition()
+
+        return res
+
+
+def handle_sproc_expression(
+    exp: FunctionExpression,
+    input_data: Union[TableEmulator, ColumnEmulator],
+    analyzer: "MockAnalyzer",
+    expr_to_alias: Dict[str, str],
+    current_row=None,
+):
+    sproc_registry = analyzer.session.sproc
+    sproc_name = exp.sproc_name
+    sproc = sproc_registry.get_sproc(sproc_name)
+
+    with ImportContext(sproc_registry.get_sproc_imports(sproc_name)):
+        # Resolve handler callable
+        if type(sproc.func) is tuple:
+            module_name, handler_name = sproc.func
+            exec(f"from {module_name} import {handler_name}")
+            sproc_handler = eval(handler_name)
+        else:
+            sproc_handler = sproc.func
+
+        # Compute input data and validate typing
+        if len(exp.children) != len(sproc._input_types):
+            raise SnowparkLocalTestingException(
+                f"Expected {len(sproc._input_types)} arguments, but received {len(exp.children)}"
+            )
+
+        function_input = TableEmulator(index=input_data.index)
+        for child, expected_type in zip(exp.children, sproc._input_types):
+            col_name = analyzer.analyze(child, expr_to_alias)
+            column_data = calculate_expression(
+                child, input_data, analyzer, expr_to_alias
+            )
+
+            # Variant Data is often cast to specific python types when passed to a sproc.
+            if isinstance(expected_type, VariantType):
+                column_data = column_data.apply(coerce_variant_input)
+
+            coerce_result = get_coerce_result_type(
+                column_data.sf_type, ColumnType(expected_type, False)
+            )
+            if coerce_result is None:
+                raise SnowparkLocalTestingException(
+                    f"Stored procedure received input type {column_data.sf_type.datatype} for column {child.name}, but expected input type of {expected_type}"
+                )
+
+            function_input[col_name] = cast_column_to(
+                column_data, ColumnType(expected_type, False)
+            )
+
+        try:
+            res = sproc_handler(*function_input.values)
+            if sproc._is_return_table:
+                # Emulate a tabular result only if a table is returned. Else, return value is a scalar.
+                output_columns = sproc._output_schema.names
+                sf_types = {
+                    f.name: ColumnType(datatype=f.datatype, nullable=f.nullable)
+                    for f in sproc._output_schema.fields
+                }
+                sf_types_by_col_index = {
+                    idx: ColumnType(datatype=f.datatype, nullable=f.nullable)
+                    for idx, f in enumerate(sproc._output_schema.fields)
+                }
+
+                # Aliases? Use them then instead of output columns.
+                # TODO SNOW-1826001: Clarify whether there will be ever a case when only some columns are aliased.
+                if exp.aliases:
+                    output_columns = exp.aliases
+                res = TableEmulator(
+                    data=res,
+                    columns=output_columns,
+                    sf_types=sf_types,
+                    sf_types_by_col_index=sf_types_by_col_index,
+                )
         except Exception as err:
             SnowparkLocalTestingException.raise_from_error(
                 err, error_message=f"Python Interpreter Error: {err}"
@@ -594,6 +899,9 @@ def execute_mock_plan(
         offset: Optional[int] = source_plan.offset
 
         from_df = execute_mock_plan(from_, expr_to_alias)
+
+        if from_df is None:
+            return TableEmulator()
 
         columns = []
         data = []
@@ -875,9 +1183,16 @@ def execute_mock_plan(
                     col_name = f"<local_test_internal_{str(exp.value)}>"
                     by_column_expression.append(child_rf[col_name])
                 else:
-                    by_column_expression.append(
-                        child_rf[plan.session._analyzer.analyze(exp)]
-                    )
+                    column_name = plan.session._analyzer.analyze(exp)
+                    if isinstance(exp, FunctionExpression):
+                        materialized_column = calculate_expression(
+                            exp, child_rf, plan.session._analyzer, expr_to_alias
+                        )
+                        # Only function expressions that are a mapping of existing columns can be aggregated on.
+                        # Any increase or reduction in number of rows is an invalid function expression.
+                        if len(materialized_column) == len(child_rf):
+                            child_rf[column_name] = materialized_column
+                    by_column_expression.append(child_rf[column_name])
         except KeyError as e:
             raise SnowparkLocalTestingException(
                 f"This is not a valid group by expression due to exception {e!r}"
@@ -1206,21 +1521,50 @@ def execute_mock_plan(
             else:
                 matched_rows = target
 
+            # the following function is used to flatten the cell object to string which is hashable
+            # as required by pandas.DataFrame.value_counts/drop_duplicates method
+            def flatten_object_cell_func(cell):
+                if isinstance(cell, (dict, list)):
+                    return json.dumps(cell)
+                return cell
+
             # Calculate multi_join
-            matched_count = intermediate[target.columns].value_counts(dropna=False)[
-                matched_rows.apply(tuple, 1)
-            ]
+
+            # 1. count each row occurrences
+            try:
+                # flatten the object cell (list, dict) to string first
+                flatten_intermediate = intermediate.map(flatten_object_cell_func)
+            except AttributeError:  # for backward compatibility with pandas < 2.1.0
+                flatten_intermediate = intermediate.applymap(flatten_object_cell_func)
+
+            rows_value_counts = flatten_intermediate[target.columns].value_counts(
+                dropna=False
+            )
+            # 2. get the row into tuple serving as the key to index the rows_value_counts DF
+            try:
+                key_index = matched_rows.map(flatten_object_cell_func).apply(tuple, 1)
+            except AttributeError:  # for backward compatibility with pandas < 2.1.0
+                key_index = matched_rows.applymap(flatten_object_cell_func).apply(
+                    tuple, 1
+                )
+            matched_count = rows_value_counts[
+                key_index
+            ]  # 3. get the occurrences of the matched rows
             multi_joins = matched_count.where(lambda x: x > 1).count()
 
             # Select rows that match the condition to be updated
-            rows_to_update = intermediate.drop_duplicates(
+
+            # 1. get the index of the rows to update
+            pd_index = flatten_intermediate.drop_duplicates(
                 subset=matched_rows.columns, keep="first"
-            ).reset_index(  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
-                drop=True
+            ).index
+            # 2. get the rows to update
+            rows_to_update = intermediate.loc[pd_index].reset_index(
+                drop=True  # ERROR_ON_NONDETERMINISTIC_UPDATE is by default False, pick one row to update
             )
             rows_to_update.sf_types = intermediate.sf_types
 
-            # Update rows in place
+            # 3. Update rows in place
             for attr, new_expr in source_plan.assignments.items():
                 column_name = analyzer.analyze(attr, expr_to_alias)
                 target_index = target.loc[rows_to_update[ROW_ID]].index
@@ -1293,7 +1637,7 @@ def execute_mock_plan(
             join_condition = calculate_expression(
                 source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
             )
-            join_result = cartesian_product[join_condition]
+            join_result = cartesian_product[join_condition].reset_index(drop=True)
             join_result.sf_types = cartesian_product.sf_types
 
             # TODO [GA]: # ERROR_ON_NONDETERMINISTIC_MERGE is by default True, raise error if
@@ -1567,6 +1911,24 @@ def execute_mock_plan(
         }
 
         return result
+    elif isinstance(source_plan, TableFunctionJoin):
+
+        child_rf = execute_mock_plan(source_plan.children[0], expr_to_alias)
+
+        # Because this is a join, need to add original columns as well.
+        output = handle_udtf_expression(
+            source_plan.table_function,
+            child_rf,
+            analyzer,
+            expr_to_alias,
+            join_with_input_columns=True,
+        )
+
+        return output
+    elif isinstance(source_plan, SelectTableFunction):
+        return handle_udtf_expression(
+            plan.func_expr, [], analyzer, expr_to_alias, None, False
+        )
 
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking SnowflakePlan {type(source_plan).__name__}",
@@ -1652,7 +2014,10 @@ def calculate_expression(
         try:
             return input_data[exp.name]
         except KeyError:
-            raise SnowparkLocalTestingException(f"invalid identifier {exp.name}")
+            try:
+                return input_data[exp.name.strip('"')]
+            except KeyError:
+                raise SnowparkLocalTestingException(f"invalid identifier {exp.name}")
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
     if isinstance(exp, FunctionExpression):
@@ -1715,7 +2080,7 @@ def calculate_expression(
                 exp.datatype = StringType(len(exp.value))
             res = ColumnEmulator(
                 data=[exp.value for _ in range(len(input_data))],
-                sf_type=ColumnType(exp.datatype, False),
+                sf_type=ColumnType(exp.datatype, nullable=exp.value is None),
                 dtype=object,
             )
             res.index = input_data.index
@@ -1725,15 +2090,27 @@ def calculate_expression(
         left = fix_drift_between_column_sf_type_and_dtype(
             calculate_expression(exp.left, input_data, analyzer, expr_to_alias)
         )
-        right = fix_drift_between_column_sf_type_and_dtype(
-            calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
-        )
+        if not isinstance(exp.right, Interval):
+            right = fix_drift_between_column_sf_type_and_dtype(
+                calculate_expression(exp.right, input_data, analyzer, expr_to_alias)
+            )
+        else:
+            # INTERVAL is syntactic sugar for DATEADD.
+            right = exp.right
         if isinstance(exp, Multiply):
             new_column = left * right
         elif isinstance(exp, Divide):
             new_column = left / right
         elif isinstance(exp, Add):
-            new_column = left + right
+            if isinstance(right, Interval):
+                # The expression `select to_date ('2019-02-28') + INTERVAL '1 day, 1 year';`
+                # is rewritten to `select dateadd(DAY, 1, dateadd(YEAR, 1, to_date ('2019-02-28')))`.
+                new_column = left
+                for k, v in right.values_dict.items():
+                    new_column = registry.get_function("dateadd")(k, v, left)
+                    left = new_column
+            else:
+                new_column = left + right
         elif isinstance(exp, Subtract):
             new_column = left - right
         elif isinstance(exp, Remainder):
@@ -2005,8 +2382,10 @@ def calculate_expression(
 
         # Process partition_by clause
         if window_spec.partition_spec:
+            # Remove duplicate keys while maintaining order
+            keys = list(dict.fromkeys([exp.name for exp in window_spec.partition_spec]))
             res = res.groupby(
-                [exp.name for exp in window_spec.partition_spec],
+                keys,
                 sort=False,
                 as_index=False,
             )
@@ -2033,10 +2412,14 @@ def calculate_expression(
                 indexer = EntireWindowIndexer()
                 rolling = res.rolling(indexer)
                 windows = [ordered.loc[w.index] for w in rolling]
+                # rolling can unpredictably change the index of the data
+                # apply a trivial function to materialize the final index
+                res_index = list(rolling.count().index)
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
             res = res.rolling(indexer)
+            res_index = list(res.count().index)
             windows = [w for w in res]
 
         elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
@@ -2066,6 +2449,7 @@ def calculate_expression(
                 isinstance(lower, UnboundedPreceding),
                 isinstance(upper, UnboundedFollowing),
             )
+
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []
@@ -2078,9 +2462,9 @@ def calculate_expression(
             res_col = pd.concat(res_cols) if res_cols else ColumnEmulator([])
             res_col.index = res_index
             if res_cols:
-                res_col.set_sf_type(res_cols[0].sf_type)
+                res_col.sf_type = res_cols[0].sf_type
             else:
-                res_col.set_sf_type(ColumnType(NullType(), True))
+                res_col.sf_type = ColumnType(NullType(), True)
             return res_col.sort_index()
         elif isinstance(window_function, (Lead, Lag)):
             calculated_sf_type = None
@@ -2327,15 +2711,20 @@ def calculate_expression(
             and col[index][field] is None
         ]
         res = col.apply(lambda x: None if x is None or field not in x else x[field])
-        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SubfieldInt):
         col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
         res = col.apply(lambda x: None if x is None else x[exp.field])
-        res.set_sf_type(ColumnType(VariantType(), col.sf_type.nullable))
+        res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SnowflakeUDF):
-        return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
+        # Could be either UDAF or UDF, decide on type.
+        if exp.is_aggregate_function:
+            return handle_udaf_expression(exp, input_data, analyzer, expr_to_alias)
+        else:
+            return handle_udf_expression(exp, input_data, analyzer, expr_to_alias)
+
     analyzer.session._conn.log_not_supported_error(
         external_feature_name=f"Mocking Expression {type(exp).__name__}",
         internal_feature_name=type(exp).__name__,

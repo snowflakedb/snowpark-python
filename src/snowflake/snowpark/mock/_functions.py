@@ -4,7 +4,9 @@
 import base64
 import binascii
 import datetime
+import decimal
 import json
+import logging
 import math
 import numbers
 import operator
@@ -21,6 +23,7 @@ import pytz
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
+from snowflake.snowpark._internal.utils import unalias_datetime_part
 from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
     _TIMESTAMP_TYPE_MAPPING,
@@ -57,7 +60,6 @@ from ._util import (
     convert_numeric_string_value_to_float_seconds,
     convert_snowflake_datetime_format,
     process_string_time_with_fractional_seconds,
-    unalias_datetime_part,
 )
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
@@ -68,6 +70,8 @@ _DEFAULT_OUTPUT_FORMAT = {
     TimeType: "HH24:MI:SS",
     TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
 }
+
+_logger = logging.getLogger(__name__)
 
 
 class MockedFunction:
@@ -329,9 +333,83 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
 
     notna = column[~column.isna()]
     res = notna.mean()
+    if isinstance(res_type, DecimalType):
+        fmt_string = f"{{:.{res_type.scale}f}}"
+        res_formatted = fmt_string.format(res)
+        res = decimal.Decimal(res_formatted)
+    return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
+
+
+@patch("stddev")
+def mock_stddev(column: ColumnEmulator) -> ColumnEmulator:
+    if not isinstance(column.sf_type.datatype, (_NumericType, NullType)):
+        raise SnowparkLocalTestingException(
+            f"Cannot compute stddev on a column of type {column.sf_type.datatype}"
+        )
+
+    if isinstance(column.sf_type.datatype, NullType) or column.isna().all():
+        return ColumnEmulator(data=[None], sf_type=ColumnType(NullType(), True))
+    elif isinstance(column.sf_type.datatype, _IntegralType):
+        res_type = DecimalType(38, 6)
+    elif isinstance(column.sf_type.datatype, DecimalType):
+        precision, scale = (
+            column.sf_type.datatype.precision,
+            column.sf_type.datatype.scale,
+        )
+        precision = max(38, column.sf_type.datatype.precision + 12)
+        if scale <= 6:
+            scale = scale + 6
+        elif scale < 12:
+            scale = 12
+        res_type = DecimalType(precision, scale)
+    else:
+        assert isinstance(column.sf_type.datatype, _FractionalType)
+        res_type = FloatType()
+
+    notna = column[~column.isna()]
+    res = notna.std()
     if isinstance(res_type, Decimal):
         res = round(res, scale)
     return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
+
+
+@patch("approx_percentile_accumulate")
+def mock_approx_percentile_accumulate(
+    column: Union[TableEmulator, ColumnEmulator]
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("approx_percentile_estimate")
+def mock_approx_percentile_estimate(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("covar_samp")
+def mock_covar_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("corr")
+def mock_corr_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
 
 
 @patch("count_distinct")
@@ -1285,6 +1363,10 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
         new_col = column.apply(lambda x: try_convert(bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
+    elif isinstance(column.sf_type.datatype, VariantType):
+        new_col = column.apply(lambda x: try_convert(bool, try_cast, x))
+        new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
+        return new_col
     else:
         raise SnowparkLocalTestingException(
             f"Invalid type {column.sf_type.datatype} for parameter 'TO_BOOLEAN'"
@@ -1530,6 +1612,8 @@ def add_months(scalar, date, duration):
 
 
 def add_timedelta(unit, date, duration, scalar=1):
+    if date is None:
+        return date
     return date + datetime.timedelta(**{f"{unit}s": float(duration) * scalar})
 
 
@@ -2031,7 +2115,7 @@ def cast_column_to(
         target_data_type, _IntegralType
     ):  # includes ByteType, ShortType, IntegerType, LongType
         res = mock_to_decimal(col, try_cast=try_cast)
-        res.set_sf_type(ColumnType(target_data_type, nullable=True))
+        res.sf_type = ColumnType(target_data_type, nullable=True)
         return res
     if isinstance(target_data_type, BinaryType):
         return mock_to_binary(col, try_cast=try_cast)
@@ -2148,3 +2232,11 @@ def mock_ntile(ntile: int, raw_input: ColumnEmulator, row_index: int) -> ColumnE
         bucket = math.floor(row_index * current_ntile / num_rows) + 1
 
     return ColumnEmulator([bucket], sf_type=ColumnType(LongType(), False))
+
+
+@patch("any_value")
+def mock_any_value(col: ColumnEmulator):
+    return ColumnEmulator(
+        col.sample(1),
+        sf_type=col.sf_type,
+    )

@@ -183,9 +183,9 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             return "TRY_TO_GEOGRAPHY(NULL)"
         if isinstance(data_type, GeometryType):
             return "TRY_TO_GEOMETRY(NULL)"
-        if isinstance(data_type, ArrayType):
+        if isinstance(data_type, ArrayType) and not data_type.structured:
             return "PARSE_JSON('NULL') :: ARRAY"
-        if isinstance(data_type, MapType):
+        if isinstance(data_type, MapType) and not data_type.structured:
             return "PARSE_JSON('NULL') :: OBJECT"
         if isinstance(data_type, VariantType):
             return "PARSE_JSON('NULL') :: VARIANT"
@@ -213,9 +213,27 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
         else:
             return "to_timestamp('2020-09-16 06:30:00')"
     if isinstance(data_type, ArrayType):
+        if data_type.structured:
+            element = schema_expression(data_type.element_type, is_nullable)
+            return f"to_array({element}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_array(0)"
     if isinstance(data_type, MapType):
+        if data_type.structured:
+            key = schema_expression(data_type.key_type, is_nullable)
+            value = schema_expression(data_type.value_type, is_nullable)
+            return f"object_construct_keep_null({key}, {value}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_object(parse_json('0'))"
+    if isinstance(data_type, StructType):
+        if data_type.structured:
+            schema_strings = []
+            for field in data_type.fields:
+                # Even if nulls are allowed the cast will fail due to schema mismatch when passed a null field.
+                schema_strings += [
+                    f"'{field.name}'",
+                    schema_expression(field.datatype, is_nullable=False),
+                ]
+            return f"object_construct_keep_null({', '.join(schema_strings)}) :: {convert_sp_to_sf_type(data_type)}"
+        return "to_object(parse_json('{}'))"
     if isinstance(data_type, VariantType):
         return "to_variant(0)"
     if isinstance(data_type, GeographyType):

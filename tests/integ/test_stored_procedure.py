@@ -7,6 +7,7 @@ import datetime
 import decimal
 import logging
 import os
+import re
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
@@ -387,8 +388,8 @@ def test_stored_procedure_with_structured_returns(
                 "OBJ",
                 StructType(
                     [
-                        StructField("A", StringType(16777216), nullable=True),
-                        StructField("B", DoubleType(), nullable=True),
+                        StructField('"a"', StringType(16777216), nullable=True),
+                        StructField('"b"', DoubleType(), nullable=True),
                     ],
                     structured=True,
                 ),
@@ -426,10 +427,13 @@ def test_stored_procedure_with_structured_returns(
     "config.getoption('local_testing_mode', default=False)",
     reason="system functions not supported by local testing",
 )
-def test_sproc_pass_system_reference(session):
+def test_sproc_pass_system_reference(session, validate_ast):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([(1,)]).to_df(["a"])
-    df.write.save_as_table(table_name)
+    df.write.save_as_table(
+        table_name,
+        mode="ignore" if validate_ast else "errorifexists",
+    )
 
     def insert_and_return_count(session_: Session, table_name_: str) -> int:
         session_.sql(f"INSERT INTO {table_name_} VALUES (2)").collect()
@@ -451,7 +455,7 @@ def test_sproc_pass_system_reference(session):
         )
         Utils.check_answer(session.table(table_name), [Row(1), Row(2)])
     finally:
-        session.table(table_name).drop_table()
+        Utils.drop_table(session, table_name)
 
 
 @pytest.mark.parametrize("anonymous", [True, False])
@@ -1098,12 +1102,15 @@ def test_sp_negative(session, local_testing_mode):
         sproc(1, return_type=IntegerType())
     assert "Invalid function: not a function or callable" in str(ex_info)
 
-    # if return_type is specified, it must be passed passed with keyword argument
-    with pytest.raises(TypeError) as ex_info:
+    # if return_type is specified, it must be passed with keyword argument
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "sproc() takes from 0 to 1 positional arguments but 2"
+            " positional arguments (and 1 keyword-only argument) were given"
+        ),
+    ):
         sproc(f, IntegerType())
-    assert "sproc() takes from 0 to 1 positional arguments but 2 were given" in str(
-        ex_info
-    )
 
     f_sp = sproc(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:
@@ -1931,6 +1938,9 @@ def test_force_inline_code(session):
     assert any("AS $$" in query.sql_text for query in query_history.queries)
 
 
+@pytest.mark.skip(
+    reason="SNOW-1818207 conflict numpy dependency in snowpark python backend"
+)
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_stored_proc_register_with_module(session):
     # use pandas module here

@@ -5,17 +5,50 @@
 
 import logging
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-from snowflake.snowpark._internal.utils import warning_dict
+from snowflake.snowpark._internal.utils import COMPATIBLE_WITH_MODIN, warning_dict
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 excluded_frontend_files = [
     "accessor.py",
 ]
+
+# the fixture only works when opentelemetry is installed
+try:
+    from opentelemetry import trace
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    @pytest.fixture(scope="session")
+    def dict_exporter():
+        resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
+        trace_provider = TracerProvider(resource=resource)
+        dict_exporter = InMemorySpanExporter()
+        processor = SimpleSpanProcessor(dict_exporter)
+        trace_provider.add_span_processor(processor)
+        trace.set_tracer_provider(trace_provider)
+        yield dict_exporter
+
+    opentelemetry_installed = True
+
+except ModuleNotFoundError:
+    opentelemetry_installed = False
+
+
+def default_unparser_path():
+    explicit = os.getenv("SNOWPARK_UNPARSER_JAR")
+    default_default = f"{os.getenv('HOME')}/Snowflake/trunk/Snowpark/unparser/target/scala-2.13/unparser-assembly-0.1.jar"
+    return explicit or default_default
 
 
 def is_excluded_frontend_file(path):
@@ -25,11 +58,26 @@ def is_excluded_frontend_file(path):
     return False
 
 
-def pytest_addoption(parser):
+def pytest_addoption(parser, pluginmanager):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
-    parser.addoption("--local_testing_mode", action="store_true", default=False)
-    parser.addoption("--enable_cte_optimization", action="store_true", default=False)
+    parser.addoption("--disable_cte_optimization", action="store_true", default=False)
+    parser.addoption(
+        "--disable_multithreading_mode", action="store_true", default=False
+    )
     parser.addoption("--skip_sql_count_check", action="store_true", default=False)
+    if not any(
+        "--local_testing_mode" in opt.names() for opt in parser._anonymous.options
+    ):
+        parser.addoption("--local_testing_mode", action="store_true", default=False)
+    parser.addoption("--enable_ast", action="store_true", default=False)
+    parser.addoption("--validate_ast", action="store_true", default=False)
+    parser.addoption(
+        "--unparser_jar",
+        action="store",
+        default=default_unparser_path(),
+        type=str,
+        help="Path to the Unparser JAR built in the monorepo. To build it, run `sbt assembly` from the unparser directory.",
+    )
 
 
 def pytest_collection_modifyitems(items) -> None:
@@ -50,7 +98,9 @@ def pytest_collection_modifyitems(items) -> None:
             if item_path == top_doctest_dir:
                 item.add_marker("doctest")
             elif "modin" in str(item_path):
-                if not is_excluded_frontend_file(item.fspath):
+                if not COMPATIBLE_WITH_MODIN:
+                    pass
+                elif not is_excluded_frontend_file(item.fspath):
                     item.add_marker("doctest")
                     item.add_marker(pytest.mark.usefixtures("add_doctest_imports"))
             else:
@@ -82,8 +132,52 @@ def local_testing_telemetry_setup():
 
 
 @pytest.fixture(scope="session")
+def ast_enabled(pytestconfig):
+    return pytestconfig.getoption("enable_ast")
+
+
+@pytest.fixture(scope="session")
+def validate_ast(pytestconfig):
+    return pytestconfig.getoption("validate_ast")
+
+
+@pytest.fixture(scope="session")
 def cte_optimization_enabled(pytestconfig):
-    return pytestconfig.getoption("enable_cte_optimization")
+    return not pytestconfig.getoption("disable_cte_optimization")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def proto_generated():
+    """Generate Protobuf Python files automatically"""
+    try:
+        from snowflake.snowpark._internal.proto.generated import ast_pb2  # noqa: F401
+    except ImportError:
+        subprocess.check_call([sys.executable, "-m", "tox", "-e", "protoc"])
+
+
+MULTITHREADING_TEST_MODE_ENABLED = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def multithreading_mode_enabled(pytestconfig):
+    enabled = not pytestconfig.getoption("disable_multithreading_mode")
+    global MULTITHREADING_TEST_MODE_ENABLED
+    MULTITHREADING_TEST_MODE_ENABLED = enabled
+    return enabled
+
+
+@pytest.fixture(scope="session")
+def unparser_jar(pytestconfig):
+    unparser_jar = pytestconfig.getoption("--unparser_jar")
+    if unparser_jar is not None and not os.path.exists(unparser_jar):
+        unparser_jar = None
+
+    if unparser_jar is None and pytestconfig.getoption("--validate_ast"):
+        raise RuntimeError(
+            f"Unparser JAR not found at {unparser_jar}. "
+            f"Please set the correct path with --unparser_jar or SNOWPARK_UNPARSER_JAR."
+        )
+    return unparser_jar
 
 
 def pytest_sessionstart(session):
@@ -107,29 +201,3 @@ def clear_warning_dict():
     # clear the warning dict so that warnings from one test don't affect
     # warnings from other tests.
     warning_dict.clear()
-
-
-# the fixture only works when opentelemetry is installed
-try:
-    from opentelemetry import trace
-    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
-        InMemorySpanExporter,
-    )
-
-    @pytest.fixture(scope="session")
-    def dict_exporter():
-        resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-        trace_provider = TracerProvider(resource=resource)
-        dict_exporter = InMemorySpanExporter()
-        processor = SimpleSpanProcessor(dict_exporter)
-        trace_provider.add_span_processor(processor)
-        trace.set_tracer_provider(trace_provider)
-        yield dict_exporter
-
-    opentelemetry_installed = True
-
-except ModuleNotFoundError:
-    opentelemetry_installed = False

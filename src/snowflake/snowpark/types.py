@@ -5,14 +5,22 @@
 
 """This package contains all Snowpark logical types."""
 import datetime
+import json
 import re
 import sys
 from enum import Enum
-from typing import Generic, List, Optional, Type, TypeVar, Union
+from typing import Generic, List, Optional, Type, TypeVar, Union, Dict, Any
 
 import snowflake.snowpark._internal.analyzer.expression as expression
-from snowflake.connector.options import installed_pandas, pandas
-from snowflake.snowpark._internal.utils import quote_name
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+# Use correct version from here:
+from snowflake.snowpark._internal.utils import installed_pandas, pandas, quote_name
+
+# TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
+# The core issue is that in the connector detection of both pandas/arrow are mixed, which is wrong.
+# from snowflake.connector.options import installed_pandas, pandas
+
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -41,12 +49,43 @@ class DataType:
     def is_primitive(self):
         return True
 
+    @classmethod
+    def type_name(cls) -> str:
+        return cls.__name__[:-4].lower()
+
+    def simple_string(self) -> str:
+        return self.type_name()
+
+    def json_value(self) -> Union[str, Dict[str, Any]]:
+        return self.type_name()
+
+    def json(self) -> str:
+        return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
+
+    typeName = type_name
+    simpleString = simple_string
+    jsonValue = json_value
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        """Populates the provided SpDataType instance's fields with the values corresponding to this DataType's instance
+
+        Args:
+            ast (proto.SpDataType): A provided (previously created) instance of an SpDataType IR entity
+
+        Raises:
+            ValueError: If corresponding SpDataType IR entity is not available, raise an error
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} has not implemented this method to fill the SpDataType IR entity correctly"
+        )
+
 
 # Data types
 class NullType(DataType):
     """Represents a null type."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_null_type = True
 
 
 class _AtomicType(DataType):
@@ -57,19 +96,22 @@ class _AtomicType(DataType):
 class BinaryType(_AtomicType):
     """Binary data type. This maps to the BINARY data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_binary_type = True
 
 
 class BooleanType(_AtomicType):
     """Boolean data type. This maps to the BOOLEAN data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_boolean_type = True
 
 
 class DateType(_AtomicType):
     """Date data type. This maps to the DATE data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_date_type = True
 
 
 class StringType(_AtomicType):
@@ -115,6 +157,11 @@ class StringType(_AtomicType):
             return StringType().__hash__()
         return super().__hash__()
 
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_string_type.length.SetInParent()
+        if self.length is not None:
+            ast.sp_string_type.length.value = self.length
+
 
 class _NumericType(_AtomicType):
     pass
@@ -142,16 +189,44 @@ class TimestampType(_AtomicType):
 
     def __init__(self, timezone: TimestampTimeZone = TimestampTimeZone.DEFAULT) -> None:
         self.tz = timezone  #: Timestamp variations
+        self.tzinfo = self.tz if self.tz != TimestampTimeZone.DEFAULT else ""
 
     def __repr__(self) -> str:
-        tzinfo = f"tz={self.tz}" if self.tz != TimestampTimeZone.DEFAULT else ""
-        return f"TimestampType({tzinfo})"
+        return (
+            f"TimestampType(tz={self.tzinfo})"
+            if self.tzinfo != ""
+            else "TimestampType()"
+        )
+
+    def simple_string(self) -> str:
+        return (
+            f"{self.type_name()}_{self.tzinfo}"
+            if self.tzinfo != ""
+            else self.type_name()
+        )
+
+    def json_value(self) -> str:
+        return self.simple_string()
+
+    simpleString = simple_string
+    jsonValue = json_value
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        if self.tz.value == "default":
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_default = True
+        elif self.tz.value == "ntz":
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_ntz = True
+        elif self.tz.value == "ltz":
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_ltz = True
+        elif self.tz.value == "tz":
+            ast.sp_timestamp_type.time_zone.sp_timestamp_time_zone_tz = True
 
 
 class TimeType(_AtomicType):
     """Time data type. This maps to the TIME data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_time_type = True
 
 
 # Numeric types
@@ -166,37 +241,63 @@ class _FractionalType(_NumericType):
 class ByteType(_IntegralType):
     """Byte data type. This maps to the TINYINT data type in Snowflake."""
 
-    pass
+    def simple_string(self) -> str:
+        return "tinyint"
+
+    simpleString = simple_string
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_byte_type = True
 
 
 class ShortType(_IntegralType):
     """Short integer data type. This maps to the SMALLINT data type in Snowflake."""
 
-    pass
+    def simple_string(self) -> str:
+        return "smallint"
+
+    simpleString = simple_string
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_short_type = True
 
 
 class IntegerType(_IntegralType):
     """Integer data type. This maps to the INT data type in Snowflake."""
 
-    pass
+    def simple_string(self) -> str:
+        return "int"
+
+    simpleString = simple_string
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_integer_type = True
 
 
 class LongType(_IntegralType):
     """Long integer data type. This maps to the BIGINT data type in Snowflake."""
 
-    pass
+    def simple_string(self) -> str:
+        return "bigint"
+
+    simpleString = simple_string
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_long_type = True
 
 
 class FloatType(_FractionalType):
     """Float data type. This maps to the FLOAT data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_float_type = True
 
 
 class DoubleType(_FractionalType):
     """Double data type. This maps to the DOUBLE data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_double_type = True
 
 
 class DecimalType(_FractionalType):
@@ -212,12 +313,27 @@ class DecimalType(_FractionalType):
     def __repr__(self) -> str:
         return f"DecimalType({self.precision}, {self.scale})"
 
+    def simple_string(self) -> str:
+        return f"decimal({self.precision},{self.scale})"
+
+    def json_value(self) -> str:
+        return f"decimal({self.precision},{self.scale})"
+
+    simpleString = simple_string
+    jsonValue = json_value
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_decimal_type.precision = self.precision
+        ast.sp_decimal_type.scale = self.scale
+
 
 class ArrayType(DataType):
     """Array data type. This maps to the ARRAY data type in Snowflake."""
 
     def __init__(
-        self, element_type: Optional[DataType] = None, structured: bool = False
+        self,
+        element_type: Optional[DataType] = None,
+        structured: bool = False,
     ) -> None:
         self.structured = structured
         self.element_type = element_type if element_type else StringType()
@@ -227,6 +343,33 @@ class ArrayType(DataType):
 
     def is_primitive(self):
         return False
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "ArrayType":
+        return ArrayType(
+            _parse_datatype_json_value(
+                json_dict["elementType"]
+                if "elementType" in json_dict
+                else json_dict["element_type"]
+            )
+        )
+
+    def simple_string(self) -> str:
+        return f"array<{self.element_type.simple_string()}>"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {
+            "type": self.type_name(),
+            "element_type": self.element_type.json_value(),
+        }
+
+    simpleString = simple_string
+    jsonValue = json_value
+    fromJson = from_json
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_array_type.structured = self.structured
+        self.element_type._fill_ast(ast.sp_array_type.ty)
 
 
 class MapType(DataType):
@@ -248,6 +391,48 @@ class MapType(DataType):
     def is_primitive(self):
         return False
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "MapType":
+        return MapType(
+            _parse_datatype_json_value(
+                json_dict["keyType"]
+                if "keyType" in json_dict
+                else json_dict["key_type"]
+            ),
+            _parse_datatype_json_value(
+                json_dict["valueType"]
+                if "valueType" in json_dict
+                else json_dict["value_type"]
+            ),
+        )
+
+    def simple_string(self) -> str:
+        return f"map<{self.key_type.simple_string()},{self.value_type.simple_string()}>"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {
+            "type": self.type_name(),
+            "key_type": self.key_type.json_value(),
+            "value_type": self.value_type.json_value(),
+        }
+
+    @property
+    def keyType(self):
+        return self.key_type
+
+    @property
+    def valueType(self):
+        return self.value_type
+
+    simpleString = simple_string
+    jsonValue = json_value
+    fromJson = from_json
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_map_type.structured = self.structured
+        self.key_type._fill_ast(ast.sp_map_type.key_ty)
+        self.value_type._fill_ast(ast.sp_map_type.value_ty)
+
 
 class VectorType(DataType):
     """Vector data type. This maps to the VECTOR data type in Snowflake."""
@@ -257,7 +442,7 @@ class VectorType(DataType):
         element_type: Union[Type[int], Type[float], "int", "float"],
         dimension: int,
     ) -> None:
-        if isinstance(element_type, str):
+        if isinstance(element_type, str) and element_type in ("int", "float"):
             self.element_type = element_type
         elif element_type == int:
             self.element_type = "int"
@@ -275,12 +460,30 @@ class VectorType(DataType):
     def is_primitive(self):
         return False
 
+    def simple_string(self) -> str:
+        return f"vector({self.element_type},{self.dimension})"
+
+    def json_value(self) -> str:
+        return f"vector({self.element_type},{self.dimension})"
+
+    simpleString = simple_string
+    jsonValue = json_value
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        if self.element_type == "int":
+            ast.sp_vector_type.ty.sp_integer_type = True
+        elif self.element_type == "float":
+            ast.sp_vector_type.ty.sp_float_type = True
+
+        ast.sp_vector_type.dimension = self.dimension
+
 
 class ColumnIdentifier:
     """Represents a column identifier."""
 
     def __init__(self, normalized_name: str) -> None:
         self.normalized_name = quote_name(normalized_name)
+        self._original_name = normalized_name
 
     @property
     def name(self) -> str:
@@ -337,6 +540,9 @@ class ColumnIdentifier:
         result = remove_quote.search(string)
         return string[1:-1] if result else string
 
+    def _fill_ast(self, ast: proto.SpColumnIdentifier) -> None:
+        ast.name = self._original_name
+
 
 class StructField:
     """Represents the content of :class:`StructField`."""
@@ -369,6 +575,42 @@ class StructField:
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "StructField":
+        return StructField(
+            json_dict["name"],
+            _parse_datatype_json_value(json_dict["type"]),
+            json_dict["nullable"],
+        )
+
+    def simple_string(self) -> str:
+        return f"{self.name}:{self.datatype.simple_string()}"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "type": self.datatype.json_value(),
+            "nullable": self.nullable,
+        }
+
+    def json(self) -> str:
+        return json.dumps(self.json_value(), separators=(",", ":"), sort_keys=True)
+
+    def type_name(self) -> str:
+        raise TypeError(
+            "StructField does not have typeName. Use typeName on its type explicitly instead"
+        )
+
+    typeName = type_name
+    simpleString = simple_string
+    jsonValue = json_value
+    fromJson = from_json
+
+    def _fill_ast(self, ast: proto.SpStructField) -> None:
+        self.column_identifier._fill_ast(ast.column_identifier)
+        self.datatype._fill_ast(ast.data_type)
+        ast.nullable = self.nullable
 
 
 class StructType(DataType):
@@ -441,6 +683,26 @@ class StructType(DataType):
         """Returns the list of names of the :class:`StructField`"""
         return [f.name for f in self.fields]
 
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "StructType":
+        return StructType([StructField.fromJson(f) for f in json_dict["fields"]])
+
+    def simple_string(self) -> str:
+        return f"struct<{','.join(f.simple_string() for f in self)}>"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {"type": self.type_name(), "fields": [f.json_value() for f in self]}
+
+    simpleString = simple_string
+    jsonValue = json_value
+    fieldNames = names
+    fromJson = from_json
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_struct_type.structured = self.structured
+        for field in self.fields:
+            field._fill_ast(ast.sp_struct_type.fields.add())
+
 
 class VariantType(DataType):
     """Variant data type. This maps to the VARIANT data type in Snowflake."""
@@ -448,17 +710,22 @@ class VariantType(DataType):
     def is_primitive(self):
         return False
 
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_variant_type = True
+
 
 class GeographyType(DataType):
     """Geography data type. This maps to the GEOGRAPHY data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_geography_type = True
 
 
 class GeometryType(DataType):
     """Geometry data type. This maps to the GEOMETRY data type in Snowflake."""
 
-    pass
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        ast.sp_geometry_type = True
 
 
 class _PandasType(DataType):
@@ -470,6 +737,45 @@ class PandasSeriesType(_PandasType):
 
     def __init__(self, element_type: Optional[DataType]) -> None:
         self.element_type = element_type
+
+    def __repr__(self) -> str:
+        return (
+            f"PandasSeriesType({repr(self.element_type) if self.element_type else ''})"
+        )
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "pandas_series"
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "PandasSeriesType":
+        return PandasSeriesType(
+            _parse_datatype_json_value(json_dict["element_type"])
+            if json_dict["element_type"]
+            else None
+        )
+
+    def simple_string(self) -> str:
+        return f"pandas_series<{self.element_type.simple_string() if self.element_type else ''}>"
+
+    def json_value(self) -> Dict[str, Any]:
+        return {
+            "type": self.type_name(),
+            "element_type": self.element_type.json_value()
+            if self.element_type
+            else None,
+        }
+
+    simpleString = simple_string
+    jsonValue = json_value
+    fromJson = from_json
+    typeName = type_name
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        if self.element_type is not None:
+            self.element_type._fill_ast(ast.sp_pandas_series_type.el_ty)
+        else:
+            ast.sp_pandas_series_type = True
 
 
 class PandasDataFrameType(_PandasType):
@@ -484,12 +790,115 @@ class PandasDataFrameType(_PandasType):
         self.col_types = col_types
         self.col_names = col_names or []
 
+    def __repr__(self) -> str:
+        col_names = f", [{', '.join(self.col_names)}]" if self.col_names != [] else ""
+        return f"PandasDataFrameType([{', '.join([repr(col) for col in self.col_types])}]{col_names})"
+
     def get_snowflake_col_datatypes(self):
         """Get the column types of the dataframe as the input/output of a vectorized UDTF."""
         return [
             tp.element_type if isinstance(tp, PandasSeriesType) else tp
             for tp in self.col_types
         ]
+
+    @classmethod
+    def type_name(cls) -> str:
+        return "pandas_dataframe"
+
+    @classmethod
+    def from_json(cls, json_dict: Dict[str, Any]) -> "PandasDataFrameType":
+        temp_col_names = []
+        temp_col_types = []
+        for cols in json_dict["fields"]:
+            if cols["name"] != "":
+                temp_col_names.append(cols["name"])
+            temp_col_types.append(_parse_datatype_json_value(cols["type"]))
+        return PandasDataFrameType(temp_col_types, temp_col_names)
+
+    def simple_string(self) -> str:
+        return f"pandas<{','.join(f.simple_string() for f in self.col_types)}>"
+
+    def json_value(self) -> Dict[str, Any]:
+        temp_col_name = (
+            self.col_names
+            if self.col_names != []
+            else ["" for _ in range(len(list(self.col_types)))]
+        )
+
+        return {
+            "type": self.type_name(),
+            "fields": [
+                self._json_value_helper(n, t)
+                for (n, t) in zip(temp_col_name, self.col_types)
+            ],
+        }
+
+    def _json_value_helper(self, col_name, col_type) -> Dict[str, Any]:
+        return {"name": col_name, "type": col_type.json_value()}
+
+    simpleString = simple_string
+    jsonValue = json_value
+    fromJson = from_json
+    typeName = type_name
+
+    def _fill_ast(self, ast: proto.SpDataType) -> None:
+        for col_type in self.col_types:
+            ast_col = ast.sp_pandas_data_frame_type.col_types.add()
+            col_type._fill_ast(ast_col)
+        ast.sp_pandas_data_frame_type.col_names.extend(self.col_names)
+
+
+_atomic_types: List[Type[DataType]] = [
+    StringType,
+    BinaryType,
+    BooleanType,
+    DecimalType,
+    FloatType,
+    DoubleType,
+    ByteType,
+    ShortType,
+    IntegerType,
+    LongType,
+    DateType,
+    TimestampType,
+    NullType,
+]
+_all_atomic_types: Dict[str, Type[DataType]] = {t.typeName(): t for t in _atomic_types}
+
+_complex_types: List[Type[Union[ArrayType, MapType, StructType]]] = [
+    ArrayType,
+    MapType,
+    StructType,
+    PandasDataFrameType,
+]
+_all_complex_types: Dict[str, Type[Union[ArrayType, MapType, StructType]]] = {
+    v.typeName(): v for v in _complex_types
+}
+
+_FIXED_VECTOR_PATTERN = re.compile(r"vector\(\s*(int|float)\s*,\s*(\d+)\s*\)")
+_FIXED_DECIMAL_PATTERN = re.compile(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)")
+
+
+def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
+    if not isinstance(json_value, dict):
+        if json_value in _all_atomic_types.keys():
+            return _all_atomic_types[json_value]()
+        elif json_value == "decimal":
+            return DecimalType()
+        elif _FIXED_DECIMAL_PATTERN.match(json_value):
+            m = _FIXED_DECIMAL_PATTERN.match(json_value)
+            return DecimalType(int(m.group(1)), int(m.group(2)))  # type: ignore[union-attr]
+        elif _FIXED_VECTOR_PATTERN.match(json_value):
+            m = _FIXED_VECTOR_PATTERN.match(json_value)
+            return VectorType(m.group(1), int(m.group(2)))  # type: ignore[union-attr]
+        else:
+            raise ValueError(f"Cannot parse data type: {str(json_value)}")
+    else:
+        tpe = json_value["type"]
+        if tpe in _all_complex_types:
+            return _all_complex_types[tpe].fromJson(json_value)
+        else:
+            raise ValueError(f"Unsupported data type: {str(tpe)}")
 
 
 #: The type hint for annotating Variant data when registering UDFs.

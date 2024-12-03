@@ -15,11 +15,20 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
 from tests.integ.modin.utils import (
     create_test_dfs,
     create_test_series,
-    eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
-agg_func = pytest.mark.parametrize("agg_func", IMPLEMENTED_AGG_METHODS)
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
+
+
+# Parametrize on all IMPLEMENTED_AGG_METHODS except 'indices' which is tested in a separate file
+agg_func = pytest.mark.parametrize(
+    "agg_func", list(filter(lambda x: x not in ["indices"], IMPLEMENTED_AGG_METHODS))
+)
 freq = pytest.mark.parametrize("freq", IMPLEMENTED_DATEOFFSET_STRINGS)
 interval = pytest.mark.parametrize("interval", [1, 2, 3, 5, 15])
 

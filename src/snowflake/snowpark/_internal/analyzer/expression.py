@@ -87,6 +87,7 @@ class Expression:
         self.children = [child] if child else None
         self.datatype: Optional[DataType] = None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
+        self._ast = None
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         # TODO: consider adding it to __init__ or use cached_property.
@@ -593,6 +594,9 @@ class WithinGroup(Expression):
         self.expr = expr
         self.order_by_cols = order_by_cols
         self.datatype = expr.datatype
+        assert all(
+            isinstance(order_by_col, Expression) for order_by_col in order_by_cols
+        )
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(self.expr, *self.order_by_cols)
@@ -674,6 +678,7 @@ class SnowflakeUDF(Expression):
         datatype: DataType,
         nullable: bool = True,
         api_call_source: Optional[str] = None,
+        is_aggregate_function: bool = False,
     ) -> None:
         super().__init__()
         self.udf_name = udf_name
@@ -681,6 +686,7 @@ class SnowflakeUDF(Expression):
         self.datatype = datatype
         self.nullable = nullable
         self.api_call_source = api_call_source
+        self.is_aggregate_function = is_aggregate_function
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)

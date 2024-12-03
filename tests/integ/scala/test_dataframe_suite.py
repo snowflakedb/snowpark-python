@@ -65,6 +65,7 @@ from tests.utils import (
     TestData,
     TestFiles,
     Utils,
+    multithreaded_run,
 )
 
 SAMPLING_DEVIATION = 0.4
@@ -181,6 +182,7 @@ def test_view_should_be_updated(session, local_testing_mode):
             Utils.drop_view(session, view_name)
 
 
+@multithreaded_run()
 def test_create_or_replace_view_with_null_data(session, local_testing_mode):
     df = session.create_dataframe([[1, None], [2, "NotNull"], [3, None]]).to_df(
         ["a", "b"]
@@ -202,7 +204,7 @@ def test_adjust_column_width_of_show(session):
     # run show(), make sure no error is reported
     df.show(10, 4)
 
-    res = df._show_string(10, 4)
+    res = df._show_string(10, 4, _emit_ast=session.ast_enabled)
     assert (
         res
         == """
@@ -220,7 +222,7 @@ def test_show_with_null_data(session):
     # run show(), make sure no error is reported
     df.show(10)
 
-    res = df._show_string(10)
+    res = df._show_string(10, _emit_ast=session.ast_enabled)
     assert (
         res
         == """
@@ -241,7 +243,7 @@ def test_show_multi_lines_row(session):
         ]
     ).to_df("a", "b")
 
-    res = df._show_string(2)
+    res = df._show_string(2, _emit_ast=session.ast_enabled)
     assert (
         res
         == """
@@ -265,7 +267,7 @@ def test_show_multi_lines_row(session):
 def test_show(session):
     TestData.test_data1(session).show()
 
-    res = TestData.test_data1(session)._show_string(10)
+    res = TestData.test_data1(session)._show_string(10, _emit_ast=session.ast_enabled)
     assert (
         res
         == """
@@ -283,7 +285,9 @@ def test_show(session):
     session.sql("drop table if exists test_table_123").show()
 
     # truncate result, no more than 50 characters
-    res = session.sql("drop table if exists test_table_123")._show_string(1)
+    res = session.sql("drop table if exists test_table_123")._show_string(
+        1, _emit_ast=session.ast_enabled
+    )
 
     assert (
         res
@@ -329,6 +333,10 @@ def test_cache_result(session):
     Utils.check_answer(df2, [Row(3)])
 
 
+@multithreaded_run()
+@pytest.mark.xfail(
+    reason="SNOW-1709861 result_scan for show tables is flaky", strict=False
+)
 @pytest.mark.xfail(
     reason="SNOW-1709861 result_scan for show tables is flaky", strict=False
 )
@@ -1052,7 +1060,7 @@ def test_toDf(session):
     )
     df1.show()
     assert (
-        df1._show_string()
+        df1._show_string(_emit_ast=session.ast_enabled)
         == """
 -------
 |"A"  |
@@ -1071,7 +1079,7 @@ def test_toDf(session):
     )
     df2.show()
     assert (
-        df2._show_string()
+        df2._show_string(_emit_ast=session.ast_enabled)
         == """
 -------
 |"A"  |
@@ -1567,9 +1575,10 @@ def test_flatten(session, local_testing_mode):
     )
 
     # wrong mode
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(
+        ValueError, match=re.escape("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+    ):
         flatten.flatten(col("value"), "", outer=False, recursive=False, mode="wrong")
-    assert "mode must be one of ('OBJECT', 'ARRAY', 'BOTH')" in str(ex_info)
 
     # contains multiple query
     if not local_testing_mode:
@@ -1632,7 +1641,9 @@ def test_flatten_in_session(session):
         [Row("1"), Row("2")],
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(
+        ValueError, match=re.escape("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+    ):
         session.flatten(
             parse_json(lit("[1]")), "", outer=False, recursive=False, mode="wrong"
         )
@@ -2360,7 +2371,7 @@ def test_dataframe_show_with_new_line(session):
         ["line1\nline1.1\n", "line2", "\n", "line4", "\n\n", None]
     ).to_df("a")
     assert (
-        df._show_string(10)
+        df._show_string(10, _emit_ast=session.ast_enabled)
         == """
 -----------
 |"A"      |
@@ -2390,7 +2401,7 @@ def test_dataframe_show_with_new_line(session):
         ]
     ).to_df("a", "b")
     assert (
-        df2._show_string(10)
+        df2._show_string(10, _emit_ast=session.ast_enabled)
         == """
 -----------------
 |"A"      |"B"  |
@@ -3105,17 +3116,14 @@ def test_random_split(session):
 def test_random_split_negative(session):
     df1 = session.range(10)
 
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="weights can't be None or empty"):
         df1.random_split([])
-    assert "weights can't be None or empty and must be positive numbers" in str(ex_info)
 
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="weights must be positive numbers"):
         df1.random_split([-0.1, -0.2])
-    assert "weights must be positive numbers" in str(ex_info)
 
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(ValueError, match="weights must be positive numbers"):
         df1.random_split([0.1, 0])
-    assert "weights must be positive numbers" in str(ex_info)
 
 
 def test_to_df(session):
