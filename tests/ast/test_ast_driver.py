@@ -19,15 +19,14 @@ import dateutil
 import google.protobuf
 import pytest
 from dateutil.tz import tzlocal
-from google.protobuf.text_format import MessageToString
 
 from snowflake.snowpark._internal.ast.utils import (
     ClearTempTables,
     base64_lines_to_textproto,
     textproto_to_request,
     clear_symbols,
-    clear_line_numbers,
     base64_lines_to_request,
+    clear_line_no_in_request,
 )
 from snowflake.snowpark._internal.utils import global_counter
 from tests.ast.ast_test_utils import render
@@ -226,11 +225,14 @@ def compare_base64_results(
     if exclude_symbols_and_src:
         clear_symbols(actual_message)
         clear_symbols(expected_message)
-        actual_message = clear_line_numbers(MessageToString(actual_message))
-        expected_message = clear_line_numbers(MessageToString(expected_message))
-    else:
-        actual_message = actual_message.SerializeToString(deterministic=True)
-        expected_message = expected_message.SerializeToString(deterministic=True)
+
+    # If this is not python 3.11+, then for the purposes of the expectation tests we will ignore the line_no
+    # information since it can be different based on various python bug fixes.
+    if sys.version_info.minor <= 10 or exclude_symbols_and_src:
+        clear_line_no_in_request(actual_message)
+        clear_line_no_in_request(expected_message)
+    actual_message = actual_message.SerializeToString(deterministic=True)
+    expected_message = expected_message.SerializeToString(deterministic=True)
 
     assert actual_message == expected_message
 

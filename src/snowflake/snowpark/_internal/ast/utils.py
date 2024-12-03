@@ -9,7 +9,6 @@ import inspect
 import logging
 import os
 import platform
-import re
 import sys
 import typing
 from array import array
@@ -1456,12 +1455,6 @@ def clear_symbols(message: proto.Request) -> None:
     for stmt in message.body:
         if hasattr(stmt, "assign"):
             stmt.assign.ClearField("symbol")
-
-
-def clear_line_numbers(message: str) -> str:
-    """Clears the line number fields in the given string representation of an AST."""
-    message = re.sub(r"start_line: \d+", "", message)
-    return message
 
 
 def base64_str_to_request(base64_str: str) -> proto.Request:
