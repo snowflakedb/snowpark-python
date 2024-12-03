@@ -62,9 +62,10 @@
   `collections.abc.Mapping`. No support for instances of `dict` that implement
   `__missing__` but are not instances of `collections.defaultdict`.
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
-- Added support fot `pd.json_normalize`.
+- Added support for `pd.json_normalize`.
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
 - Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
+- Added support for `np.sqrt`, `np.trunc`, `np.floor`, numpy trig functions, `np.exp`, `np.abs`, `np.positive` and `np.negative`.
 - Added partial support for the dataframe interchange protocol method
   `DataFrame.__dataframe__()`. Snowpark pandas does not yet support columns of
   `Timdelta` type or columns containing list objects.
@@ -76,8 +77,8 @@
 
 
 #### Improvements
-- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinal values
-
+- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinel values.
+- Improved documentation for pd.read_excel.
 
 ### Snowpark Local Testing Updates
 
