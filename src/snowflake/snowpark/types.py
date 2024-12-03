@@ -341,6 +341,12 @@ class ArrayType(DataType):
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
 
+    def _as_nested(self) -> "ArrayType":
+        element_type = self.element_type
+        if isinstance(element_type, (ArrayType, MapType, StructType)):
+            element_type = element_type._as_nested()
+        return ArrayType(element_type, self.structured)
+
     def is_primitive(self):
         return False
 
@@ -390,6 +396,12 @@ class MapType(DataType):
 
     def is_primitive(self):
         return False
+
+    def _as_nested(self) -> "MapType":
+        value_type = self.value_type
+        if isinstance(value_type, (ArrayType, MapType, StructType)):
+            value_type = value_type._as_nested()
+        return MapType(self.key_type, value_type, self.structured)
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "MapType":
@@ -482,7 +494,6 @@ class ColumnIdentifier:
     """Represents a column identifier."""
 
     def __init__(self, normalized_name: str) -> None:
-        self.raw_name = normalized_name
         self.normalized_name = quote_name(normalized_name)
         self._original_name = normalized_name
 
@@ -553,33 +564,41 @@ class StructField:
         column_identifier: Union[ColumnIdentifier, str],
         datatype: DataType,
         nullable: bool = True,
+        is_column: bool = True,
     ) -> None:
-        self.column_identifier = (
-            ColumnIdentifier(column_identifier)
-            if isinstance(column_identifier, str)
-            else column_identifier
-        )
+        self.name = column_identifier
+        self.is_column = is_column
         self.datatype = datatype
         self.nullable = nullable
 
     @property
     def name(self) -> str:
-        """Returns the column name."""
-        return self.column_identifier.name
-
-    @property
-    def raw_name(self) -> str:
-        return self.column_identifier.raw_name
+        return self.column_identifier.name if self.is_column else self._name
 
     @name.setter
-    def name(self, n: str) -> None:
-        self.column_identifier = ColumnIdentifier(n)
+    def name(self, n: Union[ColumnIdentifier, str]) -> None:
+        if isinstance(n, ColumnIdentifier):
+            self._name = n.name
+            self.column_identifier = n
+        else:
+            self._name = n
+            self.column_identifier = ColumnIdentifier(n)
+
+    def _as_nested(self) -> "StructField":
+        datatype = self.datatype
+        if isinstance(datatype, (ArrayType, MapType, StructType)):
+            datatype = datatype._as_nested()
+        # Nested StructFields do not follow column naming conventions
+        return StructField(self._name, datatype, self.nullable, is_column=False)
 
     def __repr__(self) -> str:
         return f"StructField({self.name!r}, {repr(self.datatype)}, nullable={self.nullable})"
 
     def __eq__(self, other):
-        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+        return isinstance(other, self.__class__) and (
+            (self.name, self.is_column, self.datatype, self.nullable)
+            == (other.name, other.is_column, other.datatype, other.nullable)
+        )
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "StructField":
@@ -625,9 +644,9 @@ class StructType(DataType):
         self, fields: Optional[List["StructField"]] = None, structured=False
     ) -> None:
         self.structured = structured
-        if fields is None:
-            fields = []
-        self.fields = fields
+        self.fields = []
+        for field in fields:
+            self.add(field)
 
     def add(
         self,
@@ -635,19 +654,29 @@ class StructType(DataType):
         datatype: Optional[DataType] = None,
         nullable: Optional[bool] = True,
     ) -> "StructType":
-        if isinstance(field, StructField):
-            self.fields.append(field)
-        elif isinstance(field, (str, ColumnIdentifier)):
+        if isinstance(field, (str, ColumnIdentifier)):
             if datatype is None:
                 raise ValueError(
                     "When field argument is str or ColumnIdentifier, datatype must not be None."
                 )
-            self.fields.append(StructField(field, datatype, nullable))
-        else:
+            field = StructField(field, datatype, nullable)
+        elif not isinstance(field, StructField):
+            __import__("pdb").set_trace()
             raise ValueError(
                 f"field argument must be one of str, ColumnIdentifier or StructField. Got: '{type(field)}'"
             )
+
+        # Nested data does not follow the same schema conventions as top level fields.
+        if isinstance(field.datatype, (ArrayType, MapType, StructType)):
+            field.datatype = field.datatype._as_nested()
+
+        self.fields.append(field)
         return self
+
+    def _as_nested(self) -> "StructType":
+        return StructType(
+            [field._as_nested() for field in self.fields], self.structured
+        )
 
     @classmethod
     def _from_attributes(cls, attributes: list) -> "StructType":

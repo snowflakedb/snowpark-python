@@ -106,7 +106,7 @@ STRUCTURED_TYPES_EXAMPLES = {
                     StructType(
                         [
                             StructField("A", StringType(16777216), nullable=True),
-                            StructField('"b"', DoubleType(), nullable=True),
+                            StructField("b", DoubleType(), nullable=True),
                         ],
                         structured=True,
                     ),
@@ -524,27 +524,27 @@ def test_iceberg_nested_fields(
                 "NESTED_DATA",
                 StructType(
                     [
-                        StructField('"camelCase"', StringType(), nullable=True),
-                        StructField('"snake_case"', StringType(), nullable=True),
-                        StructField('"PascalCase"', StringType(), nullable=True),
+                        StructField("camelCase", StringType(), nullable=True),
+                        StructField("snake_case", StringType(), nullable=True),
+                        StructField("PascalCase", StringType(), nullable=True),
                         StructField(
-                            '"nested_map"',
+                            "nested_map",
                             MapType(
                                 StringType(),
                                 StructType(
                                     [
                                         StructField(
-                                            '"inner_camelCase"',
+                                            "inner_camelCase",
                                             StringType(),
                                             nullable=True,
                                         ),
                                         StructField(
-                                            '"inner_snake_case"',
+                                            "inner_snake_case",
                                             StringType(),
                                             nullable=True,
                                         ),
                                         StructField(
-                                            '"inner_PascalCase"',
+                                            "inner_PascalCase",
                                             StringType(),
                                             nullable=True,
                                         ),
