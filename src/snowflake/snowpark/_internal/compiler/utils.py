@@ -125,7 +125,7 @@ def replace_child(
 
         snowflake_plan = query_generator.resolve(plan)
         selectable = SelectSnowflakePlan(snowflake_plan, analyzer=query_generator)
-        selectable._is_valid_for_replacement = True
+        selectable._is_valid_for_replacement = snowflake_plan._is_valid_for_replacement
         return selectable
 
     if not parent._is_valid_for_replacement:
