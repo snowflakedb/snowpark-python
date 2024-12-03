@@ -42,6 +42,7 @@ requirements:
     - pyyaml
     # Snowpark IR
     - protobuf >=3.20,<6
+    - python-dateutil
     - tzlocal
 
 test:
