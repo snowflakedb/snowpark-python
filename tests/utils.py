@@ -10,10 +10,11 @@ import platform
 import random
 import string
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
-from typing import List, NamedTuple, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union
 
 import pytest
 import pytz
@@ -133,6 +134,25 @@ def running_on_public_ci() -> bool:
 def running_on_jenkins() -> bool:
     """Whether tests are currently running on a Jenkins node."""
     return RUNNING_ON_JENKINS
+
+
+def multithreaded_run(num_threads: int = 5) -> None:
+    """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
+    from tests.conftest import MULTITHREADING_TEST_MODE_ENABLED
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if MULTITHREADING_TEST_MODE_ENABLED:
+                with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                    for _ in range(num_threads):
+                        executor.submit(func, *args, **kwargs)
+            else:
+                func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class Utils:
@@ -353,9 +373,19 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
-        statement_params=None,
+        statement_params: Optional[Dict[str, str]] = None,
         float_equality_threshold=0.0,
     ) -> None:
+
+        # Check that statement_params are passed as Dict[str, str].
+        assert statement_params is None or (
+            isinstance(statement_params, dict)
+            and all(
+                isinstance(k, str) and isinstance(v, str)
+                for k, v in statement_params.items()
+            )
+        )
+
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data
@@ -1277,6 +1307,7 @@ class TestData:
                 (1, "electronics", 100, 200, 300, 100),
                 (2, "clothes", 100, 300, 150, 200),
                 (3, "cars", 200, 400, 100, 50),
+                (4, "appliances", 100, None, 100, 50),
             ],
             schema=["empid", "dept", "jan", "feb", "mar", "apr"],
         )
@@ -1544,3 +1575,30 @@ def check_tracing_span_answers(results: list, expected_answer: tuple):
             if check_tracing_span_single_answer(result[1], expected_answer[1]):
                 return True
     return False
+
+
+def local_to_utc_offset_in_hours():
+    """In tests on CI UTC is assumed. However, when comparing dates these are returned in local timezone format.
+    Adjust expectations with this localization function.
+    Returns difference between UTC and current, local timezone."""
+    offset = datetime.now(timezone.utc).astimezone().tzinfo.utcoffset(datetime.now())
+    if offset.days < 0:
+        return -(24 - offset.seconds / 3600)
+    else:
+        return offset.seconds / 3600
+
+
+def add_to_time(t: datetime.time, delta: timedelta) -> time:
+    """datetime.time does not support +, implement this here."""
+    now = datetime.now()
+    dt = datetime(
+        now.year,
+        now.month,
+        now.day,
+        hour=t.hour,
+        minute=t.minute,
+        second=t.second,
+        microsecond=t.microsecond,
+    )
+    ans = dt + delta
+    return time(ans.hour, ans.minute, ans.second, ans.microsecond)

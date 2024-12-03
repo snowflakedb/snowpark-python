@@ -28,7 +28,7 @@ from typing import (
 from snowflake.connector import SnowflakeConnection, connect
 from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.errors import NotSupportedError, ProgrammingError
+from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -44,11 +44,15 @@ from snowflake.snowpark._internal.analyzer.schema_utils import (
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     BatchInsertQuery,
     PlanQueryType,
+    Query,
     SnowflakePlan,
 )
+from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
+    create_rlock,
+    create_thread_local,
     escape_quotes,
     get_application_name,
     get_version,
@@ -60,7 +64,7 @@ from snowflake.snowpark._internal.utils import (
     unwrap_stage_location_single_quote,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
@@ -169,11 +173,17 @@ class ServerConnection:
             except TypeError:
                 pass
 
+        # thread safe param protection
+        self._thread_safe_session_enabled = self._get_client_side_session_parameter(
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
+        )
+        self._lock = create_rlock(self._thread_safe_session_enabled)
+        self._thread_store = create_thread_local(self._thread_safe_session_enabled)
+
         if "password" in self._lower_case_parameters:
             self._lower_case_parameters["password"] = None
-        self._cursor = self._conn.cursor()
         self._telemetry_client = TelemetryClient(self._conn)
-        self._query_listener: Set[QueryHistory] = set()
+        self._query_listeners: Set[QueryListener] = set()
         # The session in this case refers to a Snowflake session, not a
         # Snowpark session
         self._telemetry_client.send_session_created_telemetry(not bool(conn))
@@ -183,6 +193,15 @@ class ServerConnection:
         self._supports_skip_upload_on_content_match = (
             "_skip_upload_on_content_match" in signature.parameters
         )
+
+    @property
+    def _cursor(self) -> SnowflakeCursor:
+        if not hasattr(self._thread_store, "cursor"):
+            self._thread_store.cursor = self._conn.cursor()
+            self._telemetry_client.send_cursor_created_telemetry(
+                self.get_session_id(), threading.get_ident()
+            )
+        return self._thread_store.cursor
 
     def _add_application_parameters(self) -> None:
         if PARAM_APPLICATION not in self._lower_case_parameters:
@@ -210,11 +229,13 @@ class ServerConnection:
                 PARAM_INTERNAL_APPLICATION_VERSION
             ] = get_version()
 
-    def add_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.add(listener)
+    def add_query_listener(self, listener: QueryListener) -> None:
+        with self._lock:
+            self._query_listeners.add(listener)
 
-    def remove_query_listener(self, listener: QueryHistory) -> None:
-        self._query_listener.remove(listener)
+    def remove_query_listener(self, listener: QueryListener) -> None:
+        with self._lock:
+            self._query_listeners.remove(listener)
 
     def close(self) -> None:
         if self._conn:
@@ -249,21 +270,25 @@ class ServerConnection:
         )
 
     def _run_new_describe(
-        self, cursor: SnowflakeCursor, query: str
+        self, cursor: SnowflakeCursor, query: str, **kwargs: dict
     ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
         result_metadata = run_new_describe(cursor, query)
 
-        for listener in filter(
-            lambda listener: hasattr(listener, "include_describe")
-            and listener.include_describe,
-            self._query_listener,
-        ):
-            query_record = QueryRecord(cursor.sfqid, query, True)
-            if getattr(listener, "include_thread_id", False):
-                query_record = QueryRecord(
-                    cursor.sfqid, query, True, threading.get_ident()
+        with self._lock:
+            for listener in filter(
+                lambda listener: hasattr(listener, "include_describe")
+                and listener.include_describe,
+                self._query_listeners,
+            ):
+                thread_id = (
+                    threading.get_ident()
+                    if getattr(listener, "include_thread_id", False)
+                    else None
                 )
-            listener._add_query(query_record)
+                query_record = QueryRecord(
+                    cursor.sfqid, query, True, thread_id=thread_id
+                )
+                listener._notify(query_record, **kwargs)
 
         return result_metadata
 
@@ -379,32 +404,60 @@ class ServerConnection:
             else:
                 raise ex
 
-    def notify_query_listeners(self, query_record: QueryRecord) -> None:
-        for listener in self._query_listener:
-            if getattr(listener, "include_thread_id", False):
-                new_record = QueryRecord(
-                    query_record.query_id,
-                    query_record.sql_text,
-                    query_record.is_describe,
-                    thread_id=threading.get_ident(),
-                )
-                listener._add_query(new_record)
-            else:
-                listener._add_query(query_record)
+    def notify_query_listeners(
+        self, query_record: QueryRecord, is_error: bool = False, **kwargs
+    ) -> None:
+        with self._lock:
+            for listener in self._query_listeners:
+                # if listener is not set to record error query, skip
+                if is_error and not getattr(listener, "include_error", False):
+                    continue
+                if getattr(listener, "include_thread_id", False):
+                    new_record = QueryRecord(
+                        query_record.query_id,
+                        query_record.sql_text,
+                        query_record.is_describe,
+                        thread_id=threading.get_ident(),
+                    )
+                    listener._notify(new_record, **kwargs)
+                else:
+                    listener._notify(query_record, **kwargs)
 
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
-        results_cursor = self._cursor.execute(query, **kwargs)
+        notify_kwargs = {}
+        if DATAFRAME_AST_PARAMETER in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+
+        try:
+            results_cursor = self._cursor.execute(query, **kwargs)
+        except Exception as ex:
+            notify_kwargs["requestId"] = None
+            notify_kwargs["exception"] = ex
+            sfqid = ex.sfqid if isinstance(ex, Error) else None
+            err_query = ex.query if isinstance(ex, Error) else query
+            self.notify_query_listeners(
+                QueryRecord(sfqid, err_query, False), is_error=True, **notify_kwargs
+            )
+            raise ex
+
+        notify_kwargs["requestId"] = str(results_cursor._request_id)
         self.notify_query_listeners(
-            QueryRecord(results_cursor.sfqid, results_cursor.query)
+            QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )
         return results_cursor
 
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
-        results_cursor = self._cursor.execute_async(query, **kwargs)
+        try:
+            results_cursor = self._cursor.execute_async(query, **kwargs)
+        except Error as err:
+            self.notify_query_listeners(
+                QueryRecord(err.sfqid, err.query), is_error=True
+            )
+            raise err
         self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
         return results_cursor
 
@@ -435,6 +488,7 @@ class ServerConnection:
         params: Optional[Sequence[Any]] = None,
         num_statements: Optional[int] = None,
         ignore_results: bool = False,
+        async_post_actions: Optional[List[Query]] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -478,7 +532,7 @@ class ServerConnection:
                 query,
                 async_job_plan.session,
                 data_type,
-                async_job_plan.post_actions,
+                async_post_actions,
                 log_on_exception,
                 case_sensitive=case_sensitive,
                 num_statements=num_statements,
@@ -609,6 +663,7 @@ class ServerConnection:
         kwargs["_statement_params"] = statement_params
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
+            post_actions = plan_queries[PlanQueryType.POST_ACTIONS]
             placeholders = {}
             is_batch_insert = False
             for q in main_queries:
@@ -642,6 +697,7 @@ class ServerConnection:
                     num_statements=len(main_queries),
                     params=params,
                     ignore_results=ignore_results,
+                    async_post_actions=post_actions,
                     **kwargs,
                 )
 
@@ -651,6 +707,13 @@ class ServerConnection:
                 if action_id < plan.session._last_canceled_id:
                     raise SnowparkClientExceptionMessages.SERVER_QUERY_IS_CANCELLED()
             else:
+                # Only send dataframe AST on the last query.
+                if DATAFRAME_AST_PARAMETER in kwargs:
+                    dataframe_ast = kwargs[DATAFRAME_AST_PARAMETER]
+                    del kwargs[DATAFRAME_AST_PARAMETER]
+                else:
+                    dataframe_ast = None
+
                 for i, query in enumerate(main_queries):
                     if isinstance(query, BatchInsertQuery):
                         self.run_batch_insert(query.sql, query.rows, **kwargs)
@@ -659,6 +722,8 @@ class ServerConnection:
                         final_query = query.sql
                         for holder, id_ in placeholders.items():
                             final_query = final_query.replace(holder, id_)
+                        if i == len(main_queries) - 1 and dataframe_ast:
+                            kwargs[DATAFRAME_AST_PARAMETER] = dataframe_ast
                         result = self.run_query(
                             final_query,
                             to_pandas,
@@ -671,6 +736,7 @@ class ServerConnection:
                             case_sensitive=case_sensitive,
                             params=query.params,
                             ignore_results=ignore_results,
+                            async_post_actions=post_actions,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
@@ -682,7 +748,9 @@ class ServerConnection:
         finally:
             # delete created tmp object
             if block:
-                for action in plan_queries[PlanQueryType.POST_ACTIONS]:
+                if DATAFRAME_AST_PARAMETER in kwargs:
+                    del kwargs[DATAFRAME_AST_PARAMETER]
+                for action in post_actions:
                     self.run_query(
                         action.sql,
                         is_ddl_on_temp_object=action.is_ddl_on_temp_object,
@@ -727,7 +795,13 @@ class ServerConnection:
             self.execute_and_notify_query_listener(
                 f"alter session set query_tag = {str_to_sql(query_tag)}"
             )
-        results_cursor = self._cursor.executemany(query, params)
+        try:
+            results_cursor = self._cursor.executemany(query, params)
+        except Error as err:
+            self.notify_query_listeners(
+                QueryRecord(err.sfqid, err.query), is_error=True
+            )
+            raise err
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query)
         )

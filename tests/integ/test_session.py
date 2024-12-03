@@ -12,7 +12,11 @@ import pytest
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
-from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    get_version,
+    parse_table_name,
+)
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkInvalidObjectNameException,
@@ -20,7 +24,6 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED,
-    _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING,
     _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
     _active_sessions,
     _get_active_session,
@@ -120,10 +123,27 @@ def test_active_session(session):
     assert not session._conn._conn.expired
 
 
+def test_session_version(session):
+    assert session.version == get_version()
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_multiple_active_sessions(session, db_parameters):
     with Session.builder.configs(db_parameters).create() as session2:
         assert {session, session2} == _get_active_sessions()
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
+def test_get_active_session(session, db_parameters):
+    assert Session.get_active_session() == session
+    assert Session.getActiveSession() == session
+
+    with Session.builder.configs(db_parameters).create():
+        with pytest.raises(
+            SnowparkClientException, match="More than one active session is detected"
+        ) as ex:
+            Session.get_active_session()
+        assert ex.value.error_code == "1409"
 
 
 def test_get_or_create(session):
@@ -686,12 +706,13 @@ def test_cte_optimization_enabled_on_session(session, db_parameters):
         new_session.cte_optimization_enabled = default_value
         assert new_session.cte_optimization_enabled is default_value
 
-    parameters = db_parameters.copy()
-    parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING: not default_value
-    }
-    with Session.builder.configs(parameters).create() as new_session2:
-        assert new_session2.cte_optimization_enabled is not default_value
+    # TODO SNOW-1830248: add back the test when the parameter is available on the server side
+    # parameters = db_parameters.copy()
+    # parameters["session_parameters"] = {
+    #     _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: get_version() if default_value else ""
+    # }
+    # with Session.builder.configs(parameters).create() as new_session2:
+    #     assert new_session2.cte_optimization_enabled is not default_value
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
@@ -812,3 +833,18 @@ def test_get_session_stage(session):
         Utils.drop_database(session, new_database)
         session.use_database(current_database)
         session.use_schema(current_schema)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="sproc disallows new connection creation")
+def test_session_atexit(db_parameters):
+    exit_funcs = []
+    with patch("atexit.register", lambda func: exit_funcs.append(func)):
+        with Session.builder.configs(db_parameters).create():
+            pass
+
+    # the first exit function is from the connector
+    # the second exit function is from the Snowpark session
+    # the order matters so Snowpark session is closed first
+    assert len(exit_funcs) == 2
+    assert exit_funcs[0].__module__.startswith("snowflake.connector")
+    assert exit_funcs[1].__module__.startswith("snowflake.snowpark")

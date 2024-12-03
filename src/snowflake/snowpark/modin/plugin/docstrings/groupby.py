@@ -197,7 +197,87 @@ class DataFrameGroupBy:
         pass
 
     def ffill():
-        pass
+        """
+        Forward fill the values.
+
+        Parameters
+        ----------
+        limit : int, optional
+            Limit of how many values to fill.
+
+        Returns
+        -------
+        Series or DataFrame
+            Object with missing values filled.
+
+        See also
+        --------
+        Series.ffill
+            Returns Series with minimum number of char in object.
+        DataFrame.ffill
+            Object with missing values filled or None if inplace=True.
+        Series.fillna
+            Fill NaN values of a Series.
+        DataFrame.fillna
+            Fill NaN values of a DataFrame.
+
+        Examples
+        --------
+        For SeriesGroupBy:
+
+        >>> key = [0, 0, 1, 1]
+        >>> ser = pd.Series([np.nan, 2, 3, np.nan], index=key)
+        >>> ser
+        0    NaN
+        0    2.0
+        1    3.0
+        1    NaN
+        dtype: float64
+        >>> ser.groupby(level=0).ffill()
+        0    NaN
+        0    2.0
+        1    3.0
+        1    3.0
+        dtype: float64
+
+        For DataFrameGroupBy:
+
+        >>> df = pd.DataFrame(
+        ...     {
+        ...         "key": [0, 0, 1, 1, 1],
+        ...         "A": [np.nan, 2, np.nan, 3, np.nan],
+        ...         "B": [2, 3, np.nan, np.nan, np.nan],
+        ...         "C": [np.nan, np.nan, 2, np.nan, np.nan],
+        ...     }
+        ... )
+        >>> df
+           key    A    B    C
+        0    0  NaN  2.0  NaN
+        1    0  2.0  3.0  NaN
+        2    1  NaN  NaN  2.0
+        3    1  3.0  NaN  NaN
+        4    1  NaN  NaN  NaN
+
+        Propagate non-null values forward or backward within each group along columns.
+
+        >>> df.groupby("key").ffill()
+             A    B    C
+        0  NaN  2.0  NaN
+        1  2.0  3.0  NaN
+        2  NaN  NaN  2.0
+        3  3.0  NaN  2.0
+        4  3.0  NaN  2.0
+
+        Only replace the first NaN element within a group along rows.
+
+        >>> df.groupby("key").ffill(limit=1)
+             A    B    C
+        0  NaN  2.0  NaN
+        1  2.0  3.0  NaN
+        2  NaN  NaN  2.0
+        3  3.0  NaN  2.0
+        4  3.0  NaN  NaN
+        """
 
     def sem():
         pass
@@ -846,7 +926,75 @@ class DataFrameGroupBy:
         """
 
     def pct_change():
-        pass
+        """
+        Calculate pct_change of each value to previous entry in group.
+
+        Parameters
+        ----------
+        periods : int, default 1
+            Periods to shift for forming percent change.
+        fill_method : {"bfill", "ffill", "pad"}, default "ffill"
+            How to handle NAs before computing percent changes.
+
+            .. deprecated:: 2.1.0
+                All options of fill_method are deprecated except fill_method=None.
+
+        limit : int, optional
+            The number of consecutive NAs to fill before stopping.
+            Snowpark pandas does not yet support this parameter.
+
+            .. deprecated:: 2.1.0
+
+        freq : DateOffset, timedelta, or str, optional
+            Increment to use from time series API (e.g. ‘ME’ or BDay()).
+            Snowpark pandas does not yet support this parameter.
+
+        Returns
+        -------
+        Series or DataFrame
+            Percentage changes within each group.
+
+        Notes
+        -----
+        This function ignores the `as_index`, `sort`, `group_keys`, and `dropna` arguments passed
+        to the initial `groupby` call.
+
+        Examples
+        --------
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b', 'b']
+        >>> ser = pd.Series([1, 2, 3, 4], index=lst)
+        >>> ser
+        a    1
+        a    2
+        b    3
+        b    4
+        dtype: int64
+        >>> ser.groupby(level=0).pct_change()
+        a         NaN
+        a    1.000000
+        b         NaN
+        b    0.333333
+        dtype: float64
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [2, 5, 8], [2, 6, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"], index=["tuna", "salmon", "catfish", "goldfish"])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+                   a  b  c
+            tuna   1  2  3
+          salmon   1  5  6
+         catfish   2  5  8
+        goldfish   2  6  9
+        >>> df.groupby("a").pct_change()  # doctest: +NORMALIZE_WHITESPACE
+                    b  c
+            tuna    NaN    NaN
+          salmon    1.5  1.000
+         catfish    NaN    NaN
+        goldfish    0.2  0.125
+        """
 
     def filter():
         pass
@@ -909,6 +1057,7 @@ class DataFrameGroupBy:
         """
 
     def apply():
+        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Apply function ``func`` group-wise and combine the results together.
 
@@ -970,7 +1119,7 @@ class DataFrameGroupBy:
         its argument and returns a DataFrame. `apply` combines the result for
         each group together into a new DataFrame:
 
-        >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
+        >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +SKIP
                     B    C
         0.0  0.333333  0.4
         1.0  0.666667  0.6
@@ -979,7 +1128,7 @@ class DataFrameGroupBy:
         In the above, the groups are not part of the index. We can have them included
         by using ``g2`` where ``group_keys=True``:
 
-        >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
+        >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +SKIP
                     B    C
         A
         a 0.0  0.333333  0.4
@@ -1086,7 +1235,84 @@ class DataFrameGroupBy:
         """
 
     def bfill():
-        pass
+        """
+        Backward fill the values.
+
+        Parameters
+        ----------
+        limit : int, optional
+            Limit of how many values to fill.
+
+        Returns
+        -------
+        Series or DataFrame
+            Object with missing values filled.
+
+        See also
+        -------
+        Series.bfill
+            Backward fill the missing values in the dataset.
+        DataFrame.bfill
+            Backward fill the missing values in the dataset.
+        Series.fillna
+            Fill NaN values of a Series.
+        DataFrame.fillna
+            Fill NaN values of a DataFrame.
+
+        Examples
+        --------
+        With Series:
+
+        >>> index = ['Falcon', 'Falcon', 'Parrot', 'Parrot', 'Parrot']
+        >>> s = pd.Series([None, 1, None, None, 3], index=index)
+        >>> s
+        Falcon    NaN
+        Falcon    1.0
+        Parrot    NaN
+        Parrot    NaN
+        Parrot    3.0
+        dtype: float64
+        >>> s.groupby(level=0).bfill()
+        Falcon    1.0
+        Falcon    1.0
+        Parrot    3.0
+        Parrot    3.0
+        Parrot    3.0
+        dtype: float64
+        >>> s.groupby(level=0).bfill(limit=1)
+        Falcon    1.0
+        Falcon    1.0
+        Parrot    NaN
+        Parrot    3.0
+        Parrot    3.0
+        dtype: float64
+
+        With DataFrame:
+
+        >>> df = pd.DataFrame({'A': [1, None, None, None, 4],
+        ...                    'B': [None, None, 5, None, 7]}, index=index)
+        >>> df
+                  A    B
+        Falcon  1.0  NaN
+        Falcon  NaN  NaN
+        Parrot  NaN  5.0
+        Parrot  NaN  NaN
+        Parrot  4.0  7.0
+        >>> df.groupby(level=0).bfill()
+                  A    B
+        Falcon  1.0  NaN
+        Falcon  NaN  NaN
+        Parrot  4.0  5.0
+        Parrot  4.0  7.0
+        Parrot  4.0  7.0
+        >>> df.groupby(level=0).bfill(limit=1)
+                  A    B
+        Falcon  1.0  NaN
+        Falcon  NaN  NaN
+        Parrot  NaN  5.0
+        Parrot  4.0  7.0
+        Parrot  4.0  7.0
+        """
 
     def prod():
         pass
@@ -1779,12 +2005,58 @@ class DataFrameGroupBy:
         -------
         Generator
             A generator yielding a sequence of (name, subsetted object) for each group.
+
+        Examples
+        --------
+
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b']
+        >>> ser = pd.Series([1, 2, 3], index=lst)
+        >>> ser
+        a    1
+        a    2
+        b    3
+        dtype: int64
+        >>> for x, y in ser.groupby(level=0):
+        ...     print(f'{x}\\n{y}\\n')
+        a
+        a    1
+        a    2
+        dtype: int64
+        <BLANKLINE>
+        b
+        b    3
+        dtype: int64
+        <BLANKLINE>
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"])
+        >>> df
+           a  b  c
+        0  1  2  3
+        1  1  5  6
+        2  7  8  9
+        >>> for x, y in df.groupby(by=["a"]):
+        ...     print(f'{x}\\n{y}\\n')
+        (1,)
+           a  b  c
+        0  1  2  3
+        1  1  5  6
+        <BLANKLINE>
+        (7,)
+           a  b  c
+        2  7  8  9
+        <BLANKLINE>
         """
 
     def cov():
         pass
 
     def transform():
+        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Call function producing a same-indexed DataFrame on each group.
 
@@ -1854,7 +2126,7 @@ class DataFrameGroupBy:
         i     X     9    90    -9
         j     Y    10    10   -10
 
-        >>> df.groupby("col1", dropna=True).transform(lambda df, n: df.head(n), n=2)
+        >>> df.groupby("col1", dropna=True).transform(lambda df, n: df.head(n), n=2)  # doctest: +SKIP
            col2  col3  col4
         a   1.0  40.0  -1.0
         b   NaN   NaN   NaN
@@ -1867,7 +2139,7 @@ class DataFrameGroupBy:
         i   NaN   NaN   NaN
         j  10.0  10.0 -10.0
 
-        >>> df.groupby("col1", dropna=False).transform("mean")
+        >>> df.groupby("col1", dropna=False).transform("mean")  # doctest: +SKIP
            col2  col3  col4
         a  2.50  25.0 -2.50
         b  5.00  65.0 -5.00

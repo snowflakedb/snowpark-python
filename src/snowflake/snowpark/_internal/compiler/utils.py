@@ -98,7 +98,6 @@ def resolve_and_update_snowflake_plan(
     node.df_aliased_col_name_to_real_col_name.update(
         new_snowflake_plan.df_aliased_col_name_to_real_col_name
     )
-    node.placeholder_query = new_snowflake_plan.placeholder_query
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
     node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
 
@@ -128,7 +127,13 @@ def replace_child(
         raise ValueError(f"parent node {parent} is not valid for replacement.")
 
     if old_child not in getattr(parent, "children_plan_nodes", parent.children):
-        raise ValueError(f"old_child {old_child} is not a child of parent {parent}.")
+        if new_child in getattr(parent, "children_plan_nodes", parent.children):
+            # the child has already been updated
+            return
+        else:
+            raise ValueError(
+                f"old_child {old_child} is not a child of parent {parent}."
+            )
 
     if isinstance(parent, SnowflakePlan):
         assert parent.source_plan is not None
@@ -263,18 +268,12 @@ def update_resolvable_node(
         node.pre_actions, node.post_actions = None, None
         for operand in node.set_operands:
             if operand.selectable.pre_actions:
-                if node.pre_actions is None:
-                    node.pre_actions = []
                 for action in operand.selectable.pre_actions:
-                    if action not in node.pre_actions:
-                        node.pre_actions.append(action)
+                    node.merge_into_pre_action(action)
 
             if operand.selectable.post_actions:
-                if node.post_actions is None:
-                    node.post_actions = []
                 for action in operand.selectable.post_actions:
-                    if action not in node.post_actions:
-                        node.post_actions.append(action)
+                    node.merge_into_post_action(action)
 
     elif isinstance(node, (SelectSnowflakePlan, SelectTableFunction)):
         assert node.snowflake_plan is not None
@@ -371,7 +370,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     def get_stat(node: LogicalPlan):
         def get_name(node: Optional[LogicalPlan]) -> str:
             if node is None:
-                return "EMPTY_SOURCE_PLAN"
+                return "EMPTY_SOURCE_PLAN"  # pragma: no cover
             addr = hex(id(node))
             name = str(type(node)).split(".")[-1].split("'")[0]
             return f"{name}({addr})"
@@ -383,6 +382,19 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             name = f"{name} :: ({get_name(node.snowflake_plan.source_plan)})"
         elif isinstance(node, SetStatement):
             name = f"{name} :: ({node.set_operands[1].operator})"
+        elif isinstance(node, SelectStatement):
+            properties = []
+            if node.projection:
+                properties.append("Proj")  # pragma: no cover
+            if node.where:
+                properties.append("Filter")  # pragma: no cover
+            if node.order_by:
+                properties.append("Order")  # pragma: no cover
+            if node.limit_:
+                properties.append("Limit")  # pragma: no cover
+            if node.offset:
+                properties.append("Offset")  # pragma: no cover
+            name = f"{name} :: ({'| '.join(properties)})"
 
         score = get_complexity_score(node)
         sql_text = ""

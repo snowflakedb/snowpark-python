@@ -397,3 +397,36 @@ def test_create_iceberg_table_as_select_statement():
         "'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  "
         "STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED'   AS  SELECT  *  FROM (select * from foo)"
     )
+
+
+def test_create_dynamic_iceberg_table():
+    dt_name = "my_dt"
+    warehouse = "my_warehouse"
+
+    assert create_or_replace_dynamic_table_statement(
+        name=dt_name,
+        warehouse=warehouse,
+        lag="1 minute",
+        comment=None,
+        replace=True,
+        if_not_exists=False,
+        refresh_mode=None,
+        initialize=None,
+        clustering_keys=None,
+        is_transient=False,
+        data_retention_time=None,
+        max_data_extension_time=None,
+        child="select * from foo",
+        iceberg_config={
+            "external_volume": "example_volume",
+            "catalog": "example_catalog",
+            "base_location": "/root",
+            "catalog_sync": "integration_name",
+            "storage_serialization_policy": "OPTIMIZED",
+        },
+    ) == (
+        " CREATE  OR  REPLACE  DYNAMIC  ICEBERG  TABLE my_dt LAG  = '1 minute' WAREHOUSE  = "
+        "my_warehouse    EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = 'example_catalog'  "
+        "BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY "
+        " = 'OPTIMIZED' AS  SELECT  *  FROM (select * from foo)"
+    )

@@ -98,6 +98,9 @@ REGISTER_KWARGS_ALLOWLIST = {
     "anonymous",
     "force_inline_code",
     "_from_pandas_udf_function",
+    "input_names",  # for pandas_udtf
+    "max_batch_size",  # for pandas_udtf
+    "_registered_object_name",  # object name within Snowflake (post registration)
 }
 
 
@@ -397,6 +400,8 @@ def get_opt_arg_defaults(
         input_types: List[DataType],
         convert_python_str_to_object: bool,
     ) -> List[Optional[str]]:
+        if default_values is None:
+            return EMPTY_DEFAULT_VALUES
         num_optional_args = len(default_values)
         num_positional_args = len(input_types) - num_optional_args
         input_types_for_default_args = input_types[-num_optional_args:]
@@ -406,10 +411,13 @@ def get_opt_arg_defaults(
                 for value, tp in zip(default_values, input_types_for_default_args)
             ]
 
-        default_values_to_sql_str = [
-            to_sql(value, datatype)
-            for value, datatype in zip(default_values, input_types_for_default_args)
-        ]
+        if num_optional_args != 0:
+            default_values_to_sql_str = [
+                to_sql(value, datatype)
+                for value, datatype in zip(default_values, input_types_for_default_args)
+            ]
+        else:
+            default_values_to_sql_str = []
         return [None] * num_positional_args + default_values_to_sql_str
 
     def get_opt_arg_defaults_from_callable():
@@ -441,8 +449,6 @@ def get_opt_arg_defaults(
         elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
             default_values_str = retrieve_func_defaults_from_source(filename, func_name)
 
-        if default_values_str is None:
-            return EMPTY_DEFAULT_VALUES
         return build_default_values_result(default_values_str, input_types, True)
 
     try:
@@ -980,12 +986,26 @@ def add_snowpark_package_to_sproc_packages(
     if packages is None:
         if session is None:
             packages = [this_package]
-        elif package_name not in session._packages:
-            packages = list(session._packages.values()) + [this_package]
-    else:
-        package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
-        if not any(p.startswith(package_name) for p in package_names):
-            packages.append(this_package)
+        else:
+            with session._package_lock:
+                if package_name not in session._packages:
+                    packages = list(session._packages.values()) + [this_package]
+        return packages
+
+    return add_package_to_existing_packages(packages, package_name, this_package)
+
+
+def add_package_to_existing_packages(
+    packages: Optional[List[Union[str, ModuleType]]],
+    package: Union[str, ModuleType],
+    package_spec: Optional[str] = None,
+) -> List[Union[str, ModuleType]]:
+    if packages is None:
+        return [package]
+    package_name = package if isinstance(package, str) else package.__name__
+    package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
+    if not any(p.startswith(package_name) for p in package_names):
+        packages.append(package_spec or package)
     return packages
 
 
@@ -1234,11 +1254,10 @@ def create_python_udf_or_sp(
     statement_params: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
+    copy_grants: bool = False,
+    runtime_version: Optional[str] = None,
 ) -> None:
-    if session is not None and session._runtime_version_from_requirement:
-        runtime_version = session._runtime_version_from_requirement
-    else:
-        runtime_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
@@ -1327,6 +1346,7 @@ $$
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
 {"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
+{" COPY GRANTS " if copy_grants else ""}
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 {mutability}
@@ -1377,7 +1397,7 @@ def generate_anonymous_python_sp_sql(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
-):
+) -> str:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
         if not runtime_version

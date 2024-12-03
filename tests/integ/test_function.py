@@ -126,6 +126,8 @@ from snowflake.snowpark.functions import (
     regexp_replace,
     reverse,
     sequence,
+    size,
+    snowflake_cortex_summarize,
     split,
     sqrt,
     startswith,
@@ -1112,8 +1114,9 @@ def test_as_negative(session):
     assert "'AS_DECIMAL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
+        # as_number is an alias to as_decimal.
         td.select(as_number(["a"])).collect()
-    assert "'AS_NUMBER' expected Column or str, got: <class 'list'>" in str(ex_info)
+    assert "'AS_DECIMAL' expected Column or str, got: <class 'list'>" in str(ex_info)
 
     with pytest.raises(TypeError) as ex_info:
         td.select(as_double(["a"])).collect()
@@ -1198,7 +1201,7 @@ def test_as_negative(session):
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_number("a")).collect()
     assert (
-        "invalid type [VARCHAR(5)] for parameter 'AS_NUMBER(variantValue...)'"
+        "invalid type [VARCHAR(5)] for parameter 'AS_DECIMAL(variantValue...)'"
         in str(ex_info)
     )
 
@@ -1208,13 +1211,13 @@ def test_as_negative(session):
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_number(col("decimal1"), -1)).collect()
-    assert "invalid value [-1] for parameter 'AS_NUMBER(?, precision...)'" in str(
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, precision...)'" in str(
         ex_info
     )
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.variant1(session).select(as_number(col("decimal1"), 6, -1)).collect()
-    assert "invalid value [-1] for parameter 'AS_NUMBER(?, ?, scale)'" in str(ex_info)
+    assert "invalid value [-1] for parameter 'AS_DECIMAL(?, ?, scale)'" in str(ex_info)
 
     with pytest.raises(SnowparkSQLException) as ex_info:
         td.select(as_double("a")).collect()
@@ -1740,6 +1743,11 @@ def test_array_negative(session):
         df.select(array_size([1])).collect()
     assert "'ARRAY_SIZE' expected Column or str, got: <class 'list'>" in str(ex_info)
 
+    with pytest.raises(
+        TypeError, match="'SIZE' expected Column or str, got: <class 'list'>"
+    ):
+        df.select(size([1])).collect()
+
     with pytest.raises(TypeError) as ex_info:
         df.select(array_slice([1], "col1", "col2")).collect()
     assert "'ARRAY_SLICE' expected Column or str, got: <class 'list'>" in str(ex_info)
@@ -1816,17 +1824,27 @@ def test_date_operations_negative(session):
 
 def test_date_add_date_sub(session):
     df = session.createDataFrame(
-        [("2019-01-23"), ("2019-06-24"), ("2019-09-20")], ["date"]
+        [
+            ("2019-01-23"),
+            ("2019-06-24"),
+            ("2019-09-20"),
+            (None),
+        ],
+        ["date"],
     )
     df = df.withColumn("date", to_date("date"))
-    res = df.withColumn("date", date_add("date", 4)).collect()
-    assert res[0].DATE == datetime.date(2019, 1, 27)
-    assert res[1].DATE == datetime.date(2019, 6, 28)
-    assert res[2].DATE == datetime.date(2019, 9, 24)
-    res = df.withColumn("date", date_sub("date", 4)).collect()
-    assert res[0].DATE == datetime.date(2019, 1, 19)
-    assert res[1].DATE == datetime.date(2019, 6, 20)
-    assert res[2].DATE == datetime.date(2019, 9, 16)
+    assert df.withColumn("date", date_add("date", 4)).collect() == [
+        Row(datetime.date(2019, 1, 27)),
+        Row(datetime.date(2019, 6, 28)),
+        Row(datetime.date(2019, 9, 24)),
+        Row(None),
+    ]
+    assert df.withColumn("date", date_sub("date", 4)).collect() == [
+        Row(datetime.date(2019, 1, 19)),
+        Row(datetime.date(2019, 6, 20)),
+        Row(datetime.date(2019, 9, 16)),
+        Row(None),
+    ]
 
 
 @pytest.mark.skipif(
@@ -2248,3 +2266,39 @@ def test_ln(session):
     df = session.create_dataframe([[e]], schema=["ln_value"])
     res = df.select(ln(col("ln_value")).alias("result")).collect()
     assert res[0][0] == 1.0
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: snowflake_cortex functions not supported",
+)
+@pytest.mark.skip("SNOW-1758914 snowflake.cortex.summarize error on GCP")
+def test_snowflake_cortex_summarize(session):
+    content = """In Snowpark, the main way in which you query and process data is through a DataFrame. This topic explains how to work with DataFrames.
+
+To retrieve and manipulate data, you use the DataFrame class. A DataFrame represents a relational dataset that is evaluated lazily: it only executes when a specific action is triggered. In a sense, a DataFrame is like a query that needs to be evaluated in order to retrieve data.
+
+To retrieve data into a DataFrame:
+
+Construct a DataFrame, specifying the source of the data for the dataset.
+
+For example, you can create a DataFrame to hold data from a table, an external CSV file, from local data, or the execution of a SQL statement.
+
+Specify how the dataset in the DataFrame should be transformed.
+
+For example, you can specify which columns should be selected, how the rows should be filtered, how the results should be sorted and grouped, etc.
+
+Execute the statement to retrieve the data into the DataFrame.
+
+In order to retrieve the data into the DataFrame, you must invoke a method that performs an action (for example, the collect() method).
+
+The next sections explain these steps in more detail.
+"""
+    df = session.create_dataframe([[content]], schema=["content"])
+    summary_from_col = df.select(snowflake_cortex_summarize(col("content"))).collect()[
+        0
+    ][0]
+    summary_from_str = df.select(snowflake_cortex_summarize(content)).collect()[0][0]
+    # this length check is to get around the fact that this function may not be deterministic
+    assert 0 < len(summary_from_col) < len(content)
+    assert 0 < len(summary_from_str) < len(content)

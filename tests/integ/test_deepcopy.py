@@ -380,3 +380,34 @@ def test_deep_nested_select(session):
         check_copied_plan(copied_plan, df._plan, skip_attribute=True)
     finally:
         Utils.drop_table(session, temp_table_name)
+
+
+@pytest.mark.parametrize(
+    "generator",
+    [
+        lambda session_: session_.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]),
+        lambda session_: session_.sql("select 1 as a, 2 as b"),
+    ],
+)
+def test_deepcopy_no_duplicate(session, generator):
+    base_df = generator(session)
+    df1 = base_df.select(base_df.a, base_df.b.alias("c")).sort("a")
+    df2 = base_df.filter(col("a") == 1).with_column("C", col("A") + col("B"))
+    final_df = df1.union_all(df2.select("a", "c"))
+
+    copied_plan = copy.deepcopy(final_df._plan)
+    check_copied_plan(copied_plan, final_df._plan)
+
+    def traverse_plan(plan, plan_id_map):
+        plan_memo = id(plan)
+
+        local_deepcopy_memo = {}
+        first_deepcopy = copy.deepcopy(plan, local_deepcopy_memo)
+        second_deepcopy = copy.deepcopy(plan, local_deepcopy_memo)
+        assert plan_memo in local_deepcopy_memo
+        assert first_deepcopy is second_deepcopy
+
+        for child in plan.children_plan_nodes:
+            traverse_plan(child, plan_id_map)
+
+    traverse_plan(copied_plan, {})

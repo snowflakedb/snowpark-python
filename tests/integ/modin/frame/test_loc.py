@@ -811,7 +811,7 @@ def test_df_loc_set_series_row_key(row_key):
         else:
             df.loc[pd.Series(row_key), :] = pd.DataFrame(item)
 
-    expected_join_count = 4 if not row_key.dtype == bool else 2
+    expected_join_count = 3 if not row_key.dtype == bool else 2
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(pd.DataFrame(df), df, loc_set_helper, inplace=True)
@@ -851,7 +851,7 @@ def test_df_loc_set_boolean_row_indexer(row_key, col_key, item):
         df.loc[row_key, col_key] = item
 
     expected_join_count = (
-        6 if isinstance(col_key, str) and isinstance(item, list) else 1
+        4 if isinstance(col_key, str) and isinstance(item, list) else 1
     )
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
@@ -914,7 +914,7 @@ def test_df_loc_set_list_like_row_key(row_key, key_type):
     )
 
     expected_join_count = (
-        2 if all(isinstance(i, bool) for i in row_key) and len(row_key) > 0 else 4
+        2 if all(isinstance(i, bool) for i in row_key) and len(row_key) > 0 else 3
     )
 
     # test case for df.loc[row_key] = item
@@ -973,7 +973,7 @@ def test_df_loc_set_list_like_row_key(row_key, key_type):
         )
 
 
-@sql_count_checker(query_count=2, join_count=8)
+@sql_count_checker(query_count=2, join_count=6)
 def test_df_loc_set_series_and_list_like_row_key_negative(key_type):
     # This test verifies pandas raise ValueError when row key is out-of-bounds but Snowpandas pandas will ignore the
     # out-of-bound index
@@ -1144,7 +1144,7 @@ def test_df_loc_set_general_col_key_type(row_key, col_key, key_type):
 
     query_count, join_count = 1, 2
     if not all(isinstance(rk_val, bool) for rk_val in row_key):
-        join_count += 2
+        join_count += 1
     if isinstance(col_key, native_pd.Series):
         query_count += 1
     with SqlCounter(query_count=query_count, join_count=join_count):
@@ -1220,7 +1220,7 @@ def test_df_loc_set_general_col_key_type_with_duplicate_columns(col_key, key_typ
         # otherwise, pandas raise ValueError: cannot reindex on an axis with duplicate labels
         or (df.columns.equals(df.columns.union(col_key)))
     ):
-        query_count, join_count, expect_exception = 1, 4, False
+        query_count, join_count, expect_exception = 1, 3, False
     if isinstance(col_key, native_pd.Series):
         query_count += 1
 
@@ -1301,7 +1301,7 @@ def test_df_loc_set_general_key_with_duplicate_rows(item, key_type):
         else:
             df.loc[row_key, :] = pd.DataFrame(item)
 
-    with SqlCounter(query_count=1, join_count=4):
+    with SqlCounter(query_count=1, join_count=3):
         if item.index.has_duplicates:
             # pandas fails to update duplicated rows with duplicated item
             with pytest.raises(
@@ -1322,7 +1322,7 @@ def test_df_loc_set_general_key_with_duplicate_rows(item, key_type):
             )
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 def test_df_loc_set_duplicate_cols_in_df_and_col_key():
     df = native_pd.DataFrame(
         [[1, 2, 3, 4], [4, 5, 6, 7], [7, 8, 9, 10]], columns=["D", "B", "B", "A"]
@@ -1922,7 +1922,7 @@ def test_df_loc_get_key_scalar(
 ):
     key = random.choice(range(0, len(default_index_native_df)))
     # squeeze and to_pandas triggers additional queries
-    with SqlCounter(query_count=2, join_count=3):
+    with SqlCounter(query_count=2, join_count=2):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -2696,7 +2696,7 @@ def test_empty_df_loc_set_series_and_list(native_item):
         else native_item
     )
 
-    expected_join_count = 2 if isinstance(native_item, native_pd.Series) else 4
+    expected_join_count = 2 if isinstance(native_item, native_pd.Series) else 3
 
     def setitem_op(df):
         item = native_item if isinstance(df, native_pd.DataFrame) else snow_item
@@ -2761,7 +2761,7 @@ def test_df_loc_set_key_slice(
         else:
             df.loc[key] = native_item_df
 
-    expected_join_count = 1 if key == slice(None, None, None) else 4
+    expected_join_count = 1 if key == slice(None, None, None) else 3
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(snow_df, native_df, set_loc_helper, inplace=True)
 
@@ -3010,7 +3010,7 @@ def test_df_loc_set_with_column_wise_list_like_item(
                 len(row_key) - len(native_item)
             )
 
-    expected_join_count = 4 if len(item) > 1 else 2
+    expected_join_count = 3 if len(item) > 1 else 2
     # 4 extra queries for index, 1 for converting to native pandas in loc_set_helper, 2 for iter and 1 for tolist
     with SqlCounter(
         query_count=5 if item_type_name == "index" else 1,
@@ -3202,7 +3202,7 @@ def test_df_loc_set_boolean_series_with_non_default_index_key_and_scalar_item():
         ["duplicate", [1, 1, 2, 3]],
     ],
 )
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 def test_df_loc_set_duplicate_index(
     self_index_type, self_index_val, index, columns, item
 ):
@@ -3340,7 +3340,7 @@ def test_df_loc_set_item_2d_array(indexer, item_type):
         else:
             df.loc[snow_indexers] = item
 
-    expected_join_count = 4
+    expected_join_count = 3
     if isinstance(indexer[0], slice):
         expected_join_count = 1
 
@@ -3440,7 +3440,7 @@ def test_df_loc_set_item_2d_array_row_length_no_match():
         else:
             df.loc[["z", "y"], :] = val
 
-    with SqlCounter(query_count=1, join_count=4):
+    with SqlCounter(query_count=1, join_count=3):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -3460,7 +3460,7 @@ def test_df_loc_set_item_2d_array_row_length_no_match():
     def loc_helper(df):
         df.loc[["x", "y"], :] = val[:-2]
 
-    with SqlCounter(query_count=1, join_count=4):
+    with SqlCounter(query_count=1, join_count=3):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -3487,7 +3487,7 @@ def test_df_loc_set_item_2d_array_row_length_no_match():
         else:
             snow_df.loc[["x", "y", "z", "w"], :] = val[:2]
 
-    with SqlCounter(query_count=1, join_count=4):
+    with SqlCounter(query_count=1, join_count=3):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -4073,7 +4073,7 @@ def test_df_loc_get_with_timedelta_and_none_key():
     assert_frame_equal(snow_df.loc[None], expected_df, check_column_type=False)
 
 
-@sql_count_checker(query_count=2, join_count=6)
+@sql_count_checker(query_count=2, join_count=4)
 @pytest.mark.parametrize("index", [list("ABC"), [0, 1, 2]])
 def test_df_loc_set_row_from_series(index):
     native_df = native_pd.DataFrame([[1, 2, 3], [4, 5, 6]], columns=list("ABC"))
@@ -4219,9 +4219,9 @@ def test_df_loc_set_series_value(key, convert_key_to_series, row_loc):
     key_sorted = key == list("ABC")
     if row_loc is not None:
         if convert_key_to_series:
-            join_count = 9
-        else:
             join_count = 6
+        else:
+            join_count = 4
     else:
         if convert_key_to_series:
             join_count = 3
@@ -4278,7 +4278,7 @@ def test_df_loc_set_series_value_slice_key(key, row_loc):
     snow_df = pd.DataFrame(native_df)
     query_count = 2
     if row_loc is not None:
-        join_count = 6
+        join_count = 4
     else:
         join_count = 1
 
@@ -4306,3 +4306,31 @@ def test_df_loc_set_series_value_slice_key(key, row_loc):
             snow_df.loc[row_loc, key] = pd.Series([1, 4, 9], index=list("ABC"))
             native_df.loc[row_loc, key] = native_pd.Series([1, 4, 9], index=list("ABC"))
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
+
+
+@sql_count_checker(query_count=3)
+def test_fix_1829928():
+    vars = [
+        -0.974507,
+        0.407267,
+        -0.035405,
+        0.578839,
+        0.286799,
+        1.096326,
+        -1.911032,
+        0.583056,
+        0.244446,
+        0.118878,
+    ]
+    targets = [1, 0, 0, 1, 0, 1, 0, 1, 1, 0]
+    native_df = native_pd.DataFrame(data={"Variable A": vars, "target": targets})
+
+    df = pd.DataFrame(native_df)
+
+    native_df.loc[:, "test"] = native_pd.qcut(
+        native_df["Variable A"], 10, labels=False, duplicates="drop"
+    )
+
+    df.loc[:, "test"] = pd.qcut(df["Variable A"], 10, labels=False, duplicates="drop")
+
+    assert_frame_equal(df, native_df, check_dtype=False)
