@@ -22,6 +22,7 @@ from dateutil.tz import tzlocal
 from snowflake.snowpark._internal.ast.utils import (
     ClearTempTables,
     base64_lines_to_textproto,
+    clear_line_no_in_request,
     textproto_to_request,
 )
 from snowflake.snowpark._internal.utils import global_counter
@@ -188,6 +189,7 @@ def test_ast(session, tables, test_case):
     actual, base64_str = run_test(
         session, tables, test_case.filename.replace(".", "_"), test_case.source
     )
+
     if pytest.update_expectations:
         assert pytest.unparser_jar, (
             "Can only update expectations with unparser jar set. Either run the test with --unparser-jar=<path> or"
@@ -223,6 +225,12 @@ def test_ast(session, tables, test_case):
             # Similarly, for create_dataframe with temporary tables clear them as they may differ from session to session.
             ClearTempTables(actual_message)
             ClearTempTables(expected_message)
+
+            # If this is not python 3.11+, then for the purposes of the expectation tests we will ignore the line_no
+            # information since it can be different based on various python bug fixes.
+            if sys.version_info.minor <= 10:
+                clear_line_no_in_request(actual_message)
+                clear_line_no_in_request(expected_message)
 
             det_actual_message = actual_message.SerializeToString(deterministic=True)
             det_expected_message = expected_message.SerializeToString(
