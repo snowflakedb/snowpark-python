@@ -195,7 +195,6 @@ def run_test(session, tables):
 def compare_base64_results(
     actual_message: proto.Request,
     expected_message: proto.Request,
-    serialize_to_string: bool = True,
     exclude_symbols_and_src: bool = False,
 ):
     """
@@ -207,8 +206,6 @@ def compare_base64_results(
         The actual protobuf message.
     expected_message : proto.Request
         The expected protobuf message.
-    serialize_to_string : bool
-        If True, serialize the messages to string before comparison.
     exclude_symbols_and_src : bool
         If True, do not compare symbols and src information in the messages.
 
