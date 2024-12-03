@@ -5103,8 +5103,8 @@ class DataFrame(BasePandasDataset):
 
         See more about the protocol in https://data-apis.org/dataframe-protocol/latest/index.html.
 
-        Like `DataFrame.to_pandas`, this method collects all this dataframe's
-        data.
+        Like `DataFrame.to_pandas`, this method this methods triggers a query
+        evaluation and pulls data to the local machine.
 
         Parameters
         ----------
