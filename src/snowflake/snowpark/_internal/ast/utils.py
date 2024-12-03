@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 import dateutil
 from dateutil.tz import tzlocal
 from google.protobuf.text_format import MessageToString, Parse
+from google.protobuf.message import Message
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -1494,3 +1495,27 @@ def base64_lines_to_textproto(base64_str: str) -> str:
 def textproto_to_request(textproto_str: str) -> proto.Request:
     request = Parse(textproto_str, proto.Request())
     return request
+
+
+def clear_line_no_in_ast(ast: Any) -> None:
+    """Clear any 'src' information in the statement body."""
+    if isinstance(ast, Iterable) and not isinstance(ast, str):
+        for c in ast:
+            clear_line_no_in_ast(c)
+    elif hasattr(ast, "DESCRIPTOR"):
+        if hasattr(ast, "src"):
+            ast.ClearField("src")  # type: ignore[union-attr]
+
+        for f in ast.DESCRIPTOR.fields:
+            c = getattr(ast, f.name)
+            if (isinstance(c, Iterable) and not isinstance(c, str) and len(c) > 0) or (  # type: ignore[arg-type]
+                isinstance(c, Message) and c.ByteSize() > 0
+            ):
+                clear_line_no_in_ast(c)
+
+
+def clear_line_no_in_request(request: proto.Request) -> None:
+    """There are inconsistencies in the frame_info.line_no depending on the python version, this seems to be due to
+    fixes in determining better line_no info for chained python code, etc."""
+    for stmt in request.body:
+        clear_line_no_in_ast(stmt)
