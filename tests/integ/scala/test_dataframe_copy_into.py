@@ -30,7 +30,6 @@ from tests.utils import (
     TestFiles,
     Utils,
     iceberg_supported,
-    running_on_public_ci,
 )
 
 test_file_csv = "testCSV.csv"
@@ -978,12 +977,16 @@ def test_copy_non_csv_transformation(
                     C="a",
                     D=datetime.date(2022, 4, 1),
                     T=datetime.time(11, 11, 11),
-                    TS_NTZ=datetime.datetime(2022, 4, 1, 4, 11, 11)
-                    if not running_on_public_ci()
-                    else datetime.datetime(2022, 4, 1, 11, 11, 11),
-                    TS=datetime.datetime(2022, 4, 1, 4, 11, 11)
-                    if not running_on_public_ci()
-                    else datetime.datetime(2022, 4, 1, 11, 11, 11),
+                    TS_NTZ=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
+                    )
+                    .astimezone()
+                    .replace(tzinfo=None),
+                    TS=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
+                    )
+                    .astimezone()
+                    .replace(tzinfo=None),
                     V='{"key":"value"}',
                 )
             ],
