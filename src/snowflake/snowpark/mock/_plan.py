@@ -135,6 +135,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateViewCommand,
     Pivot,
     Sample,
+    Project,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import (
@@ -1289,6 +1290,8 @@ def execute_mock_plan(
             dtype=object,
         )
         return result_df
+    if isinstance(source_plan, Project):
+        return TableEmulator(ColumnEmulator(col) for col in source_plan.project_list)
     if isinstance(source_plan, Join):
         L_expr_to_alias = {}
         R_expr_to_alias = {}

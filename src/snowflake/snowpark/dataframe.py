@@ -1241,10 +1241,21 @@ class DataFrame:
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
         import modin.pandas as pd  # isort: skip
         # fmt: on
+
+        # AST.
         if _emit_ast:
-            raise NotImplementedError(
-                "TODO SNOW-1672579: Support Snowpark pandas API handover."
-            )
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.pd_to_snowpark_pandas, stmt)
+            debug_check_missing_ast(self._ast_id, self)
+            if index_col is not None:
+                ast.index_col.list.extend(
+                    index_col if isinstance(index_col, list) else [index_col]
+                )
+            if columns is not None:
+                ast.columns.list.extend(
+                    columns if isinstance(columns, list) else [columns]
+                )
+
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
             TempObjectType.TABLE
@@ -1256,6 +1267,9 @@ class DataFrame:
         snowpandas_df = pd.read_snowflake(
             name_or_query=temporary_table_name, index_col=index_col, columns=columns
         )  # pragma: no cover
+
+        if _emit_ast:
+            snowpandas_df._ast_id = stmt.var_id.bitfield1
 
         return snowpandas_df
 
