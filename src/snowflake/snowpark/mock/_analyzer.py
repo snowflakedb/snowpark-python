@@ -828,7 +828,10 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Project):
-            return logical_plan
+            return MockExecutionPlan(
+                logical_plan,
+                self.session,
+            )
 
         if isinstance(logical_plan, Filter):
             return logical_plan
@@ -893,6 +896,9 @@ class MockAnalyzer:
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
+            return MockExecutionPlan(logical_plan, self.session)
+
+        if isinstance(logical_plan, SnowflakePlan):
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Limit):
