@@ -226,9 +226,9 @@ def test_ast(session, tables, test_case):
             ClearTempTables(actual_message)
             ClearTempTables(expected_message)
 
-            # If this is not python 3.9, then for the purposes of the expectation tests we will ignore the line_no
+            # If this is not python 3.11+, then for the purposes of the expectation tests we will ignore the line_no
             # information since it can be different based on various python bug fixes.
-            if sys.version_info.major != 3 or sys.version_info.minor != 11:
+            if sys.version_info.major != 3 or sys.version_info.minor <= 10:
                 clear_line_no_in_request(actual_message)
                 clear_line_no_in_request(expected_message)
 

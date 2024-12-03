@@ -1516,7 +1516,6 @@ def clear_line_no_in_ast(ast: Any) -> None:
 
 def clear_line_no_in_request(request: proto.Request) -> None:
     """There are inconsistencies in the frame_info.line_no depending on the python version, this seems to be due to
-    fixes in determining better line_no info for chained python code, etc.  We will only record line_no info for
-    python 3.9 during test validation and exclude otherwise."""
+    fixes in determining better line_no info for chained python code, etc."""
     for stmt in request.body:
         clear_line_no_in_ast(stmt)
