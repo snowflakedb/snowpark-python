@@ -311,6 +311,17 @@ def get_snowflake_plan_queries(
 
     plan_queries = plan.queries
     post_action_queries = plan.post_actions
+    # If the plan has referenced ctes, we need to add the cte definition before
+    # the final query. This is done for all source plan except for the following
+    # cases:
+    # - SnowflakeCreateTable
+    # - CreateViewCommand
+    # - TableUpdate
+    # - TableDelete
+    # - TableMerge
+    # - CopyIntoLocationNode
+    # because the generated_queries by QueryGenerator for these nodes already include the cte
+    # definition. Adding the cte definition before the query again will cause a syntax error.
     if len(plan.referenced_ctes) > 0 and not isinstance(
         plan.source_plan,
         (
