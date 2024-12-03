@@ -8,6 +8,8 @@ All generated AST should be tested using this mechanism. To add a test, create a
 
 N.B. No eager evaluation is permitted, as any intermediate batches will not be observed. This can easily be changed if necessary, however.
 
+The src line no information is only captured when run with python 3.11+ because of bug fix/differences in frame line no across earlier python versions.
+
 ```python
 ## TEST CASE
 
