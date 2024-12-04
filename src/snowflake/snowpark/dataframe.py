@@ -1277,7 +1277,10 @@ class DataFrame:
         )  # pragma: no cover
 
         if _emit_ast:
-            snowpandas_df._ast_id = stmt.var_id.bitfield1
+            # Set the Snowpark DataFrame AST ID to the AST ID of this pandas query.
+            snowpandas_df._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe._ast_id = (
+                stmt.var_id.bitfield1
+            )
 
         return snowpandas_df
 

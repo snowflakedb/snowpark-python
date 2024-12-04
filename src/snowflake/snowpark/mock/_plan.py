@@ -1462,7 +1462,7 @@ def execute_mock_plan(
             entity_registry.write_table(
                 obj_name,
                 TableEmulator({"A": [1], "B": [1], "C": [1]}),
-                SaveMode.OVERWRITE,
+                SaveMode.IGNORE,
             )
             return entity_registry.read_table_if_exists(obj_name)
 
