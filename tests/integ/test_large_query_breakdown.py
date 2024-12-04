@@ -705,6 +705,9 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
                 assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
 @pytest.mark.parametrize("error_type", [AssertionError, ValueError, RuntimeError])
 @patch("snowflake.snowpark._internal.compiler.plan_compiler.LargeQueryBreakdown.apply")
 def test_optimization_skipped_with_exceptions(
