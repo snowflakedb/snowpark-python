@@ -31,6 +31,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
+from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeDataframe
 from modin.pandas.api.extensions import register_dataframe_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
@@ -729,40 +730,9 @@ def _df_init_list_data_with_snowpark_pandas_values(
 
 
 @register_dataframe_accessor("__dataframe__")
-def __dataframe__(self, nan_as_null: bool = False, allow_copy: bool = True):
-    """
-    Get a Modin DataFrame that implements the dataframe exchange protocol.
-
-    See more about the protocol in https://data-apis.org/dataframe-protocol/latest/index.html.
-
-    Parameters
-    ----------
-    nan_as_null : bool, default: False
-        A keyword intended for the consumer to tell the producer
-        to overwrite null values in the data with ``NaN`` (or ``NaT``).
-        This currently has no effect; once support for nullable extension
-        dtypes is added, this value should be propagated to columns.
-    allow_copy : bool, default: True
-        A keyword that defines whether or not the library is allowed
-        to make a copy of the data. For example, copying data would be necessary
-        if a library supports strided buffers, given that this protocol
-        specifies contiguous buffers. Currently, if the flag is set to ``False``
-        and a copy is needed, a ``RuntimeError`` will be raised.
-
-    Returns
-    -------
-    ProtocolDataframe
-        A dataframe object following the dataframe protocol specification.
-    """
-    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    ErrorMessage.not_implemented(
-        "Snowpark pandas does not support the DataFrame interchange "
-        + "protocol method `__dataframe__`. To use Snowpark pandas "
-        + "DataFrames with third-party libraries that try to call the "
-        + "`__dataframe__` method, please convert this Snowpark pandas "
-        + "DataFrame to pandas with `to_pandas()`."
-    )
-
+def __dataframe__(
+    self, nan_as_null: bool = False, allow_copy: bool = True
+) -> InterchangeDataframe:
     return self._query_compiler.to_dataframe(
         nan_as_null=nan_as_null, allow_copy=allow_copy
     )
