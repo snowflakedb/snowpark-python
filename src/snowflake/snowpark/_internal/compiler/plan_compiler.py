@@ -179,6 +179,12 @@ class PlanCompiler:
             except Exception as e:
                 # if any error occurs during the compilation, we should fall back to the original plan
                 _logger.debug(f"Skipping optimization due to error: {e}")
+                session._conn._telemetry_client.send_query_compilation_stage_failed_telemetry(
+                    session_id=session.session_id,
+                    plan_uuid=self._plan.uuid,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
                 pass
 
         return self.replace_temp_obj_placeholders(queries)
