@@ -5099,9 +5099,19 @@ class DataFrame(BasePandasDataset):
 
     def __dataframe__():
         """
-        Get a Modin DataFrame that implements the dataframe exchange protocol.
+        Get an object that implements the dataframe interchange protocol for this dataframe.
 
         See more about the protocol in https://data-apis.org/dataframe-protocol/latest/index.html.
+
+        Like `DataFrame.to_pandas`, this method this methods triggers a query
+        evaluation and pulls data to the local machine.
+
+        If this dataframe has columns of `Timedelta` type or columns containing
+        list objects, the interchange dataframe that this method returns will
+        raise `NotImplementedError` if you try to check those columns'
+        datatypes, to e.g. convert the interchange dataframe to pandas with
+        `pandas.api.interchange.from_dataframe`. This limitation comes from
+        pandas itself.
 
         Parameters
         ----------
