@@ -68,6 +68,8 @@
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
 - Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
 - Added support for `np.sqrt`, `np.trunc`, `np.floor`, numpy trig functions, `np.exp`, `np.abs`, `np.positive` and `np.negative`.
+- Added partial support for the dataframe interchange protocol method
+  `DataFrame.__dataframe__()`.
 
 #### Dependency Updates
 
