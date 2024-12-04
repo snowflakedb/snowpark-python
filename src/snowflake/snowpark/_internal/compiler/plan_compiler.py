@@ -88,8 +88,8 @@ class PlanCompiler:
         }
 
         if self.should_start_query_compilation():
+            session = self._plan.session
             try:
-                session = self._plan.session
                 # preparation for compilation
                 # 1. make a copy of the original plan
                 start_time = time.time()
