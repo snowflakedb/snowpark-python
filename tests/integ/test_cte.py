@@ -1005,6 +1005,17 @@ def test_time_series_aggregation_grouping(session, enable_sql_simplifier):
         session.sql_simplifier_enabled = original_sql_simplifier_enabled
 
 
+def test_table_select_cte(session):
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df.write.save_as_table(table_name, table_type="temp")
+    df = session.table(table_name)
+    new_df = df.with_column("add_one", col("a") + 1).union(
+        df.with_column("add_two", col("a") + 2)
+    )
+    new_df.show()
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
