@@ -560,7 +560,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
-            referenced_ctes=child.referenced_ctes
+            referenced_ctes=child.referenced_ctes,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
