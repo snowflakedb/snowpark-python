@@ -705,6 +705,19 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
                 assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
 
 
+@patch("snowflake.snowpark._internal.compiler.plan_compiler.LargeQueryBreakdown.apply")
+def test_optimization_skipped_with_exceptions(mock_lqb_apply, large_query_df, caplog):
+    """Test large query breakdown is skipped when there are exceptions"""
+    caplog.clear()
+    mock_lqb_apply.side_effect = Exception("test exception")
+    with caplog.at_level(logging.DEBUG):
+        queries = large_query_df.queries
+
+    assert "Skipping optimization due to error: test exception" in caplog.text
+    assert len(queries["queries"]) == 1
+    assert len(queries["post_actions"]) == 0
+
+
 def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     """Test complexity bounds affect number of partitions.
     Also test that when partitions are added, drop table queries are added.
