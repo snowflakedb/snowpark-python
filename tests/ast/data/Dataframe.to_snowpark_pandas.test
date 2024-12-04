@@ -1,75 +1,44 @@
 ## TEST CASE
 
-df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
-
+df = session.table(tables.table1)
 snowpark_pandas_df = df.to_snowpark_pandas()
 
-snowpark_pandas_df = df.to_snowpark_pandas(index_col='A')
+snowpark_pandas_df = df.to_snowpark_pandas(index_col="A")
 
-snowpark_pandas_df = df.to_snowpark_pandas(index_col='A', columns=['B'])
+snowpark_pandas_df = df.to_snowpark_pandas(columns=["B", "A"])
 
-snowpark_pandas_df = df.to_snowpark_pandas(index_col=['B', 'A'], columns=['A', 'C', 'A'])
+snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"], columns=["C", "B"])
 
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.create_dataframe([[1, 2, 3]], schema=["a", "b", "c"])
+df = session.table("table1")
+
+snowpark_pandas_df = df.to_snowpark_pandas()
+
+snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"])
+
+snowpark_pandas_df = df.to_snowpark_pandas(columns=["B", "A"])
+
+snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"], columns=["C", "B"])
 
 ## EXPECTED ENCODED AST
 
 body {
   assign {
     expr {
-      sp_create_dataframe {
-        data {
-          sp_dataframe_data__list {
-            vs {
-              list_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 25
-                }
-                vs {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 25
-                    }
-                    v: 1
-                  }
-                }
-                vs {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 25
-                    }
-                    v: 2
-                  }
-                }
-                vs {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 25
-                    }
-                    v: 3
-                  }
-                }
-              }
-            }
-          }
-        }
-        schema {
-          sp_dataframe_schema__list {
-            vs: "a"
-            vs: "b"
-            vs: "c"
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 25
+        }
+        variant {
+          sp_session_table: true
         }
       }
     }
@@ -79,6 +48,124 @@ body {
     uid: 1
     var_id {
       bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      pd_to_snowpark_pandas {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 26
+        }
+      }
+    }
+    symbol {
+      value: "snowpark_pandas_df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      pd_to_snowpark_pandas {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        index_col {
+          list: "A"
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 28
+        }
+      }
+    }
+    symbol {
+      value: "snowpark_pandas_df"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      pd_to_snowpark_pandas {
+        columns {
+          list: "B"
+          list: "A"
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 30
+        }
+      }
+    }
+    symbol {
+      value: "snowpark_pandas_df"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      pd_to_snowpark_pandas {
+        columns {
+          list: "C"
+          list: "B"
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        index_col {
+          list: "A"
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+      value: "snowpark_pandas_df"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
     }
   }
 }

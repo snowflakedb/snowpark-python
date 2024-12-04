@@ -1453,6 +1453,19 @@ def execute_mock_plan(
 
         obj_name_tuple = parse_table_name(entity_name)
         obj_name = obj_name_tuple[-1]
+
+        # Logic to create a read-only temp table for AST testing purposes.
+        # Functions like to_snowpark_pandas create a clone of an existing table as a read-only table that is referenced
+        # during testing.
+        if "SNOWPARK_TEMP_TABLE" in obj_name and "READONLY" in obj_name:
+            # Create the read-only temp table.
+            entity_registry.write_table(
+                obj_name,
+                TableEmulator({"A": [1], "B": [1], "C": [1]}),
+                SaveMode.OVERWRITE,
+            )
+            return entity_registry.read_table_if_exists(obj_name)
+
         obj_schema = (
             obj_name_tuple[-2]
             if len(obj_name_tuple) > 1
