@@ -289,12 +289,18 @@ def process_signature(app, what, name, obj, options, signature, return_annotatio
     names_to_remove = ['_emit_ast', '_ast']
 
     def remove_from_signature(signature, name_to_remove):
-        parts = [p for p in signature.split(',') if name_to_remove not in p]
-        signature = ','.join(parts)
-        # Fix up by adding ")" if last part contains "_emit_ast:bool=True)".
-        if not signature.endswith(')'):
-            signature += ")"
-        return signature
+        if name_to_remove not in signature:
+            return signature
+
+        if signature.startswith('(') and signature.endswith(')'):
+            # temporarily remove parentheses, add after removing name_to_remove parts.
+            signature = signature[1:-1]
+            parts = [p for p in signature.split(',') if name_to_remove not in p]
+            signature = ','.join(parts)
+
+            return '(' + signature + ')'
+        else:
+            return signature
 
     if signature and any(name_to_remove in signature for name_to_remove in ['_emit_ast', '_ast']):
         for name_to_remove in names_to_remove:
