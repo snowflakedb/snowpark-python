@@ -54,6 +54,7 @@
 
 #### Dependency Updates
 
+- Added a runtime dependency on `python-dateutil`.
 
 ### Snowpark pandas API Updates
 

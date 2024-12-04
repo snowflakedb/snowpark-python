@@ -7955,7 +7955,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         partition_expression = (
             snowpark_round(
                 col(row_position_snowflake_quoted_identifier)
-                / pandas_lit(partition_size)
+                / pandas_lit(partition_size),
+                _emit_ast=self._modin_frame.ordered_dataframe.session.ast_enabled,
             )
         ).as_(partition_identifier)
         udtf_dataframe = new_internal_df.ordered_dataframe.select(
