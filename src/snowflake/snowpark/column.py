@@ -1253,15 +1253,15 @@ class Column:
         ast_expr = None  # Snowpark IR expression
         if _emit_ast and self._ast is not None:
             ast_expr = proto.Expr()
-            ast = with_src_position(ast_expr.sp_column_aliasing)
+            ast = with_src_position(ast_expr.sp_column_alias)
             ast.col.CopyFrom(self._ast)
             ast.name = alias
             if variant == "as_":
-                ast.fn.sp_column_as = True
+                ast.fn.sp_column_alias_fn_as = True
             elif variant == "alias":
-                ast.fn.sp_column_alias = True
+                ast.fn.sp_column_alias_fn_alias = True
             elif variant == "name":
-                ast.fn.sp_column_name = True
+                ast.fn.sp_column_alias_fn_name = True
 
         return Column(
             Alias(expr, quote_name(alias)), _ast=ast_expr, _emit_ast=_emit_ast

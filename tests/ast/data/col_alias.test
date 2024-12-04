@@ -58,7 +58,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_aliasing {
+          sp_column_alias {
             col {
               apply_expr {
                 fn {
@@ -86,7 +86,7 @@ body {
               }
             }
             fn {
-              sp_column_as: true
+              sp_column_alias_fn_as: true
             }
             name: "test"
             src {
@@ -123,7 +123,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_aliasing {
+          sp_column_alias {
             col {
               apply_expr {
                 fn {
@@ -151,7 +151,7 @@ body {
               }
             }
             fn {
-              sp_column_alias: true
+              sp_column_alias_fn_alias: true
             }
             name: "test"
             src {
@@ -188,7 +188,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_aliasing {
+          sp_column_alias {
             col {
               apply_expr {
                 fn {
@@ -216,7 +216,7 @@ body {
               }
             }
             fn {
-              sp_column_name: true
+              sp_column_alias_fn_name: true
             }
             name: "test"
             src {
@@ -253,7 +253,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_aliasing {
+          sp_column_alias {
             col {
               add {
                 lhs {
@@ -298,7 +298,7 @@ body {
               }
             }
             fn {
-              sp_column_name: true
+              sp_column_alias_fn_name: true
             }
             name: "test"
             src {
