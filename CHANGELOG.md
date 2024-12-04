@@ -43,6 +43,7 @@
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
   - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
   - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
+- Relaxed the cloudpickle dependency for Python 3.11 to simplify build requirements. However, for Python 3.11, `cloudpickle==2.2.1` remains the only supported version.
 
 #### Bug Fixes
 
