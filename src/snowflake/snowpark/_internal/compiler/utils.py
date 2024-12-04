@@ -118,16 +118,6 @@ def replace_child(
     based on the parent node type.
     """
 
-    def to_selectable(plan: LogicalPlan, query_generator: QueryGenerator) -> Selectable:
-        """Given a LogicalPlan, convert it to a Selectable."""
-        if isinstance(plan, Selectable):
-            return plan
-
-        snowflake_plan = query_generator.resolve(plan)
-        selectable = SelectSnowflakePlan(snowflake_plan, analyzer=query_generator)
-        selectable._is_valid_for_replacement = snowflake_plan._is_valid_for_replacement
-        return selectable
-
     if not parent._is_valid_for_replacement:
         raise ValueError(f"parent node {parent} is not valid for replacement.")
 
@@ -145,13 +135,13 @@ def replace_child(
         replace_child(parent.source_plan, old_child, new_child, query_generator)
 
     elif isinstance(parent, SelectStatement):
-        parent.from_ = to_selectable(new_child, query_generator)
+        parent.from_ = query_generator.to_selectable(new_child)
         # once the subquery is updated, set _merge_projection_complexity_with_subquery to False to
         # disable the projection complexity merge
         parent._merge_projection_complexity_with_subquery = False
 
     elif isinstance(parent, SetStatement):
-        new_child_as_selectable = to_selectable(new_child, query_generator)
+        new_child_as_selectable = query_generator.to_selectable(new_child)
         parent._nodes = [
             node if node != old_child else new_child_as_selectable
             for node in parent._nodes
