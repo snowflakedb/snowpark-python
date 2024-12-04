@@ -115,6 +115,7 @@ def sql_simplifier_enabled(pytestconfig):
 
 @pytest.fixture(scope="session")
 def local_testing_mode(pytestconfig):
+    # SNOW-1845413 we have a default value here unlike other options to bypass test in stored procedure
     return pytestconfig.getoption("local_testing_mode", False)
 
 
