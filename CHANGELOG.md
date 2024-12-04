@@ -43,6 +43,7 @@
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
   - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
   - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
+- Relaxed the cloudpickle dependency for Python 3.11 to simplify build requirements. However, for Python 3.11, `cloudpickle==2.2.1` remains the only supported version.
 - Allow setting and reading custom properties in `session.conf`.
 
 #### Bug Fixes
@@ -51,7 +52,10 @@
   dynamic pivot is now generally available.
 - Fixed a bug in `session.read.options` where `False` Boolean values were incorrectly parsed as `True` in the generated file format.
 
+
 #### Dependency Updates
+
+- Added a runtime dependency on `python-dateutil`.
 
 ### Snowpark pandas API Updates
 
@@ -61,24 +65,30 @@
   `collections.abc.Mapping`. No support for instances of `dict` that implement
   `__missing__` but are not instances of `collections.defaultdict`.
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
-- Added support fot `pd.json_normalize`.
+- Added support for `pd.json_normalize`.
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
 - Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
+- Added support for `np.sqrt`, `np.trunc`, `np.floor`, numpy trig functions, `np.exp`, `np.abs`, `np.positive` and `np.negative`.
+- Added partial support for the dataframe interchange protocol method
+  `DataFrame.__dataframe__()`.
 
 #### Dependency Updates
 
 #### Bug Fixes
 - Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
-#### Improvements
-- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinal values
 
+#### Improvements
+- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinel values.
+- Improved documentation for pd.read_excel.
 
 ### Snowpark Local Testing Updates
 
 #### New Features
 
+
 #### Bug Fixes
+
 
 ## 1.25.0 (2024-11-14)
 
@@ -143,6 +153,8 @@
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
 - Improve get_dummies performance by flattening the pivot with join.
 - Improve align performance when aligning on row position column by removing unnecessary window functions.
+
+
 
 ### Snowpark Local Testing Updates
 
@@ -314,9 +326,10 @@
 - Fixed a bug where `row_number` could fail inside a Window function.
 - Fixed a bug where updates could fail when the source is the result of a join.
 
-## 1.22.1 (2024-09-11)
 
+## 1.22.1 (2024-09-11)
 This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
+
 
 ## 1.22.0 (2024-09-10)
 
@@ -338,18 +351,18 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
   - `change_tracking`
   - `copy_grants`
   - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
-    - `external_volume`
-    - `catalog`
-    - `base_location`
-    - `catalog_sync`
-    - `storage_serialization_policy`
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
 - Added support for specifying the following to `DataFrameWriter.copy_into_table`:
   - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
-    - `external_volume`
-    - `catalog`
-    - `base_location`
-    - `catalog_sync`
-    - `storage_serialization_policy`
+      - `external_volume`
+      - `catalog`
+      - `base_location`
+      - `catalog_sync`
+      - `storage_serialization_policy`
 - Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
   - `mode`
   - `refresh_mode`
@@ -449,6 +462,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
 - Fixed a bug where `Series.take` did not error when `axis=1` was specified.
 
+
 ## 1.21.1 (2024-09-05)
 
 ### Snowpark Python API Updates
@@ -534,9 +548,9 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added support for `Series.dt.floor` and `Series.dt.ceil`.
 - Added support for `Index.reindex`.
 - Added support for `DatetimeIndex` properties: `year`, `month`, `day`, `hour`, `minute`, `second`, `microsecond`,
-  `nanosecond`, `date`, `dayofyear`, `day_of_year`, `dayofweek`, `day_of_week`, `weekday`, `quarter`,
-  `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
-  and `is_leap_year`.
+    `nanosecond`, `date`, `dayofyear`, `day_of_year`, `dayofweek`, `day_of_week`, `weekday`, `quarter`,
+    `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
+    and `is_leap_year`.
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
 - Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 - Added support for `Index.argmax` and `Index.argmin`.
@@ -576,7 +590,6 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added a new optional parameter called `format_json` to the `Session.SessionBuilder.app_name` function that sets the app name in the `Session.query_tag` in JSON format. By default, this parameter is set to `False`.
 
 #### Bug Fixes
-
 - Fixed a bug where SQL generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
 
 ### Snowpark Local Testing Updates
@@ -593,14 +606,13 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
   - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
   - Added support for the `column_order` parameter to method `DataFrameWriter.save_as_table`.
 
-#### Bug Fixes
 
+#### Bug Fixes
 - Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExpressions.
 
 ### Snowpark pandas API Updates
 
 #### New Features
-
 - Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
 - Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
 - Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
@@ -628,17 +640,16 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added support for `Index.sort_values`.
 
 #### Bug Fixes
-
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
 - Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
 - Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 #### Improvements
-
 - Added support for `Index.copy()`
 - Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 - Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
+
 
 ## 1.19.0 (2024-06-25)
 
@@ -654,6 +665,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
 - Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
 - Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
+
 
 ### Snowpark Local Testing Updates
 
@@ -1062,13 +1074,11 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 - Fixed a bug in `DataFrame.na.fill` that caused Boolean values to erroneously override integer values.
 - Fixed a bug in `Session.create_dataframe` where the Snowpark DataFrames created using pandas DataFrames were not inferring the type for timestamp columns correctly. The behavior is as follows:
-
   - Earlier timestamp columns without a timezone would be converted to nanosecond epochs and inferred as `LongType()`, but will now be correctly maintained as timestamp values and be inferred as `TimestampType(TimestampTimeZone.NTZ)`.
   - Earlier timestamp columns with a timezone would be inferred as `TimestampType(TimestampTimeZone.NTZ)` and loose timezone information but will now be correctly inferred as `TimestampType(TimestampTimeZone.LTZ)` and timezone information is retained correctly.
   - Set session parameter `PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME` to revert back to old behavior. It is recommended that you update your code to align with correct behavior because the parameter will be removed in the future.
 - Fixed a bug that `DataFrame.to_pandas` gets decimal type when scale is not 0, and creates an object dtype in `pandas`. Instead, we cast the value to a float64 type.
 - Fixed bugs that wrongly flattened the generated SQL when one of the following happens:
-
   - `DataFrame.filter()` is called after `DataFrame.sort().limit()`.
   - `DataFrame.sort()` or `filter()` is called on a DataFrame that already has a window function or sequence-dependent data generator column.
     For instance, `df.select("a", seq1().alias("b")).select("a", "b").sort("a")` won't flatten the sort clause anymore.
@@ -1080,6 +1090,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
   df = copy(df)
   df.select(col("b").alias("c"))  # threw an error. Now it's fixed.
   ```
+
 - Fixed a bug in `Session.create_dataframe` that the non-nullable field in a schema is not respected for boolean type. Note that this fix is only effective when the user has the privilege to create a temp table.
 - Fixed a bug in SQL simplifier where non-select statements in `session.sql` dropped a SQL query when used with `limit()`.
 - Fixed a bug that raised an exception when session parameter `ERROR_ON_NONDETERMINISTIC_UPDATE` is true.
@@ -1106,6 +1117,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Add the `conn_error` attribute to `SnowflakeSQLException` that stores the whole underlying exception from `snowflake-connector-python`.
 - Added support for `RelationalGroupedDataframe.pivot()` to access `pivot` in the following pattern `Dataframe.group_by(...).pivot(...)`.
 - Added experimental feature: Local Testing Mode, which allows you to create and operate on Snowpark Python DataFrames locally without connecting to a Snowflake account. You can use the local testing framework to test your DataFrame operations locally, on your development machine or in a CI (continuous integration) pipeline, before deploying code changes to your account.
+
 - Added support for `arrays_to_object` new functions in `snowflake.snowpark.functions`.
 - Added support for the vector data type.
 
@@ -1157,7 +1169,6 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Revert back to using CTAS (create table as select) statement for `Dataframe.writer.save_as_table` which does not need insert permission for writing tables.
 
 ### New Features
-
 - Support `PythonObjJSONEncoder` json-serializable objects for `ARRAY` and `OBJECT` literals.
 
 ## 1.8.0 (2023-09-14)
@@ -1170,6 +1181,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added the property `DataFrame.session` to return a `Session` object.
 - Added the property `Session.session_id` to return an integer that represents session ID.
 - Added the property `Session.connection` to return a `SnowflakeConnection` object .
+
 - Added support for creating a Snowpark session from a configuration file or environment variables.
 
 ### Dependency updates
