@@ -73,10 +73,6 @@ html_theme_path = [
     "_themes",
 ]
 
-# Override default RTD css to get a larger width
-# def setup(app):
-#   app.add_stylesheet('theme_overrides.css')
-
 html_theme_options = {
     # 'analytics_id': 'UA-XXXXXXX-1',
 }
@@ -287,6 +283,30 @@ class ModinAutosummary(Autosummary):
             return list(map(process_modin_accessors, items))
         return items
 
+def process_signature(app, what, name, obj, options, signature, return_annotation):
+
+    # Names to remove from signature (AST related):
+    names_to_remove = ['_emit_ast', '_ast']
+
+    def remove_from_signature(signature, name_to_remove):
+        if name_to_remove not in signature:
+            return signature
+
+        if signature.startswith('(') and signature.endswith(')'):
+            # temporarily remove parentheses, add after removing name_to_remove parts.
+            signature = signature[1:-1]
+            parts = [p for p in signature.split(',') if name_to_remove not in p]
+            signature = ','.join(parts)
+
+            return f'({signature})'
+        else:
+            return signature
+
+    if signature:
+        for name_to_remove in names_to_remove:
+            signature = remove_from_signature(signature, name_to_remove)
+
+    return (signature, return_annotation)
 
 def setup(app):
     # Make sure modin.pandas namespace is properly set up
@@ -300,7 +320,7 @@ def setup(app):
     # WARNING: [autosummary] failed to import modin.pandas.Series.str.slice.
     # Possible hints:
     # * AttributeError: 'property' object has no attribute 'slice'
-    # * ImportError: 
+    # * ImportError:
     # * ModuleNotFoundError: No module named 'modin.pandas.Series'
     #
     # Because we're replacing the `property` object, we also need to set the __doc__ of the new
@@ -322,6 +342,10 @@ def setup(app):
     app.add_autodocumenter(ModinAccessorMethodDocumenter)
     app.add_autodocumenter(ModinAccessorAttributeDocumenter)
     app.add_directive("autosummary", ModinAutosummary)
+
+    # For Snowpark IR, in phase0 a hidden parameter _emit_ast is introduced. Once phase1 completes,
+    # this parameter will be removed. Automatically remove _emit_ast for now from docs to avoid confusion.
+    app.connect("autodoc-process-signature", process_signature)
 
 
 # We overwrite the existing "autosummary" directive in order to properly resolve names for modin
@@ -370,3 +394,4 @@ def linkcode_resolve(domain, info):
         f"https://github.com/snowflakedb/snowpark-python/blob/"
         f"v{release}/{os.path.relpath(fn, start=os.pardir)}{linespec}"
     )
+
