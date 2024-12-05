@@ -3,6 +3,7 @@
 #
 
 import copy
+import logging
 import time
 from typing import Any, Dict, List
 
@@ -31,6 +32,8 @@ from snowflake.snowpark._internal.compiler.utils import (
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.utils import random_name_for_temp_object
 from snowflake.snowpark.mock._connection import MockServerConnection
+
+_logger = logging.getLogger(__name__)
 
 
 class PlanCompiler:
@@ -77,98 +80,112 @@ class PlanCompiler:
         )
 
     def compile(self) -> Dict[PlanQueryType, List[Query]]:
+        # initialize the queries with the original queries without optimization
+        final_plan = self._plan
+        queries = {
+            PlanQueryType.QUERIES: final_plan.queries,
+            PlanQueryType.POST_ACTIONS: final_plan.post_actions,
+        }
+
         if self.should_start_query_compilation():
             session = self._plan.session
-            # preparation for compilation
-            # 1. make a copy of the original plan
-            start_time = time.time()
-            complexity_score_before_compilation = get_complexity_score(self._plan)
-            logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
-            plot_plan_if_enabled(self._plan, "original_plan")
-            plot_plan_if_enabled(logical_plans[0], "deep_copied_plan")
-            deep_copy_end_time = time.time()
+            try:
+                # preparation for compilation
+                # 1. make a copy of the original plan
+                start_time = time.time()
+                complexity_score_before_compilation = get_complexity_score(self._plan)
+                logical_plans: List[LogicalPlan] = [copy.deepcopy(self._plan)]
+                plot_plan_if_enabled(self._plan, "original_plan")
+                plot_plan_if_enabled(logical_plans[0], "deep_copied_plan")
+                deep_copy_end_time = time.time()
 
-            # 2. create a code generator with the original plan
-            query_generator = create_query_generator(self._plan)
+                # 2. create a code generator with the original plan
+                query_generator = create_query_generator(self._plan)
 
-            extra_optimization_status: Dict[str, Any] = {}
-            # 3. apply each optimizations if needed
-            # CTE optimization
-            cte_start_time = time.time()
-            if session.cte_optimization_enabled:
-                repeated_subquery_eliminator = RepeatedSubqueryElimination(
-                    logical_plans, query_generator
+                extra_optimization_status: Dict[str, Any] = {}
+                # 3. apply each optimizations if needed
+                # CTE optimization
+                cte_start_time = time.time()
+                if session.cte_optimization_enabled:
+                    repeated_subquery_eliminator = RepeatedSubqueryElimination(
+                        logical_plans, query_generator
+                    )
+                    elimination_result = repeated_subquery_eliminator.apply()
+                    logical_plans = elimination_result.logical_plans
+                    # add the extra repeated subquery elimination status
+                    extra_optimization_status[
+                        CompilationStageTelemetryField.CTE_NODE_CREATED.value
+                    ] = elimination_result.total_num_of_ctes
+
+                cte_end_time = time.time()
+                complexity_scores_after_cte = [
+                    get_complexity_score(logical_plan) for logical_plan in logical_plans
+                ]
+                for i, plan in enumerate(logical_plans):
+                    plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
+
+                # Large query breakdown
+                breakdown_failure_summary, skipped_summary = {}, {}
+                if session.large_query_breakdown_enabled:
+                    large_query_breakdown = LargeQueryBreakdown(
+                        session,
+                        query_generator,
+                        logical_plans,
+                        session.large_query_breakdown_complexity_bounds,
+                    )
+                    breakdown_result = large_query_breakdown.apply()
+                    logical_plans = breakdown_result.logical_plans
+                    breakdown_failure_summary = breakdown_result.breakdown_summary
+                    skipped_summary = breakdown_result.skipped_summary
+
+                large_query_breakdown_end_time = time.time()
+                complexity_scores_after_large_query_breakdown = [
+                    get_complexity_score(logical_plan) for logical_plan in logical_plans
+                ]
+                for i, plan in enumerate(logical_plans):
+                    plot_plan_if_enabled(plan, f"large_query_breakdown_plan_{i}")
+
+                # 4. do a final pass of code generation
+                queries = query_generator.generate_queries(logical_plans)
+
+                # log telemetry data
+                deep_copy_time = deep_copy_end_time - start_time
+                cte_time = cte_end_time - cte_start_time
+                large_query_breakdown_time = (
+                    large_query_breakdown_end_time - cte_end_time
                 )
-                elimination_result = repeated_subquery_eliminator.apply()
-                logical_plans = elimination_result.logical_plans
-                # add the extra repeated subquery elimination status
-                extra_optimization_status[
-                    CompilationStageTelemetryField.CTE_NODE_CREATED.value
-                ] = elimination_result.total_num_of_ctes
-
-            cte_end_time = time.time()
-            complexity_scores_after_cte = [
-                get_complexity_score(logical_plan) for logical_plan in logical_plans
-            ]
-            for i, plan in enumerate(logical_plans):
-                plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
-
-            # Large query breakdown
-            breakdown_failure_summary, skipped_summary = {}, {}
-            if session.large_query_breakdown_enabled:
-                large_query_breakdown = LargeQueryBreakdown(
-                    session,
-                    query_generator,
-                    logical_plans,
-                    session.large_query_breakdown_complexity_bounds,
+                total_time = time.time() - start_time
+                summary_value = {
+                    TelemetryField.CTE_OPTIMIZATION_ENABLED.value: session.cte_optimization_enabled,
+                    TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: session.large_query_breakdown_enabled,
+                    CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: session.large_query_breakdown_complexity_bounds,
+                    CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: total_time,
+                    CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: deep_copy_time,
+                    CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: cte_time,
+                    CompilationStageTelemetryField.TIME_TAKEN_FOR_LARGE_QUERY_BREAKDOWN.value: large_query_breakdown_time,
+                    CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
+                    CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
+                    CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
+                    CompilationStageTelemetryField.BREAKDOWN_FAILURE_SUMMARY.value: breakdown_failure_summary,
+                    CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value: skipped_summary,
+                }
+                # add the extra optimization status
+                summary_value.update(extra_optimization_status)
+                session._conn._telemetry_client.send_query_compilation_summary_telemetry(
+                    session_id=session.session_id,
+                    plan_uuid=self._plan.uuid,
+                    compilation_stage_summary=summary_value,
                 )
-                breakdown_result = large_query_breakdown.apply()
-                logical_plans = breakdown_result.logical_plans
-                breakdown_failure_summary = breakdown_result.breakdown_summary
-                skipped_summary = breakdown_result.skipped_summary
-
-            large_query_breakdown_end_time = time.time()
-            complexity_scores_after_large_query_breakdown = [
-                get_complexity_score(logical_plan) for logical_plan in logical_plans
-            ]
-            for i, plan in enumerate(logical_plans):
-                plot_plan_if_enabled(plan, f"large_query_breakdown_plan_{i}")
-
-            # 4. do a final pass of code generation
-            queries = query_generator.generate_queries(logical_plans)
-
-            # log telemetry data
-            deep_copy_time = deep_copy_end_time - start_time
-            cte_time = cte_end_time - cte_start_time
-            large_query_breakdown_time = large_query_breakdown_end_time - cte_end_time
-            total_time = time.time() - start_time
-            summary_value = {
-                TelemetryField.CTE_OPTIMIZATION_ENABLED.value: session.cte_optimization_enabled,
-                TelemetryField.LARGE_QUERY_BREAKDOWN_ENABLED.value: session.large_query_breakdown_enabled,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BOUNDS.value: session.large_query_breakdown_complexity_bounds,
-                CompilationStageTelemetryField.TIME_TAKEN_FOR_COMPILATION.value: total_time,
-                CompilationStageTelemetryField.TIME_TAKEN_FOR_DEEP_COPY_PLAN.value: deep_copy_time,
-                CompilationStageTelemetryField.TIME_TAKEN_FOR_CTE_OPTIMIZATION.value: cte_time,
-                CompilationStageTelemetryField.TIME_TAKEN_FOR_LARGE_QUERY_BREAKDOWN.value: large_query_breakdown_time,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
-                CompilationStageTelemetryField.BREAKDOWN_FAILURE_SUMMARY.value: breakdown_failure_summary,
-                CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value: skipped_summary,
-            }
-            # add the extra optimization status
-            summary_value.update(extra_optimization_status)
-            session._conn._telemetry_client.send_query_compilation_summary_telemetry(
-                session_id=session.session_id,
-                plan_uuid=self._plan.uuid,
-                compilation_stage_summary=summary_value,
-            )
-        else:
-            final_plan = self._plan
-            queries = {
-                PlanQueryType.QUERIES: final_plan.queries,
-                PlanQueryType.POST_ACTIONS: final_plan.post_actions,
-            }
+            except Exception as e:
+                # if any error occurs during the compilation, we should fall back to the original plan
+                _logger.debug(f"Skipping optimization due to error: {e}")
+                session._conn._telemetry_client.send_query_compilation_stage_failed_telemetry(
+                    session_id=session.session_id,
+                    plan_uuid=self._plan.uuid,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
+                pass
 
         return self.replace_temp_obj_placeholders(queries)
 
