@@ -979,7 +979,12 @@ def test_structured_type_print_schema(
 def test_structured_type_schema_expression(
     structured_type_session, local_testing_mode, structured_type_support
 ):
-    if not structured_type_support:
+    # Test does not require iceberg support, but does require FDN table structured type support
+    # which is enabled in the same accounts as iceberg.
+    if not (
+        structured_type_support
+        and iceberg_supported(structured_type_session, local_testing_mode)
+    ):
         pytest.skip("Test requires structured type support.")
 
     table_name = f"snowpark_schema_expresion_test_{uuid.uuid4().hex[:5]}".upper()
