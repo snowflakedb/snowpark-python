@@ -23,6 +23,7 @@ class CompilationStageTelemetryField(Enum):
         "snowpark_large_query_breakdown_optimization_skipped"
     )
     TYPE_COMPILATION_STAGE_STATISTICS = "snowpark_compilation_stage_statistics"
+    TYPE_COMPILATION_STAGE_FAILED = "snowpark_compilation_stage_failed"
     TYPE_LARGE_QUERY_BREAKDOWN_UPDATE_COMPLEXITY_BOUNDS = (
         "snowpark_large_query_breakdown_update_complexity_bounds"
     )
@@ -30,6 +31,8 @@ class CompilationStageTelemetryField(Enum):
     # keys
     KEY_REASON = "reason"
     PLAN_UUID = "plan_uuid"
+    ERROR_TYPE = "error_type"
+    ERROR_MESSAGE = "error_message"
     TIME_TAKEN_FOR_COMPILATION = "time_taken_for_compilation_sec"
     TIME_TAKEN_FOR_DEEP_COPY_PLAN = "time_taken_for_deep_copy_plan_sec"
     TIME_TAKEN_FOR_CTE_OPTIMIZATION = "time_taken_for_cte_optimization_sec"
