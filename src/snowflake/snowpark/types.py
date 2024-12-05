@@ -31,6 +31,9 @@ else:
     from collections.abc import Iterable
 
 
+STRUCTURED_TYPES_ENABLED = False
+
+
 class DataType:
     """The base class of Snowpark data types."""
 
@@ -333,10 +336,16 @@ class ArrayType(DataType):
     def __init__(
         self,
         element_type: Optional[DataType] = None,
-        structured: bool = False,
+        structured: Optional[bool] = None,
     ) -> None:
-        self.structured = structured
-        self.element_type = element_type if element_type else StringType()
+        if STRUCTURED_TYPES_ENABLED:
+            self.structured = (
+                structured if structured is not None else element_type is not None
+            )
+            self.element_type = element_type
+        else:
+            self.structured = structured or False
+            self.element_type = element_type if element_type else StringType()
 
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
@@ -379,14 +388,30 @@ class MapType(DataType):
         self,
         key_type: Optional[DataType] = None,
         value_type: Optional[DataType] = None,
-        structured: bool = False,
+        structured: Optional[bool] = None,
     ) -> None:
-        self.structured = structured
-        self.key_type = key_type if key_type else StringType()
-        self.value_type = value_type if value_type else StringType()
+        if STRUCTURED_TYPES_ENABLED:
+            if (key_type is None and value_type is not None) or (
+                key_type is not None and value_type is None
+            ):
+                raise ValueError(
+                    "Must either set both key_type and value_type or leave both unset."
+                )
+            self.structured = (
+                structured if structured is not None else key_type is not None
+            )
+            self.key_type = key_type
+            self.value_type = value_type
+        else:
+            self.structured = structured or False
+            self.key_type = key_type if key_type else StringType()
+            self.value_type = value_type if value_type else StringType()
 
     def __repr__(self) -> str:
-        return f"MapType({repr(self.key_type) if self.key_type else ''}, {repr(self.value_type) if self.value_type else ''})"
+        type_str = ""
+        if self.key_type and self.value_type:
+            type_str = f"{repr(self.key_type)}, {repr(self.value_type)}"
+        return f"MapType({type_str})"
 
     def is_primitive(self):
         return False
@@ -617,12 +642,20 @@ class StructType(DataType):
     """Represents a table schema or structured column. Contains :class:`StructField` for each field."""
 
     def __init__(
-        self, fields: Optional[List["StructField"]] = None, structured=False
+        self,
+        fields: Optional[List["StructField"]] = None,
+        structured: Optional[bool] = False,
     ) -> None:
-        self.structured = structured
-        if fields is None:
-            fields = []
-        self.fields = fields
+        if STRUCTURED_TYPES_ENABLED:
+            self.structured = (
+                structured if structured is not None else fields is not None
+            )
+            self.fields = fields or []
+        else:
+            self.structured = structured or False
+            if fields is None:
+                fields = []
+            self.fields = fields
 
     def add(
         self,
