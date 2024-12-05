@@ -1,6 +1,6 @@
 # Release History
 
-## 1.26.0 (TBD)
+## 1.26.0 (2024-12-05)
 
 ### Snowpark Python API Updates
 
@@ -51,7 +51,6 @@
   dynamic pivot is now generally available.
 - Fixed a bug in `session.read.options` where `False` Boolean values were incorrectly parsed as `True` in the generated file format.
 
-
 #### Dependency Updates
 
 - Added a runtime dependency on `python-dateutil`.
@@ -71,23 +70,14 @@
 - Added partial support for the dataframe interchange protocol method
   `DataFrame.__dataframe__()`.
 
-#### Dependency Updates
-
 #### Bug Fixes
+
 - Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
-
 #### Improvements
+
 - Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinel values.
 - Improved documentation for pd.read_excel.
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-
-#### Bug Fixes
-
 
 ## 1.25.0 (2024-11-14)
 
