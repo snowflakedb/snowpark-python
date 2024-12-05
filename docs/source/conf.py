@@ -298,11 +298,11 @@ def process_signature(app, what, name, obj, options, signature, return_annotatio
             parts = [p for p in signature.split(',') if name_to_remove not in p]
             signature = ','.join(parts)
 
-            return '(' + signature + ')'
+            return f'({signature})'
         else:
             return signature
 
-    if signature and any(name_to_remove in signature for name_to_remove in ['_emit_ast', '_ast']):
+    if signature:
         for name_to_remove in names_to_remove:
             signature = remove_from_signature(signature, name_to_remove)
 
