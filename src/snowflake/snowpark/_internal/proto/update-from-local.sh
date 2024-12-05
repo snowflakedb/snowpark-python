@@ -15,7 +15,7 @@ elif [ -n "$1" ]
 fi
 set -euxo pipefail
 
-SCRIPT_DIR=$(dirname "$0")
+SCRIPT_DIR=$(dirname "$0")/generated
 
 # Step 1: Build the python proto file from scratch via bazel
 pushd $SRC_ROOT/Snowpark
