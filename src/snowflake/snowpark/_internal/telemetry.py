@@ -482,6 +482,22 @@ class TelemetryClient:
         }
         self.send(message)
 
+    def send_query_compilation_stage_failed_telemetry(
+        self, session_id: int, plan_uuid: str, error_type: str, error_message: str
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_FAILED.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
+                CompilationStageTelemetryField.ERROR_TYPE.value: error_type,
+                CompilationStageTelemetryField.ERROR_MESSAGE.value: error_message,
+            },
+        }
+        self.send(message)
+
     def send_temp_table_cleanup_telemetry(
         self,
         session_id: str,
