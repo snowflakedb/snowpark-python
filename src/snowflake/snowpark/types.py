@@ -645,7 +645,7 @@ class StructType(DataType):
     ) -> None:
         self.structured = structured
         self.fields = []
-        for field in fields:
+        for field in self.fields:
             self.add(field)
 
     def add(
