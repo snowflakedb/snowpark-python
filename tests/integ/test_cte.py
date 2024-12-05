@@ -700,13 +700,14 @@ def test_table(session):
     check_result(
         session,
         df_result,
-        expect_cte_optimized=True,
+        expect_cte_optimized=False if session.sql_simplifier_enabled else True,
         query_count=1,
         describe_count=0,
         union_count=1,
         join_count=0,
     )
-    assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
+    if not session.sql_simplifier_enabled:
+        assert count_number_of_ctes(df_result.queries["queries"][-1]) == 1
 
 
 @pytest.mark.parametrize(
@@ -1010,10 +1011,18 @@ def test_table_select_cte(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     df.write.save_as_table(table_name, table_type="temp")
     df = session.table(table_name)
-    new_df = df.with_column("add_one", col("a") + 1).union(
+    df_result = df.with_column("add_one", col("a") + 1).union(
         df.with_column("add_two", col("a") + 2)
     )
-    new_df.show()
+    check_result(
+        session,
+        df_result,
+        expect_cte_optimized=False if session.sql_simplifier_enabled else True,
+        query_count=1,
+        describe_count=0,
+        union_count=1,
+        join_count=0,
+    )
 
 
 @pytest.mark.skipif(
