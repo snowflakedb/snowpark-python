@@ -12974,6 +12974,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # in the future could analyze plan to see whether retrieving column count would trigger a query, if not
         # simply filter out based on static schema
         num_rows_for_head_and_tail = num_rows_to_display // 2 + 1
+        # Old code: Filters based off of col position
         new_frame = frame_with_row_count_and_position.filter(
             (
                 col(row_position_snowflake_quoted_identifier)
@@ -12983,6 +12984,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 col(row_position_snowflake_quoted_identifier)
                 >= col(row_count_identifier) - num_rows_for_head_and_tail
             )
+        )
+        # New code: use limit + order by
+        new_frame = InternalFrame.create(
+            ordered_dataframe=new_frame.ordered_dataframe.limit(
+                2 * num_rows_for_head_and_tail, sort=False
+            ),
+            data_column_pandas_labels=frame_with_row_count_and_position.data_column_pandas_labels,
+            data_column_snowflake_quoted_identifiers=frame_with_row_count_and_position.data_column_snowflake_quoted_identifiers,
+            data_column_pandas_index_names=frame_with_row_count_and_position.data_column_pandas_index_names,
+            index_column_pandas_labels=frame_with_row_count_and_position.index_column_pandas_labels,
+            index_column_snowflake_quoted_identifiers=frame_with_row_count_and_position.index_column_snowflake_quoted_identifiers,
+            data_column_types=frame_with_row_count_and_position.cached_data_column_snowpark_pandas_types,
+            index_column_types=frame_with_row_count_and_position.cached_index_column_snowpark_pandas_types,
         )
 
         # retrieve frame as pandas object
