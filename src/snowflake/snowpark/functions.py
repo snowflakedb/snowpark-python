@@ -3414,7 +3414,7 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         ...     [None, None, None],
         ...     ['Hello', None, None],
         ... ], schema=['a', 'b', 'c'])
-        >>> df.select(concat_ws_ignore_nulls(',', df.a, df.b, df.c)).show()
+        >>> df.select(_concat_ws_ignore_nulls(',', df.a, df.b, df.c)).show()
         ----------------------------------------------------
         |"CONCAT_WS_IGNORE_NULLS(',', ""A"",""B"",""C"")"  |
         ----------------------------------------------------
@@ -3425,7 +3425,7 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         <BLANKLINE>
     """
     # TODO: SNOW-1831917 create ast
-    columns = [_to_col_if_str(c, "concat_ws_ignore_nulls") for c in cols]
+    columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
     names = ",".join([c.get_name() for c in columns])
 
     input_column_array = array_construct_compact(*columns)
