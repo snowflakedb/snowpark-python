@@ -3423,6 +3423,16 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         |Hello                                             |
         ----------------------------------------------------
         <BLANKLINE>
+
+        >>> df.select(_concat_ws_ignore_nulls('--', df.a, df.b, df.c)).show()
+        -----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS('--', ""A"",""B"",""C"")"  |
+        -----------------------------------------------------
+        |Hello--World                                       |
+        |                                                   |
+        |Hello                                              |
+        -----------------------------------------------------
+        <BLANKLINE>
     """
     # TODO: SNOW-1831917 create ast
     columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
@@ -3434,7 +3444,7 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         lit(""),
         sql_expr(f"(l, r) -> l || '{sep}' || r"),
     )
-    return substring(reduced_result, 2).alias(
+    return substring(reduced_result, len(sep) + 1).alias(
         f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})"
     )
 
