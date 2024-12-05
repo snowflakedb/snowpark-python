@@ -12987,8 +12987,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         # New code: use limit + order by
         new_frame = InternalFrame.create(
-            ordered_dataframe=frame_with_row_count_and_position.ordered_dataframe.limit(
-                2 * num_rows_for_head_and_tail
+            ordered_dataframe=new_frame.ordered_dataframe.limit(
+                2 * num_rows_for_head_and_tail, sort=False
             ),
             data_column_pandas_labels=frame_with_row_count_and_position.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=frame_with_row_count_and_position.data_column_snowflake_quoted_identifiers,
