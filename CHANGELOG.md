@@ -43,6 +43,7 @@
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
   - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
   - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
+- Relaxed the cloudpickle dependency for Python 3.11 to simplify build requirements. However, for Python 3.11, `cloudpickle==2.2.1` remains the only supported version.
 
 #### Bug Fixes
 
@@ -53,6 +54,7 @@
 
 #### Dependency Updates
 
+- Added a runtime dependency on `python-dateutil`.
 
 ### Snowpark pandas API Updates
 
@@ -66,6 +68,8 @@
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
 - Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
 - Added support for `np.sqrt`, `np.trunc`, `np.floor`, numpy trig functions, `np.exp`, `np.abs`, `np.positive` and `np.negative`.
+- Added partial support for the dataframe interchange protocol method
+  `DataFrame.__dataframe__()`.
 
 #### Dependency Updates
 
