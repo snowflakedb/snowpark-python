@@ -521,6 +521,9 @@ class Decoder:
                 to_dtype = self.decode_data_type_expr(expr.sp_column_cast.to)
                 return col.cast(to_dtype)
 
+            case "sp_column_sql_expr":
+                return expr.sp_column_sql_expr.sql
+
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
                 data = self.decode_dataframe_data_expr(expr.sp_create_dataframe.data)
