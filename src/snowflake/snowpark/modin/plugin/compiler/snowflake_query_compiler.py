@@ -12962,12 +12962,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_types=self._modin_frame.cached_index_column_snowpark_pandas_types,
         )
 
-        # row_count_identifier = (
-        #     frame_with_row_count_and_position.row_count_snowflake_quoted_identifier
-        # )
-        # row_position_snowflake_quoted_identifier = (
-        #     frame_with_row_count_and_position.row_position_snowflake_quoted_identifier
-        # )
+        row_count_identifier = (
+            frame_with_row_count_and_position.row_count_snowflake_quoted_identifier
+        )
+        row_position_snowflake_quoted_identifier = (
+            frame_with_row_count_and_position.row_position_snowflake_quoted_identifier
+        )
 
         # filter frame based on num_rows.
         # always return all columns as this may also result in a query.
@@ -12975,20 +12975,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # simply filter out based on static schema
         num_rows_for_head_and_tail = num_rows_to_display // 2 + 1
         # Old code: Filters based off of col position
-        # new_frame = frame_with_row_count_and_position.filter(
-        #     (
-        #         col(row_position_snowflake_quoted_identifier)
-        #         <= num_rows_for_head_and_tail
-        #     )
-        #     | (
-        #         col(row_position_snowflake_quoted_identifier)
-        #         >= col(row_count_identifier) - num_rows_for_head_and_tail
-        #     )
-        # )
+        new_frame = frame_with_row_count_and_position.filter(
+            (
+                col(row_position_snowflake_quoted_identifier)
+                <= num_rows_for_head_and_tail
+            )
+            | (
+                col(row_position_snowflake_quoted_identifier)
+                >= col(row_count_identifier) - num_rows_for_head_and_tail
+            )
+        )
         # New code: use limit + order by
         new_frame = InternalFrame.create(
-            ordered_dataframe=frame_with_row_count_and_position.ordered_dataframe.get_head_tail(
-                num_rows_for_head_and_tail
+            ordered_dataframe=frame_with_row_count_and_position.ordered_dataframe.limit(
+                2 * num_rows_for_head_and_tail
             ),
             data_column_pandas_labels=frame_with_row_count_and_position.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=frame_with_row_count_and_position.data_column_snowflake_quoted_identifiers,
