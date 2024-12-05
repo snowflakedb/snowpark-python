@@ -58,7 +58,8 @@ def find_duplicate_subtrees(
 
     def is_simple_select_entity(node: "TreeNode") -> bool:
         """
-        Check if the current node is a simple select from Select
+        Check if the current node is a simple select on top of a SelectEntity, for example:
+        select * from TABLE. This check only works with selectable when sql simplifier is enabled.
         """
         if isinstance(node, SelectableEntity):
             return True
@@ -139,7 +140,6 @@ def find_duplicate_subtrees(
 
 def get_duplicated_node_complexity_distribution(
     duplicated_node_id_set: Set[str],
-    # id_complexity_map: Dict[str, int],
     id_node_map: Dict[str, List["TreeNode"]],
 ) -> List[int]:
     """
@@ -157,7 +157,6 @@ def get_duplicated_node_complexity_distribution(
     node_complexity_dist = [0] * 7
     for node_id in duplicated_node_id_set:
         complexity_score = get_complexity_score(id_node_map[node_id][0])
-        # complexity_score = id_complexity_map[node_id]
         repeated_count = len(id_node_map[node_id])
         if complexity_score <= 10000:
             node_complexity_dist[0] += repeated_count
