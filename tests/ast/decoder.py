@@ -524,6 +524,34 @@ class Decoder:
             case "sp_column_sql_expr":
                 return expr.sp_column_sql_expr.sql
 
+            case "sp_column_string_like":
+                col = self.decode_expr(expr.sp_column_string_like.col)
+                return col
+
+            case "sp_column_string_regexp":
+                col = self.decode_expr(expr.sp_column_string_regexp.col)
+                return col
+
+            case "sp_column_string_starts_with":
+                col = self.decode_expr(expr.sp_column_string_starts_with.col)
+                return col
+
+            case "sp_column_string_substr":
+                col = self.decode_expr(expr.sp_column_string_substr.col)
+                return col
+
+            case "sp_column_string_ends_with":
+                col = self.decode_expr(expr.sp_column_string_ends_with.col)
+                return col
+
+            case "sp_column_string_collate":
+                col = self.decode_expr(expr.sp_column_string_collate.col)
+                return col
+
+            case "sp_column_string_contains":
+                col = self.decode_expr(expr.sp_column_string_contains.col)
+                return col
+
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
                 data = self.decode_dataframe_data_expr(expr.sp_create_dataframe.data)
