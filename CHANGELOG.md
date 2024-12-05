@@ -23,7 +23,6 @@
 - Added support for following functions in `functions.py`:
   - `size` to get size of array, object, or map columns.
   - `collect_list` an alias of `array_agg`.
-  - `concat_ws_ignore_nulls` to concatenate strings with a separator, ignoring null values.
   - `substring` makes `len` argument optional.
 - Added parameter `ast_enabled` to session for internal usage (default: `False`).
 
