@@ -3402,10 +3402,7 @@ def concat_ws(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin("concat_ws", _emit_ast=_emit_ast)(*columns)
 
 
-@publicapi
-def concat_ws_ignore_nulls(
-    sep: str, *cols: ColumnOrName, _emit_ast: bool = True
-) -> Column:
+def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
     """Concatenates two or more strings, or concatenates two or more binary values. Null values are ignored.
 
     Args:
@@ -3431,14 +3428,14 @@ def concat_ws_ignore_nulls(
     columns = [_to_col_if_str(c, "concat_ws_ignore_nulls") for c in cols]
     names = ",".join([c.get_name() for c in columns])
 
-    input_column_array = array_construct_compact(*columns, _emit_ast=False)
-    reduced_result = builtin("reduce", _emit_ast=False)(
+    input_column_array = array_construct_compact(*columns)
+    reduced_result = builtin("reduce")(
         input_column_array,
-        lit("", _emit_ast=False),
-        sql_expr(f"(l, r) -> l || '{sep}' || r", _emit_ast=False),
+        lit(""),
+        sql_expr(f"(l, r) -> l || '{sep}' || r"),
     )
-    return substring(reduced_result, 2, _emit_ast=False).alias(
-        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False
+    return substring(reduced_result, 2).alias(
+        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})"
     )
 
 
