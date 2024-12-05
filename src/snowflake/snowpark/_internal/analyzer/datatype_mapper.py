@@ -156,10 +156,16 @@ def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) 
         return f"'{binascii.hexlify(bytes(value)).decode()}' :: BINARY"
 
     if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
-        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: ARRAY"
+        type_str = "ARRAY"
+        if datatype.structured:
+            type_str = convert_sp_to_sf_type(datatype)
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: {type_str}"
 
     if isinstance(value, dict) and isinstance(datatype, MapType):
-        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: OBJECT"
+        type_str = "OBJECT"
+        if datatype.structured:
+            type_str = convert_sp_to_sf_type(datatype)
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: {type_str}"
 
     if isinstance(datatype, VariantType):
         # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.

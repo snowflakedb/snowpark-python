@@ -70,6 +70,7 @@ from snowflake.snowpark.types import (
     _FractionalType,
     _IntegralType,
     _NumericType,
+    STRUCTURED_TYPES_ENABLED,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -183,12 +184,13 @@ def convert_sf_to_sp_type(
     max_string_size: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
+    semi_structured_fill = None if STRUCTURED_TYPES_ENABLED else StringType()
     if column_type_name == "ARRAY":
-        return ArrayType(StringType())
+        return ArrayType(semi_structured_fill)
     if column_type_name == "VARIANT":
         return VariantType()
     if column_type_name in {"OBJECT", "MAP"}:
-        return MapType(StringType(), StringType())
+        return MapType(semi_structured_fill, semi_structured_fill)
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
     if column_type_name == "GEOMETRY":
@@ -530,7 +532,10 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         return a
 
 
-def python_value_str_to_object(value, tp: DataType) -> Any:
+def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
+    if tp is None:
+        return None
+
     if isinstance(tp, StringType):
         return value
 
@@ -639,7 +644,7 @@ def python_type_to_snow_type(
         element_type = (
             python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
             if tp_args
-            else StringType()
+            else None
         )
         return ArrayType(element_type), False
 
@@ -649,12 +654,12 @@ def python_type_to_snow_type(
         key_type = (
             python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
             if tp_args
-            else StringType()
+            else None
         )
         value_type = (
             python_type_to_snow_type(tp_args[1], is_return_type_of_sproc)[0]
             if tp_args
-            else StringType()
+            else None
         )
         return MapType(key_type, value_type), False
 
