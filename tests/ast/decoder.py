@@ -445,6 +445,9 @@ class Decoder:
         assert timezone.utcoffset(datetime.now()).total_seconds() == offset_seconds
         return timezone
 
+    def binop(self, lhs, rhs, fn):
+        return fn(self.decode_expr(lhs), self.decode_expr(rhs))
+
     def decode_expr(self, expr: proto.Expr) -> Any:
         match expr.WhichOneof("variant"):
             # COLUMN BINARY OPERATIONS
@@ -554,71 +557,69 @@ class Decoder:
 
             # Binary operations on columns:
             case "eq":
-                col_left = self.decode_expr(expr.eq.lhs)
-                col_right = self.decode_expr(expr.eq.rhs)
-                return col_left == col_right
+                return self.binop(expr.eq.lhs, expr.eq.rhs, lambda lhs, rhs: lhs == rhs)
 
             case "neq":
-                col_left = self.decode_expr(expr.neq.lhs)
-                col_right = self.decode_expr(expr.neq.rhs)
-                return col_left != col_right
+                return self.binop(
+                    expr.neq.lhs, expr.neq.rhs, lambda lhs, rhs: lhs != rhs
+                )
 
             case "gt":
-                col_left = self.decode_expr(expr.gt.lhs)
-                col_right = self.decode_expr(expr.gt.rhs)
-                return col_left > col_right
+                return self.binop(expr.gt.lhs, expr.gt.rhs, lambda lhs, rhs: lhs > rhs)
 
             case "lt":
-                col_left = self.decode_expr(expr.lt.lhs)
-                col_right = self.decode_expr(expr.lt.rhs)
-                return col_left < col_right
+                return self.binop(expr.lt.lhs, expr.lt.rhs, lambda lhs, rhs: lhs < rhs)
 
             case "geq":
-                col_left = self.decode_expr(expr.geq.lhs)
-                col_right = self.decode_expr(expr.geq.rhs)
-                return col_left >= col_right
+                return self.binop(
+                    expr.geq.lhs, expr.geq.rhs, lambda lhs, rhs: lhs >= rhs
+                )
 
             case "leq":
-                col_left = self.decode_expr(expr.leq.lhs)
-                col_right = self.decode_expr(expr.leq.rhs)
-                return col_left <= col_right
+                return self.binop(
+                    expr.leq.lhs, expr.leq.rhs, lambda lhs, rhs: lhs <= rhs
+                )
 
             case "sub":
-                col_left = self.decode_expr(expr.sub.lhs)
-                col_right = self.decode_expr(expr.sub.rhs)
-                return col_left - col_right
+                return self.binop(
+                    expr.sub.lhs, expr.sub.rhs, lambda lhs, rhs: lhs - rhs
+                )
 
             case "mul":
-                col_left = self.decode_expr(expr.mul.lhs)
-                col_right = self.decode_expr(expr.mul.rhs)
-                return col_left * col_right
+                return self.binop(
+                    expr.mul.lhs, expr.mul.rhs, lambda lhs, rhs: lhs * rhs
+                )
 
             case "div":
-                col_left = self.decode_expr(expr.div.lhs)
-                col_right = self.decode_expr(expr.div.rhs)
-                return col_left / col_right
+                return self.binop(
+                    expr.div.lhs, expr.div.rhs, lambda lhs, rhs: lhs / rhs
+                )
 
             case "mod":
-                col_left = self.decode_expr(expr.mod.lhs)
-                col_right = self.decode_expr(expr.mod.rhs)
-                return col_left % col_right
+                return self.binop(
+                    expr.mod.lhs, expr.mod.rhs, lambda lhs, rhs: lhs % rhs
+                )
 
             case "pow":
-                col_left = self.decode_expr(expr.pow.lhs)
-                col_right = self.decode_expr(expr.pow.rhs)
-                return col_left**col_right
+                return self.binop(
+                    expr.pow.lhs, expr.pow.rhs, lambda lhs, rhs: lhs**rhs
+                )
 
             case "and":
                 # "and" is reserved keyword in python - so have to use getattr here.
-                col_left = self.decode_expr(getattr(expr, "and").lhs)
-                col_right = self.decode_expr(getattr(expr, "and").rhs)
-                return col_left & col_right
+                return self.binop(
+                    getattr(expr, "and").lhs,
+                    getattr(expr, "and").rhs,
+                    lambda lhs, rhs: lhs & rhs,
+                )
 
             case "or":
                 # "or" is reserved keyword in python - so have to use getattr here.
-                col_left = self.decode_expr(getattr(expr, "or").lhs)
-                col_right = self.decode_expr(getattr(expr, "or").rhs)
-                return col_left | col_right
+                return self.binop(
+                    getattr(expr, "or").lhs,
+                    getattr(expr, "or").rhs,
+                    lambda lhs, rhs: lhs | rhs,
+                )
 
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
