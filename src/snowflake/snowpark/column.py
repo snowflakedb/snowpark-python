@@ -4,7 +4,6 @@
 #
 
 import sys
-import typing
 from typing import Any, Optional, Union
 
 import snowflake.snowpark
@@ -1231,19 +1230,16 @@ class Column:
     @publicapi
     def as_(self, alias: str, _emit_ast: bool = True) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias, variant="as_", _emit_ast=_emit_ast)
+        return self.name(alias, variant_is_as=True, _emit_ast=_emit_ast)
 
     @publicapi
     def alias(self, alias: str, _emit_ast: bool = True) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias, variant="alias", _emit_ast=_emit_ast)
+        return self.name(alias, variant_is_as=False, _emit_ast=_emit_ast)
 
     @publicapi
     def name(
-        self,
-        alias: str,
-        variant: typing.Literal["as_", "alias", "name"] = "name",
-        _emit_ast: bool = True,
+        self, alias: str, variant_is_as: bool = None, _emit_ast: bool = True
     ) -> "Column":
         """Returns a new renamed Column."""
         expr = self._expression  # Snowpark expression
@@ -1256,12 +1252,8 @@ class Column:
             ast = with_src_position(ast_expr.sp_column_alias)
             ast.col.CopyFrom(self._ast)
             ast.name = alias
-            if variant == "as_":
-                ast.fn.sp_column_alias_fn_as = True
-            elif variant == "alias":
-                ast.fn.sp_column_alias_fn_alias = True
-            elif variant == "name":
-                ast.fn.sp_column_alias_fn_name = True
+            if variant_is_as is not None:
+                ast.variant_is_as.value = variant_is_as
         return Column(
             Alias(expr, quote_name(alias)), _ast=ast_expr, _emit_ast=_emit_ast
         )
