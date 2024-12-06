@@ -388,8 +388,8 @@ def test_stored_procedure_with_structured_returns(
                 "OBJ",
                 StructType(
                     [
-                        StructField('"a"', StringType(16777216), nullable=True),
-                        StructField('"b"', DoubleType(), nullable=True),
+                        StructField("a", StringType(16777216), nullable=True),
+                        StructField("b", DoubleType(), nullable=True),
                     ],
                     structured=True,
                 ),
