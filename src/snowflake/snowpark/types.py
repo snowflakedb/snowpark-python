@@ -645,7 +645,7 @@ class StructType(DataType):
     ) -> None:
         self.structured = structured
         self.fields = []
-        for field in self.fields:
+        for field in fields or []:
             self.add(field)
 
     def add(
@@ -661,7 +661,6 @@ class StructType(DataType):
                 )
             field = StructField(field, datatype, nullable)
         elif not isinstance(field, StructField):
-            __import__("pdb").set_trace()
             raise ValueError(
                 f"field argument must be one of str, ColumnIdentifier or StructField. Got: '{type(field)}'"
             )
