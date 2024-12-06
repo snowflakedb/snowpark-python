@@ -16471,7 +16471,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if not isinstance(width, int):
             raise TypeError(
-                f"width must be of integer type, not {type(self._modin_frame.data_column_snowflake_quoted_identifiers[0]).__name__}"
+                f"width must be of integer type, not {type(width).__name__}"
             )
 
         def output_col(column: SnowparkColumn) -> SnowparkColumn:
@@ -16505,7 +16505,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         if not isinstance(width, int):
             raise TypeError(
-                f"width must be of integer type, not {type(self._modin_frame.data_column_snowflake_quoted_identifiers[0]).__name__}"
+                f"width must be of integer type, not {type(width).__name__}"
             )
 
         def output_col(column: SnowparkColumn) -> SnowparkColumn:
