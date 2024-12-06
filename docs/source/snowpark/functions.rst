@@ -319,6 +319,7 @@ Functions
     var_samp
     variance
     vector_inner_product
+    vector_l1_distance
     vector_l2_distance
     weekofyear
     when

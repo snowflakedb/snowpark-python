@@ -156,6 +156,7 @@ from snowflake.snowpark.functions import (
     upper,
     vector_cosine_distance,
     vector_inner_product,
+    vector_l1_distance,
     vector_l2_distance,
 )
 from snowflake.snowpark.types import (
@@ -1479,6 +1480,9 @@ def test_vector_distances(session):
     Utils.check_answer(
         res, [Row(DISTANCE=20 / ((1 + 4 + 9) ** 0.5 * (4 + 9 + 16) ** 0.5))]
     )
+
+    res = df.select(vector_l1_distance(df.a, df.b).as_("distance")).collect()
+    Utils.check_answer(res, [Row(DISTANCE=(1 + 1 + 1))])
 
     res = df.select(vector_l2_distance(df.a, df.b).as_("distance")).collect()
     Utils.check_answer(res, [Row(DISTANCE=(1 + 1 + 1) ** 0.5)])
