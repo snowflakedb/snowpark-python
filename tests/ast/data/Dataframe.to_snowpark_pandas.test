@@ -1,6 +1,7 @@
 ## TEST CASE
 
 df = session.table(tables.table1)
+
 snowpark_pandas_df = df.to_snowpark_pandas()
 
 snowpark_pandas_df = df.to_snowpark_pandas(index_col="A")
@@ -8,9 +9,6 @@ snowpark_pandas_df = df.to_snowpark_pandas(index_col="A")
 snowpark_pandas_df = df.to_snowpark_pandas(columns=["B", "A"])
 
 snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"], columns=["C", "B"])
-
-# Perform a pandas operation on the result to ensure nothing breaks.
-pandas_result = snowpark_pandas_df.groupby("A")
 
 
 ## EXPECTED UNPARSER OUTPUT
@@ -57,7 +55,7 @@ body {
 body {
   assign {
     expr {
-      pd_to_snowpark_pandas {
+      sp_to_snowpark_pandas {
         df {
           sp_dataframe_ref {
             id {
@@ -67,7 +65,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 26
+          start_line: 27
         }
       }
     }
@@ -83,7 +81,7 @@ body {
 body {
   assign {
     expr {
-      pd_to_snowpark_pandas {
+      sp_to_snowpark_pandas {
         df {
           sp_dataframe_ref {
             id {
@@ -96,7 +94,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 28
+          start_line: 29
         }
       }
     }
@@ -112,7 +110,7 @@ body {
 body {
   assign {
     expr {
-      pd_to_snowpark_pandas {
+      sp_to_snowpark_pandas {
         columns {
           list: "B"
           list: "A"
@@ -126,7 +124,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 30
+          start_line: 31
         }
       }
     }
@@ -142,7 +140,7 @@ body {
 body {
   assign {
     expr {
-      pd_to_snowpark_pandas {
+      sp_to_snowpark_pandas {
         columns {
           list: "C"
           list: "B"
@@ -159,7 +157,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 32
+          start_line: 33
         }
       }
     }

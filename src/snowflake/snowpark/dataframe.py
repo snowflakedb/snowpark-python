@@ -1246,7 +1246,7 @@ class DataFrame:
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.pd_to_snowpark_pandas, stmt)
+            ast = with_src_position(stmt.expr.sp_to_snowpark_pandas, stmt)
             self._set_ast_ref(ast.df)
             debug_check_missing_ast(self._ast_id, self)
             if index_col is not None:
