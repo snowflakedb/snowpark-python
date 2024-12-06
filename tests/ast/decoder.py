@@ -591,15 +591,11 @@ class Decoder:
 
             case "and":
                 # "and" is reserved keyword in python - so have to use getattr here.
-                left = self.decode_expr(getattr(expr, "and").lhs)
-                right = self.decode_expr(getattr(expr, "and").rhs)
-                return left & right
+                return self.binop(getattr(expr, "and"), lambda lhs, rhs: lhs & rhs)
 
             case "or":
                 # "or" is reserved keyword in python - so have to use getattr here.
-                left = self.decode_expr(getattr(expr, "or").lhs)
-                right = self.decode_expr(getattr(expr, "or").rhs)
-                return left | right
+                return self.binop(getattr(expr, "or"), lambda lhs, rhs: lhs | rhs)
 
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
