@@ -200,6 +200,7 @@ setup(
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
             "scikit-learn==1.5.2",  # Snowpark pandas scikit-learn tests
+            "plotly",  # Snowpark pandas 3rd party library testing
         ],
         "localtest": [
             "pandas",
