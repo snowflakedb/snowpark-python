@@ -552,6 +552,74 @@ class Decoder:
                 col = self.decode_expr(expr.sp_column_string_contains.col)
                 return col
 
+            # Binary operations on columns:
+            case "eq":
+                col_left = self.decode_expr(expr.eq.lhs)
+                col_right = self.decode_expr(expr.eq.rhs)
+                return col_left == col_right
+
+            case "neq":
+                col_left = self.decode_expr(expr.neq.lhs)
+                col_right = self.decode_expr(expr.neq.rhs)
+                return col_left != col_right
+
+            case "gt":
+                col_left = self.decode_expr(expr.gt.lhs)
+                col_right = self.decode_expr(expr.gt.rhs)
+                return col_left > col_right
+
+            case "lt":
+                col_left = self.decode_expr(expr.lt.lhs)
+                col_right = self.decode_expr(expr.lt.rhs)
+                return col_left < col_right
+
+            case "geq":
+                col_left = self.decode_expr(expr.geq.lhs)
+                col_right = self.decode_expr(expr.geq.rhs)
+                return col_left >= col_right
+
+            case "leq":
+                col_left = self.decode_expr(expr.leq.lhs)
+                col_right = self.decode_expr(expr.leq.rhs)
+                return col_left <= col_right
+
+            case "sub":
+                col_left = self.decode_expr(expr.sub.lhs)
+                col_right = self.decode_expr(expr.sub.rhs)
+                return col_left - col_right
+
+            case "mul":
+                col_left = self.decode_expr(expr.mul.lhs)
+                col_right = self.decode_expr(expr.mul.rhs)
+                return col_left * col_right
+
+            case "div":
+                col_left = self.decode_expr(expr.div.lhs)
+                col_right = self.decode_expr(expr.div.rhs)
+                return col_left / col_right
+
+            case "mod":
+                col_left = self.decode_expr(expr.mod.lhs)
+                col_right = self.decode_expr(expr.mod.rhs)
+                return col_left % col_right
+
+            case "pow":
+                col_left = self.decode_expr(expr.pow.lhs)
+                col_right = self.decode_expr(expr.pow.rhs)
+                return col_left**col_right
+
+            case "and":
+                # "and" is reserved keyword in python - so have to use getattr here.
+                col_left = self.decode_expr(getattr(expr, "and").lhs)
+                col_right = self.decode_expr(getattr(expr, "and").rhs)
+                return col_left & col_right
+
+            case "or":
+                # "or" is reserved keyword in python - so have to use getattr here.
+                col_left = self.decode_expr(getattr(expr, "or").lhs)
+                col_right = self.decode_expr(getattr(expr, "or").rhs)
+                return col_left | col_right
+
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
                 data = self.decode_dataframe_data_expr(expr.sp_create_dataframe.data)
