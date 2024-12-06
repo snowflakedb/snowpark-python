@@ -705,6 +705,35 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
                 assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
+@pytest.mark.parametrize("error_type", [AssertionError, ValueError, RuntimeError])
+@patch("snowflake.snowpark._internal.compiler.plan_compiler.LargeQueryBreakdown.apply")
+def test_optimization_skipped_with_exceptions(
+    mock_lqb_apply, session, large_query_df, caplog, error_type
+):
+    """Test large query breakdown is skipped when there are exceptions"""
+    caplog.clear()
+    mock_lqb_apply.side_effect = error_type("test exception")
+    with caplog.at_level(logging.DEBUG):
+        with patch.object(
+            session._conn._telemetry_client,
+            "send_query_compilation_stage_failed_telemetry",
+        ) as patch_send:
+            queries = large_query_df.queries
+
+    assert "Skipping optimization due to error:" in caplog.text
+    assert len(queries["queries"]) == 1
+    assert len(queries["post_actions"]) == 0
+
+    patch_send.assert_called_once()
+    _, kwargs = patch_send.call_args
+    print(kwargs)
+    assert kwargs["error_message"] == "test exception"
+    assert kwargs["error_type"] == error_type.__name__
+
+
 def test_complexity_bounds_affect_num_partitions(session, large_query_df):
     """Test complexity bounds affect number of partitions.
     Also test that when partitions are added, drop table queries are added.
