@@ -828,16 +828,10 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Project):
-            return MockExecutionPlan(
-                logical_plan,
-                self.session,
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Filter):
-            return MockExecutionPlan(
-                logical_plan,
-                self.session,
-            )
+            return MockExecutionPlan(logical_plan, self.session)
 
         # Add a sample stop to the plan being built
         if isinstance(logical_plan, Sample):
