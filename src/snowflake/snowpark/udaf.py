@@ -713,7 +713,10 @@ class UDAFRegistration:
 
         if isinstance(return_type, MapType):
             if return_type.structured:
-                warnings.warn("Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object.")
+                warnings.warn(
+                    "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object.",
+                    stacklevel=3,
+                )
                 return_type = MapType()
 
         # Capture original parameters.
