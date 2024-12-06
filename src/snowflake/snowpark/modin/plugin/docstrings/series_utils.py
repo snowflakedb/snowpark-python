@@ -362,27 +362,27 @@ class StringMethods:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
         >>> ser.str.center(8, fillchar='.')  # doctest: +SKIP
-        0   ..dog...
-        1   ..bird..
-        2   .mouse..
+        0    ..dog...
+        1    ..bird..
+        2    .mouse..
         dtype: object
 
         For Series.str.ljust:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
         >>> ser.str.ljust(8, fillchar='.')
-        0   dog.....
-        1   bird....
-        2   mouse...
+        0    dog.....
+        1    bird....
+        2    mouse...
         dtype: object
 
         For Series.str.rjust:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
         >>> ser.str.rjust(8, fillchar='.')
-        0   .....dog
-        1   ....bird
-        2   ...mouse
+        0    .....dog
+        1    ....bird
+        2    ...mouse
         dtype: object
         """
 
@@ -408,27 +408,27 @@ class StringMethods:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
         >>> ser.str.center(8, fillchar='.')  # doctest: +SKIP
-        0   ..dog...
-        1   ..bird..
-        2   .mouse..
+        0    ..dog...
+        1    ..bird..
+        2    .mouse..
         dtype: object
 
         For Series.str.ljust:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
         >>> ser.str.ljust(8, fillchar='.')
-        0   dog.....
-        1   bird....
-        2   mouse...
+        0    dog.....
+        1    bird....
+        2    mouse...
         dtype: object
 
         For Series.str.rjust:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
         >>> ser.str.rjust(8, fillchar='.')
-        0   .....dog
-        1   ....bird
-        2   ...mouse
+        0    .....dog
+        1    ....bird
+        2    ...mouse
         dtype: object
         """
 
