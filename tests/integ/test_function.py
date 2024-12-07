@@ -1290,9 +1290,9 @@ def test_to_date_to_array_to_variant_to_object(session, local_testing_mode):
     Utils.assert_rows(res1, expected)
 
     assert df1.schema.fields[0].datatype == DateType()
-    assert df1.schema.fields[1].datatype == ArrayType(StringType())
+    assert df1.schema.fields[1].datatype == ArrayType()
     assert df1.schema.fields[2].datatype == VariantType()
-    assert df1.schema.fields[3].datatype == MapType(StringType(), StringType())
+    assert df1.schema.fields[3].datatype == MapType()
 
 
 def test_to_binary(session):
