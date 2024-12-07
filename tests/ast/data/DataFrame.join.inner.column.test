@@ -154,6 +154,9 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_alias: true
+            }
             name: "n1"
             src {
               end_column: 61
@@ -161,8 +164,6 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_column: 42
               start_line: 29
-            }
-            variant_is_as {
             }
           }
         }

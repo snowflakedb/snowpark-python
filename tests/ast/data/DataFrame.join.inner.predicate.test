@@ -191,6 +191,9 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_alias: true
+            }
             name: "num1"
             src {
               end_column: 76
@@ -198,8 +201,6 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_column: 55
               start_line: 29
-            }
-            variant_is_as {
             }
           }
         }
@@ -224,6 +225,9 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_alias: true
+            }
             name: "num2"
             src {
               end_column: 99
@@ -231,8 +235,6 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_column: 78
               start_line: 29
-            }
-            variant_is_as {
             }
           }
         }

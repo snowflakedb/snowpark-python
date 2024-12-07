@@ -251,6 +251,9 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "num_1"
             src {
               end_column: 111
@@ -258,9 +261,6 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_column: 88
               start_line: 29
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -285,6 +285,9 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "str_1"
             src {
               end_column: 136
@@ -292,9 +295,6 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_column: 113
               start_line: 29
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
