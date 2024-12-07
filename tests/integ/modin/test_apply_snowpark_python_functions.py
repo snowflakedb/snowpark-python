@@ -89,3 +89,13 @@ def test_apply_snowflake_cortex_summarize():
     summary = s.apply(snowflake_cortex_summarize).iloc[0]
     # this length check is to get around the fact that this function may not be deterministic
     assert 0 < len(summary) < len(content)
+
+
+@sql_count_checker(query_count=1)
+def test_apply_snowflake_cortex_sentiment():
+    from snowflake.snowpark.functions import snowflake_cortex_sentiment
+
+    content = "A very very bad review!"
+    s = pd.Series([content])
+    sentiment = s.apply(snowflake_cortex_sentiment).iloc[0]
+    assert -1 <= sentiment <= 1
