@@ -7055,6 +7055,28 @@ def vector_cosine_distance(
 
 
 @publicapi
+def vector_l1_distance(
+    v1: ColumnOrName, v2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """Returns the l1 distance between two vectors of equal dimension and element type.
+
+    Example::
+        >>> from snowflake.snowpark.functions import vector_l1_distance
+        >>> df = session.sql("select [1,2,3]::vector(int,3) as a, [2,3,4]::vector(int,3) as b")
+        >>> df.select(vector_l1_distance(df.a, df.b).as_("dist")).show()
+        --------
+        |"DIST"|
+        --------
+        |3     |
+        --------
+        <BLANKLINE>
+    """
+    v1 = _to_col_if_str(v1, "vector_l1_distance")
+    v2 = _to_col_if_str(v2, "vector_l1_distance")
+    return builtin("vector_l1_distance", _emit_ast=_emit_ast)(v1, v2)
+
+
+@publicapi
 def vector_l2_distance(
     v1: ColumnOrName, v2: ColumnOrName, _emit_ast: bool = True
 ) -> Column:

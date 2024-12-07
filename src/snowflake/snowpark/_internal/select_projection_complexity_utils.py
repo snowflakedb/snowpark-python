@@ -209,6 +209,7 @@ VALID_PROJECTION_MERGE_FUNCTIONS = (
     "upper",
     "vector_cosine_distance",
     "vector_inner_product",
+    "vector_l1_distance",
     "vector_l2_distance",
     "weekofyear",
     "year",
