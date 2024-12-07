@@ -2,6 +2,10 @@
 
 ## 1.27.0 (TBD)
 
+### New Features
+
+- Added the `vector_l1_distance` built-in function.
+
 ## 1.26.0 (2024-12-05)
 
 ### Snowpark Python API Updates
@@ -143,8 +147,6 @@
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
 - Improve get_dummies performance by flattening the pivot with join.
 - Improve align performance when aligning on row position column by removing unnecessary window functions.
-
-
 
 ### Snowpark Local Testing Updates
 
@@ -316,10 +318,9 @@
 - Fixed a bug where `row_number` could fail inside a Window function.
 - Fixed a bug where updates could fail when the source is the result of a join.
 
-
 ## 1.22.1 (2024-09-11)
-This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
 
+This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for detailed release content.
 
 ## 1.22.0 (2024-09-10)
 
@@ -341,18 +342,18 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
   - `change_tracking`
   - `copy_grants`
   - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
-      - `external_volume`
-      - `catalog`
-      - `base_location`
-      - `catalog_sync`
-      - `storage_serialization_policy`
+    - `external_volume`
+    - `catalog`
+    - `base_location`
+    - `catalog_sync`
+    - `storage_serialization_policy`
 - Added support for specifying the following to `DataFrameWriter.copy_into_table`:
   - `iceberg_config` A dicitionary that can hold the following iceberg configuration options:
-      - `external_volume`
-      - `catalog`
-      - `base_location`
-      - `catalog_sync`
-      - `storage_serialization_policy`
+    - `external_volume`
+    - `catalog`
+    - `base_location`
+    - `catalog_sync`
+    - `storage_serialization_policy`
 - Added support for specifying the following parameters to `DataFrame.create_or_replace_dynamic_table`:
   - `mode`
   - `refresh_mode`
@@ -421,7 +422,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added support for `Index.is_monotonic_increasing` and `Index.is_monotonic_decreasing`.
 - Added support for `pd.crosstab`.
 - Added support for `pd.bdate_range` and included business frequency support (B, BME, BMS, BQE, BQS, BYE, BYS) for both `pd.date_range` and `pd.bdate_range`.
-- Added support for lazy `Index` objects  as `labels` in `DataFrame.reindex` and `Series.reindex`.
+- Added support for lazy `Index` objects as `labels` in `DataFrame.reindex` and `Series.reindex`.
 - Added support for `Series.dt.days`, `Series.dt.seconds`, `Series.dt.microseconds`, and `Series.dt.nanoseconds`.
 - Added support for creating a `DatetimeIndex` from an `Index` of numeric or string type.
 - Added support for string indexing with `Timedelta` objects.
@@ -451,7 +452,6 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Fixed `inplace` argument for Series objects derived from DataFrame columns.
 - Fixed a bug where `Series.reindex` and `DataFrame.reindex` did not update the result index's name correctly.
 - Fixed a bug where `Series.take` did not error when `axis=1` was specified.
-
 
 ## 1.21.1 (2024-09-05)
 
@@ -538,9 +538,9 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added support for `Series.dt.floor` and `Series.dt.ceil`.
 - Added support for `Index.reindex`.
 - Added support for `DatetimeIndex` properties: `year`, `month`, `day`, `hour`, `minute`, `second`, `microsecond`,
-    `nanosecond`, `date`, `dayofyear`, `day_of_year`, `dayofweek`, `day_of_week`, `weekday`, `quarter`,
-    `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
-    and `is_leap_year`.
+  `nanosecond`, `date`, `dayofyear`, `day_of_year`, `dayofweek`, `day_of_week`, `weekday`, `quarter`,
+  `is_month_start`, `is_month_end`, `is_quarter_start`, `is_quarter_end`, `is_year_start`, `is_year_end`
+  and `is_leap_year`.
 - Added support for `Resampler.fillna` and `Resampler.bfill`.
 - Added limited support for the `Timedelta` type, including creating `Timedelta` columns and `to_pandas`.
 - Added support for `Index.argmax` and `Index.argmin`.
@@ -580,6 +580,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added a new optional parameter called `format_json` to the `Session.SessionBuilder.app_name` function that sets the app name in the `Session.query_tag` in JSON format. By default, this parameter is set to `False`.
 
 #### Bug Fixes
+
 - Fixed a bug where SQL generated for `lag(x, 0)` was incorrect and failed with error message `argument 1 to function LAG needs to be constant, found 'SYSTEM$NULL_TO_FIXED(null)'`.
 
 ### Snowpark Local Testing Updates
@@ -596,13 +597,14 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
   - `pass_input_data` passes a named parameter `input_data` to the mocked function that contains the entire input dataframe for the current expression.
   - Added support for the `column_order` parameter to method `DataFrameWriter.save_as_table`.
 
-
 #### Bug Fixes
+
 - Fixed a bug that caused DecimalType columns to be incorrectly truncated to integer precision when used in BinaryExpressions.
 
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added support for `DataFrameGroupBy.all`, `SeriesGroupBy.all`, `DataFrameGroupBy.any`, and `SeriesGroupBy.any`.
 - Added support for `DataFrame.nlargest`, `DataFrame.nsmallest`, `Series.nlargest` and `Series.nsmallest`.
 - Added support for `replace` and `frac > 1` in `DataFrame.sample` and `Series.sample`.
@@ -630,16 +632,17 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added support for `Index.sort_values`.
 
 #### Bug Fixes
+
 - Fixed an issue when using np.where and df.where when the scalar 'other' is the literal 0.
 - Fixed a bug regarding precision loss when converting to Snowpark pandas `DataFrame` or `Series` with `dtype=np.uint64`.
 - Fixed bug where `values` is set to `index` when `index` and `columns` contain all columns in DataFrame during `pivot_table`.
 
 #### Improvements
+
 - Added support for `Index.copy()`
 - Added support for Index APIs: `dtype`, `values`, `item()`, `tolist()`, `to_series()` and `to_frame()`
 - Expand support for DataFrames with no rows in `pd.pivot_table` and `DataFrame.pivot_table`.
 - Added support for `inplace` parameter in `DataFrame.sort_index` and `Series.sort_index`.
-
 
 ## 1.19.0 (2024-06-25)
 
@@ -655,7 +658,6 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Fixed a bug where python stored procedure with table return type fails when run in a task.
 - Fixed a bug where df.dropna fails due to `RecursionError: maximum recursion depth exceeded` when the DataFrame has more than 500 columns.
 - Fixed a bug where `AsyncJob.result("no_result")` doesn't wait for the query to finish execution.
-
 
 ### Snowpark Local Testing Updates
 
@@ -896,7 +898,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Added support for snow:// URLs to `snowflake.snowpark.Session.file.get` and `snowflake.snowpark.Session.file.get_stream`
 - Added support to register stored procedures and UDxFs with a `comment`.
 - UDAF client support is ready for public preview. Please stay tuned for the Snowflake announcement of UDAF public preview.
-- Added support for dynamic pivot.  This feature is currently in private preview.
+- Added support for dynamic pivot. This feature is currently in private preview.
 
 ### Improvements
 
@@ -1114,7 +1116,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 ### Dependency Updates
 
 - Bumped cloudpickle dependency to work with `cloudpickle==2.2.1`
-- Updated ``snowflake-connector-python`` to `3.4.0`.
+- Updated `snowflake-connector-python` to `3.4.0`.
 
 ### Bug Fixes
 
@@ -1159,6 +1161,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 - Revert back to using CTAS (create table as select) statement for `Dataframe.writer.save_as_table` which does not need insert permission for writing tables.
 
 ### New Features
+
 - Support `PythonObjJSONEncoder` json-serializable objects for `ARRAY` and `OBJECT` literals.
 
 ## 1.8.0 (2023-09-14)
@@ -1176,7 +1179,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 ### Dependency updates
 
-- Updated ``snowflake-connector-python`` to 3.2.0.
+- Updated `snowflake-connector-python` to 3.2.0.
 
 ### Bug Fixes
 
@@ -1247,7 +1250,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 ### Dependency updates
 
-- Updated ``snowflake-connector-python`` to 3.0.4.
+- Updated `snowflake-connector-python` to 3.0.4.
 
 ## 1.5.1 (2023-06-20)
 
@@ -1464,7 +1467,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 ### Dependency updates
 
-- Updated ``snowflake-connector-python`` to 2.7.12.
+- Updated `snowflake-connector-python` to 2.7.12.
 
 ## 0.9.0 (2022-08-30)
 
@@ -1572,7 +1575,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 - Added support for vectorized UDFs with the input as a pandas DataFrame or pandas Series and the output as a pandas Series. This improves the performance of UDFs in Snowpark.
 - Added support for inferring the schema of a DataFrame by default when it is created by reading a Parquet, Avro, or ORC file in the stage.
-- Added functions `current_session()`, `current_statement()`, `current_user()`, `current_version()`, `current_warehouse()`, `date_from_parts()`, `date_trunc()`, `dayname()`, `dayofmonth()`, `dayofweek()`, `dayofyear()`, `grouping()`, `grouping_id()`, `hour()`, `last_day()`, `minute()`, `next_day()`, `previous_day()`, `second()`, `month()`, `monthname()`, `quarter()`, `year()`, `current_database()`, `current_role()`, `current_schema()`, `current_schemas()`, `current_region()`, `current_avaliable_roles()`, `add_months()`, `any_value()`, `bitnot()`, `bitshiftleft()`, `bitshiftright()`, `convert_timezone()`, `uniform()`, `strtok_to_array()`, `sysdate()`, `time_from_parts()`,  `timestamp_from_parts()`, `timestamp_ltz_from_parts()`, `timestamp_ntz_from_parts()`, `timestamp_tz_from_parts()`, `weekofyear()`, `percentile_cont()` to `snowflake.snowflake.functions`.
+- Added functions `current_session()`, `current_statement()`, `current_user()`, `current_version()`, `current_warehouse()`, `date_from_parts()`, `date_trunc()`, `dayname()`, `dayofmonth()`, `dayofweek()`, `dayofyear()`, `grouping()`, `grouping_id()`, `hour()`, `last_day()`, `minute()`, `next_day()`, `previous_day()`, `second()`, `month()`, `monthname()`, `quarter()`, `year()`, `current_database()`, `current_role()`, `current_schema()`, `current_schemas()`, `current_region()`, `current_avaliable_roles()`, `add_months()`, `any_value()`, `bitnot()`, `bitshiftleft()`, `bitshiftright()`, `convert_timezone()`, `uniform()`, `strtok_to_array()`, `sysdate()`, `time_from_parts()`, `timestamp_from_parts()`, `timestamp_ltz_from_parts()`, `timestamp_ntz_from_parts()`, `timestamp_tz_from_parts()`, `weekofyear()`, `percentile_cont()` to `snowflake.snowflake.functions`.
 
 ### Breaking Changes:
 
@@ -1655,7 +1658,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 ### Dependency updates
 
-- Updated ``snowflake-connector-python`` to 2.7.4.
+- Updated `snowflake-connector-python` to 2.7.4.
 
 ## 0.3.0 (2022-01-09)
 
@@ -1680,7 +1683,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 
 ### Dependency updates
 
-- Update ``snowflake-connector-python`` to 2.7.2, which upgrades ``pyarrow`` dependency to 6.0.x. Refer to the [python connector 2.7.2 release notes](https://pypi.org/project/snowflake-connector-python/2.7.2/) for more details.
+- Update `snowflake-connector-python` to 2.7.2, which upgrades `pyarrow` dependency to 6.0.x. Refer to the [python connector 2.7.2 release notes](https://pypi.org/project/snowflake-connector-python/2.7.2/) for more details.
 
 ## 0.2.0 (2021-12-02)
 
