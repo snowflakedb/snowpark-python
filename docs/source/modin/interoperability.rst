@@ -1,5 +1,8 @@
 Third Party Library Interoperable APIs
-========================
+=========================================
+
+Snowpark pandas provides interoperability with third party libraries through the dataframe interchange protocol and
+guarantees interoperability for select library APIs as listed below.
 
 The following table is structured as follows: The first column contains the API name.
 The second column is a flag for whether or not interoperability is guaranteed with Snowpark pandas.
