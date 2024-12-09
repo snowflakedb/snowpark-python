@@ -422,11 +422,11 @@ def test_str_no_params(func):
     )
 
 
-@pytest.mark.parametrize("func", ["ljust", "rjust"])
+@pytest.mark.parametrize("func", ["center", "ljust", "rjust"])
 @pytest.mark.parametrize("width", [-1, 0, 1, 10, 100])
 @pytest.mark.parametrize("fillchar", [" ", "#"])
 @sql_count_checker(query_count=1)
-def test_str_ljust_rjust(func, width, fillchar):
+def test_str_center_ljust_rjust(func, width, fillchar):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(
@@ -436,7 +436,7 @@ def test_str_ljust_rjust(func, width, fillchar):
     )
 
 
-@pytest.mark.parametrize("func", ["ljust", "rjust"])
+@pytest.mark.parametrize("func", ["center", "ljust", "rjust"])
 @pytest.mark.parametrize(
     "width, fillchar",
     [
@@ -447,7 +447,7 @@ def test_str_ljust_rjust(func, width, fillchar):
     ],
 )
 @sql_count_checker(query_count=0)
-def test_str_ljust_rjust_neg(func, width, fillchar):
+def test_str_center_ljust_rjust_neg(func, width, fillchar):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
     with pytest.raises(TypeError):
