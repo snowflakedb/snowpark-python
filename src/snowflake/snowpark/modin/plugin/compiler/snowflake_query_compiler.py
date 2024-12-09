@@ -16258,6 +16258,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             raise TypeError(
                 f"width must be of integer type, not {type(width).__name__}"
             )
+        if not isinstance(fillchar, str):
+            raise TypeError(
+                f"fillchar must be of integer type, not {type(fillchar).__name__}"
+            )
+        if len(fillchar) != 1:
+            raise TypeError("fillchar must be a character, not str")
 
         def output_col(column: SnowparkColumn) -> SnowparkColumn:
             new_col = rpad(
@@ -16498,6 +16504,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             raise TypeError(
                 f"width must be of integer type, not {type(width).__name__}"
             )
+        if not isinstance(fillchar, str):
+            raise TypeError(
+                f"fillchar must be of integer type, not {type(fillchar).__name__}"
+            )
+        if len(fillchar) != 1:
+            raise TypeError("fillchar must be a character, not str")
 
         def output_col(column: SnowparkColumn) -> SnowparkColumn:
             new_col = rpad(
@@ -16532,6 +16544,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             raise TypeError(
                 f"width must be of integer type, not {type(width).__name__}"
             )
+        if not isinstance(fillchar, str):
+            raise TypeError(
+                f"fillchar must be of integer type, not {type(fillchar).__name__}"
+            )
+        if len(fillchar) != 1:
+            raise TypeError("fillchar must be a character, not str")
 
         def output_col(column: SnowparkColumn) -> SnowparkColumn:
             new_col = lpad(

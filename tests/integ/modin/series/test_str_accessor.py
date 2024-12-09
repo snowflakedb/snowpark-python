@@ -441,9 +441,11 @@ def test_str_center_ljust_rjust(func, width, fillchar):
     "width, fillchar",
     [
         (None, " "),
+        ("ten", " "),
         (10, ""),
         (10, "ab"),
         (10, None),
+        (10, 10),
     ],
 )
 @sql_count_checker(query_count=0)
