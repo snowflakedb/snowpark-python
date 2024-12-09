@@ -594,6 +594,8 @@ df303 = df.select(unix_timestamp("A"), unix_timestamp("A", None), unix_timestamp
 
 df304 = df.select(locate("needle", col("expr")), locate("needle", lit("test string"), 2))
 
+df305 = df.select(size(col("expr")), size("A"))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -1187,6 +1189,8 @@ df302 = df111.select(call_udf("name"), call_udf("test", col("A"), lit(10)))
 df303 = df111.select(unix_timestamp("A", None), unix_timestamp("A", None), unix_timestamp(col("B"), lit("YYYY")))
 
 df304 = df111.select(charindex(lit("needle"), col("expr"), lit(1)), charindex(lit("needle"), lit("test string"), lit(2)))
+
+df305 = df111.select(size(col("expr")), size("A"))
 
 ## EXPECTED ENCODED AST
 
@@ -46641,6 +46645,120 @@ body {
     uid: 296
     var_id {
       bitfield1: 296
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "size"
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 42
+                      end_line: 619
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 31
+                      start_line: 619
+                    }
+                    v: "expr"
+                  }
+                }
+                src {
+                  end_column: 42
+                  end_line: 619
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 31
+                  start_line: 619
+                }
+              }
+            }
+            src {
+              end_column: 43
+              end_line: 619
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 26
+              start_line: 619
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "size"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 54
+                  end_line: 619
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 45
+                  start_line: 619
+                }
+                v: "A"
+              }
+            }
+            src {
+              end_column: 54
+              end_line: 619
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 45
+              start_line: 619
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 112
+            }
+          }
+        }
+        src {
+          end_column: 55
+          end_line: 619
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 619
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df305"
+    }
+    uid: 297
+    var_id {
+      bitfield1: 297
     }
   }
 }

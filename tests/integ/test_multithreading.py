@@ -688,7 +688,7 @@ def test_concurrent_update_on_sensitive_configs(
     run=False,
 )
 def test_large_query_breakdown_with_cte(threadsafe_session):
-    bounds = (300, 600) if threadsafe_session.sql_simplifier_enabled else (50, 70)
+    bounds = (300, 520) if threadsafe_session.sql_simplifier_enabled else (50, 70)
     try:
         original_query_compilation_stage_enabled = (
             threadsafe_session._query_compilation_stage_enabled

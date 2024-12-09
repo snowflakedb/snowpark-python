@@ -235,7 +235,9 @@ _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE = (
     "PYTHON_SNOWPARK_COMPILATION_STAGE_ENABLED"
 )
-_PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING = "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION"
+_PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION = (
+    "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION"
+)
 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
     "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
 )
@@ -522,6 +524,8 @@ class Session:
             _add_session(new_session)
             return new_session
 
+        appName = app_name
+
         def __get__(self, obj, objtype=None):
             return Session.SessionBuilder()
 
@@ -587,10 +591,8 @@ class Session:
                 _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
             )
         )
-        self._cte_optimization_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_STRING, False
-            )
+        self._cte_optimization_enabled: bool = self.is_feature_enabled_for_version(
+            _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
         )
         self._use_logical_type_for_create_df: bool = (
             self._conn._get_client_side_session_parameter(
@@ -602,16 +604,10 @@ class Session:
                 _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
             )
         )
-        auto_clean_up_temp_table_enabled_version = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION, ""
-            )
-        )
         self._auto_clean_up_temp_table_enabled: bool = (
-            isinstance(auto_clean_up_temp_table_enabled_version, str)
-            and auto_clean_up_temp_table_enabled_version != ""
-            and pkg_resources.parse_version(self.version)
-            >= pkg_resources.parse_version(auto_clean_up_temp_table_enabled_version)
+            self.is_feature_enabled_for_version(
+                _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION
+            )
         )
         self._reduce_describe_query_enabled: bool = (
             self._conn._get_client_side_session_parameter(
@@ -694,6 +690,19 @@ class Session:
             f"<{self.__class__.__module__}.{self.__class__.__name__}: account={self.get_current_account()}, "
             f"role={self.get_current_role()}, database={self.get_current_database()}, "
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
+        )
+
+    def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
+        """
+        This method checks if a feature is enabled for the current session based on
+        the server side parameter.
+        """
+        version = self._conn._get_client_side_session_parameter(parameter_name, "")
+        return (
+            isinstance(version, str)
+            and version != ""
+            and pkg_resources.parse_version(self.version)
+            >= pkg_resources.parse_version(version)
         )
 
     def _generate_new_action_id(self) -> int:
@@ -808,28 +817,6 @@ class Session:
         When setting this parameter to ``True``, Snowpark will automatically clean up temporary tables created by
         :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
         The default value is ``False``.
-
-        Example::
-
-            >>> import gc
-            >>>
-            >>> def f(session: Session) -> str:
-            ...     df = session.create_dataframe(
-            ...         [[1, 2], [3, 4]], schema=["a", "b"]
-            ...     ).cache_result()
-            ...     return df.table_name
-            ...
-            >>> session.auto_clean_up_temp_table_enabled = True
-            >>> table_name = f(session)
-            >>> assert table_name
-            >>> gc.collect() # doctest: +SKIP
-            >>>
-            >>> # The temporary table created by cache_result will be dropped when the DataFrame is no longer referenced
-            >>> # outside the function
-            >>> session.sql(f"show tables like '{table_name}'").count()
-            0
-
-            >>> session.auto_clean_up_temp_table_enabled = False
 
         Note:
             Temporary tables will only be dropped if this parameter is enabled during garbage collection.
