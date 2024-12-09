@@ -1241,21 +1241,46 @@ class DataFrame:
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
         import modin.pandas as pd  # isort: skip
         # fmt: on
+
+        # AST.
+        stmt = None
         if _emit_ast:
-            raise NotImplementedError(
-                "TODO SNOW-1672579: Support Snowpark pandas API handover."
-            )
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_to_snowpark_pandas, stmt)
+            self._set_ast_ref(ast.df)
+            debug_check_missing_ast(self._ast_id, self)
+            if index_col is not None:
+                ast.index_col.list.extend(
+                    index_col if isinstance(index_col, list) else [index_col]
+                )
+            if columns is not None:
+                ast.columns.list.extend(
+                    columns if isinstance(columns, list) else [columns]
+                )
+
         # create a temporary table out of the current snowpark dataframe
         temporary_table_name = random_name_for_temp_object(
             TempObjectType.TABLE
         )  # pragma: no cover
+        ast_id = self._ast_id
+        self._ast_id = None  # set the AST ID to None to prevent AST emission.
         self.write.save_as_table(
-            temporary_table_name, mode="errorifexists", table_type="temporary"
+            temporary_table_name,
+            mode="errorifexists",
+            table_type="temporary",
+            _emit_ast=False,
         )  # pragma: no cover
+        self._ast_id = ast_id  # reset the AST ID.
 
         snowpandas_df = pd.read_snowflake(
             name_or_query=temporary_table_name, index_col=index_col, columns=columns
         )  # pragma: no cover
+
+        if _emit_ast:
+            # Set the Snowpark DataFrame AST ID to the AST ID of this pandas query.
+            snowpandas_df._query_compiler._modin_frame.ordered_dataframe._dataframe_ref.snowpark_dataframe._ast_id = (
+                stmt.var_id.bitfield1
+            )
 
         return snowpandas_df
 
@@ -3904,7 +3929,7 @@ class DataFrame:
             return result[0][0] if block else result
 
     @property
-    def write(self, _emit_ast: bool = True) -> DataFrameWriter:
+    def write(self) -> DataFrameWriter:
         """Returns a new :class:`DataFrameWriter` object that you can use to write the data in the :class:`DataFrame` to
         a Snowflake database or a stage location
 
@@ -3925,7 +3950,7 @@ class DataFrame:
         """
 
         # AST.
-        if _emit_ast and self._ast_id is not None:
+        if self._ast_id is not None:
             stmt = self._session._ast_batch.assign()
             expr = with_src_position(stmt.expr.sp_dataframe_write, stmt)
             self._set_ast_ref(expr.df)
