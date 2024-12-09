@@ -214,6 +214,9 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "ans"
             src {
               end_column: 46
@@ -221,9 +224,6 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_column: 18
               start_line: 33
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -403,6 +403,9 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "a_Ans"
             src {
               end_column: 60
@@ -410,9 +413,6 @@ body {
               file: "SRC_POSITION_TEST_MODE"
               start_column: 18
               start_line: 39
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -779,5 +779,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }
