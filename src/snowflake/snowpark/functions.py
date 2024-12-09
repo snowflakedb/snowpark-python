@@ -3017,7 +3017,7 @@ def split(str: ColumnOrName, pattern: ColumnOrName, _emit_ast: bool = True) -> C
 def substring(
     str: ColumnOrName,
     pos: Union[Column, int],
-    len: Union[Column, int],
+    len: Optional[Union[Column, int]] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """Returns the portion of the string or binary value str, starting from the
@@ -3030,16 +3030,26 @@ def substring(
 
     :func:`substr` is an alias of :func:`substring`.
 
-    Example::
+    Example 1::
         >>> df = session.create_dataframe(
         ...     ["abc", "def"],
         ...     schema=["S"],
-        ... ).select(substring(col("S"), 1, 1))
-        >>> df.collect()
+        ... )
+        >>> df.select(substring(col("S"), 1, 1)).collect()
         [Row(SUBSTRING("S", 1, 1)='a'), Row(SUBSTRING("S", 1, 1)='d')]
+
+    Example 2::
+        >>> df = session.create_dataframe(
+        ...     ["abc", "def"],
+        ...     schema=["S"],
+        ... )
+        >>> df.select(substring(col("S"), 2)).collect()
+        [Row(SUBSTRING("S", 2)='bc'), Row(SUBSTRING("S", 2)='ef')]
     """
     s = _to_col_if_str(str, "substring")
     p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=_emit_ast)
+    if len is None:
+        return builtin("substring", _emit_ast=_emit_ast)(s, p)
     length = len if isinstance(len, Column) else lit(len, _emit_ast=_emit_ast)
     return builtin("substring", _emit_ast=_emit_ast)(s, p, length)
 
@@ -3390,6 +3400,43 @@ def concat_ws(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     columns = [_to_col_if_str(c, "concat_ws") for c in cols]
     return builtin("concat_ws", _emit_ast=_emit_ast)(*columns)
+
+
+def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
+    """Concatenates two or more strings, or concatenates two or more binary values. Null values are ignored.
+
+    Args:
+        sep: The separator to use between the strings.
+
+    Examples::
+        >>> df = session.create_dataframe([
+        ...     ['Hello', 'World', None],
+        ...     [None, None, None],
+        ...     ['Hello', None, None],
+        ... ], schema=['a', 'b', 'c'])
+        >>> df.select(_concat_ws_ignore_nulls(',', df.a, df.b, df.c)).show()
+        ----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS(',', ""A"",""B"",""C"")"  |
+        ----------------------------------------------------
+        |Hello,World                                       |
+        |                                                  |
+        |Hello                                             |
+        ----------------------------------------------------
+        <BLANKLINE>
+    """
+    # TODO: SNOW-1831917 create ast
+    columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
+    names = ",".join([c.get_name() for c in columns])
+
+    input_column_array = array_construct_compact(*columns)
+    reduced_result = builtin("reduce")(
+        input_column_array,
+        lit(""),
+        sql_expr(f"(l, r) -> l || '{sep}' || r"),
+    )
+    return substring(reduced_result, 2).alias(
+        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})"
+    )
 
 
 @publicapi
@@ -6740,11 +6787,17 @@ def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
         ----------------------------------------------------------
         <BLANKLINE>
     """
+
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "size", col)
+
     c = _to_col_if_str(col, "size")
     v = to_variant(c)
 
-    # TODO: SNOW-1831923 build AST
-    return (
+    result = (
         when(
             is_array(v, _emit_ast=False),
             array_size(v, _emit_ast=False),
@@ -6758,6 +6811,8 @@ def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
         .otherwise(lit(None), _emit_ast=False)
         .alias(f"SIZE({c.get_name()})", _emit_ast=False)
     )
+    result._ast = ast
+    return result
 
 
 @publicapi
