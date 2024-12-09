@@ -3438,14 +3438,14 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
     columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
     names = ",".join([c.get_name() for c in columns])
 
-    input_column_array = array_construct_compact(*columns)
-    reduced_result = builtin("reduce")(
+    input_column_array = array_construct_compact(*columns, _emit_ast=False)
+    reduced_result = builtin("reduce", _emit_ast=False)(
         input_column_array,
-        lit(""),
+        lit("", _emit_ast=False),
         sql_expr(f"(l, r) -> l || '{sep}' || r"),
     )
-    return substring(reduced_result, len(sep) + 1).alias(
-        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})"
+    return substring(reduced_result, len(sep) + 1, _emit_ast=False).alias(
+        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False
     )
 
 
