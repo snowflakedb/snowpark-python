@@ -813,8 +813,7 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     warning_dict[name].warning(text)
 
 
-# TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:  # pragma: no cover
+def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:
     session = None
     try:
         # Multiple default session attempts:
@@ -855,9 +854,8 @@ def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:  # pragma: n
 def publicapi(func) -> Callable:
     """decorator to safeguard public APIs with global feature flags."""
 
-    # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
     @functools.wraps(func)
-    def func_call_wrapper(*args, **kwargs):  # pragma: no cover
+    def func_call_wrapper(*args, **kwargs):
         # warning(func.__qualname__, warning_text)
 
         # Handle AST encoding, by modifying default behavior.
