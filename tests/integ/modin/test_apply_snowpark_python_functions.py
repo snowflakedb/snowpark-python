@@ -53,22 +53,22 @@ def test_apply_log10():
 
 @sql_count_checker(query_count=0)
 def test_apply_snowpark_python_function_not_implemented():
-    from snowflake.snowpark.functions import cos, sin
+    from snowflake.snowpark.functions import desc, asc
 
     with pytest.raises(NotImplementedError):
-        pd.Series([1, 2, 3]).apply(cos)
+        pd.Series([1, 2, 3]).apply(desc)
     with pytest.raises(NotImplementedError):
-        pd.Series([1, 2, 3]).to_frame().applymap(sin, na_action="ignore")
+        pd.Series([1, 2, 3]).to_frame().apply(asc, na_action="ignore")
     with pytest.raises(NotImplementedError):
-        pd.Series([1, 2, 3]).to_frame().applymap(sin, args=[1, 2])
+        pd.Series([1, 2, 3]).to_frame().applymap(asc, args=[1, 2])
     with pytest.raises(NotImplementedError):
-        pd.DataFrame({"a": [1, 2, 3]}).apply(cos)
+        pd.DataFrame({"a": [1, 2, 3]}).apply(desc)
     with pytest.raises(NotImplementedError):
-        pd.DataFrame({"a": [1, 2, 3]}).apply(sin, raw=True)
+        pd.DataFrame({"a": [1, 2, 3]}).apply(asc, raw=True)
     with pytest.raises(NotImplementedError):
-        pd.DataFrame({"a": [1, 2, 3]}).apply(sin, axis=1)
+        pd.DataFrame({"a": [1, 2, 3]}).apply(asc, axis=1)
     with pytest.raises(NotImplementedError):
-        pd.DataFrame({"a": [1, 2, 3]}).apply(sin, args=(1, 2))
+        pd.DataFrame({"a": [1, 2, 3]}).apply(asc, args=(1, 2))
 
 
 @sql_count_checker(query_count=1)
