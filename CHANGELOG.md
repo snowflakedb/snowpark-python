@@ -1,6 +1,15 @@
 # Release History
 
-## 1.26.0 (TBD)
+## 1.27.0 (TBD)
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `Series.str.ljust` and `Series.str.rjust`.
+
+
+## 1.26.0 (2024-12-05)
 
 ### Snowpark Python API Updates
 
@@ -23,7 +32,6 @@
 - Added support for following functions in `functions.py`:
   - `size` to get size of array, object, or map columns.
   - `collect_list` an alias of `array_agg`.
-  - `concat_ws_ignore_nulls` to concatenate strings with a separator, ignoring null values.
   - `substring` makes `len` argument optional.
 - Added parameter `ast_enabled` to session for internal usage (default: `False`).
 
@@ -51,7 +59,6 @@
   dynamic pivot is now generally available.
 - Fixed a bug in `session.read.options` where `False` Boolean values were incorrectly parsed as `True` in the generated file format.
 
-
 #### Dependency Updates
 
 - Added a runtime dependency on `python-dateutil`.
@@ -71,23 +78,14 @@
 - Added partial support for the dataframe interchange protocol method
   `DataFrame.__dataframe__()`.
 
-#### Dependency Updates
-
 #### Bug Fixes
+
 - Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
-
 #### Improvements
+
 - Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinel values.
 - Improved documentation for pd.read_excel.
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-
-#### Bug Fixes
-
 
 ## 1.25.0 (2024-11-14)
 
