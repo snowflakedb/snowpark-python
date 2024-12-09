@@ -391,12 +391,8 @@ class Session:
                         setattr(self._session, key, value)
                     if hasattr(SnowflakeConnection, key):
                         setattr(self._session._conn._conn, key, value)
-                    if key in self._conf:
-                        self._conf[key] = value
                 else:
-                    raise AttributeError(
-                        f'Configuration "{key}" does not exist or is not mutable in runtime'
-                    )
+                    self._conf[key] = value
 
     class SessionBuilder:
         """
