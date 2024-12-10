@@ -9,6 +9,8 @@ from decimal import Decimal
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
+from google.protobuf.json_format import MessageToDict
+
 from snowflake.snowpark import Session
 import snowflake.snowpark.functions
 from snowflake.snowpark.types import (
@@ -738,6 +740,33 @@ class Decoder:
                 col_name = expr.sp_dataframe_col.col_name
                 df = self.decode_expr(expr.sp_dataframe_col.df)
                 return df[col_name]
+            case "sp_dataframe_collect":
+                df = self.symbol_table[expr.sp_dataframe_collect.id.bitfield1][1]
+                d = MessageToDict(expr.sp_dataframe_collect)
+                statement_params = {}
+                statement_params_list = d.get("statementParams", [])
+                for statement_params_list_map in statement_params_list:
+                    statement_params[
+                        statement_params_list_map["1"]
+                    ] = statement_params_list_map["2"]
+                log_on_exception = d["logOnException"]
+                block = d["block"]
+                case_sensitive = d["caseSensitive"]
+                no_wait = d.get("noWait", False)
+                if no_wait:
+                    return df.collect_nowait(
+                        statement_params=statement_params,
+                        log_on_exception=log_on_exception,
+                        case_sensitive=case_sensitive,
+                    )
+                else:
+                    return df.collect(
+                        statement_params=statement_params,
+                        log_on_exception=log_on_exception,
+                        block=block,
+                        case_sensitive=case_sensitive,
+                    )
+
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
             case "sp_dataframe_select__columns":
@@ -798,8 +827,9 @@ class Decoder:
                 )
 
             case "eval":
-                val_symbol, val = self.symbol_table[stmt.parameters[0]]
-                logger.info(f"eval result: {val_symbol} = {val}")
+                if hasattr(stmt, "parameters"):
+                    val_symbol, val = self.symbol_table[stmt.parameters[0]]
+                    logger.info(f"eval result: {val_symbol} = {val}")
             case _:
                 raise ValueError(
                     "Unknown statement type: %s" % stmt.WhichOneof("variant")
