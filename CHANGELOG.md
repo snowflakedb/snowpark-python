@@ -9,6 +9,9 @@
 - Added support for `Series.str.ljust` and `Series.str.rjust`.
 - Added support for `Series.str.center`.
 
+#### Bug Fixes
+
+- Fixed a bug that system function called through `session.call` have incorrect type conversion.
 
 ## 1.26.0 (2024-12-05)
 
