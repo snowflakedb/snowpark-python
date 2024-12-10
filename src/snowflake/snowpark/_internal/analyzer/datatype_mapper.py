@@ -63,9 +63,21 @@ def float_nan_inf_to_sql(value: float) -> str:
     return f"{cast_value} :: FLOAT"
 
 
-def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) -> str:
+def to_sql(
+    value: Any,
+    datatype: DataType,
+    from_values_statement: bool = False,
+    is_system_function: bool = False,
+) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
-
+    # if is system function, don't do covert
+    if is_system_function:
+        if value is None:
+            return "NULL"
+        elif isinstance(value, str):
+            return f"{str_to_sql(value)}"
+        else:
+            return f"{value}"
     # Handle null values
     if isinstance(
         datatype,
