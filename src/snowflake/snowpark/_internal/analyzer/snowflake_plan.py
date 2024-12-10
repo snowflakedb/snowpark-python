@@ -332,6 +332,7 @@ class SnowflakePlan(LogicalPlan):
             source_plan=self.source_plan,
             api_calls=api_calls,
             df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
+            referenced_ctes=self.referenced_ctes,
         )
 
     @property
@@ -981,6 +982,7 @@ class SnowflakePlanBuilder:
                 source_plan,
                 api_calls=child.api_calls,
                 session=self.session,
+                referenced_ctes=child.referenced_ctes,
             )
 
         if mode == SaveMode.APPEND:
