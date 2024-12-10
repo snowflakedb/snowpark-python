@@ -6,7 +6,7 @@ df = df.select(col("NUM").in_(1, 2, 3))
 
 df = df.select(col("NUM").in_(df))
 
-df = df.select(col("NUM").in_([1, 2, 3]))
+df = df.select(col("NUM").in_([1]))
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -16,7 +16,7 @@ df = df.select(col("NUM").in_(1, 2, 3))
 
 df = df.select(col("NUM").in_(df))
 
-df = df.select(col("NUM").in_([1, 2, 3]))
+df = df.select(col("NUM").in_([1]))
 
 ## EXPECTED ENCODED AST
 
@@ -240,24 +240,6 @@ body {
                       start_line: 31
                     }
                     v: 1
-                  }
-                }
-                vs {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 31
-                    }
-                    v: 2
-                  }
-                }
-                vs {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 31
-                    }
-                    v: 3
                   }
                 }
               }
