@@ -766,6 +766,20 @@ class Decoder:
                         block=block,
                         case_sensitive=case_sensitive,
                     )
+            case "sp_dataframe_count":
+                df = self.symbol_table[expr.sp_dataframe_count.id.bitfield1][1]
+                d = MessageToDict(expr.sp_dataframe_count)
+                statement_params = {}
+                statement_params_list = d.get("statementParams", [])
+                for statement_params_list_map in statement_params_list:
+                    statement_params[
+                        statement_params_list_map["1"]
+                    ] = statement_params_list_map["2"]
+                block = d["block"]
+                return df.count(
+                    statement_params=statement_params,
+                    block=block,
+                )
 
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
