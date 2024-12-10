@@ -846,8 +846,9 @@ def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:  # pragma: n
                 f"Could not retrieve default session "
                 f"for function {func.__qualname__}, capturing AST by default."
             )
-            # session has not been created yet. To not lose information, always encode AST.
-            return True  # noqa: B012
+            # session has not been created yet, do not encode AST be default.
+            # TODO: flip this to True when we go GA.
+            return False  # noqa: B012
         else:
             return session.ast_enabled  # noqa: B012
 
@@ -868,6 +869,10 @@ def publicapi(func) -> Callable:
         if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
             # No arguments, or single argument with function.
             if len(args) == 0 or (len(args) == 1 and isinstance(args[0], Callable)):
+                # this can be refactored to
+                #  - extract session
+                #  - check isinstance(session, snowflake.snowpark.Session)
+                #  - update kwargs["_emit_ast"] = value
                 if func.__name__ in {
                     "udf",
                     "udtf",
