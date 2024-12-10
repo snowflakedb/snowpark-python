@@ -444,8 +444,10 @@ class Decoder:
         offset_seconds = tz_expr.offset_seconds
         return timezone(offset=timedelta(seconds=offset_seconds), name=tz_name)
 
-    def binop(self, ast, fn):
-        return fn(self.decode_expr(ast.lhs), self.decode_expr(ast.rhs))
+    def bitop(self, ast, fn):
+        lhs = self.decode_expr(ast.lhs)
+        rhs = self.decode_expr(ast.rhs)
+        return getattr(lhs, fn)(rhs)
 
     def get_statement_params(self, d: Dict):
         statement_params = {}
@@ -731,6 +733,16 @@ class Decoder:
             case "or":
                 # "or" is reserved keyword in python - so have to use getattr here.
                 return self.binop(getattr(expr, "or"), lambda lhs, rhs: lhs | rhs)
+
+            # bit operations on columns
+            case "bit_and":
+                return self.bitop(expr.bit_and, "bitwiseAnd")
+
+            case "bit_or":
+                return self.bitop(expr.bit_or, "bitwiseOR")
+
+            case "bit_xor":
+                return self.bitop(expr.bit_xor, "bitwiseXOR")
 
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
