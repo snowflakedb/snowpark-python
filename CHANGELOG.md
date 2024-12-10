@@ -14,6 +14,7 @@
 
 - Added support for `Series.str.ljust` and `Series.str.rjust`.
 - Added support for `Series.str.center`.
+- Added support for `Series.str.pad`.
 - Added support for applying Snowpark Python function `snowflake_cortex_sentiment`.
 
 
