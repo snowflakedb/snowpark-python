@@ -228,8 +228,16 @@ def compare_base64_results(
     if sys.version_info.minor <= 10 or exclude_symbols_and_src:
         clear_line_no_in_request(actual_message)
         clear_line_no_in_request(expected_message)
-    actual_message = actual_message.SerializeToString(deterministic=True)
-    expected_message = expected_message.SerializeToString(deterministic=True)
+
+    if not exclude_symbols_and_src:
+        actual_message = actual_message.SerializeToString(deterministic=True)
+        expected_message = expected_message.SerializeToString(deterministic=True)
+    else:
+        from google.protobuf.text_format import MessageToString
+
+        print("actual_message", MessageToString(actual_message))
+        actual_message = MessageToString(actual_message)
+        expected_message = MessageToString(expected_message)
 
     assert actual_message == expected_message
 
