@@ -622,10 +622,10 @@ class Decoder:
                 statement_params = {}
                 statement_params_list = d.get("statementParams", [])
                 if len(statement_params_list) > 0:
-                    statement_params_list_map = statement_params_list[0]
-                    statement_params[
-                        statement_params_list_map["1"]
-                    ] = statement_params_list_map["2"]
+                    for statement_params_list_map in statement_params_list:
+                        statement_params[
+                            statement_params_list_map["1"]
+                        ] = statement_params_list_map["2"]
                 log_on_exception = d.get("logOnException", False)
                 block = d.get("block", False)
                 case_sensitive = d.get("caseSensitive", False)
