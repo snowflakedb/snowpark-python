@@ -3389,6 +3389,25 @@ def check_df_with_query_id_result_scan(session, df):
     Utils.check_answer(df, df_from_result_scan)
 
 
+def test_pipe(session):
+    data = [
+        {"id": 1, "value": 50},
+        {"id": 2, "value": 30},
+        {"id": 3, "value": 70},
+        {"id": 4, "value": 20},
+    ]
+    df = session.create_dataframe(data)
+
+    def add_column(df, column_name, value):
+        return df.withColumn(column_name, lit(value))
+
+    transformed_df = df.pipe(add_column, "new_col", 42).pipe(
+        lambda d: d.filter(d["new_col"] > 40)
+    )
+    expected_rows = [Row(ID=1, VALUE=50, NEW_COL=42), Row(ID=3, VALUE=70, NEW_COL=42)]
+    assert transformed_df.collect() == expected_rows
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="Result scan is a SQL feature",
