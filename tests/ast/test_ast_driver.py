@@ -12,7 +12,6 @@ import re
 import sys
 import tempfile
 import time
-from base64 import b64decode
 from dataclasses import dataclass
 
 import dateutil
@@ -284,8 +283,7 @@ def test_ast(session, tables, test_case):
                 session._ast_batch.flush()  # Clear the AST.
 
                 # Turn base64 input into protobuf objects. ParseFromString can retrieve multiple statements.
-                protobuf_request = proto.Request()
-                protobuf_request.ParseFromString(b64decode(stripped_base64_str))
+                protobuf_request = base64_lines_to_request(stripped_base64_str)
 
                 # The listener helps capture the third step -- encode the AST back to base64.
                 with session.ast_listener() as al:
