@@ -4,8 +4,7 @@
 
 import logging
 from typing import Any, Optional, Iterable, List, Union, Dict, Tuple
-from datetime import datetime, date, time, timedelta, timezone
-from dateutil.tz import gettz
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -480,8 +479,7 @@ class Decoder:
                 # For values like nan, snan, inf, etc. "special" is a combination of a sign and a character representing
                 # the special value.
                 if hasattr(expr.big_decimal_val, "special"):
-                    special = expr.big_decimal_val.special.value
-                    match special:
+                    match expr.big_decimal_val.special.value:
                         case "+F":
                             return Decimal("Infinity")
                         case "-F":
@@ -499,7 +497,8 @@ class Decoder:
                             pass
                         case _:
                             raise ValueError(
-                                "Big decimal special value not recognized: %s" % special
+                                "Big decimal special value not recognized: %s"
+                                % expr.big_decimal_val.special.value
                             )
                 unscaled_value = int.from_bytes(
                     expr.big_decimal_val.unscaled_value, byteorder="big", signed=True
@@ -561,14 +560,10 @@ class Decoder:
                 )
 
             case "seq_map_val":
-                python_map = dict()
-                for kvs in expr.seq_map_val.kvs:
-                    assert len(kvs.vs) == 2  # The two elements are the key and value.
-                    key, value = self.decode_expr(kvs.vs[0]), self.decode_expr(
-                        kvs.vs[1]
-                    )
-                    python_map[key] = value
-                return python_map
+                return {
+                    self.decode_expr(kv.vs[0]): self.decode_expr(kv.vs[1])
+                    for kv in expr.seq_map_val.kvs
+                }
 
             case "tuple_val":
                 # vs can be a list of Expr, a single Expr, or ().
