@@ -6,7 +6,10 @@ from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSnowflakePlan,
+    Selectable,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
@@ -65,6 +68,16 @@ class QueryGenerator(Analyzer):
         # order of when the with query block is visited. The order is important to make sure the dependency
         # between the CTE definition is satisfied.
         self.resolved_with_query_block: Dict[str, Query] = {}
+
+    def to_selectable(self, plan: LogicalPlan) -> Selectable:
+        """Given a LogicalPlan, convert it to a Selectable."""
+        if isinstance(plan, Selectable):
+            return plan
+
+        snowflake_plan = self.resolve(plan)
+        selectable = SelectSnowflakePlan(snowflake_plan, analyzer=self)
+        selectable._is_valid_for_replacement = snowflake_plan._is_valid_for_replacement
+        return selectable
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
@@ -169,6 +182,7 @@ class QueryGenerator(Analyzer):
                 iceberg_config=logical_plan.iceberg_config,
                 table_exists=logical_plan.table_exists,
             )
+            resolved_plan.referenced_ctes = resolved_child.referenced_ctes
 
         elif isinstance(
             logical_plan,
@@ -197,6 +211,7 @@ class QueryGenerator(Analyzer):
             resolved_plan = super().do_resolve_with_resolved_children(
                 logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
             )
+            resolved_plan.referenced_ctes = resolved_child.referenced_ctes
 
         elif isinstance(logical_plan, Selectable):
             # overwrite the Selectable resolving to make sure we are triggering
