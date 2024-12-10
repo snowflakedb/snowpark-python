@@ -2,12 +2,19 @@
 
 ## 1.27.0 (TBD)
 
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `snowflake_cortex_sentiment`.
+
 ### Snowpark pandas API Updates
 
 #### New Features
 
 - Added support for `Series.str.ljust` and `Series.str.rjust`.
 - Added support for `Series.str.center`.
+- Added support for applying Snowpark Python function `snowflake_cortex_sentiment`.
 
 
 ## 1.26.0 (2024-12-05)
