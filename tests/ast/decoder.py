@@ -615,6 +615,15 @@ class Decoder:
                 to_dtype = self.decode_data_type_expr(expr.sp_column_cast.to)
                 return col.cast(to_dtype)
 
+            case "sp_column_equal_nan":
+                col = self.decode_expr(expr.sp_column_equal_nan.col)
+                return col.equal_nan()
+
+            case "sp_column_equal_null":
+                lhs = self.decode_expr(expr.sp_column_equal_null.lhs)
+                rhs = self.decode_expr(expr.sp_column_equal_null.rhs)
+                return lhs.equal_null(rhs)
+
             case "sp_column_in__seq":
                 col = self.decode_expr(expr.sp_column_in__seq.col)
                 if isinstance(expr.sp_column_in__seq.values, Iterable):
@@ -625,6 +634,14 @@ class Decoder:
                 else:
                     # The list case should be taken care of in this branch.
                     return col.in_(self.decode_expr(expr.sp_column_in__seq.values))
+
+            case "sp_column_is_not_null":
+                col = self.decode_expr(expr.sp_column_is_not_null.col)
+                return col.is_not_null()
+
+            case "sp_column_is_null":
+                col = self.decode_expr(expr.sp_column_is_null.col)
+                return col.is_null()
 
             case "sp_column_sql_expr":
                 return expr.sp_column_sql_expr.sql
