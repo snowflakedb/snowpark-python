@@ -182,7 +182,6 @@ class QueryGenerator(Analyzer):
                 iceberg_config=logical_plan.iceberg_config,
                 table_exists=logical_plan.table_exists,
             )
-            resolved_plan.referenced_ctes = resolved_child.referenced_ctes
 
         elif isinstance(
             logical_plan,
@@ -211,7 +210,6 @@ class QueryGenerator(Analyzer):
             resolved_plan = super().do_resolve_with_resolved_children(
                 logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
             )
-            resolved_plan.referenced_ctes = resolved_child.referenced_ctes
 
         elif isinstance(logical_plan, Selectable):
             # overwrite the Selectable resolving to make sure we are triggering
