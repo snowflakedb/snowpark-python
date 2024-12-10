@@ -16260,7 +16260,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         if not isinstance(fillchar, str):
             raise TypeError(
-                f"fillchar must be of integer type, not {type(fillchar).__name__}"
+                f"fillchar must be a character, not {type(fillchar).__name__}"
             )
         if len(fillchar) != 1:
             raise TypeError("fillchar must be a character, not str")
@@ -16443,8 +16443,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         width: int,
         side: Literal["left", "right", "both"] = "left",
         fillchar: str = " ",
-    ) -> None:
-        ErrorMessage.method_not_implemented_error("pad", "Series.str")
+    ) -> "SnowflakeQueryCompiler":
+        if side == "left":
+            return self.str_rjust(width, fillchar)
+        elif side == "right":
+            return self.str_ljust(width, fillchar)
+        elif side == "both":
+            return self.str_center(width, fillchar)
+        else:
+            raise ValueError("Invalid side")
 
     def str_partition(self, sep: str = " ", expand: bool = True) -> None:
         ErrorMessage.method_not_implemented_error("partition", "Series.str")
@@ -16506,7 +16513,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         if not isinstance(fillchar, str):
             raise TypeError(
-                f"fillchar must be of integer type, not {type(fillchar).__name__}"
+                f"fillchar must be a character, not {type(fillchar).__name__}"
             )
         if len(fillchar) != 1:
             raise TypeError("fillchar must be a character, not str")
