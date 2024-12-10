@@ -626,9 +626,9 @@ class Decoder:
                         statement_params[
                             statement_params_list_map["1"]
                         ] = statement_params_list_map["2"]
-                log_on_exception = d.get("logOnException", False)
-                block = d.get("block", False)
-                case_sensitive = d.get("caseSensitive", False)
+                log_on_exception = d["logOnException"]
+                block = d["block"]
+                case_sensitive = d["caseSensitive"]
                 no_wait = d.get("noWait", False)
                 if no_wait:
                     return df.collect_nowait(
