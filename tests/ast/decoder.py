@@ -747,6 +747,17 @@ class Decoder:
             case "bit_xor":
                 return self.bitop(expr.bit_xor, "bitwiseXOR")
 
+            # Unary operations on columns:
+            case "neg":
+                col = self.decode_expr(expr.neg.operand)
+                return -col
+
+            case "not":
+                # not is a reserved word in python.
+                col_expr = getattr(expr, "not").operand
+                col = self.decode_expr(col_expr)
+                return ~col
+
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
                 data = self.decode_dataframe_data_expr(expr.sp_create_dataframe.data)
