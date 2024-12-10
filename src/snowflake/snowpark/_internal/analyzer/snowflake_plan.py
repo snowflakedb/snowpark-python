@@ -332,6 +332,7 @@ class SnowflakePlan(LogicalPlan):
             source_plan=self.source_plan,
             api_calls=api_calls,
             df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
+            referenced_ctes=self.referenced_ctes,
         )
 
     @property
@@ -531,11 +532,6 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
-        # Whether propagate the referenced ctes from child to the new plan built.
-        # In general, the referenced should be propagated from child, but for cases
-        # like SnowflakeCreateTable, the CTEs should not be propagated, because
-        # the CTEs are already embedded and consumed in the child.
-        propagate_referenced_ctes: bool = True,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
@@ -565,9 +561,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
-            referenced_ctes=child.referenced_ctes
-            if propagate_referenced_ctes
-            else None,
+            referenced_ctes=child.referenced_ctes,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -941,7 +935,6 @@ class SnowflakePlanBuilder:
                 child,
                 source_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
             )
 
         def get_create_and_insert_plan(child: SnowflakePlan, replace, error):
@@ -989,6 +982,7 @@ class SnowflakePlanBuilder:
                 source_plan,
                 api_calls=child.api_calls,
                 session=self.session,
+                referenced_ctes=child.referenced_ctes,
             )
 
         if mode == SaveMode.APPEND:
@@ -1002,7 +996,6 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
-                    propagate_referenced_ctes=False,
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
@@ -1016,7 +1009,6 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
-                    propagate_referenced_ctes=False,
                 )
             else:
                 return get_create_table_as_select_plan(child, replace=True, error=True)
@@ -1113,7 +1105,6 @@ class SnowflakePlanBuilder:
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
             source_plan,
-            propagate_referenced_ctes=False,
         )
 
     def create_or_replace_dynamic_table(
@@ -1480,7 +1471,6 @@ class SnowflakePlanBuilder:
             query,
             source_plan,
             query.schema_query,
-            propagate_referenced_ctes=False,
         )
 
     def update(
@@ -1501,7 +1491,6 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
-                propagate_referenced_ctes=False,
             )
         else:
             return self.query(
@@ -1530,7 +1519,6 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
-                propagate_referenced_ctes=False,
             )
         else:
             return self.query(
@@ -1554,7 +1542,6 @@ class SnowflakePlanBuilder:
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,
             source_plan,
-            propagate_referenced_ctes=False,
         )
 
     def lateral(
