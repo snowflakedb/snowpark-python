@@ -36,7 +36,6 @@ def test_str_cat_no_others(mock_str_register, mock_series):
         (lambda s: s.str.encode("utf-8"), "encode"),
         (lambda s: s.str.rsplit("_", n=1), "rsplit"),
         (lambda s: s.str.join("_"), "join"),
-        (lambda s: s.str.pad(10), "pad"),
         (lambda s: s.str.zfill(8), "zfill"),
         (lambda s: s.str.wrap(3), "wrap"),
         (lambda s: s.str.slice_replace(start=3, stop=5, repl="abc"), "slice_replace"),
@@ -98,11 +97,6 @@ def test_str_methods_with_dataframe_return(func, func_name, mock_series):
             lambda s: s.str.join(sep=None),
             AttributeError,
             "'NoneType' object has no attribute 'join'",
-        ),
-        (
-            lambda s: s.str.pad(8, fillchar="abc"),
-            TypeError,
-            "fillchar must be a character, not str",
         ),
         (lambda s: s.str.wrap(-1), ValueError, r"invalid width -1 \(must be > 0\)"),
         (
