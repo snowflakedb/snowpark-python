@@ -4,8 +4,9 @@
 
 import logging
 from typing import Any, Optional, Iterable, List, Union, Dict, Tuple
-from datetime import datetime
+from datetime import datetime, date, time, timedelta, timezone
 from dateutil.tz import gettz
+from decimal import Decimal
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
@@ -440,10 +441,7 @@ class Decoder:
         """
         tz_name = tz_expr.name.value
         offset_seconds = tz_expr.offset_seconds
-        timezone = gettz(tz_name)
-        # Ensure that the correct timezone has been retrieved.
-        assert timezone.utcoffset(datetime.now()).total_seconds() == offset_seconds
-        return timezone
+        return timezone(offset=timedelta(seconds=offset_seconds), name=tz_name)
 
     def decode_expr(self, expr: proto.Expr) -> Any:
         match expr.WhichOneof("variant"):
@@ -452,6 +450,7 @@ class Decoder:
                 lhs = self.decode_expr(expr.add.lhs)
                 rhs = self.decode_expr(expr.add.rhs)
                 return lhs + rhs
+
             case "apply_expr":
                 fn_name = self.decode_fn_ref_expr(expr.apply_expr.fn)
                 fn = getattr(snowflake.snowpark.functions, fn_name)
@@ -477,10 +476,49 @@ class Decoder:
                 return result
 
             # PYTHON VALUE LITERALS
+            case "big_decimal_val":
+                # For values like nan, snan, inf, etc. "special" is a combination of a sign and a character representing
+                # the special value.
+                if hasattr(expr.big_decimal_val, "special"):
+                    special = expr.big_decimal_val.special.value
+                    match special:
+                        case "+F":
+                            return Decimal("Infinity")
+                        case "-F":
+                            return Decimal("-Infinity")
+                        case "+n":
+                            return Decimal("nan")
+                        case "-n":
+                            return Decimal("-nan")
+                        case "+N":
+                            return Decimal("snan")
+                        case "-N":
+                            return Decimal("-snan")
+                        case "":
+                            # If special is empty, it means that the value is a normal big decimal.
+                            pass
+                        case _:
+                            raise ValueError(
+                                "Big decimal special value not recognized: %s" % special
+                            )
+                unscaled_value = int.from_bytes(
+                    expr.big_decimal_val.unscaled_value, byteorder="big", signed=True
+                )
+                scale = expr.big_decimal_val.scale
+                return Decimal(unscaled_value) / Decimal(10**-scale)
+
+            case "binary_val":
+                return expr.binary_val.v
+
+            case "bool_val":
+                return expr.bool_val.v
+
             case "float64_val":
                 return expr.float64_val.v
+
             case "int64_val":
                 return expr.int64_val.v
+
             case "list_val":
                 # vs can be a list of Expr, a single Expr, or [].
                 if hasattr(expr.list_val, "vs"):
@@ -490,6 +528,26 @@ class Decoder:
                         return [self.decode_expr(expr.list_val.vs)]
                 else:
                     return []
+
+            case "null_val":
+                return None
+
+            case "python_date_val":
+                return date(
+                    year=expr.python_date_val.year,
+                    month=expr.python_date_val.month,
+                    day=expr.python_date_val.day,
+                )
+
+            case "python_time_val":
+                return time(
+                    hour=expr.python_time_val.hour,
+                    minute=expr.python_time_val.minute,
+                    second=expr.python_time_val.second,
+                    microsecond=expr.python_time_val.microsecond,
+                    tzinfo=self.decode_timezone_expr(expr.python_time_val.tz),
+                )
+
             case "python_timestamp_val":
                 return datetime(
                     year=expr.python_timestamp_val.year,
@@ -501,6 +559,27 @@ class Decoder:
                     microsecond=expr.python_timestamp_val.microsecond,
                     tzinfo=self.decode_timezone_expr(expr.python_timestamp_val.tz),
                 )
+
+            case "seq_map_val":
+                python_map = dict()
+                for kvs in expr.seq_map_val.kvs:
+                    assert len(kvs.vs) == 2  # The two elements are the key and value.
+                    key, value = self.decode_expr(kvs.vs[0]), self.decode_expr(
+                        kvs.vs[1]
+                    )
+                    python_map[key] = value
+                return python_map
+
+            case "tuple_val":
+                # vs can be a list of Expr, a single Expr, or ().
+                if hasattr(expr.tuple_val, "vs"):
+                    if isinstance(expr.tuple_val.vs, Iterable):
+                        return tuple(self.decode_expr(v) for v in expr.tuple_val.vs)
+                    else:
+                        return tuple(self.decode_expr(expr.tuple_val.vs))
+                else:
+                    return tuple()
+
             case "string_val":
                 return expr.string_val.v
 
@@ -516,10 +595,38 @@ class Decoder:
                     return col.alias(alias)
                 else:
                     return col.name(alias)
+
+            case "sp_column_apply__int":
+                col = self.decode_expr(expr.sp_column_apply__int.col)
+                field = expr.sp_column_apply__int.idx
+                return col[field]
+
+            case "sp_column_apply__string":
+                col = self.decode_expr(expr.sp_column_apply__string.col)
+                field = expr.sp_column_apply__string.field
+                return col[field]
+
+            case "sp_column_between":
+                col = self.decode_expr(expr.sp_column_between.col)
+                lower = self.decode_expr(expr.sp_column_between.lower_bound)
+                upper = self.decode_expr(expr.sp_column_between.upper_bound)
+                return col.between(lower, upper)
+
             case "sp_column_cast":
                 col = self.decode_expr(expr.sp_column_cast.col)
                 to_dtype = self.decode_data_type_expr(expr.sp_column_cast.to)
                 return col.cast(to_dtype)
+
+            case "sp_column_in__seq":
+                col = self.decode_expr(expr.sp_column_in__seq.col)
+                if isinstance(expr.sp_column_in__seq.values, Iterable):
+                    # The values should be passed in as positional arguments and not as a list.
+                    return col.in_(
+                        self.decode_expr(v) for v in expr.sp_column_in__seq.values
+                    )
+                else:
+                    # The list case should be taken care of in this branch.
+                    return col.in_(self.decode_expr(expr.sp_column_in__seq.values))
 
             case "sp_column_sql_expr":
                 return expr.sp_column_sql_expr.sql
@@ -551,6 +658,11 @@ class Decoder:
             case "sp_column_string_contains":
                 col = self.decode_expr(expr.sp_column_string_contains.col)
                 return col
+
+            case "sp_column_try_cast":
+                col = self.decode_expr(expr.sp_column_try_cast.col)
+                to_dtype = self.decode_data_type_expr(expr.sp_column_try_cast.to)
+                return col.try_cast(to_dtype)
 
             # Binary operations on columns:
             case "eq":
