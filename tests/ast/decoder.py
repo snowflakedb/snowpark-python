@@ -447,6 +447,15 @@ class Decoder:
     def binop(self, ast, fn):
         return fn(self.decode_expr(ast.lhs), self.decode_expr(ast.rhs))
 
+    def get_statement_params(self, d: Dict):
+        statement_params = {}
+        statement_params_list = d.get("statementParams", [])
+        for statement_params_list_map in statement_params_list:
+            statement_params[
+                statement_params_list_map["1"]
+            ] = statement_params_list_map["2"]
+        return statement_params
+
     def decode_expr(self, expr: proto.Expr) -> Any:
         match expr.WhichOneof("variant"):
             # COLUMN BINARY OPERATIONS
@@ -742,13 +751,8 @@ class Decoder:
                 return df[col_name]
             case "sp_dataframe_collect":
                 df = self.symbol_table[expr.sp_dataframe_collect.id.bitfield1][1]
-                d = MessageToDict(expr.sp_dataframe_collect)
-                statement_params = {}
-                statement_params_list = d.get("statementParams", [])
-                for statement_params_list_map in statement_params_list:
-                    statement_params[
-                        statement_params_list_map["1"]
-                    ] = statement_params_list_map["2"]
+                d = MessageToDict(expr.sp_dataframe_count)
+                statement_params = self.get_statement_params(d)
                 log_on_exception = d["logOnException"]
                 block = d["block"]
                 case_sensitive = d["caseSensitive"]
@@ -769,12 +773,7 @@ class Decoder:
             case "sp_dataframe_count":
                 df = self.symbol_table[expr.sp_dataframe_count.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_count)
-                statement_params = {}
-                statement_params_list = d.get("statementParams", [])
-                for statement_params_list_map in statement_params_list:
-                    statement_params[
-                        statement_params_list_map["1"]
-                    ] = statement_params_list_map["2"]
+                statement_params = self.get_statement_params(d)
                 block = d["block"]
                 return df.count(
                     statement_params=statement_params,
