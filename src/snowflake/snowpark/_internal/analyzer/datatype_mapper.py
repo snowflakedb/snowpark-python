@@ -74,10 +74,49 @@ def to_sql(
     if is_system_function:
         if value is None:
             return "NULL"
-        elif isinstance(value, str):
-            return f"{str_to_sql(value)}"
-        else:
-            return f"{value}"
+        if isinstance(value, str):
+            return str_to_sql(value)
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            cast_value = float_nan_inf_to_sql(value)
+            return cast_value[:-9]
+        if isinstance(value, (list, bytes, bytearray)) and isinstance(
+            datatype, BinaryType
+        ):
+            return str(bytes(value))
+        if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
+            return (
+                f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
+            )
+        if isinstance(value, dict) and isinstance(datatype, MapType):
+            return (
+                f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
+            )
+        if isinstance(datatype, VariantType):
+            # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
+            return (
+                f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
+            )
+        if isinstance(value, str) and isinstance(datatype, GeographyType):
+            return f"TO_GEOGRAPHY({str_to_sql(value)})"
+        if isinstance(value, str) and isinstance(datatype, GeometryType):
+            return f"TO_GEOMETRY({str_to_sql(value)})"
+        if isinstance(datatype, DateType):
+            if isinstance(value, int):
+                # add value as number of days to 1970-01-01
+                target_date = date(1970, 1, 1) + timedelta(days=value)
+                return f"'{target_date.isoformat()}'"
+            elif isinstance(value, date):
+                return f"'{value.isoformat()}'"
+
+        if isinstance(datatype, TimestampType):
+            if isinstance(value, (int, datetime)):
+                if isinstance(value, int):
+                    # add value as microseconds to 1970-01-01 00:00:00.00.
+                    value = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
+                        microseconds=value
+                    )
+                return f"'{value}'"
+        return f"{value}"
     # Handle null values
     if isinstance(
         datatype,

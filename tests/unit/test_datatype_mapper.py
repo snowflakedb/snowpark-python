@@ -156,6 +156,129 @@ def test_to_sql():
     )
 
 
+def test_to_sql_system_function():
+    # Test nulls
+    assert to_sql(None, NullType(), is_system_function=True) == "NULL"
+    assert to_sql(None, ArrayType(DoubleType()), is_system_function=True) == "NULL"
+    assert (
+        to_sql(None, MapType(IntegerType(), ByteType()), is_system_function=True)
+        == "NULL"
+    )
+    assert to_sql(None, StructType([]), is_system_function=True) == "NULL"
+    assert to_sql(None, GeographyType(), is_system_function=True) == "NULL"
+    assert to_sql(None, GeometryType(), is_system_function=True) == "NULL"
+
+    assert to_sql(None, IntegerType(), is_system_function=True) == "NULL"
+    assert to_sql(None, ShortType(), is_system_function=True) == "NULL"
+    assert to_sql(None, ByteType(), is_system_function=True) == "NULL"
+    assert to_sql(None, LongType(), is_system_function=True) == "NULL"
+    assert to_sql(None, FloatType(), is_system_function=True) == "NULL"
+    assert to_sql(None, StringType(), is_system_function=True) == "NULL"
+    assert to_sql(None, DoubleType(), is_system_function=True) == "NULL"
+    assert to_sql(None, BooleanType(), is_system_function=True) == "NULL"
+
+    assert (
+        to_sql(None, "Not any of the previous types", is_system_function=True) == "NULL"
+    )
+
+    # Test non-nulls
+    assert (
+        to_sql("\\ '  ' abc \n \\", StringType(), is_system_function=True)
+        == "'\\\\ ''  '' abc \\n \\\\'"
+    )
+    assert (
+        to_sql("\\ '  ' abc \n \\", StringType(), True, is_system_function=True)
+        == "'\\\\ ''  '' abc \\n \\\\'"
+    )
+    assert to_sql(1, ByteType(), is_system_function=True) == "1"
+    assert to_sql(1, ShortType(), is_system_function=True) == "1"
+    assert to_sql(1, IntegerType(), is_system_function=True) == "1"
+    assert to_sql(1, LongType(), is_system_function=True) == "1"
+    assert to_sql(1, BooleanType(), is_system_function=True) == "1"
+    assert to_sql(0, ByteType(), is_system_function=True) == "0"
+    assert to_sql(0, ShortType(), is_system_function=True) == "0"
+    assert to_sql(0, IntegerType(), is_system_function=True) == "0"
+    assert to_sql(0, LongType(), is_system_function=True) == "0"
+    assert to_sql(0, BooleanType(), is_system_function=True) == "0"
+
+    assert to_sql(float("nan"), FloatType(), is_system_function=True) == "'NAN'"
+    assert to_sql(float("inf"), FloatType(), is_system_function=True) == "'INF'"
+    assert to_sql(float("-inf"), FloatType(), is_system_function=True) == "'-INF'"
+    assert to_sql(1.2, FloatType(), is_system_function=True) == "1.2"
+
+    assert to_sql(float("nan"), DoubleType(), is_system_function=True) == "'NAN'"
+    assert to_sql(float("inf"), DoubleType(), is_system_function=True) == "'INF'"
+    assert to_sql(float("-inf"), DoubleType(), is_system_function=True) == "'-INF'"
+    assert to_sql(1.2, DoubleType(), is_system_function=True) == "1.2"
+
+    assert to_sql(Decimal(0.5), DecimalType(2, 1), is_system_function=True) == "0.5"
+
+    assert to_sql(397, DateType(), is_system_function=True) == "'1971-02-02'"
+
+    assert (
+        to_sql(1622002533000000, TimestampType(), is_system_function=True)
+        == "'2021-05-26 04:15:33+00:00'"
+    )
+
+    assert (
+        to_sql(bytearray.fromhex("2Ef0 F1f2 "), BinaryType(), is_system_function=True)
+        == "b'.\\xf0\\xf1\\xf2'"
+    )
+
+    assert (
+        to_sql([1, "2", 3.5], ArrayType(), is_system_function=True)
+        == "PARSE_JSON('[1, \"2\", 3.5]')"
+    )
+    assert (
+        to_sql({"'": '"'}, MapType(), is_system_function=True)
+        == 'PARSE_JSON(\'{"\'\'": "\\\\""}\')'
+    )
+    assert (
+        to_sql([{1: 2}], ArrayType(), is_system_function=True)
+        == "PARSE_JSON('[{\"1\": 2}]')"
+    )
+    assert (
+        to_sql({1: [2]}, MapType(), is_system_function=True)
+        == "PARSE_JSON('{\"1\": [2]}')"
+    )
+
+    assert (
+        to_sql([1, bytearray(1)], ArrayType(), is_system_function=True)
+        == "PARSE_JSON('[1, \"00\"]')"
+    )
+
+    assert (
+        to_sql(["2", Decimal(0.5)], ArrayType(), is_system_function=True)
+        == "PARSE_JSON('[\"2\", 0.5]')"
+    )
+
+    dt = datetime.datetime.today()
+    assert (
+        to_sql({1: dt}, MapType(), is_system_function=True)
+        == 'PARSE_JSON(\'{"1": "' + dt.isoformat() + "\"}')"
+    )
+
+    assert (
+        to_sql([1, 2, 3.5], VectorType(float, 3), is_system_function=True)
+        == "[1, 2, 3.5]"
+    )
+    assert (
+        to_sql(
+            [1, 2, 3.5, 4.1234567, -3.8],
+            VectorType("float", 5),
+            is_system_function=True,
+        )
+        == "[1, 2, 3.5, 4.1234567, -3.8]"
+    )
+    assert to_sql([1, 2, 3], VectorType(int, 3), is_system_function=True) == "[1, 2, 3]"
+    assert (
+        to_sql(
+            [1, 2, 31234567, -1928, 0, -3], VectorType(int, 5), is_system_function=True
+        )
+        == "[1, 2, 31234567, -1928, 0, -3]"
+    )
+
+
 @pytest.mark.parametrize(
     "timezone, expected",
     [
