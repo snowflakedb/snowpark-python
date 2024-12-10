@@ -337,7 +337,51 @@ class StringMethods:
         pass
 
     def center():
-        pass
+        """
+        Pad left and right side of strings in the Series/Index.
+
+        Equivalent to str.center().
+
+        Parameters
+        ----------
+        width : int
+            Minimum width of resulting string; additional characters will be filled with fillchar.
+        fillchar : str
+            Additional character for filling, default is whitespace.
+
+        Returns
+        -------
+        Series/Index of objects.
+
+        Examples
+        --------
+        For Series.str.center:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.center(8, fillchar='.')
+        0    ..dog...
+        1    ..bird..
+        2    .mouse..
+        dtype: object
+
+        For Series.str.ljust:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.ljust(8, fillchar='.')
+        0    dog.....
+        1    bird....
+        2    mouse...
+        dtype: object
+
+        For Series.str.rjust:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.rjust(8, fillchar='.')
+        0    .....dog
+        1    ....bird
+        2    ...mouse
+        dtype: object
+        """
 
     def ljust():
         """
