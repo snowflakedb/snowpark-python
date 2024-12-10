@@ -444,6 +444,9 @@ class Decoder:
         offset_seconds = tz_expr.offset_seconds
         return timezone(offset=timedelta(seconds=offset_seconds), name=tz_name)
 
+    def binop(self, ast, fn):
+        return fn(self.decode_expr(ast.lhs), self.decode_expr(ast.rhs))
+
     def bitop(self, ast, fn):
         lhs = self.decode_expr(ast.lhs)
         rhs = self.decode_expr(ast.rhs)
