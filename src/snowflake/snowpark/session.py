@@ -53,6 +53,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBu
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     Range,
     SnowflakeValues,
+    StreamSource
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
@@ -140,7 +141,7 @@ from snowflake.snowpark.context import (
     _use_scoped_temp_objects,
 )
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.dataframe_reader import DataFrameReader
+from snowflake.snowpark.dataframe_reader import DataFrameReader, DataStreamReader
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
     SnowparkSessionException,
@@ -2621,6 +2622,11 @@ class Session:
         supported sources (e.g. a file in a stage) as a DataFrame."""
         return DataFrameReader(self)
 
+
+    @property
+    def readStream(self):
+        return DataStreamReader(self)
+
     @property
     def session_id(self) -> int:
         """Returns an integer that represents the session ID of this session."""
@@ -3021,6 +3027,7 @@ class Session:
         data: Union[List, Tuple, "pandas.DataFrame"],
         schema: Optional[Union[StructType, Iterable[str]]] = None,
         _emit_ast: bool = True,
+        stream: bool = False
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -3354,6 +3361,11 @@ class Session:
                 _emit_ast=False,
             ).select(project_columns, _emit_ast=False)
             if self.sql_simplifier_enabled
+            else 
+            DataFrame(
+                self, StreamSource(attrs, converted, project_columns)
+            )
+            if stream
             else DataFrame(
                 self,
                 SnowflakeValues(attrs, converted, schema_query=schema_query),

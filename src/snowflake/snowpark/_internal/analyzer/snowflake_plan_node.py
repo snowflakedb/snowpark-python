@@ -350,3 +350,9 @@ class CopyIntoLocationNode(LogicalPlan):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
+
+class StreamSource(SnowflakeValues):
+    def __init__(self, output: List[Attribute], data: List[Row], schema) -> None:
+        super().__init__(output, data)
+        self.schema = schema
+    

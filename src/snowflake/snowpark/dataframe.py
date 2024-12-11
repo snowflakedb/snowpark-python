@@ -162,7 +162,7 @@ from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_st
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
-from snowflake.snowpark.dataframe_writer import DataFrameWriter
+from snowflake.snowpark.dataframe_writer import DataFrameWriter, DataStreamWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     abs as abs_,
@@ -3932,6 +3932,10 @@ class DataFrame:
             self._writer._ast_stmt = stmt
 
         return self._writer
+
+    @property
+    def writeStream(self):
+        return DataStreamWriter(self)
 
     @df_collect_api_telemetry
     @publicapi
