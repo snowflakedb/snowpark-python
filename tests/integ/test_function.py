@@ -127,6 +127,7 @@ from snowflake.snowpark.functions import (
     reverse,
     sequence,
     size,
+    snowflake_cortex_sentiment,
     snowflake_cortex_summarize,
     split,
     sqrt,
@@ -2302,3 +2303,22 @@ The next sections explain these steps in more detail.
     # this length check is to get around the fact that this function may not be deterministic
     assert 0 < len(summary_from_col) < len(content)
     assert 0 < len(summary_from_str) < len(content)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: snowflake_cortex functions not supported",
+)
+@pytest.mark.skip("SNOW-1758914 snowflake.cortex.sentiment error on GCP")
+def test_apply_snowflake_cortex_sentiment(session):
+
+    content = "A very very bad review!"
+    df = session.create_dataframe([[content]], schema=["content"])
+
+    sentiment_from_col = df.select(
+        snowflake_cortex_sentiment(col("content"))
+    ).collect()[0][0]
+    sentiment_from_str = df.select(snowflake_cortex_sentiment(content)).collect()[0][0]
+
+    assert -1 <= sentiment_from_col <= 1
+    assert -1 <= sentiment_from_str <= 1

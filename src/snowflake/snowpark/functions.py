@@ -10159,3 +10159,17 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     sql_func_name = "snowflake.cortex.summarize"
     text_col = _to_col_if_lit(text, sql_func_name)
     return builtin(sql_func_name)(text_col)
+
+
+def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
+    """
+    A string containing the text for which a sentiment score should be calculated.
+    Args:
+        text: A string containing the English text from which a summary should be generated.
+    Returns:
+        A floating-point number from -1 to 1 (inclusive) indicating the level of negative or positive sentiment in the
+        text. Values around 0 indicate neutral sentiment.
+    """
+    sql_func_name = "snowflake.cortex.sentiment"
+    text_col = _to_col_if_lit(text, sql_func_name)
+    return builtin(sql_func_name)(text_col)
