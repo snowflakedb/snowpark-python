@@ -28,7 +28,6 @@ from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
     SnowparkSessionException,
 )
-from snowflake.snowpark.session import _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING
 from snowflake.snowpark.types import StructField, StructType
 
 
@@ -72,6 +71,7 @@ def test_used_scoped_temp_object():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
     fake_connection._thread_safe_session_enabled = True
+    fake_connection._telemetry_client = mock.Mock()
 
     fake_connection._get_client_side_session_parameter = (
         lambda x, y: ServerConnection._get_client_side_session_parameter(
@@ -87,28 +87,12 @@ def test_used_scoped_temp_object():
     assert Session(fake_connection)._use_scoped_temp_objects is True
 
     fake_connection._conn._session_parameters = {
-        _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING: True
+        "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS": True
     }
     assert Session(fake_connection)._use_scoped_temp_objects is True
 
     fake_connection._conn._session_parameters = {
-        _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING: False
-    }
-    assert Session(fake_connection)._use_scoped_temp_objects is False
-
-    # turn off module level config
-    snowflake.snowpark.session._use_scoped_temp_objects = False
-
-    fake_connection._conn._session_parameters = {}
-    assert Session(fake_connection)._use_scoped_temp_objects is False
-
-    fake_connection._conn._session_parameters = {
-        _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING: True
-    }
-    assert Session(fake_connection)._use_scoped_temp_objects is False
-
-    fake_connection._conn._session_parameters = {
-        _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING: False
+        "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS": False
     }
     assert Session(fake_connection)._use_scoped_temp_objects is False
 
@@ -206,6 +190,7 @@ def test_resolve_package_current_database(has_current_database):
     fake_connection._conn = mock.Mock()
     fake_connection._thread_safe_session_enabled = True
     fake_connection._get_current_parameter = mock_get_current_parameter
+    fake_connection._telemetry_client = mock.Mock()
     session = Session(fake_connection)
     session.table = MagicMock(name="session.table")
     session.table.side_effect = mock_get_information_schema_packages
@@ -439,6 +424,7 @@ def test_session_id():
     fake_server_connection = mock.create_autospec(ServerConnection)
     fake_server_connection._thread_safe_session_enabled = True
     fake_server_connection.get_session_id = mock.Mock(return_value=123456)
+    fake_server_connection._telemetry_client = mock.Mock()
     session = Session(fake_server_connection)
 
     assert session.session_id == 123456
@@ -630,12 +616,7 @@ def test_session_builder_app_name_existing_invalid_json_query_tag():
     ],
 )
 @pytest.mark.parametrize(
-    "parameter_name",
-    [
-        "_auto_clean_up_temp_table_enabled",
-        "_cte_optimization_enabled",
-        "_large_query_breakdown_enabled",
-    ],
+    "parameter_name", ["auto_clean_up_temp_table_enabled", "cte_optimization_enabled"]
 )
 def test_parameter_version(version_value, expected_parameter_value, parameter_name):
     fake_server_connection = mock.create_autospec(ServerConnection)
@@ -643,5 +624,6 @@ def test_parameter_version(version_value, expected_parameter_value, parameter_na
     fake_server_connection._get_client_side_session_parameter.return_value = (
         version_value
     )
+    fake_server_connection._telemetry_client = mock.Mock()
     session = Session(fake_server_connection)
     assert getattr(session, parameter_name, None) is expected_parameter_value

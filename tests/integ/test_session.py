@@ -23,8 +23,6 @@ from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
 )
 from snowflake.snowpark.session import (
-    _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED,
-    _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING,
     _active_sessions,
     _get_active_session,
     _get_active_sessions,
@@ -686,9 +684,7 @@ def test_sql_simplifier_disabled_on_session(db_parameters):
         assert new_session.sql_simplifier_enabled is True
 
     parameters = db_parameters.copy()
-    parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING: False
-    }
+    parameters["session_parameters"] = {"PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER": False}
     with Session.builder.configs(parameters).create() as new_session2:
         assert new_session2.sql_simplifier_enabled is False
 
@@ -726,7 +722,7 @@ def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
 ):
     parameters = db_parameters.copy()
     parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED: server_parameter_enabled
+        "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED": server_parameter_enabled
     }
     with Session.builder.configs(parameters).create() as new_session:
         assert (

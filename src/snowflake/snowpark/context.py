@@ -8,8 +8,6 @@ from typing import Callable, Optional
 
 import snowflake.snowpark
 
-_use_scoped_temp_objects = True
-
 # This is an internal-only global flag, used to determine whether to execute code in a client's local sandbox or connect to a Snowflake account.
 # If this is True, then the session instance is forcibly set to None to avoid any interaction with a Snowflake account.
 _is_execution_environment_sandboxed_for_client: bool = False

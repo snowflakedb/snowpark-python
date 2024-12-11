@@ -17,6 +17,7 @@ from array import array
 from functools import reduce
 from logging import getLogger
 from threading import RLock
+from textwrap import dedent
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
@@ -68,6 +69,14 @@ from snowflake.snowpark._internal.ast.utils import (
     build_proto_from_struct_type,
     build_sp_table_name,
     with_src_position,
+)
+from snowflake.snowpark._internal.config import (
+    SettingStore,
+    SessionParameter,
+    SettingGroup,
+    GLOBAL_SETTINGS,
+    Setting,
+    VersionedSessionParameter,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.packaging_utils import (
@@ -129,7 +138,6 @@ from snowflake.snowpark._internal.utils import (
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
     validate_object_name,
-    warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
 )
@@ -137,7 +145,6 @@ from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
-    _use_scoped_temp_objects,
 )
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_reader import DataFrameReader
@@ -223,46 +230,6 @@ _logger = getLogger(__name__)
 
 _session_management_lock = RLock()
 _active_sessions: Set["Session"] = set()
-_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING = (
-    "PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS"
-)
-_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING = "PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER"
-_PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING = (
-    "PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME"
-)
-# parameter used to turn off the whole new query compilation stage in one shot. If turned
-# off, the plan won't go through the extra optimization and query generation steps.
-_PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE = (
-    "PYTHON_SNOWPARK_COMPILATION_STAGE_ENABLED"
-)
-_PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION = (
-    "PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION"
-)
-_PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED = (
-    "PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED"
-)
-_PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION = (
-    "PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION"
-)
-_PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED = (
-    "PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED"
-)
-_PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION = (
-    "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION"
-)
-_PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
-    "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND"
-)
-_PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
-    "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND"
-)
-_PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
-    "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
-)
-# Flag for controlling the usage of scoped temp read only table.
-_PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
-    "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
-)
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
 # TODO SNOW-1677514: Add server-side flag and initialize value with it. Add telemetry support for flag.
@@ -272,6 +239,20 @@ _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE = False
 DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+
+# Session properties that are passed through to the session config.
+# In the future these should be accessed via the config directly
+COMPAT_PROPERTIES = [
+    "_query_compilation_stage_enabled",
+    "_use_logical_type_for_create_df",
+    "_use_scoped_temp_objects",
+    "auto_clean_up_temp_table_enabled",
+    "cte_optimization_enabled",
+    "eliminate_numeric_sql_value_cast_enabled",
+    "reduce_describe_query_enabled",
+    "sql_simplifier_enabled",
+    "large_query_breakdown_enabled",
+]
 
 
 def _get_active_session() -> "Session":
@@ -351,52 +332,6 @@ class Session:
 
     A :class:`Session` object is not thread-safe.
     """
-
-    class RuntimeConfig:
-        def __init__(self, session: "Session", conf: Dict[str, Any]) -> None:
-            self._session = session
-            self._conf = {
-                "use_constant_subquery_alias": True,
-                "flatten_select_after_filter_and_orderby": True,
-            }  # For config that's temporary/to be removed soon
-            self._lock = self._session._lock
-            for key, val in conf.items():
-                if self.is_mutable(key):
-                    self.set(key, val)
-
-        def get(self, key: str, default=None) -> Any:
-            with self._lock:
-                if hasattr(Session, key):
-                    return getattr(self._session, key)
-                if hasattr(self._session._conn._conn, key):
-                    return getattr(self._session._conn._conn, key)
-                return self._conf.get(key, default)
-
-        def is_mutable(self, key: str) -> bool:
-            with self._lock:
-                if hasattr(Session, key) and isinstance(
-                    getattr(Session, key), property
-                ):
-                    return getattr(Session, key).fset is not None
-                if hasattr(SnowflakeConnection, key) and isinstance(
-                    getattr(SnowflakeConnection, key), property
-                ):
-                    return getattr(SnowflakeConnection, key).fset is not None
-                return key in self._conf
-
-        def set(self, key: str, value: Any) -> None:
-            with self._lock:
-                if self.is_mutable(key):
-                    if hasattr(Session, key):
-                        setattr(self._session, key, value)
-                    if hasattr(SnowflakeConnection, key):
-                        setattr(self._session._conn._conn, key, value)
-                    if key in self._conf:
-                        self._conf[key] = value
-                else:
-                    raise AttributeError(
-                        f'Configuration "{key}" does not exist or is not mutable in runtime'
-                    )
 
     class SessionBuilder:
         """
@@ -573,69 +508,10 @@ class Session:
         )
         self._last_action_id = 0
         self._last_canceled_id = 0
-        self._use_scoped_temp_objects: bool = (
-            _use_scoped_temp_objects
-            and self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING, True
-            )
-        )
-        self._use_scoped_temp_read_only_table: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE, False
-            )
-        )
         self._file = FileOperation(self)
         self._lineage = Lineage(self)
-        self._sql_simplifier_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING, True
-            )
-        )
-        self._cte_optimization_enabled: bool = self.is_feature_enabled_for_version(
-            _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION
-        )
-        self._use_logical_type_for_create_df: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME_STRING, True
-            )
-        )
-        self._eliminate_numeric_sql_value_cast_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED, False
-            )
-        )
-        self._auto_clean_up_temp_table_enabled: bool = (
-            self.is_feature_enabled_for_version(
-                _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION
-            )
-        )
-        self._reduce_describe_query_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, False
-            )
-        )
-        self._query_compilation_stage_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
-            )
-        )
-        self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
-            _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
-        )
         self._ast_enabled: bool = self._conn._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
-        )
-        # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
-        # in Snowflake. This is the limit where we start seeing compilation errors.
-        self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND,
-                DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND,
-            ),
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND,
-                DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
-            ),
         )
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled
@@ -652,7 +528,7 @@ class Session:
         self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         self._custom_package_usage_config: Dict = {}
-        self._conf = self.RuntimeConfig(self, options or {})
+        self._conf = self._initialize_config(options)
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
@@ -663,6 +539,206 @@ class Session:
 
         # Register self._close_at_exit so it will be called at interpreter shutdown
         atexit.register(self._close_at_exit)
+
+    def _initialize_config(
+        self, options: Optional[Dict[str, Any]] = None
+    ) -> SettingStore:
+        conf = SettingStore(
+            [
+                Setting("use_constant_subquery_alias", default=True),
+                Setting("flatten_select_after_filter_and_orderby", default=True),
+                SessionParameter(
+                    "_use_scoped_temp_objects",
+                    parameter_name="PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS",
+                    session=self,
+                    default=True,
+                    synchronize=False,
+                ),
+                SessionParameter(
+                    "sql_simplifier_enabled",
+                    dedent(
+                        """
+                        Set to ``True`` to use the SQL simplifier (defaults to ``True``).
+                        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled.
+                        """
+                    ),
+                    parameter_name="PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER",
+                    telemetry_hook=self._conn._telemetry_client.send_sql_simplifier_telemetry,
+                    session=self,
+                    default=True,
+                ),
+                SessionParameter(
+                    "_use_logical_type_for_create_df",
+                    parameter_name="PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME",
+                    session=self,
+                    default=True,
+                    synchronize=False,
+                ),
+                SessionParameter(
+                    "_query_compilation_stage_enabled",
+                    dedent(
+                        """
+                    parameter used to turn off the whole new query compilation stage in one shot. If turned
+                    off, the plan won't go through the extra optimization and query generation steps.
+                    """
+                    ),
+                    parameter_name="PYTHON_SNOWPARK_COMPILATION_STAGE_ENABLED",
+                    session=self,
+                    default=False,
+                    synchronize=False,
+                ),
+                VersionedSessionParameter(
+                    "cte_optimization_enabled",
+                    dedent(
+                        """Set to ``True`` to enable the CTE optimization (defaults to ``False``).
+                    The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
+                    """
+                    ),
+                    parameter_name="PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION",
+                    session=self,
+                    default=False,
+                    synchronize=False,
+                    experimental_since="1.15.0",
+                ),
+                SessionParameter(
+                    "eliminate_numeric_sql_value_cast_enabled",
+                    parameter_name="PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED",
+                    telemetry_hook=self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry,
+                    session=self,
+                    default=False,
+                    synchronize=False,
+                    experimental_since="1.20.0",
+                ),
+                VersionedSessionParameter(
+                    "auto_clean_up_temp_table_enabled",
+                    dedent(
+                        """
+                    When setting this parameter to ``True``, Snowpark will automatically clean up temporary tables created by
+                    :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
+                    The default value is ``False``.
+
+                    Note:
+                        Temporary tables will only be dropped if this parameter is enabled during garbage collection.
+                        If a temporary table is no longer referenced when the parameter is on, it will be dropped during garbage collection.
+                        However, if garbage collection occurs while the parameter is off, the table will not be removed.
+                        Note that Python's garbage collection is triggered opportunistically, with no guaranteed timing.
+                    """
+                    ),
+                    parameter_name="PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION",
+                    telemetry_hook=self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry,
+                    session=self,
+                    default=False,
+                    synchronize=False,
+                    experimental_since="1.21.0",
+                ),
+                SessionParameter(
+                    "reduce_describe_query_enabled",
+                    dedent(
+                        """
+                    When setting this parameter to ``True``, Snowpark will infer the schema of DataFrame locally if possible,
+                    instead of issuing an internal `describe query
+                    <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#retrieving-column-metadata>`_
+                    to get the schema from the Snowflake server. This optimization improves the performance of your workloads by
+                    reducing the number of describe queries issued to the server.
+                    The default value is ``False``.
+                    """
+                    ),
+                    parameter_name="PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED",
+                    telemetry_hook=self._conn._telemetry_client.send_reduce_describe_query_telemetry,
+                    session=self,
+                    default=False,
+                    synchronize=False,
+                    experimental_since="1.24.0",
+                ),
+                SettingGroup(
+                    "large_query_breakdown_params",
+                    settings=[
+                        SessionParameter(
+                            "large_query_breakdown_enabled",
+                            dedent(
+                                """Set the value for large_query_breakdown_enabled. When enabled, the client will automatically detect large query plans and break them down into smaller partitions,
+                            materialize the partitions, and then combine them to execute the query to improve
+                            overall performance.
+                            """
+                            ),
+                            parameter_name="PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION",
+                            telemetry_hook=self._conn._telemetry_client.send_large_query_breakdown_telemetry,
+                            session=self,
+                            default=False,
+                            synchronize=False,
+                            experimental_since="1.22.0",
+                        ),
+                        # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
+                        # in Snowflake. This is the limit where we start seeing compilation errors.
+                        SessionParameter(
+                            "_large_query_breakdown_complexity_lower_bound",
+                            parameter_name="PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND",
+                            session=self,
+                            default=DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND,
+                            synchronize=False,
+                            experimental_since="1.22.0",
+                        ),
+                        SessionParameter(
+                            "_large_query_breakdown_complexity_upper_bound",
+                            parameter_name="PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND",
+                            session=self,
+                            default=DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
+                            synchronize=False,
+                            experimental_since="1.22.0",
+                        ),
+                    ],
+                ),
+                SessionParameter(
+                    "_use_scoped_temp_read_only_table",
+                    parameter_name="PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE",
+                    session=self,
+                    default=DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
+                    synchronize=False,
+                    experimental_since="1.22.0",
+                ),
+            ],
+            extend_from=GLOBAL_SETTINGS,
+        )
+
+        if options:
+            conf.update(options)
+
+        return conf
+
+    def __getattribute__(self, name):
+        if name in COMPAT_PROPERTIES:
+            return self._conf.get(name)
+        return super().__getattribute__(name)
+
+    def __setattr__(self, name, value):
+        if name in COMPAT_PROPERTIES:
+            self._conf.set(name, value)
+        else:
+            super().__setattr__(name, value)
+
+    @property
+    def large_query_breakdown_complexity_bounds(self):
+        return (
+            self._conf.get("_large_query_breakdown_complexity_lower_bound"),
+            self._conf.get("_large_query_breakdown_complexity_upper_bound"),
+        )
+
+    @large_query_breakdown_complexity_bounds.setter
+    def large_query_breakdown_complexity_bounds(self, value):
+        if len(value) != 2:
+            raise ValueError(
+                f"Expecting a tuple of two integers. Got a tuple of length {len(value)}"
+            )
+        if value[0] >= value[1]:
+            raise ValueError(
+                f"Expecting a tuple of lower and upper bound with the lower bound less than the upper bound. Got (lower, upper) = ({value[0], value[1]})"
+            )
+        with self._lock:
+            self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
+                self._session_id, value[0], value[1]
+            )
+        self._conf.set("_large_query_breakdown_complexity_lower_bound", value[0])
+        self._conf.set("_large_query_breakdown_complexity_upper_bound", value[1])
 
     def _close_at_exit(self) -> None:
         """
@@ -688,19 +764,6 @@ class Session:
             f"<{self.__class__.__module__}.{self.__class__.__name__}: account={self.get_current_account()}, "
             f"role={self.get_current_role()}, database={self.get_current_database()}, "
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
-        )
-
-    def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
-        """
-        This method checks if a feature is enabled for the current session based on
-        the server side parameter.
-        """
-        version = self._conn._get_client_side_session_parameter(parameter_name, "")
-        return (
-            isinstance(version, str)
-            and version != ""
-            and pkg_resources.parse_version(self.version)
-            >= pkg_resources.parse_version(version)
         )
 
     def _generate_new_action_id(self) -> int:
@@ -760,15 +823,8 @@ class Session:
                 _remove_session(self)
 
     @property
-    def conf(self) -> RuntimeConfig:
+    def conf(self) -> SettingStore:
         return self._conf
-
-    @property
-    def sql_simplifier_enabled(self) -> bool:
-        """Set to ``True`` to use the SQL simplifier (defaults to ``True``).
-        The generated SQLs from ``DataFrame`` transformations would have fewer layers of nested queries if the SQL simplifier is enabled.
-        """
-        return self._sql_simplifier_enabled
 
     @property
     def ast_enabled(self) -> bool:
@@ -797,52 +853,6 @@ class Session:
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
             self.auto_clean_up_temp_table_enabled = False
-
-    @property
-    def cte_optimization_enabled(self) -> bool:
-        """Set to ``True`` to enable the CTE optimization (defaults to ``False``).
-        The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
-        """
-        return self._cte_optimization_enabled
-
-    @property
-    def eliminate_numeric_sql_value_cast_enabled(self) -> bool:
-        return self._eliminate_numeric_sql_value_cast_enabled
-
-    @property
-    def auto_clean_up_temp_table_enabled(self) -> bool:
-        """
-        When setting this parameter to ``True``, Snowpark will automatically clean up temporary tables created by
-        :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
-        The default value is ``False``.
-
-        Note:
-            Temporary tables will only be dropped if this parameter is enabled during garbage collection.
-            If a temporary table is no longer referenced when the parameter is on, it will be dropped during garbage collection.
-            However, if garbage collection occurs while the parameter is off, the table will not be removed.
-            Note that Python's garbage collection is triggered opportunistically, with no guaranteed timing.
-        """
-        return self._auto_clean_up_temp_table_enabled
-
-    @property
-    def large_query_breakdown_enabled(self) -> bool:
-        return self._large_query_breakdown_enabled
-
-    @property
-    def large_query_breakdown_complexity_bounds(self) -> Tuple[int, int]:
-        return self._large_query_breakdown_complexity_bounds
-
-    @property
-    def reduce_describe_query_enabled(self) -> bool:
-        """
-        When setting this parameter to ``True``, Snowpark will infer the schema of DataFrame locally if possible,
-        instead of issuing an internal `describe query
-        <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#retrieving-column-metadata>`_
-        to get the schema from the Snowflake server. This optimization improves the performance of your workloads by
-        reducing the number of describe queries issued to the server.
-        The default value is ``False``.
-        """
-        return self._reduce_describe_query_enabled
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -883,137 +893,6 @@ class Session:
             - These configurations also allow custom package addition for all UDFs or stored procedures created later in the current session. If you only want to add custom packages for a specific UDF, you can use ``packages`` argument in :func:`functions.udf` or :meth:`session.udf.register() <snowflake.snowpark.udf.UDFRegistration.register>`.
         """
         return self._custom_package_usage_config
-
-    @sql_simplifier_enabled.setter
-    def sql_simplifier_enabled(self, value: bool) -> None:
-        warn_session_config_update_in_multithreaded_mode(
-            "sql_simplifier_enabled", self._conn._thread_safe_session_enabled
-        )
-
-        with self._lock:
-            self._conn._telemetry_client.send_sql_simplifier_telemetry(
-                self._session_id, value
-            )
-            try:
-                self._conn._cursor.execute(
-                    f"alter session set {_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING} = {value}"
-                )
-            except Exception:
-                pass
-            self._sql_simplifier_enabled = value
-
-    @cte_optimization_enabled.setter
-    @experimental_parameter(version="1.15.0")
-    def cte_optimization_enabled(self, value: bool) -> None:
-        warn_session_config_update_in_multithreaded_mode(
-            "cte_optimization_enabled", self._conn._thread_safe_session_enabled
-        )
-
-        with self._lock:
-            if value:
-                self._conn._telemetry_client.send_cte_optimization_telemetry(
-                    self._session_id
-                )
-            self._cte_optimization_enabled = value
-
-    @eliminate_numeric_sql_value_cast_enabled.setter
-    @experimental_parameter(version="1.20.0")
-    def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
-        """Set the value for eliminate_numeric_sql_value_cast_enabled"""
-        warn_session_config_update_in_multithreaded_mode(
-            "eliminate_numeric_sql_value_cast_enabled",
-            self._conn._thread_safe_session_enabled,
-        )
-
-        if value in [True, False]:
-            with self._lock:
-                self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry(
-                    self._session_id, value
-                )
-                self._eliminate_numeric_sql_value_cast_enabled = value
-        else:
-            raise ValueError(
-                "value for eliminate_numeric_sql_value_cast_enabled must be True or False!"
-            )
-
-    @auto_clean_up_temp_table_enabled.setter
-    @experimental_parameter(version="1.21.0")
-    def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
-        """Set the value for auto_clean_up_temp_table_enabled"""
-        warn_session_config_update_in_multithreaded_mode(
-            "auto_clean_up_temp_table_enabled", self._conn._thread_safe_session_enabled
-        )
-
-        if value in [True, False]:
-            with self._lock:
-                self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry(
-                    self._session_id, value
-                )
-                self._auto_clean_up_temp_table_enabled = value
-        else:
-            raise ValueError(
-                "value for auto_clean_up_temp_table_enabled must be True or False!"
-            )
-
-    @large_query_breakdown_enabled.setter
-    @experimental_parameter(version="1.22.0")
-    def large_query_breakdown_enabled(self, value: bool) -> None:
-        """Set the value for large_query_breakdown_enabled. When enabled, the client will
-        automatically detect large query plans and break them down into smaller partitions,
-        materialize the partitions, and then combine them to execute the query to improve
-        overall performance.
-        """
-        warn_session_config_update_in_multithreaded_mode(
-            "large_query_breakdown_enabled", self._conn._thread_safe_session_enabled
-        )
-
-        if value in [True, False]:
-            with self._lock:
-                self._conn._telemetry_client.send_large_query_breakdown_telemetry(
-                    self._session_id, value
-                )
-                self._large_query_breakdown_enabled = value
-        else:
-            raise ValueError(
-                "value for large_query_breakdown_enabled must be True or False!"
-            )
-
-    @large_query_breakdown_complexity_bounds.setter
-    def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
-        """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
-        warn_session_config_update_in_multithreaded_mode(
-            "large_query_breakdown_complexity_bounds",
-            self._conn._thread_safe_session_enabled,
-        )
-
-        if len(value) != 2:
-            raise ValueError(
-                f"Expecting a tuple of two integers. Got a tuple of length {len(value)}"
-            )
-        if value[0] >= value[1]:
-            raise ValueError(
-                f"Expecting a tuple of lower and upper bound with the lower bound less than the upper bound. Got (lower, upper) = ({value[0], value[1]})"
-            )
-        with self._lock:
-            self._conn._telemetry_client.send_large_query_breakdown_update_complexity_bounds(
-                self._session_id, value[0], value[1]
-            )
-
-            self._large_query_breakdown_complexity_bounds = value
-
-    @reduce_describe_query_enabled.setter
-    @experimental_parameter(version="1.24.0")
-    def reduce_describe_query_enabled(self, value: bool) -> None:
-        """Set the value for reduce_describe_query_enabled"""
-        if value in [True, False]:
-            self._conn._telemetry_client.send_reduce_describe_query_telemetry(
-                self._session_id, value
-            )
-            self._reduce_describe_query_enabled = value
-        else:
-            raise ValueError(
-                "value for reduce_describe_query_enabled must be True or False!"
-            )
 
     @custom_package_usage_config.setter
     @experimental_parameter(version="1.6.0")
@@ -3123,7 +3002,7 @@ class Session:
                     quote_identifiers=True,
                     auto_create_table=True,
                     table_type="temporary",
-                    use_logical_type=self._use_logical_type_for_create_df,
+                    use_logical_type=self.conf["_use_logical_type_for_create_df"],
                 )
                 set_api_call_source(table, "Session.create_dataframe[pandas]")
 
