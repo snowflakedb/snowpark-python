@@ -793,21 +793,22 @@ message Expr {
     SpTableMerge sp_table_merge = 183;
     SpTableSample sp_table_sample = 184;
     SpTableUpdate sp_table_update = 185;
-    SpWriteCopyIntoLocation sp_write_copy_into_location = 186;
-    SpWriteCsv sp_write_csv = 187;
-    SpWriteJson sp_write_json = 188;
-    SpWritePandas sp_write_pandas = 189;
-    SpWriteParquet sp_write_parquet = 190;
-    SpWriteTable sp_write_table = 191;
-    StoredProcedure stored_procedure = 192;
-    StringVal string_val = 193;
-    Sub sub = 194;
-    TimeVal time_val = 195;
-    TimestampVal timestamp_val = 196;
-    TupleVal tuple_val = 197;
-    Udaf udaf = 198;
-    Udf udf = 199;
-    Udtf udtf = 200;
+    SpToSnowparkPandas sp_to_snowpark_pandas = 186;
+    SpWriteCopyIntoLocation sp_write_copy_into_location = 187;
+    SpWriteCsv sp_write_csv = 188;
+    SpWriteJson sp_write_json = 189;
+    SpWritePandas sp_write_pandas = 190;
+    SpWriteParquet sp_write_parquet = 191;
+    SpWriteTable sp_write_table = 192;
+    StoredProcedure stored_procedure = 193;
+    StringVal string_val = 194;
+    Sub sub = 195;
+    TimeVal time_val = 196;
+    TimestampVal timestamp_val = 197;
+    TupleVal tuple_val = 198;
+    Udaf udaf = 199;
+    Udf udf = 200;
+    Udtf udtf = 201;
   }
 }
 
@@ -1075,26 +1076,27 @@ message HasSrcPosition {
     SpTableMerge sp_table_merge = 192;
     SpTableSample sp_table_sample = 193;
     SpTableUpdate sp_table_update = 194;
-    SpWindowSpecEmpty sp_window_spec_empty = 195;
-    SpWindowSpecOrderBy sp_window_spec_order_by = 196;
-    SpWindowSpecPartitionBy sp_window_spec_partition_by = 197;
-    SpWindowSpecRangeBetween sp_window_spec_range_between = 198;
-    SpWindowSpecRowsBetween sp_window_spec_rows_between = 199;
-    SpWriteCopyIntoLocation sp_write_copy_into_location = 200;
-    SpWriteCsv sp_write_csv = 201;
-    SpWriteJson sp_write_json = 202;
-    SpWritePandas sp_write_pandas = 203;
-    SpWriteParquet sp_write_parquet = 204;
-    SpWriteTable sp_write_table = 205;
-    StoredProcedure stored_procedure = 206;
-    StringVal string_val = 207;
-    Sub sub = 208;
-    TimeVal time_val = 209;
-    TimestampVal timestamp_val = 210;
-    TupleVal tuple_val = 211;
-    Udaf udaf = 212;
-    Udf udf = 213;
-    Udtf udtf = 214;
+    SpToSnowparkPandas sp_to_snowpark_pandas = 195;
+    SpWindowSpecEmpty sp_window_spec_empty = 196;
+    SpWindowSpecOrderBy sp_window_spec_order_by = 197;
+    SpWindowSpecPartitionBy sp_window_spec_partition_by = 198;
+    SpWindowSpecRangeBetween sp_window_spec_range_between = 199;
+    SpWindowSpecRowsBetween sp_window_spec_rows_between = 200;
+    SpWriteCopyIntoLocation sp_write_copy_into_location = 201;
+    SpWriteCsv sp_write_csv = 202;
+    SpWriteJson sp_write_json = 203;
+    SpWritePandas sp_write_pandas = 204;
+    SpWriteParquet sp_write_parquet = 205;
+    SpWriteTable sp_write_table = 206;
+    StoredProcedure stored_procedure = 207;
+    StringVal string_val = 208;
+    Sub sub = 209;
+    TimeVal time_val = 210;
+    TimestampVal timestamp_val = 211;
+    TupleVal tuple_val = 212;
+    Udaf udaf = 213;
+    Udf udf = 214;
+    Udtf udtf = 215;
   }
 }
 
@@ -1539,7 +1541,7 @@ message SpDataframeAlias {
   SrcPosition src = 3;
 }
 
-// sp-df-expr.ir:464
+// sp-df-expr.ir:470
 message SpDataframeAnalyticsComputeLag {
   repeated Expr cols = 1;
   SpDataframeExpr df = 2;
@@ -1550,7 +1552,7 @@ message SpDataframeAnalyticsComputeLag {
   SrcPosition src = 7;
 }
 
-// sp-df-expr.ir:473
+// sp-df-expr.ir:479
 message SpDataframeAnalyticsComputeLead {
   repeated Expr cols = 1;
   SpDataframeExpr df = 2;
@@ -1561,7 +1563,7 @@ message SpDataframeAnalyticsComputeLead {
   SrcPosition src = 7;
 }
 
-// sp-df-expr.ir:455
+// sp-df-expr.ir:461
 message SpDataframeAnalyticsCumulativeAgg {
   repeated Tuple_String_List_String aggs = 1;
   SpDataframeExpr df = 2;
@@ -1572,7 +1574,7 @@ message SpDataframeAnalyticsCumulativeAgg {
   SrcPosition src = 7;
 }
 
-// sp-df-expr.ir:446
+// sp-df-expr.ir:452
 message SpDataframeAnalyticsMovingAgg {
   repeated Tuple_String_List_String aggs = 1;
   SpDataframeExpr df = 2;
@@ -1583,7 +1585,7 @@ message SpDataframeAnalyticsMovingAgg {
   repeated int64 window_sizes = 7;
 }
 
-// sp-df-expr.ir:482
+// sp-df-expr.ir:488
 message SpDataframeAnalyticsTimeSeriesAgg {
   repeated Tuple_String_List_String aggs = 1;
   SpDataframeExpr df = 2;
@@ -2330,13 +2332,13 @@ message SpMatchedClause {
   }
 }
 
-// sp-df-expr.ir:499
+// sp-df-expr.ir:505
 message SpMergeDeleteWhenMatchedClause {
   Expr condition = 1;
   SrcPosition src = 2;
 }
 
-// sp-df-expr.ir:503
+// sp-df-expr.ir:509
 message SpMergeInsertWhenNotMatchedClause {
   Expr condition = 1;
   List_Expr insert_keys = 2;
@@ -2344,7 +2346,7 @@ message SpMergeInsertWhenNotMatchedClause {
   SrcPosition src = 4;
 }
 
-// sp-df-expr.ir:494
+// sp-df-expr.ir:500
 message SpMergeUpdateWhenMatchedClause {
   Expr condition = 1;
   SrcPosition src = 2;
@@ -2490,7 +2492,7 @@ message SpTable {
   SpTableVariant variant = 4;
 }
 
-// sp-df-expr.ir:509
+// sp-df-expr.ir:515
 message SpTableDelete {
   bool block = 1;
   Expr condition = 2;
@@ -2500,7 +2502,7 @@ message SpTableDelete {
   repeated Tuple_String_String statement_params = 6;
 }
 
-// sp-df-expr.ir:517
+// sp-df-expr.ir:523
 message SpTableDropTable {
   VarId id = 1;
   SrcPosition src = 2;
@@ -2521,7 +2523,7 @@ message SpTableFnCallOver {
   SrcPosition src = 4;
 }
 
-// sp-df-expr.ir:521
+// sp-df-expr.ir:527
 message SpTableMerge {
   bool block = 1;
   repeated SpMatchedClause clauses = 2;
@@ -2532,7 +2534,7 @@ message SpTableMerge {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// sp-df-expr.ir:530
+// sp-df-expr.ir:536
 message SpTableSample {
   SpDataframeExpr df = 1;
   google.protobuf.Int64Value num = 2;
@@ -2542,7 +2544,7 @@ message SpTableSample {
   SrcPosition src = 6;
 }
 
-// sp-df-expr.ir:538
+// sp-df-expr.ir:544
 message SpTableUpdate {
   repeated Tuple_String_Expr assignments = 1;
   bool block = 2;
@@ -2551,6 +2553,14 @@ message SpTableUpdate {
   SpDataframeExpr source = 5;
   SrcPosition src = 6;
   repeated Tuple_String_String statement_params = 7;
+}
+
+// sp-df-expr.ir:438
+message SpToSnowparkPandas {
+  List_String columns = 1;
+  SpDataframeExpr df = 2;
+  List_String index_col = 3;
+  SrcPosition src = 4;
 }
 
 message SpType {
