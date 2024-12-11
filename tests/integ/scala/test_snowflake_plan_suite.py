@@ -310,7 +310,7 @@ def test_create_scoped_temp_table(session):
         )
         inner_select_sql = (
             f" SELECT  *  FROM {table_name}"
-            if session._sql_simplifier_enabled
+            if session.sql_simplifier_enabled
             else f" SELECT  *  FROM ({table_name})"
         )
         assert (

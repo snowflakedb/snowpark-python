@@ -241,7 +241,7 @@ def session(
         .create()
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
-    session._cte_optimization_enabled = cte_optimization_enabled
+    session.cte_optimization_enabled = cte_optimization_enabled
     session.ast_enabled = ast_enabled
 
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
@@ -286,7 +286,7 @@ def profiler_session(
         .create()
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
-    session._cte_optimization_enabled = cte_optimization_enabled
+    session.cte_optimization_enabled = cte_optimization_enabled
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2

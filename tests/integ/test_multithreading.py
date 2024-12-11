@@ -21,7 +21,6 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
 )
 from snowflake.snowpark._internal.compiler.cte_utils import find_duplicate_subtrees
 from snowflake.snowpark.session import (
-    _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION,
     Session,
 )
 from snowflake.snowpark.types import (
@@ -69,7 +68,7 @@ def threadsafe_session(
         new_db_parameters = db_parameters.copy()
         new_db_parameters["local_testing"] = local_testing_mode
         new_db_parameters["session_parameters"] = {
-            _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: True
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": True
         }
         with Session.builder.configs(new_db_parameters).create() as session:
             session._sql_simplifier_enabled = sql_simplifier_enabled
@@ -656,7 +655,8 @@ def test_auto_temp_table_cleaner(threadsafe_session, caplog):
         ("eliminate_numeric_sql_value_cast_enabled", True),
         ("auto_clean_up_temp_table_enabled", True),
         ("large_query_breakdown_enabled", True),
-        ("large_query_breakdown_complexity_bounds", (20, 30)),
+        ("_large_query_breakdown_complexity_lower_bound", 20),
+        ("_large_query_breakdown_complexity_upper_bound", 30),
     ],
 )
 def test_concurrent_update_on_sensitive_configs(
@@ -693,17 +693,17 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
         original_query_compilation_stage_enabled = (
             threadsafe_session._query_compilation_stage_enabled
         )
-        original_cte_optimization_enabled = threadsafe_session._cte_optimization_enabled
+        original_cte_optimization_enabled = threadsafe_session.cte_optimization_enabled
         original_large_query_breakdown_enabled = (
-            threadsafe_session._large_query_breakdown_enabled
+            threadsafe_session.large_query_breakdown_enabled
         )
         original_complexity_bounds = (
-            threadsafe_session._large_query_breakdown_complexity_bounds
+            threadsafe_session.large_query_breakdown_complexity_bounds
         )
         threadsafe_session._query_compilation_stage_enabled = True
-        threadsafe_session._cte_optimization_enabled = True
-        threadsafe_session._large_query_breakdown_enabled = True
-        threadsafe_session._large_query_breakdown_complexity_bounds = bounds
+        threadsafe_session.cte_optimization_enabled = True
+        threadsafe_session.large_query_breakdown_enabled = True
+        threadsafe_session.large_query_breakdown_complexity_bounds = bounds
 
         df0 = threadsafe_session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
         df1 = threadsafe_session.sql("select 2 as b, 3 as c")
@@ -759,7 +759,7 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
         assert len(unique_ctes_created) == 10, unique_ctes_created
 
         threadsafe_session._query_compilation_stage_enabled = False
-        threadsafe_session._cte_optimization_enabled = False
+        threadsafe_session.cte_optimization_enabled = False
         for i, result in enumerate(results):
             queries, optimized_collect = result
             _, non_optimized_collect = apply_filter_and_collect(df4, i)
@@ -776,7 +776,7 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
         threadsafe_session._query_compilation_stage_enabled = (
             original_query_compilation_stage_enabled
         )
-        threadsafe_session._cte_optimization_enabled = original_cte_optimization_enabled
+        threadsafe_session.cte_optimization_enabled = original_cte_optimization_enabled
         threadsafe_session._large_query_breakdown_enabled = (
             original_large_query_breakdown_enabled
         )
@@ -899,7 +899,7 @@ def test_num_cursors_created(db_parameters, is_enabled, local_testing_mode):
     num_workers = 5 if is_enabled else 1
     new_db_parameters = db_parameters.copy()
     new_db_parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: is_enabled
+        "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": is_enabled
     }
 
     with Session.builder.configs(new_db_parameters).create() as new_session:

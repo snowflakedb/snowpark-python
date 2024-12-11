@@ -53,15 +53,15 @@ def large_query_df(session):
 @pytest.fixture(autouse=True)
 def setup(session):
     large_query_breakdown_enabled = session.large_query_breakdown_enabled
-    cte_optimization_enabled = session._cte_optimization_enabled
+    cte_optimization_enabled = session.cte_optimization_enabled
     is_query_compilation_stage_enabled = session._query_compilation_stage_enabled
     session._query_compilation_stage_enabled = True
     session._large_query_breakdown_enabled = True
-    session._cte_optimization_enabled = False
+    session.cte_optimization_enabled = False
     set_bounds(session, 300, 600)
     yield
     session._query_compilation_stage_enabled = is_query_compilation_stage_enabled
-    session._cte_optimization_enabled = cte_optimization_enabled
+    session.cte_optimization_enabled = cte_optimization_enabled
     session._large_query_breakdown_enabled = large_query_breakdown_enabled
     reset_bounds(session)
 
@@ -139,7 +139,7 @@ def test_no_pipeline_breaker_nodes(session):
 
 
 def test_large_query_breakdown_external_cte_ref(session):
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     sql_simplifier_enabled = session.sql_simplifier_enabled
     if not sql_simplifier_enabled:
         set_bounds(session, 50, 90)
@@ -186,7 +186,7 @@ def test_large_query_breakdown_external_cte_ref(session):
 
 
 def test_breakdown_at_with_query_node(session):
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     if not session.sql_simplifier_enabled:
         set_bounds(session, 40, 80)
 
@@ -219,7 +219,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled
         set_bounds(session, 60, 90)
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
     df1 = df1.join(df0, on=["b"], how="inner")

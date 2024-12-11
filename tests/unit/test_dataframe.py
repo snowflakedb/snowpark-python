@@ -117,7 +117,8 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
 
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
     fake_session.sql_simplifier_enabled = sql_simplifier_enabled
-    fake_session._cte_optimization_enabled = False
+    fake_session.cte_optimization_enabled = False
+    fake_session.reduce_describe_query_enabled = False
     fake_session._query_compilation_stage_enabled = False
     fake_session._conn = mock.create_autospec(ServerConnection)
     fake_session._conn._thread_safe_session_enabled = False
@@ -281,6 +282,7 @@ def test_statement_params():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     mock_connection._thread_safe_session_enabled = True
+    mock_connection._telemetry_client = mock.Mock()
     session = snowflake.snowpark.session.Session(mock_connection)
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -326,6 +328,7 @@ def test_table_source_plan(sql_simplifier_enabled):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
     mock_connection._thread_safe_session_enabled = True
+    mock_connection._telemetry_client = mock.Mock()
     session = snowflake.snowpark.session.Session(mock_connection)
     session._sql_simplifier_enabled = sql_simplifier_enabled
     t = session.table("table")

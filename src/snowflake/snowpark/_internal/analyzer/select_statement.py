@@ -1604,7 +1604,7 @@ def can_select_projection_complexity_be_merged(
             on top of subquery.
         subquery: the subquery where the current select is performed on top of
     """
-    if not subquery.analyzer.session._large_query_breakdown_enabled:
+    if not subquery.analyzer.session.large_query_breakdown_enabled:
         return False
 
     # only merge of nested select statement is supported, and subquery must be
