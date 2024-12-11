@@ -491,7 +491,6 @@ class ServerConnection:
         async_post_actions: Optional[List[Query]] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
-        show_limit = kwargs.pop("show_limit", None)
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
@@ -528,7 +527,6 @@ class ServerConnection:
                 results_cursor=results_cursor,
                 to_pandas=to_pandas,
                 to_iter=to_iter,
-                show_limit=show_limit,
             )
         else:
             return AsyncJob(
@@ -548,10 +546,7 @@ class ServerConnection:
         results_cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
-        show_limit: int = None,
     ) -> Dict[str, Any]:
-        if show_limit is not None:
-            to_iter = True
         qid = results_cursor.sfqid
         if to_iter:
             new_cursor = results_cursor.connection.cursor()
@@ -587,15 +582,6 @@ class ServerConnection:
             data_or_iter = (
                 iter(results_cursor) if to_iter else results_cursor.fetchall()
             )
-        # return limit number of rows
-        if show_limit is not None:
-            data_or_iter_result = []
-            for i, d in enumerate(data_or_iter):
-                if i >= show_limit:
-                    break
-                else:
-                    data_or_iter_result.append(d)
-            return {"data": data_or_iter_result, "sfqid": qid}
 
         return {"data": data_or_iter, "sfqid": qid}
 
@@ -784,8 +770,9 @@ class ServerConnection:
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
-        result_set, result_meta = self.get_result_set(plan, **kwargs)
-        result = result_set_to_rows(result_set["data"])
+        show_limit = kwargs.pop("show_limit", None)
+        result_set, result_meta = self.get_result_set(plan, to_iter=True, **kwargs)
+        result = result_set_to_rows(result_set["data"], show_limit=show_limit)
         attributes = convert_result_meta_to_attribute(result_meta, self.max_string_size)
         return result, attributes
 

@@ -10,6 +10,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from logging import getLogger
 from typing import Iterator
+from unittest import mock
 
 import pytest
 
@@ -298,6 +299,55 @@ def test_show(session):
 |Drop statement executed successfully (TEST_TABL...  |
 ------------------------------------------------------\n""".lstrip()
     )
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
+def test_show_non_select_statement(session):
+    df = session.create_dataframe([[1, 2, 3, 4] for i in range(100)]).to_df(
+        ['"col1"', "col2_a", "col2_b", "col3"]
+    )
+    with mock.patch(
+        "snowflake.snowpark.dataframe.is_sql_select_statement", return_value=False
+    ):
+        res = df._show_string(5, _emit_ast=session.ast_enabled)
+        assert (
+            res
+            == """
+-----------------------------------------
+|"col1"  |"COL2_A"  |"COL2_B"  |"COL3"  |
+-----------------------------------------
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+-----------------------------------------\n""".lstrip()
+        )
+
+        # test show with default value
+        res = df._show_string(_emit_ast=session.ast_enabled)
+        assert (
+            res
+            == """
+-----------------------------------------
+|"col1"  |"COL2_A"  |"COL2_B"  |"COL3"  |
+-----------------------------------------
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+|1       |2         |3         |4       |
+-----------------------------------------\n""".lstrip()
+        )
 
 
 def test_cache_result(session):
