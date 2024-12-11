@@ -651,7 +651,7 @@ class Decoder:
                     # The list case should be taken care of in this branch.
                     return col.in_(self.decode_expr(expr.sp_column_in__seq.values))
 
-            case "sp_columnx_is_not_null":
+            case "sp_column_is_not_null":
                 col = self.decode_expr(expr.sp_column_is_not_null.col)
                 return col.is_not_null()
 
