@@ -1245,7 +1245,6 @@ class Column:
         expr = self._expression  # Snowpark expression
         if isinstance(expr, Alias):
             expr = expr.child
-
         ast_expr = None  # Snowpark IR expression
         if _emit_ast and self._ast is not None:
             ast_expr = proto.Expr()
