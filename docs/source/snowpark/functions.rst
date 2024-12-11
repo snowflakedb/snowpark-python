@@ -92,6 +92,7 @@ Functions
     col
     collate
     collation
+    collect_list
     collect_set
     column
     concat
@@ -257,6 +258,7 @@ Functions
     sha2
     sin
     sinh
+    size
     skew
     snowflake_cortex_summarize
     sort_array

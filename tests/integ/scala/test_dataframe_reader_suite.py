@@ -781,7 +781,7 @@ def test_csv_external_file_format(session, resources_path, temp_schema):
         FIELD_OPTIONALLY_ENCLOSED_BY = '\"'
         ESCAPE_UNENCLOSED_FIELD = none
         SKIP_BLANK_LINES = TRUE
-        EMPTY_FIELD_AS_NULL = TRUE
+        EMPTY_FIELD_AS_NULL = FALSE
         PARSE_HEADER = True
         ENCODING = 'UTF8';
         """
@@ -796,6 +796,7 @@ def test_csv_external_file_format(session, resources_path, temp_schema):
         assert df._session._plan_builder._merge_file_format_options(
             {}, {"FORMAT_NAME": file_format}
         ) == {
+            "EMPTY_FIELD_AS_NULL": False,
             "PARSE_HEADER": True,
             "ESCAPE": r"\\",
             "ESCAPE_UNENCLOSED_FIELD": "NONE",

@@ -174,6 +174,7 @@ LISTAGG = " LISTAGG "
 HEADER = " HEADER "
 COMMENT = " COMMENT "
 IGNORE_NULLS = " IGNORE NULLS "
+INCLUDE_NULLS = " INCLUDE NULLS "
 UNION = " UNION "
 UNION_ALL = " UNION ALL "
 RENAME = " RENAME "
@@ -1238,7 +1239,11 @@ def pivot_statement(
 
 
 def unpivot_statement(
-    value_column: str, name_column: str, column_list: List[str], child: str
+    value_column: str,
+    name_column: str,
+    column_list: List[str],
+    include_nulls: bool,
+    child: str,
 ) -> str:
     return (
         SELECT
@@ -1248,6 +1253,7 @@ def unpivot_statement(
         + child
         + RIGHT_PARENTHESIS
         + UNPIVOT
+        + (INCLUDE_NULLS if include_nulls else EMPTY_STRING)
         + LEFT_PARENTHESIS
         + value_column
         + FOR

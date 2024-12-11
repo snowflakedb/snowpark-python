@@ -32,12 +32,24 @@ from snowflake.snowpark.functions import (
     dense_rank,
     ln,
     log,
+    _log2,
+    _log10,
     sin,
     snowflake_cortex_summarize,
     udf,
     to_variant,
     when,
     udtf,
+    exp,
+    cos,
+    tan,
+    sinh,
+    cosh,
+    tanh,
+    ceil,
+    floor,
+    trunc,
+    sqrt,
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
@@ -83,9 +95,21 @@ DEFAULT_UDTF_PARTITION_SIZE = 1000
 cloudpickle.register_pickle_by_value(sys.modules[__name__])
 
 SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
+    exp,
     ln,
     log,
+    _log2,
+    _log10,
     sin,
+    cos,
+    tan,
+    sinh,
+    cosh,
+    tanh,
+    ceil,
+    floor,
+    trunc,
+    sqrt,
     snowflake_cortex_summarize,
 }
 

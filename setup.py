@@ -24,10 +24,10 @@ INSTALL_REQ_LIST = [
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
-    "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
-    "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+    "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6",  # Snowpark IR
+    "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
     "snowflake>=1.0.0, <2",  # Catalog
 ]
@@ -46,6 +46,7 @@ MODIN_REQUIREMENTS = [
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
     "pytest-cov",
+    "wrapt",  # used for functools.wraps(...) in testing.
     "coverage",
     "sphinx==5.0.2",
     "cachetools",  # used in UDF doctest

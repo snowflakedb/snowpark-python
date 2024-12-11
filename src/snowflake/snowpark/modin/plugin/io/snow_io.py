@@ -178,6 +178,13 @@ class PandasOnSnowflakeIO(BaseIO):
         return cls.query_compiler_cls.from_pandas(df, pandas.DataFrame)
 
     @classmethod
+    def json_normalize(cls, **kwargs):  # noqa: PR01
+        """
+        Normalize semi-structured JSON data into a query compiler representing a flat table.
+        """
+        return cls.from_pandas(pandas.json_normalize(**kwargs))
+
+    @classmethod
     def read_excel(cls, **kwargs):  # noqa: PR01
         """
         Read an excel file into a query compiler.

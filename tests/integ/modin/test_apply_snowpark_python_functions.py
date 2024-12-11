@@ -33,48 +33,42 @@ def test_apply_sin():
 
 @sql_count_checker(query_count=4)
 def test_apply_log10():
-    from snowflake.snowpark.functions import log
+    from snowflake.snowpark.functions import _log10
 
     native_s = native_pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
     s = pd.Series(native_s)
 
-    assert_series_equal(s.apply(log, base=10), native_s.apply(np.log10))
-    assert_series_equal(s.map(log, base=10), native_s.map(np.log10))
+    assert_series_equal(s.apply(_log10), native_s.apply(np.log10))
+    assert_series_equal(s.map(_log10), native_s.map(np.log10))
     assert_frame_equal(
-        s.to_frame().applymap(log, base=10), native_s.to_frame().applymap(np.log10)
+        s.to_frame().applymap(_log10), native_s.to_frame().applymap(np.log10)
     )
     assert_frame_equal(
-        s.to_frame().apply(log, base=10),
+        s.to_frame().apply(_log10),
         native_s.to_frame().apply(
             np.log10
         ),  # Note math.sin does not work with df.apply
     )
 
-    # triggers the error when the kwargs is incompletely specified
-    try:
-        s.apply(log, not_an_arg=10)
-    except NotImplementedError:
-        pass
-
 
 @sql_count_checker(query_count=0)
 def test_apply_snowpark_python_function_not_implemented():
-    from snowflake.snowpark.functions import cos, sin
+    from snowflake.snowpark.functions import desc, asc
 
     with pytest.raises(NotImplementedError):
-        pd.Series([1, 2, 3]).apply(cos)
+        pd.Series([1, 2, 3]).apply(desc)
     with pytest.raises(NotImplementedError):
-        pd.Series([1, 2, 3]).to_frame().applymap(sin, na_action="ignore")
+        pd.Series([1, 2, 3]).to_frame().apply(asc, na_action="ignore")
     with pytest.raises(NotImplementedError):
-        pd.Series([1, 2, 3]).to_frame().applymap(sin, args=[1, 2])
+        pd.Series([1, 2, 3]).to_frame().applymap(asc, args=[1, 2])
     with pytest.raises(NotImplementedError):
-        pd.DataFrame({"a": [1, 2, 3]}).apply(cos)
+        pd.DataFrame({"a": [1, 2, 3]}).apply(desc)
     with pytest.raises(NotImplementedError):
-        pd.DataFrame({"a": [1, 2, 3]}).apply(sin, raw=True)
+        pd.DataFrame({"a": [1, 2, 3]}).apply(asc, raw=True)
     with pytest.raises(NotImplementedError):
-        pd.DataFrame({"a": [1, 2, 3]}).apply(sin, axis=1)
+        pd.DataFrame({"a": [1, 2, 3]}).apply(asc, axis=1)
     with pytest.raises(NotImplementedError):
-        pd.DataFrame({"a": [1, 2, 3]}).apply(sin, args=(1, 2))
+        pd.DataFrame({"a": [1, 2, 3]}).apply(asc, args=(1, 2))
 
 
 @sql_count_checker(query_count=1)

@@ -94,6 +94,7 @@ _DEFAULT_BEHAVIOUR = {
 )
 class DataFrameGroupBy(metaclass=TelemetryMeta):
     _pandas_class = pandas.core.groupby.DataFrameGroupBy
+    _return_tuple_when_iterating = False
 
     def __init__(
         self,
@@ -115,6 +116,12 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         self._query_compiler = self._df._query_compiler
         self._columns = self._query_compiler.columns
         self._by = by
+        # When providing a list of columns of length one to DataFrame.groupby(),
+        # the keys that are returned by iterating over the resulting DataFrameGroupBy
+        # object will now be tuples of length one
+        self._return_tuple_when_iterating = kwargs.pop(
+            "return_tuple_when_iterating", False
+        )
         self._level = level
         self._kwargs = {
             "level": level,
@@ -740,9 +747,59 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         ErrorMessage.method_not_implemented_error(name="ohlc", class_="GroupBy")
 
     @_inherit_docstrings(pandas.core.groupby.DataFrameGroupBy.pct_change)
-    def pct_change(self, *args, **kwargs):
+    def pct_change(
+        self,
+        periods=1,
+        fill_method=no_default,
+        limit=no_default,
+        freq=no_default,
+        axis=no_default,
+        **kwargs,
+    ):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="pct_change", class_="GroupBy")
+        if fill_method not in (no_default, None) or limit is not no_default:
+            WarningMessage.single_warning(
+                "The 'fill_method' keyword being not None and the 'limit' keyword in "
+                + f"{type(self).__name__}.pct_change are deprecated and will be removed "
+                + "in a future version. Either fill in any non-leading NA values prior "
+                + "to calling pct_change or specify 'fill_method=None' to not fill NA "
+                + "values.",
+            )
+        if fill_method is no_default:
+            WarningMessage.single_warning(
+                f"The default fill_method='ffill' in {type(self).__name__}.pct_change is "
+                + "deprecated and will be removed in a future version. Either fill in any "
+                + "non-leading NA values prior to calling pct_change or specify 'fill_method=None' "
+                + "to not fill NA values.",
+            )
+            fill_method = "ffill"
+
+        if limit is no_default:
+            limit = None
+
+        if freq is no_default:
+            freq = None
+
+        if axis is not no_default:
+            axis = self._df._get_axis_number(axis)
+        else:
+            axis = 0
+
+        if not isinstance(periods, int):
+            raise TypeError(
+                f"Periods must be integer, but {periods} is {type(periods)}."
+            )
+
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_pct_change,
+            agg_kwargs=dict(
+                periods=periods,
+                fill_method=fill_method,
+                limit=limit,
+                freq=freq,
+                axis=axis,
+            ),
+        )
 
     def prod(self, numeric_only=False, min_count=0):
         ErrorMessage.method_not_implemented_error(name="prod", class_="GroupBy")
@@ -1195,7 +1252,23 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             Generator expression of GroupBy object broken down into tuples for iteration.
         """
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="_iter", class_="GroupBy")
+        indices = self.indices
+        group_ids = indices.keys()
+
+        assert self._axis == 0, (
+            "GroupBy does not yet support axis=1. "
+            "A NotImplementedError should have already been raised."
+        )
+
+        return (
+            (
+                (k,) if self._return_tuple_when_iterating else k,
+                pd.DataFrame(
+                    query_compiler=self._query_compiler.getitem_row_array(indices[k])
+                ),
+            )
+            for k in (sorted(group_ids) if self._sort else group_ids)
+        )
 
     def _wrap_aggregation(
         self,
@@ -1341,7 +1414,23 @@ class SeriesGroupBy(DataFrameGroupBy):
             Generator expression of GroupBy object broken down into tuples for iteration.
         """
         # TODO: SNOW-1063350: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="_iter", class_="GroupBy")
+        indices = self.indices
+        group_ids = indices.keys()
+
+        assert self._axis == 0, (
+            "GroupBy does not yet support axis=1. "
+            "A NotImplementedError should have already been raised."
+        )
+
+        return (
+            (
+                k,
+                pd.Series(
+                    query_compiler=self._query_compiler.getitem_row_array(indices[k])
+                ),
+            )
+            for k in (sorted(group_ids) if self._sort else group_ids)
+        )
 
     ###########################################################################
     # Indexing, iteration

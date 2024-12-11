@@ -56,6 +56,7 @@ def test_profiler_function_exist(is_profiler_function_exist, profiler_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
 def test_profiler_with_profiler_class(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
@@ -84,6 +85,7 @@ def test_profiler_with_profiler_class(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
 def test_single_return_value_of_sp(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
@@ -112,6 +114,7 @@ def test_single_return_value_of_sp(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
+@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
 def test_anonymous_procedure(
     is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
 ):
@@ -202,13 +205,13 @@ def test_query_history_destroyed_after_finish_profiling(
     profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
     assert (
         profiler_session.stored_procedure_profiler._query_history
-        in profiler_session._conn._query_listener
+        in profiler_session._conn._query_listeners
     )
 
     profiler_session.stored_procedure_profiler.disable()
     assert (
         profiler_session.stored_procedure_profiler._query_history
-        not in profiler_session._conn._query_listener
+        not in profiler_session._conn._query_listeners
     )
 
     profiler_session.stored_procedure_profiler.register_modules()
@@ -266,7 +269,7 @@ def test_stored_proc_error(
 ):
     function_name = f"oom_sp_{Utils.random_function_name()}"
 
-    @sproc(name=function_name, replace=True)
+    @sproc(name=function_name, session=profiler_session, replace=True)
     def oom_sp(session: snowflake.snowpark.Session) -> str:
         raise ValueError("fake out of memory")
 
