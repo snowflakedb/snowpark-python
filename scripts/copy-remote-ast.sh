@@ -3,6 +3,9 @@
 # This script assumes the target Cloud Workspace specified as the command-line argument has the build target.
 # To make sure this is the case, run bazel build //Snowpark/ast:ast_proto and bazel build //Snowpark/unparser.
 
+# N.B. The calling environment further requires:
+# export MONOREPO_DIR=$TMPDIR
+
 # To allow this script to run from any subdirectory within snowpark-python, we use git rev-parse.
 SNOWPARK_ROOT=$(git rev-parse --show-toplevel)
 
