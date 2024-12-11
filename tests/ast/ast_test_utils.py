@@ -33,7 +33,7 @@ def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> st
     """Uses the unparser to render the AST."""
     assert (
         unparser_jar
-    ), "A valid Unparser JAR path must be supplied either via --unparser-jar=<path> or the environment variable SNOWPARK_UNPARSER_JAR"
+    ), "A valid Unparser JAR path must be supplied either via --unparser-jar=<path> or the environment variable MONOREPO_DIR"
 
     if isinstance(ast_base64, str):
         ast_base64 = [ast_base64]

@@ -11,9 +11,15 @@ from snowflake.snowpark import Session
 
 
 def default_unparser_path():
-    explicit = os.getenv("SNOWPARK_UNPARSER_JAR")
-    default_default = f"{os.getenv('HOME')}/Snowflake/trunk/Snowpark/unparser/target/scala-2.13/unparser-assembly-0.1.jar"
-    return explicit or default_default
+    explicit = os.getenv("MONOREPO_DIR")
+    default_default = f"{os.getenv('HOME')}/Snowflake/trunk"
+    base_dir = explicit or default_default
+    unparser_dir = f"{base_dir}/bazel-bin/Snowpark/unparser"
+    cp = ":".join([
+        f"{unparser_dir}/unparser.runfiles/io_bazel_rules_scala_scala_library/scala-library-2.12.18.jar",
+        f"{unparser_dir}/unparser.runfiles/maven_future/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar",
+        f"{unparser_dir}/unparser.jar",
+    ])
 
 
 def pytest_addoption(parser):
@@ -34,7 +40,7 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     pytest.unparser_jar = config.getoption("--unparser-jar")
-    if not os.path.exists(pytest.unparser_jar):
+    if all(os.path.exists(file) for file in pytest.unparser_jar.split(":")):
         pytest.unparser_jar = None
     pytest.update_expectations = config.getoption("--update-expectations")
 
