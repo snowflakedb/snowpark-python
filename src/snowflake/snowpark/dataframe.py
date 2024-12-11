@@ -4367,9 +4367,8 @@ class DataFrame:
                 self.limit(n, _emit_ast=False)._plan, **kwargs
             )
         else:
-            kwargs["show_limit"] = n
             res, meta = self._session._conn.get_result_and_metadata(
-                self._plan, **kwargs
+                self._plan, show_limit=n, **kwargs
             )
             result = res[:n]
 
