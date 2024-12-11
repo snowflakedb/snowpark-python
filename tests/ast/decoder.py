@@ -651,7 +651,7 @@ class Decoder:
                     # The list case should be taken care of in this branch.
                     return col.in_(self.decode_expr(expr.sp_column_in__seq.values))
 
-            case "sp_column_is_not_null":
+            case "sp_columnx_is_not_null":
                 col = self.decode_expr(expr.sp_column_is_not_null.col)
                 return col.is_not_null()
 
@@ -771,6 +771,7 @@ class Decoder:
                         df,
                     )
                 return df
+
             case "sp_dataframe_agg":
                 df = self.decode_expr(expr.sp_dataframe_agg.df)
                 exprs = [
@@ -780,10 +781,12 @@ class Decoder:
                     return df.agg(*exprs)
                 else:
                     return df.agg(exprs)
+
             case "sp_dataframe_col":
                 col_name = expr.sp_dataframe_col.col_name
                 df = self.decode_expr(expr.sp_dataframe_col.df)
                 return df[col_name]
+
             case "sp_dataframe_collect":
                 df = self.symbol_table[expr.sp_dataframe_collect.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_count)
@@ -805,6 +808,7 @@ class Decoder:
                         block=block,
                         case_sensitive=case_sensitive,
                     )
+
             case "sp_dataframe_count":
                 df = self.symbol_table[expr.sp_dataframe_count.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_count)
@@ -815,8 +819,20 @@ class Decoder:
                     block=block,
                 )
 
+            case "sp_dataframe_group_by":
+                df = self.decode_expr(expr.sp_dataframe_group_by.df)
+                cols = [
+                    self.decode_expr(arg)
+                    for arg in expr.sp_dataframe_group_by.cols.args
+                ]
+                if expr.sp_dataframe_group_by.cols.variadic:
+                    return df.group_by(*cols)
+                else:
+                    return df.group_by(cols)
+
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
+
             case "sp_dataframe_select__columns":
                 df = self.decode_expr(expr.sp_dataframe_select__columns.df)
                 # The columns can be a list of Expr or a single Expr.
@@ -837,11 +853,32 @@ class Decoder:
                         val,
                     )
                 return val
+
             case "sp_dataframe_show":
                 df = self.decode_expr(
                     self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
                 )
                 return df.show()
+
+            case "sp_relational_grouped_dataframe_builtin":
+                grouped_df = self.decode_expr(
+                    expr.sp_relational_grouped_dataframe_builtin.grouped_df
+                )
+                cols = [
+                    self.decode_expr(arg)
+                    for arg in expr.sp_relational_grouped_dataframe_builtin.cols.args
+                ]
+                agg_name = expr.sp_relational_grouped_dataframe_builtin.agg_name
+                if expr.sp_relational_grouped_dataframe_builtin.cols.variadic:
+                    return grouped_df.function(agg_name)
+                else:
+                    return grouped_df.function(agg_name)
+
+            case "sp_relational_grouped_dataframe_ref":
+                return self.symbol_table[
+                    expr.sp_relational_grouped_dataframe_ref.id.bitfield1
+                ][1]
+
             case "sp_table":
                 assert expr.sp_table.HasField("name")
                 table_name = self.decode_table_name_expr(expr.sp_table.name)
