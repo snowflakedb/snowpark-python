@@ -2320,5 +2320,5 @@ def test_apply_snowflake_cortex_sentiment(session):
     ).collect()[0][0]
     sentiment_from_str = df.select(snowflake_cortex_sentiment(content)).collect()[0][0]
 
-    assert -1 <= sentiment_from_col <= 1
-    assert -1 <= sentiment_from_str <= 1
+    assert -1 <= sentiment_from_col <= 0
+    assert -1 <= sentiment_from_str <= 0

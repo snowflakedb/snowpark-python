@@ -99,4 +99,4 @@ def test_apply_snowflake_cortex_sentiment():
     content = "A very very bad review!"
     s = pd.Series([content])
     sentiment = s.apply(snowflake_cortex_sentiment).iloc[0]
-    assert -1 <= sentiment <= 1
+    assert -1 <= sentiment <= 0
