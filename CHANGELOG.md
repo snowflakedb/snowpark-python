@@ -1,6 +1,17 @@
 # Release History
 
-## 1.26.0 (TBD)
+## 1.27.0 (TBD)
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `Series.str.ljust` and `Series.str.rjust`.
+- Added support for `Series.str.center`.
+- Added support for `Series.str.pad`.
+
+
+## 1.26.0 (2024-12-05)
 
 ### Snowpark Python API Updates
 
@@ -19,6 +30,13 @@
   - To `MapType`:
     - `keyType`: keys of the map
     - `valueType`: values of the map
+- Added support for method `appName` in `SessionBuilder`.
+- Added support for `include_nulls` argument in `DataFrame.unpivot`.
+- Added support for following functions in `functions.py`:
+  - `size` to get size of array, object, or map columns.
+  - `collect_list` an alias of `array_agg`.
+  - `substring` makes `len` argument optional.
+- Added parameter `ast_enabled` to session for internal usage (default: `False`).
 
 #### Improvements
 
@@ -36,15 +54,17 @@
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
   - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
   - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
+- Relaxed the cloudpickle dependency for Python 3.11 to simplify build requirements. However, for Python 3.11, `cloudpickle==2.2.1` remains the only supported version.
 
 #### Bug Fixes
 
 - Removed warnings that dynamic pivot features were in private preview, because
   dynamic pivot is now generally available.
-
+- Fixed a bug in `session.read.options` where `False` Boolean values were incorrectly parsed as `True` in the generated file format.
 
 #### Dependency Updates
 
+- Added a runtime dependency on `python-dateutil`.
 
 ### Snowpark pandas API Updates
 
@@ -53,28 +73,22 @@
 - Added partial support for `Series.map` when `arg` is a pandas `Series` or a
   `collections.abc.Mapping`. No support for instances of `dict` that implement
   `__missing__` but are not instances of `collections.defaultdict`.
-
-#### Dependency Updates
-
-
-#### New Features
-
 - Added support for `DataFrame.align` and `Series.align` for `axis=1` and `axis=None`.
+- Added support for `pd.json_normalize`.
+- Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
+- Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
+- Added support for `np.sqrt`, `np.trunc`, `np.floor`, numpy trig functions, `np.exp`, `np.abs`, `np.positive` and `np.negative`.
+- Added partial support for the dataframe interchange protocol method
+  `DataFrame.__dataframe__()`.
 
 #### Bug Fixes
 
+- Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
 #### Improvements
 
-
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-
-#### Bug Fixes
-
+- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinel values.
+- Improved documentation for pd.read_excel.
 
 ## 1.25.0 (2024-11-14)
 
@@ -138,6 +152,7 @@
 
 - Improve np.where with scalar x value by eliminating unnecessary join and temp table creation.
 - Improve get_dummies performance by flattening the pivot with join.
+- Improve align performance when aligning on row position column by removing unnecessary window functions.
 
 
 

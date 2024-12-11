@@ -25,7 +25,12 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils, iceberg_supported
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    TestFiles,
+    Utils,
+    iceberg_supported,
+)
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
@@ -972,8 +977,16 @@ def test_copy_non_csv_transformation(
                     C="a",
                     D=datetime.date(2022, 4, 1),
                     T=datetime.time(11, 11, 11),
-                    TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
-                    TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
+                    TS_NTZ=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
+                    )
+                    .astimezone()
+                    .replace(tzinfo=None),
+                    TS=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
+                    )
+                    .astimezone()
+                    .replace(tzinfo=None),
                     V='{"key":"value"}',
                 )
             ],

@@ -478,6 +478,7 @@ def test_permanent_udaf_negative(session, db_parameters):
 
     with Session.builder.configs(db_parameters).create() as new_session:
         new_session.sql_simplifier_enabled = session.sql_simplifier_enabled
+        new_session.ast_enabled = session.ast_enabled
         df2 = new_session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df(
             "a", "b"
         )

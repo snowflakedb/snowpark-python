@@ -11,9 +11,7 @@ import pytest
 from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
-    UNPIVOT_NULL_REPLACE_VALUE,
-)
+
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
@@ -200,21 +198,12 @@ def test_dataframe_transpose_single_row(transpose_operation, expected_query_coun
         {"B": [1, 1, 1, 1, 1]},  # value all same
         {"None": [None]},
         {"none": [None, None, None]},
-        {UNPIVOT_NULL_REPLACE_VALUE: [np.nan, np.nan, np.nan]},
         {"NaT": [pd.NaT, pd.NaT, pd.NaT]},
         {"nan": [6.0, 7.1, np.nan]},
         {"A": [None, 1, 2, 3]},
         {"None": [None, 1, 1, None]},
         {"float": [1.1, 1.0 / 7]},
         {"str": ["abc", None, ("a", "c")]},
-        {
-            UNPIVOT_NULL_REPLACE_VALUE: [
-                None,
-                UNPIVOT_NULL_REPLACE_VALUE,
-                None,
-                UNPIVOT_NULL_REPLACE_VALUE,
-            ]
-        },
         {123: ["a", "b", "c"]},
         {False: [1, 2, 3], True: ["4", "5", "6"]},
         # Note that if no label is provided, a default integer label is created.

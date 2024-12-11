@@ -19,6 +19,7 @@ from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFuncti
 def test_register_udaf_negative():
     fake_session = mock.create_autospec(Session)
     fake_session.udaf = UDAFRegistration(fake_session)
+    fake_session.ast_enabled = False
     with pytest.raises(TypeError, match="Invalid handler: expecting a class type"):
         fake_session.udaf.register(1)
 
@@ -48,6 +49,7 @@ def test_do_register_udaf_negative(cleanup_registration_patch):
     fake_session._runtime_version_from_requirement = None
     fake_session._packages = []
     fake_session.udaf = UDAFRegistration(fake_session)
+    fake_session.ast_enabled = False
     with pytest.raises(SnowparkSQLException) as ex_info:
 
         @udaf(session=fake_session)
@@ -139,6 +141,7 @@ def test_do_register_udaf_sandbox(session_sandbox, cleanup_registration_patch):
             replace=True,
             return_type=IntegerType(),
             input_types=[IntegerType()],
+            _emit_ast=False,
         )
 
     cleanup_registration_patch.assert_not_called()

@@ -422,6 +422,76 @@ def test_str_no_params(func):
     )
 
 
+@pytest.mark.parametrize("func", ["center", "ljust", "rjust"])
+@pytest.mark.parametrize("width", [-1, 0, 1, 10, 100])
+@pytest.mark.parametrize("fillchar", [" ", "#"])
+@sql_count_checker(query_count=1)
+def test_str_center_ljust_rjust(func, width, fillchar):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: getattr(ser.str, func)(width=width, fillchar=fillchar),
+    )
+
+
+@pytest.mark.parametrize("func", ["center", "ljust", "rjust"])
+@pytest.mark.parametrize(
+    "width, fillchar",
+    [
+        (None, " "),
+        ("ten", " "),
+        (10, ""),
+        (10, "ab"),
+        (10, None),
+        (10, 10),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_str_center_ljust_rjust_neg(func, width, fillchar):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(TypeError):
+        getattr(snow_ser.str, func)(width=width, fillchar=fillchar)
+
+
+@pytest.mark.parametrize("width", [-1, 0, 1, 10, 100])
+@pytest.mark.parametrize("side", ["left", "right", "both"])
+@pytest.mark.parametrize("fillchar", [" ", "#"])
+@sql_count_checker(query_count=1)
+def test_str_pad(width, side, fillchar):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.pad(width=width, side=side, fillchar=fillchar),
+    )
+
+
+@pytest.mark.parametrize(
+    "width, side, fillchar, error",
+    [
+        (None, "both", " ", TypeError),
+        ("ten", "both", " ", TypeError),
+        (10, None, " ", ValueError),
+        (10, 10, " ", ValueError),
+        (10, "invalid", " ", ValueError),
+        (10, "both", "", TypeError),
+        (10, "both", "ab", TypeError),
+        (10, "both", None, TypeError),
+        (10, "both", 10, TypeError),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_str_pad_neg(width, side, fillchar, error):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(error):
+        snow_ser.str.pad(width=width, side=side, fillchar=fillchar)
+
+
 @pytest.mark.parametrize(
     "data",
     [

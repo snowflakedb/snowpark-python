@@ -601,7 +601,7 @@ def test_iceberg_nested_fields(
 
 
 @pytest.mark.skip(
-    reason="SNOW-1748140: Need to handle structured types in datatype_mapper"
+    reason="SNOW-1819531: Error in _contains_external_cte_ref when analyzing lqb"
 )
 def test_struct_dtype_iceberg_lqb(
     structured_type_session, local_testing_mode, structured_type_support
@@ -970,3 +970,134 @@ def test_structured_type_print_schema(
         df._format_schema(1, translate_columns={'"MAP"': '"map"'})
         == 'root\n |-- "map": MapType (nullable = True)'
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_structured_type_schema_expression(
+    structured_type_session, local_testing_mode, structured_type_support
+):
+    # Test does not require iceberg support, but does require FDN table structured type support
+    # which is enabled in the same accounts as iceberg.
+    if not (
+        structured_type_support
+        and iceberg_supported(structured_type_session, local_testing_mode)
+    ):
+        pytest.skip("Test requires structured type support.")
+
+    table_name = f"snowpark_schema_expresion_test_{uuid.uuid4().hex[:5]}".upper()
+    non_null_table_name = (
+        f"snowpark_schema_expresion_nonnull_test_{uuid.uuid4().hex[:5]}".upper()
+    )
+    nested_table_name = (
+        f"snowpark_schema_expresion_nested_test_{uuid.uuid4().hex[:5]}".upper()
+    )
+
+    expected_schema = StructType(
+        [
+            StructField(
+                "MAP",
+                MapType(StringType(), DoubleType(), structured=True),
+                nullable=True,
+            ),
+            StructField("ARR", ArrayType(DoubleType(), structured=True), nullable=True),
+            StructField(
+                "OBJ",
+                StructType(
+                    [
+                        StructField("FIELD1", StringType(), nullable=True),
+                        StructField("FIELD2", DoubleType(), nullable=True),
+                    ],
+                    structured=True,
+                ),
+                nullable=True,
+            ),
+        ]
+    )
+
+    expected_non_null_schema = StructType(
+        [
+            StructField(
+                "MAP",
+                MapType(StringType(), DoubleType(), structured=True),
+                nullable=False,
+            ),
+            StructField(
+                "ARR", ArrayType(DoubleType(), structured=True), nullable=False
+            ),
+            StructField(
+                "OBJ",
+                StructType(
+                    [
+                        StructField("FIELD1", StringType(), nullable=False),
+                        StructField("FIELD2", DoubleType(), nullable=False),
+                    ],
+                    structured=True,
+                ),
+                nullable=False,
+            ),
+        ]
+    )
+
+    expected_nested_schema = StructType(
+        [
+            StructField(
+                "MAP",
+                MapType(
+                    StringType(),
+                    StructType(
+                        [StructField("ARR", ArrayType(DoubleType(), structured=True))],
+                        structured=True,
+                    ),
+                    structured=True,
+                ),
+            )
+        ]
+    )
+
+    try:
+        # SNOW-1819428: Nullability doesn't seem to be respected when creating
+        # a structured type dataframe so use a table instead.
+        structured_type_session.sql(
+            f"create table {table_name} (MAP MAP(VARCHAR, DOUBLE), ARR ARRAY(DOUBLE), "
+            "OBJ OBJECT(FIELD1 VARCHAR, FIELD2 DOUBLE))"
+        ).collect()
+        structured_type_session.sql(
+            f"create table {non_null_table_name} (MAP MAP(VARCHAR, DOUBLE) NOT NULL, "
+            "ARR ARRAY(DOUBLE) NOT NULL, OBJ OBJECT(FIELD1 VARCHAR NOT NULL, FIELD2 "
+            "DOUBLE NOT NULL) NOT NULL)"
+        ).collect()
+        structured_type_session.sql(
+            f"create table {nested_table_name} (MAP MAP(VARCHAR, OBJECT(ARR ARRAY(DOUBLE))))"
+        ).collect()
+
+        table = structured_type_session.table(table_name)
+        non_null_table = structured_type_session.table(non_null_table_name)
+        nested_table = structured_type_session.table(nested_table_name)
+
+        assert table.schema == expected_schema
+        assert non_null_table.schema == expected_non_null_schema
+        assert nested_table.schema == expected_nested_schema
+
+        # Dataframe.union forces a schema_expression call
+        assert table.union(table).schema == expected_schema
+        # Functions used in schema generation don't respect nested nullability so compare query string instead
+        non_null_union = non_null_table.union(non_null_table)
+        assert non_null_union._plan.schema_query == (
+            "( SELECT object_construct_keep_null('a' ::  STRING (16777216), 0 :: DOUBLE) :: "
+            'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(0 :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR",'
+            " object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
+            'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ") UNION ( SELECT '
+            "object_construct_keep_null('a' ::  STRING (16777216), 0 :: DOUBLE) :: "
+            'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(0 :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", '
+            "object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
+            'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ")'
+        )
+
+        assert nested_table.union(nested_table).schema == expected_nested_schema
+    finally:
+        Utils.drop_table(structured_type_session, table_name)
+        Utils.drop_table(structured_type_session, non_null_table_name)
+        Utils.drop_table(structured_type_session, nested_table_name)

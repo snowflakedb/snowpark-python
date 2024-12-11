@@ -44,6 +44,8 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+_logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class OrderingColumn:
@@ -653,7 +655,7 @@ class OrderedDataFrame:
             dataframe_ref.cached_snowflake_quoted_identifiers_tuple = tuple(
                 new_column_identifiers
             )
-            logging.debug(
+            _logger.debug(
                 f"The Snowpark DataFrame in DataFrameReference with id={dataframe_ref._id} is updated"
             )
 
@@ -906,6 +908,7 @@ class OrderedDataFrame:
                     value_column=value_column,
                     name_column=name_column,
                     column_list=unpivot_column_list,
+                    include_nulls=True,
                 ),
                 snowflake_quoted_identifiers=result_column_quoted_identifiers,
             ),
@@ -1442,12 +1445,24 @@ class OrderedDataFrame:
         # generate row position column for self and right, which is needed for align on column equivalence check
         left = self.ensure_row_position_column()
         right = right.ensure_row_position_column()
+
+        # whether the alignment is performed on the row position column of each dataframe.
+        # In other words, this indicates whether the alignment is applied on a unique column
+        # of each dataframe. Optimizations can be applied based on this information.
+        align_on_row_position_column = left_on_cols == [
+            left.row_position_snowflake_quoted_identifier
+        ] and right_on_cols == [right.row_position_snowflake_quoted_identifier]
+        # If the alignment is applied on the unique row position column, and the method is
+        # not "coalesce", the align operation can be directly mapped as a join. No extra filtering
+        # will be needed.
+        direct_join_map = align_on_row_position_column and how != "coalesce"
+
         # perform outer join
         joined_ordered_frame = left.join(
             right,
             left_on_cols=left_on_cols,
             right_on_cols=right_on_cols,
-            how="outer",
+            how=how if direct_join_map else "outer",
         )
 
         sort = False
@@ -1466,6 +1481,10 @@ class OrderedDataFrame:
         )
         # get the ordered dataframe with correct order based on sort
         joined_ordered_frame = result_helper.join_or_align_result
+
+        if direct_join_map:
+            return joined_ordered_frame
+
         # update left_on_cols and right_on_cols
         left_on_cols = result_helper.map_left_quoted_identifiers(left_on_cols)
         right_on_cols = result_helper.map_right_quoted_identifiers(right_on_cols)
@@ -1498,6 +1517,7 @@ class OrderedDataFrame:
                 [right.row_position_snowflake_quoted_identifier]
             )[0]
         )
+
         # We use over() expression over all the data in frame. This adds a new column
         # with count where all values are same.  This way we avoid triggering any eager
         # evaluation.
@@ -1521,55 +1541,62 @@ class OrderedDataFrame:
         eq_row_pos_count = sum_(iff(left_row_pos == right_row_pos, 1, 0)).over()
 
         ordering_columns = joined_ordered_frame.ordering_columns
-        # 'col_matching_expr' represents if left_on_cols is an exact match with right_on_cols.
-        # Add this as new column to frame. Note that ALL values for this column are same.
-        # It will be TRUE if left_on_cols matches with right_on_cols otherwise it will be FALSE.
-        col_matching_identifier = (
-            joined_ordered_frame.generate_snowflake_quoted_identifiers(
-                pandas_labels=["col_matching"]
-            )[0]
-        )
-        col_matching_expr = (
-            (left_count == right_count) & (left_count == eq_row_pos_count)
-        ).as_(col_matching_identifier)
-        col_matching_column = Column(col_matching_identifier)
-        extra_columns_to_append.append(col_matching_expr)
-
-        # Define the final ordering column.
-        # As we mentioned in docstring, when left_on_cols and right_on_cols matches, the left
-        # and right frame is merged row by row with the original order, and the row order of
-        # original frame is retained.
-        # However, when left_on_cols and right_on_cols doesn't match, we need to sort lexicographically
-        # on the join keys for `outer` align, and preserve left order followed by right order for `left` align.
-        # This means the ordering column changes based on the result of column matching situation. Due
-        # to lazy evaluation, we do not know the column matching situation util the query is evaluated.
-        # In order to achieve this, we add a column 'ordering_col' which is set to left row position if
-        # input frames have matching left_on_cols and right_on_cols, otherwise this will be set to constant
-        # 1 (a dummy ordering column has no effect).
-        # Note that this is only needed by `outer` methods because it needs to sort on join keys. For `left`,
-        # preserve the left order followed by right order can give the correct order for both matching case
-        # and non-matching case.
-        if how == "outer":
-            global_order_col_identifier = (
+        if align_on_row_position_column:
+            # when the alignment is applied on the row position column, there is no need to do
+            # filtering based on the column matching. Since the columns align on have unique values,
+            # if they match, the join will already give the result. If not, since the column values
+            # are unique, there will no duplicated rows to filter
+            align_filter = None
+        else:
+            # 'col_matching_expr' represents if left_on_cols is an exact match with right_on_cols.
+            # Add this as new column to frame. Note that ALL values for this column are same.
+            # It will be TRUE if left_on_cols matches with right_on_cols otherwise it will be FALSE.
+            col_matching_identifier = (
                 joined_ordered_frame.generate_snowflake_quoted_identifiers(
-                    pandas_labels=[ORDERING_COLUMN_LABEL],
-                    excluded=[col_matching_identifier],
+                    pandas_labels=["col_matching"]
                 )[0]
             )
-            global_order_expr = iff(col_matching_column, left_row_pos, lit(1)).as_(
-                global_order_col_identifier
-            )
-            extra_columns_to_append = extra_columns_to_append + [global_order_expr]
-            ordering_columns = [
-                OrderingColumn(global_order_col_identifier)
-            ] + ordering_columns
+            col_matching_expr = (
+                (left_count == right_count) & (left_count == eq_row_pos_count)
+            ).as_(col_matching_identifier)
+            col_matching_column = Column(col_matching_identifier)
+            extra_columns_to_append.append(col_matching_expr)
+
+            # Define the final ordering column.
+            # As we mentioned in docstring, when left_on_cols and right_on_cols match, the left
+            # and right frames are merged row by row with the original order, and the row order of
+            # original frame is retained.
+            # However, when left_on_cols and right_on_cols don't match, we need to sort lexicographically
+            # on the join keys for `outer` align, and preserve left order followed by right order for `left` align.
+            # This means the ordering column changes based on the result of column matching situation. Due
+            # to lazy evaluation, we do not know the column matching situation util the query is evaluated.
+            # In order to achieve this, we add a column 'ordering_col' which is set to left row position if
+            # input frames have matching left_on_cols and right_on_cols, otherwise this will be set to constant
+            # 1 (a dummy ordering column has no effect).
+            # Note that this is only needed by `outer` methods because it needs to sort on join keys. For `left`,
+            # preserving the left order followed by right order can give the correct order for both matching case
+            # and non-matching case.
+            if how == "outer":
+                global_order_col_identifier = (
+                    joined_ordered_frame.generate_snowflake_quoted_identifiers(
+                        pandas_labels=[ORDERING_COLUMN_LABEL],
+                        excluded=[col_matching_identifier],
+                    )[0]
+                )
+                global_order_expr = iff(col_matching_column, left_row_pos, lit(1)).as_(
+                    global_order_col_identifier
+                )
+                extra_columns_to_append = extra_columns_to_append + [global_order_expr]
+                ordering_columns = [
+                    OrderingColumn(global_order_col_identifier)
+                ] + ordering_columns
+
+            align_filter = not_(col_matching_column) | (left_row_pos == right_row_pos)
 
         joined_ordered_frame = joined_ordered_frame.select(
             joined_ordered_frame.projected_column_snowflake_quoted_identifiers
             + extra_columns_to_append
         )
-
-        filter_expression = not_(col_matching_column) | (left_row_pos == right_row_pos)
         # If left_on_cols matches with right_on_cols, include only the rows when left row
         # position is same as right row position.
         # If left_on_cols does not match right_on_cols, all values in 'col_matching' column will
@@ -1635,12 +1662,13 @@ class OrderedDataFrame:
         # NULL 3  NULL          1             NULL  e    False       0                 False         True     1          0
         # NULL 4  NULL          2             NULL  f    False       0                 False         True     1          0
 
+        join_filter = None
         if how == "coalesce":
             # For left align if left frame row count is 0 we convert this to right join
             # behavior by filtering out rows where right_row_pos is null. Otherwise,
             # we provide left join behavior by filtering out rows where left_row_pos is
             # null.
-            filter_expression = filter_expression & iff(
+            join_filter = iff(
                 left_count_column == 0,
                 right_row_pos.is_not_null(),  # right join
                 left_row_pos.is_not_null(),  # left join
@@ -1676,14 +1704,10 @@ class OrderedDataFrame:
                 else:
                     select_list.append(identifier)
         elif how == "left":
-            filter_expression = filter_expression & left_row_pos.is_not_null()
+            join_filter = left_row_pos.is_not_null()
             select_list = result_projected_column_snowflake_quoted_identifiers
         elif how == "inner":
-            filter_expression = (
-                filter_expression
-                & left_row_pos.is_not_null()
-                & right_row_pos.is_not_null()
-            )
+            join_filter = left_row_pos.is_not_null() & right_row_pos.is_not_null()
             select_list = result_projected_column_snowflake_quoted_identifiers
         elif how == "outer":
             select_list = result_projected_column_snowflake_quoted_identifiers
@@ -1691,9 +1715,18 @@ class OrderedDataFrame:
             raise ValueError(
                 f"how={how} is not valid argument for ordered_dataframe.align."
             )
-        joined_ordered_frame = joined_ordered_frame.filter(filter_expression).sort(
-            ordering_columns
-        )
+
+        # apply all filters to the joined_ordered_frame
+        if (align_filter is not None) and (join_filter is not None):
+            joined_ordered_frame = joined_ordered_frame.filter(
+                align_filter & join_filter
+            )
+        elif align_filter is not None:
+            joined_ordered_frame = joined_ordered_frame.filter(align_filter)
+        elif join_filter is not None:
+            joined_ordered_frame = joined_ordered_frame.filter(join_filter)
+
+        joined_ordered_frame = joined_ordered_frame.sort(ordering_columns)
 
         # call select to make sure only the result_projected_column_snowflake_quoted_identifiers are projected
         # in the join result

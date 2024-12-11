@@ -34,6 +34,7 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session._runtime_version_from_requirement = None
     fake_session._packages = []
     fake_session.udtf = UDTFRegistration(fake_session)
+    fake_session.ast_enabled = False
     with pytest.raises(SnowparkSQLException) as ex_info:
 
         @udtf(output_schema=["num"], session=fake_session)
@@ -82,6 +83,7 @@ def test_do_register_udtf_sandbox(session_sandbox, cleanup_registration_patch):
                 "schema": "some_schema",
                 "application_roles": ["app_viewer"],
             },
+            _emit_ast=False,
         )
         class UDTFTester:
             def process(self, n: int) -> Iterable[Tuple[int]]:

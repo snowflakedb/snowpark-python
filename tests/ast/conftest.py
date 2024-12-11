@@ -150,8 +150,13 @@ class TestTables:
 # TODO: SNOW-1748311 use scope="module"
 @pytest.fixture(scope="function")
 def session(local_testing_mode):
-    with Session.builder.config("local_testing", local_testing_mode).create() as s:
+    # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
+    # Need to use the Session.builder to properly register this as active session etc.
+    with Session.builder.config("local_testing", local_testing_mode).config(
+        "nop_testing", True
+    ).create() as s:
         s.ast_enabled = True
+        s.sql_simplifier_enabled = False
         yield s
 
 

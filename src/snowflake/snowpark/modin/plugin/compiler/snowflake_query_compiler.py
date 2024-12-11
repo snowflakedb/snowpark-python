@@ -23,6 +23,7 @@ import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
 import pandas.io.parsers
+from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeDataframe
 import pandas.io.parsers.readers
 import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
@@ -117,6 +118,7 @@ from snowflake.snowpark.functions import (
     least,
     length,
     lower,
+    lpad,
     ltrim,
     max as max_,
     min as min_,
@@ -132,6 +134,7 @@ from snowflake.snowpark.functions import (
     reverse,
     round as snowpark_round,
     row_number,
+    rpad,
     rtrim,
     second,
     substring,
@@ -312,7 +315,6 @@ from snowflake.snowpark.modin.plugin._internal.type_utils import (
     is_compatible_snowpark_types,
 )
 from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
-    UNPIVOT_NULL_REPLACE_VALUE,
     StackOperation,
     unpivot,
     unpivot_empty_df,
@@ -438,6 +440,7 @@ _RESET_ATTRS_METHODS = [
     "groupby_nunique",
     "groupby_rank",
     "groupby_size",
+    "groupby_pct_change",
     # expanding and rolling methods also do not propagate; we check them by prefix matching
     # agg, crosstab, and concat depend on their inputs, and are handled separately
 ]
@@ -817,8 +820,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def from_arrow(cls, at: Any, *args: Any, **kwargs: Any) -> "SnowflakeQueryCompiler":
         return cls(at.to_pandas())
 
-    def to_dataframe(self, nan_as_null: bool = False, allow_copy: bool = True) -> None:
-        pass
+    def to_dataframe(
+        self, nan_as_null: bool = False, allow_copy: bool = True
+    ) -> InterchangeDataframe:
+        return self.to_pandas().__dataframe__(
+            nan_as_null=nan_as_null, allow_copy=allow_copy
+        )
 
     @classmethod
     def from_dataframe(cls, df: native_pd.DataFrame, data_cls: Any) -> None:
@@ -5581,6 +5588,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         inplace: bool = False,
         limit: Optional[int] = None,
         downcast: Optional[dict] = None,
+        drop_data_by_columns: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
         Replace NaN values using provided method or value.
@@ -5596,6 +5604,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             inplace: Not supported
             limit: Maximum number of consecutive NA values to fill.
             downcast: Not supported
+            drop_data_by_columns: Internal argument used to determine whether to drop any data columns
+                that appear in the "by" list.
 
         Returns:
             SnowflakeQueryCompiler: with a NaN values using method or value.
@@ -5816,7 +5826,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         #     The methods ffill, bfill, pad and backfill of DataFrameGroupBy previously included the group labels in
         #      the return value, which was inconsistent with other groupby transforms. Now only the filled values
         #      are returned. (GH 21521)
-        if len(data_column_group_keys) > 0:
+        if drop_data_by_columns and len(data_column_group_keys) > 0:
             data_column_pandas_labels, data_column_snowflake_quoted_identifiers = zip(
                 *[
                     (pandas_label, snowflake_quoted_identifier)
@@ -5845,6 +5855,60 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         return SnowflakeQueryCompiler(new_frame)
+
+    def groupby_pct_change(
+        self,
+        by: Any,
+        agg_kwargs: dict[str, Any],
+        groupby_kwargs: dict[str, Any],
+        is_series_groupby: bool,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        periods = agg_kwargs.get("periods", 1)
+        fill_method = agg_kwargs.get("fill_method", None)
+        limit = agg_kwargs.get("limit", None)
+        freq = agg_kwargs.get("freq", None)
+        axis = agg_kwargs.get("axis", 0)
+        level = groupby_kwargs.get("level", None)
+        # Per testing, this function does not respect sort/as_index/dropna/group_keys
+        is_supported = check_is_groupby_supported_by_snowflake(
+            by=by, level=level, axis=axis
+        )
+        # Remaining parameters are validated in pct_change method
+        if not is_supported:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas GroupBy.pct_change {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
+            )
+
+        by_labels = by
+        if by is not None and not is_list_like(by):
+            by_labels = [by]
+
+        if level is not None:
+            by_labels = extract_groupby_column_pandas_labels(self, by, level)
+
+        # Perform fillna before pct_change to account for filling within the group.
+        qc = self
+        if fill_method is not None:
+            qc = qc.groupby_fillna(
+                by=by,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                method=fill_method,
+                drop_data_by_columns=False,
+            )
+
+        return qc.pct_change(
+            periods=periods,
+            fill_method=None,  # fillna was already done explicitly to account for the groupby
+            limit=limit,
+            freq=freq,
+            axis=axis,
+            by_labels=by_labels,
+            # Exclude the `by` columns from the result if this is a DF groupby where labels
+            # were explicitly specified, and not generated from a multi-index level.
+            drop_by_labels=not is_series_groupby and level is None,
+        )
 
     def get_dummies(
         self,
@@ -7898,7 +7962,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         partition_expression = (
             snowpark_round(
                 col(row_position_snowflake_quoted_identifier)
-                / pandas_lit(partition_size)
+                / pandas_lit(partition_size),
+                _emit_ast=self._modin_frame.ordered_dataframe.session.ast_enabled,
             )
         ).as_(partition_identifier)
         udtf_dataframe = new_internal_df.ordered_dataframe.select(
@@ -13182,12 +13247,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         ordered_dataframe = original_frame.ordered_dataframe.agg(
             *[
-                # Replace NULL values so they are preserved through the UNPIVOT
-                coalesce(
-                    to_variant(
-                        column_quantile(col(col_identifier), interpolation, quantile)
-                    ),
-                    to_variant(pandas_lit(UNPIVOT_NULL_REPLACE_VALUE)),
+                to_variant(
+                    column_quantile(col(col_identifier), interpolation, quantile)
                 ).as_(new_ident)
                 for new_ident, quantile in zip(new_identifiers, q)
             ]
@@ -13205,7 +13266,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if index is not None
             else dict(zip(new_identifiers, new_labels)),
         )
-        col_after_null_replace_identifier = (
+        col_after_cast_identifier = (
             ordered_dataframe.generate_snowflake_quoted_identifiers(
                 pandas_labels=[col_label]
             )[0]
@@ -13213,21 +13274,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Restore NULL values in the data column and cast back to float
         ordered_dataframe = ordered_dataframe.select(
             index_identifier,
-            when(
-                col(col_identifier) == pandas_lit(UNPIVOT_NULL_REPLACE_VALUE),
-                pandas_lit(None),
-            )
-            .otherwise(col(col_identifier))
-            .cast(FloatType())
-            .as_(col_after_null_replace_identifier),
+            col(col_identifier).cast(FloatType()).as_(col_after_cast_identifier),
         ).ensure_row_position_column()
         internal_frame = InternalFrame.create(
             ordered_dataframe=ordered_dataframe,
             data_column_pandas_labels=[col_label],
             data_column_pandas_index_names=[None],
-            data_column_snowflake_quoted_identifiers=[
-                col_after_null_replace_identifier
-            ],
+            data_column_snowflake_quoted_identifiers=[col_after_cast_identifier],
             index_column_pandas_labels=[None],
             index_column_snowflake_quoted_identifiers=[index_identifier],
             data_column_types=original_frame.cached_data_column_snowpark_pandas_types,
@@ -16200,8 +16253,39 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 raise ValueError("slice step cannot be zero")
             return self.str_slice(key.start, key.stop, key.step)
 
-    def str_center(self, width: int, fillchar: str = " ") -> None:
-        ErrorMessage.method_not_implemented_error("center", "Series.str")
+    def str_center(self, width: int, fillchar: str = " ") -> "SnowflakeQueryCompiler":
+        if not isinstance(width, int):
+            raise TypeError(
+                f"width must be of integer type, not {type(width).__name__}"
+            )
+        if not isinstance(fillchar, str):
+            raise TypeError(
+                f"fillchar must be a character, not {type(fillchar).__name__}"
+            )
+        if len(fillchar) != 1:
+            raise TypeError("fillchar must be a character, not str")
+
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+            new_col = rpad(
+                lpad(
+                    column,
+                    greatest(
+                        length(column),
+                        length(column)
+                        + (pandas_lit(width) - length(column) - pandas_lit(1))
+                        / pandas_lit(2),
+                    ),
+                    pandas_lit(fillchar),
+                ),
+                greatest(length(column), pandas_lit(width)),
+                pandas_lit(fillchar),
+            )
+            return self._replace_non_str(column, new_col)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            output_col
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_contains(
         self,
@@ -16359,8 +16443,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         width: int,
         side: Literal["left", "right", "both"] = "left",
         fillchar: str = " ",
-    ) -> None:
-        ErrorMessage.method_not_implemented_error("pad", "Series.str")
+    ) -> "SnowflakeQueryCompiler":
+        if side == "left":
+            return self.str_rjust(width, fillchar)
+        elif side == "right":
+            return self.str_ljust(width, fillchar)
+        elif side == "both":
+            return self.str_center(width, fillchar)
+        else:
+            raise ValueError("Invalid side")
 
     def str_partition(self, sep: str = " ", expand: bool = True) -> None:
         ErrorMessage.method_not_implemented_error("partition", "Series.str")
@@ -16399,11 +16490,86 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             )
 
-    def str_ljust(self, width: int, fillchar: str = " ") -> None:
-        ErrorMessage.method_not_implemented_error("ljust", "Series.str")
+    def str_ljust(self, width: int, fillchar: str = " ") -> "SnowflakeQueryCompiler":
+        """
+        Pad right side of strings in the Series/Index.
 
-    def str_rjust(self, width: int, fillchar: str = " ") -> None:
-        ErrorMessage.method_not_implemented_error("rjust", "Series.str")
+        Equivalent to str.ljust().
+
+        Parameters
+        ----------
+        width : int
+            Minimum width of resulting string; additional characters will be filled with fillchar.
+        fillchar : str
+            Additional character for filling, default is whitespace.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if not isinstance(width, int):
+            raise TypeError(
+                f"width must be of integer type, not {type(width).__name__}"
+            )
+        if not isinstance(fillchar, str):
+            raise TypeError(
+                f"fillchar must be a character, not {type(fillchar).__name__}"
+            )
+        if len(fillchar) != 1:
+            raise TypeError("fillchar must be a character, not str")
+
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+            new_col = rpad(
+                column,
+                greatest(length(column), pandas_lit(width)),
+                pandas_lit(fillchar),
+            )
+            return self._replace_non_str(column, new_col)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            output_col
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
+
+    def str_rjust(self, width: int, fillchar: str = " ") -> "SnowflakeQueryCompiler":
+        """
+        Pad left side of strings in the Series/Index.
+
+        Equivalent to str.rjust().
+
+        Parameters
+        ----------
+        width : int
+            Minimum width of resulting string; additional characters will be filled with fillchar.
+        fillchar : str
+            Additional character for filling, default is whitespace.
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if not isinstance(width, int):
+            raise TypeError(
+                f"width must be of integer type, not {type(width).__name__}"
+            )
+        if not isinstance(fillchar, str):
+            raise TypeError(
+                f"fillchar must be of integer type, not {type(fillchar).__name__}"
+            )
+        if len(fillchar) != 1:
+            raise TypeError("fillchar must be a character, not str")
+
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+            new_col = lpad(
+                column,
+                greatest(length(column), pandas_lit(width)),
+                pandas_lit(fillchar),
+            )
+            return self._replace_non_str(column, new_col)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            output_col
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_normalize(self, form: Literal["NFC", "NFKC", "NFD", "NFKD"]) -> None:
         ErrorMessage.method_not_implemented_error("normalize", "Series.str")
@@ -18104,6 +18270,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         limit: Optional[int] = None,
         freq: Optional[Union[pd.DateOffset, timedelta, str]] = None,
         axis: Axis = 0,
+        by_labels: Optional[List[str]] = None,
+        drop_by_labels: bool = False,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         """
@@ -18134,6 +18302,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             This is not part of the documented `pct_change` API, but pandas forwards kwargs like this
             to `shift`. To avoid unnecessary JOIN operations, we cannot compositionally use `QueryCompiler.shift`,
             and instead have to validate the axis argument here.
+
+        by_labels : List[str], optional
+            A list of pandas labels used during a groupby. This is not part of the pandas `pct_change`
+            API, and used only as an internal helper for `groupby_pct_change`. Only valid if axis=0.
+
+            We must pass labels instead of quoted identifiers in case we perform a fillna,
+            which would change quoted identifiers in the filled frame.
+
+        drop_by_labels : bool, default False
+            Whether the `by` labels need to be dropped from the result. This is not part of the pandas `pct_change`
+            API, and used only as an internal helper for `groupby_pct_change`. Only valid if axis=0.
         """
         # `periods` is validated by the frontend
         if limit is not None:
@@ -18149,8 +18328,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             frame = self.fillna(
                 self_is_series=False, method=fill_method, axis=axis
             )._modin_frame
+
         if axis == 0:
-            return SnowflakeQueryCompiler(
+            by_identifiers = None
+            if by_labels:
+                by_identifiers = [
+                    snowflake_quoted_identifier[0]
+                    for snowflake_quoted_identifier in frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+                        by_labels, include_index=True, include_data=True
+                    )
+                ]
+
+            result_qc = SnowflakeQueryCompiler(
                 frame.update_snowflake_quoted_identifiers_with_expressions(
                     {
                         quoted_identifier:
@@ -18164,16 +18353,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         else (
                             col(quoted_identifier)
                             / lag(quoted_identifier, offset=periods).over(
-                                Window.orderBy(
+                                (
+                                    # If this is a groupby, add a PARTITION BY clause
+                                    Window
+                                    if by_identifiers is None
+                                    else Window.partition_by(by_identifiers)
+                                ).orderBy(
                                     col(frame.row_position_snowflake_quoted_identifier)
                                 )
                             )
                             - 1
                         )
                         for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+                        # If this is a groupby, don't include the grouping column
+                        if not by_identifiers or quoted_identifier not in by_identifiers
                     }
                 ).frame
             )
+            if drop_by_labels:
+                result_qc = result_qc.drop(columns=by_labels)
+            return result_qc
         else:
             quoted_identifiers = frame.data_column_snowflake_quoted_identifiers
             return SnowflakeQueryCompiler(
@@ -18557,9 +18756,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 na_position="last",
                 ignore_index=False,
             )
-
-        # TODO: SNOW-1524695: Remove the following replace once "NULL_REPLACE" values are fixed for 'melt'
-        qc = qc.replace(to_replace=UNPIVOT_NULL_REPLACE_VALUE, value=np.nan)
 
         if operation == StackOperation.STACK:
             qc = qc.set_index_from_columns(index_cols + [col_label])  # type: ignore
