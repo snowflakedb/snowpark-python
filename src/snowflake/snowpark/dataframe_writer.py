@@ -630,7 +630,7 @@ class DataFrameWriter:
 
     @_format.setter
     def _format(self, value: str) -> None:
-        allowed_formats = ["csv", "json", "parquet"]
+        allowed_formats = ["csv", "json", "parquet", "snowflake"]
         canon_file_format_name = value.strip().lower()
         if canon_file_format_name not in allowed_formats:
             raise ValueError(
@@ -916,3 +916,7 @@ class DataFrameWriter:
         )
 
     saveAsTable = save_as_table
+
+class DataStreamWriter(DataFrameWriter):
+    def start(self):
+        raise NotImplementedError("cannot write a data stream yet.")

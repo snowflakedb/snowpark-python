@@ -8,6 +8,9 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+import snowflake.snowpark.dataframe_reader
+from snowflake.snowpark.functions import lit
+from snowflake.snowpark.kafka_ingest_udtf import KafkaFetch
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     create_file_format_statement,
     drop_file_format_if_exists_statement,
@@ -38,7 +41,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSessionException
-from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.functions import sql_expr, udtf
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
@@ -478,7 +481,7 @@ class DataFrameReader:
     @_format.setter
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml"]
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "kafka"]
         if canon_format not in allowed_formats:
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
@@ -980,3 +983,36 @@ class DataFrameReader:
         df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
+
+
+
+
+import json
+import logging
+import time
+
+from confluent_kafka import Consumer, KafkaException, TopicPartition, TIMESTAMP_CREATE_TIME, TIMESTAMP_LOG_APPEND_TIME,KafkaError
+
+import confluent_kafka
+
+class DataStreamReader(DataFrameReader):
+    def load(self) -> DataFrame:
+        bootstrap_servers = self._cur_options["kafka.bootstrap.servers".upper()]
+        topic = self._cur_options["topic".upper()]
+        partition_id = self._cur_options["partition_id".upper()]
+        self._session.custom_package_usage_config['force_push'] = True
+        self._session.custom_package_usage_config['enabled'] = True             
+        self._session.add_import(snowflake.snowpark.kafka_ingest_udtf.__file__, import_path="snowflake.snowpark.kafka_ingest_udtf")   
+        self._session.add_packages(["python-confluent-kafka"])
+
+        kafka_udtf = udtf(
+            KafkaFetch,
+            output_schema=self._user_schema,
+        )        
+        return self._session.table_function(
+            kafka_udtf(
+                lit(bootstrap_servers),
+                lit(topic),
+                lit(partition_id)
+            )
+        )
