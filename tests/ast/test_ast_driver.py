@@ -94,6 +94,11 @@ def load_test_cases():
     Returns: a list of test cases.
     """
     test_files = DATA_DIR.glob("*.test")
+    if sys.version_info[1] < 9:
+        # Remove the `to_snowpark_pandas` test since Snowpark pandas is only supported in Python 3.9+.
+        test_files = filter(
+            lambda file: "to_snowpark_pandas" not in file.name, test_files
+        )
     return [parse_file(file) for file in test_files]
 
 
