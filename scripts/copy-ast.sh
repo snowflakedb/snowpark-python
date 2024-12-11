@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Compute the source directory. We honor the MONOREPO_DIR environment variable if set,
-# and default to the standard Clound Workspace location otherwise.
+# and default to the standard Cloud Workspace location otherwise.
 DEFAULT_SRC_DIR=$HOME/Snowflake/trunk
 MONOREPO_DIR="${MONOREPO_DIR:-$DEFAULT_SRC_DIR}"
 if [ ! -d "$MONOREPO_DIR" ]; then
