@@ -13,3 +13,7 @@ mkdir -p $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles/maven_future/com/
 scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.runfiles/io_bazel_rules_scala_scala_library/scala-library-2.12.18.jar $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles/io_bazel_rules_scala_scala_library/
 scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.runfiles/maven_future/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles/maven_future/com/github/scopt/scopt_2.12/4.1.0/
 scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.jar $TMPDIR
+
+pushd $SNOWPARK_ROOT
+python -m tox -e protoc
+popd
