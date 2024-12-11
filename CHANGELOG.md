@@ -10,6 +10,9 @@
 - Added support for `Series.str.center`.
 - Added support for `Series.str.pad`.
 
+#### Bug Fixes
+
+- Fixed a bug that system function called through `session.call` have incorrect type conversion.
 
 ## 1.26.0 (2024-12-05)
 
