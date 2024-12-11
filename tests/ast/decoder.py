@@ -771,6 +771,15 @@ class Decoder:
                         df,
                     )
                 return df
+            case "sp_dataframe_agg":
+                df = self.decode_expr(expr.sp_dataframe_agg.df)
+                exprs = [
+                    self.decode_expr(arg) for arg in expr.sp_dataframe_agg.exprs.args
+                ]
+                if expr.sp_dataframe_agg.exprs.variadic:
+                    return df.agg(*exprs)
+                else:
+                    return df.agg(exprs)
             case "sp_dataframe_col":
                 col_name = expr.sp_dataframe_col.col_name
                 df = self.decode_expr(expr.sp_dataframe_col.df)
