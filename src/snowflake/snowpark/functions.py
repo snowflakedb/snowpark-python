@@ -10159,3 +10159,18 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     sql_func_name = "snowflake.cortex.summarize"
     text_col = _to_col_if_lit(text, sql_func_name)
     return builtin(sql_func_name)(text_col)
+
+
+@publicapi
+def acosh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the inverse hyperbolic cosine of the records in a group.
+
+    Example::
+
+        >>> df = session.create_dataframe([2.352409615], schema=["a"])
+        >>> df.select(acosh("a").as_("acosh")).collect()
+        [Row(ACOSH=1.4999999998857607)]
+    """
+    c = _to_col_if_str(e, "acosh")
+    return builtin("acosh", _emit_ast=_emit_ast)(c)
