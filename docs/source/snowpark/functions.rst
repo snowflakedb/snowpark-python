@@ -260,6 +260,7 @@ Functions
     sinh
     size
     skew
+    snowflake_cortex_sentiment
     snowflake_cortex_summarize
     sort_array
     soundex
