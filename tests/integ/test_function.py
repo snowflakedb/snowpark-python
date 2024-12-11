@@ -2309,9 +2309,10 @@ The next sections explain these steps in more detail.
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
 )
-@pytest.mark.skip("SNOW-1758914 snowflake.cortex.sentiment error on GCP")
 def test_apply_snowflake_cortex_sentiment(session):
-
+    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
+    if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+        return
     content = "A very very bad review!"
     df = session.create_dataframe([[content]], schema=["content"])
 
