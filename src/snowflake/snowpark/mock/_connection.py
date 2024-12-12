@@ -755,7 +755,7 @@ class MockServerConnection:
         )
 
     def get_result_and_metadata(
-        self, plan: SnowflakePlan, **kwargs
+        self, plan: SnowflakePlan, limit: Optional[int] = None, **kwargs
     ) -> Tuple[List[Row], List[Attribute]]:
         res = execute_mock_plan(plan, plan.expr_to_alias)
         attrs = [
@@ -772,6 +772,8 @@ class MockServerConnection:
 
         rows = []
         for i in range(len(res)):
+            if limit is not None and i >= limit:
+                break
             values = []
             for j, attr in enumerate(attrs):
                 value = res.iloc[i, j]
