@@ -193,7 +193,7 @@ def test_ast(session, tables, test_case):
     if pytest.update_expectations:
         assert pytest.unparser_jar, (
             "Can only update expectations with unparser jar set. Either run the test with --unparser-jar=<path> or"
-            " update the environment variable SNOWPARK_UNPARSER_JAR."
+            " update the environment variable MONOREPO_DIR."
         )
         with open(DATA_DIR / test_case.filename, "w", encoding="utf-8") as f:
             f.writelines(
