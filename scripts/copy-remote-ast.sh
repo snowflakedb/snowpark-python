@@ -9,6 +9,11 @@
 # To allow this script to run from any subdirectory within snowpark-python, we use git rev-parse.
 SNOWPARK_ROOT=$(git rev-parse --show-toplevel)
 
+if [ ! -d "$TMPDIR" ]; then
+  echo "TMPDIR not defined"
+  exit 1
+fi
+
 scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/ast/ast.proto $SNOWPARK_ROOT/src/snowflake/snowpark/_internal/proto/ast.proto
 
 mkdir -p $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles/io_bazel_rules_scala_scala_library/
