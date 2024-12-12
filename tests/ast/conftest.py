@@ -15,7 +15,7 @@ def default_unparser_path():
     default_default = f"{os.getenv('HOME')}/Snowflake/trunk"
     base_dir = explicit or default_default
     unparser_dir = f"{base_dir}/bazel-bin/Snowpark/unparser"
-    cp = ":".join([
+    return ":".join([
         f"{unparser_dir}/unparser.runfiles/io_bazel_rules_scala_scala_library/scala-library-2.12.18.jar",
         f"{unparser_dir}/unparser.runfiles/maven_future/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar",
         f"{unparser_dir}/unparser.jar",
