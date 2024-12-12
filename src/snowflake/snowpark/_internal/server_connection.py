@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+n = 1
 
 import functools
 import importlib
@@ -471,6 +472,7 @@ class ServerConnection:
         )
         return results_cursor.sfqid
 
+
     @_Decorator.wrap_exception
     def run_query(
         self,
@@ -491,6 +493,7 @@ class ServerConnection:
         async_post_actions: Optional[List[Query]] = None,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
+        global n
         try:
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
@@ -501,7 +504,11 @@ class ServerConnection:
                 results_cursor = self.execute_and_notify_query_listener(
                     query, params=params, **kwargs
                 )
-                logger.debug(f"Execute query [queryID: {results_cursor.sfqid}] {query}")
+                import traceback
+                traceback.print_stack()
+                print(f'NON-DESCRIBE QUERY NUMBER {n }' + '\n' * 3)
+                n += 1
+                logger.debug(f"Execute non-describe query [queryID: {results_cursor.sfqid}] {query}")
             else:
                 results_cursor = self.execute_async_and_notify_query_listener(
                     query, params=params, num_statements=num_statements, **kwargs
