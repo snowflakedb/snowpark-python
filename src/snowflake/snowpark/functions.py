@@ -10233,7 +10233,7 @@ def bitmap_bit_position(numeric_expr: ColumnOrName, _emit_ast: bool = True) -> C
 
         >>> df = session.create_dataframe([1, 2, 3, 4, 5], schema=["a"])
         >>> df.select(bitmap_bit_position("a").alias("result")).collect()
-        [Row(RESULT=0), Row(RESULT=1), Row(RESULT=1), Row(RESULT=2), Row(RESULT=4)]
+        [Row(RESULT=0), Row(RESULT=1), Row(RESULT=2), Row(RESULT=3), Row(RESULT=4)]
     """
     c = _to_col_if_str(numeric_expr, "bitmap_bit_position")
     return builtin("bitmap_bit_position", _emit_ast=_emit_ast)(c)
@@ -10342,8 +10342,8 @@ def localtimestamp(fract_sec_precision: int = 9, _emit_ast: bool = True) -> Colu
 
     Example::
 
-        >>> session.sql("SELECT LOCALTIMESTAMP(3) AS result").collect()
-        [Row(RESULT=datetime.datetime(2024, 12, 11, 15, 48, 45, 216000, tzinfo=<DstTzInfo 'America/Los_Angeles' PST-1 day, 16:00:00 STD>))]
+        >>> session.sql("SELECT LOCALTIMESTAMP(3) AS result").collect()  # doctest:+ELLIPSIS
+        ...
     """
     c = Literal(fract_sec_precision)
     return builtin("localtimestamp", _emit_ast=_emit_ast)(c)
