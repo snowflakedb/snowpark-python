@@ -72,9 +72,12 @@ def test_apply_snowpark_python_function_not_implemented():
 
 
 @sql_count_checker(query_count=1)
-@pytest.mark.skip("SNOW-1758914 snowflake.cortex.summarize error on GCP")
-def test_apply_snowflake_cortex_summarize():
+def test_apply_snowflake_cortex_summarize(session):
     from snowflake.snowpark.functions import snowflake_cortex_summarize
+
+    # TODO: SNOW-1758914 snowflake.cortex.summarize error on GCP
+    if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+        return
 
     content = """pandas on Snowflake lets you run your pandas code in a distributed manner directly on your data in
     Snowflake. Just by changing the import statement and a few lines of code, you can get the familiar pandas experience
@@ -92,9 +95,12 @@ def test_apply_snowflake_cortex_summarize():
 
 
 @sql_count_checker(query_count=1)
-@pytest.mark.skip("SNOW-1758914 snowflake.cortex.sentiment error on GCP")
-def test_apply_snowflake_cortex_sentiment():
+def test_apply_snowflake_cortex_sentiment(session):
     from snowflake.snowpark.functions import snowflake_cortex_sentiment
+
+    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
+    if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+        return
 
     content = "A very very bad review!"
     s = pd.Series([content])
