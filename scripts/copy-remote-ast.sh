@@ -16,11 +16,11 @@ fi
 
 scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/ast/ast.proto $SNOWPARK_ROOT/src/snowflake/snowpark/_internal/proto/ast.proto
 
-mkdir -p $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles/io_bazel_rules_scala_scala_library/
-mkdir -p $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles/maven_future/com/github/scopt/scopt_2.12/4.1.0/
-scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.runfiles/io_bazel_rules_scala_scala_library/scala-library-2.12.18.jar $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles/io_bazel_rules_scala_scala_library/
-scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.runfiles/maven_future/com/github/scopt/scopt_2.12/4.1.0/scopt_2.12-4.1.0.jar $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles/maven_future/com/github/scopt/scopt_2.12/4.1.0/
-scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.jar $TMPDIR
+mkdir -p $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles
+scp -r $1:~/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.runfiles/ $TMPDIR/bazel-bin/Snowpark/unparser/unparser.runfiles/
+
+scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser-lib.jar $TMPDIR/bazel-bin/Snowpark/unparser/
+scp $1:~/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.jar $TMPDIR/bazel-bin/Snowpark/unparser/
 
 pushd $SNOWPARK_ROOT
 python -m tox -e protoc

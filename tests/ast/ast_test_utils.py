@@ -43,7 +43,7 @@ def render(ast_base64: Union[str, List[str]], unparser_jar: Optional[str]) -> st
             "java",
             "-cp",
             unparser_jar,
-            "com.snowflake.snowpark.experimental.unparser.UnparserCli",
+            "com.snowflake.snowpark.unparser.UnparserCli",
             ",".join(
                 ast_base64
             ),  # base64 strings will not contain , so pass multiple batches comma-separated.
