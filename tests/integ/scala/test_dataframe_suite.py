@@ -307,7 +307,7 @@ def test_show(session):
     run=False,
 )
 def test_show_non_select_statement(session):
-    df = session.create_dataframe([[1, 2, 3, 4] for i in range(100)]).to_df(
+    df = session.create_dataframe([[1, 2, 3, 4] for _ in range(100)]).to_df(
         ['"col1"', "col2_a", "col2_b", "col3"]
     )
     with mock.patch(

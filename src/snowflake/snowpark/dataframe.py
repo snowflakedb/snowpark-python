@@ -4368,7 +4368,7 @@ class DataFrame:
             )
         else:
             res, meta = self._session._conn.get_result_and_metadata(
-                self._plan, show_limit=n, **kwargs
+                self._plan, limit=n, **kwargs
             )
             result = res[:n]
 
