@@ -17,9 +17,6 @@ from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
 #     - Assert correctness of the plot produced using `assert_plotly_equal` function defined below.
 
 
-nsamps = 50
-
-
 def assert_plotly_equal(expect, got):
     assert type(expect) == type(got)
     if isinstance(expect, dict):
@@ -41,7 +38,8 @@ def assert_plotly_equal(expect, got):
 
 @pytest.fixture(scope="module")
 def df():
-    rng = np.random.default_rng(42)
+    nsamps = 50
+    rng = np.random.default_rng(seed=42)
     return pd.DataFrame(
         {
             "x": rng.random(nsamps),
@@ -53,28 +51,28 @@ def df():
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_scatterplot(df):
+def test_scatter(df):
     snow_res = px.scatter(df, x="x", y="y").to_plotly_json()
     native_res = px.scatter(df._to_pandas(), x="x", y="y").to_plotly_json()
     assert_plotly_equal(snow_res, native_res)
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_lineplot(df):
+def test_line(df):
     snow_res = px.line(df, x="category", y="y").to_plotly_json()
     native_res = px.line(df._to_pandas(), x="category", y="y").to_plotly_json()
     assert_plotly_equal(snow_res, native_res)
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_area(df):
+def test_area(df):
     snow_res = px.area(df, x="category", y="y").to_plotly_json()
     native_res = px.area(df._to_pandas(), x="category", y="y").to_plotly_json()
     assert_plotly_equal(snow_res, native_res)
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_timeline():
+def test_timeline():
     df = pd.DataFrame(
         [
             dict(Task="Job A", Start="2009-01-01", Finish="2009-02-28"),
@@ -92,28 +90,28 @@ def test_plotly_timeline():
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_violin(df):
+def test_violin(df):
     snow_res = px.violin(df, y="y").to_plotly_json()
     native_res = px.violin(df._to_pandas(), y="y").to_plotly_json()
     assert_plotly_equal(snow_res, native_res)
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_barplot(df):
+def test_bar(df):
     snow_res = px.bar(df, x="category", y="y").to_plotly_json()
     native_res = px.bar(df._to_pandas(), x="category", y="y").to_plotly_json()
     assert_plotly_equal(snow_res, native_res)
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_histogram(df):
+def test_histogram(df):
     snow_res = px.histogram(df, x="category").to_plotly_json()
     native_res = px.histogram(df._to_pandas(), x="category").to_plotly_json()
     assert_plotly_equal(snow_res, native_res)
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_pie(df):
+def test_pie(df):
     snow_res = px.pie(df, values="category", names="category2").to_plotly_json()
     native_res = px.pie(
         df._to_pandas(), values="category", names="category2"
@@ -122,7 +120,7 @@ def test_plotly_pie(df):
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_treemap(df):
+def test_treemap(df):
     snow_res = px.treemap(df, names="category", values="y").to_plotly_json()
     native_res = px.treemap(
         df._to_pandas(), names="category", values="y"
@@ -131,7 +129,7 @@ def test_plotly_treemap(df):
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_sunburst(df):
+def test_sunburst(df):
     snow_res = px.sunburst(df, names="category", values="y").to_plotly_json()
     native_res = px.sunburst(
         df._to_pandas(), names="category", values="y"
@@ -140,7 +138,7 @@ def test_plotly_sunburst(df):
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_icicle(df):
+def test_icicle(df):
     snow_res = px.icicle(df, names="category", values="y").to_plotly_json()
     native_res = px.icicle(
         df._to_pandas(), names="category", values="y"
@@ -149,7 +147,7 @@ def test_plotly_icicle(df):
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_scatter_matrix(df):
+def test_scatter_matrix(df):
     snow_res = px.scatter_matrix(df, dimensions=["category"]).to_plotly_json()
     native_res = px.scatter_matrix(
         df._to_pandas(), dimensions=["category"]
@@ -158,27 +156,27 @@ def test_plotly_scatter_matrix(df):
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_funnel(df):
+def test_funnel(df):
     snow_res = px.funnel(df, x="x", y="y").to_plotly_json()
     native_res = px.funnel(df._to_pandas(), x="x", y="y").to_plotly_json()
     assert_plotly_equal(snow_res, native_res)
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_density_heatmap(df):
+def test_density_heatmap(df):
     snow_res = px.density_heatmap(df, x="x", y="y").to_plotly_json()
     native_res = px.density_heatmap(df._to_pandas(), x="x", y="y").to_plotly_json()
     assert_plotly_equal(snow_res, native_res)
 
 
 @sql_count_checker(query_count=2)
-def test_plotly_boxplot(df):
+def test_box(df):
     snow_res = px.box(df, x="category", y="y").to_plotly_json()
     native_res = px.box(df._to_pandas(), x="category", y="y").to_plotly_json()
     assert_plotly_equal(snow_res, native_res)
 
 
-def test_plotly_imshow(df):
+def test_imshow(df):
     df = pd.DataFrame([[1, 3], [4, 5], [7, 2]], columns=["a", "b"])
     with SqlCounter(query_count=4):
         snow_res = px.imshow(df, x=df.columns, y=df.index).to_plotly_json()
