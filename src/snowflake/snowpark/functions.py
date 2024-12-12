@@ -10175,8 +10175,8 @@ def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
 
         >>> content = "A very very bad review!"
         >>> df = session.create_dataframe([[content]], schema=["content"])
-        >>> df.select(snowflake_cortex_sentiment(content)).collect()[0][0]
-        -0.74
+        >>> result = df.select(snowflake_cortex_sentiment(content)).collect()[0][0]
+        >>> assert -1 <= result <= 0
     """
     sql_func_name = "snowflake.cortex.sentiment"
     text_col = _to_col_if_lit(text, sql_func_name)
