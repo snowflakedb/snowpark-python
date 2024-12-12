@@ -185,6 +185,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
     APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
     DEFAULT_UDTF_PARTITION_SIZE,
+    NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION,
     GroupbyApplySortMethod,
     check_return_variant_and_get_return_type,
     create_udf_for_series_apply,
@@ -8755,6 +8756,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
+
+        # Check if the function is a known numpy function that can be translated to Snowflake function.
+        sf_func = NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
+        if sf_func is not None:
+            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.
