@@ -1830,6 +1830,9 @@ class DataFrame:
                     "The length of col ({}) should be same with"
                     " the length of ascending ({}).".format(len(exprs), len(orders))
                 )
+        elif _emit_ast:
+            with_src_position(asc_expr_ast.null_val)
+            ast.ascending.CopyFrom(asc_expr_ast)
 
         sort_exprs = []
         for idx in range(len(exprs)):
