@@ -1450,6 +1450,13 @@ def ClearTempTables(message: proto.Request) -> None:
             )
 
 
+def clear_symbols(message: proto.Request) -> None:
+    """Clears the symbol field in the given AST."""
+    for stmt in message.body:
+        if hasattr(stmt, "assign"):
+            stmt.assign.ClearField("symbol")
+
+
 def base64_str_to_request(base64_str: str) -> proto.Request:
     message = proto.Request()
     message.ParseFromString(base64.b64decode(base64_str))

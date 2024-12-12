@@ -30,10 +30,18 @@ def pytest_addoption(parser):
         default=False,
         help="If set, overwrite test files with the actual output as the expected output.",
     )
+    parser.addoption(
+        "--decoder",
+        action="store_true",
+        default=False,
+        help="If set, run the decoder tests. This compares the results of the original Snowpark code with the results "
+        "obtained from the generated base64 Protobuf string.",
+    )
 
 
 def pytest_configure(config):
     pytest.unparser_jar = config.getoption("--unparser-jar")
+    pytest.decoder = config.getoption("--decoder")
     if not os.path.exists(pytest.unparser_jar):
         pytest.unparser_jar = None
     pytest.update_expectations = config.getoption("--update-expectations")
