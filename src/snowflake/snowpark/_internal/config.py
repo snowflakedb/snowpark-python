@@ -3,11 +3,12 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
 import pkg_resources
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import TypeVar, Optional, Union, Any, List, Callable, Dict, TYPE_CHECKING
+from typing import TypeVar, Any, Callable, TYPE_CHECKING
 from snowflake.snowpark._internal.utils import warning
 
 from snowflake.snowpark._internal.utils import (
@@ -23,10 +24,10 @@ SettingType = TypeVar("SettingType")
 @dataclass
 class Setting:
     name: str
-    description: Optional[str] = field(default=None)
-    default: Optional[SettingType] = field(default=None)
-    read_only: bool = field(kw_only=True, default=False)
-    experimental_since: Optional[str] = field(kw_only=True, default=None)
+    description: str | None = field(default=None)
+    default: SettingType | None = field(default=None)
+    read_only: bool = field(default=False)
+    experimental_since: str | None = field(default=None)
 
     def __post_init__(self):
         self._value = None
@@ -69,7 +70,7 @@ class Setting:
 
 @dataclass
 class SettingGroup(Setting):
-    settings: List[Setting] = field(kw_only=True)
+    settings: list[Setting] = field(default_factory=list)
 
     def __post_init__(self):
         for setting in self.settings:
@@ -78,10 +79,21 @@ class SettingGroup(Setting):
 
 @dataclass
 class SessionParameter(Setting):
-    session: "Session" = field(kw_only=True)
-    parameter_name: str = field(kw_only=True)
-    synchronize: bool = field(kw_only=True, default=True)
-    telemetry_hook: Callable = field(kw_only=True, default=None)
+    session: Session = field(default=None)
+    parameter_name: str = field(default=None)
+    synchronize: bool = field(default=True)
+    telemetry_hook: Callable = field(default=None)
+
+    def __post_init__(self):
+        super().__post_init__()
+        # Inheritance is tricky with dataclasses until python 3.10.
+        # All fields have to be optional if the parent class has any optional fields.
+        if self.session is None:
+            raise ValueError("session is a required parameter for SessionParameter")
+        if self.parameter_name is None:
+            raise ValueError(
+                "parameter_name is a required parameter for SessionParameter"
+            )
 
     def _get(self) -> SettingType:
         with self.session._lock:
@@ -128,7 +140,7 @@ class VersionedSessionParameter(SessionParameter):
 
 class SettingStore:
     def __init__(
-        self, settings: Iterable[Setting], extend_from: Optional["SettingStore"] = None
+        self, settings: Iterable[Setting], extend_from: SettingStore | None = None
     ) -> None:
         self._settings = dict()
         if extend_from is not None:
@@ -141,7 +153,7 @@ class SettingStore:
                 self._settings[s.name] = s
         self._settings[setting.name] = setting
 
-    def add(self, setting: Union[Iterable[Setting], Setting]):
+    def add(self, setting: Iterable[Setting] | Setting):
         if isinstance(setting, Iterable):
             for param in setting:
                 self._add(param)
@@ -154,13 +166,13 @@ class SettingStore:
         else:
             raise ValueError(f"Unable to set setting. Unknown setting {setting_name}")
 
-    def get(self, setting_name: str, default: Optional[Any] = None):
+    def get(self, setting_name: str, default: Any | None = None):
         if setting_name in self._settings:
             return self._settings[setting_name].value
         else:
             return default
 
-    def update(self, options: Dict[str, Any]):
+    def update(self, options: dict[str, Any]):
         for k, v in options.items():
             if k in self._settings:
                 self.set(k, v)
