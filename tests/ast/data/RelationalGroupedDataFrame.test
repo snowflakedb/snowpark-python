@@ -915,6 +915,10 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+          }
+        }
         cols {
           string_val {
             src {
@@ -1425,6 +1429,10 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+          }
+        }
         cols {
           string_val {
             src {
