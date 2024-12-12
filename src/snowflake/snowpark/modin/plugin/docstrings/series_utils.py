@@ -334,16 +334,196 @@ class StringMethods:
         """
 
     def pad():
-        pass
+        """
+        Pad strings in the Series/Index up to width.
+
+        Parameters
+        ----------
+        width : int
+            Minimum width of resulting string; additional characters will be filled with character defined in fillchar.
+        side : {‘left’, ‘right’, ‘both’}, default ‘left’
+            Side from which to fill resulting string.
+        fillchar : str, default ‘ ‘
+            Additional character for filling, default is whitespace.
+        Returns
+        -------
+        Series or Index of object
+            Returns Series or Index with minimum number of char in object.
+
+        See also
+        --------
+        Series.str.rjust
+            Fills the left side of strings with an arbitrary character. Equivalent to Series.str.pad(side='left').
+        Series.str.ljust
+            Fills the right side of strings with an arbitrary character. Equivalent to Series.str.pad(side='right').
+        Series.str.center
+            Fills both sides of strings with an arbitrary character. Equivalent to Series.str.pad(side='both').
+        Series.str.zfill
+            Pad strings in the Series/Index by prepending ‘0’ character. Equivalent to Series.str.pad(side='left', fillchar='0').
+
+        Examples
+        --------
+        >>> s = pd.Series(["caribou", "tiger"])
+        >>> s
+        0    caribou
+        1      tiger
+        dtype: object
+
+        >>> s.str.pad(width=10)
+        0       caribou
+        1         tiger
+        dtype: object
+
+        >>> s.str.pad(width=10, side='right', fillchar='-')
+        0    caribou---
+        1    tiger-----
+        dtype: object
+
+        >>> s.str.pad(width=10, side='both', fillchar='-')
+        0    -caribou--
+        1    --tiger---
+        dtype: object
+        """
 
     def center():
-        pass
+        """
+        Pad left and right side of strings in the Series/Index.
+
+        Equivalent to str.center().
+
+        Parameters
+        ----------
+        width : int
+            Minimum width of resulting string; additional characters will be filled with fillchar.
+        fillchar : str
+            Additional character for filling, default is whitespace.
+
+        Returns
+        -------
+        Series/Index of objects.
+
+        Examples
+        --------
+        For Series.str.center:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.center(8, fillchar='.')
+        0    ..dog...
+        1    ..bird..
+        2    .mouse..
+        dtype: object
+
+        For Series.str.ljust:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.ljust(8, fillchar='.')
+        0    dog.....
+        1    bird....
+        2    mouse...
+        dtype: object
+
+        For Series.str.rjust:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.rjust(8, fillchar='.')
+        0    .....dog
+        1    ....bird
+        2    ...mouse
+        dtype: object
+        """
 
     def ljust():
-        pass
+        """
+        Pad right side of strings in the Series/Index.
+
+        Equivalent to str.ljust().
+
+        Parameters
+        ----------
+        width : int
+            Minimum width of resulting string; additional characters will be filled with fillchar.
+        fillchar : str
+            Additional character for filling, default is whitespace.
+
+        Returns
+        -------
+            Series/Index of objects.
+
+        Examples
+        --------
+        For Series.str.center:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.center(8, fillchar='.')  # doctest: +SKIP
+        0    ..dog...
+        1    ..bird..
+        2    .mouse..
+        dtype: object
+
+        For Series.str.ljust:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.ljust(8, fillchar='.')
+        0    dog.....
+        1    bird....
+        2    mouse...
+        dtype: object
+
+        For Series.str.rjust:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.rjust(8, fillchar='.')
+        0    .....dog
+        1    ....bird
+        2    ...mouse
+        dtype: object
+        """
 
     def rjust():
-        pass
+        """
+        Pad left side of strings in the Series/Index.
+
+        Equivalent to str.rjust().
+
+        Parameters
+        ----------
+        width : int
+            Minimum width of resulting string; additional characters will be filled with fillchar.
+        fillchar : str
+            Additional character for filling, default is whitespace.
+        Returns
+        -------
+            Series/Index of objects.
+
+        Examples
+        --------
+        For Series.str.center:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.center(8, fillchar='.')  # doctest: +SKIP
+        0    ..dog...
+        1    ..bird..
+        2    .mouse..
+        dtype: object
+
+        For Series.str.ljust:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.ljust(8, fillchar='.')
+        0    dog.....
+        1    bird....
+        2    mouse...
+        dtype: object
+
+        For Series.str.rjust:
+
+        >>> ser = pd.Series(['dog', 'bird', 'mouse'])
+        >>> ser.str.rjust(8, fillchar='.')
+        0    .....dog
+        1    ....bird
+        2    ...mouse
+        dtype: object
+        """
 
     def zfill():
         pass
