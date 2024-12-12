@@ -847,7 +847,7 @@ class Analyzer:
                 logical_plan,
                 logical_plan.left_cols,
                 logical_plan.right_cols,
-                self.session.conf.get("use_constant_subquery_alias", False),
+                bool(self.session.conf.get("use_constant_subquery_alias", False)),
             )
 
         if isinstance(logical_plan, TableFunctionRelation):
@@ -935,7 +935,7 @@ class Analyzer:
                 join_condition,
                 match_condition,
                 logical_plan,
-                self.session.conf.get("use_constant_subquery_alias", False),
+                bool(self.session.conf.get("use_constant_subquery_alias", False)),
             )
 
         if isinstance(logical_plan, Sort):
