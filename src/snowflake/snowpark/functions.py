@@ -2030,12 +2030,12 @@ def divnull(
         [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=None)]
     """
     dividend_col = (
-        lit(dividend)
+        lit(dividend, _emit_ast=False)
         if isinstance(dividend, (int, float))
         else _to_col_if_str(dividend, "divnull")
     )
     divisor_col = (
-        lit(divisor)
+        lit(divisor, _emit_ast=False)
         if isinstance(divisor, (int, float))
         else _to_col_if_str(divisor, "divnull")
     )
