@@ -1577,7 +1577,10 @@ class SnowflakePlanBuilder:
                 table_function_statement(func, source_plan.table_function.operators),
                 source_plan,
             )
-        return self.query(table_function_statement(func), None)
+        return self.query(
+            table_function_statement(func, operators=[a.name for a in source_plan.table_function.output_schema]),
+            source_plan=None
+        )
 
     def join_table_function(
         self,

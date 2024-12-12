@@ -1005,10 +1005,22 @@ class DataStreamReader(DataFrameReader):
         self._session.add_import(snowflake.snowpark.kafka_ingest_udtf.__file__, import_path="snowflake.snowpark.kafka_ingest_udtf")   
         self._session.add_packages(["python-confluent-kafka"])
 
+        self._session.sql("create or replace  stage mystage").collect()
         kafka_udtf = udtf(
             KafkaFetch,
             output_schema=self._user_schema,
+            # Dynamic tables can't depend on the temporary UDTF, so we must make
+            # a permanent UDTF.
+            # Note: https://docs.snowflake.com/en/release-notes/bcr-bundles/2024_01/bcr-1489            
+            is_permanent=True,
+            replace=True,
+            name='my_streaming_udtf',
+            stage_location="@mystage"
         )        
+        #
+        # "In a dynamic table definition, SELECT blocks that read from user-defined
+        # table functions (UDTF) must explicitly specify columns and can’t use *."    
+        # but snowpark table_function() uses a star...
         return self._session.table_function(
             kafka_udtf(
                 lit(bootstrap_servers),
