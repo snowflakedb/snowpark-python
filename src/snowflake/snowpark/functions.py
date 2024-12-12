@@ -10342,7 +10342,7 @@ def localtimestamp(fract_sec_precision: int = 9, _emit_ast: bool = True) -> Colu
 
     Example::
 
-        >>> session.sql("SELECT LOCALTIMESTAMP(3) AS result").collect()  # doctest:+ELLIPSIS
+        >>> session.sql("SELECT LOCALTIMESTAMP(3) AS result").collect()  # doctest: +ELLIPSIS
         ...
     """
     c = Literal(fract_sec_precision)
