@@ -3,6 +3,21 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+"""
+This module provides a central location for defining various forms of configuration that them
+snowpark-python module uses. It seeks to provide an extensible uniform api for storing and
+retrieving configuration.
+
+This module has two main classes. :class:Setting stores a single confugration settings and all
+relevant information to it. :class:SettingStore stores a collection of Settings and relevant logic
+for manipulating them.
+
+This module defines a global SettingStore called GLOBAL_SETTINGS which should be used for package
+wide configuration options. Other SettingStore instances can include global configurations by
+passing GLOBAL_SETTINGS in via the extend_from parameter during initialization. This is useful
+when all configuration needs to be accessible from a single object.
+"""
+
 from __future__ import annotations
 import pkg_resources
 
@@ -23,6 +38,18 @@ SettingType = TypeVar("SettingType")
 
 @dataclass
 class Setting:
+    """
+    A dataclass that describes the attributes of a single configuration setting.
+
+    Attributes:
+        name (str): The name of the setting that is used to reference it.
+        description (str): A docstring that describes the function of the setting.
+        default: (Any): The default value that a setting takes when not otherwise configured.
+        read_only (bool): Disallows modification of the setting when set to True.
+        experimental_since (str): When set this will warn users that changing the value of this
+            setting is experimental and may not be ready for production environments.
+    """
+
     name: str
     description: str | None = field(default=None)
     default: SettingType | None = field(default=None)
@@ -70,6 +97,14 @@ class Setting:
 
 @dataclass
 class SettingGroup(Setting):
+    """
+    A specialized Setting that represents a logical grouping of settings. Child settings will default
+    to the overall group setting if no other value is specified.
+
+    Attributes:
+        settings: (list[Setting]): Settings that are grouped up in this Setting.
+    """
+
     settings: list[Setting] = field(default_factory=list)
 
     def __post_init__(self):
@@ -79,6 +114,18 @@ class SettingGroup(Setting):
 
 @dataclass
 class SessionParameter(Setting):
+    """
+    A specialized Setting that retrieves its value from a session.
+
+    Attributes:
+        session (Session): The Session that will be used to retrieve this settings value.
+        parameter_name (str): The name of the session parameter that holds the value for this setting.
+        synchronize (bool): When set to True the server side session parameter will be updated when
+            this settings value is changed.
+        telemetry_hook (Callable): A callback function that allows emitting telemetry when thissettings
+            settings value is changed.
+    """
+
     session: Session = field(default=None)
     parameter_name: str = field(default=None)
     synchronize: bool = field(default=False)
@@ -123,6 +170,11 @@ class SessionParameter(Setting):
 
 @dataclass
 class VersionedSessionParameter(SessionParameter):
+    """
+    A specialized SessionParamter that sets its value based on wether or not the server side reports
+    that a feature is supported or not by the current package version.
+    """
+
     def _get(self) -> SettingType:
         with self.session._lock:
             if self._value is None:
@@ -142,6 +194,15 @@ class SettingStore:
     def __init__(
         self, settings: Iterable[Setting], extend_from: SettingStore | None = None
     ) -> None:
+        """
+        An object that stores one or more Settings.
+
+        Args:
+            settings (Iterable[Setting]): The settings that this instance should store.
+            extend_from (SettingStore | None, optional): When set this instance will add references
+                to all Settings in provided SettingStore. Values modified on those settings are
+                reflected in the parent store.
+        """
         self._settings = dict()
         if extend_from is not None:
             self.add(extend_from._settings.values())
@@ -154,6 +215,9 @@ class SettingStore:
         self._settings[setting.name] = setting
 
     def add(self, setting: Iterable[Setting] | Setting):
+        """
+        Adds a new setting to the store.
+        """
         if isinstance(setting, Iterable):
             for param in setting:
                 self._add(param)
@@ -161,18 +225,30 @@ class SettingStore:
             self._add(setting)
 
     def set(self, setting_name: str, value: Any):
+        """
+        Sets the value of the provided setting to the provided value.
+        """
         if setting_name in self._settings:
             self._settings[setting_name].value = value
         else:
             raise ValueError(f"Unable to set setting. Unknown setting {setting_name}")
 
     def get(self, setting_name: str, default: Any | None = None):
+        """
+        Retrieves the value for the given setting or returns a default value if the setting does not exist.
+        """
         if setting_name in self._settings:
             return self._settings[setting_name].value
         else:
             return default
 
     def update(self, options: dict[str, Any]):
+        """
+        Updates the value of multiples settings at once.
+
+        Args:
+            options (dict[str, Any]): A dictionary of setting name to updated value.
+        """
         for k, v in options.items():
             if k in self._settings:
                 self.set(k, v)

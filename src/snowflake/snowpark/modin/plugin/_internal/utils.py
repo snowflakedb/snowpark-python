@@ -273,7 +273,7 @@ def _create_read_only_table(
     readonly_table_name = (
         f"{random_name_for_temp_object(TempObjectType.TABLE)}{READ_ONLY_TABLE_SUFFIX}"
     )
-    use_scoped_temp_table = session._use_scoped_temp_read_only_table
+    use_scoped_temp_table = session.use_scoped_temp_read_only_table
     # If we need to materialize into a temp table our create table expression
     # needs to be SELECT * FROM (object).
     if materialize_into_temp_table:
