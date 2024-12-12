@@ -6,7 +6,7 @@
 
 #### New Features
 
-- Added support for `snowflake_cortex_sentiment`.
+- Added support for function `snowflake_cortex_sentiment` in `functions.py`.
 
 ### Snowpark pandas API Updates
 

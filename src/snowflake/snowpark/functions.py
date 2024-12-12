@@ -10164,11 +10164,19 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
 def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
     """
     A string containing the text for which a sentiment score should be calculated.
+
     Args:
         text: A string containing the English text from which a summary should be generated.
     Returns:
         A floating-point number from -1 to 1 (inclusive) indicating the level of negative or positive sentiment in the
         text. Values around 0 indicate neutral sentiment.
+
+    Example::
+
+        >>> content = "A very very bad review!"
+        >>> df = session.create_dataframe([[content]], schema=["content"])
+        >>> df.select(snowflake_cortex_sentiment(content).collect()[0][0]
+        -0.74
     """
     sql_func_name = "snowflake.cortex.sentiment"
     text_col = _to_col_if_lit(text, sql_func_name)
