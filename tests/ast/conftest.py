@@ -12,14 +12,16 @@ from snowflake.snowpark import Session
 
 def default_unparser_path():
     explicit = os.getenv("MONOREPO_DIR")
-    default_default = os.path.join(os.getenv('HOME'), "Snowflake/trunk")
+    default_default = os.path.join(os.getenv("HOME"), "Snowflake/trunk")
     base_dir = explicit or default_default
     unparser_dir = os.path.join(base_dir, "bazel-bin/Snowpark/unparser")
 
     # Grab all *.jar files from the subtree.
     jars = []
     for path, _, files in os.walk(unparser_dir):
-        jars.extend([os.path.join(path, file) for file in files if file.endswith(".jar")])
+        jars.extend(
+            [os.path.join(path, file) for file in files if file.endswith(".jar")]
+        )
     return ":".join(jars)
 
 
@@ -41,7 +43,11 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     unparser_jar = config.getoption("--unparser-jar")
-    pytest.unparser_jar = unparser_jar if all(os.path.exists(file) for file in unparser_jar.split(":")) else None
+    pytest.unparser_jar = (
+        unparser_jar
+        if all(os.path.exists(file) for file in unparser_jar.split(":"))
+        else None
+    )
     pytest.update_expectations = config.getoption("--update-expectations")
 
     if pytest.unparser_jar is None and pytest.update_expectations:
