@@ -11,9 +11,18 @@ from snowflake.snowpark import Session
 
 
 def default_unparser_path():
-    explicit = os.getenv("SNOWPARK_UNPARSER_JAR")
-    default_default = f"{os.getenv('HOME')}/Snowflake/trunk/Snowpark/unparser/target/scala-2.13/unparser-assembly-0.1.jar"
-    return explicit or default_default
+    explicit = os.getenv("MONOREPO_DIR")
+    default_default = os.path.join(os.getenv("HOME"), "Snowflake/trunk")
+    base_dir = explicit or default_default
+    unparser_dir = os.path.join(base_dir, "bazel-bin/Snowpark/unparser")
+
+    # Grab all *.jar files from the subtree.
+    jars = []
+    for path, _, files in os.walk(unparser_dir):
+        jars.extend(
+            [os.path.join(path, file) for file in files if file.endswith(".jar")]
+        )
+    return ":".join(jars)
 
 
 def pytest_addoption(parser):
@@ -22,7 +31,7 @@ def pytest_addoption(parser):
         action="store",
         default=default_unparser_path(),
         type=str,
-        help="Path to the Unparser JAR built in the monorepo. To build it, run `sbt assembly` from the unparser directory.",
+        help="Path to the Unparser JAR built in the monorepo.",
     )
     parser.addoption(
         "--update-expectations",
@@ -33,15 +42,18 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    pytest.unparser_jar = config.getoption("--unparser-jar")
-    if not os.path.exists(pytest.unparser_jar):
-        pytest.unparser_jar = None
+    unparser_jar = config.getoption("--unparser-jar")
+    pytest.unparser_jar = (
+        unparser_jar
+        if all(os.path.exists(file) for file in unparser_jar.split(":"))
+        else None
+    )
     pytest.update_expectations = config.getoption("--update-expectations")
 
     if pytest.unparser_jar is None and pytest.update_expectations:
         raise RuntimeError(
-            f"Unparser JAR not found at {pytest.unparser_jar}. "
-            f"Please set the correct path with --unparser-jar or SNOWPARK_UNPARSER_JAR."
+            f"Unparser JAR not found at {unparser_jar}. "
+            f"Please set the correct path with --unparser-jar or the MONOREPO_DIR environment variable."
         )
 
 
