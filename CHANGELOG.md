@@ -8,6 +8,7 @@
 
 - Added support for `Series.str.ljust` and `Series.str.rjust`.
 - Added support for `Series.str.center`.
+- Added support for `Series.str.pad`.
 
 
 ## 1.26.0 (2024-12-05)
