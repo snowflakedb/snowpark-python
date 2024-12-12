@@ -31,7 +31,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture(params=["applymap", "map"])
 def method(request):
     """
-    how keyword to pass to merge.
+    method name to test.
     """
     return request.param
 
@@ -120,16 +120,16 @@ def test_applymap_numpy(func):
 
 
 @sql_count_checker(query_count=0)
-def test_applymap_na_action_ignore():
+def test_applymap_na_action_ignore(method):
     snow_df = pd.DataFrame([1, 1.1, "NaN", None], dtype="Float64")
     msg = "Snowpark pandas applymap API doesn't yet support na_action == 'ignore'"
     with pytest.raises(NotImplementedError, match=msg):
-        snow_df.applymap(lambda x: x is None, na_action="ignore")
+        getattr(snow_df, method)(lambda x: x is None, na_action="ignore")
 
     data = ["cat", "dog", np.nan, "rabbit"]
     snow_df = pd.DataFrame(data)
     with pytest.raises(NotImplementedError, match=msg):
-        snow_df.applymap("I am a {}".format, na_action="ignore")
+        getattr(snow_df, method)("I am a {}".format, na_action="ignore")
 
 
 @pytest.mark.parametrize("invalid_input", ["min", [np.min], {"a": np.max}])
