@@ -515,6 +515,12 @@ def test_save_as_table(session, mode):
             )
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    if mode == "append":
+        assert query.startswith("INSERT  INTO")
+    elif mode in ("truncate", "overwrite"):
+        assert query.startswith("CREATE  OR  REPLACE  TEMPORARY  TABLE")
+    else:
+        assert query.startswith("CREATE  TEMPORARY  TABLE")
     assert count_number_of_ctes(query) == 1
     if mode in ["append", "truncate"]:
         assert sum("show" in q.sql_text for q in query_history.queries) == 1
@@ -529,6 +535,7 @@ def test_create_or_replace_view(session):
         )
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("CREATE  OR  REPLACE  TEMPORARY  VIEW")
     assert count_number_of_ctes(query) == 1
 
 
@@ -545,6 +552,7 @@ def test_table_update_delete_merge(session):
         t.update({"b": 0}, t.a == source_df.a, source_df)
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("UPDATE")
     assert count_number_of_ctes(query) == 1
 
     # delete
@@ -552,6 +560,7 @@ def test_table_update_delete_merge(session):
         t.delete(t.a == source_df.a, source_df)
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("DELETE  FROM")
     assert count_number_of_ctes(query) == 1
 
     # merge
@@ -561,6 +570,7 @@ def test_table_update_delete_merge(session):
         )
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("MERGE  INTO")
     assert count_number_of_ctes(query) == 1
 
 
@@ -579,6 +589,7 @@ def test_copy_into_location(session):
         )
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("COPY  INTO")
     assert count_number_of_ctes(query) == 1
 
 
