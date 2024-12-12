@@ -552,7 +552,6 @@ class Session:
                     parameter_name="PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS",
                     session=self,
                     default=True,
-                    synchronize=False,
                 ),
                 SessionParameter(
                     "sql_simplifier_enabled",
@@ -566,38 +565,37 @@ class Session:
                     telemetry_hook=self._conn._telemetry_client.send_sql_simplifier_telemetry,
                     session=self,
                     default=True,
+                    synchronize=True,
                 ),
                 SessionParameter(
                     "_use_logical_type_for_create_df",
                     parameter_name="PYTHON_SNOWPARK_USE_LOGICAL_TYPE_FOR_CREATE_DATAFRAME",
                     session=self,
                     default=True,
-                    synchronize=False,
                 ),
                 SessionParameter(
                     "_query_compilation_stage_enabled",
                     dedent(
                         """
-                    parameter used to turn off the whole new query compilation stage in one shot. If turned
-                    off, the plan won't go through the extra optimization and query generation steps.
-                    """
+                        parameter used to turn off the whole new query compilation stage in one shot. If turned
+                        off, the plan won't go through the extra optimization and query generation steps.
+                        """
                     ),
                     parameter_name="PYTHON_SNOWPARK_COMPILATION_STAGE_ENABLED",
                     session=self,
                     default=False,
-                    synchronize=False,
                 ),
                 VersionedSessionParameter(
                     "cte_optimization_enabled",
                     dedent(
-                        """Set to ``True`` to enable the CTE optimization (defaults to ``False``).
-                    The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
-                    """
+                        """
+                        Set to ``True`` to enable the CTE optimization (defaults to ``False``).
+                        The generated SQLs from ``DataFrame`` transformations would have duplicate subquery as CTEs if the CTE optimization is enabled.
+                        """
                     ),
                     parameter_name="PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION",
                     session=self,
                     default=False,
-                    synchronize=False,
                     experimental_since="1.15.0",
                 ),
                 SessionParameter(
@@ -606,66 +604,63 @@ class Session:
                     telemetry_hook=self._conn._telemetry_client.send_eliminate_numeric_sql_value_cast_telemetry,
                     session=self,
                     default=False,
-                    synchronize=False,
                     experimental_since="1.20.0",
                 ),
                 VersionedSessionParameter(
                     "auto_clean_up_temp_table_enabled",
                     dedent(
                         """
-                    When setting this parameter to ``True``, Snowpark will automatically clean up temporary tables created by
-                    :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
-                    The default value is ``False``.
+                        When setting this parameter to ``True``, Snowpark will automatically clean up temporary tables created by
+                        :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
+                        The default value is ``False``.
 
-                    Note:
-                        Temporary tables will only be dropped if this parameter is enabled during garbage collection.
-                        If a temporary table is no longer referenced when the parameter is on, it will be dropped during garbage collection.
-                        However, if garbage collection occurs while the parameter is off, the table will not be removed.
-                        Note that Python's garbage collection is triggered opportunistically, with no guaranteed timing.
-                    """
+                        Note:
+                            Temporary tables will only be dropped if this parameter is enabled during garbage collection.
+                            If a temporary table is no longer referenced when the parameter is on, it will be dropped during garbage collection.
+                            However, if garbage collection occurs while the parameter is off, the table will not be removed.
+                            Note that Python's garbage collection is triggered opportunistically, with no guaranteed timing.
+                        """
                     ),
                     parameter_name="PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION",
                     telemetry_hook=self._conn._telemetry_client.send_auto_clean_up_temp_table_telemetry,
                     session=self,
                     default=False,
-                    synchronize=False,
                     experimental_since="1.21.0",
                 ),
                 SessionParameter(
                     "reduce_describe_query_enabled",
                     dedent(
                         """
-                    When setting this parameter to ``True``, Snowpark will infer the schema of DataFrame locally if possible,
-                    instead of issuing an internal `describe query
-                    <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#retrieving-column-metadata>`_
-                    to get the schema from the Snowflake server. This optimization improves the performance of your workloads by
-                    reducing the number of describe queries issued to the server.
-                    The default value is ``False``.
-                    """
+                        When setting this parameter to ``True``, Snowpark will infer the schema of DataFrame locally if possible,
+                        instead of issuing an internal `describe query
+                        <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-example#retrieving-column-metadata>`_
+                        to get the schema from the Snowflake server. This optimization improves the performance of your workloads by
+                        reducing the number of describe queries issued to the server.
+                        The default value is ``False``.
+                        """
                     ),
                     parameter_name="PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED",
                     telemetry_hook=self._conn._telemetry_client.send_reduce_describe_query_telemetry,
                     session=self,
                     default=False,
-                    synchronize=False,
                     experimental_since="1.24.0",
                 ),
                 SettingGroup(
                     "large_query_breakdown_params",
                     settings=[
-                        SessionParameter(
+                        VersionedSessionParameter(
                             "large_query_breakdown_enabled",
                             dedent(
-                                """Set the value for large_query_breakdown_enabled. When enabled, the client will automatically detect large query plans and break them down into smaller partitions,
-                            materialize the partitions, and then combine them to execute the query to improve
-                            overall performance.
-                            """
+                                """
+                                Set the value for large_query_breakdown_enabled. When enabled, the client will automatically detect large query plans and break them down into smaller partitions,
+                                materialize the partitions, and then combine them to execute the query to improve
+                                overall performance.
+                                """
                             ),
-                            parameter_name="PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION",
+                            parameter_name="PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION",
                             telemetry_hook=self._conn._telemetry_client.send_large_query_breakdown_telemetry,
                             session=self,
                             default=False,
-                            synchronize=False,
                             experimental_since="1.22.0",
                         ),
                         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
@@ -675,7 +670,6 @@ class Session:
                             parameter_name="PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND",
                             session=self,
                             default=DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND,
-                            synchronize=False,
                             experimental_since="1.22.0",
                         ),
                         SessionParameter(
@@ -683,7 +677,6 @@ class Session:
                             parameter_name="PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND",
                             session=self,
                             default=DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
-                            synchronize=False,
                             experimental_since="1.22.0",
                         ),
                     ],
@@ -693,7 +686,6 @@ class Session:
                     parameter_name="PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE",
                     session=self,
                     default=DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
-                    synchronize=False,
                     experimental_since="1.22.0",
                 ),
             ],
@@ -705,7 +697,7 @@ class Session:
 
         return conf
 
-    def __getattribute__(self, name):
+    def __getattribute__(self, name) -> Any:
         if name in COMPAT_PROPERTIES:
             return self._conf.get(name)
         return super().__getattribute__(name)

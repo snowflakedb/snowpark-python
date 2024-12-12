@@ -401,7 +401,7 @@ def test_reduce_describe_query_enabled_on_session(db_parameters):
 
         parameters = db_parameters.copy()
         parameters["session_parameters"] = {
-            "reduce_describe_query_enabled": not default_value
+            "PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED": not default_value
         }
         with Session.builder.configs(parameters).create() as new_session2:
             assert new_session2.reduce_describe_query_enabled is not default_value
