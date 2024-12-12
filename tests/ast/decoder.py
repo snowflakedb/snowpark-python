@@ -972,6 +972,39 @@ class Decoder:
                 # TODO: SNOW-1830603 Implement UDTF decoding.
                 pass
 
+            case "sp_dataframe_cross_join":
+                lhs = self.decode_expr(expr.sp_dataframe_cross_join.lhs)
+                rhs = self.decode_expr(expr.sp_dataframe_cross_join.rhs)
+                left_suffix = expr.sp_dataframe_cross_join.lsuffix.value
+                right_suffix = expr.sp_dataframe_cross_join.rsuffix.value
+                return lhs.cross_join(
+                    right=rhs, lsuffix=left_suffix, rsuffix=right_suffix
+                )
+
+            case "sp_dataframe_flatten":
+                df = self.decode_expr(expr.sp_dataframe_flatten.df)
+                input = self.decode_expr(expr.sp_dataframe_flatten.input)
+                mode = "BOTH"
+                match expr.sp_dataframe_flatten.mode.WhichOneof("variant"):
+                    case "sp_flatten_mode_both":
+                        mode = "BOTH"
+                    case "sp_flatten_mode_array":
+                        mode = "ARRAY"
+                    case "sp_flatten_mode_object":
+                        mode = "OBJECT"
+
+                path = expr.sp_dataframe_flatten.path.value
+
+                outer = expr.sp_dataframe_flatten.outer
+                recursive = expr.sp_dataframe_flatten.recursive
+                if len(path) == 0:
+                    return df.flatten(
+                        input=input, mode=mode, outer=outer, recursive=recursive
+                    )
+                return df.flatten(
+                    input=input, path=path, mode=mode, outer=outer, recursive=recursive
+                )
+
             case _:
                 raise NotImplementedError(
                     "Expression type not implemented yet: %s"
