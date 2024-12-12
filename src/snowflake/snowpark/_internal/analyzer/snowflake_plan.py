@@ -608,7 +608,7 @@ class SnowflakePlanBuilder:
         referenced_ctes: Dict[WithQueryBlock, int] = dict()
         if (
             self.session.cte_optimization_enabled
-            and self.session.conf._query_compilation_stage_enabled
+            and self.session._query_compilation_stage_enabled
         ):
             # When the cte optimization and the new compilation stage is enabled,
             # the referred cte tables are propagated from left and right can have
