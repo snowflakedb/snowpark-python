@@ -406,11 +406,17 @@ def __rdivmod__(self, other):
 # The from_dict and from_records accessors are class methods and cannot be overridden via the
 # extensions module, as they need to be foisted onto the namespace directly because they are not
 # routed through getattr. To this end, we manually set DataFrame.from_dict to our new method.
-@dataframe_not_implemented()
 def from_dict(
-    cls, data, orient="columns", dtype=None, columns=None
+    data, orient="columns", dtype=None, columns=None
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    # return pd.DataFrame(native_pd.DataFrame.from_dict({k: v.to_pandas() for k, v in data.items()}))
+    df = None
+    for k, v in data.items():
+        if df is None:
+            df = v.to_frame()
+        else:
+            df[k] = v
+    return df
 
 
 DataFrame.from_dict = from_dict

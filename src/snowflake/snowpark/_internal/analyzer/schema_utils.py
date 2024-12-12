@@ -65,10 +65,11 @@ def get_attributes() -> List[Attribute]:
         Attribute('"message"', StringType(), nullable=False),
     ]
 
-
+n = 1
 def analyze_attributes(
     sql: str, session: "snowflake.snowpark.session.Session"
 ) -> List[Attribute]:
+    global n    
     lowercase = sql.strip().lower()
 
     # SQL commands which cannot be prepared
@@ -92,6 +93,12 @@ def analyze_attributes(
         )
 
     # collect describe query details for telemetry
+    import traceback
+    traceback.print_stack()
+    print(f'EXECUTING A DESCRIBE QUERY number {n}')
+    print('\n' * 3)
+
+    n += 1
     stack = traceback.extract_stack(limit=10)[:-1]
     stack_trace = [frame.line for frame in stack] if len(stack) > 0 else None
     start_time = time.time()
