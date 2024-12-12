@@ -481,7 +481,7 @@ class DataFrameReader:
     @_format.setter
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "kafka"]
+        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "kafka", "table"]
         if canon_format not in allowed_formats:
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
@@ -997,35 +997,40 @@ import confluent_kafka
 
 class DataStreamReader(DataFrameReader):
     def load(self) -> DataFrame:
-        bootstrap_servers = self._cur_options["kafka.bootstrap.servers".upper()]
-        topic = self._cur_options["topic".upper()]
-        partition_id = self._cur_options["partition_id".upper()]
+        if self._format == "kafka":
+            bootstrap_servers = self._cur_options["kafka.bootstrap.servers".upper()]
+            topic = self._cur_options["topic".upper()]
+            partition_id = self._cur_options["partition_id".upper()]
 
-        self._session.custom_package_usage_config['force_push'] = True
-        self._session.custom_package_usage_config['enabled'] = True             
-        self._session.add_import(snowflake.snowpark.kafka_ingest_udtf.__file__, import_path="snowflake.snowpark.kafka_ingest_udtf")   
-        self._session.add_packages(["python-confluent-kafka"])
-        self._session.sql("create or replace  stage mystage").collect()
-        
-        kafka_udtf = udtf(
-            KafkaFetch,
-            output_schema=self._user_schema,
-            # Dynamic tables can't depend on the temporary UDTF, so we must make
-            # a permanent UDTF.
-            # Note: https://docs.snowflake.com/en/release-notes/bcr-bundles/2024_01/bcr-1489            
-            is_permanent=True,
-            replace=True,
-            name='my_streaming_udtf',
-            stage_location="@mystage"
-        )        
-        #
-        # "In a dynamic table definition, SELECT blocks that read from user-defined
-        # table functions (UDTF) must explicitly specify columns and can’t use *."    
-        # but snowpark table_function() uses a star...
-        return self._session.table_function(
-            kafka_udtf(
-                lit(bootstrap_servers),
-                lit(topic),
-                lit(partition_id)
+            self._session.custom_package_usage_config['force_push'] = True
+            self._session.custom_package_usage_config['enabled'] = True             
+            self._session.add_import(snowflake.snowpark.kafka_ingest_udtf.__file__, import_path="snowflake.snowpark.kafka_ingest_udtf")   
+            self._session.add_packages(["python-confluent-kafka"])
+            self._session.sql("create or replace  stage mystage").collect()
+
+            kafka_udtf = udtf(
+                KafkaFetch,
+                output_schema=self._user_schema,
+                # Dynamic tables can't depend on the temporary UDTF, so we must make
+                # a permanent UDTF.
+                # Note: https://docs.snowflake.com/en/release-notes/bcr-bundles/2024_01/bcr-1489            
+                is_permanent=True,
+                replace=True,
+                name='my_streaming_udtf',
+                stage_location="@mystage"
+            )        
+            #
+            # "In a dynamic table definition, SELECT blocks that read from user-defined
+            # table functions (UDTF) must explicitly specify columns and can’t use *."    
+            # but snowpark table_function() uses a star...
+            return self._session.table_function(
+                kafka_udtf(
+                    lit(bootstrap_servers),
+                    lit(topic),
+                    lit(partition_id)
+                )
             )
-        )
+        elif self._format == "table":
+            return self._session.table(self._cur_options["TABLE_NAME"])
+        else:
+            raise NotImplementedError(f"cannot stream read in format {self._format}")

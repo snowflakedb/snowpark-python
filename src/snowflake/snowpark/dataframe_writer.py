@@ -949,3 +949,6 @@ class DataStreamWriter(DataFrameWriter):
                 for f in self._dataframe.schema.fields
             )
         )).collect_nowait()
+    
+    def outputMode(self, output_mode: str) -> "DataStreamWriter":
+        raise NotImplementedError
