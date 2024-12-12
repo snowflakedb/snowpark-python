@@ -8,12 +8,14 @@ from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark.write_stream_to_table import write_stream_to_table
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     SaveMode,
     SnowflakeCreateTable,
     TableCreationSource,
 )
+from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     debug_check_missing_ast,
@@ -40,8 +42,9 @@ from snowflake.snowpark._internal.utils import (
     warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
+from snowflake.snowpark.types import StringType
 from snowflake.snowpark.column import Column, _to_col_if_str
-from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.functions import sql_expr, udf, lit, col
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
 
@@ -917,6 +920,32 @@ class DataFrameWriter:
 
     saveAsTable = save_as_table
 
+
 class DataStreamWriter(DataFrameWriter):
-    def start(self):
-        raise NotImplementedError("cannot write a data stream yet.")
+    def toTable(self, table_name: str) -> AsyncJob:
+        self._dataframe.session.custom_package_usage_config['force_push'] = True
+        self._dataframe.session.custom_package_usage_config['enabled'] = True             
+        self._dataframe.session.add_import(snowflake.snowpark.write_stream_to_table.__file__, import_path="snowflake.snowpark.write_stream_to_table")   
+        self._dataframe.session.sql("create or replace  stage mystage").collect()
+
+
+        write_stream_udf = udf(
+            write_stream_to_table,
+            input_types=
+            [
+                StringType(), 
+                *(f.datatype for f in self._dataframe.schema.fields)
+            ],
+            is_permanent=True,
+            replace=True,
+            name='write_stream_udf',
+            stage_location="@mystage"            
+        )
+
+        return self._dataframe.select(write_stream_udf(
+            lit(table_name),
+            *(
+                col(f.name)
+                for f in self._dataframe.schema.fields
+            )
+        )).collect_nowait()

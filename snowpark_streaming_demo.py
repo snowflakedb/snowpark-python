@@ -1,8 +1,9 @@
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.functions import parse_json, col
-from snowflake.snowpark.types import StructType, MapType, StructField, StringType
+from snowflake.snowpark.types import StructType, MapType, StructField, StringType, IntegerType, FloatType, TimestampType
 import logging; logging.getLogger("snowflake.snowpark").setLevel(logging.DEBUG)
 import pandas as pd
+from snowflake.snowpark.async_job import AsyncJob
 
 
 # Function to generate random JSON data
@@ -34,6 +35,16 @@ session.create_dataframe(
 static_df = session.table("static_df")
 
 
+kafka_event_schema = StructType(
+            [
+                StructField(column_identifier="ID", datatype=IntegerType()),
+                StructField(column_identifier="NAME", datatype=StringType()),  
+                StructField(column_identifier="PRICE", datatype=FloatType()),
+                StructField(column_identifier="TIMESTAMP", datatype=TimestampType()),                               
+            ]
+        )
+
+
 # Subscribe to 1 topic
 kafka_ingest_df = (
     session
@@ -42,29 +53,37 @@ kafka_ingest_df = (
     .option("kafka.bootstrap.servers", "host1:port1,host2:port2")
     .option("topic", "topic1")
     .option("partition_id", 1)
-    .schema(
-        StructType(
-            [
-                StructField(column_identifier="KEY", datatype=StringType()),
-                StructField(column_identifier="STREAM_VALUE", datatype=StringType())                
-            ]
-        )
-    )
+    .schema(kafka_event_schema)
     .load()
 )
 
-# Join kafka ingest to static table, and write result to dynamic table.
-joined = kafka_ingest_df.join(static_df, on='KEY')
-joined.create_or_replace_dynamic_table(
-    'dynamic_join_result',
-    warehouse=session.connection.warehouse,
-    lag='1 hour',    
-    
-    )
+RESULT_TABLE_NAME = "dynamic_join_result";
 
-# Clean up dynamic table.
-drop_result = session.connection.cursor().execute('DROP DYNAMIC TABLE dynamic_join_result;')
-assert drop_result is not None
+transformed_df = kafka_ingest_df \
+    .select(col("id"), col("timestamp"), col("name")) \
+    .filter(col("price") > 100.0)
+
+
+"""
+This query looks like
+
+SELECT write_stream_udf('dynamic_join_result', "id", "timestamp", "name")
+FROM   (SELECT id,
+               name,
+               price,
+               timestamp
+        FROM   ( TABLE (my_streaming_udtf('host1:port1,host2:port2', 'topic1', 1
+                        :: INT
+                 ) )))
+WHERE  ( "price" > 100.0 ) 
+"""
+
+streaming_query: AsyncJob = transformed_df \
+    .writeStream \
+    .toTable(RESULT_TABLE_NAME)
+
+streaming_query.cancel()
+
 
 # # Write streaming dataframe to output data sink
 # sink_query = (
