@@ -1,23 +1,23 @@
-Third Party Library Interoperable APIs
+Interoperability with third party libraries
 =========================================
 
 Snowpark pandas provides interoperability with third party libraries through the dataframe interchange protocol and
 guarantees interoperability for select library APIs as listed below.
 
-The following table is structured as follows: The first column contains the API name.
+The following table is structured as follows: The first column contains a method name.
 The second column is a flag for whether or not interoperability is guaranteed with Snowpark pandas.
 
 .. note::
     ``Y`` stands for yes, i.e., interoperability is guaranteed with this API, and ``N`` stands for no.
 
-Plotly.express module APIs
+Plotly.express module methods
 
 +-------------------------+---------------------------------------------+--------------------------------------------+
-| API name                | Interoperable with Snowpark pandas? (Y/N)   | Notes for current implementation           |
+| Method name             | Interoperable with Snowpark pandas? (Y/N)   | Notes for current implementation           |
 +-------------------------+---------------------------------------------+--------------------------------------------+
-| ``scatterplot``         | Y                                           |                                            |
+| ``scatter``         | Y                                           |                                            |
 +-------------------------+---------------------------------------------+--------------------------------------------+
-| ``lineplot``            | Y                                           |                                            |
+| ``line``                | Y                                           |                                            |
 +-------------------------+---------------------------------------------+--------------------------------------------+
 | ``area``                | Y                                           |                                            |
 +-------------------------+---------------------------------------------+--------------------------------------------+
@@ -25,7 +25,7 @@ Plotly.express module APIs
 +-------------------------+---------------------------------------------+--------------------------------------------+
 | ``violin``              | Y                                           |                                            |
 +-------------------------+---------------------------------------------+--------------------------------------------+
-| ``barplot``             | Y                                           |                                            |
+| ``bar``                 | Y                                           |                                            |
 +-------------------------+---------------------------------------------+--------------------------------------------+
 | ``histogram``           | Y                                           |                                            |
 +-------------------------+---------------------------------------------+--------------------------------------------+
