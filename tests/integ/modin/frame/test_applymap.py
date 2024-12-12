@@ -28,25 +28,33 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(params=["applymap", "map"])
+def method(request):
+    """
+    how keyword to pass to merge.
+    """
+    return request.param
+
+
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
 @sql_count_checker(query_count=7, udf_count=1)
-def test_applymap_basic_without_type_hints(data, func, return_type):
+def test_applymap_basic_without_type_hints(data, func, return_type, method):
     frame_data = {0: data, 1: data}
     native_df = native_pd.DataFrame(frame_data)
     snow_df = pd.DataFrame(frame_data)
-    eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.applymap(func))
+    eval_snowpark_pandas_result(snow_df, native_df, lambda x: getattr(x, method)(func))
 
 
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
 @sql_count_checker(query_count=7, udf_count=1)
-def test_applymap_basic_with_type_hints(data, func, return_type):
+def test_applymap_basic_with_type_hints(data, func, return_type, method):
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
 
     frame_data = {0: data, 1: data}
     native_df = native_pd.DataFrame(frame_data)
     snow_df = pd.DataFrame(frame_data)
     eval_snowpark_pandas_result(
-        snow_df, native_df, lambda x: x.applymap(func_with_type_hint)
+        snow_df, native_df, lambda x: getattr(x, method)(func_with_type_hint)
     )
 
 
