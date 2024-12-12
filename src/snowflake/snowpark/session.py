@@ -246,6 +246,7 @@ COMPAT_PROPERTIES = [
     "_query_compilation_stage_enabled",
     "_use_logical_type_for_create_df",
     "_use_scoped_temp_objects",
+    "_use_scoped_temp_read_only_table",
     "auto_clean_up_temp_table_enabled",
     "cte_optimization_enabled",
     "eliminate_numeric_sql_value_cast_enabled",
