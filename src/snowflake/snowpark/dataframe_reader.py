@@ -1000,12 +1000,13 @@ class DataStreamReader(DataFrameReader):
         bootstrap_servers = self._cur_options["kafka.bootstrap.servers".upper()]
         topic = self._cur_options["topic".upper()]
         partition_id = self._cur_options["partition_id".upper()]
+
         self._session.custom_package_usage_config['force_push'] = True
         self._session.custom_package_usage_config['enabled'] = True             
         self._session.add_import(snowflake.snowpark.kafka_ingest_udtf.__file__, import_path="snowflake.snowpark.kafka_ingest_udtf")   
         self._session.add_packages(["python-confluent-kafka"])
-
         self._session.sql("create or replace  stage mystage").collect()
+        
         kafka_udtf = udtf(
             KafkaFetch,
             output_schema=self._user_schema,

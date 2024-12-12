@@ -68,7 +68,7 @@ class KafkaFetch:
             #     logging.info(f"Received message: {msg.value().decode('utf-8')}")
             #     yield (msg.value().decode('utf-8'),)
 
-            yield (str(i), str(generate_json_data()))
+            yield tuple(generate_json_data().values())
 
     except:
         logging.error("Consumer Error")
