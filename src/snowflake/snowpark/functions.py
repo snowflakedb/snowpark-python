@@ -10233,7 +10233,7 @@ def bitmap_bit_position(numeric_expr: ColumnOrName, _emit_ast: bool = True) -> C
 
         >>> df = session.create_dataframe([1, 2, 3, 4, 5], schema=["a"])
         >>> df.select(bitmap_bit_position("a").alias("result")).collect()
-        [Row(RESULT=0), Row(RESULT=1), Row(RESULT=1), Row(RESULT=2), Row(RESULT=0)]
+        [Row(RESULT=0), Row(RESULT=1), Row(RESULT=1), Row(RESULT=2), Row(RESULT=4)]
     """
     c = _to_col_if_str(numeric_expr, "bitmap_bit_position")
     return builtin("bitmap_bit_position", _emit_ast=_emit_ast)(c)
@@ -10267,7 +10267,7 @@ def bitmap_construct_agg(
 
         >>> df = session.create_dataframe([1, 2, 3, 1, 2, 3], schema=["a"])
         >>> df.groupBy().agg(bitmap_construct_agg(df["a"])).collect()
-        [Row(BITMAP_CONSTRUCT_AGG(A)=bytearray(b'\x00\x03\x01\x00\x02\x00\x03\x00\x00\x00'))]
+        [Row(BITMAP_CONSTRUCT_AGG(A)=bytearray(b'\\x00\\x03\\x01\\x00\\x02\\x00\\x03\\x00\\x00\\x00'))]
     """
     c = _to_col_if_str(relative_position, "bitmap_construct_agg")
     return builtin("bitmap_construct_agg", _emit_ast=_emit_ast)(c)
@@ -10303,7 +10303,7 @@ def equal_null(e1: ColumnOrName, e2: ColumnOrName, _emit_ast: bool = True) -> Co
         >>> df = session.create_dataframe([[1], [2], [None]], schema=["a"])
         >>> df2 = session.create_dataframe([[1], [2], [None]], schema=["b"])
         >>> joined_df = df.crossJoin(df2)
-        >>> result = joined_df.select(equal_null(joined_df["a"], joined_df["b"]).alias("equal_null")).collect()
+        >>> joined_df.select(equal_null(joined_df["a"], joined_df["b"]).alias("equal_null")).collect()
         [Row(EQUAL_NULL=True), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=True), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=True)]
     """
     c1 = _to_col_if_str(e1, "equal_null")
@@ -10383,7 +10383,7 @@ def max_by(
         ...     [2020, 20, 8000]
         ... ], schema=["employee_id", "department_id", "salary"])
         >>> df.select(max_by("employee_id", "salary", 3)).collect()
-        [Row(MAX_BY("EMPLOYEE_ID", "SALARY", 3)=[900, 2010, 1001])]
+        [Row(MAX_BY("EMPLOYEE_ID", "SALARY", 3)='[\\n  900,\\n  2010,\\n  1001\\n]')]
     """
     c1 = _to_col_if_str(col_to_return, "max_by")
     c2 = _to_col_if_str(col_containing_maximum, "max_by")
@@ -10421,7 +10421,7 @@ def min_by(
         ...     [2020, 20, 8000]
         ... ], schema=["employee_id", "department_id", "salary"])
         >>> df.select(min_by("employee_id", "salary", 3).alias("min_by")).collect()
-        [Row(MIN_BY=[1030, 2020, 1020])]
+        [Row(MIN_BY='[\\n  1030,\\n  2020,\\n  1020\\n]')]
 
     :param col_to_return: The column to return values from.
     :param col_containing_minimum: The column to find the minimum values in.
@@ -10454,7 +10454,7 @@ def nvl(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Col
         ...     ["NULL", "NULL"]
         ... ], schema=["phone_region_1", "phone_region_2"])
         >>> df.select(nvl(df["phone_region_1"], df["phone_region_2"]).alias("result")).collect()
-        [Row(RESULT='555-01222'), Row(RESULT='555-01333'), Row(RESULT='555-01555'), Row(RESULT='555-01666'), Row(RESULT='NULL')]
+        [Row(RESULT='555-01222'), Row(RESULT='555-01333'), Row(RESULT='NULL'), Row(RESULT='555-01666'), Row(RESULT='NULL')]
     """
     c1 = _to_col_if_str(expr1, "nvl")
     c2 = _to_col_if_str(expr2, "nvl")
@@ -10468,7 +10468,7 @@ def octet_length(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     Example::
 
-        >>> df = session.create_dataframe(['abc', '\u0392', 'X\'A1B2\''], schema=["a"])
+        >>> df = session.create_dataframe(['abc', '\u0392', "X'A1B2'"], schema=["a"])
         >>> df.select(octet_length(col("a")).alias("octet_length")).collect()
         [Row(OCTET_LENGTH=3), Row(OCTET_LENGTH=2), Row(OCTET_LENGTH=7)]
     """
@@ -10699,7 +10699,7 @@ def try_to_binary(
 
         >>> df = session.create_dataframe(["01", "A B", "Hello", None], schema=["hex_encoded_string"])
         >>> df.select(try_to_binary(df["hex_encoded_string"], 'HEX').alias("b")).collect()
-        [Row(B=bytearray(b'\x01')), Row(B=None), Row(B=None), Row(B=None)]
+        [Row(B=bytearray(b'\\x01')), Row(B=None), Row(B=None), Row(B=None)]
     """
     c = _to_col_if_str(e, "try_to_binary")
     return builtin("try_to_binary", _emit_ast=_emit_ast)(c, format)
