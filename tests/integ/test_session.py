@@ -38,25 +38,16 @@ from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles,
 def test_runtime_config(db_parameters):
     session = (
         Session.builder.configs(db_parameters)
-        .config("client_prefetch_threads", 10)
         .config("sql_simplifier_enabled", False)
         .config("use_constant_subquery_alias", False)
         .create()
     )
     # test conf.get
     assert not session.conf.get("nonexistent_client_side_fix", default=False)
-    assert session.conf.get("client_prefetch_threads") == 10
     assert not session.sql_simplifier_enabled
     assert not session.conf.get("sql_simplifier_enabled")
     assert not session.conf.get("use_constant_subquery_alias")
     assert session.conf.get("password") is None
-
-    # test conf.is_mutable
-    assert session.conf.is_mutable("telemetry_enabled")
-    assert session.conf.is_mutable("sql_simplifier_enabled")
-    assert session.conf.is_mutable("use_constant_subquery_alias")
-    assert not session.conf.is_mutable("host")
-    assert not session.conf.is_mutable("is_pyformat")
 
     # test conf.set
     session.conf.set("sql_simplifier_enabled", True)
@@ -64,11 +55,10 @@ def test_runtime_config(db_parameters):
     assert session.conf.get("sql_simplifier_enabled")
     session.conf.set("use_constant_subquery_alias", True)
     assert session.conf.get("use_constant_subquery_alias")
-    with pytest.raises(AttributeError) as err:
+    with pytest.raises(ValueError) as err:
         session.conf.set("use_openssl_only", False)
     assert (
-        'Configuration "use_openssl_only" does not exist or is not mutable in runtime'
-        in err.value.args[0]
+        "Unable to set setting. Unknown setting use_openssl_only" in err.value.args[0]
     )
 
     session.close()

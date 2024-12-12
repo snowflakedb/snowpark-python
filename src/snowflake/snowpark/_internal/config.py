@@ -81,7 +81,7 @@ class SettingGroup(Setting):
 class SessionParameter(Setting):
     session: Session = field(default=None)
     parameter_name: str = field(default=None)
-    synchronize: bool = field(default=True)
+    synchronize: bool = field(default=False)
     telemetry_hook: Callable = field(default=None)
 
     def __post_init__(self):
@@ -185,5 +185,3 @@ class SettingStore:
 
 
 GLOBAL_SETTINGS = SettingStore([])
-
-GLOBAL2 = SettingStore([Setting("bar", default=False)], extend_from=GLOBAL_SETTINGS)

@@ -68,7 +68,7 @@ def check_result(
     high_query_count_reason=None,
 ):
     df = df.sort(df.columns)
-    session._cte_optimization_enabled = False
+    session.cte_optimization_enabled = False
     with SqlCounter(
         query_count=query_count,
         describe_count=describe_count,
@@ -89,7 +89,7 @@ def check_result(
         result_count = df.count()
     result_pandas = df.to_pandas() if installed_pandas else None
 
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     if cte_union_count is None:
         cte_union_count = union_count
     if cte_join_count is None:
@@ -236,10 +236,10 @@ def test_join_with_alias_dataframe(session):
         .select(col("L", "col1"), col("R", "col2"))
     )
 
-    session._cte_optimization_enabled = False
+    session.cte_optimization_enabled = False
     result = df_res.collect()
 
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     cte_result = df_res.collect()
 
     Utils.check_answer(cte_result, result)
