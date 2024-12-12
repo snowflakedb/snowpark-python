@@ -57,7 +57,7 @@ kafka_ingest_df = (
     .load()
 )
 
-RESULT_TABLE_NAME = "dynamic_join_result";
+LANDING_TABLE_NAME = "dynamic_join_result";
 
 transformed_df = kafka_ingest_df \
     .select(col("id"), col("timestamp"), col("name")) \
@@ -80,9 +80,20 @@ WHERE  ( "price" > 100.0 )
 
 streaming_query: AsyncJob = transformed_df \
     .writeStream \
-    .toTable(RESULT_TABLE_NAME)
+    .toTable(LANDING_TABLE_NAME)
+
+
 
 streaming_query.cancel()
+
+
+# Read stream from a table
+df_streamed_from_table =  (
+    session
+    .readStream
+    .format("table")
+    .option("table_name", LANDING_TABLE_NAME)
+)
 
 
 # # Write streaming dataframe to output data sink
