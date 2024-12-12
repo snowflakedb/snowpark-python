@@ -10175,7 +10175,7 @@ def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
 
         >>> content = "A very very bad review!"
         >>> df = session.create_dataframe([[content]], schema=["content"])
-        >>> df.select(snowflake_cortex_sentiment(content).collect()[0][0]
+        >>> df.select(snowflake_cortex_sentiment(content)).collect()[0][0]
         -0.74
     """
     sql_func_name = "snowflake.cortex.sentiment"
