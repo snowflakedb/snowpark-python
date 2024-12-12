@@ -143,6 +143,7 @@ Functions
     desc_nulls_first
     desc_nulls_last
     div0
+    divnull
     endswith
     equal_nan
     exp
@@ -219,6 +220,7 @@ Functions
     next_day
     not_
     ntile
+    nullifzero
     object_agg
     object_construct
     object_construct_keep_null
