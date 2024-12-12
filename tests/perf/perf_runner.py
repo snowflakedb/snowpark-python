@@ -139,7 +139,7 @@ if __name__ == "__main__":
 
     session = Session.builder.configs(CONNECTION_PARAMETERS).create()
     session.sql_simplifier_enabled = args.simplify
-    session._cte_optimization_enabled = args.cte
+    session.cte_optimization_enabled = args.cte
     print("Snowpark Python API Performance Test")
     print("Parameters: ", args)
     try:

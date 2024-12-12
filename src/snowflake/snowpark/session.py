@@ -709,7 +709,7 @@ class Session:
             super().__setattr__(name, value)
 
     @property
-    def large_query_breakdown_complexity_bounds(self):
+    def large_query_breakdown_complexity_bounds(self) -> Tuple[int, int]:
         return (
             self._conf.get("_large_query_breakdown_complexity_lower_bound"),
             self._conf.get("_large_query_breakdown_complexity_upper_bound"),
