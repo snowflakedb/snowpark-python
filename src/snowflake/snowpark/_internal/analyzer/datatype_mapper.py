@@ -75,6 +75,10 @@ def to_sql(
         if value is None:
             return "NULL"
         if isinstance(value, str):
+            if isinstance(datatype, GeographyType):
+                return f"TO_GEOGRAPHY({str_to_sql(value)})"
+            if isinstance(datatype, GeometryType):
+                return f"TO_GEOMETRY({str_to_sql(value)})"
             return str_to_sql(value)
         if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
             cast_value = float_nan_inf_to_sql(value)
@@ -96,10 +100,6 @@ def to_sql(
             return (
                 f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
             )
-        if isinstance(value, str) and isinstance(datatype, GeographyType):
-            return f"TO_GEOGRAPHY({str_to_sql(value)})"
-        if isinstance(value, str) and isinstance(datatype, GeometryType):
-            return f"TO_GEOMETRY({str_to_sql(value)})"
         if isinstance(datatype, DateType):
             if isinstance(value, int):
                 # add value as number of days to 1970-01-01
