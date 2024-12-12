@@ -216,6 +216,11 @@ def test_to_sql_system_function():
     assert to_sql(397, DateType(), is_system_function=True) == "'1971-02-02'"
 
     assert (
+        to_sql(datetime.date(1971, 2, 2), DateType(), is_system_function=True)
+        == "'1971-02-02'"
+    )
+
+    assert (
         to_sql(1622002533000000, TimestampType(), is_system_function=True)
         == "'2021-05-26 04:15:33+00:00'"
     )
@@ -262,6 +267,11 @@ def test_to_sql_system_function():
         to_sql([1, 2, 3.5], VectorType(float, 3), is_system_function=True)
         == "[1, 2, 3.5]"
     )
+    assert (
+        to_sql("POINT(-122.35 37.55)", GeographyType(), is_system_function=True)
+        == "TO_GEOGRAPHY('POINT(-122.35 37.55)')"
+    )
+    assert to_sql("1", VariantType(), is_system_function=True) == "'1'"
     assert (
         to_sql(
             [1, 2, 3.5, 4.1234567, -3.8],
