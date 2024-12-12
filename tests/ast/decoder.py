@@ -11,7 +11,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from google.protobuf.json_format import MessageToDict
 
-from snowflake.snowpark import Session
+from snowflake.snowpark import Session, Column
 import snowflake.snowpark.functions
 from snowflake.snowpark.types import (
     DataType,
@@ -71,6 +71,30 @@ class Decoder:
             The local variable name.
         """
         return assign_expr.symbol.value
+
+    def decode_col_exprs(self, expr: proto.Expr) -> List[Column]:
+        """
+        Decode a protobuf object to a list of column expressions.
+
+        Parameters
+        ----------
+        expr : proto.Expr
+            The protobuf object to decode.
+
+        Returns
+        -------
+        List[Column]
+            The decoded columns.
+        """
+        if len(expr) == 1:
+            # Prevent nesting the list in a list if there is only one expression.
+            # This usually happens when the expression is a list_val.
+            col_list = self.decode_expr(expr[0])
+            if not isinstance(col_list, list):
+                col_list = [col_list]
+        else:
+            col_list = [self.decode_expr(arg) for arg in expr]
+        return col_list
 
     def decode_dsl_map_expr(self, map_expr: Iterable) -> dict:
         """
@@ -547,6 +571,9 @@ class Decoder:
                 else:
                     return []
 
+            case "none_val":
+                return None
+
             case "null_val":
                 return None
 
@@ -771,17 +798,29 @@ class Decoder:
                         df,
                     )
                 return df
+
+            case "sp_dataframe_agg":
+                df = self.decode_expr(expr.sp_dataframe_agg.df)
+                exprs = [
+                    self.decode_expr(arg) for arg in expr.sp_dataframe_agg.exprs.args
+                ]
+                if expr.sp_dataframe_agg.exprs.variadic:
+                    return df.agg(*exprs)
+                else:
+                    return df.agg(exprs)
+
             case "sp_dataframe_col":
                 col_name = expr.sp_dataframe_col.col_name
                 df = self.decode_expr(expr.sp_dataframe_col.df)
                 return df[col_name]
+
             case "sp_dataframe_collect":
                 df = self.symbol_table[expr.sp_dataframe_collect.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_count)
                 statement_params = self.get_statement_params(d)
-                log_on_exception = d["logOnException"]
-                block = d["block"]
-                case_sensitive = d["caseSensitive"]
+                log_on_exception = d.get("logOnException", False)
+                block = d.get("block", False)
+                case_sensitive = d.get("caseSensitive", False)
                 no_wait = d.get("noWait", False)
                 if no_wait:
                     return df.collect_nowait(
@@ -796,6 +835,7 @@ class Decoder:
                         block=block,
                         case_sensitive=case_sensitive,
                     )
+
             case "sp_dataframe_count":
                 df = self.symbol_table[expr.sp_dataframe_count.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_count)
@@ -806,18 +846,21 @@ class Decoder:
                     block=block,
                 )
 
+            case "sp_dataframe_group_by":
+                df = self.decode_expr(expr.sp_dataframe_group_by.df)
+                cols = self.decode_col_exprs(expr.sp_dataframe_group_by.cols.args)
+                if expr.sp_dataframe_group_by.cols.variadic:
+                    return df.group_by(*cols)
+                else:
+                    return df.group_by(cols)
+
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
+
             case "sp_dataframe_select__columns":
                 df = self.decode_expr(expr.sp_dataframe_select__columns.df)
                 # The columns can be a list of Expr or a single Expr.
-                if isinstance(expr.sp_dataframe_select__columns.cols, Iterable):
-                    cols = [
-                        self.decode_expr(col)
-                        for col in expr.sp_dataframe_select__columns.cols
-                    ]
-                else:
-                    cols = [self.decode_expr(expr.sp_dataframe_select__columns.cols)]
+                cols = self.decode_col_exprs(expr.sp_dataframe_select__columns.cols)
                 if hasattr(expr.sp_dataframe_select__columns, "variadic"):
                     val = df.select(*cols)
                 else:
@@ -828,11 +871,65 @@ class Decoder:
                         val,
                     )
                 return val
+
             case "sp_dataframe_show":
                 df = self.decode_expr(
                     self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
                 )
                 return df.show()
+
+            case "sp_dataframe_sort":
+                df = self.decode_expr(expr.sp_dataframe_sort.df)
+                cols = self.decode_col_exprs(expr.sp_dataframe_sort.cols)
+                ascending = self.decode_expr(expr.sp_dataframe_sort.ascending)
+                if expr.sp_dataframe_sort.cols_variadic:
+                    return df.sort(*cols, ascending)
+                else:
+                    return df.sort(cols, ascending)
+
+            case "sp_relational_grouped_dataframe_agg":
+                grouped_df = self.decode_expr(
+                    expr.sp_relational_grouped_dataframe_agg.grouped_df
+                )
+                exprs = self.decode_col_exprs(
+                    expr.sp_relational_grouped_dataframe_agg.exprs.args
+                )
+                if expr.sp_relational_grouped_dataframe_agg.exprs.variadic is True:
+                    return grouped_df.agg(*exprs)
+                else:
+                    return grouped_df.agg(exprs)
+
+            case "sp_relational_grouped_dataframe_apply_in_pandas":
+                # TODO: SNOW-1830603 Flesh out this logic when implementing UDTFs. Need to create a dict to maintain
+                #       all functions registered (here, `func`). Implement `decode_callable_expr`.
+                # func = self.decode_callable_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.func)
+                # grouped_df = self.decode_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.grouped_df)
+                # kwargs = self.decode_dsl_map_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.kwargs)
+                # output_schema = self.decode_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.output_schema)
+                # return grouped_df.apply_in_pandas(func, output_schema, **kwargs)
+                pass
+
+            case "sp_relational_grouped_dataframe_builtin":
+                grouped_df = self.decode_expr(
+                    expr.sp_relational_grouped_dataframe_builtin.grouped_df
+                )
+                cols = self.decode_col_exprs(
+                    expr.sp_relational_grouped_dataframe_builtin.cols.args
+                )
+                agg_name = expr.sp_relational_grouped_dataframe_builtin.agg_name
+                if (
+                    expr.sp_relational_grouped_dataframe_builtin.cols.variadic
+                    and isinstance(agg_name, list)
+                ):
+                    return grouped_df.function(*agg_name)(*cols)
+                else:
+                    return grouped_df.function(agg_name)(*cols)
+
+            case "sp_relational_grouped_dataframe_ref":
+                return self.symbol_table[
+                    expr.sp_relational_grouped_dataframe_ref.id.bitfield1
+                ][1]
+
             case "sp_table":
                 assert expr.sp_table.HasField("name")
                 table_name = self.decode_table_name_expr(expr.sp_table.name)
@@ -870,6 +967,10 @@ class Decoder:
                 return df.flatten(
                     input=input, path=path, mode=mode, outer=outer, recursive=recursive
                 )
+
+            case "udtf":
+                # TODO: SNOW-1830603 Implement UDTF decoding.
+                pass
 
             case _:
                 raise NotImplementedError(
