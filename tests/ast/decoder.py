@@ -894,7 +894,6 @@ class Decoder:
                 exprs = self.decode_col_exprs(
                     expr.sp_relational_grouped_dataframe_agg.exprs.args
                 )
-                # Check whether exprs is a list before using the * operator since exprs can be a Column.
                 if expr.sp_relational_grouped_dataframe_agg.exprs.variadic is True:
                     return grouped_df.agg(*exprs)
                 else:
