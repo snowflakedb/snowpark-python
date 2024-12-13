@@ -18,7 +18,6 @@ from snowflake.core.view import View
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
-from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import DataType
 
 
@@ -31,7 +30,6 @@ class Catalog:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
         self._root = Root(session)
-        self._python_regex_filter_udf = None
 
     def _parse_database(
         self,
@@ -94,19 +92,6 @@ class Catalog:
 
         arg_types_str = ", ".join(arg.datatype for arg in fn.arguments)
         return f"{fn.name}({arg_types_str})"
-
-    def _initialize_python_regex_udf(self) -> None:
-        """Register the Python regex filter UDFs to the session."""
-        with self._session._lock:
-            if self._python_regex_filter_udf is not None:
-                return
-
-            def python_regex_filter(pattern: str, input: str) -> bool:
-                return bool(re.match(pattern, input))
-
-            self._python_regex_filter_udf = self._session.udf.register(
-                func=python_regex_filter
-            )
 
     # List methods
     def list_databases(
@@ -212,29 +197,6 @@ class Catalog:
             table = table_name
         return table.columns
 
-    def list_functions(
-        self,
-        *,
-        database: Optional[Union[str, Database]] = None,
-        schema: Optional[Union[str, Schema]] = None,
-        pattern: Optional[str] = None,
-    ) -> List[Function]:
-        """List of functions in the given database. If database is not provided, list functions in
-        the current database.
-
-        Args:
-            database: database name or ``Database`` object. Defaults to None.
-        """
-        db_name = self._parse_database(database)
-        schema_name = self._parse_schema(schema)
-        query = f"SHOW FUNCTIONS IN SCHEMA {db_name}.{schema_name}"
-        df = self._session.sql(query)
-
-        if pattern is not None:
-            self._initialize_python_regex_udf()
-            df = df.filter(self._python_regex_filter_udf(lit(pattern), df['"name"']))
-        return df.collect()
-
     def list_procedures(
         self,
         *,
@@ -254,6 +216,33 @@ class Catalog:
         schema_name = self._parse_schema(schema)
 
         iter = self._root.databases[db_name].schemas[schema_name].procedures.iter()
+        if pattern:
+            iter = filter(lambda x: re.match(pattern, x.name), iter)
+
+        return list(iter)
+
+    def list_user_defined_functions(
+        self,
+        *,
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+        pattern: Optional[str] = None,
+    ) -> List[UserDefinedFunction]:
+        """List of user defined functions in the given database and schema. If database or schema
+        are not provided, list user defined functions in the current database and schema.
+        Args:
+            database: database name or ``Database`` object. Defaults to None.
+            schema: schema name or ``Schema`` object. Defaults to None.
+            pattern: the pattern of name to match. Defaults to None.
+        """
+        db_name = self._parse_database(database)
+        schema_name = self._parse_schema(schema)
+
+        iter = (
+            self._root.databases[db_name]
+            .schemas[schema_name]
+            .user_defined_functions.iter()
+        )
         if pattern:
             iter = filter(lambda x: re.match(pattern, x.name), iter)
 
@@ -611,12 +600,14 @@ class Catalog:
     listViews = list_views
     listColumns = list_columns
     listProcedures = list_procedures
+    listUserDefinedFunctions = list_user_defined_functions
 
     getCurrentDatabase = get_current_database
     getCurrentSchema = get_current_schema
     getTable = get_table
     getView = get_view
     getProcedure = get_procedure
+    getUserDefinedFunction = get_user_defined_function
 
     setCurrentDatabase = set_current_database
     setCurrentSchema = set_current_schema
