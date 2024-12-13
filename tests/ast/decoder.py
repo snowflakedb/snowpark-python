@@ -1005,6 +1005,201 @@ class Decoder:
                     input=input, path=path, mode=mode, outer=outer, recursive=recursive
                 )
 
+            case "sp_dataframe_create_or_replace_view":
+                df = self.decode_expr(expr.sp_dataframe_create_or_replace_view.df)
+                name = [
+                    qualified_name
+                    for qualified_name in expr.sp_dataframe_create_or_replace_view.name
+                ]
+
+                statement_params = None
+                if hasattr(
+                    expr.sp_dataframe_create_or_replace_view, "statement_params"
+                ):
+                    d = MessageToDict(expr.sp_dataframe_create_or_replace_view)
+                    statement_params = self.get_statement_params(d)
+
+                comment = None
+                if hasattr(expr.sp_dataframe_create_or_replace_view, "comment"):
+                    comment = expr.sp_dataframe_create_or_replace_view.comment.value
+                is_temp = expr.sp_dataframe_create_or_replace_view.is_temp
+                if is_temp:
+                    if len(comment) > 0:
+                        return df.create_or_replace_temp_view(
+                            name, comment=comment, statement_params=statement_params
+                        )
+                    else:
+                        return df.create_or_replace_temp_view(
+                            name, statement_params=statement_params
+                        )
+                else:
+                    if len(comment) > 0:
+                        return df.create_or_replace_view(
+                            name, comment=comment, statement_params=statement_params
+                        )
+                    return df.create_or_replace_view(
+                        name, statement_params=statement_params
+                    )
+
+            case "sp_dataframe_copy_into_table":
+                df = self.decode_expr(expr.sp_dataframe_copy_into_table.df)
+                name = [
+                    qualified_name
+                    for qualified_name in expr.sp_dataframe_copy_into_table.table_name
+                ]
+                files = [
+                    file_name for file_name in expr.sp_dataframe_copy_into_table.files
+                ]
+                pattern = expr.sp_dataframe_copy_into_table.pattern.value
+                validation_mode = (
+                    expr.sp_dataframe_copy_into_table.validation_mode.value
+                )
+                target_columns = [
+                    column_name
+                    for column_name in expr.sp_dataframe_copy_into_table.target_columns
+                ]
+                transformations = [
+                    self.decode_expr(transformation)
+                    for transformation in expr.sp_dataframe_copy_into_table.transformations
+                ]
+                format_type_options = None
+                if hasattr(expr.sp_dataframe_copy_into_table, "format_type_options"):
+                    format_type_options = {
+                        expr.sp_dataframe_copy_into_table.format_type_options[
+                            i
+                        ]._1: self.decode_expr(
+                            expr.sp_dataframe_copy_into_table.format_type_options[i]._2
+                        )
+                        for i in range(
+                            len(expr.sp_dataframe_copy_into_table.format_type_options)
+                        )
+                    }
+                statement_params = None
+                if hasattr(expr.sp_dataframe_copy_into_table, "statement_params"):
+                    statement_params = {
+                        expr.sp_dataframe_copy_into_table.statement_params[i]
+                        ._1: expr.sp_dataframe_copy_into_table.statement_params[i]
+                        ._2
+                        for i in range(
+                            len(expr.sp_dataframe_copy_into_table.statement_params)
+                        )
+                    }
+                copy_options = None
+                if hasattr(expr.sp_dataframe_copy_into_table, "copy_options"):
+                    copy_options = {
+                        expr.sp_dataframe_copy_into_table.copy_options[
+                            i
+                        ]._1: self.decode_expr(
+                            expr.sp_dataframe_copy_into_table.copy_options[i]._2
+                        )
+                        for i in range(
+                            len(expr.sp_dataframe_copy_into_table.copy_options)
+                        )
+                    }
+
+                df.copy_into_table(
+                    table_name=name,
+                    files=files,
+                    pattern=pattern,
+                    validation_mode=validation_mode,
+                    target_columns=target_columns,
+                    transformations=transformations,
+                    format_type_options=format_type_options,
+                    statement_params=statement_params,
+                    **copy_options,
+                )
+
+            case "sp_dataframe_cache_result":
+                df = self.decode_expr(expr.sp_dataframe_cache_result.df)
+                d = MessageToDict(expr.sp_dataframe_cache_result)
+                statement_params = self.get_statement_params(d)
+                return df.cache_result(statement_params=statement_params)
+
+            case "sp_dataframe_create_or_replace_dynamic_table":
+                df = self.decode_expr(
+                    expr.sp_dataframe_create_or_replace_dynamic_table.df
+                )
+                name = [
+                    qualified_name_part
+                    for qualified_name_part in expr.sp_dataframe_create_or_replace_dynamic_table.name
+                ]
+                warehouse = expr.sp_dataframe_create_or_replace_dynamic_table.warehouse
+                lag = expr.sp_dataframe_create_or_replace_dynamic_table.lag
+                comment = (
+                    expr.sp_dataframe_create_or_replace_dynamic_table.comment.value
+                )
+                mode = "overwrite"
+                match expr.sp_dataframe_create_or_replace_dynamic_table.mode.WhichOneof(
+                    "variant"
+                ):
+                    case "sp_save_mode_append":
+                        mode = "append"
+
+                    case "sp_save_mode_error_if_exists":
+                        mode = "error_if_exists"
+
+                    case "sp_save_mode_ignore":
+                        mode = "ignore"
+
+                    case "sp_save_mode_overwrite":
+                        mode = "overwrite"
+
+                    case "sp_save_mode_truncate":
+                        mode = "truncate"
+
+                refresh_mode = (
+                    expr.sp_dataframe_create_or_replace_dynamic_table.refresh_mode.value
+                )
+                initialize = (
+                    expr.sp_dataframe_create_or_replace_dynamic_table.initialize.value
+                )
+                clustering_keys = [
+                    self.decode_expr(clustering_key)
+                    for clustering_key in expr.sp_dataframe_create_or_replace_dynamic_table.clustering_keys.list
+                ]
+                is_transient = (
+                    expr.sp_dataframe_create_or_replace_dynamic_table.is_transient
+                )
+                data_retention_time = (
+                    expr.sp_dataframe_create_or_replace_dynamic_table.data_retention_time.value
+                )
+                max_data_extension_time = None
+                if hasattr(
+                    expr.sp_dataframe_create_or_replace_dynamic_table,
+                    "max_data_extension_time",
+                ):
+                    max_data_extension_time = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.max_data_extension_time.value
+                    )
+                d = MessageToDict(expr.sp_dataframe_create_or_replace_dynamic_table)
+                statement_params = self.get_statement_params(d)
+                iceberg_config = None
+                if hasattr(
+                    expr.sp_dataframe_create_or_replace_dynamic_table, "iceberg_config"
+                ):
+                    iceberg_config = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.iceberg_config
+                    )
+                return df.create_or_replace_dynamic_table(
+                    name=name,
+                    warehouse=warehouse,
+                    lag=lag,
+                    comment=comment,
+                    mode=mode,
+                    refresh_mode=refresh_mode,
+                    initialize=initialize,
+                    clustering_keys=clustering_keys,
+                    is_transient=is_transient,
+                    data_retention_time=data_retention_time,
+                    max_data_extension_time=max_data_extension_time,
+                    statement_params=statement_params,
+                    iceberg_config=iceberg_config,
+                )
+
+            case "sp_dataframe_write":
+                df = self.decode_expr(expr.sp_dataframe_write.df)
+                return df.write
+
             case _:
                 raise NotImplementedError(
                     "Expression type not implemented yet: %s"
