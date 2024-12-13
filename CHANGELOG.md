@@ -10,6 +10,7 @@
   - `divnull`
   - `nullifzero`
   - `snowflake_cortex_sentiment`
+- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
 
 ### Snowpark pandas API Updates
 
@@ -28,7 +29,6 @@
 #### New Features
 
 - Added support for property `version` and class method `get_active_session` for `Session` class.
-- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
 - Added new methods and variables to enhance data type handling and JSON serialization/deserialization:
   - To `DataType`, its derived classes, and `StructField`:
     - `type_name`: Returns the type name of the data.
