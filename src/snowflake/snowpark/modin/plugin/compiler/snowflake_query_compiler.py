@@ -185,7 +185,6 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
     APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
     DEFAULT_UDTF_PARTITION_SIZE,
-    NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION,
     GroupbyApplySortMethod,
     check_return_variant_and_get_return_type,
     create_udf_for_series_apply,
@@ -373,6 +372,9 @@ from snowflake.snowpark.modin.plugin._typing import (
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
+from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
+    NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION,
+)
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
@@ -8760,7 +8762,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Check if the function is a known numpy function that can be translated to Snowflake function.
         sf_func = NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
         if sf_func is not None:
-            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+            # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
+            return self._apply_snowpark_python_function_to_columns(
+                sf_func, kwargs
+            )  # pragma: no cover
 
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
