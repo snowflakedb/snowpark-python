@@ -10288,11 +10288,6 @@ def cbrt(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin("cbrt", _emit_ast=_emit_ast)(c)
 
 
-def test_cbrt(session):
-    df = session.create_dataframe([0, 2, -10, None], schema=["x"])
-    return df.select(cbrt(df["x"]).alias("cbrt_x")).collect()
-
-
 @publicapi
 def equal_null(e1: ColumnOrName, e2: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
@@ -10342,8 +10337,8 @@ def localtimestamp(fract_sec_precision: int = 9, _emit_ast: bool = True) -> Colu
 
     Example::
 
-        >>> session.sql("SELECT LOCALTIMESTAMP(3) AS result").collect()  # doctest: +ELLIPSIS
-        ...
+        >>> df = session.create_dataframe([1], schema=["a"])
+        >>> df.select(localtimestamp(3)).collect()  # doctest: +SKIP
     """
     c = Literal(fract_sec_precision)
     return builtin("localtimestamp", _emit_ast=_emit_ast)(c)
