@@ -43,8 +43,8 @@ def filter_by_role(session, table_name, role):
         session.sql("DROP PROCEDURE filter_by_role(VARCHAR, VARCHAR)").collect()
 
 
-@sql_count_checker(query_count=5, sproc_count=2)
-def test_read_snowflake_call_system_function(session):
-    df = pd.read_snowflake("CALL SYSTEM$TYPEOF(TRUE)")
-    native_df = session.sql("CALL SYSTEM$TYPEOF(TRUE)").to_pandas()
+@sql_count_checker(query_count=4)
+def test_read_snowflake_system_function(session):
+    df = pd.read_snowflake("SELECT SYSTEM$TYPEOF(TRUE)")
+    native_df = session.sql("SELECT SYSTEM$TYPEOF(TRUE)").to_pandas()
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(df, native_df)
