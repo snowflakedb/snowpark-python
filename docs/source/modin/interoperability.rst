@@ -18,6 +18,9 @@ to passing in a pandas dataframe.
 
 Plotly.express module methods
 
+.. note::
+    Currently only plotly versions <6.0.0 are supported through the dataframe interchange protocol.
+
 +-------------------------+---------------------------------------------+--------------------------------------------+
 | Method name             | Interoperable with Snowpark pandas? (Y/N)   | Notes for current implementation           |
 +-------------------------+---------------------------------------------+--------------------------------------------+
