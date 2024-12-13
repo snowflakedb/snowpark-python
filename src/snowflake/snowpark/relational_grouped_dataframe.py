@@ -160,12 +160,14 @@ class RelationalGroupedDataFrame:
         grouping_exprs: List[Expression],
         group_type: _GroupType,
         _ast_stmt: Optional[proto.Assign] = None,
+        stream_source = None
     ) -> None:
         self._dataframe = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type
         self._df_api_call = None
         self._ast_id = _ast_stmt.var_id.bitfield1 if _ast_stmt is not None else None
+        self._stream_source = stream_source
 
     def _to_df(
         self,
@@ -246,7 +248,7 @@ class RelationalGroupedDataFrame:
             group_plan,
             _ast_stmt=_ast_stmt,
             _emit_ast=_emit_ast,
-        )
+        ).set_stream_source(self._stream_source)
 
     @relational_group_df_api_usage
     @publicapi
