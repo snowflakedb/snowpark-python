@@ -19,6 +19,7 @@
 - Added support for `Series.str.center`.
 - Added support for `Series.str.pad`.
 - Added support for applying Snowpark Python function `snowflake_cortex_sentiment`.
+- Added support for `DataFrame.map`.
 
 #### Improvements
 - Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
