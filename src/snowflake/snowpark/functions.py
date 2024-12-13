@@ -10159,3 +10159,19 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     sql_func_name = "snowflake.cortex.summarize"
     text_col = _to_col_if_lit(text, sql_func_name)
     return builtin(sql_func_name)(text_col)
+
+
+def snowflake_cortex_classify_text(input: ColumnOrLiteralStr, list_of_categories):
+    """
+    Classifies free-form text into categories that you provide.
+    Args:
+        input: A string containing the English text from which a summary should be generated.
+        list_of_categories: Array that represents the categories. Must contain at least two and at most 100 unique
+            categories. Categories are case sensitive. If these requirements are not met, the function returns an error.
+    Returns:
+        Returns a string that contains a JSON object. The JSON object contains the category that the input prompt was
+        classified as. If invalid arguments are given, an error is returned.
+    """
+    sql_func_name = "snowflake.cortex.classify_text"
+    input_col = _to_col_if_lit(input, sql_func_name)
+    return builtin(sql_func_name)(input_col, list_of_categories)
