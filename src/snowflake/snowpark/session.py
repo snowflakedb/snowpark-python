@@ -39,6 +39,10 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
+from snowflake.core import Root
+from snowflake.core.database import DatabaseResource
+from snowflake.core.schema import SchemaResource
+
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
@@ -532,6 +536,31 @@ class Session:
     #: Returns a builder you can use to set configuration properties
     #: and create a :class:`Session` object.
     builder: SessionBuilder = SessionBuilder()
+
+    class SnowparkManagementRoot(Root):
+        """The root object for Snowpark management operations."""
+
+        def current_database(self) -> DatabaseResource:
+            """Returns the current database resource to manage objects of this database."""
+            current_database_name = self.session.get_current_database()
+            if not current_database_name:
+                raise SnowparkClientException(
+                    "The current database is not set. Please set it when creating the session, or use session.use_database() to set it."
+                )
+            return self.databases[current_database_name]
+
+        def current_schema(self) -> SchemaResource:
+            """Returns the current schema resource to manage objects of this schema."""
+            current_schema_name = self.session.get_current_schema()
+            if not current_schema_name:
+                raise SnowparkClientException(
+                    "The current schema is not set. Please set it when creating the session, or use session.use_schema() to set it."
+                )
+            return self.current_database().schemas[current_schema_name]
+
+    def management(self) -> SnowparkManagementRoot:
+        """Returns the root object for Snowpark management operations."""
+        return self.SnowparkManagementRoot(self)
 
     def __init__(
         self,
