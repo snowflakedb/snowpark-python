@@ -429,9 +429,7 @@ class OrderedDataFrame:
         else:
             from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 
-            row_count = self.select(count("*").as_("__count_of_rows__"),).collect()[
-                0
-            ][0]
+            row_count = self._dataframe_ref.snowpark_dataframe.count()
             ordered_dataframe = self.select(
                 *self.projected_column_snowflake_quoted_identifiers,
                 pandas_lit(row_count).as_(row_count_snowflake_quoted_identifier),
