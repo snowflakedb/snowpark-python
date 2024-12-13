@@ -35,8 +35,8 @@ pytest --update-expectations tests/ast
 For these tests to work, the Unparser must be built in the monorepo:
 ```bash
 cd my-monorepo-path
-cd Snowflake/unparser
-sbt assembly
+bazel build //Snowpark/unparser
 ```
 
-The location of the Unparser can be set either via the environment variable `SNOWPARK_UNPARSER_JAR` or via the _pytest_ commandline argument `--unparser-jar=<path>`.
+The location of the monorepo must be supplied in the environment variable `MONOREPO_DIR`.
+Alternatively, use `scripts/copy-remote-ast.sh` to copy the necessary artifacts from a cloud workspace.

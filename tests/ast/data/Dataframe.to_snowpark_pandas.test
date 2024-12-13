@@ -2,21 +2,26 @@
 
 df = session.table(tables.table1)
 
-df = df.select(col("*")).limit(3)
+snowpark_pandas_df = df.to_snowpark_pandas()
 
-df = df.select(col("*")).limit(n=1, offset=1)
+snowpark_pandas_df = df.to_snowpark_pandas(index_col="A")
+
+snowpark_pandas_df = df.to_snowpark_pandas(columns=["B", "A"])
+
+snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"], columns=["C", "B"])
+
 
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
 
-df = df.select("*")
+snowpark_pandas_df = df.to_snowpark_pandas()
 
-df = df.limit(3, 0)
+snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"])
 
-df = df.select("*")
+snowpark_pandas_df = df.to_snowpark_pandas(columns=["B", "A"])
 
-df = df.limit(1, 1)
+snowpark_pandas_df = df.to_snowpark_pandas(index_col=["A"], columns=["C", "B"])
 
 ## EXPECTED ENCODED AST
 
@@ -30,10 +35,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -53,19 +55,7 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
-        cols {
-          sp_column_sql_expr {
-            sql: "*"
-            src {
-              end_column: 31
-              end_line: 27
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 23
-              start_line: 27
-            }
-          }
-        }
+      sp_to_snowpark_pandas {
         df {
           sp_dataframe_ref {
             id {
@@ -74,17 +64,13 @@ body {
           }
         }
         src {
-          end_column: 32
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
-      value: "df"
+      value: "snowpark_pandas_df"
     }
     uid: 2
     var_id {
@@ -95,26 +81,25 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_limit {
+      sp_to_snowpark_pandas {
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 2
+              bitfield1: 1
             }
           }
         }
-        n: 3
+        index_col {
+          list: "A"
+        }
         src {
-          end_column: 41
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
-          start_line: 27
+          start_line: 29
         }
       }
     }
     symbol {
-      value: "df"
+      value: "snowpark_pandas_df"
     }
     uid: 3
     var_id {
@@ -125,38 +110,26 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
-        cols {
-          sp_column_sql_expr {
-            sql: "*"
-            src {
-              end_column: 31
-              end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 23
-              start_line: 29
-            }
-          }
+      sp_to_snowpark_pandas {
+        columns {
+          list: "B"
+          list: "A"
         }
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 3
+              bitfield1: 1
             }
           }
         }
         src {
-          end_column: 32
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
-          start_line: 29
+          start_line: 31
         }
-        variadic: true
       }
     }
     symbol {
-      value: "df"
+      value: "snowpark_pandas_df"
     }
     uid: 4
     var_id {
@@ -167,27 +140,29 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_limit {
+      sp_to_snowpark_pandas {
+        columns {
+          list: "C"
+          list: "B"
+        }
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 4
+              bitfield1: 1
             }
           }
         }
-        n: 1
-        offset: 1
+        index_col {
+          list: "A"
+        }
         src {
-          end_column: 53
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
-          start_line: 29
+          start_line: 33
         }
       }
     }
     symbol {
-      value: "df"
+      value: "snowpark_pandas_df"
     }
     uid: 5
     var_id {
@@ -208,5 +183,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 25
 }
