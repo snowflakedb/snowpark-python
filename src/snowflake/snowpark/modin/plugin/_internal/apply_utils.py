@@ -35,6 +35,7 @@ from snowflake.snowpark.functions import (
     _log2,
     _log10,
     sin,
+    snowflake_cortex_classify_text,
     snowflake_cortex_summarize,
     udf,
     to_variant,
@@ -110,6 +111,7 @@ SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
     floor,
     trunc,
     sqrt,
+    snowflake_cortex_classify_text,
     snowflake_cortex_summarize,
 }
 

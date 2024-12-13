@@ -10,7 +10,7 @@ import pandas as native_pd
 import pytest
 
 from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
-from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
 
 
 @sql_count_checker(query_count=4)
@@ -89,3 +89,21 @@ def test_apply_snowflake_cortex_summarize():
     summary = s.apply(snowflake_cortex_summarize).iloc[0]
     # this length check is to get around the fact that this function may not be deterministic
     assert 0 < len(summary) < len(content)
+
+
+def test_apply_snowflake_cortex_classify_text(session):
+    from snowflake.snowpark.functions import snowflake_cortex_classify_text
+
+    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
+    with SqlCounter(query_count=0):
+        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+            return
+
+    with SqlCounter(query_count=1):
+        content = "One day I will see the world."
+        s = pd.Series([content])
+        text_class = s.apply(
+            snowflake_cortex_classify_text, list_of_categories=["travel", "cooking"]
+        ).iloc[0]
+        text_class_label = text_class["label"]
+        assert text_class_label in ["travel", "cooking"]
