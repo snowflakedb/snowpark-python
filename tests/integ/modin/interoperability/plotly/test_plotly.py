@@ -21,8 +21,7 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
 
 def assert_plotly_equal(expect, got):
     # referenced from cudf plotly integration test
-    # https://github.com/rapidsai/cudf/blob/main/python/cudf/cudf_pandas_tests/third_party_integration_tests/tests/
-    # test_plotly.py#L10
+    # https://github.com/rapidsai/cudf/blob/main/python/cudf/cudf_pandas_tests/third_party_integration_tests/tests/test_plotly.py#L10
 
     assert type(expect) == type(got)
     if isinstance(expect, dict):
@@ -59,7 +58,6 @@ def test_dfs():
 
 @sql_count_checker(query_count=1)
 def test_scatter(test_dfs):
-    # test_dfs = dfs()
     eval_snowpark_pandas_result(
         *test_dfs,
         lambda df: px.scatter(df, x="x", y="y").to_plotly_json(),
