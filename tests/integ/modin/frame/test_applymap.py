@@ -134,13 +134,13 @@ def test_applymap_na_action_ignore(method):
 
 @pytest.mark.parametrize("invalid_input", ["min", [np.min], {"a": np.max}])
 @sql_count_checker(query_count=0)
-def test_applymap_invalid_input(invalid_input):
+def test_applymap_invalid_input(invalid_input, method):
     snow_df = pd.DataFrame([1])
     native_df = native_pd.DataFrame([1])
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda x: x.applymap(invalid_input),
+        lambda x: getattr(x, method)(invalid_input),
         expect_exception=True,
         expect_exception_match="is not callable",
         assert_exception_equal=False,

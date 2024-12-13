@@ -140,7 +140,7 @@ def register_dataframe_not_implemented():
 def _map(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
     # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     if not callable(func):
-        raise TypeError(f"{func} is not callable")
+        raise TypeError(f"{func} is not callable")  # pragma: no cover
     return self.__constructor__(
         query_compiler=self._query_compiler.applymap(
             func, na_action=na_action, **kwargs
