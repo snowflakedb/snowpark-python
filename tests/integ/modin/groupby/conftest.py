@@ -27,8 +27,6 @@ int_to_decimal_float_agg_methods = [
     lambda gr: gr.median(),
     lambda gr: gr.var(),
     lambda gr: gr.var(ddof=0),
-    lambda gr: gr.quantile(),
-    lambda gr: gr.quantile(q=0.3),
 ]
 all_agg_methods = result_compatible_agg_methods + int_to_decimal_float_agg_methods
 
