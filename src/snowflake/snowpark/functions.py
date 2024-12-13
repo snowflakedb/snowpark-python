@@ -2015,6 +2015,47 @@ def div0(
 
 
 @publicapi
+def divnull(
+    dividend: Union[ColumnOrName, int, float],
+    divisor: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+) -> Column:
+    """Performs division like the division operator (/),
+    but returns NULL when the divisor is 0 (rather then reporting error).
+
+    Example::
+
+        >>> df = session.create_dataframe([1], schema=["a"])
+        >>> df.select(divnull(df["a"], 1).alias("divided_by_one"), divnull(df["a"], 0).alias("divided_by_zero")).collect()
+        [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=None)]
+    """
+    dividend_col = (
+        lit(dividend, _emit_ast=False)
+        if isinstance(dividend, (int, float))
+        else _to_col_if_str(dividend, "divnull")
+    )
+    divisor_col = (
+        lit(divisor, _emit_ast=False)
+        if isinstance(divisor, (int, float))
+        else _to_col_if_str(divisor, "divnull")
+    )
+    return dividend_col / nullifzero(divisor_col, _emit_ast=False)
+
+
+@publicapi
+def nullifzero(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Returns NULL if the argument evaluates to 0; otherwise, returns the argument.
+
+    Example::
+        >>> df = session.create_dataframe([0, 1], schema=["a"])
+        >>> df.select(nullifzero(df["a"]).alias("result")).collect()
+        [Row(RESULT=None), Row(RESULT=1)]
+    """
+    c = _to_col_if_str(e, "nullifzero")
+    return builtin("nullifzero", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
 def sqrt(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """Returns the square-root of a non-negative numeric expression.
 
@@ -10157,5 +10198,27 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
         A string containing a summary of the original text.
     """
     sql_func_name = "snowflake.cortex.summarize"
+    text_col = _to_col_if_lit(text, sql_func_name)
+    return builtin(sql_func_name)(text_col)
+
+
+def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
+    """
+    A string containing the text for which a sentiment score should be calculated.
+
+    Args:
+        text: A string containing the English text from which a summary should be generated.
+    Returns:
+        A floating-point number from -1 to 1 (inclusive) indicating the level of negative or positive sentiment in the
+        text. Values around 0 indicate neutral sentiment.
+
+    Example::
+
+        >>> content = "A very very bad review!"
+        >>> df = session.create_dataframe([[content]], schema=["content"])
+        >>> result = df.select(snowflake_cortex_sentiment(content)).collect()[0][0]
+        >>> assert -1 <= result <= 0
+    """
+    sql_func_name = "snowflake.cortex.sentiment"
     text_col = _to_col_if_lit(text, sql_func_name)
     return builtin(sql_func_name)(text_col)
