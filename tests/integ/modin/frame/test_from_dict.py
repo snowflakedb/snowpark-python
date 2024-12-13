@@ -44,7 +44,7 @@ def test_from_dict_orient_index_columns():
 
 
 @sql_count_checker(query_count=1)
-def test_from_dict_orient_index_tight():
+def test_from_dict_orient_tight():
     data = {
         "index": [("a", "b"), ("a", "c")],
         "columns": [("x", 1), ("y", 2)],

@@ -440,7 +440,7 @@ def from_records(
     Convert structured or record ndarray to ``DataFrame``.
     """
     if isinstance(data, DataFrame):
-        raise NotImplementedError(
+        ErrorMessage.not_implemented(
             "Snowpark pandas 'DataFrame.from_records' method does not yet support 'data' parameter of type 'DataFrame'"
         )
     return DataFrame(
