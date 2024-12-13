@@ -1,5 +1,5 @@
 Interoperability with third party libraries
-=========================================
+=============================================
 
 Many third party libraries are interoperable with pandas, for example by accepting pandas dataframes objects as function
 inputs. Here we have a non-exhaustive list of third party library use cases with pandas and note whether each method
