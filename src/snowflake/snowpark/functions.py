@@ -10159,3 +10159,18 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     sql_func_name = "snowflake.cortex.summarize"
     text_col = _to_col_if_lit(text, sql_func_name)
     return builtin(sql_func_name)(text_col)
+
+
+@publicapi
+def asinh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the inverse hyperbolic sine of the given value.
+
+    Example::
+
+        >>> df = session.create_dataframe([2.129279455], schema=["a"])
+        >>> df.select(asinh(df["a"]).alias("asinh")).collect()
+        [Row(ASINH=1.4999999999596934)]
+    """
+    c = _to_col_if_str(e, "asinh")
+    return builtin("asinh", _emit_ast=_emit_ast)(c)
