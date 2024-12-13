@@ -200,7 +200,7 @@ setup(
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
             "scikit-learn==1.5.2",  # Snowpark pandas scikit-learn tests
-            # plotly version restricted to <6.0.0 due to unsupported `from_dict` (SNOW-1855330)
+            # plotly version restricted due to foreseen change in query counts in version 6.0.0+
             "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
         ],
         "localtest": [
