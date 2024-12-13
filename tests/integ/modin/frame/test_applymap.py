@@ -107,7 +107,7 @@ def test_applymap_numpy(func):
     native_df = native_pd.DataFrame(data)
     snow_df = pd.DataFrame(data)
 
-    with SqlCounter(query_count=7, udf_count=1):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.applymap(func))
 
 

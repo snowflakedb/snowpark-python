@@ -58,3 +58,14 @@ def test_from_dict_orient_index_tight():
         native_pd.DataFrame.from_dict(data, orient="tight"),
         check_dtype=False,
     )
+
+
+@sql_count_checker(query_count=7)
+def test_from_dict_series_values():
+    data = {i: pd.Series(range(1)) for i in range(2)}
+
+    assert_frame_equal(
+        pd.DataFrame.from_dict(data),
+        native_pd.DataFrame.from_dict(data),
+        check_dtype=False,
+    )
