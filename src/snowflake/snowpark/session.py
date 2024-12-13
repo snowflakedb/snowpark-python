@@ -247,8 +247,8 @@ _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION = (
 _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED = (
     "PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED"
 )
-_PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION = (
-    "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION"
+_PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION = (
+    "PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION"
 )
 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
     "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND"
@@ -619,10 +619,8 @@ class Session:
                 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
             )
         )
-        self._large_query_breakdown_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION, False
-            )
+        self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
+            _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
         self._ast_enabled: bool = self._conn._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
@@ -817,28 +815,6 @@ class Session:
         When setting this parameter to ``True``, Snowpark will automatically clean up temporary tables created by
         :meth:`DataFrame.cache_result` in the current session when the DataFrame is no longer referenced (i.e., gets garbage collected).
         The default value is ``False``.
-
-        Example::
-
-            >>> import gc
-            >>>
-            >>> def f(session: Session) -> str:
-            ...     df = session.create_dataframe(
-            ...         [[1, 2], [3, 4]], schema=["a", "b"]
-            ...     ).cache_result()
-            ...     return df.table_name
-            ...
-            >>> session.auto_clean_up_temp_table_enabled = True
-            >>> table_name = f(session)
-            >>> assert table_name
-            >>> gc.collect() # doctest: +SKIP
-            >>>
-            >>> # The temporary table created by cache_result will be dropped when the DataFrame is no longer referenced
-            >>> # outside the function
-            >>> session.sql(f"show tables like '{table_name}'").count()
-            0
-
-            >>> session.auto_clean_up_temp_table_enabled = False
 
         Note:
             Temporary tables will only be dropped if this parameter is enabled during garbage collection.

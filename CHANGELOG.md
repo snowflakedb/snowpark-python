@@ -1,6 +1,17 @@
 # Release History
 
-## 1.26.0 (TBD)
+## 1.27.0 (TBD)
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `Series.str.ljust` and `Series.str.rjust`.
+- Added support for `Series.str.center`.
+- Added support for `Series.str.pad`.
+
+
+## 1.26.0 (2024-12-05)
 
 ### Snowpark Python API Updates
 
@@ -23,7 +34,6 @@
 - Added support for following functions in `functions.py`:
   - `size` to get size of array, object, or map columns.
   - `collect_list` an alias of `array_agg`.
-  - `concat_ws_ignore_nulls` to concatenate strings with a separator, ignoring null values.
   - `substring` makes `len` argument optional.
 - Added parameter `ast_enabled` to session for internal usage (default: `False`).
 
@@ -43,6 +53,7 @@
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
   - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
   - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
+- Relaxed the cloudpickle dependency for Python 3.11 to simplify build requirements. However, for Python 3.11, `cloudpickle==2.2.1` remains the only supported version.
 
 #### Bug Fixes
 
@@ -50,9 +61,9 @@
   dynamic pivot is now generally available.
 - Fixed a bug in `session.read.options` where `False` Boolean values were incorrectly parsed as `True` in the generated file format.
 
-
 #### Dependency Updates
 
+- Added a runtime dependency on `python-dateutil`.
 
 ### Snowpark pandas API Updates
 
@@ -66,24 +77,17 @@
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
 - Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
 - Added support for `np.sqrt`, `np.trunc`, `np.floor`, numpy trig functions, `np.exp`, `np.abs`, `np.positive` and `np.negative`.
-
-#### Dependency Updates
+- Added partial support for the dataframe interchange protocol method
+  `DataFrame.__dataframe__()`.
 
 #### Bug Fixes
+
 - Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
-
 #### Improvements
+
 - Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinel values.
 - Improved documentation for pd.read_excel.
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-
-#### Bug Fixes
-
 
 ## 1.25.0 (2024-11-14)
 
