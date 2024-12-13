@@ -1029,8 +1029,8 @@ class DataStreamReader(DataFrameReader):
                     lit(topic),
                     lit(partition_id)
                 )
-            )
+            ).set_stream_source("kafka")
         elif self._format == "table":
-            return self._session.table(self._cur_options["TABLE_NAME"])
+            return self._session.table(self._cur_options["TABLE_NAME"]).set_stream_source("table")
         else:
             raise NotImplementedError(f"cannot stream read in format {self._format}")

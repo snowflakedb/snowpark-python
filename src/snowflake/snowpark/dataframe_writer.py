@@ -922,33 +922,64 @@ class DataFrameWriter:
 
 
 class DataStreamWriter(DataFrameWriter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._output_mode = None
+        self._processing_time = None
+
     def toTable(self, table_name: str) -> AsyncJob:
-        self._dataframe.session.custom_package_usage_config['force_push'] = True
-        self._dataframe.session.custom_package_usage_config['enabled'] = True             
-        self._dataframe.session.add_import(snowflake.snowpark.write_stream_to_table.__file__, import_path="snowflake.snowpark.write_stream_to_table")   
-        self._dataframe.session.sql("create or replace  stage mystage").collect()
+        if self._dataframe._stream_source is None:
+            raise NotImplementedError("Could not track streaming source of this dataframe")
+        elif self._dataframe._stream_source == "kafka":
+            self._dataframe.session.custom_package_usage_config['force_push'] = True
+            self._dataframe.session.custom_package_usage_config['enabled'] = True             
+            self._dataframe.session.add_import(snowflake.snowpark.write_stream_to_table.__file__, import_path="snowflake.snowpark.write_stream_to_table")   
+            self._dataframe.session.sql("create or replace  stage mystage").collect()
 
 
-        write_stream_udf = udf(
-            write_stream_to_table,
-            input_types=
-            [
-                StringType(), 
-                *(f.datatype for f in self._dataframe.schema.fields)
-            ],
-            is_permanent=True,
-            replace=True,
-            name='write_stream_udf',
-            stage_location="@mystage"            
-        )
-
-        return self._dataframe.select(write_stream_udf(
-            lit(table_name),
-            *(
-                col(f.name)
-                for f in self._dataframe.schema.fields
+            write_stream_udf = udf(
+                write_stream_to_table,
+                input_types=
+                [
+                    StringType(), 
+                    *(f.datatype for f in self._dataframe.schema.fields)
+                ],
+                is_permanent=True,
+                replace=True,
+                name='write_stream_udf',
+                stage_location="@mystage"            
             )
-        )).collect_nowait()
+
+            return self._dataframe.select(write_stream_udf(
+                lit(table_name),
+                *(
+                    col(f.name)
+                    for f in self._dataframe.schema.fields
+                )
+            )).collect_nowait()
+        elif self._dataframe._stream_source == "table":
+            if self._output_mode == "append":
+                refresh_mode = "incremental"
+            elif self._output_mode == "complete":
+                refresh_mode = "full"
+            else:
+                raise NotImplementedError(f"unsupported output mode {self._output_mode}")
+            self._dataframe.create_or_replace_dynamic_table(
+                table_name,
+                warehouse=self._dataframe.session.connection.warehouse,
+                lag=self._processing_time,
+                refresh_mode=refresh_mode
+            )
+        else:
+            raise NotImplementedError(f"Cannot write dataframe with source {self._dataframe._stream_source}")
     
     def outputMode(self, output_mode: str) -> "DataStreamWriter":
-        raise NotImplementedError
+        self._output_mode = output_mode
+        return self
+    
+    def trigger(self, **kwargs) -> "DataStreamWriter":
+        if list(kwargs.keys()) != ["processingTime"]:
+            raise NotImplementedError("can only handle trigger with processingTime=")
+        self._processing_time = kwargs["processingTime"]
+        return self
+    
