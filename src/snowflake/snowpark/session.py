@@ -3629,13 +3629,13 @@ class Session:
 
             >>> session.use_secondary_roles('none')
         """
-        def format_roles(roles):
+        def format_roles(value):
             if not roles:
                 return 'none'
-            if isinstance(roles, List):
+            if isinstance(value, List):
                 # format the list according to syntax: <role_name> [ , <role_name> ... ]
                 return ', '.join(roles)
-            return roles.lower()
+            return value.lower()
 
         self._run_query(
             f"use secondary roles {format_roles(roles)}"
