@@ -653,9 +653,10 @@ class Session:
                             "large_query_breakdown_enabled",
                             dedent(
                                 """
-                                Set the value for large_query_breakdown_enabled. When enabled, the client will automatically detect large query plans and break them down into smaller partitions,
-                                materialize the partitions, and then combine them to execute the query to improve
-                                overall performance.
+                                Set the value for large_query_breakdown_enabled. When enabled, the
+                                client will automatically detect large query plans and break them
+                                down into smaller partitions, materialize the partitions, and then
+                                combine them to execute the query to improve overall performance.
                                 """
                             ),
                             parameter_name="PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION",

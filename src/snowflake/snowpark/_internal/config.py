@@ -31,7 +31,7 @@ from snowflake.snowpark._internal.utils import (
 )
 
 if TYPE_CHECKING:
-    from snowflake.snowpark.session import Session
+    from snowflake.snowpark.session import Session  # pragma: no cover
 
 SettingType = TypeVar("SettingType")
 
@@ -108,6 +108,7 @@ class SettingGroup(Setting):
     settings: list[Setting] = field(default_factory=list)
 
     def __post_init__(self):
+        super().__post_init__()
         for setting in self.settings:
             setting._parent = self
 
@@ -204,8 +205,7 @@ class SettingStore:
                 reflected in the parent store.
         """
         self._settings = dict()
-        if extend_from is not None:
-            self.add(extend_from._settings.values())
+        self._parent = extend_from
         self.add(settings)
 
     def _add(self, setting: Setting):
@@ -230,17 +230,29 @@ class SettingStore:
         """
         if setting_name in self._settings:
             self._settings[setting_name].value = value
+        elif self._parent:
+            self._parent.set(setting_name, value)
         else:
             raise ValueError(f"Unable to set setting. Unknown setting {setting_name}")
 
-    def get(self, setting_name: str, default: Any | None = None):
+    def _get(self, setting_name: str) -> Any:
+        if setting_name in self._settings:
+            return self._settings[setting_name].value
+        elif (
+            self._parent
+            and (parent_value := self._parent._get(setting_name)) is not None
+        ):
+            return parent_value
+        return None
+
+    def get(self, setting_name: str, default: Any | None = None) -> Any:
         """
         Retrieves the value for the given setting or returns a default value if the setting does not exist.
         """
-        if setting_name in self._settings:
-            return self._settings[setting_name].value
-        else:
-            return default
+        value = self._get(setting_name)
+        if value:
+            return value
+        return default
 
     def update(self, options: dict[str, Any]):
         """
@@ -252,6 +264,8 @@ class SettingStore:
         for k, v in options.items():
             if k in self._settings:
                 self.set(k, v)
+            elif self._parent:
+                self._parent.set(k, v)
 
     def __getitem__(self, instance):
         return self.get(instance)
