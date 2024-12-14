@@ -200,7 +200,8 @@ def test_setting_store():
     assert child_config["parent_setting"] == 4
 
     # Updating multiple items uses the same rules
-    child_config.update({"parent_setting": 5, "child_setting": 11})
+    # Missing config is ignored
+    child_config.update({"parent_setting": 5, "child_setting": 11, "missing": True})
 
     assert parent_config.get("parent_setting") == 5
     assert child_config.get("parent_setting") == 5
