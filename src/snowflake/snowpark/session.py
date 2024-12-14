@@ -3602,19 +3602,43 @@ class Session:
         """
         self._use_object(role, "role")
 
-    def use_secondary_roles(self, roles: Optional[Literal["all", "none"]]) -> None:
+    def use_secondary_roles(self, roles: Optional[Union[List[str], Literal['all', 'none']]]) -> None:
         """
         Specifies the active/current secondary roles for the session.
         The currently-active secondary roles set the context that determines whether
         the current user has the necessary privileges to perform SQL actions.
 
-        Args:
-            roles: "all" or "none". ``None`` means "none".
-
         References: `Snowflake command USE SECONDARY ROLES <https://docs.snowflake.com/en/sql-reference/sql/use-secondary-roles.html>`_.
+
+        Args:
+            roles: list of specific roles or "all" or "none". ``None`` means "none".
+
+        Example 1
+            Use specific roles as secondary roles:
+
+            >>> secondary_roles = ['READER_ROLE_A', 'READER_ROLE_B']
+            >>> session.use_secondary_roles(secondary_roles)
+
+        Example 2
+            Use all roles that have been granted in addition to the current active primary role:
+
+            >>> session.use_secondary_roles('all')
+
+        Example 3
+            Use no secondary roles. Disables secondary roles in the current session:
+
+            >>> session.use_secondary_roles('none')
         """
+        def format_roles(value):
+            if not roles:
+                return 'none'
+            if isinstance(value, List):
+                # format the list according to syntax: <role_name> [ , <role_name> ... ]
+                return ', '.join(roles)
+            return value.lower()
+
         self._run_query(
-            f"use secondary roles {'none' if roles is None else roles.lower()}"
+            f"use secondary roles {format_roles(roles)}"
         )
 
     def _use_object(self, object_name: str, object_type: str) -> None:
