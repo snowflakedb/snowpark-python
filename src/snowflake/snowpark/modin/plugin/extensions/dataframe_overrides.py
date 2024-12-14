@@ -412,17 +412,27 @@ def __rdivmod__(self, other):
 # The from_dict and from_records accessors are class methods and cannot be overridden via the
 # extensions module, as they need to be foisted onto the namespace directly because they are not
 # routed through getattr. To this end, we manually set DataFrame.from_dict to our new method.
-@dataframe_not_implemented()
+@classmethod
 def from_dict(
     cls, data, orient="columns", dtype=None, columns=None
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    """
+    Construct ``DataFrame`` from dict of array-like or dicts.
+    """
+    return DataFrame(
+        native_pd.DataFrame.from_dict(
+            data=data,
+            orient=orient,
+            dtype=dtype,
+            columns=columns,
+        )
+    )
 
 
 DataFrame.from_dict = from_dict
 
 
-@dataframe_not_implemented()
+@classmethod
 def from_records(
     cls,
     data,
@@ -432,7 +442,23 @@ def from_records(
     coerce_float=False,
     nrows=None,
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    """
+    Convert structured or record ndarray to ``DataFrame``.
+    """
+    if isinstance(data, DataFrame):
+        ErrorMessage.not_implemented(
+            "Snowpark pandas 'DataFrame.from_records' method does not yet support 'data' parameter of type 'DataFrame'"
+        )
+    return DataFrame(
+        native_pd.DataFrame.from_records(
+            data=data,
+            index=index,
+            exclude=exclude,
+            columns=columns,
+            coerce_float=coerce_float,
+            nrows=nrows,
+        )
+    )
 
 
 DataFrame.from_records = from_records
