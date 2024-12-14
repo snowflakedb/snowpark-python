@@ -1686,12 +1686,151 @@ class DataFrame(BasePandasDataset):
     @classmethod
     def from_dict():
         """
-        Construct ``DataFrame`` from dict of array-like or dicts.
+        Construct DataFrame from dict of array-like or dicts.
+
+        Creates DataFrame object from dictionary by columns or by index allowing dtype specification.
+
+        Parameters
+        ----------
+        data : dict
+            Of the form {field : array-like} or {field : dict}.
+        orient : {‘columns’, ‘index’, ‘tight’}, default ‘columns’
+            The “orientation” of the data. If the keys of the passed dict should be the columns of the resulting DataFrame, pass ‘columns’ (default). Otherwise if the keys should be rows, pass ‘index’. If ‘tight’, assume a dict with keys [‘index’, ‘columns’, ‘data’, ‘index_names’, ‘column_names’].
+
+            Added in version 1.4.0: ‘tight’ as an allowed value for the orient argument
+
+        dtype : dtype, default None
+            Data type to force after DataFrame construction, otherwise infer.
+        columns : list, default None
+            Column labels to use when orient='index'. Raises a ValueError if used with orient='columns' or orient='tight'.
+
+        Returns
+        -------
+        DataFrame
+
+        See also
+        --------
+        DataFrame.from_records
+            DataFrame from structured ndarray, sequence of tuples or dicts, or DataFrame.
+        DataFrame
+            DataFrame object creation using constructor.
+        DataFrame.to_dict
+            Convert the DataFrame to a dictionary.
+
+        Examples
+        --------
+
+        By default the keys of the dict become the DataFrame columns:
+
+        >>> data = {'col_1': [3, 2, 1, 0], 'col_2': ['a', 'b', 'c', 'd']}
+        >>> pd.DataFrame.from_dict(data)
+           col_1 col_2
+        0      3     a
+        1      2     b
+        2      1     c
+        3      0     d
+
+        Specify orient='index' to create the DataFrame using dictionary keys as rows:
+
+        >>> data = {'row_1': [3, 2, 1, 0], 'row_2': ['a', 'b', 'c', 'd']}
+        >>> pd.DataFrame.from_dict(data, orient='index')
+               0  1  2  3
+        row_1  3  2  1  0
+        row_2  a  b  c  d
+
+        When using the ‘index’ orientation, the column names can be specified manually:
+
+        >>> pd.DataFrame.from_dict(data, orient='index',
+        ...                        columns=['A', 'B', 'C', 'D'])
+               A  B  C  D
+        row_1  3  2  1  0
+        row_2  a  b  c  d
+
+        Specify orient='tight' to create the DataFrame using a ‘tight’ format:
+
+        >>> data = {'index': [('a', 'b'), ('a', 'c')],
+        ...         'columns': [('x', 1), ('y', 2)],
+        ...         'data': [[1, 3], [2, 4]],
+        ...         'index_names': ['n1', 'n2'],
+        ...         'column_names': ['z1', 'z2']}
+        >>> pd.DataFrame.from_dict(data, orient='tight') # doctest: +NORMALIZE_WHITESPACE
+        z1     x  y
+        z2     1  2
+        n1 n2
+        a  b   1  3
+           c   2  4
         """
 
     def from_records():
         """
-        Convert structured or record ndarray to ``DataFrame``.
+        Convert structured or record ndarray to DataFrame.
+
+        Creates a DataFrame object from a structured ndarray, sequence of tuples or dicts, or DataFrame.
+
+        Parameters
+        ----------
+        data : structured ndarray, sequence of tuples or dicts, or DataFrame
+            Structured input data.
+
+            Deprecated since version 2.1.0: Passing a DataFrame is deprecated.
+
+        index : str, list of fields, array-like
+            Field of array to use as the index, alternately a specific set of input labels to use.
+        exclude : sequence, default None
+            Columns or fields to exclude.
+        columns : sequence, default None
+            Column names to use. If the passed data do not have names associated with them, this argument provides names for the columns. Otherwise this argument indicates the order of the columns in the result (any names not found in the data will become all-NA columns).
+        coerce_float : bool, default False
+            Attempt to convert values of non-string, non-numeric objects (like decimal.Decimal) to floating point, useful for SQL result sets.
+        nrows : int, default None
+            Number of rows to read if data is an iterator.
+
+        Returns
+        -------
+        DataFrame
+
+        See also
+        --------
+        DataFrame.from_dict
+            DataFrame from dict of array-like or dicts.
+        DataFrame
+            DataFrame object creation using constructor.
+
+        Examples
+        --------
+        Data can be provided as a structured ndarray:
+
+        >>> data = np.array([(3, 'a'), (2, 'b'), (1, 'c'), (0, 'd')],
+        ...                 dtype=[('col_1', 'i4'), ('col_2', 'U1')])
+        >>> pd.DataFrame.from_records(data)
+           col_1 col_2
+        0      3     a
+        1      2     b
+        2      1     c
+        3      0     d
+
+        Data can be provided as a list of dicts:
+
+        >>> data = [{'col_1': 3, 'col_2': 'a'},
+        ...         {'col_1': 2, 'col_2': 'b'},
+        ...         {'col_1': 1, 'col_2': 'c'},
+        ...         {'col_1': 0, 'col_2': 'd'}]
+        >>> pd.DataFrame.from_records(data)
+           col_1 col_2
+        0      3     a
+        1      2     b
+        2      1     c
+        3      0     d
+
+        Data can be provided as a list of tuples with corresponding columns:
+
+        >>> data = [(3, 'a'), (2, 'b'), (1, 'c'), (0, 'd')]
+        >>> pd.DataFrame.from_records(data, columns=['col_1', 'col_2'])
+           col_1 col_2
+        0      3     a
+        1      2     b
+        2      1     c
+        3      0     d
         """
 
     def ge():
