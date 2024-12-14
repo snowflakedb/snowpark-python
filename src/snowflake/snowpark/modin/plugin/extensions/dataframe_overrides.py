@@ -137,9 +137,15 @@ def register_dataframe_not_implemented():
 
 # Avoid overwriting builtin `map` by accident
 @register_dataframe_accessor("map")
-@dataframe_not_implemented()
-def _map(self, func, na_action: str | None = None, **kwargs) -> DataFrame:
-    pass  # pragma: no cover
+def _map(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
+    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+    if not callable(func):
+        raise TypeError(f"{func} is not callable")  # pragma: no cover
+    return self.__constructor__(
+        query_compiler=self._query_compiler.applymap(
+            func, na_action=na_action, **kwargs
+        )
+    )
 
 
 @register_dataframe_not_implemented()
@@ -804,14 +810,12 @@ def apply(
 # Snowpark pandas uses a separate QC method, while modin directly calls map.
 @register_dataframe_accessor("applymap")
 def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
-    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    if not callable(func):
-        raise TypeError(f"{func} is not callable")
-    return self.__constructor__(
-        query_compiler=self._query_compiler.applymap(
-            func, na_action=na_action, **kwargs
-        )
+    warnings.warn(
+        "DataFrame.applymap has been deprecated. Use DataFrame.map instead.",
+        FutureWarning,
+        stacklevel=2,
     )
+    return self.map(func, na_action=na_action, **kwargs)
 
 
 # We need to override _get_columns to satisfy
