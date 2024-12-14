@@ -265,7 +265,10 @@ class SettingStore:
             if k in self._settings:
                 self.set(k, v)
             elif self._parent:
-                self._parent.set(k, v)
+                try:
+                    self._parent.set(k, v)
+                except ValueError:
+                    pass
 
     def __getitem__(self, instance):
         return self.get(instance)
