@@ -19,6 +19,7 @@
 - Added support for `Series.str.center`.
 - Added support for `Series.str.pad`.
 - Added support for applying Snowpark Python function `snowflake_cortex_sentiment`.
+- Added support for `DataFrame.map`.
 - Added support for `DataFrame.from_dict` and `DataFrame.from_records`.
 
 #### Improvements
