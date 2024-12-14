@@ -20,6 +20,17 @@ def test_from_dict_basic():
 
 
 @sql_count_checker(query_count=1)
+def test_from_dict_nested_dict():
+    data = {"col_1": {"a": 1, "b": 2}, "col_2": {"c": 3, "d": 4}}
+
+    assert_frame_equal(
+        pd.DataFrame.from_dict(data),
+        native_pd.DataFrame.from_dict(data),
+        check_dtype=False,
+    )
+
+
+@sql_count_checker(query_count=1)
 def test_from_dict_orient_index():
     data = {"row_1": [3, 2, 1, 0], "row_2": ["a", "b", "c", "d"]}
 
