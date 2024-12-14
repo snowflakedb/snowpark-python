@@ -18,12 +18,11 @@ passing GLOBAL_SETTINGS in via the extend_from parameter during initialization. 
 when all configuration needs to be accessible from a single object.
 """
 
-from __future__ import annotations
 import pkg_resources
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import TypeVar, Any, Callable, TYPE_CHECKING
+from typing import TypeVar, Any, Callable, TYPE_CHECKING, Optional, Union
 from snowflake.snowpark._internal.utils import warning
 
 from snowflake.snowpark._internal.utils import (
@@ -51,10 +50,10 @@ class Setting:
     """
 
     name: str
-    description: str | None = field(default=None)
-    default: SettingType | None = field(default=None)
+    description: Optional[str] = field(default=None)
+    default: Optional[SettingType] = field(default=None)
     read_only: bool = field(default=False)
-    experimental_since: str | None = field(default=None)
+    experimental_since: Optional[str] = field(default=None)
 
     def __post_init__(self):
         self._value = None
@@ -193,14 +192,14 @@ class VersionedSessionParameter(SessionParameter):
 
 class SettingStore:
     def __init__(
-        self, settings: Iterable[Setting], extend_from: SettingStore | None = None
+        self, settings: Iterable[Setting], extend_from: Optional["SettingStore"] = None
     ) -> None:
         """
         An object that stores one or more Settings.
 
         Args:
             settings (Iterable[Setting]): The settings that this instance should store.
-            extend_from (SettingStore | None, optional): When set this instance will add references
+            extend_from (SettingStore, optional): When set this instance will add references
                 to all Settings in provided SettingStore. Values modified on those settings are
                 reflected in the parent store.
         """
@@ -214,7 +213,7 @@ class SettingStore:
                 self._settings[s.name] = s
         self._settings[setting.name] = setting
 
-    def add(self, setting: Iterable[Setting] | Setting):
+    def add(self, setting: Union[Iterable[Setting], Setting]):
         """
         Adds a new setting to the store.
         """
@@ -245,7 +244,7 @@ class SettingStore:
             return parent_value
         return None
 
-    def get(self, setting_name: str, default: Any | None = None) -> Any:
+    def get(self, setting_name: str, default: Optional[Any] = None) -> Any:
         """
         Retrieves the value for the given setting or returns a default value if the setting does not exist.
         """
