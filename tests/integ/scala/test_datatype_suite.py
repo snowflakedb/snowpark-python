@@ -58,7 +58,7 @@ from tests.utils import (
 
 
 # make sure dataframe creation is the same as _create_test_dataframe
-_STRUCTURE_DATAFRAME_QUERY = """
+_STRUCTURED_DATAFRAME_QUERY = """
 select
   object_construct('k1', 1) :: map(varchar, int) as map,
   object_construct('A', 'foo', 'b', 0.05) :: object(A varchar, b float) as obj,
@@ -66,16 +66,20 @@ select
 """
 
 
-# make sure dataframe creation is the same as _STRUCTURE_DATAFRAME_QUERY
-def _create_test_dataframe(s):
+# make sure dataframe creation is the same as _STRUCTURED_DATAFRAME_QUERY
+def _create_test_dataframe(s, structured_type_support):
+    nested_field_name = "b" if structured_type_support else "B"
     df = s.create_dataframe([1], schema=["a"]).select(
         object_construct(lit("k1"), lit(1))
         .cast(MapType(StringType(), IntegerType(), structured=True))
         .alias("map"),
-        object_construct(lit("A"), lit("foo"), lit("b"), lit(0.05))
+        object_construct(lit("A"), lit("foo"), lit(nested_field_name), lit(0.05))
         .cast(
             StructType(
-                [StructField("A", StringType()), StructField("b", DoubleType())],
+                [
+                    StructField("A", StringType()),
+                    StructField(nested_field_name, DoubleType()),
+                ],
                 structured=True,
             )
         )
@@ -97,7 +101,7 @@ ICEBERG_CONFIG = {
 def _create_example(structured_types_enabled):
     if structured_types_enabled:
         return (
-            _STRUCTURE_DATAFRAME_QUERY,
+            _STRUCTURED_DATAFRAME_QUERY,
             [
                 ("MAP", "map<string(16777216),bigint>"),
                 ("OBJ", "struct<string(16777216),double>"),
@@ -129,7 +133,7 @@ def _create_example(structured_types_enabled):
         )
     else:
         return (
-            _STRUCTURE_DATAFRAME_QUERY,
+            _STRUCTURED_DATAFRAME_QUERY,
             [
                 ("MAP", "map<string,string>"),
                 ("OBJ", "map<string,string>"),
@@ -375,9 +379,9 @@ def test_dtypes(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
-def test_structured_dtypes(structured_type_session, examples):
+def test_structured_dtypes(structured_type_session, examples, structured_type_support):
     query, expected_dtypes, expected_schema = examples
-    df = _create_test_dataframe(structured_type_session)
+    df = _create_test_dataframe(structured_type_session, structured_type_support)
     assert df.schema == expected_schema
     assert df.dtypes == expected_dtypes
 
@@ -390,18 +394,20 @@ def test_structured_dtypes(structured_type_session, examples):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
-def test_structured_dtypes_select(structured_type_session, examples):
+def test_structured_dtypes_select(
+    structured_type_session, examples, structured_type_support
+):
     query, expected_dtypes, expected_schema = examples
-    df = _create_test_dataframe(structured_type_session)
+    df = _create_test_dataframe(structured_type_session, structured_type_support)
+    nested_field_name = "b" if context._should_use_structured_type_semantics else "B"
     flattened_df = df.select(
         df.map["k1"].alias("value1"),
         df.obj["A"].alias("a"),
-        col("obj")["b"].alias("b"),
+        col("obj")[nested_field_name].alias("b"),
         df.arr[0].alias("value2"),
         df.arr[1].alias("value3"),
         col("arr")[2].alias("value4"),
     )
-    nested_field_name = "b" if context._should_use_structured_type_semantics else "B"
     assert flattened_df.schema == StructType(
         [
             StructField("VALUE1", LongType(), nullable=True),
@@ -431,7 +437,9 @@ def test_structured_dtypes_select(structured_type_session, examples):
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
 def test_structured_dtypes_pandas(structured_type_session, structured_type_support):
-    pdf = _create_test_dataframe(structured_type_session).to_pandas()
+    pdf = _create_test_dataframe(
+        structured_type_session, structured_type_support
+    ).to_pandas()
     if structured_type_support:
         assert (
             pdf.to_json()

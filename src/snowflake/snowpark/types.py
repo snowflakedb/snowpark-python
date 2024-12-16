@@ -569,16 +569,16 @@ class StructField:
         column_identifier: Union[ColumnIdentifier, str],
         datatype: DataType,
         nullable: bool = True,
-        is_column: bool = True,
+        _is_column: bool = True,
     ) -> None:
         self.name = column_identifier
-        self.is_column = is_column
+        self._is_column = _is_column
         self.datatype = datatype
         self.nullable = nullable
 
     @property
     def name(self) -> str:
-        if self.is_column or not context._should_use_structured_type_semantics:
+        if self._is_column or not context._should_use_structured_type_semantics:
             return self.column_identifier.name
         else:
             return self._name
@@ -599,15 +599,15 @@ class StructField:
         if isinstance(datatype, (ArrayType, MapType, StructType)):
             datatype = datatype._as_nested()
         # Nested StructFields do not follow column naming conventions
-        return StructField(self._name, datatype, self.nullable, is_column=False)
+        return StructField(self._name, datatype, self.nullable, _is_column=False)
 
     def __repr__(self) -> str:
         return f"StructField({self.name!r}, {repr(self.datatype)}, nullable={self.nullable})"
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and (
-            (self.name, self.is_column, self.datatype, self.nullable)
-            == (other.name, other.is_column, other.datatype, other.nullable)
+            (self.name, self._is_column, self.datatype, self.nullable)
+            == (other.name, other._is_column, other.datatype, other.nullable)
         )
 
     @classmethod

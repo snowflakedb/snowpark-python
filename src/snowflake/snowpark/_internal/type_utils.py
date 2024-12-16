@@ -163,7 +163,7 @@ def convert_metadata_to_sp_type(
                         else quote_name(field.name, keep_case=True),
                         convert_metadata_to_sp_type(field, max_string_size),
                         nullable=field.is_nullable,
-                        is_column=False,
+                        _is_column=False,
                     )
                     for field in metadata.fields
                 ],
