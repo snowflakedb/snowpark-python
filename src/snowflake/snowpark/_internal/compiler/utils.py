@@ -389,6 +389,11 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     ):
         return
 
+    if int(
+        os.environ.get("SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD", 0)
+    ) > get_complexity_score(root):
+        return
+
     import graphviz  # pyright: ignore[reportMissingImports]
 
     def get_stat(node: LogicalPlan):
