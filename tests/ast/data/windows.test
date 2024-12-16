@@ -470,6 +470,9 @@ body {
                                 }
                               }
                             }
+                            null_order {
+                              sp_null_order_default: true
+                            }
                             src {
                               file: "SRC_POSITION_TEST_MODE"
                               start_line: 35
