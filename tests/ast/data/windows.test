@@ -557,6 +557,9 @@ body {
                                 }
                               }
                             }
+                            null_order {
+                              sp_null_order_default: true
+                            }
                             src {
                               end_column: 51
                               end_line: 35
