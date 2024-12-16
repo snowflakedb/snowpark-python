@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 
+import snowflake.snowpark.context as context
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -86,60 +87,66 @@ def _create_test_dataframe(s):
     return df
 
 
-STRUCTURED_TYPES_EXAMPLES = {
-    True: (
-        _STRUCTURE_DATAFRAME_QUERY,
-        [
-            ("MAP", "map<string(16777216),bigint>"),
-            ("OBJ", "struct<string(16777216),double>"),
-            ("ARR", "array<double>"),
-        ],
-        StructType(
-            [
-                StructField(
-                    "MAP",
-                    MapType(StringType(16777216), LongType(), structured=True),
-                    nullable=True,
-                ),
-                StructField(
-                    "OBJ",
-                    StructType(
-                        [
-                            StructField("A", StringType(16777216), nullable=True),
-                            StructField("b", DoubleType(), nullable=True),
-                        ],
-                        structured=True,
-                    ),
-                    nullable=True,
-                ),
-                StructField(
-                    "ARR", ArrayType(DoubleType(), structured=True), nullable=True
-                ),
-            ]
-        ),
-    ),
-    False: (
-        _STRUCTURE_DATAFRAME_QUERY,
-        [
-            ("MAP", "map<string,string>"),
-            ("OBJ", "map<string,string>"),
-            ("ARR", "array<string>"),
-        ],
-        StructType(
-            [
-                StructField("MAP", MapType(StringType(), StringType()), nullable=True),
-                StructField("OBJ", MapType(StringType(), StringType()), nullable=True),
-                StructField("ARR", ArrayType(StringType()), nullable=True),
-            ]
-        ),
-    ),
-}
-
 ICEBERG_CONFIG = {
     "catalog": "SNOWFLAKE",
     "external_volume": "python_connector_iceberg_exvol",
     "base_location": "python_connector_merge_gate",
 }
+
+
+def _create_example(structured_types_enabled):
+    if structured_types_enabled:
+        return (
+            _STRUCTURE_DATAFRAME_QUERY,
+            [
+                ("MAP", "map<string(16777216),bigint>"),
+                ("OBJ", "struct<string(16777216),double>"),
+                ("ARR", "array<double>"),
+            ],
+            StructType(
+                [
+                    StructField(
+                        "MAP",
+                        MapType(StringType(16777216), LongType(), structured=True),
+                        nullable=True,
+                    ),
+                    StructField(
+                        "OBJ",
+                        StructType(
+                            [
+                                StructField("A", StringType(16777216), nullable=True),
+                                StructField("b", DoubleType(), nullable=True),
+                            ],
+                            structured=True,
+                        ),
+                        nullable=True,
+                    ),
+                    StructField(
+                        "ARR", ArrayType(DoubleType(), structured=True), nullable=True
+                    ),
+                ]
+            ),
+        )
+    else:
+        return (
+            _STRUCTURE_DATAFRAME_QUERY,
+            [
+                ("MAP", "map<string,string>"),
+                ("OBJ", "map<string,string>"),
+                ("ARR", "array<string>"),
+            ],
+            StructType(
+                [
+                    StructField(
+                        "MAP", MapType(StringType(), StringType()), nullable=True
+                    ),
+                    StructField(
+                        "OBJ", MapType(StringType(), StringType()), nullable=True
+                    ),
+                    StructField("ARR", ArrayType(StringType()), nullable=True),
+                ]
+            ),
+        )
 
 
 @pytest.fixture(scope="module")
@@ -149,14 +156,17 @@ def structured_type_support(session, local_testing_mode):
 
 @pytest.fixture(scope="module")
 def examples(structured_type_support):
-    yield STRUCTURED_TYPES_EXAMPLES[structured_type_support]
+    yield _create_example(structured_type_support)
 
 
 @pytest.fixture(scope="module")
 def structured_type_session(session, structured_type_support):
     if structured_type_support:
         with structured_types_enabled_session(session) as sess:
+            semantics_enabled = context._should_use_structured_type_semantics
+            context._should_use_structured_type_semantics = True
             yield sess
+            context._should_use_structured_type_semantics = semantics_enabled
     else:
         yield session
 
@@ -445,7 +455,7 @@ def test_structured_dtypes_iceberg(
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
-    query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
+    query, expected_dtypes, expected_schema = _create_example(True)
 
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}".upper()
     dynamic_table_name = f"snowpark_dynamic_iceberg_{uuid.uuid4().hex[:5]}".upper()
@@ -730,7 +740,7 @@ def test_structured_dtypes_iceberg_create_from_values(
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
 
-    _, __, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
+    _, __, expected_schema = _create_example(True)
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     data = [
         ({"x": 1}, {"A": "a", "b": 1}, [1, 1, 1]),
@@ -760,7 +770,7 @@ def test_structured_dtypes_iceberg_udf(
         and iceberg_supported(structured_type_session, local_testing_mode)
     ):
         pytest.skip("Test requires iceberg support and structured type support.")
-    query, expected_dtypes, expected_schema = STRUCTURED_TYPES_EXAMPLES[True]
+    query, expected_dtypes, expected_schema = _create_example(True)
 
     table_name = f"snowpark_structured_dtypes_udf_test{uuid.uuid4().hex[:5]}"
 

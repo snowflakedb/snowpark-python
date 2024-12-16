@@ -30,10 +30,12 @@ from typing import (  # noqa: F401
     get_origin,
 )
 
+import snowflake.snowpark.context as context
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
+from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -156,7 +158,9 @@ def convert_metadata_to_sp_type(
             return StructType(
                 [
                     StructField(
-                        field.name,
+                        field.name
+                        if context._should_use_structured_type_semantics
+                        else quote_name(field.name, keep_case=True),
                         convert_metadata_to_sp_type(field, max_string_size),
                         nullable=field.is_nullable,
                         is_column=False,

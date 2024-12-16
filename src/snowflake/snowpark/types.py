@@ -16,6 +16,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 # Use correct version from here:
 from snowflake.snowpark._internal.utils import installed_pandas, pandas, quote_name
+import snowflake.snowpark.context as context
 
 # TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
 # The core issue is that in the connector detection of both pandas/arrow are mixed, which is wrong.
@@ -342,6 +343,8 @@ class ArrayType(DataType):
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
 
     def _as_nested(self) -> "ArrayType":
+        if not context._should_use_structured_type_semantics:
+            return self
         element_type = self.element_type
         if isinstance(element_type, (ArrayType, MapType, StructType)):
             element_type = element_type._as_nested()
@@ -398,6 +401,8 @@ class MapType(DataType):
         return False
 
     def _as_nested(self) -> "MapType":
+        if not context._should_use_structured_type_semantics:
+            return self
         value_type = self.value_type
         if isinstance(value_type, (ArrayType, MapType, StructType)):
             value_type = value_type._as_nested()
@@ -573,7 +578,10 @@ class StructField:
 
     @property
     def name(self) -> str:
-        return self.column_identifier.name if self.is_column else self._name
+        if self.is_column or not context._should_use_structured_type_semantics:
+            return self.column_identifier.name
+        else:
+            return self._name
 
     @name.setter
     def name(self, n: Union[ColumnIdentifier, str]) -> None:
@@ -585,6 +593,8 @@ class StructField:
             self.column_identifier = ColumnIdentifier(n)
 
     def _as_nested(self) -> "StructField":
+        if not context._should_use_structured_type_semantics:
+            return self
         datatype = self.datatype
         if isinstance(datatype, (ArrayType, MapType, StructType)):
             datatype = datatype._as_nested()
@@ -673,6 +683,8 @@ class StructType(DataType):
         return self
 
     def _as_nested(self) -> "StructType":
+        if not context._should_use_structured_type_semantics:
+            return self
         return StructType(
             [field._as_nested() for field in self.fields], self.structured
         )
