@@ -30,6 +30,7 @@ from typing import (  # noqa: F401
     get_origin,
 )
 
+import snowflake.snowpark.context as context
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
@@ -70,7 +71,6 @@ from snowflake.snowpark.types import (
     _FractionalType,
     _IntegralType,
     _NumericType,
-    STRUCTURED_TYPES_ENABLED,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -184,7 +184,9 @@ def convert_sf_to_sp_type(
     max_string_size: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
-    semi_structured_fill = None if STRUCTURED_TYPES_ENABLED else StringType()
+    semi_structured_fill = (
+        None if context._should_use_structured_type_semanticselse else StringType()
+    )
     if column_type_name == "ARRAY":
         return ArrayType(semi_structured_fill)
     if column_type_name == "VARIANT":

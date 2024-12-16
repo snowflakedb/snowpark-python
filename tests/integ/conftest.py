@@ -11,7 +11,6 @@ import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
-from snowflake.snowpark.types import STRUCTURED_TYPES_ENABLED
 from tests.ast.ast_test_utils import (
     close_full_ast_validation_mode,
     setup_full_ast_validation_mode,
@@ -244,15 +243,6 @@ def session(
     session.sql_simplifier_enabled = sql_simplifier_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
     session.ast_enabled = ast_enabled
-
-    if STRUCTURED_TYPES_ENABLED:
-        queries = [
-            "alter session set ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE=true",
-            "alter session set IGNORE_CLIENT_VESRION_IN_STRUCTURED_TYPES_RESPONSE=true",
-            "alter session set FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT=true",
-        ]
-        for q in queries:
-            session.sql(q).collect()
 
     if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
         set_up_external_access_integration_resources(

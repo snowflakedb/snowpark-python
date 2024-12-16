@@ -6,7 +6,6 @@
 """User-defined aggregate functions (UDAFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udaf.UDAFRegistration` for details and sample code."""
 
 import sys
-import warnings
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
@@ -38,6 +37,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     parse_positional_args_to_list,
     publicapi,
+    warning,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType, MapType
@@ -713,9 +713,9 @@ class UDAFRegistration:
 
         if isinstance(return_type, MapType):
             if return_type.structured:
-                warnings.warn(
+                warning(
+                    "_do_register_udaf",
                     "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object.",
-                    stacklevel=3,
                 )
                 return_type = MapType()
 

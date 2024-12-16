@@ -11,6 +11,7 @@ import sys
 from enum import Enum
 from typing import Generic, List, Optional, Type, TypeVar, Union, Dict, Any
 
+import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
@@ -29,9 +30,6 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
-
-
-STRUCTURED_TYPES_ENABLED = False
 
 
 class DataType:
@@ -338,7 +336,7 @@ class ArrayType(DataType):
         element_type: Optional[DataType] = None,
         structured: Optional[bool] = None,
     ) -> None:
-        if STRUCTURED_TYPES_ENABLED:
+        if context._should_use_structured_type_semantics:
             self.structured = (
                 structured if structured is not None else element_type is not None
             )
@@ -390,7 +388,7 @@ class MapType(DataType):
         value_type: Optional[DataType] = None,
         structured: Optional[bool] = None,
     ) -> None:
-        if STRUCTURED_TYPES_ENABLED:
+        if context._should_use_structured_type_semantics:
             if (key_type is None and value_type is not None) or (
                 key_type is not None and value_type is None
             ):
@@ -646,7 +644,7 @@ class StructType(DataType):
         fields: Optional[List["StructField"]] = None,
         structured: Optional[bool] = False,
     ) -> None:
-        if STRUCTURED_TYPES_ENABLED:
+        if context._should_use_structured_type_semantics:
             self.structured = (
                 structured if structured is not None else fields is not None
             )
