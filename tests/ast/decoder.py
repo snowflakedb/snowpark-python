@@ -1147,26 +1147,67 @@ class Decoder:
                     case "sp_save_mode_truncate":
                         mode = "truncate"
 
-                refresh_mode = (
-                    expr.sp_dataframe_create_or_replace_dynamic_table.refresh_mode.value
-                )
-                initialize = (
-                    expr.sp_dataframe_create_or_replace_dynamic_table.initialize.value
-                )
-                clustering_keys = [
-                    self.decode_expr(clustering_key)
-                    for clustering_key in expr.sp_dataframe_create_or_replace_dynamic_table.clustering_keys.list
-                ]
+                refresh_mode = None
+                if (
+                    hasattr(
+                        expr.sp_dataframe_create_or_replace_dynamic_table,
+                        "refresh_mode",
+                    )
+                    and len(
+                        expr.sp_dataframe_create_or_replace_dynamic_table.refresh_mode.value
+                    )
+                    > 0
+                ):
+                    refresh_mode = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.refresh_mode.value
+                    )
+                initialize = None
+                if (
+                    hasattr(
+                        expr.sp_dataframe_create_or_replace_dynamic_table, "initialize"
+                    )
+                    and len(
+                        expr.sp_dataframe_create_or_replace_dynamic_table.initialize.value
+                    )
+                    > 0
+                ):
+                    initialize = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.initialize.value
+                    )
+                clustering_keys = None
+                if (
+                    len(
+                        expr.sp_dataframe_create_or_replace_dynamic_table.clustering_keys.list
+                    )
+                    > 0
+                ):
+                    clustering_keys = [
+                        self.decode_expr(clustering_key)
+                        for clustering_key in expr.sp_dataframe_create_or_replace_dynamic_table.clustering_keys.list
+                    ]
                 is_transient = (
                     expr.sp_dataframe_create_or_replace_dynamic_table.is_transient
                 )
-                data_retention_time = (
-                    expr.sp_dataframe_create_or_replace_dynamic_table.data_retention_time.value
-                )
+                data_retention_time = None
+                if (
+                    hasattr(
+                        expr.sp_dataframe_create_or_replace_dynamic_table,
+                        "data_retention_time",
+                    )
+                    and expr.sp_dataframe_create_or_replace_dynamic_table.data_retention_time.value
+                    > 0
+                ):
+                    data_retention_time = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.data_retention_time.value
+                    )
                 max_data_extension_time = None
-                if hasattr(
-                    expr.sp_dataframe_create_or_replace_dynamic_table,
-                    "max_data_extension_time",
+                if (
+                    hasattr(
+                        expr.sp_dataframe_create_or_replace_dynamic_table,
+                        "max_data_extension_time",
+                    )
+                    and expr.sp_dataframe_create_or_replace_dynamic_table.max_data_extension_time.value
+                    > 0
                 ):
                     max_data_extension_time = (
                         expr.sp_dataframe_create_or_replace_dynamic_table.max_data_extension_time.value
