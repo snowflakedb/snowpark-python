@@ -158,9 +158,12 @@ def convert_metadata_to_sp_type(
             return StructType(
                 [
                     StructField(
-                        quote_name(field.name, keep_case=True),
+                        field.name
+                        if context._should_use_structured_type_semantics
+                        else quote_name(field.name, keep_case=True),
                         convert_metadata_to_sp_type(field, max_string_size),
                         nullable=field.is_nullable,
+                        _is_column=False,
                     )
                     for field in metadata.fields
                 ],
