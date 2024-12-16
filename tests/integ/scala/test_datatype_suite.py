@@ -401,11 +401,12 @@ def test_structured_dtypes_select(structured_type_session, examples):
         df.arr[1].alias("value3"),
         col("arr")[2].alias("value4"),
     )
+    nested_field_name = "b" if context._should_use_structured_type_semantics else "B"
     assert flattened_df.schema == StructType(
         [
             StructField("VALUE1", LongType(), nullable=True),
             StructField("A", StringType(16777216), nullable=True),
-            StructField("b", DoubleType(), nullable=True),
+            StructField(nested_field_name, DoubleType(), nullable=True),
             StructField("VALUE2", DoubleType(), nullable=True),
             StructField("VALUE3", DoubleType(), nullable=True),
             StructField("VALUE4", DoubleType(), nullable=True),
@@ -439,7 +440,7 @@ def test_structured_dtypes_pandas(structured_type_session, structured_type_suppo
     else:
         assert (
             pdf.to_json()
-            == '{"MAP":{"0":"{\\n  \\"k1\\": 1\\n}"},"OBJ":{"0":"{\\n  \\"A\\": \\"foo\\",\\n  \\"b\\": 5.000000000000000e-02\\n}"},"ARR":{"0":"[\\n  1.000000000000000e+00,\\n  3.100000000000000e+00,\\n  4.500000000000000e+00\\n]"}}'
+            == '{"MAP":{"0":"{\\n  \\"k1\\": 1\\n}"},"OBJ":{"0":"{\\n  \\"A\\": \\"foo\\",\\n  \\"B\\": 5.000000000000000e-02\\n}"},"ARR":{"0":"[\\n  1.000000000000000e+00,\\n  3.100000000000000e+00,\\n  4.500000000000000e+00\\n]"}}'
         )
 
 
