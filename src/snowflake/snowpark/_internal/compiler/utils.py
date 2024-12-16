@@ -34,7 +34,10 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableMerge,
     TableUpdate,
 )
-from snowflake.snowpark._internal.analyzer.unary_plan_node import UnaryNode
+from snowflake.snowpark._internal.analyzer.unary_plan_node import (
+    CreateViewCommand,
+    UnaryNode,
+)
 from snowflake.snowpark._internal.compiler.query_generator import (
     QueryGenerator,
     SnowflakeCreateTablePlanInfo,
@@ -306,7 +309,28 @@ def get_snowflake_plan_queries(
 
     plan_queries = plan.queries
     post_action_queries = plan.post_actions
-    if len(plan.referenced_ctes) > 0:
+    # If the plan has referenced ctes, we need to add the cte definition before
+    # the final query. This is done for all source plan except for the following
+    # cases:
+    # - SnowflakeCreateTable
+    # - CreateViewCommand
+    # - TableUpdate
+    # - TableDelete
+    # - TableMerge
+    # - CopyIntoLocationNode
+    # because the generated_queries by QueryGenerator for these nodes already include the cte
+    # definition. Adding the cte definition before the query again will cause a syntax error.
+    if len(plan.referenced_ctes) > 0 and not isinstance(
+        plan.source_plan,
+        (
+            SnowflakeCreateTable,
+            CreateViewCommand,
+            TableUpdate,
+            TableDelete,
+            TableMerge,
+            CopyIntoLocationNode,
+        ),
+    ):
         # make a copy of the original query to avoid any update to the
         # original query object
         plan_queries = copy.deepcopy(plan.queries)
