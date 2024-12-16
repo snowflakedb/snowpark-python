@@ -91,6 +91,9 @@ from snowflake.snowpark.types import (
     StringType,
     TimestampTimeZone,
     TimestampType,
+    ArrayType,
+    MapType,
+    StructType,
 )
 from snowflake.snowpark.window import Window, WindowSpec
 
@@ -916,6 +919,9 @@ class Column:
     ) -> "Column":
         if isinstance(to, str):
             to = type_string_to_type_object(to)
+
+        if isinstance(to, (ArrayType, MapType, StructType)):
+            to = to._as_nested()
 
         if self._ast is None:
             _emit_ast = False
