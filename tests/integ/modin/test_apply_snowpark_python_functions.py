@@ -71,6 +71,7 @@ def test_apply_snowpark_python_function_not_implemented():
         pd.DataFrame({"a": [1, 2, 3]}).apply(asc, args=(1, 2))
 
 
+@pytest.mark.skip("SNOW-1859087 snowflake.cortex.summarize SSL error")
 def test_apply_snowflake_cortex_summarize(session):
     from snowflake.snowpark.functions import snowflake_cortex_summarize
 
@@ -95,6 +96,7 @@ def test_apply_snowflake_cortex_summarize(session):
         assert 0 < len(summary) < len(content)
 
 
+@pytest.mark.skip("SNOW-1859087 snowflake.cortex.sentiment SSL error")
 def test_apply_snowflake_cortex_sentiment(session):
     from snowflake.snowpark.functions import snowflake_cortex_sentiment
 

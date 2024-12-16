@@ -2273,6 +2273,7 @@ def test_ln(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
 )
+@pytest.mark.skip("SNOW-1859087 snowflake.cortex.sentiment SSL error")
 def test_snowflake_cortex_summarize(session):
     # TODO: SNOW-1758914 snowflake.cortex.summarize error on GCP
     if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
@@ -2312,7 +2313,8 @@ The next sections explain these steps in more detail.
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
 )
-def test_apply_snowflake_cortex_sentiment(session):
+@pytest.mark.skip("SNOW-1859087 snowflake.cortex.sentiment SSL error")
+def test_snowflake_cortex_sentiment(session):
     # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
     if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
         return
