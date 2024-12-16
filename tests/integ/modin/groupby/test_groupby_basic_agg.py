@@ -284,6 +284,54 @@ def test_groupby_agg_with_float_dtypes_named_agg() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "grpby_fn",
+    [
+        lambda gr: gr.quantile(),
+        lambda gr: gr.quantile(q=0.3),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_groupby_agg_quantile_with_int_dtypes(grpby_fn) -> None:
+    native_df = native_pd.DataFrame(
+        {
+            "col1_grp": ["g1", "g2", "g0", "g0", "g2", "g3", "g0", "g2", "g3"],
+            "col2_int64": np.arange(9, dtype="int64") // 3,
+            "col3_int_identical": [2] * 9,
+            "col4_int32": np.arange(9, dtype="int32") // 4,
+            "col5_int16": np.arange(9, dtype="int16") // 3,
+            "col6_mixed": np.concatenate(
+                [
+                    np.arange(3, dtype="int64") // 3,
+                    np.arange(3, dtype="int32") // 3,
+                    np.arange(3, dtype="int16") // 3,
+                ]
+            ),
+            "col7_int_missing": [5, 6, np.nan, 2, 1, np.nan, 5, np.nan, np.nan],
+            "col8_mixed_missing": np.concatenate(
+                [
+                    np.arange(2, dtype="int64") // 3,
+                    [np.nan],
+                    np.arange(2, dtype="int32") // 3,
+                    [np.nan],
+                    np.arange(2, dtype="int16") // 3,
+                    [np.nan],
+                ]
+            ),
+        }
+    )
+    snowpark_pandas_df = pd.DataFrame(native_df)
+    by = "col1_grp"
+    snowpark_pandas_groupby = snowpark_pandas_df.groupby(by=by)
+    pandas_groupby = native_df.groupby(by=by)
+    eval_snowpark_pandas_result(
+        snowpark_pandas_groupby,
+        pandas_groupby,
+        grpby_fn,
+        comparator=assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
+    )
+
+
 @sql_count_checker(query_count=2)
 def test_groupby_agg_with_int_dtypes(int_to_decimal_float_agg_method) -> None:
     snowpark_pandas_df = pd.DataFrame(
