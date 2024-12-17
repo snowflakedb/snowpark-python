@@ -856,9 +856,9 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
         pytest.skip("Test requires structured type support.")
     expected_semi_schema = StructType(
         [
-            StructField("ARR", ArrayType(StringType()), nullable=True),
-            StructField("MAP", MapType(StringType(), StringType()), nullable=True),
-            StructField("OBJ", MapType(StringType(), StringType()), nullable=True),
+            StructField("ARR", ArrayType(), nullable=True),
+            StructField("MAP", MapType(), nullable=True),
+            StructField("OBJ", MapType(), nullable=True),
         ]
     )
     expected_structured_schema = StructType(

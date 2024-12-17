@@ -683,6 +683,8 @@ class StructType(DataType):
             )
         else:
             self.structured = structured or False
+
+        self.fields = []
         for field in fields or []:
             self.add(field)
 
