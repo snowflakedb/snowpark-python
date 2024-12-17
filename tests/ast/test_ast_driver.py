@@ -201,7 +201,7 @@ def compare_base64_results(
     expected_message : proto.Request
         The expected protobuf message.
     exclude_symbols_udfs_and_src : bool
-        If True, do not compare symbols and src information in the messages.
+        If True, do not compare symbols, src and udf information in the messages.
 
     Raises
     ------
