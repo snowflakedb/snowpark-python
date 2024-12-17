@@ -27,6 +27,7 @@
 - Added support for `DataFrame.from_dict` and `DataFrame.from_records`.
 - Added support for mixed case field names in struct type columns.
 - Added support for `SeriesGroupBy.unique`
+- Added support for `Series.between`.
 
 #### Improvements
 - Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
