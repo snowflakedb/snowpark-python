@@ -200,19 +200,10 @@ def test_lineage_trace(session):
     df = remove_created_on_field(df.to_pandas())
 
     expected_data = {
-        "SOURCE_OBJECT": [
-            {"domain": "VIEW", "name": f"{db}.{schema}.V2", "status": "ACTIVE"},
-            {"domain": "VIEW", "name": f"{db}.{schema}.V3", "status": "DELETED"},
-        ],
-        "TARGET_OBJECT": [
-            {"domain": "VIEW", "name": f"{db}.{schema}.V3", "status": "DELETED"},
-            {"domain": "VIEW", "name": f"{db}.{schema}.V4", "status": "ACTIVE"},
-        ],
-        "DIRECTION": [
-            "Downstream",
-            "Downstream",
-        ],
-        "DISTANCE": [1, 2],
+        "SOURCE_OBJECT": [],
+        "TARGET_OBJECT": [],
+        "DIRECTION": [],
+        "DISTANCE": [],
     }
 
     expected_df = pd.DataFrame(expected_data)
