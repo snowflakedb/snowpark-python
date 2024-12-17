@@ -1133,6 +1133,45 @@ def test_structured_type_print_schema(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
+def test_structured_map_value_contains_null(
+    structured_type_session, structured_type_support
+):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    # SNOW-1862947 create DDL test once save as table supported
+    array_df = structured_type_session.sql(
+        "select {'test' : 'test'} :: MAP(STRING, STRING NOT NULL) AS M, {'test' : 'test'} :: MAP(STRING, STRING) AS M_N"
+    )
+    expected_schema = StructType(
+        [
+            StructField(
+                "M",
+                MapType(
+                    StringType(),
+                    StringType(),
+                    structured=True,
+                    value_contains_null=False,
+                ),
+            ),
+            StructField(
+                "M_N",
+                MapType(
+                    StringType(),
+                    StringType(),
+                    structured=True,
+                    value_contains_null=True,
+                ),
+            ),
+        ]
+    )
+    assert array_df.schema == expected_schema
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
 def test_structured_type_schema_expression(
     structured_type_session, local_testing_mode, structured_type_support
 ):
@@ -1242,12 +1281,13 @@ def test_structured_type_schema_expression(
         assert table.union(table).schema == expected_schema
         # Functions used in schema generation don't respect nested nullability so compare query string instead
         non_null_union = non_null_table.union(non_null_table)
+        # __import__('pdb').set_trace()
         assert non_null_union._plan.schema_query == (
-            "( SELECT object_construct_keep_null('a' ::  STRING (16777216), 0 :: DOUBLE) :: "
+            "( SELECT object_construct_keep_null('a' ::  STRING (16777216), NULL :: DOUBLE) :: "
             'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(0 :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR",'
             " object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
             'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ") UNION ( SELECT '
-            "object_construct_keep_null('a' ::  STRING (16777216), 0 :: DOUBLE) :: "
+            "object_construct_keep_null('a' ::  STRING (16777216), NULL :: DOUBLE) :: "
             'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(0 :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", '
             "object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
             'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ")'
