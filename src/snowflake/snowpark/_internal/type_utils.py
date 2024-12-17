@@ -159,7 +159,7 @@ def convert_metadata_to_sp_type(
                 [
                     StructField(
                         field.name
-                        if context._should_use_structured_type_semantics
+                        if context._should_use_structured_type_semantics()
                         else quote_name(field.name, keep_case=True),
                         convert_metadata_to_sp_type(field, max_string_size),
                         nullable=field.is_nullable,
@@ -188,7 +188,7 @@ def convert_sf_to_sp_type(
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     semi_structured_fill = (
-        None if context._should_use_structured_type_semantics else StringType()
+        None if context._should_use_structured_type_semantics() else StringType()
     )
     if column_type_name == "ARRAY":
         return ArrayType(semi_structured_fill)

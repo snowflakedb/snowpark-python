@@ -7,6 +7,7 @@
 from typing import Callable, Optional
 
 import snowflake.snowpark
+import threading
 
 _use_scoped_temp_objects = True
 
@@ -21,8 +22,19 @@ _is_execution_environment_sandboxed_for_client: bool = False
 _should_continue_registration: Optional[Callable[..., bool]] = None
 
 
-# Global flag that determines if structured type semantics should be used
-_should_use_structured_type_semantics = False
+# Internal-only global flag that determines if structured type semantics should be used
+_use_structured_type_semantics = False
+_use_structured_type_semantics_lock = None
+
+
+def _should_use_structured_type_semantics():
+    global _use_structured_type_semantics
+    global _use_structured_type_semantics_lock
+    if _use_structured_type_semantics_lock is None:
+        _use_structured_type_semantics_lock = threading.RLock()
+
+    with _use_structured_type_semantics_lock:
+        return _use_structured_type_semantics
 
 
 def get_active_session() -> "snowflake.snowpark.Session":
