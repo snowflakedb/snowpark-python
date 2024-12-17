@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from snowflake.snowpark._internal.utils import COMPATIBLE_WITH_MODIN, warning_dict
+from .ast.conftest import default_unparser_path
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
@@ -45,12 +46,6 @@ except ModuleNotFoundError:
     opentelemetry_installed = False
 
 
-def default_unparser_path():
-    explicit = os.getenv("SNOWPARK_UNPARSER_JAR")
-    default_default = f"{os.getenv('HOME')}/Snowflake/trunk/Snowpark/unparser/target/scala-2.13/unparser-assembly-0.1.jar"
-    return explicit or default_default
-
-
 def is_excluded_frontend_file(path):
     for excluded in excluded_frontend_files:
         if str(path).endswith(excluded):
@@ -76,7 +71,7 @@ def pytest_addoption(parser, pluginmanager):
         action="store",
         default=default_unparser_path(),
         type=str,
-        help="Path to the Unparser JAR built in the monorepo. To build it, run `sbt assembly` from the unparser directory.",
+        help="Path to the Unparser JAR built in the monorepo.",
     )
 
 
