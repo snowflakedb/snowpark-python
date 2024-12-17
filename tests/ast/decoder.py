@@ -13,6 +13,7 @@ from google.protobuf.json_format import MessageToDict
 
 from snowflake.snowpark import Session, Column
 import snowflake.snowpark.functions
+from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import (
     DataType,
     ArrayType,
@@ -195,8 +196,8 @@ class Decoder:
             #     pass
             # case "indirect_table_fn_name_ref":
             #     pass
-            # case "sp_fn_ref":
-            #     pass
+            case "sp_fn_ref":
+                return self.symbol_table[fn_ref_expr.sp_fn_ref.id.bitfield1][0]
             # case "stored_procedure":
             #     pass
             # case "udaf":
@@ -495,7 +496,10 @@ class Decoder:
 
             case "apply_expr":
                 fn_name = self.decode_fn_ref_expr(expr.apply_expr.fn)
-                fn = getattr(snowflake.snowpark.functions, fn_name)
+                if hasattr(snowflake.snowpark.functions, fn_name):
+                    fn = getattr(snowflake.snowpark.functions, fn_name)
+                else:
+                    fn = self.symbol_table[expr.apply_expr.fn.sp_fn_ref.id.bitfield1][1]
                 # The named arguments are stored as a list of Tuple_String_Expr.
                 named_args = self.decode_dsl_map_expr(expr.apply_expr.named_args)
                 # The positional args can be a list of Expr, a single Expr, or [].
@@ -816,7 +820,7 @@ class Decoder:
 
             case "sp_dataframe_collect":
                 df = self.symbol_table[expr.sp_dataframe_collect.id.bitfield1][1]
-                d = MessageToDict(expr.sp_dataframe_count)
+                d = MessageToDict(expr.sp_dataframe_collect)
                 statement_params = self.get_statement_params(d)
                 log_on_exception = d.get("logOnException", False)
                 block = d.get("block", False)
@@ -934,6 +938,16 @@ class Decoder:
                 assert expr.sp_table.HasField("name")
                 table_name = self.decode_table_name_expr(expr.sp_table.name)
                 return self.session.table(table_name)
+
+            case "udf":
+                return_type = self.decode_data_type_expr(expr.udf.return_type)
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.udf.input_types.list
+                ]
+                return udf(
+                    lambda *args: None, return_type=return_type, input_types=input_types
+                )
 
             case "udtf":
                 # TODO: SNOW-1830603 Implement UDTF decoding.
