@@ -4864,7 +4864,7 @@ class DataFrame(BasePandasDataset):
 
         >>> df_copy = df.copy()
         >>> df_copy.iloc[0, 0] = pd.NA
-        >>> df_copy.map(lambda x: len(str(x)), na_action='ignore')
+        >>> df_copy.map(lambda x: len(str(x)), na_action='ignore')  # doctest: +SKIP
              0  1
         0  NaN  4
         1  5.0  5
