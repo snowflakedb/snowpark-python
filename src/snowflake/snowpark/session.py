@@ -738,6 +738,7 @@ class Session:
     getActiveSession = get_active_session
 
     @property
+    @experimental(version="1.27.0")
     def catalog(self) -> Catalog:
         """Returns the catalog object."""
         if self._catalog is None:
