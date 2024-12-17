@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     numeric_to_sql_without_cast,
     schema_expression,
     to_sql,
+    to_sql_no_cast,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -158,133 +159,100 @@ def test_to_sql():
 
 def test_to_sql_system_function():
     # Test nulls
-    assert to_sql(None, NullType(), is_system_function=True) == "NULL"
-    assert to_sql(None, ArrayType(DoubleType()), is_system_function=True) == "NULL"
-    assert (
-        to_sql(None, MapType(IntegerType(), ByteType()), is_system_function=True)
-        == "NULL"
-    )
-    assert to_sql(None, StructType([]), is_system_function=True) == "NULL"
-    assert to_sql(None, GeographyType(), is_system_function=True) == "NULL"
-    assert to_sql(None, GeometryType(), is_system_function=True) == "NULL"
+    assert to_sql_no_cast(None, NullType()) == "NULL"
+    assert to_sql_no_cast(None, ArrayType(DoubleType())) == "NULL"
+    assert to_sql_no_cast(None, MapType(IntegerType(), ByteType())) == "NULL"
+    assert to_sql_no_cast(None, StructType([])) == "NULL"
+    assert to_sql_no_cast(None, GeographyType()) == "NULL"
+    assert to_sql_no_cast(None, GeometryType()) == "NULL"
 
-    assert to_sql(None, IntegerType(), is_system_function=True) == "NULL"
-    assert to_sql(None, ShortType(), is_system_function=True) == "NULL"
-    assert to_sql(None, ByteType(), is_system_function=True) == "NULL"
-    assert to_sql(None, LongType(), is_system_function=True) == "NULL"
-    assert to_sql(None, FloatType(), is_system_function=True) == "NULL"
-    assert to_sql(None, StringType(), is_system_function=True) == "NULL"
-    assert to_sql(None, DoubleType(), is_system_function=True) == "NULL"
-    assert to_sql(None, BooleanType(), is_system_function=True) == "NULL"
+    assert to_sql_no_cast(None, IntegerType()) == "NULL"
+    assert to_sql_no_cast(None, ShortType()) == "NULL"
+    assert to_sql_no_cast(None, ByteType()) == "NULL"
+    assert to_sql_no_cast(None, LongType()) == "NULL"
+    assert to_sql_no_cast(None, FloatType()) == "NULL"
+    assert to_sql_no_cast(None, StringType()) == "NULL"
+    assert to_sql_no_cast(None, DoubleType()) == "NULL"
+    assert to_sql_no_cast(None, BooleanType()) == "NULL"
 
-    assert (
-        to_sql(None, "Not any of the previous types", is_system_function=True) == "NULL"
-    )
+    assert to_sql_no_cast(None, "Not any of the previous types") == "NULL"
 
     # Test non-nulls
     assert (
-        to_sql("\\ '  ' abc \n \\", StringType(), is_system_function=True)
+        to_sql_no_cast("\\ '  ' abc \n \\", StringType())
         == "'\\\\ ''  '' abc \\n \\\\'"
     )
     assert (
-        to_sql("\\ '  ' abc \n \\", StringType(), True, is_system_function=True)
+        to_sql_no_cast("\\ '  ' abc \n \\", StringType())
         == "'\\\\ ''  '' abc \\n \\\\'"
     )
-    assert to_sql(1, ByteType(), is_system_function=True) == "1"
-    assert to_sql(1, ShortType(), is_system_function=True) == "1"
-    assert to_sql(1, IntegerType(), is_system_function=True) == "1"
-    assert to_sql(1, LongType(), is_system_function=True) == "1"
-    assert to_sql(1, BooleanType(), is_system_function=True) == "1"
-    assert to_sql(0, ByteType(), is_system_function=True) == "0"
-    assert to_sql(0, ShortType(), is_system_function=True) == "0"
-    assert to_sql(0, IntegerType(), is_system_function=True) == "0"
-    assert to_sql(0, LongType(), is_system_function=True) == "0"
-    assert to_sql(0, BooleanType(), is_system_function=True) == "0"
+    assert to_sql_no_cast(1, ByteType()) == "1"
+    assert to_sql_no_cast(1, ShortType()) == "1"
+    assert to_sql_no_cast(1, IntegerType()) == "1"
+    assert to_sql_no_cast(1, LongType()) == "1"
+    assert to_sql_no_cast(1, BooleanType()) == "1"
+    assert to_sql_no_cast(0, ByteType()) == "0"
+    assert to_sql_no_cast(0, ShortType()) == "0"
+    assert to_sql_no_cast(0, IntegerType()) == "0"
+    assert to_sql_no_cast(0, LongType()) == "0"
+    assert to_sql_no_cast(0, BooleanType()) == "0"
 
-    assert to_sql(float("nan"), FloatType(), is_system_function=True) == "'NAN'"
-    assert to_sql(float("inf"), FloatType(), is_system_function=True) == "'INF'"
-    assert to_sql(float("-inf"), FloatType(), is_system_function=True) == "'-INF'"
-    assert to_sql(1.2, FloatType(), is_system_function=True) == "1.2"
+    assert to_sql_no_cast(float("nan"), FloatType()) == "'NAN'"
+    assert to_sql_no_cast(float("inf"), FloatType()) == "'INF'"
+    assert to_sql_no_cast(float("-inf"), FloatType()) == "'-INF'"
+    assert to_sql_no_cast(1.2, FloatType()) == "1.2"
 
-    assert to_sql(float("nan"), DoubleType(), is_system_function=True) == "'NAN'"
-    assert to_sql(float("inf"), DoubleType(), is_system_function=True) == "'INF'"
-    assert to_sql(float("-inf"), DoubleType(), is_system_function=True) == "'-INF'"
-    assert to_sql(1.2, DoubleType(), is_system_function=True) == "1.2"
+    assert to_sql_no_cast(float("nan"), DoubleType()) == "'NAN'"
+    assert to_sql_no_cast(float("inf"), DoubleType()) == "'INF'"
+    assert to_sql_no_cast(float("-inf"), DoubleType()) == "'-INF'"
+    assert to_sql_no_cast(1.2, DoubleType()) == "1.2"
 
-    assert to_sql(Decimal(0.5), DecimalType(2, 1), is_system_function=True) == "0.5"
+    assert to_sql_no_cast(Decimal(0.5), DecimalType(2, 1)) == "0.5"
 
-    assert to_sql(397, DateType(), is_system_function=True) == "'1971-02-02'"
+    assert to_sql_no_cast(397, DateType()) == "'1971-02-02'"
 
-    assert (
-        to_sql(datetime.date(1971, 2, 2), DateType(), is_system_function=True)
-        == "'1971-02-02'"
-    )
+    assert to_sql_no_cast(datetime.date(1971, 2, 2), DateType()) == "'1971-02-02'"
 
     assert (
-        to_sql(1622002533000000, TimestampType(), is_system_function=True)
+        to_sql_no_cast(1622002533000000, TimestampType())
         == "'2021-05-26 04:15:33+00:00'"
     )
 
     assert (
-        to_sql(bytearray.fromhex("2Ef0 F1f2 "), BinaryType(), is_system_function=True)
+        to_sql_no_cast(bytearray.fromhex("2Ef0 F1f2 "), BinaryType())
         == "b'.\\xf0\\xf1\\xf2'"
     )
 
-    assert (
-        to_sql([1, "2", 3.5], ArrayType(), is_system_function=True)
-        == "PARSE_JSON('[1, \"2\", 3.5]')"
-    )
-    assert (
-        to_sql({"'": '"'}, MapType(), is_system_function=True)
-        == 'PARSE_JSON(\'{"\'\'": "\\\\""}\')'
-    )
-    assert (
-        to_sql([{1: 2}], ArrayType(), is_system_function=True)
-        == "PARSE_JSON('[{\"1\": 2}]')"
-    )
-    assert (
-        to_sql({1: [2]}, MapType(), is_system_function=True)
-        == "PARSE_JSON('{\"1\": [2]}')"
-    )
+    assert to_sql_no_cast([1, "2", 3.5], ArrayType()) == "PARSE_JSON('[1, \"2\", 3.5]')"
+    assert to_sql_no_cast({"'": '"'}, MapType()) == 'PARSE_JSON(\'{"\'\'": "\\\\""}\')'
+    assert to_sql_no_cast([{1: 2}], ArrayType()) == "PARSE_JSON('[{\"1\": 2}]')"
+    assert to_sql_no_cast({1: [2]}, MapType()) == "PARSE_JSON('{\"1\": [2]}')"
+
+    assert to_sql_no_cast([1, bytearray(1)], ArrayType()) == "PARSE_JSON('[1, \"00\"]')"
 
     assert (
-        to_sql([1, bytearray(1)], ArrayType(), is_system_function=True)
-        == "PARSE_JSON('[1, \"00\"]')"
-    )
-
-    assert (
-        to_sql(["2", Decimal(0.5)], ArrayType(), is_system_function=True)
-        == "PARSE_JSON('[\"2\", 0.5]')"
+        to_sql_no_cast(["2", Decimal(0.5)], ArrayType()) == "PARSE_JSON('[\"2\", 0.5]')"
     )
 
     dt = datetime.datetime.today()
     assert (
-        to_sql({1: dt}, MapType(), is_system_function=True)
+        to_sql_no_cast({1: dt}, MapType())
         == 'PARSE_JSON(\'{"1": "' + dt.isoformat() + "\"}')"
     )
 
+    assert to_sql_no_cast([1, 2, 3.5], VectorType(float, 3)) == "[1, 2, 3.5]"
     assert (
-        to_sql([1, 2, 3.5], VectorType(float, 3), is_system_function=True)
-        == "[1, 2, 3.5]"
-    )
-    assert (
-        to_sql("POINT(-122.35 37.55)", GeographyType(), is_system_function=True)
+        to_sql_no_cast("POINT(-122.35 37.55)", GeographyType())
         == "TO_GEOGRAPHY('POINT(-122.35 37.55)')"
     )
-    assert to_sql("1", VariantType(), is_system_function=True) == "'1'"
+    assert to_sql_no_cast("1", VariantType()) == "'1'"
     assert (
-        to_sql(
-            [1, 2, 3.5, 4.1234567, -3.8],
-            VectorType("float", 5),
-            is_system_function=True,
-        )
+        to_sql_no_cast([1, 2, 3.5, 4.1234567, -3.8], VectorType("float", 5))
         == "[1, 2, 3.5, 4.1234567, -3.8]"
     )
-    assert to_sql([1, 2, 3], VectorType(int, 3), is_system_function=True) == "[1, 2, 3]"
+    assert to_sql_no_cast([1, 2, 3], VectorType(int, 3)) == "[1, 2, 3]"
     assert (
-        to_sql(
-            [1, 2, 31234567, -1928, 0, -3], VectorType(int, 5), is_system_function=True
-        )
+        to_sql_no_cast([1, 2, 31234567, -1928, 0, -3], VectorType(int, 5))
         == "[1, 2, 31234567, -1928, 0, -3]"
     )
 

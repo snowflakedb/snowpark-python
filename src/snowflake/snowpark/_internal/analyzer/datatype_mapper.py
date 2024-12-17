@@ -113,9 +113,6 @@ def to_sql(
     is_system_function: bool = False,
 ) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
-    # if is system function, don't do covert
-    if is_system_function:
-        return to_sql_no_cast(value, datatype)
     # Handle null values
     if isinstance(
         datatype,
