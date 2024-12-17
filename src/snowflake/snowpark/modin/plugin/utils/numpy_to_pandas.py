@@ -291,7 +291,8 @@ numpy_to_pandas_universal_func_map = {
 }
 
 
-NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION = {
+# Map numpy universal (element-wise) function to Snowflake function
+NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION = {
     # Math operations
     np.absolute: sp_func.abs,
     np.sign: sp_func.sign,
@@ -308,10 +309,6 @@ NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION = {
     np.log2: sp_func._log2,
     np.log10: sp_func._log10,
     np.log1p: lambda col: sp_func.ln(col + 1),
-    # Aggregate functions translate to identity functions when applied element wise
-    np.sum: lambda col: col,
-    np.min: lambda col: col,
-    np.max: lambda col: col,
     # Trigonometric functions
     np.sin: sp_func.sin,
     np.cos: sp_func.cos,
