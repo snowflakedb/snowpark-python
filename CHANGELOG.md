@@ -38,6 +38,7 @@
   - %j: Day of the year as a zero-padded decimal number.
   - %X: Locale’s appropriate time representation.
   - %%: A literal '%' character.
+- Added support for `Series.between`.
 
 #### Bug Fixes
 
