@@ -948,7 +948,6 @@ class Decoder:
                 return udf(
                     lambda *args: None, return_type=return_type, input_types=input_types
                 )
-                # return udf(lambda *args: None, return_type = return_type, input_types = input_types, _registered_object_name = self.decode_table_name_expr(expr.udf.func.object_name))
 
             case "udtf":
                 # TODO: SNOW-1830603 Implement UDTF decoding.
