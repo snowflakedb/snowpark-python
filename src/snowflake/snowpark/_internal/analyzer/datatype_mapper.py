@@ -266,8 +266,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             return "to_timestamp('2020-09-16 06:30:00')"
     if isinstance(data_type, ArrayType):
         if data_type.structured:
-            assert isinstance(data_type.element_type, DataType)
-            element = schema_expression(data_type.element_type, is_nullable)
+            element = schema_expression(data_type.element_type, data_type.contains_null)
             return f"to_array({element}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_array(0)"
     if isinstance(data_type, MapType):
