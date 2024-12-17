@@ -372,6 +372,9 @@ from snowflake.snowpark.modin.plugin._typing import (
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
+from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
+    NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION,
+)
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
@@ -8755,6 +8758,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
+
+        # Check if the function is a known numpy function that can be translated to Snowflake function.
+        sf_func = NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
+        if sf_func is not None:
+            # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
+            return self._apply_snowpark_python_function_to_columns(
+                sf_func, kwargs
+            )  # pragma: no cover
+
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.

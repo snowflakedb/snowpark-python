@@ -19,7 +19,12 @@
 - Added support for `Series.str.center`.
 - Added support for `Series.str.pad`.
 - Added support for applying Snowpark Python function `snowflake_cortex_sentiment`.
+- Added support for `DataFrame.map`.
+- Added support for `DataFrame.from_dict` and `DataFrame.from_records`.
+- Added support for mixed case field names in struct type columns.
 
+#### Improvements
+- Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
 
 ## 1.26.0 (2024-12-05)
 
