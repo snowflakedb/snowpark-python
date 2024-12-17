@@ -433,6 +433,71 @@ def test_days_in_month(property):
     )
 
 
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "date_format",
+    [
+        "a%d-%m-%Y-%H-%M-%S-%f-%j-%X-%%b",
+        "%d-%m-%Y-%H-%M-%S-%f-%j-%X-%%b",
+        "a%d-%m-%Y-%H-%M-%S-%f-%j-%X-%%",
+        "%d-%m-%Y-%H-%M-%S-%f-%j-%X-%%",
+    ],
+)
+def test_strftime(date_format):
+    datetime_index = native_pd.DatetimeIndex(
+        [
+            "2014-04-04 23:56:01.000000001",
+            "2014-07-18 21:24:02.000000002",
+            "2015-11-22 22:14:03.000000003",
+            "2015-11-23 20:12:04.1234567890",
+            pd.NaT,
+        ],
+    )
+    native_ser = native_pd.Series(datetime_index)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda s: s.dt.strftime(date_format=date_format),
+    )
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "date_format",
+    [
+        "%a",
+        "%A",
+        "%w",
+        "%b",
+        "%B",
+        "%y",
+        "%I",
+        "%p",
+        "%z",
+        "%Z",
+        "%U",
+        "%W",
+        "%c",
+        "%x",
+    ],
+)
+def test_strftime_neg(date_format):
+    datetime_index = native_pd.DatetimeIndex(
+        [
+            "2014-04-04 23:56:01.000000001",
+            "2014-07-18 21:24:02.000000002",
+            "2015-11-22 22:14:03.000000003",
+            "2015-11-23 20:12:04.1234567890",
+            pd.NaT,
+        ],
+    )
+    native_ser = native_pd.Series(datetime_index)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(NotImplementedError):
+        snow_ser.dt.strftime(date_format=date_format)
+
+
 @dt_properties
 @sql_count_checker(query_count=1)
 def test_dt_property_with_tz(property_name):
