@@ -1,0 +1,62 @@
+:orphan:
+
+Supported Aggregation Functions
+====================================
+
+This page lists which aggregation functions are supported by ``DataFrame.agg``, 
+``Series.agg``, ``DataFrameGroupBy.agg``, and ``SeriesGroupBy.agg``.
+The following table is structured as follows: The first column contains the aggregation function's name.
+The second column is a flag for whether or not the aggregation is supported by ``DataFrame.agg``. The
+third column is a flag for whether or not the aggregation is supported by ``Series.agg``. The fourth column
+is whether or not the aggregation is supported by ``DataFrameGroupBy.agg``. The fifth column is whether or not
+the aggregation is supported by ``SeriesGroupBy.agg``.
+
+.. note::
+    ``Y`` stands for yes (supports distributed implementation), ``N`` stands for no (API simply errors out),
+    and ``P`` stands for partial (meaning some parameters may not be supported yet).
+
+    Both Python builtin and NumPy functions are supported for ``DataFrameGroupBy.agg`` and ``SeriesGroupBy.agg``.
+
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| Aggregation Function        | ``DataFrame.agg`` supports? (Y/N/P) | ``Series.agg`` supports? (Y/N/P) | ``DataFrameGroupBy.agg`` supports? (Y/N/P) | ``SeriesGroupBy.agg`` supports? (Y/N/P) |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``count``                   | ``Y`` for ``axis=0``.               | ``Y``                            | ``Y``                                      | ``Y``                                   |
+|                             | For  ``axis=1``, ``Y`` if index is  |                                  |                                            |                                         |
+|                             | not a MultiIndex.                   |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``mean``                    | ``Y`` for ``axis=0``.               | ``Y``                            | ``Y``                                      | ``Y``                                   |
+|                             | ``N`` for  ``axis=1``.              |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``min``                     | ``Y`` for ``axis=0``.               | ``Y``                            | ``Y``                                      | ``Y``                                   |
+|                             | For  ``axis=1``, ``Y`` if index is  |                                  |                                            |                                         |
+|                             | not a MultiIndex.                   |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``max``                     | ``Y`` for ``axis=0``.               | ``Y``                            | ``Y``                                      | ``Y``                                   |
+|                             | For  ``axis=1``, ``Y`` if index is  |                                  |                                            |                                         |
+|                             | not a MultiIndex.                   |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``sum``                     | ``Y`` for ``axis=0``.               | ``Y``                            | ``Y``                                      | ``Y``                                   |
+|                             | For  ``axis=1``, ``Y`` if index is  |                                  |                                            |                                         |
+|                             | not a MultiIndex.                   |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``median``                  | ``Y`` for ``axis=0``.               | ``Y``                            | ``Y``                                      | ``Y``                                   |
+|                             | ``N`` for  ``axis=1``.              |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``size``                    | ``Y`` for ``axis=0``.               | ``Y``                            | ``Y``                                      | ``Y``                                   |
+|                             | ``N`` for  ``axis=1``.              |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``std``                     | ``P`` for ``axis=0`` - only when    | ``P`` - only when ``ddof=0``     | ``P`` - only when ``ddof=0``               | ``P`` - only when ``ddof=0``            |
+|                             | ``ddof=0`` or ``ddof=1``.           | or ``ddof=1``.                   | or ``ddof=1``.                             | or ``ddof=1``.                          |
+|                             | ``N`` for  ``axis=1``.              |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``var``                     | ``P`` for ``axis=0`` - only when    | ``P`` - only when ``ddof=0``     | ``P`` - only when ``ddof=0``               | ``P`` - only when ``ddof=0``            |
+|                             | ``ddof=0`` or ``ddof=1``.           | or ``ddof=1``.                   | or ``ddof=1``.                             | or ``ddof=1``.                          |
+|                             | ``N`` for  ``axis=1``.              |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``quantile``                | ``P`` for ``axis=0`` - only when    | ``P`` - only when ``q`` is the   | ``P`` - only when ``q`` is the             | ``P`` - only when ``q`` is the          |
+|                             | ``q`` is the default value or       | default value or a scalar.       | default value or a scalar.                 | default value or a scalar.              |
+|                             | a scalar.                           |                                  |                                            |                                         |
+|                             | ``N`` for  ``axis=1``.              |                                  |                                            |                                         |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
+| ``len``                     | ``N``                               | ``N``                            | ``Y``                                      | ``Y``                                   |
++-----------------------------+-------------------------------------+----------------------------------+--------------------------------------------+-----------------------------------------+
