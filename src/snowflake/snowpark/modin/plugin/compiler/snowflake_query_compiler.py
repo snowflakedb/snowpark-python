@@ -19505,11 +19505,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # the aggregation in the following steps:
         # 1) Project a new column representing the row position of each row
         #    within each combination of group + data column value.
-        # 3) Filter the result to the rows where the new column is equal to 1,
+        # 2) Filter the result to the rows where the new column is equal to 1,
         #    i.e. get the row where each data column value appears for the first
         #    time within each group.
-        # 4) Project away the extra rank column.
-        # 5) Group according to `groupby_kwargs` and for each group, aggregate
+        # 3) Project away the extra rank column.
+        # 4) Group according to `groupby_kwargs` and for each group, aggregate
         #    the (singular) remaining data column into a list ordered by the
         #    original row order.
         frame_with_rank = compiler._modin_frame.append_column(
