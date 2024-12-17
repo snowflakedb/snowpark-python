@@ -1447,18 +1447,13 @@ def ClearTempTables(message: proto.Request) -> None:
             )
 
 
-def clear_udfs(message: proto.Request) -> None:
-    """Clears the symbol field in the given AST."""
-    for stmt in message.body:
-        if str(stmt.assign.expr.udf):
-            stmt.assign.expr.ClearField("udf")
-
-
-def clear_symbols(message: proto.Request) -> None:
-    """Clears the symbol field in the given AST."""
+def clear_symbols_and_udfs(message: proto.Request) -> None:
+    """Clears the symbol and udf field in the given AST."""
     for stmt in message.body:
         if hasattr(stmt, "assign"):
             stmt.assign.ClearField("symbol")
+        if str(stmt.assign.expr.udf):
+            stmt.assign.expr.ClearField("udf")
 
 
 def base64_str_to_request(base64_str: str) -> proto.Request:
