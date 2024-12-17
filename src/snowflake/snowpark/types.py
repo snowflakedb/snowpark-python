@@ -334,16 +334,12 @@ class ArrayType(DataType):
     def __init__(
         self,
         element_type: Optional[DataType] = None,
-        structured: Optional[bool] = None,
+        structured: bool = False,
+        contains_null: bool = True,
     ) -> None:
-        if context._should_use_structured_type_semantics():
-            self.structured = (
-                structured if structured is not None else element_type is not None
-            )
-            self.element_type = element_type
-        else:
-            self.structured = structured or False
-            self.element_type = element_type if element_type else StringType()
+        self.structured = structured
+        self.element_type = element_type if element_type else StringType()
+        self.contains_null = contains_null
 
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"

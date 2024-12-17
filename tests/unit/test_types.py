@@ -964,6 +964,15 @@ def test_convert_sp_to_sf_type():
     )
     assert convert_sp_to_sf_type(BinaryType()) == "BINARY"
     assert convert_sp_to_sf_type(ArrayType()) == "ARRAY"
+    assert (
+        convert_sp_to_sf_type(ArrayType(IntegerType(), structured=True)) == "ARRAY(INT)"
+    )
+    assert (
+        convert_sp_to_sf_type(
+            ArrayType(IntegerType(), structured=True, contains_null=False)
+        )
+        == "ARRAY(INT NOT NULL)"
+    )
     assert convert_sp_to_sf_type(MapType()) == "OBJECT"
     assert convert_sp_to_sf_type(StructType()) == "OBJECT"
     assert convert_sp_to_sf_type(VariantType()) == "VARIANT"
