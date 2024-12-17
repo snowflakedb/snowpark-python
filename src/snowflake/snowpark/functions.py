@@ -1309,7 +1309,18 @@ def approx_percentile(
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "approx_percentile")
-    return builtin("approx_percentile", _emit_ast=_emit_ast)(c, lit(percentile))
+    # Build AST here to prevent `percentile` from being recorded as a literal instead of float.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "approx_percentile",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [c, percentile]
+            ),
+        )
+    return builtin("approx_percentile", _emit_ast=False)(c, lit(percentile))
 
 
 @publicapi
@@ -1366,9 +1377,18 @@ def approx_percentile_estimate(
         <BLANKLINE>
     """
     c = _to_col_if_str(state, "approx_percentile_estimate")
-    return builtin("approx_percentile_estimate", _emit_ast=_emit_ast)(
-        c, lit(percentile)
-    )
+    # Build AST here to prevent `percentile` from being recorded as a literal instead of float.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "approx_percentile_estimate",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [c, percentile]
+            ),
+        )
+    return builtin("approx_percentile_estimate", _emit_ast=False)(c, lit(percentile))
 
 
 @publicapi
@@ -1948,7 +1968,18 @@ def to_decimal(
         [Row(ANS=Decimal('12.00')), Row(ANS=Decimal('11.30')), Row(ANS=Decimal('-90.12'))]
     """
     c = _to_col_if_str(e, "to_decimal")
-    return builtin("to_decimal", _emit_ast=_emit_ast)(c, lit(precision), lit(scale))
+    # Build AST here to prevent `precision` and `scale` from being recorded as a literal instead of int.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "to_decimal",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [c, precision, scale]
+            ),
+        )
+    return builtin("to_decimal", _emit_ast=False)(c, lit(precision), lit(scale))
 
 
 @publicapi
@@ -2001,17 +2032,28 @@ def div0(
         >>> df.select(div0(df["a"], 1).alias("divided_by_one"), div0(df["a"], 0).alias("divided_by_zero")).collect()
         [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=Decimal('0.000000'))]
     """
+    # Build AST here to prevent `dividend` and `divisor` from being recorded as a literal instead of int/float.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "div0",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [dividend, divisor]
+            ),
+        )
     dividend_col = (
-        lit(dividend)
+        lit(dividend, _emit_ast=False)
         if isinstance(dividend, (int, float))
         else _to_col_if_str(dividend, "div0")
     )
     divisor_col = (
-        lit(divisor)
+        lit(divisor, _emit_ast=False)
         if isinstance(divisor, (int, float))
         else _to_col_if_str(divisor, "div0")
     )
-    return builtin("div0", _emit_ast=_emit_ast)(dividend_col, divisor_col)
+    return builtin("div0", _emit_ast=False)(dividend_col, divisor_col)
 
 
 @publicapi
@@ -2029,6 +2071,17 @@ def divnull(
         >>> df.select(divnull(df["a"], 1).alias("divided_by_one"), divnull(df["a"], 0).alias("divided_by_zero")).collect()
         [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=None)]
     """
+    # Build AST here to prevent `dividend` and `divisor` from being recorded as a literal instead of int/float.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "divnull",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [dividend, divisor]
+            ),
+        )
     dividend_col = (
         lit(dividend, _emit_ast=False)
         if isinstance(dividend, (int, float))
@@ -2581,7 +2634,18 @@ def lpad(
     """
     c = _to_col_if_str(e, "lpad")
     p = _to_col_if_str(pad, "lpad")
-    return builtin("lpad", _emit_ast=_emit_ast)(
+    # Build AST here to prevent `len` from being recorded as a literal instead of int.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "lpad",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [c, len, p]
+            ),
+        )
+    return builtin("lpad", _emit_ast=False)(
         c, len if isinstance(len, Column) else lit(len), p
     )
 
@@ -2640,7 +2704,18 @@ def rpad(
     """
     c = _to_col_if_str(e, "rpad")
     p = _to_col_if_str(pad, "rpad")
-    return builtin("rpad", _emit_ast=_emit_ast)(
+    # Build AST here to prevent `len` from being recorded as a literal instead of int.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "rpad",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [c, len, p]
+            ),
+        )
+    return builtin("rpad", _emit_ast=False)(
         c, len if isinstance(len, Column) else lit(len), p
     )
 
@@ -2692,9 +2767,18 @@ def repeat(s: ColumnOrName, n: Union[Column, int], _emit_ast: bool = True) -> Co
         <BLANKLINE>
     """
     c = _to_col_if_str(s, "repeat")
-    return builtin("repeat", _emit_ast=_emit_ast)(
-        c, n if isinstance(n, Column) else lit(n)
-    )
+    # Build AST here to prevent `len` from being recorded as a literal instead of int.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "repeat",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [c, n]
+            ),
+        )
+    return builtin("repeat", _emit_ast=False)(c, n if isinstance(n, Column) else lit(n))
 
 
 @publicapi
@@ -2858,7 +2942,7 @@ def struct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
             name = c._expression.name
             name = name[1:] if name.startswith('"') else name
             name = name[:-1] if name.endswith('"') else name
-            new_cols.append(lit(name))
+            new_cols.append(lit(name, _emit_ast=False))
         # next insert field value
         c = _to_col_if_str(c, "struct")
         if isinstance(c, Column) and isinstance(c._expression, Alias):
@@ -2887,17 +2971,28 @@ def log(
         >>> df.select(log(10, df["a"]).cast(IntegerType()).alias("log")).collect()
         [Row(LOG=0), Row(LOG=1)]
     """
+    # Build AST here to prevent `base` and `x` from being recorded as a literal instead of int/float.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "log",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [base, x]
+            ),
+        )
     b = (
-        lit(base, _emit_ast=_emit_ast)
+        lit(base, _emit_ast=False)
         if isinstance(base, (int, float))
         else _to_col_if_str(base, "log")
     )
     arg = (
-        lit(x, _emit_ast=_emit_ast)
+        lit(x, _emit_ast=False)
         if isinstance(x, (int, float))
         else _to_col_if_str(x, "log")
     )
-    return builtin("log", _emit_ast=_emit_ast)(b, arg)
+    return builtin("log", _emit_ast=False)(b, arg)
 
 
 # Create base 2 and base 10 wrappers for use with the Modin log2 and log10 functions
@@ -2928,17 +3023,28 @@ def pow(
         ------------
         <BLANKLINE>
     """
+    # Build AST here to prevent `left` and `right` from being recorded as a literal instead of int/float.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "pow",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [left, right]
+            ),
+        )
     number = (
-        lit(left, _emit_ast=_emit_ast)
+        lit(left, _emit_ast=False)
         if isinstance(left, (int, float))
         else _to_col_if_str(left, "pow")
     )
     power = (
-        lit(right, _emit_ast=_emit_ast)
+        lit(right, _emit_ast=False)
         if isinstance(right, (int, float))
         else _to_col_if_str(right, "pow")
     )
-    return builtin("pow", _emit_ast=_emit_ast)(number, power)
+    return builtin("pow", _emit_ast=False)(number, power)
 
 
 @publicapi
@@ -2961,6 +3067,17 @@ def round(
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "round")
+    # Build AST here to prevent `scale` from being recorded as a literal instead of int/float.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "round",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [c, scale]
+            ),
+        )
     scale_col = (
         lit(scale, _emit_ast=False)
         if isinstance(scale, (int, float))
@@ -3088,11 +3205,25 @@ def substring(
         [Row(SUBSTRING("S", 2)='bc'), Row(SUBSTRING("S", 2)='ef')]
     """
     s = _to_col_if_str(str, "substring")
-    p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=_emit_ast)
+    # Build AST here to prevent `pos` and `len` from being recorded as a literal instead of int/None.
+    if _emit_ast:
+        ast = proto.Expr()
+        args_list = [s, pos]
+        if len is not None:
+            args_list.append(len)  # Don't encode len if it's None.
+        build_builtin_fn_apply(
+            ast,
+            "substring",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in args_list
+            ),
+        )
+    p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=False)
     if len is None:
-        return builtin("substring", _emit_ast=_emit_ast)(s, p)
-    length = len if isinstance(len, Column) else lit(len, _emit_ast=_emit_ast)
-    return builtin("substring", _emit_ast=_emit_ast)(s, p, length)
+        return builtin("substring", _emit_ast=False)(s, p)
+    length = len if isinstance(len, Column) else lit(len, _emit_ast=False)
+    return builtin("substring", _emit_ast=False)(s, p, length)
 
 
 @publicapi
@@ -3183,11 +3314,25 @@ def regexp_count(
     """
     sql_func_name = "regexp_count"
     sub = _to_col_if_str(subject, sql_func_name)
-    pat = pattern if isinstance(pattern, Column) else lit(pattern)
-    pos = position if isinstance(position, Column) else lit(position)
 
-    params = [lit(p) for p in parameters]
-    return builtin(sql_func_name, _emit_ast=_emit_ast)(sub, pat, pos, *params)
+    # Build AST here to prevent `pattern` and `position` from being recorded as a literal instead of int/str.
+    if _emit_ast:
+        ast = proto.Expr()
+        args_list = [sub, pattern, position] + list(parameters)
+        build_builtin_fn_apply(
+            ast,
+            sql_func_name,
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in args_list
+            ),
+        )
+
+    pat = pattern if isinstance(pattern, Column) else lit(pattern, _emit_ast=False)
+    pos = position if isinstance(position, Column) else lit(position, _emit_ast=False)
+
+    params = [lit(p, _emit_ast=False) for p in parameters]
+    return builtin(sql_func_name, _emit_ast=False)(sub, pat, pos, *params)
 
 
 @publicapi
@@ -3272,13 +3417,40 @@ def regexp_replace(
     """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
-    pat = pattern if isinstance(pattern, Column) else lit(pattern)
-    rep = replacement if isinstance(replacement, Column) else lit(replacement)
-    pos = position if isinstance(position, Column) else lit(position)
-    occ = occurrences if isinstance(occurrences, Column) else lit(occurrences)
 
-    params = [p if isinstance(p, Column) else lit(p) for p in parameters]
-    return builtin(sql_func_name, _emit_ast=_emit_ast)(sub, pat, rep, pos, occ, *params)
+    # Build AST here to prevent `pattern`, `replacement`, `position`, `occurrences` from being recorded as a literal
+    # instead of int/str.
+    if _emit_ast:
+        ast = proto.Expr()
+        args_list = [sub, pattern, replacement, position, occurrences] + list(
+            parameters
+        )
+        build_builtin_fn_apply(
+            ast,
+            sql_func_name,
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in args_list
+            ),
+        )
+
+    pat = pattern if isinstance(pattern, Column) else lit(pattern, _emit_ast=False)
+    rep = (
+        replacement
+        if isinstance(replacement, Column)
+        else lit(replacement, _emit_ast=False)
+    )
+    pos = position if isinstance(position, Column) else lit(position, _emit_ast=False)
+    occ = (
+        occurrences
+        if isinstance(occurrences, Column)
+        else lit(occurrences, _emit_ast=False)
+    )
+
+    params = [
+        p if isinstance(p, Column) else lit(p, _emit_ast=False) for p in parameters
+    ]
+    return builtin(sql_func_name, _emit_ast=False)(sub, pat, rep, pos, occ, *params)
 
 
 @publicapi
@@ -3306,9 +3478,20 @@ def replace(
     """
     sql_func_name = "replace"
     sub = _to_col_if_str(subject, sql_func_name)
+    # Build AST here to prevent `pattern` and `replacement` from being recorded as a literal instead of str.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            sql_func_name,
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [sub, pattern, replacement]
+            ),
+        )
     pat = lit(pattern, _emit_ast=_emit_ast)
     rep = lit(replacement, _emit_ast=_emit_ast)
-    return builtin(sql_func_name, _emit_ast=_emit_ast)(sub, pat, rep)
+    return builtin(sql_func_name, _emit_ast=False)(sub, pat, rep)
 
 
 @publicapi
@@ -3346,12 +3529,31 @@ def charindex(
     """
     t = _to_col_if_str(target_expr, "charindex")
     s = _to_col_if_str(source_expr, "charindex")
+    # Build AST here to prevent `position` from being recorded as a literal instead of int/None.
+    if _emit_ast:
+        ast = proto.Expr()
+        # Don't record position if it is None.
+        args_list = [t, s]
+        if position is not None:
+            args_list.append(position)
+        build_builtin_fn_apply(
+            ast,
+            "charindex",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in args_list
+            ),
+        )
     return (
-        builtin("charindex", _emit_ast=_emit_ast)(
-            t, s, position if isinstance(position, Column) else lit(position)
+        builtin("charindex", _emit_ast=False)(
+            t,
+            s,
+            position
+            if isinstance(position, Column)
+            else lit(position, _emit_ast=False),
         )
         if position is not None
-        else builtin("charindex", _emit_ast=_emit_ast)(t, s)
+        else builtin("charindex", _emit_ast=False)(t, s)
     )
 
 
@@ -3595,10 +3797,21 @@ def insert(
     """
     b = _to_col_if_str(base_expr, "insert")
     i = _to_col_if_str(insert_expr, "insert")
-    return builtin("insert", _emit_ast=_emit_ast)(
+    # Build AST here to prevent `position` and `length` from being recorded as a literal instead of int.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "insert",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [b, position, length, i]
+            ),
+        )
+    return builtin("insert", _emit_ast=False)(
         b,
-        position if isinstance(position, Column) else lit(position),
-        length if isinstance(length, Column) else lit(length),
+        position if isinstance(position, Column) else lit(position, _emit_ast=False),
+        length if isinstance(length, Column) else lit(length, _emit_ast=False),
         i,
     )
 
@@ -3622,8 +3835,19 @@ def left(
         <BLANKLINE>
     """
     s = _to_col_if_str(str_expr, "left")
-    return builtin("left", _emit_ast=_emit_ast)(
-        s, length if isinstance(length, Column) else lit(length)
+    # Build AST here to prevent `length` from being recorded as a literal instead of int.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "left",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [s, length]
+            ),
+        )
+    return builtin("left", _emit_ast=False)(
+        s, length if isinstance(length, Column) else lit(length, _emit_ast=False)
     )
 
 
@@ -3646,8 +3870,19 @@ def right(
         <BLANKLINE>
     """
     s = _to_col_if_str(str_expr, "right")
-    return builtin("right", _emit_ast=_emit_ast)(
-        s, length if isinstance(length, Column) else lit(length)
+    # Build AST here to prevent `position` and `length` from being recorded as a literal instead of int.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "right",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [s, length]
+            ),
+        )
+    return builtin("right", _emit_ast=False)(
+        s, length if isinstance(length, Column) else lit(length, _emit_ast=False)
     )
 
 
@@ -3696,12 +3931,23 @@ def to_char(
 
     """
     c = _to_col_if_str(c, "to_char")
+    # Build AST here to prevent `format` from being recorded as a literal instead of str/None.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "insert",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [c, format]
+            ),
+        )
     return (
-        builtin("to_char", _emit_ast=_emit_ast)(
-            c, format if isinstance(format, Column) else lit(format)
+        builtin("to_char", _emit_ast=False)(
+            c, format if isinstance(format, Column) else lit(format, _emit_ast=False)
         )
         if format is not None
-        else builtin("to_char", _emit_ast=_emit_ast)(c)
+        else builtin("to_char", _emit_ast=False)(c)
     )
 
 
@@ -4468,7 +4714,7 @@ def array_intersection(
 def array_except(
     source_array: ColumnOrName,
     array_of_elements_to_exclude: ColumnOrName,
-    allow_duplicates=True,
+    allow_duplicates: bool = True,
     _emit_ast: bool = True,
 ) -> Column:
     """Returns a new ARRAY that contains the elements from one input ARRAY that are not in another input ARRAY.
@@ -4588,7 +4834,11 @@ def array_except(
     if _emit_ast:
         ast = proto.Expr()
         build_builtin_fn_apply(
-            ast, "array_except", source_array, array_of_elements_to_exclude
+            ast,
+            "array_except",
+            source_array,
+            array_of_elements_to_exclude,
+            allow_duplicates,
         )
 
     array1 = _to_col_if_str(source_array, "array_except")
@@ -4774,10 +5024,21 @@ def array_sort(
         - :func:`~snowflake.snowpark.functions.sort_array` which is an alias of :meth:`~snowflake.snowpark.functions.array_sort`.
     """
     array = _to_col_if_str(array, "array_sort")
-    return builtin("array_sort", _emit_ast=_emit_ast)(
+    # Build AST here to prevent `sort_ascending` and `nulls_first` from being recorded as a literal instead of bool.
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(
+            ast,
+            "array_sort",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in [array, sort_ascending, nulls_first]
+            ),
+        )
+    return builtin("array_sort", _emit_ast=False)(
         array,
-        lit(sort_ascending, _emit_ast=_emit_ast),
-        lit(nulls_first, _emit_ast=_emit_ast),
+        lit(sort_ascending, _emit_ast=False),
+        lit(nulls_first, _emit_ast=False),
     )
 
 
@@ -4997,7 +5258,7 @@ def sequence(
     start_col = _to_col_if_str(start, "sequence")
     stop_col = _to_col_if_str(stop, "sequence")
     if step is None:
-        step = iff(builtin("sign")(stop_col - start_col) > 0, 1, -1)
+        step = iff(builtin("sign", _emit_ast=False)(stop_col - start_col) > 0, 1, -1)
         ans = builtin("array_generate_range", _emit_ast=False)(
             start_col, stop_col + step, step
         )
@@ -5005,7 +5266,7 @@ def sequence(
         return ans
 
     step_col = _to_col_if_str(step, "sequence")
-    step_sign = iff(builtin("sign")(step_col) > 0, 1, -1)
+    step_sign = iff(builtin("sign", _emit_ast=False)(step_col) > 0, 1, -1)
     ans = builtin("array_generate_range", _emit_ast=False)(
         start_col, stop_col + step_sign, step_col
     )
@@ -5046,7 +5307,7 @@ def date_add(
     # Convert the input to a column if it is a string
     col = _to_col_if_str(col, "date_add")
     num_of_days = (
-        lit(num_of_days)
+        lit(num_of_days, _emit_ast=False)
         if isinstance(num_of_days, int)
         else _to_col_if_str(num_of_days, "date_add")
     )
@@ -5089,12 +5350,12 @@ def date_sub(
     # Convert the input parameters to the appropriate type
     col = _to_col_if_str(col, "date_sub")
     num_of_days = (
-        lit(num_of_days)
+        lit(num_of_days, _emit_ast=False)
         if isinstance(num_of_days, int)
         else _to_col_if_str(num_of_days, "date_sub")
     )
     # Return the date column with the number of days subtracted
-    ans = dateadd("day", -1 * num_of_days, col)
+    ans = dateadd("day", -1 * num_of_days, col, _emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -5430,11 +5691,13 @@ def dayofyear(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin("dayofyear", _emit_ast=_emit_ast)(c)
 
 
+@publicapi
 def window(
     time_column: ColumnOrName,
     window_duration: str,
     slide_duration: Optional[str] = None,
     start_time: Optional[str] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Converts a time column into a window object with start and end times. Window start times are
@@ -5523,13 +5786,31 @@ def window(
             "snowflake.snowpark.functions.window does not support slide_duration parameter yet."
         )
 
-    epoch = lit("1970-01-01 00:00:00").cast(
+    epoch = lit("1970-01-01 00:00:00", _emit_ast=False).cast(
         TimestampType(timezone=TimestampTimeZone.NTZ)
     )
     time = _to_col_if_str(time_column, "window")
 
+    # Build AST here to prevent `window_duration`, `slide_duration`, and `start_time` from being recorded as a
+    # literal instead of str/None.
+    if _emit_ast:
+        ast = proto.Expr()
+        args_list = [
+            arg
+            for arg in [time_column, window_duration, slide_duration, start_time]
+            if arg is not None
+        ]
+        build_builtin_fn_apply(
+            ast,
+            "window",
+            *tuple(
+                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+                for arg in args_list
+            ),
+        )
+
     window_duration, window_unit = parse_duration_string(window_duration)
-    window_duration = lit(window_duration)
+    window_duration = lit(window_duration, _emit_ast=False)
     window_unit = f"{window_unit}s"
 
     base = epoch
@@ -5537,14 +5818,14 @@ def window(
         start_duration, start_unit = parse_duration_string(start_time)
         base += make_interval(**{f"{start_unit}s": start_duration})
 
-    window = floor(datediff(window_unit, base, time) / window_duration)
-    window_start = dateadd(window_unit, window * window_duration, base)
+    window = floor(datediff(window_unit, base, time, _emit_ast=False) / window_duration)
+    window_start = dateadd(window_unit, window * window_duration, base, _emit_ast=False)
     return object_construct_keep_null(
-        lit("start"),
+        lit("start", _emit_ast=False),
         window_start,
-        lit("end"),
-        dateadd(window_unit, window_duration, window_start),
-    ).alias("window")
+        lit("end", _emit_ast=False),
+        dateadd(window_unit, window_duration, window_start, _emit_ast=False),
+    ).alias("window", _emit_ast=False)
 
 
 @publicapi
@@ -5844,7 +6125,7 @@ def _timestamp_from_parts_internal(
             return y, m, d, h, min_, s, ns
         elif tz is not None:
             # We need to fill in nanoseconds as 0 to make the sql function work
-            return y, m, d, h, min_, s, lit(0), tz
+            return y, m, d, h, min_, s, lit(0, _emit_ast=False), tz
         else:
             return y, m, d, h, min_, s
     else:
@@ -6130,7 +6411,9 @@ def timestamp_tz_from_parts(
     elif nanoseconds is not None:
         ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s, ns)
     elif timezone is not None:
-        ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s, lit(0), tz)
+        ans = builtin(func_name, _emit_ast=False)(
+            y, m, d, h, min_, s, lit(0, _emit_ast=False), tz
+        )
     else:
         ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s)
 
@@ -6448,7 +6731,11 @@ def array_remove(
         build_builtin_fn_apply(ast, "array_remove", array, element)
 
     a = _to_col_if_str(array, "array_remove")
-    e = lit(element).cast("VARIANT") if isinstance(element, str) else element
+    e = (
+        lit(element, _emit_ast=False).cast("VARIANT", _emit_ast=False)
+        if isinstance(element, str)
+        else element
+    )
     ans = builtin("array_remove", _emit_ast=False)(a, e)
     ans._ast = ast
     return ans
@@ -7195,7 +7482,7 @@ def asc(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         build_builtin_fn_apply(ast, "asc", c)
 
     c = _to_col_if_str(c, "asc")
-    ans = c.asc()
+    ans = c.asc(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7218,7 +7505,7 @@ def asc_nulls_first(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         build_builtin_fn_apply(ast, "asc_nulls_first", c)
 
     c = _to_col_if_str(c, "asc_nulls_first")
-    ans = c.asc_nulls_first()
+    ans = c.asc_nulls_first(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7264,7 +7551,7 @@ def desc(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         build_builtin_fn_apply(ast, "desc", c)
 
     c = _to_col_if_str(c, "desc")
-    ans = c.desc()
+    ans = c.desc(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7288,7 +7575,7 @@ def desc_nulls_first(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         build_builtin_fn_apply(ast, "desc_nulls_first", c)
 
     c = _to_col_if_str(c, "desc_nulls_first")
-    ans = c.desc_nulls_first()
+    ans = c.desc_nulls_first(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7310,7 +7597,7 @@ def desc_nulls_last(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "desc_nulls_last", c)
     c = _to_col_if_str(c, "desc_nulls_last")
-    ans = c.desc_nulls_last()
+    ans = c.desc_nulls_last(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7435,7 +7722,7 @@ def cast(
         build_builtin_fn_apply(ast, "cast", column, to)
 
     c = _to_col_if_str(column, "cast")
-    ans = c.cast(to)
+    ans = c.cast(to, _emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7471,7 +7758,7 @@ def try_cast(
         build_builtin_fn_apply(ast, "try_cast", column, to)
 
     c = _to_col_if_str(column, "try_cast")
-    ans = c.try_cast(to)
+    ans = c.try_cast(to, _emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7487,9 +7774,11 @@ def _as_decimal_or_number(
     if scale and not precision:
         raise ValueError("Cannot define scale without precision")
     if precision and scale:
-        return builtin(cast_type, _emit_ast=False)(c, lit(precision), lit(scale))
+        return builtin(cast_type, _emit_ast=False)(
+            c, lit(precision, _emit_ast=False), lit(scale, _emit_ast=False)
+        )
     elif precision:
-        return builtin(cast_type, _emit_ast=False)(c, lit(precision))
+        return builtin(cast_type, _emit_ast=False)(c, lit(precision, _emit_ast=False))
     else:
         return builtin(cast_type, _emit_ast=False)(c)
 
