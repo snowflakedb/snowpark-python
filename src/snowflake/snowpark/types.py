@@ -398,24 +398,13 @@ class MapType(DataType):
         self,
         key_type: Optional[DataType] = None,
         value_type: Optional[DataType] = None,
-        structured: Optional[bool] = None,
+        structured: bool = False,
+        value_contains_null: bool = True,
     ) -> None:
-        if context._should_use_structured_type_semantics():
-            if (key_type is None and value_type is not None) or (
-                key_type is not None and value_type is None
-            ):
-                raise ValueError(
-                    "Must either set both key_type and value_type or leave both unset."
-                )
-            self.structured = (
-                structured if structured is not None else key_type is not None
-            )
-            self.key_type = key_type
-            self.value_type = value_type
-        else:
-            self.structured = structured or False
-            self.key_type = key_type if key_type else StringType()
-            self.value_type = value_type if value_type else StringType()
+        self.structured = structured
+        self.key_type = key_type if key_type else StringType()
+        self.value_type = value_type if value_type else StringType()
+        self.value_contains_null = value_contains_null
 
     def __repr__(self) -> str:
         type_str = ""

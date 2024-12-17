@@ -151,6 +151,7 @@ def convert_metadata_to_sp_type(
                 convert_metadata_to_sp_type(metadata.fields[0], max_string_size),
                 convert_metadata_to_sp_type(metadata.fields[1], max_string_size),
                 structured=True,
+                value_contains_null=metadata.fields[1]._is_nullable,
             )
         else:
             assert all(
@@ -294,7 +295,8 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
             return "ARRAY"
     if isinstance(datatype, MapType):
         if datatype.structured:
-            return f"MAP({convert_sp_to_sf_type(datatype.key_type)}, {convert_sp_to_sf_type(datatype.value_type)})"
+            nullable = "" if datatype.value_contains_null else " NOT NULL"
+            return f"MAP({convert_sp_to_sf_type(datatype.key_type)}, {convert_sp_to_sf_type(datatype.value_type)}{nullable})"
         else:
             return "OBJECT"
     if isinstance(datatype, StructType):

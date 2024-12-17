@@ -67,26 +67,7 @@
 - Added support for `DataFrame.map`.
 - Added support for `DataFrame.from_dict` and `DataFrame.from_records`.
 - Added support for mixed case field names in struct type columns.
-- Added support for `SeriesGroupBy.unique`
-- Added support for `Series.dt.strftime` with the following directives:
-  - %d: Day of the month as a zero-padded decimal number.
-  - %m: Month as a zero-padded decimal number.
-  - %Y: Year with century as a decimal number.
-  - %H: Hour (24-hour clock) as a zero-padded decimal number.
-  - %M: Minute as a zero-padded decimal number.
-  - %S: Second as a zero-padded decimal number.
-  - %f: Microsecond as a decimal number, zero-padded to 6 digits.
-  - %j: Day of the year as a zero-padded decimal number.
-  - %X: Locale’s appropriate time representation.
-  - %%: A literal '%' character.
-- Added support for `Series.between`.
-- Added support for `include_groups=False` in `DataFrameGroupBy.apply`.
-- Added support for `expand=True` in `Series.str.split`.
-- Added support for `DataFrame.pop` and `Series.pop`.
-
-#### Bug Fixes
-
-- Fixed a bug that system function called through `session.call` have incorrect type conversion.
+- Added support for `value_contains_null` parameter to MapType.
 
 #### Improvements
 - Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
