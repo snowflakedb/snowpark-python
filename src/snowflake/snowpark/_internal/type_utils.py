@@ -141,6 +141,7 @@ def convert_metadata_to_sp_type(
             return ArrayType(
                 convert_metadata_to_sp_type(metadata.fields[0], max_string_size),
                 structured=True,
+                contains_null=metadata.fields[0]._is_nullable,
             )
         elif column_type_name == "MAP":
             assert (
@@ -285,7 +286,8 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "BINARY"
     if isinstance(datatype, ArrayType):
         if datatype.structured:
-            return f"ARRAY({convert_sp_to_sf_type(datatype.element_type)})"
+            nullable = "" if datatype.contains_null else " NOT NULL"
+            return f"ARRAY({convert_sp_to_sf_type(datatype.element_type)}{nullable})"
         else:
             return "ARRAY"
     if isinstance(datatype, MapType):

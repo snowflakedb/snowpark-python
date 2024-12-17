@@ -335,9 +335,11 @@ class ArrayType(DataType):
         self,
         element_type: Optional[DataType] = None,
         structured: bool = False,
+        contains_null: bool = True,
     ) -> None:
         self.structured = structured
         self.element_type = element_type if element_type else StringType()
+        self.contains_null = contains_null
 
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
