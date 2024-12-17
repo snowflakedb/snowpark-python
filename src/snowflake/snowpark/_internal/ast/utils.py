@@ -132,7 +132,6 @@ def extract_assign_targets(
 def fill_timezone(
     ast: proto.Expr, obj: Union[datetime.datetime, datetime.time]
 ) -> None:  # pragma: no cover
-
     datetime_val = (
         obj
         if isinstance(obj, datetime.datetime)
@@ -198,7 +197,6 @@ def build_expr_from_python_val(
 
     # Keep objects most high up in the class hierarchy first, i.e. a Row is a tuple.
     elif isinstance(obj, Column):
-
         # Special case: Column holds Literal, for Literals no ast is per default generated.
         if isinstance(obj._expression, Literal):
             expr_builder.CopyFrom(snowpark_expression_to_ast(obj._expression))
@@ -531,7 +529,6 @@ def build_fn_apply_args(
         if isinstance(arg, proto.Expr):
             expr.pos_args.append(arg)
         elif hasattr(arg, "_ast"):
-
             # Special case: _ast is None but arg is Column(LITERAL).
             if (
                 arg._ast is None  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "tuple[Union[Expr, Any]]" has no attribute "_ast"
@@ -1450,11 +1447,13 @@ def ClearTempTables(message: proto.Request) -> None:
             )
 
 
-def clear_symbols(message: proto.Request) -> None:
-    """Clears the symbol field in the given AST."""
+def clear_symbols_and_udfs(message: proto.Request) -> None:
+    """Clears the symbol and udf field in the given AST."""
     for stmt in message.body:
         if hasattr(stmt, "assign"):
             stmt.assign.ClearField("symbol")
+        if str(stmt.assign.expr.udf):
+            stmt.assign.expr.ClearField("udf")
 
 
 def base64_str_to_request(base64_str: str) -> proto.Request:
