@@ -151,6 +151,8 @@ from snowflake.snowpark.functions import (
     sql_expr,
     stddev,
     to_char,
+    to_json,
+    object_construct_keep_null,
 )
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
@@ -4303,6 +4305,23 @@ Query List:
             for name, field in zip(self.schema.names, self.schema.fields)
         ]
         return dtypes
+
+    def toJSON(self) -> "DataFrame":
+        """
+        Converts each row of the DataFrame into a JSON string.
+
+        Example:
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
+            >>> df.toJSON().show()
+            -------------------
+            |"TOJSON"         |
+            -------------------
+            |{"A":1,"B":"a"}  |
+            |{"A":2,"B":"b"}  |
+            -------------------
+            <BLANKLINE>
+        """
+        return self.select(to_json(object_construct_keep_null("*")).alias("TOJSON"))
 
     def _with_plan(self, plan) -> "DataFrame":
         df = DataFrame(self._session, plan)
