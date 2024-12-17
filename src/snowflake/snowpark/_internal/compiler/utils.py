@@ -118,14 +118,6 @@ def replace_child(
     based on the parent node type.
     """
 
-    def to_selectable(plan: LogicalPlan, query_generator: QueryGenerator) -> Selectable:
-        """Given a LogicalPlan, convert it to a Selectable."""
-        if isinstance(plan, Selectable):
-            return plan
-
-        snowflake_plan = query_generator.resolve(plan)
-        return SelectSnowflakePlan(snowflake_plan, analyzer=query_generator)
-
     if not parent._is_valid_for_replacement:
         raise ValueError(f"parent node {parent} is not valid for replacement.")
 
@@ -143,13 +135,13 @@ def replace_child(
         replace_child(parent.source_plan, old_child, new_child, query_generator)
 
     elif isinstance(parent, SelectStatement):
-        parent.from_ = to_selectable(new_child, query_generator)
+        parent.from_ = query_generator.to_selectable(new_child)
         # once the subquery is updated, set _merge_projection_complexity_with_subquery to False to
         # disable the projection complexity merge
         parent._merge_projection_complexity_with_subquery = False
 
     elif isinstance(parent, SetStatement):
-        new_child_as_selectable = to_selectable(new_child, query_generator)
+        new_child_as_selectable = query_generator.to_selectable(new_child)
         parent._nodes = [
             node if node != old_child else new_child_as_selectable
             for node in parent._nodes
@@ -426,6 +418,9 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             name = f"{name} :: ({'| '.join(properties)})"
 
         score = get_complexity_score(node)
+        num_ref_ctes = "nil"
+        if isinstance(node, (SnowflakePlan, Selectable)):
+            num_ref_ctes = len(node.referenced_ctes)
         sql_text = ""
         if isinstance(node, Selectable):
             sql_text = node.sql_query
@@ -434,7 +429,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         sql_size = len(sql_text)
         sql_preview = sql_text[:50]
 
-        return f"{name=}\n{score=}, {sql_size=}\n{sql_preview=}"
+        return f"{name=}\n{score=}, {num_ref_ctes=}, {sql_size=}\n{sql_preview=}"
 
     g = graphviz.Graph(format="png")
 
@@ -444,7 +439,8 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         next_level = []
         for node in curr_level:
             node_id = hex(id(node))
-            g.node(node_id, get_stat(node))
+            color = "lightblue" if node._is_valid_for_replacement else "red"
+            g.node(node_id, get_stat(node), color=color)
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
             else:

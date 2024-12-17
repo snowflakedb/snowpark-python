@@ -600,11 +600,14 @@ def test_iceberg_nested_fields(
         Utils.drop_table(structured_type_session, transformed_table_name)
 
 
-@pytest.mark.skip(
-    reason="SNOW-1819531: Error in _contains_external_cte_ref when analyzing lqb"
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+    run=False,
 )
+@pytest.mark.parametrize("cte_enabled", [True, False])
 def test_struct_dtype_iceberg_lqb(
-    structured_type_session, local_testing_mode, structured_type_support
+    structured_type_session, local_testing_mode, structured_type_support, cte_enabled
 ):
     if not (
         structured_type_support
@@ -641,12 +644,14 @@ def test_struct_dtype_iceberg_lqb(
     is_query_compilation_stage_enabled = (
         structured_type_session._query_compilation_stage_enabled
     )
+    is_cte_optimization_enabled = structured_type_session._cte_optimization_enabled
     is_large_query_breakdown_enabled = (
         structured_type_session._large_query_breakdown_enabled
     )
     original_bounds = structured_type_session._large_query_breakdown_complexity_bounds
     try:
         structured_type_session._query_compilation_stage_enabled = True
+        structured_type_session._cte_optimization_enabled = cte_enabled
         structured_type_session._large_query_breakdown_enabled = True
         structured_type_session._large_query_breakdown_complexity_bounds = (300, 600)
 
@@ -695,9 +700,14 @@ def test_struct_dtype_iceberg_lqb(
         )
 
         queries = union_df.queries
-        # assert that the queries are broken down into 2 queries and 1 post action
-        assert len(queries["queries"]) == 2, queries["queries"]
-        assert len(queries["post_actions"]) == 1
+        if cte_enabled:
+            # when CTE is enabled, WithQueryBlock makes pipeline breaker nodes ineligible
+            assert len(queries["queries"]) == 1
+            assert len(queries["post_actions"]) == 0
+        else:
+            # assert that the queries are broken down into 2 queries and 1 post action
+            assert len(queries["queries"]) == 2, queries["queries"]
+            assert len(queries["post_actions"]) == 1
         final_df = structured_type_session.table(write_table)
 
         # assert that
@@ -707,6 +717,7 @@ def test_struct_dtype_iceberg_lqb(
         structured_type_session._query_compilation_stage_enabled = (
             is_query_compilation_stage_enabled
         )
+        structured_type_session._cte_optimization_enabled = is_cte_optimization_enabled
         structured_type_session._large_query_breakdown_enabled = (
             is_large_query_breakdown_enabled
         )
