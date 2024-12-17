@@ -19,6 +19,10 @@ _is_execution_environment_sandboxed_for_client: bool = False
 _should_continue_registration: Optional[Callable[..., bool]] = None
 
 
+# Global flag that determines if structured type semantics should be used
+_should_use_structured_type_semantics = False
+
+
 def get_active_session() -> "snowflake.snowpark.Session":
     """Returns the current active Snowpark session.
 
