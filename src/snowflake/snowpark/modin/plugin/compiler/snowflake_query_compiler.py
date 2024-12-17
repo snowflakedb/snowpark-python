@@ -19418,3 +19418,146 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 include_index=include_index,
             )
         )
+
+    def groupby_unique(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict,
+        agg_args: Sequence,
+        agg_kwargs: dict,
+        numeric_only: bool,
+        is_series_groupby: bool,
+        drop: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Aggregate unique values for each group into a list.
+
+
+        Parameters
+        ----------
+        by : Any
+            Index level name(s) or column label(s) to group by.
+        axis: int
+            The axis along which to group data. This parameter must be 0, but
+            we keep it to match the interface of Modin's BaseQueryCompiler.
+        groupby_kwargs: dict
+            The keyword arguments to groupby().
+        agg_args: Sequence
+            Positional arguments to the unique() aggregation function. This
+            parameter must be empty because unique() does not take positional
+            arguments, but we keep the parameter to match the interface of
+            Modin's BaseQueryCompiler.
+        agg_kwargs: dict
+            Keyword arguments to the unique() aggregation function. This
+            parameter must be empty because unique() does not take keyword
+            arguments, but we keep the parameter to match the interface of
+            Modin's BaseQueryCompiler.
+        numeric_only: bool
+            This parameter is meaningless as unique() does not take a
+            numeric_only parameter, but we keep the parameter to match the
+            interface of Modin's BaseQueryCompiler.
+        is_series_groupby: bool
+            Whether this method is called via SeriesGroupBy as opposed to
+            DataFrameGroupBy. This parameter should always be true, but we keep
+            it to match the interface of Modin's BaseQueryCompiler.
+        drop: bool, default False
+            Whether the `by` columns are internal this dataframe.
+
+        Returns
+        -------
+        A new SnowflakeQueryCompiler with the unique values of the singular
+        data column for each group.
+        """
+        assert axis == 0, "Internal error. SeriesGroupBy.unique() axis should be 0."
+        assert len(agg_args) == 0, (
+            "Internal error. SeriesGroupBy.unique() does not take "
+            + "aggregation arguments."
+        )
+        assert len(agg_kwargs) == 0, (
+            "Internal error. SeriesGroupBy.unique() does not take "
+            + "aggregation arguments."
+        )
+        assert (
+            is_series_groupby is True
+        ), "Internal error. Only SeriesGroupBy has a unique() method."
+
+        compiler = SnowflakeQueryCompiler(
+            self._modin_frame.ensure_row_position_column()
+        )
+        by_list = extract_groupby_column_pandas_labels(
+            compiler, by, groupby_kwargs.get("level", None)
+        )
+        by_snowflake_quoted_identifiers_list = []
+        for (
+            entry
+        ) in compiler._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+            by_list
+        ):
+            assert len(entry) == 1, (
+                "Internal error. Each grouping label should correspond to a "
+                + "single Snowpark column."
+            )
+            by_snowflake_quoted_identifiers_list.append(entry[0])
+
+        # There is no built-in snowflake function to aggregation unique values
+        # of a column into array while preserving a certain order. We implement
+        # the aggregation in the following steps:
+        # 1) Project a new column representing the row position of each row
+        #    within each combination of group + data column value.
+        # 3) Filter the result to the rows where the new column is equal to 1,
+        #    i.e. get the row where each data column value appears for the first
+        #    time within each group.
+        # 4) Project away the extra rank column.
+        # 5) Group according to `groupby_kwargs` and for each group, aggregate
+        #    the (singular) remaining data column into a list ordered by the
+        #    original row order.
+        frame_with_rank = compiler._modin_frame.append_column(
+            "_rank_column",
+            rank().over(
+                Window.partition_by(
+                    *by_snowflake_quoted_identifiers_list,
+                    *(
+                        identifier
+                        for identifier in (
+                            compiler._modin_frame.data_column_snowflake_quoted_identifiers
+                        )
+                        if identifier not in by_snowflake_quoted_identifiers_list
+                    ),
+                ).order_by(
+                    compiler._modin_frame.row_position_snowflake_quoted_identifier
+                )
+            ),
+        )
+        return (
+            SnowflakeQueryCompiler(
+                frame_with_rank.filter(
+                    col(frame_with_rank.data_column_snowflake_quoted_identifiers[-1])
+                    == 1
+                )
+            )
+            .take_2d_positional(
+                index=slice(None),
+                columns=(
+                    list(
+                        range(
+                            len(
+                                frame_with_rank.data_column_snowflake_quoted_identifiers
+                            )
+                            - 1
+                        )
+                    )
+                ),
+            )
+            .groupby_agg(
+                by=by,
+                agg_func="array_agg",
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                agg_args=agg_args,
+                agg_kwargs=agg_kwargs,
+                numeric_only=numeric_only,
+                is_series_groupby=is_series_groupby,
+                drop=drop,
+            )
+        )
