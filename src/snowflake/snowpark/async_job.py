@@ -33,6 +33,7 @@ class _AsyncResultType(Enum):
     ROW = "row"
     ITERATOR = "row_iterator"
     PANDAS = "pandas"
+    ARROW = "arrow"
     PANDAS_BATCH = "pandas_batches"
     COUNT = "count"
     NO_RESULT = "no_result"
