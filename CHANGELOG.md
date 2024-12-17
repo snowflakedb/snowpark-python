@@ -24,7 +24,8 @@
 - Added support for mixed case field names in struct type columns.
 
 #### Improvements
-- Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
+- Improved performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
+- Added documentation for `DataFrame.map`.
 
 ## 1.26.0 (2024-12-05)
 
