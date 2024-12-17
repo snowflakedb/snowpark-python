@@ -1320,7 +1320,9 @@ def approx_percentile(
                 for arg in [c, percentile]
             ),
         )
-    return builtin("approx_percentile", _emit_ast=False)(c, lit(percentile))
+    return builtin("approx_percentile", _emit_ast=False)(
+        c, lit(percentile, _emit_ast=False)
+    )
 
 
 @publicapi
@@ -1388,7 +1390,9 @@ def approx_percentile_estimate(
                 for arg in [c, percentile]
             ),
         )
-    return builtin("approx_percentile_estimate", _emit_ast=False)(c, lit(percentile))
+    return builtin("approx_percentile_estimate", _emit_ast=False)(
+        c, lit(percentile, _emit_ast=False)
+    )
 
 
 @publicapi
@@ -1979,7 +1983,9 @@ def to_decimal(
                 for arg in [c, precision, scale]
             ),
         )
-    return builtin("to_decimal", _emit_ast=False)(c, lit(precision), lit(scale))
+    return builtin("to_decimal", _emit_ast=False)(
+        c, lit(precision, _emit_ast=False), lit(scale, _emit_ast=False)
+    )
 
 
 @publicapi
