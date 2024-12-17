@@ -167,10 +167,11 @@ def examples(structured_type_support):
 def structured_type_session(session, structured_type_support):
     if structured_type_support:
         with structured_types_enabled_session(session) as sess:
-            semantics_enabled = context._should_use_structured_type_semantics
-            context._should_use_structured_type_semantics = True
-            yield sess
-            context._should_use_structured_type_semantics = semantics_enabled
+            semantics_enabled = context._should_use_structured_type_semantics()
+            with context._use_structured_type_semantics_lock():
+                context._use_structured_type_semantics = True
+                yield sess
+                context._use_structured_type_semantics = semantics_enabled
     else:
         yield session
 
@@ -399,7 +400,7 @@ def test_structured_dtypes_select(
 ):
     query, expected_dtypes, expected_schema = examples
     df = _create_test_dataframe(structured_type_session, structured_type_support)
-    nested_field_name = "b" if context._should_use_structured_type_semantics else "B"
+    nested_field_name = "b" if context._should_use_structured_type_semantics() else "B"
     flattened_df = df.select(
         df.map["k1"].alias("value1"),
         df.obj["A"].alias("a"),

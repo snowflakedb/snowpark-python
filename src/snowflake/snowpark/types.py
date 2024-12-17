@@ -336,7 +336,7 @@ class ArrayType(DataType):
         element_type: Optional[DataType] = None,
         structured: Optional[bool] = None,
     ) -> None:
-        if context._should_use_structured_type_semantics:
+        if context._should_use_structured_type_semantics():
             self.structured = (
                 structured if structured is not None else element_type is not None
             )
@@ -349,7 +349,7 @@ class ArrayType(DataType):
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
 
     def _as_nested(self) -> "ArrayType":
-        if not context._should_use_structured_type_semantics:
+        if not context._should_use_structured_type_semantics():
             return self
         element_type = self.element_type
         if isinstance(element_type, (ArrayType, MapType, StructType)):
@@ -396,7 +396,7 @@ class MapType(DataType):
         value_type: Optional[DataType] = None,
         structured: Optional[bool] = None,
     ) -> None:
-        if context._should_use_structured_type_semantics:
+        if context._should_use_structured_type_semantics():
             if (key_type is None and value_type is not None) or (
                 key_type is not None and value_type is None
             ):
@@ -423,7 +423,7 @@ class MapType(DataType):
         return False
 
     def _as_nested(self) -> "MapType":
-        if not context._should_use_structured_type_semantics:
+        if not context._should_use_structured_type_semantics():
             return self
         value_type = self.value_type
         if isinstance(value_type, (ArrayType, MapType, StructType)):
@@ -600,7 +600,7 @@ class StructField:
 
     @property
     def name(self) -> str:
-        if self._is_column or not context._should_use_structured_type_semantics:
+        if self._is_column or not context._should_use_structured_type_semantics():
             return self.column_identifier.name
         else:
             return self._name
@@ -615,7 +615,7 @@ class StructField:
             self.column_identifier = ColumnIdentifier(n)
 
     def _as_nested(self) -> "StructField":
-        if not context._should_use_structured_type_semantics:
+        if not context._should_use_structured_type_semantics():
             return self
         datatype = self.datatype
         if isinstance(datatype, (ArrayType, MapType, StructType)):
@@ -677,7 +677,7 @@ class StructType(DataType):
         fields: Optional[List["StructField"]] = None,
         structured: Optional[bool] = False,
     ) -> None:
-        if context._should_use_structured_type_semantics:
+        if context._should_use_structured_type_semantics():
             self.structured = (
                 structured if structured is not None else fields is not None
             )
@@ -713,7 +713,7 @@ class StructType(DataType):
         return self
 
     def _as_nested(self) -> "StructType":
-        if not context._should_use_structured_type_semantics:
+        if not context._should_use_structured_type_semantics():
             return self
         return StructType(
             [field._as_nested() for field in self.fields], self.structured
