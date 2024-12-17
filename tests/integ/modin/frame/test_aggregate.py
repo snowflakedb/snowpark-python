@@ -170,7 +170,7 @@ def test_string_sum(data, numeric_only_kwargs):
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_string_sum_of_reversed_df():
     # check that we get the string concatenation right even when the dataframe
     # is not in its original order.
