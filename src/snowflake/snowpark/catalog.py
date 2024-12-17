@@ -5,12 +5,11 @@
 import re
 from typing import List, Optional, Union
 
-from snowflake.core import Root
-from snowflake.core.database import Database
+from snowflake.core import Root  # type: ignore
+from snowflake.core.database import Database  # type: ignore
 from snowflake.core.exceptions import NotFoundError
-from snowflake.core.function import Function
 from snowflake.core.procedure import Procedure
-from snowflake.core.schema import Schema
+from snowflake.core.schema import Schema  # type: ignore
 from snowflake.core.table import Table, TableColumn
 from snowflake.core.user_defined_function import UserDefinedFunction
 from snowflake.core.view import View
@@ -28,7 +27,7 @@ class Catalog:
     views, functions, etc.
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
+    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:  # type: ignore
         self._session = session
         self._root = Root(session)
         self._python_regex_udf = None
@@ -37,13 +36,13 @@ class Catalog:
         self,
         database: Optional[Union[str, Database]],
         model_obj: Optional[
-            Union[Schema, Table, View, Function, Procedure, UserDefinedFunction]
+            Union[str, Schema, Table, View, Procedure, UserDefinedFunction]
         ] = None,
     ) -> str:
-        if isinstance(
-            model_obj, (Schema, Table, View, Function, Procedure, UserDefinedFunction)
-        ):
-            return model_obj.database_name
+        if isinstance(model_obj, (Schema, Table, View, Procedure, UserDefinedFunction)):
+            db_name = model_obj.database_name
+            assert db_name is not None  # pyright
+            return db_name
 
         if isinstance(database, str):
             return database
@@ -59,13 +58,13 @@ class Catalog:
         self,
         schema: Optional[Union[str, Schema]],
         model_obj: Optional[
-            Union[Table, View, Function, Procedure, UserDefinedFunction]
+            Union[str, Table, View, Procedure, UserDefinedFunction]
         ] = None,
     ) -> str:
-        if isinstance(
-            model_obj, (Table, View, Function, Procedure, UserDefinedFunction)
-        ):
-            return model_obj.schema_name
+        if isinstance(model_obj, (Table, View, Procedure, UserDefinedFunction)):
+            schema_name = model_obj.schema_name
+            assert schema_name is not None  # pyright
+            return schema_name
 
         if isinstance(schema, str):
             return schema
@@ -79,7 +78,7 @@ class Catalog:
 
     def _parse_function_or_procedure(
         self,
-        fn: Union[str, Function, Procedure, UserDefinedFunction],
+        fn: Union[str, Procedure, UserDefinedFunction],
         arg_types: Optional[List[DataType]],
     ) -> str:
         if isinstance(fn, str):
@@ -123,6 +122,7 @@ class Catalog:
         if pattern:
             # initialize udf
             self._initialize_regex_udf()
+            assert self._python_regex_udf is not None  # pyright
 
             # The result of SHOW AS RESOURCE query is a json string which contains
             # key 'name' to store the name of the object. We parse json for the returned
@@ -235,7 +235,9 @@ class Catalog:
             table = self.get_table(table_name, database=database, schema=schema)
         else:
             table = table_name
-        return table.columns
+        cols = table.columns
+        assert cols is not None
+        return cols
 
     def list_procedures(
         self,
@@ -286,13 +288,15 @@ class Catalog:
     def get_current_database(self) -> Database:
         """Get the current database."""
         current_db_name = self._session.get_current_database()
-        return self._root.databases[current_db_name]
+        return self._root.databases[current_db_name].fetch()
 
     def get_current_schema(self) -> Schema:
         """Get the current schema."""
-        current_db = self.get_current_database()
+        current_db_name = self._session.get_current_database()
         current_schema_name = self._session.get_current_schema()
-        return current_db.schemas[current_schema_name]
+        return (
+            self._root.databases[current_db_name].schemas[current_schema_name].fetch()
+        )
 
     def get_table(
         self,

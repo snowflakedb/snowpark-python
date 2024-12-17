@@ -5,6 +5,7 @@
 import uuid
 import pytest
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
@@ -286,8 +287,8 @@ def test_get_db_schema(session):
     catalog: Catalog = session.catalog
     current_db = session.get_current_database()
     current_schema = session.get_current_schema()
-    assert catalog.get_current_database().name == current_db
-    assert catalog.get_current_schema().name == current_schema
+    assert catalog.get_current_database().name == unquote_if_quoted(current_db)
+    assert catalog.get_current_schema().name == unquote_if_quoted(current_schema)
 
 
 def test_get_table_view(session, temp_db1, temp_schema1, temp_table1, temp_view1):
