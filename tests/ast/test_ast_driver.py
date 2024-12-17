@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.ast.utils import (
     clear_symbols,
     base64_lines_to_request,
     clear_line_no_in_request,
+    clear_udfs,
 )
 from snowflake.snowpark._internal.utils import global_counter
 from tests.ast.ast_test_utils import render
@@ -190,6 +191,7 @@ def compare_base64_results(
     actual_message: proto.Request,
     expected_message: proto.Request,
     exclude_symbols_and_src: bool = False,
+    exclude_udfs: bool = False,
 ):
     """
     Serialize and deterministically compare two protobuf results.
@@ -221,6 +223,10 @@ def compare_base64_results(
     if exclude_symbols_and_src:
         clear_symbols(actual_message)
         clear_symbols(expected_message)
+
+    if exclude_udfs:
+        clear_udfs(actual_message)
+        clear_udfs(expected_message)
 
     # If this is not python 3.11+, then for the purposes of the expectation tests we will ignore the line_no
     # information since it can be different based on various python bug fixes.
@@ -306,7 +312,9 @@ def test_ast(session, tables, test_case):
                 # Compare the original base64 string with the base64 string obtained from the decoder.
                 actual = base64_lines_to_request(("\n".join(decoder_result)).strip())
                 expected = base64_lines_to_request(stripped_base64_str)
-                compare_base64_results(actual, expected, exclude_symbols_and_src=True)
+                compare_base64_results(
+                    actual, expected, exclude_symbols_and_src=True, exclude_udfs=True
+                )
 
         except AssertionError as e:
 
