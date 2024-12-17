@@ -852,6 +852,10 @@ def test_dtypes_vector(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
+@pytest.mark.skipif(
+    "config.getoption('enable_ast', default=False)",
+    reason="SNOW-1862700: AST does not support new structured type semantics yet.",
+)
 def test_structured_dtypes_cast(structured_type_session, structured_type_support):
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")

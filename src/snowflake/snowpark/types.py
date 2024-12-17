@@ -384,6 +384,10 @@ class ArrayType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_array_type.structured = self.structured
+        if self.element_type is None:
+            raise NotImplementedError(
+                "SNOW-1862700: AST does not support empty element_type."
+            )
         self.element_type._fill_ast(ast.sp_array_type.ty)
 
 
@@ -469,6 +473,10 @@ class MapType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_map_type.structured = self.structured
+        if self.key_type is None or self.value_type is None:
+            raise NotImplementedError(
+                "SNOW-1862700: AST does not support empty key or value type."
+            )
         self.key_type._fill_ast(ast.sp_map_type.key_ty)
         self.value_type._fill_ast(ast.sp_map_type.value_ty)
 
