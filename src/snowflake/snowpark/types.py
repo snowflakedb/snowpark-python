@@ -389,10 +389,12 @@ class MapType(DataType):
         key_type: Optional[DataType] = None,
         value_type: Optional[DataType] = None,
         structured: bool = False,
+        value_contains_null: bool = True,
     ) -> None:
         self.structured = structured
         self.key_type = key_type if key_type else StringType()
         self.value_type = value_type if value_type else StringType()
+        self.value_contains_null = value_contains_null
 
     def __repr__(self) -> str:
         return f"MapType({repr(self.key_type) if self.key_type else ''}, {repr(self.value_type) if self.value_type else ''})"
