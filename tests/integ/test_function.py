@@ -175,7 +175,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     VariantType,
 )
-from tests.utils import TestData, Utils
+from tests.utils import TestData, Utils, running_on_jenkins
 
 
 def test_order(session):
@@ -2273,7 +2273,10 @@ def test_ln(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
 )
-@pytest.mark.skip("SNOW-1859087 snowflake.cortex.sentiment SSL error")
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.summarize SSL error",
+)
 def test_snowflake_cortex_summarize(session):
     # TODO: SNOW-1758914 snowflake.cortex.summarize error on GCP
     if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
@@ -2313,7 +2316,10 @@ The next sections explain these steps in more detail.
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
 )
-@pytest.mark.skip("SNOW-1859087 snowflake.cortex.sentiment SSL error")
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
 def test_snowflake_cortex_sentiment(session):
     # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
     if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":

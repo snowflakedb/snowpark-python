@@ -11,6 +11,7 @@ import pytest
 
 from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
 from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
+from tests.utils import running_on_jenkins
 
 
 @sql_count_checker(query_count=4)
@@ -71,7 +72,10 @@ def test_apply_snowpark_python_function_not_implemented():
         pd.DataFrame({"a": [1, 2, 3]}).apply(asc, args=(1, 2))
 
 
-@pytest.mark.skip("SNOW-1859087 snowflake.cortex.summarize SSL error")
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.summarize SSL error",
+)
 def test_apply_snowflake_cortex_summarize(session):
     from snowflake.snowpark.functions import snowflake_cortex_summarize
 
@@ -96,7 +100,10 @@ def test_apply_snowflake_cortex_summarize(session):
         assert 0 < len(summary) < len(content)
 
 
-@pytest.mark.skip("SNOW-1859087 snowflake.cortex.sentiment SSL error")
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
 def test_apply_snowflake_cortex_sentiment(session):
     from snowflake.snowpark.functions import snowflake_cortex_sentiment
 
