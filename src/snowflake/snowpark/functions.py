@@ -194,6 +194,7 @@ from snowflake.snowpark._internal.ast.utils import (
     set_builtin_fn_alias,
     snowpark_expression_to_ast,
     with_src_position,
+    build_function_expr,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
@@ -1310,17 +1311,10 @@ def approx_percentile(
     """
     c = _to_col_if_str(col, "approx_percentile")
     # Build AST here to prevent `percentile` from being recorded as a literal instead of float.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "approx_percentile",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [c, percentile]
-            ),
-        )
-    return builtin("approx_percentile", _emit_ast=False)(
+    ast = (
+        build_function_expr("approx_percentile", [c, percentile]) if _emit_ast else None
+    )
+    return builtin("approx_percentile", _ast=ast, _emit_ast=False)(
         c, lit(percentile, _emit_ast=False)
     )
 
@@ -1380,17 +1374,12 @@ def approx_percentile_estimate(
     """
     c = _to_col_if_str(state, "approx_percentile_estimate")
     # Build AST here to prevent `percentile` from being recorded as a literal instead of float.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "approx_percentile_estimate",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [c, percentile]
-            ),
-        )
-    return builtin("approx_percentile_estimate", _emit_ast=False)(
+    ast = (
+        build_function_expr("approx_percentile_estimate", [c, percentile])
+        if _emit_ast
+        else None
+    )
+    return builtin("approx_percentile_estimate", _ast=ast, _emit_ast=False)(
         c, lit(percentile, _emit_ast=False)
     )
 
@@ -1973,17 +1962,10 @@ def to_decimal(
     """
     c = _to_col_if_str(e, "to_decimal")
     # Build AST here to prevent `precision` and `scale` from being recorded as a literal instead of int.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "to_decimal",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [c, precision, scale]
-            ),
-        )
-    return builtin("to_decimal", _emit_ast=False)(
+    ast = (
+        build_function_expr("to_decimal", [c, precision, scale]) if _emit_ast else None
+    )
+    return builtin("to_decimal", _ast=ast, _emit_ast=False)(
         c, lit(precision, _emit_ast=False), lit(scale, _emit_ast=False)
     )
 
@@ -2039,16 +2021,7 @@ def div0(
         [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=Decimal('0.000000'))]
     """
     # Build AST here to prevent `dividend` and `divisor` from being recorded as a literal instead of int/float.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "div0",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [dividend, divisor]
-            ),
-        )
+    ast = build_function_expr("div0", [dividend, divisor]) if _emit_ast else None
     dividend_col = (
         lit(dividend, _emit_ast=False)
         if isinstance(dividend, (int, float))
@@ -2059,7 +2032,7 @@ def div0(
         if isinstance(divisor, (int, float))
         else _to_col_if_str(divisor, "div0")
     )
-    return builtin("div0", _emit_ast=False)(dividend_col, divisor_col)
+    return builtin("div0", _ast=ast, _emit_ast=False)(dividend_col, divisor_col)
 
 
 @publicapi
@@ -2077,17 +2050,7 @@ def divnull(
         >>> df.select(divnull(df["a"], 1).alias("divided_by_one"), divnull(df["a"], 0).alias("divided_by_zero")).collect()
         [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=None)]
     """
-    # Build AST here to prevent `dividend` and `divisor` from being recorded as a literal instead of int/float.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "divnull",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [dividend, divisor]
-            ),
-        )
+    # TODO SNOW-1864578: find a way to encode divnull.
     dividend_col = (
         lit(dividend, _emit_ast=False)
         if isinstance(dividend, (int, float))
@@ -2641,17 +2604,8 @@ def lpad(
     c = _to_col_if_str(e, "lpad")
     p = _to_col_if_str(pad, "lpad")
     # Build AST here to prevent `len` from being recorded as a literal instead of int.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "lpad",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [c, len, p]
-            ),
-        )
-    return builtin("lpad", _emit_ast=False)(
+    ast = build_function_expr("lpad", [c, len, p]) if _emit_ast else None
+    return builtin("lpad", _ast=ast, _emit_ast=False)(
         c, len if isinstance(len, Column) else lit(len), p
     )
 
@@ -2711,17 +2665,8 @@ def rpad(
     c = _to_col_if_str(e, "rpad")
     p = _to_col_if_str(pad, "rpad")
     # Build AST here to prevent `len` from being recorded as a literal instead of int.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "rpad",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [c, len, p]
-            ),
-        )
-    return builtin("rpad", _emit_ast=False)(
+    ast = build_function_expr("rpad", [c, len, p]) if _emit_ast else None
+    return builtin("rpad", _ast=ast, _emit_ast=False)(
         c, len if isinstance(len, Column) else lit(len), p
     )
 
@@ -2773,18 +2718,11 @@ def repeat(s: ColumnOrName, n: Union[Column, int], _emit_ast: bool = True) -> Co
         <BLANKLINE>
     """
     c = _to_col_if_str(s, "repeat")
-    # Build AST here to prevent `len` from being recorded as a literal instead of int.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "repeat",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [c, n]
-            ),
-        )
-    return builtin("repeat", _emit_ast=False)(c, n if isinstance(n, Column) else lit(n))
+    # Build AST here to prevent `n` from being recorded as a literal instead of int.
+    ast = build_function_expr("repeat", [c, n]) if _emit_ast else None
+    return builtin("repeat", _ast=ast, _emit_ast=False)(
+        c, n if isinstance(n, Column) else lit(n)
+    )
 
 
 @publicapi
@@ -2978,16 +2916,7 @@ def log(
         [Row(LOG=0), Row(LOG=1)]
     """
     # Build AST here to prevent `base` and `x` from being recorded as a literal instead of int/float.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "log",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [base, x]
-            ),
-        )
+    ast = build_function_expr("log", [base, x]) if _emit_ast else None
     b = (
         lit(base, _emit_ast=False)
         if isinstance(base, (int, float))
@@ -2998,7 +2927,7 @@ def log(
         if isinstance(x, (int, float))
         else _to_col_if_str(x, "log")
     )
-    return builtin("log", _emit_ast=False)(b, arg)
+    return builtin("log", _ast=ast, _emit_ast=False)(b, arg)
 
 
 # Create base 2 and base 10 wrappers for use with the Modin log2 and log10 functions
@@ -3030,16 +2959,7 @@ def pow(
         <BLANKLINE>
     """
     # Build AST here to prevent `left` and `right` from being recorded as a literal instead of int/float.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "pow",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [left, right]
-            ),
-        )
+    ast = build_function_expr("pow", [left, right]) if _emit_ast else None
     number = (
         lit(left, _emit_ast=False)
         if isinstance(left, (int, float))
@@ -3050,7 +2970,7 @@ def pow(
         if isinstance(right, (int, float))
         else _to_col_if_str(right, "pow")
     )
-    return builtin("pow", _emit_ast=False)(number, power)
+    return builtin("pow", _ast=ast, _emit_ast=False)(number, power)
 
 
 @publicapi
@@ -3074,16 +2994,7 @@ def round(
     """
     c = _to_col_if_str(e, "round")
     # Build AST here to prevent `scale` from being recorded as a literal instead of int/float.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "round",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [c, scale]
-            ),
-        )
+    ast = build_function_expr("round", [c, scale]) if _emit_ast else None
     scale_col = (
         lit(scale, _emit_ast=False)
         if isinstance(scale, (int, float))
@@ -3095,7 +3006,7 @@ def round(
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "round", e, scale)
 
-    col = builtin("round", _emit_ast=False)(c, scale_col)
+    col = builtin("round", _ast=ast, _emit_ast=False)(c, scale_col)
     col._ast = ast
     return col
 
@@ -3212,24 +3123,16 @@ def substring(
     """
     s = _to_col_if_str(str, "substring")
     # Build AST here to prevent `pos` and `len` from being recorded as a literal instead of int/None.
-    if _emit_ast:
-        ast = proto.Expr()
-        args_list = [s, pos]
-        if len is not None:
-            args_list.append(len)  # Don't encode len if it's None.
-        build_builtin_fn_apply(
-            ast,
-            "substring",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in args_list
-            ),
-        )
+    ast = (
+        build_function_expr("substring", [s, pos, len], ignore_null_args=True)
+        if _emit_ast
+        else None
+    )
     p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=False)
     if len is None:
         return builtin("substring", _emit_ast=False)(s, p)
     length = len if isinstance(len, Column) else lit(len, _emit_ast=False)
-    return builtin("substring", _emit_ast=False)(s, p, length)
+    return builtin("substring", _ast=ast, _emit_ast=False)(s, p, length)
 
 
 @publicapi
@@ -3322,23 +3225,17 @@ def regexp_count(
     sub = _to_col_if_str(subject, sql_func_name)
 
     # Build AST here to prevent `pattern` and `position` from being recorded as a literal instead of int/str.
-    if _emit_ast:
-        ast = proto.Expr()
-        args_list = [sub, pattern, position] + list(parameters)
-        build_builtin_fn_apply(
-            ast,
-            sql_func_name,
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in args_list
-            ),
-        )
+    ast = (
+        build_function_expr(sql_func_name, [sub, pattern, position] + list(parameters))
+        if _emit_ast
+        else None
+    )
 
     pat = pattern if isinstance(pattern, Column) else lit(pattern, _emit_ast=False)
     pos = position if isinstance(position, Column) else lit(position, _emit_ast=False)
 
     params = [lit(p, _emit_ast=False) for p in parameters]
-    return builtin(sql_func_name, _emit_ast=False)(sub, pat, pos, *params)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=False)(sub, pat, pos, *params)
 
 
 @publicapi
@@ -3423,22 +3320,16 @@ def regexp_replace(
     """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
-
     # Build AST here to prevent `pattern`, `replacement`, `position`, `occurrences` from being recorded as a literal
     # instead of int/str.
-    if _emit_ast:
-        ast = proto.Expr()
-        args_list = [sub, pattern, replacement, position, occurrences] + list(
-            parameters
-        )
-        build_builtin_fn_apply(
-            ast,
+    ast = (
+        build_function_expr(
             sql_func_name,
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in args_list
-            ),
+            [sub, pattern, replacement, position, occurrences] + list(parameters),
         )
+        if _emit_ast
+        else None
+    )
 
     pat = pattern if isinstance(pattern, Column) else lit(pattern, _emit_ast=False)
     rep = (
@@ -3456,7 +3347,9 @@ def regexp_replace(
     params = [
         p if isinstance(p, Column) else lit(p, _emit_ast=False) for p in parameters
     ]
-    return builtin(sql_func_name, _emit_ast=False)(sub, pat, rep, pos, occ, *params)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=False)(
+        sub, pat, rep, pos, occ, *params
+    )
 
 
 @publicapi
@@ -3485,19 +3378,14 @@ def replace(
     sql_func_name = "replace"
     sub = _to_col_if_str(subject, sql_func_name)
     # Build AST here to prevent `pattern` and `replacement` from being recorded as a literal instead of str.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            sql_func_name,
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [sub, pattern, replacement]
-            ),
-        )
+    ast = (
+        build_function_expr(sql_func_name, [sub, pattern, replacement])
+        if _emit_ast
+        else None
+    )
     pat = lit(pattern, _emit_ast=_emit_ast)
     rep = lit(replacement, _emit_ast=_emit_ast)
-    return builtin(sql_func_name, _emit_ast=False)(sub, pat, rep)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=False)(sub, pat, rep)
 
 
 @publicapi
@@ -3536,22 +3424,13 @@ def charindex(
     t = _to_col_if_str(target_expr, "charindex")
     s = _to_col_if_str(source_expr, "charindex")
     # Build AST here to prevent `position` from being recorded as a literal instead of int/None.
-    if _emit_ast:
-        ast = proto.Expr()
-        # Don't record position if it is None.
-        args_list = [t, s]
-        if position is not None:
-            args_list.append(position)
-        build_builtin_fn_apply(
-            ast,
-            "charindex",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in args_list
-            ),
-        )
+    ast = (
+        build_function_expr("char_index", [t, s, position], ignore_null_args=True)
+        if _emit_ast
+        else None
+    )
     return (
-        builtin("charindex", _emit_ast=False)(
+        builtin("charindex", _ast=ast, _emit_ast=False)(
             t,
             s,
             position
@@ -3804,17 +3683,8 @@ def insert(
     b = _to_col_if_str(base_expr, "insert")
     i = _to_col_if_str(insert_expr, "insert")
     # Build AST here to prevent `position` and `length` from being recorded as a literal instead of int.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "insert",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [b, position, length, i]
-            ),
-        )
-    return builtin("insert", _emit_ast=False)(
+    ast = build_function_expr("insert", [b, position, length, i]) if _emit_ast else None
+    return builtin("insert", _ast=ast, _emit_ast=False)(
         b,
         position if isinstance(position, Column) else lit(position, _emit_ast=False),
         length if isinstance(length, Column) else lit(length, _emit_ast=False),
@@ -3842,17 +3712,8 @@ def left(
     """
     s = _to_col_if_str(str_expr, "left")
     # Build AST here to prevent `length` from being recorded as a literal instead of int.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "left",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [s, length]
-            ),
-        )
-    return builtin("left", _emit_ast=False)(
+    ast = build_function_expr("left", [s, length]) if _emit_ast else None
+    return builtin("left", _ast=ast, _emit_ast=False)(
         s, length if isinstance(length, Column) else lit(length, _emit_ast=False)
     )
 
@@ -3876,18 +3737,9 @@ def right(
         <BLANKLINE>
     """
     s = _to_col_if_str(str_expr, "right")
-    # Build AST here to prevent `position` and `length` from being recorded as a literal instead of int.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "right",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [s, length]
-            ),
-        )
-    return builtin("right", _emit_ast=False)(
+    # Build AST here to prevent `length` from being recorded as a literal instead of int.
+    ast = build_function_expr("right", [s, length]) if _emit_ast else None
+    return builtin("right", _ast=ast, _emit_ast=False)(
         s, length if isinstance(length, Column) else lit(length, _emit_ast=False)
     )
 
@@ -3938,18 +3790,9 @@ def to_char(
     """
     c = _to_col_if_str(c, "to_char")
     # Build AST here to prevent `format` from being recorded as a literal instead of str/None.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "insert",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [c, format]
-            ),
-        )
+    ast = build_function_expr("to_char", [c, format]) if _emit_ast else None
     return (
-        builtin("to_char", _emit_ast=False)(
+        builtin("to_char", _ast=ast, _emit_ast=False)(
             c, format if isinstance(format, Column) else lit(format, _emit_ast=False)
         )
         if format is not None
@@ -5031,17 +4874,12 @@ def array_sort(
     """
     array = _to_col_if_str(array, "array_sort")
     # Build AST here to prevent `sort_ascending` and `nulls_first` from being recorded as a literal instead of bool.
-    if _emit_ast:
-        ast = proto.Expr()
-        build_builtin_fn_apply(
-            ast,
-            "array_sort",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in [array, sort_ascending, nulls_first]
-            ),
-        )
-    return builtin("array_sort", _emit_ast=False)(
+    ast = (
+        build_function_expr("array_sort", [array, sort_ascending, nulls_first])
+        if _emit_ast
+        else None
+    )
+    return builtin("array_sort", _ast=ast, _emit_ast=False)(
         array,
         lit(sort_ascending, _emit_ast=False),
         lit(nulls_first, _emit_ast=False),
@@ -5799,24 +5637,17 @@ def window(
 
     # Build AST here to prevent `window_duration`, `slide_duration`, and `start_time` from being recorded as a
     # literal instead of str/None.
-    if _emit_ast:
-        ast = proto.Expr()
-        args_list = [
-            arg
-            for arg in [time_column, window_duration, slide_duration, start_time]
-            if arg is not None
-        ]
-        build_builtin_fn_apply(
-            ast,
+    ast = (
+        build_function_expr(
             "window",
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in args_list
-            ),
+            [time_column, window_duration, slide_duration, start_time],
+            ignore_null_args=True,
         )
-
+        if _emit_ast
+        else None
+    )
     window_duration, window_unit = parse_duration_string(window_duration)
-    window_duration = lit(window_duration, _emit_ast=False)
+    window_duration = lit(window_duration, _ast=ast, _emit_ast=False)
     window_unit = f"{window_unit}s"
 
     base = epoch
@@ -9983,7 +9814,10 @@ def table_function(function_name: str, _emit_ast: bool = True) -> Callable:
 
 @publicapi
 def call_function(
-    function_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True
+    function_name: str,
+    *args: ColumnOrLiteral,
+    _ast: proto.Expr = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
     and arguments.
@@ -10006,11 +9840,13 @@ def call_function(
         <BLANKLINE>
 
     """
-    return _call_function(function_name, False, *args, _emit_ast=_emit_ast)
+    return _call_function(function_name, False, *args, _ast=_ast, _emit_ast=_emit_ast)
 
 
 @publicapi
-def function(function_name: str, _emit_ast: bool = True) -> Callable:
+def function(
+    function_name: str, _ast: proto.Expr = None, _emit_ast: bool = True
+) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
     any built-in functions not explicitly listed in this object.
@@ -10039,7 +9875,9 @@ def function(function_name: str, _emit_ast: bool = True) -> Callable:
         ----------------
         <BLANKLINE>
     """
-    return lambda *args: call_function(function_name, *args, _emit_ast=_emit_ast)
+    return lambda *args: call_function(
+        function_name, *args, _ast=_ast, _emit_ast=_emit_ast
+    )
 
 
 def _call_function(
