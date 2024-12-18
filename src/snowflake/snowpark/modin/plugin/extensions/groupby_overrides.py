@@ -1514,8 +1514,10 @@ class SeriesGroupBy(DataFrameGroupBy):
         ErrorMessage.method_not_implemented_error(name="nsmallest", class_="GroupBy")
 
     def unique(self):
-        # TODO: SNOW-1063350: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="unique", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_unique,
+            numeric_only=False,
+        )
 
     def size(self):
         # TODO: Remove this once SNOW-1478924 is fixed
