@@ -95,7 +95,7 @@ def temp_table2(session, temp_db1, temp_schema1):
 
 
 def create_temp_view(session, db: str, schema: str) -> str:
-    temp_schema = get_temp_name("SCHEMA")
+    temp_schema = get_temp_name("VIEW")
     session._run_query(
         f"create or replace temp view {db}.{schema}.{temp_schema} as select 1 as a, '2' as b"
     )
@@ -175,20 +175,32 @@ def temp_udf2(session, temp_db1, temp_schema1):
     )
 
 
+DOES_NOT_EXIST_PATTERN = "does_not_exist_.*"
+
+
 def test_list_db(session, temp_db1, temp_db2):
     catalog: Catalog = session.catalog
     db_list = catalog.list_databases(pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_DB_*")
+    assert {db.name for db in db_list} >= {temp_db1, temp_db2}
+
+    db_list = catalog.list_databases(like=f"{CATALOG_TEMP_OBJECT_PREFIX}_DB_%")
     assert {db.name for db in db_list} >= {temp_db1, temp_db2}
 
 
 def test_list_schema(session, temp_db1, temp_schema1, temp_schema2):
     catalog: Catalog = session.catalog
     assert (
-        len(catalog.list_databases(pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_SCHEMA_*"))
+        len(catalog.list_databases(pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_SCHEMA_.*"))
         == 0
     )
+
     schema_list = catalog.list_schemas(
-        pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_SCHEMA_*", database=temp_db1
+        pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_SCHEMA_.*", database=temp_db1
+    )
+    assert {schema.name for schema in schema_list} >= {temp_schema1, temp_schema2}
+
+    schema_list = catalog.list_schemas(
+        like=f"{CATALOG_TEMP_OBJECT_PREFIX}_SCHEMA_%", database=temp_db1
     )
     assert {schema.name for schema in schema_list} >= {temp_schema1, temp_schema2}
 
@@ -196,17 +208,24 @@ def test_list_schema(session, temp_db1, temp_schema1, temp_schema2):
 def test_list_tables(session, temp_db1, temp_schema1, temp_table1, temp_table2):
     catalog: Catalog = session.catalog
 
-    assert len(catalog.list_tables(pattern="does_not_exist_*")) == 0
+    assert len(catalog.list_tables(pattern=DOES_NOT_EXIST_PATTERN)) == 0
     assert (
         len(
             catalog.list_tables(
-                pattern="does_not_exist_*", database=temp_db1, schema=temp_schema1
+                pattern=DOES_NOT_EXIST_PATTERN, database=temp_db1, schema=temp_schema1
             )
         )
         == 0
     )
 
     table_list = catalog.list_tables(database=temp_db1, schema=temp_schema1)
+    assert {table.name for table in table_list} == {temp_table1, temp_table2}
+
+    table_list = catalog.list_tables(
+        database=temp_db1,
+        schema=temp_schema1,
+        like=f"{CATALOG_TEMP_OBJECT_PREFIX}_TABLE_%",
+    )
     assert {table.name for table in table_list} == {temp_table1, temp_table2}
 
     cols = catalog.list_columns(temp_table1, database=temp_db1, schema=temp_schema1)
@@ -222,11 +241,11 @@ def test_list_tables(session, temp_db1, temp_schema1, temp_table1, temp_table2):
 def test_list_views(session, temp_db1, temp_schema1, temp_view1, temp_view2):
     catalog: Catalog = session.catalog
 
-    assert len(catalog.list_views(pattern="does_not_exist_*")) == 0
+    assert len(catalog.list_views(pattern=DOES_NOT_EXIST_PATTERN)) == 0
     assert (
         len(
             catalog.list_views(
-                pattern="does_not_exist_*", database=temp_db1, schema=temp_schema1
+                pattern=DOES_NOT_EXIST_PATTERN, database=temp_db1, schema=temp_schema1
             )
         )
         == 0
@@ -235,17 +254,31 @@ def test_list_views(session, temp_db1, temp_schema1, temp_view1, temp_view2):
     view_list = catalog.list_views(database=temp_db1, schema=temp_schema1)
     assert {view.name for view in view_list} >= {temp_view1, temp_view2}
 
+    view_list = catalog.list_views(
+        database=temp_db1,
+        schema=temp_schema1,
+        pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_VIEW.*",
+    )
+    assert {view.name for view in view_list} >= {temp_view1, temp_view2}
+
+    view_list = catalog.list_views(
+        database=temp_db1,
+        schema=temp_schema1,
+        like=f"{CATALOG_TEMP_OBJECT_PREFIX}_VIEW%",
+    )
+    assert {view.name for view in view_list} >= {temp_view1, temp_view2}
+
 
 def test_list_procedures(
     session, temp_db1, temp_schema1, temp_procedure1, temp_procedure2
 ):
     catalog: Catalog = session.catalog
 
-    assert len(catalog.list_procedures(pattern="does_not_exist_*")) == 0
+    assert len(catalog.list_procedures(pattern=DOES_NOT_EXIST_PATTERN)) == 0
     assert (
         len(
             catalog.list_procedures(
-                pattern="does_not_exist_*", database=temp_db1, schema=temp_schema1
+                pattern=DOES_NOT_EXIST_PATTERN, database=temp_db1, schema=temp_schema1
             )
         )
         == 0
@@ -254,7 +287,17 @@ def test_list_procedures(
     procedure_list = catalog.list_procedures(
         database=temp_db1,
         schema=temp_schema1,
-        pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_PROCEDURE_*",
+        pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_PROCEDURE_.*",
+    )
+    assert {procedure.name for procedure in procedure_list} >= {
+        temp_procedure1,
+        temp_procedure2,
+    }
+
+    procedure_list = catalog.list_procedures(
+        database=temp_db1,
+        schema=temp_schema1,
+        like=f"{CATALOG_TEMP_OBJECT_PREFIX}_PROCEDURE_%",
     )
     assert {procedure.name for procedure in procedure_list} >= {
         temp_procedure1,
@@ -266,11 +309,11 @@ def test_list_procedures(
 def test_list_udfs(session, temp_db1, temp_schema1, temp_udf1, temp_udf2):
     catalog: Catalog = session.catalog
 
-    assert len(catalog.list_functions(pattern="does_not_exist_*")) == 0
+    assert len(catalog.list_functions(pattern=DOES_NOT_EXIST_PATTERN)) == 0
     assert (
         len(
             catalog.list_functions(
-                pattern="does_not_exist_*", database=temp_db1, schema=temp_schema1
+                pattern=DOES_NOT_EXIST_PATTERN, database=temp_db1, schema=temp_schema1
             )
         )
         == 0
@@ -278,7 +321,7 @@ def test_list_udfs(session, temp_db1, temp_schema1, temp_udf1, temp_udf2):
     udf_list = catalog.list_functions(
         database=temp_db1,
         schema=temp_schema1,
-        pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_UDF_*",
+        pattern=f"{CATALOG_TEMP_OBJECT_PREFIX}_UDF_.*",
     )
     assert {udf.name for udf in udf_list} >= {temp_udf1, temp_udf2}
 

@@ -112,12 +112,15 @@ class Catalog:
         database: Optional[Union[str, Database]],
         schema: Optional[Union[str, Schema]],
         pattern: Optional[str],
+        like: Optional[str],
     ):
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
 
+        like_str = f"LIKE '{like}'" if like else ""
+
         df = self._session.sql(
-            f"SHOW AS RESOURCE {object_name} IN {db_name}.{schema_name} -- catalog api"
+            f"SHOW AS RESOURCE {object_name} {like_str} IN {db_name}.{schema_name} -- catalog api"
         )
         if pattern:
             # initialize udf
@@ -140,13 +143,15 @@ class Catalog:
         self,
         *,
         pattern: Optional[str] = None,
+        like: Optional[str] = None,
     ) -> List[Database]:
         """List databases in the current session.
 
         Args:
-            pattern: the pattern of name to match. Defaults to None.
+            pattern: the python regex pattern of name to match. Defaults to None.
+            like: the sql style pattern for name to match. Default to None.
         """
-        iter = self._root.databases.iter()
+        iter = self._root.databases.iter(like=like)
         if pattern:
             iter = filter(lambda x: re.match(pattern, x.name), iter)
 
@@ -157,16 +162,18 @@ class Catalog:
         *,
         database: Optional[Union[str, Database]] = None,
         pattern: Optional[str] = None,
+        like: Optional[str] = None,
     ) -> List[Schema]:
         """List schemas in the current session. If database is provided, list schemas in the
         database, otherwise list schemas in the current database.
 
         Args:
             database: database name or ``Database`` object. Defaults to None.
-            pattern: the pattern of name to match. Defaults to None.
+            pattern: the python regex pattern of name to match. Defaults to None.
+            like: the sql style pattern for name to match. Default to None.
         """
         db_name = self._parse_database(database)
-        iter = self._root.databases[db_name].schemas.iter()
+        iter = self._root.databases[db_name].schemas.iter(like=like)
         if pattern:
             iter = filter(lambda x: re.match(pattern, x.name), iter)
         return list(iter)
@@ -177,6 +184,7 @@ class Catalog:
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
         pattern: Optional[str] = None,
+        like: Optional[str] = None,
     ) -> List[Table]:
         """List tables in the current session. If database or schema are provided, list tables
         in the given database or schema, otherwise list tables in the current database/schema.
@@ -184,7 +192,8 @@ class Catalog:
         Args:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
-            pattern: the pattern of name to match. Defaults to None.
+            pattern: the python regex pattern of name to match. Defaults to None.
+            like: the sql style pattern for name to match. Default to None.
         """
         return self._list_objects(
             object_name="TABLES",
@@ -192,6 +201,7 @@ class Catalog:
             database=database,
             schema=schema,
             pattern=pattern,
+            like=like,
         )
 
     def list_views(
@@ -200,6 +210,7 @@ class Catalog:
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
         pattern: Optional[str] = None,
+        like: Optional[str] = None,
     ) -> List[View]:
         """List views in the current session. If database or schema are provided, list views
         in the given database or schema, otherwise list views in the current database/schema.
@@ -207,7 +218,8 @@ class Catalog:
         Args:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
-            pattern: the pattern of name to match. Defaults to None.
+            pattern: the python regex pattern of name to match. Defaults to None.
+            like: the sql style pattern for name to match. Default to None.
         """
         return self._list_objects(
             object_name="VIEWS",
@@ -215,6 +227,7 @@ class Catalog:
             database=database,
             schema=schema,
             pattern=pattern,
+            like=like,
         )
 
     def list_columns(
@@ -245,6 +258,7 @@ class Catalog:
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
         pattern: Optional[str] = None,
+        like: Optional[str] = None,
     ) -> List[Procedure]:
         """List of procedures in the given database and schema. If database or schema are not
         provided, list procedures in the current database and schema.
@@ -252,7 +266,8 @@ class Catalog:
         Args:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
-            pattern: the pattern of name to match. Defaults to None.
+            pattern: the python regex pattern of name to match. Defaults to None.
+            like: the sql style pattern for name to match. Default to None.
         """
         return self._list_objects(
             object_name="PROCEDURES",
@@ -260,6 +275,7 @@ class Catalog:
             database=database,
             schema=schema,
             pattern=pattern,
+            like=like,
         )
 
     def list_user_defined_functions(
@@ -268,13 +284,15 @@ class Catalog:
         database: Optional[Union[str, Database]] = None,
         schema: Optional[Union[str, Schema]] = None,
         pattern: Optional[str] = None,
+        like: Optional[str] = None,
     ) -> List[UserDefinedFunction]:
         """List of user defined functions in the given database and schema. If database or schema
         are not provided, list user defined functions in the current database and schema.
         Args:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
-            pattern: the pattern of name to match. Defaults to None.
+            pattern: the python regex pattern of name to match. Defaults to None.
+            like: the sql style pattern for name to match. Default to None.
         """
         return self._list_objects(
             object_name="USER FUNCTIONS",
@@ -282,6 +300,7 @@ class Catalog:
             database=database,
             schema=schema,
             pattern=pattern,
+            like=like,
         )
 
     # get methods
