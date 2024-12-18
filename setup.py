@@ -24,10 +24,10 @@ INSTALL_REQ_LIST = [
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
-    "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0;python_version<'3.11'",
-    "cloudpickle==2.2.1;python_version~='3.11'",  # backend only supports cloudpickle 2.2.1 + python 3.11 at the moment
+    "cloudpickle>=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6",  # Snowpark IR
+    "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
@@ -200,6 +200,8 @@ setup(
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
             "scikit-learn==1.5.2",  # Snowpark pandas scikit-learn tests
+            # plotly version restricted due to foreseen change in query counts in version 6.0.0+
+            "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
         ],
         "localtest": [
             "pandas",

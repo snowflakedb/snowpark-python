@@ -139,13 +139,13 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "key"
             src {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -177,13 +177,13 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "value"
             src {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -367,13 +367,13 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "window1"
             src {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 37
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -470,6 +470,9 @@ body {
                                 }
                               }
                             }
+                            null_order {
+                              sp_null_order_default: true
+                            }
                             src {
                               file: "SRC_POSITION_TEST_MODE"
                               start_line: 35
@@ -494,13 +497,13 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "window2"
             src {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 37
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -2046,13 +2049,13 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "window1"
             src {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 65
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -2092,5 +2095,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

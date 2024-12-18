@@ -23,6 +23,7 @@ import numpy.typing as npt
 import pandas as native_pd
 import pandas.core.resample
 import pandas.io.parsers
+from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeDataframe
 import pandas.io.parsers.readers
 import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
@@ -117,6 +118,7 @@ from snowflake.snowpark.functions import (
     least,
     length,
     lower,
+    lpad,
     ltrim,
     max as max_,
     min as min_,
@@ -132,6 +134,7 @@ from snowflake.snowpark.functions import (
     reverse,
     round as snowpark_round,
     row_number,
+    rpad,
     rtrim,
     second,
     substring,
@@ -369,6 +372,9 @@ from snowflake.snowpark.modin.plugin._typing import (
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
+from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
+    NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION,
+)
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
@@ -817,8 +823,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def from_arrow(cls, at: Any, *args: Any, **kwargs: Any) -> "SnowflakeQueryCompiler":
         return cls(at.to_pandas())
 
-    def to_dataframe(self, nan_as_null: bool = False, allow_copy: bool = True) -> None:
-        pass
+    def to_dataframe(
+        self, nan_as_null: bool = False, allow_copy: bool = True
+    ) -> InterchangeDataframe:
+        return self.to_pandas().__dataframe__(
+            nan_as_null=nan_as_null, allow_copy=allow_copy
+        )
 
     @classmethod
     def from_dataframe(cls, df: native_pd.DataFrame, data_cls: Any) -> None:
@@ -7955,7 +7965,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         partition_expression = (
             snowpark_round(
                 col(row_position_snowflake_quoted_identifier)
-                / pandas_lit(partition_size)
+                / pandas_lit(partition_size),
+                _emit_ast=self._modin_frame.ordered_dataframe.session.ast_enabled,
             )
         ).as_(partition_identifier)
         udtf_dataframe = new_internal_df.ordered_dataframe.select(
@@ -8747,6 +8758,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     f"Snowpark pandas applymap API doesn't yet support Snowpark Python function `{func.__name__}` with args = '{args}'."
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
+
+        # Check if the function is a known numpy function that can be translated to Snowflake function.
+        sf_func = NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
+        if sf_func is not None:
+            # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
+            return self._apply_snowpark_python_function_to_columns(
+                sf_func, kwargs
+            )  # pragma: no cover
+
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
         # The fix will not land soon, so we are going to raise not implemented error for now.
@@ -16245,8 +16265,39 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 raise ValueError("slice step cannot be zero")
             return self.str_slice(key.start, key.stop, key.step)
 
-    def str_center(self, width: int, fillchar: str = " ") -> None:
-        ErrorMessage.method_not_implemented_error("center", "Series.str")
+    def str_center(self, width: int, fillchar: str = " ") -> "SnowflakeQueryCompiler":
+        if not isinstance(width, int):
+            raise TypeError(
+                f"width must be of integer type, not {type(width).__name__}"
+            )
+        if not isinstance(fillchar, str):
+            raise TypeError(
+                f"fillchar must be a character, not {type(fillchar).__name__}"
+            )
+        if len(fillchar) != 1:
+            raise TypeError("fillchar must be a character, not str")
+
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+            new_col = rpad(
+                lpad(
+                    column,
+                    greatest(
+                        length(column),
+                        length(column)
+                        + (pandas_lit(width) - length(column) - pandas_lit(1))
+                        / pandas_lit(2),
+                    ),
+                    pandas_lit(fillchar),
+                ),
+                greatest(length(column), pandas_lit(width)),
+                pandas_lit(fillchar),
+            )
+            return self._replace_non_str(column, new_col)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            output_col
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_contains(
         self,
@@ -16404,8 +16455,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         width: int,
         side: Literal["left", "right", "both"] = "left",
         fillchar: str = " ",
-    ) -> None:
-        ErrorMessage.method_not_implemented_error("pad", "Series.str")
+    ) -> "SnowflakeQueryCompiler":
+        if side == "left":
+            return self.str_rjust(width, fillchar)
+        elif side == "right":
+            return self.str_ljust(width, fillchar)
+        elif side == "both":
+            return self.str_center(width, fillchar)
+        else:
+            raise ValueError("Invalid side")
 
     def str_partition(self, sep: str = " ", expand: bool = True) -> None:
         ErrorMessage.method_not_implemented_error("partition", "Series.str")
@@ -16444,11 +16502,86 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             )
 
-    def str_ljust(self, width: int, fillchar: str = " ") -> None:
-        ErrorMessage.method_not_implemented_error("ljust", "Series.str")
+    def str_ljust(self, width: int, fillchar: str = " ") -> "SnowflakeQueryCompiler":
+        """
+        Pad right side of strings in the Series/Index.
 
-    def str_rjust(self, width: int, fillchar: str = " ") -> None:
-        ErrorMessage.method_not_implemented_error("rjust", "Series.str")
+        Equivalent to str.ljust().
+
+        Parameters
+        ----------
+        width : int
+            Minimum width of resulting string; additional characters will be filled with fillchar.
+        fillchar : str
+            Additional character for filling, default is whitespace.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if not isinstance(width, int):
+            raise TypeError(
+                f"width must be of integer type, not {type(width).__name__}"
+            )
+        if not isinstance(fillchar, str):
+            raise TypeError(
+                f"fillchar must be a character, not {type(fillchar).__name__}"
+            )
+        if len(fillchar) != 1:
+            raise TypeError("fillchar must be a character, not str")
+
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+            new_col = rpad(
+                column,
+                greatest(length(column), pandas_lit(width)),
+                pandas_lit(fillchar),
+            )
+            return self._replace_non_str(column, new_col)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            output_col
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
+
+    def str_rjust(self, width: int, fillchar: str = " ") -> "SnowflakeQueryCompiler":
+        """
+        Pad left side of strings in the Series/Index.
+
+        Equivalent to str.rjust().
+
+        Parameters
+        ----------
+        width : int
+            Minimum width of resulting string; additional characters will be filled with fillchar.
+        fillchar : str
+            Additional character for filling, default is whitespace.
+        Returns
+        -------
+        SnowflakeQueryCompiler representing result of the string operation.
+        """
+        if not isinstance(width, int):
+            raise TypeError(
+                f"width must be of integer type, not {type(width).__name__}"
+            )
+        if not isinstance(fillchar, str):
+            raise TypeError(
+                f"fillchar must be of integer type, not {type(fillchar).__name__}"
+            )
+        if len(fillchar) != 1:
+            raise TypeError("fillchar must be a character, not str")
+
+        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+            new_col = lpad(
+                column,
+                greatest(length(column), pandas_lit(width)),
+                pandas_lit(fillchar),
+            )
+            return self._replace_non_str(column, new_col)
+
+        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+            output_col
+        )
+        return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_normalize(self, form: Literal["NFC", "NFKC", "NFD", "NFKD"]) -> None:
         ErrorMessage.method_not_implemented_error("normalize", "Series.str")

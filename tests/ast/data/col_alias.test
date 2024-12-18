@@ -85,13 +85,13 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "test"
             src {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 29
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -150,12 +150,13 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_alias: true
+            }
             name: "test"
             src {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 31
-            }
-            variant_is_as {
             }
           }
         }
@@ -213,6 +214,9 @@ body {
                   start_line: 33
                 }
               }
+            }
+            fn {
+              sp_column_alias_fn_name: true
             }
             name: "test"
             src {
@@ -293,6 +297,9 @@ body {
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_name: true
+            }
             name: "test"
             src {
               file: "SRC_POSITION_TEST_MODE"
@@ -336,5 +343,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }
