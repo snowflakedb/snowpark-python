@@ -126,7 +126,7 @@ class SessionParameter(Setting):
             settings value is changed.
     """
 
-    session: Session = field(default=None)
+    session: "Session" = field(default=None)
     parameter_name: str = field(default=None)
     synchronize: bool = field(default=False)
     telemetry_hook: Callable = field(default=None)
