@@ -27,6 +27,7 @@
 - Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
 - Updated integration testing for `session.lineage.trace` to exclude deleted objects
 - Added documentation for `DataFrame.map`.
+- Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
 
 ## 1.26.0 (2024-12-05)
 
