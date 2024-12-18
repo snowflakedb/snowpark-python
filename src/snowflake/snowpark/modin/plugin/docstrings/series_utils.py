@@ -454,7 +454,7 @@ class StringMethods:
         For Series.str.center:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
-        >>> ser.str.center(8, fillchar='.')  # doctest: +SKIP
+        >>> ser.str.center(8, fillchar='.')
         0    ..dog...
         1    ..bird..
         2    .mouse..
@@ -500,7 +500,7 @@ class StringMethods:
         For Series.str.center:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
-        >>> ser.str.center(8, fillchar='.')  # doctest: +SKIP
+        >>> ser.str.center(8, fillchar='.')
         0    ..dog...
         1    ..bird..
         2    .mouse..

@@ -6,7 +6,10 @@ from typing import DefaultDict, Dict, Iterable, List, NamedTuple, Optional
 
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+from snowflake.snowpark._internal.analyzer.select_statement import (
+    SelectSnowflakePlan,
+    Selectable,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
@@ -65,6 +68,16 @@ class QueryGenerator(Analyzer):
         # order of when the with query block is visited. The order is important to make sure the dependency
         # between the CTE definition is satisfied.
         self.resolved_with_query_block: Dict[str, Query] = {}
+
+    def to_selectable(self, plan: LogicalPlan) -> Selectable:
+        """Given a LogicalPlan, convert it to a Selectable."""
+        if isinstance(plan, Selectable):
+            return plan
+
+        snowflake_plan = self.resolve(plan)
+        selectable = SelectSnowflakePlan(snowflake_plan, analyzer=self)
+        selectable._is_valid_for_replacement = snowflake_plan._is_valid_for_replacement
+        return selectable
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
