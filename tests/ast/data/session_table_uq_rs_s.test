@@ -1,0 +1,120 @@
+## TEST CASE
+
+df = session.table(f"mock_schema.{tables.table1}")
+df = df.select("num")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("mock_schema.table1")
+
+df = df.select(col("num"))
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "mock_schema.table1"
+          }
+        }
+        src {
+          end_column: 58
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 29
+                  end_line: 26
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 13
+                  start_line: 26
+                }
+                v: "num"
+              }
+            }
+            src {
+              end_column: 29
+              end_line: 26
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 13
+              start_line: 26
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 29
+          end_line: 26
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 26
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

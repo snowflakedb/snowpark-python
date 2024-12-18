@@ -16,21 +16,32 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.utils import (
+    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     assert_values_equal,
     create_test_dfs,
     create_test_series,
-    eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
+)
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+pytestmark = pytest.mark.skipif(
+    PANDAS_VERSION_PREDICATE,
+    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
 )
 
 # Use the workaround shown below for applying functions that are attributes
 # of this module.
 # https://github.com/cloudpipe/cloudpickle?tab=readme-ov-file#overriding-pickles-serialization-mechanism-for-importable-constructs
 cloudpickle.register_pickle_by_value(sys.modules[__name__])
+
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
 
 
 @pytest.fixture
@@ -335,83 +346,18 @@ class TestFuncReturnsDataFrame:
         join_count=JOIN_COUNT,
     )
     @pytest.mark.parametrize(
-        "by, expected_output",
+        "by",
         [
-            (
-                "level_0",
-                native_pd.DataFrame(
-                    [
-                        ["k0", 0.302326, "e"],
-                        ["k1", 0.325581, "d"],
-                        ["k0", 0.372093, "b"],
-                        ["k0", 1.000000, "c"],
-                    ],
-                    index=pd.MultiIndex.from_tuples(
-                        [
-                            ("i1", "i1", "i3"),
-                            ("i1", "i1", "i2"),
-                            ("i1", "i1", "i4"),
-                            ("i0", "i0", "i0"),
-                        ],
-                        names=["level_0", "level_0", "level_1"],
-                    ),
-                    columns=pd.MultiIndex.from_tuples(
-                        [
-                            ("a", "string_col_1"),
-                            ("b", "int_col"),
-                            ("b", "string_col_2"),
-                        ],
-                        names=["c1", "c2"],
-                    ),
-                ),
-            ),
-            (
-                ("a", "string_col_1"),
-                native_pd.DataFrame(
-                    [
-                        ["k0", 0.295455, "e"],
-                        ["k0", 0.340909, "c"],
-                        ["k0", 0.363636, "b"],
-                        ["k1", 1.000000, "d"],
-                    ],
-                    index=pd.MultiIndex.from_tuples(
-                        [
-                            ("k0", "i1", "i3"),
-                            ("k0", "i0", "i0"),
-                            ("k0", "i1", "i4"),
-                            ("k1", "i1", "i2"),
-                        ],
-                        names=[("a", "string_col_1"), "level_0", "level_1"],
-                    ),
-                    columns=pd.MultiIndex.from_tuples(
-                        [
-                            ("a", "string_col_1"),
-                            ("b", "int_col"),
-                            ("b", "string_col_2"),
-                        ],
-                        names=["c1", "c2"],
-                    ),
-                ),
-            ),
+            "level_0",
+            ("a", "string_col_1"),
         ],
     )
-    def test_sort_false(self, grouping_dfs_with_multiindexes, by, expected_output):
-        """
-        Pandas bug (this bug fixed in pandas 2.2): groupby.apply doesn't respect sort=False when grouping by a single level of an index or a single data colmn.
-        df = pd.DataFrame([], index=pd.MultiIndex.from_tuples([(3.1, 17), (1.1, 6)], names=['a', 'b']))
-        df.groupby('a', sort=True).apply(lambda group: 0)
-        df.groupby('a', sort=False).apply(lambda group: 0)
-
-        so , hardcode expected output.
-        """
-        snow_df, pandas_df = grouping_dfs_with_multiindexes
-
-        def operation(df: native_pd.DataFrame) -> native_pd.DataFrame:
-            return df.groupby(by, sort=False).apply(normalize_numeric_columns_by_sum)
-
-        snow_result_as_pandas = operation(snow_df)
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-            snow_result_as_pandas, expected_output
+    def test_sort_false(self, grouping_dfs_with_multiindexes, by):
+        eval_snowpark_pandas_result(
+            *grouping_dfs_with_multiindexes,
+            lambda df: df.groupby(by, sort=False).apply(
+                normalize_numeric_columns_by_sum
+            ),
         )
 
     @sql_count_checker(
@@ -537,7 +483,7 @@ class TestFuncReturnsDataFrame:
                 if group_keys
                 else QUERY_COUNT_WITH_TRANSFORM_CHECK
             ),
-            join_count=JOIN_COUNT,
+            join_count=JOIN_COUNT + 1,
             udtf_count=UDTF_COUNT,
         ):
             snow_result = operation(mdf)
@@ -719,7 +665,7 @@ class TestFuncReturnsDataFrame:
         with SqlCounter(
             query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK,
             udtf_count=UDTF_COUNT,
-            join_count=JOIN_COUNT,
+            join_count=JOIN_COUNT + 1,
         ):
             assert_snowpark_pandas_equal_to_pandas(
                 groupby_apply_without_sort(snow_df).sort_values(),
@@ -897,6 +843,37 @@ class TestFuncReturnsScalar:
                 include_groups=False,
             )
 
+    @pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1619940")
+    def test_return_timedelta(self):
+        eval_snowpark_pandas_result(
+            *create_test_dfs([[1, 2]]),
+            lambda df: df.groupby(0).apply(
+                lambda df: native_pd.Timedelta(df.sum().sum())
+            ),
+        )
+
+    @pytest.mark.xfail(strict=True, raises=NotImplementedError)
+    @pytest.mark.parametrize(
+        "pandas_df",
+        [
+            param(
+                native_pd.DataFrame([["key0", native_pd.Timedelta(1)]]),
+                id="timedelta_column",
+            ),
+            param(
+                native_pd.DataFrame(
+                    [["key0", "value1"]],
+                    index=native_pd.Index([native_pd.Timedelta(1)]),
+                ),
+                id="timedelta_index",
+            ),
+        ],
+    )
+    def test_timedelta_input(self, pandas_df):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(pandas_df), lambda df: df.groupby(0).apply(lambda df: 1)
+        )
+
 
 class TestFuncReturnsSeries:
     @pytest.mark.parametrize(
@@ -967,9 +944,9 @@ class TestFuncReturnsSeries:
     @pytest.mark.parametrize("dropna", [True, False])
     @sql_count_checker(
         # One extra query to convert index to native pandas in dataframe constructor to create test dataframes
-        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
+        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
         udtf_count=UDTF_COUNT,
-        join_count=JOIN_COUNT,
+        join_count=JOIN_COUNT + 1,
     )
     @pytest.mark.parametrize("index", [[2.0, np.nan, 2.0, 1.0], [np.nan] * 4])
     def test_dropna(self, dropna, index):
@@ -1073,6 +1050,11 @@ class TestSeriesGroupBy:
     @pytest.mark.parametrize("by", ["string_col_1", ["index", "string_col_1"], "index"])
     def test_dataframe_groupby_getitem(self, by, func, dropna, group_keys, sort):
         """Test apply() on a SeriesGroupBy that we get by DataFrameGroupBy.__getitem__"""
+        qc = (
+            QUERY_COUNT_WITH_TRANSFORM_CHECK
+            if group_keys is False and not func == get_scalar_from_numeric_series
+            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK
+        )
         if (
             func in (get_dataframe_from_numeric_series, get_series_from_numeric_series)
             and not dropna
@@ -1082,19 +1064,9 @@ class TestSeriesGroupBy:
             # (pd.NA, k1) that we cannot serialize.
             pytest.xfail(reason="SNOW-1229760")
         with SqlCounter(
-            # one additional query for converting index to native pandas in dataframe constructor
-            query_count=QUERY_COUNT_WITH_TRANSFORM_CHECK + 1
-            if not group_keys
-            and func
-            in (
-                get_dataframe_from_numeric_series,
-                get_series_from_numeric_series,
-                series_transform_returns_frame,
-                series_transform_returns_series,
-            )
-            else QUERY_COUNT_WITHOUT_TRANSFORM_CHECK + 1,
+            query_count=qc,
             udtf_count=UDTF_COUNT,
-            join_count=JOIN_COUNT,
+            join_count=JOIN_COUNT + 1,
         ):
             eval_snowpark_pandas_result(
                 *create_test_dfs(
@@ -1137,6 +1109,43 @@ class TestSeriesGroupBy:
                 group_keys=group_keys,
                 sort=sort,
             ).apply(func),
+        )
+
+
+class SeriesGroupByWithTimedelta:
+    @pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1619940")
+    def test_return_timedelta(self):
+        eval_snowpark_pandas_result(
+            *create_test_dfs([[1, 2]]),
+            lambda df: df.groupby(0,)[
+                1
+            ].apply(lambda series: native_pd.Timedelta(series.sum())),
+        )
+
+    @pytest.mark.xfail(strict=True, raises=NotImplementedError)
+    @pytest.mark.parametrize(
+        "pandas_df",
+        [
+            param(
+                native_pd.DataFrame([["key0", native_pd.Timedelta(1)]]),
+                id="timedelta_column",
+            ),
+            param(
+                native_pd.DataFrame(
+                    [["key0", "value1"]],
+                    index=native_pd.Index([native_pd.Timedelta(1)]),
+                ),
+                id="timedelta_index",
+            ),
+        ],
+    )
+    def test_timedelta_input(
+        self,
+        pandas_df,
+    ):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(pandas_df),
+            lambda df: df.groupby(0)[1].apply(lambda series: 1),
         )
 
 

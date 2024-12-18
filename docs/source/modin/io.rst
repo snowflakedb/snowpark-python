@@ -2,7 +2,7 @@
 Input/Output
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 
 .. rubric:: Flat file
 
@@ -13,6 +13,10 @@ Input/Output
     read_excel
     read_json
     read_parquet
+    read_sas
+    read_pickle
+    read_html
+    read_xml
 
 .. rubric:: SQL
 
@@ -20,6 +24,7 @@ Input/Output
     :toctree: pandas_api/
 
     read_snowflake
+    to_snowflake
     to_snowpark
 
 .. rubric:: pandas

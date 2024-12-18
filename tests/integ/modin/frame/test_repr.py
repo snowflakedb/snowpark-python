@@ -8,10 +8,11 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark import QueryListener
 from snowflake.snowpark.query_history import QueryRecord
 from snowflake.snowpark.session import Session
 from tests.integ.modin.conftest import IRIS_DF
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # expected_query_count is for test_repr_html paramterized SqlCounter test
 _DATAFRAMES_TO_TEST = [
@@ -20,8 +21,18 @@ _DATAFRAMES_TO_TEST = [
             {
                 "Animal": ["Falcon", "Falcon", "Parrot", "Parrot"],
                 "Max Speed": [380.0, 370.0, 24.0, 26.0],
+                "Timedelta": [
+                    pd.Timedelta(1, unit="ns"),
+                    pd.Timedelta(microseconds=1),
+                    pd.Timedelta(milliseconds=-1),
+                    pd.Timedelta(days=9999, hours=10, minutes=30, seconds=10),
+                ],
             }
         ),
+        1,
+    ),
+    (
+        native_pd.DataFrame([1, 2], index=[pd.Timedelta(1), pd.Timedelta(-1)]),
         1,
     ),
     (
@@ -92,7 +103,7 @@ def test_repr_html(native_df, expected_query_count):
     assert native_html == snow_html
 
 
-class ReprQueryListener:
+class ReprQueryListener(QueryListener):
     """A context manager that listens to and records SQL queries that are pushed down to the Snowflake database
     if they are used for `repr` or `_repr_html_`.
 
@@ -111,7 +122,7 @@ class ReprQueryListener:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.session._conn.remove_query_listener(self)
 
-    def _add_query(self, query_record: QueryRecord):
+    def _notify(self, query_record: QueryRecord, **kwargs):
         # Any query for `repr` or `_repr_html_` will include
         # `<= 31` in the SQL text.
         if "<= 31" in query_record.sql_text:

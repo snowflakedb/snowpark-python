@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import datetime
 import sys
 from decimal import Decimal
 
@@ -18,11 +19,20 @@ from snowflake.snowpark.functions import (
     lag,
     last_value,
     lead,
+    make_interval,
     min as min_,
     sum as sum_,
 )
-from snowflake.snowpark.types import DecimalType, LongType, StructField, StructType
-from tests.utils import Utils
+from snowflake.snowpark.types import (
+    DateType,
+    DecimalType,
+    LongType,
+    StructField,
+    StructType,
+    TimestampTimeZone,
+    TimestampType,
+)
+from tests.utils import Utils, multithreaded_run
 
 
 def test_lead_lag_with_positive_offset(session):
@@ -36,6 +46,7 @@ def test_lead_lag_with_positive_offset(session):
     )
 
 
+@multithreaded_run()
 def test_reverse_lead_lag_with_positive_offset(session):
     df = session.create_dataframe(
         [(1, "1"), (2, "2"), (1, "3"), (2, "4")], schema=["key", "value"]
@@ -93,6 +104,7 @@ def test_lead_lag_with_default_value(session, default):
     )
 
 
+@multithreaded_run()
 def test_lead_lag_with_ignore_or_respect_nulls(session):
     df = session.create_dataframe(
         [(1, 5), (2, 4), (3, None), (4, 2), (5, None), (6, None), (7, 6)],
@@ -389,3 +401,214 @@ def test_range_between_should_include_rows_equal_to_current_row(session):
             Row(C1="f", C2=20, WIN_SUM=65),
         ],
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1358946: Interval is not supported in Local Testing",
+)
+def test_range_between_timestamp(
+    session,
+):
+    df = session.create_dataframe(
+        [
+            datetime.datetime(2021, 12, 21, 9, 12, 56),
+            datetime.datetime(2021, 12, 21, 8, 12, 56),
+            datetime.datetime(2021, 12, 21, 7, 12, 56),
+            datetime.datetime(2021, 12, 21, 6, 12, 56),
+        ],
+        schema=StructType([StructField("a", TimestampType(TimestampTimeZone.NTZ))]),
+    )
+
+    window = Window.order_by(col("a")).range_between(-make_interval(hours=2), 0)
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(1), Row(2), Row(3), Row(3)])
+
+    window = Window.order_by(col("a").desc()).range_between(-make_interval(hours=2), 0)
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(1), Row(2), Row(3), Row(3)])
+
+    window = Window.order_by(col("a")).range_between(0, make_interval(minutes=60))
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(1), Row(2), Row(2), Row(2)])
+
+    window = Window.order_by(col("a").desc()).range_between(
+        0, make_interval(minutes=60)
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(1), Row(2), Row(2), Row(2)])
+
+    window = Window.order_by(col("a")).range_between(make_interval(hours=1), 0)
+    with pytest.raises(SnowparkSQLException, match="Invalid window frame"):
+        df.select(count("a").over(window)).collect()
+
+    window = Window.order_by(col("a")).range_between(0, -make_interval(hours=1))
+    with pytest.raises(SnowparkSQLException, match="Invalid window frame"):
+        df.select(count("a").over(window)).collect()
+
+    window = Window.order_by(col("a")).range_between(
+        -make_interval(secs=0), Window.currentRow
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(1), Row(1), Row(1), Row(1)])
+
+    window = Window.order_by(col("a")).range_between(
+        make_interval(secs=0), Window.currentRow
+    )
+    with pytest.raises(SnowparkSQLException, match="Invalid window frame"):
+        df.select(count("a").over(window)).collect()
+
+    window = Window.order_by(col("a")).range_between(
+        -make_interval(hours=1), Window.unboundedFollowing
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(4), Row(4), Row(3), Row(2)])
+
+    window = Window.order_by(col("a").desc()).range_between(
+        -make_interval(hours=1), Window.unboundedFollowing
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(4), Row(4), Row(3), Row(2)])
+
+    window = Window.order_by(col("a")).range_between(
+        make_interval(hours=1), Window.unboundedFollowing
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(3), Row(2), Row(1), Row(0)])
+
+    window = Window.order_by(col("a").desc()).range_between(
+        make_interval(hours=1), Window.unboundedFollowing
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(3), Row(2), Row(1), Row(0)])
+
+    window = Window.order_by(col("a")).range_between(
+        -make_interval(hours=1), make_interval(hours=1)
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(2), Row(3), Row(3), Row(2)])
+
+    window = Window.order_by(col("a")).range_between(make_interval(hours=1), 3)
+    with pytest.raises(
+        SnowparkSQLException,
+        match="Mixing numeric and interval frames is not supported",
+    ):
+        df.select(count("a").over(window)).collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1358946: Interval is not supported in Local Testing",
+)
+def test_range_between_date(
+    session,
+):
+    df = session.create_dataframe(
+        [
+            datetime.date(2021, 12, 21),
+            datetime.date(2021, 12, 22),
+            datetime.date(2021, 12, 23),
+            datetime.date(2021, 12, 24),
+        ],
+        schema=StructType([StructField("a", DateType())]),
+    )
+
+    window = Window.order_by(col("a")).range_between(-make_interval(days=2), 0)
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(1), Row(2), Row(3), Row(3)])
+
+    window = Window.order_by(col("a").desc()).range_between(-make_interval(days=2), 0)
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(1), Row(2), Row(3), Row(3)])
+
+    window = Window.order_by(col("a")).range_between(-1, 1)
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(2), Row(3), Row(3), Row(2)])
+
+    window = Window.order_by(col("a").desc()).range_between(0, make_interval(days=1))
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(1), Row(2), Row(2), Row(2)])
+
+    window = Window.order_by(col("a")).range_between(make_interval(days=1), 0)
+    with pytest.raises(SnowparkSQLException, match="Invalid window frame"):
+        df.select(count("a").over(window)).collect()
+
+    window = Window.order_by(col("a")).range_between(0, -make_interval(days=1))
+    with pytest.raises(SnowparkSQLException, match="Invalid window frame"):
+        df.select(count("a").over(window)).collect()
+
+    window = Window.order_by(col("a")).range_between(
+        -make_interval(days=0), Window.currentRow
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(1), Row(1), Row(1), Row(1)])
+
+    window = Window.order_by(col("a")).range_between(
+        make_interval(days=0), Window.currentRow
+    )
+    with pytest.raises(SnowparkSQLException, match="Invalid window frame"):
+        df.select(count("a").over(window)).collect()
+
+    window = Window.order_by(col("a")).range_between(
+        -make_interval(days=1), Window.unboundedFollowing
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(4), Row(4), Row(3), Row(2)])
+
+    window = Window.order_by(col("a").desc()).range_between(
+        -make_interval(days=1), Window.unboundedFollowing
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(4), Row(4), Row(3), Row(2)])
+
+    window = Window.order_by(col("a")).range_between(
+        make_interval(days=1), Window.unboundedFollowing
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(3), Row(2), Row(1), Row(0)])
+
+    window = Window.order_by(col("a").desc()).range_between(
+        make_interval(days=1), Window.unboundedFollowing
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(3), Row(2), Row(1), Row(0)])
+
+    window = Window.order_by(col("a")).range_between(
+        -make_interval(days=1), make_interval(days=1)
+    )
+    df_count = df.select(count("a").over(window))
+    Utils.check_answer(df_count, [Row(2), Row(3), Row(3), Row(2)])
+
+    window = Window.order_by(col("a")).range_between(make_interval(days=1), 3)
+    with pytest.raises(
+        SnowparkSQLException,
+        match="Mixing numeric and interval frames is not supported",
+    ):
+        df.select(count("a").over(window)).collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1358946: Interval is not supported in Local Testing",
+)
+def test_range_between_negative(session):
+    df = session.range(10)
+
+    with pytest.raises(
+        ValueError,
+        match="start must be an integer or a Column",
+    ):
+        Window.order_by("id").range_between("-1", 0)
+
+    with pytest.raises(
+        ValueError,
+        match="end must be an integer or a Column",
+    ):
+        Window.order_by("id").range_between(0, 1.1)
+
+    window = Window.order_by("id").range_between(-make_interval(mins=1), 0)
+    with pytest.raises(
+        SnowparkSQLException,
+        match="numeric ORDER BY clause only allows numeric window frame boundaries",
+    ):
+        df.select(count("id").over(window)).collect()

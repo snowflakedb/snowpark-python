@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import sys
 from decimal import Decimal
 from math import sqrt
 from typing import NamedTuple
@@ -12,8 +11,6 @@ import pytest
 
 from snowflake.snowpark import GroupingSets, Row
 from snowflake.snowpark._internal.utils import (
-    PIVOT_DEFAULT_ON_NULL_WARNING,
-    PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
     TempObjectType,
 )
 from snowflake.snowpark.column import Column
@@ -44,7 +41,7 @@ from snowflake.snowpark.functions import (
     var_samp,
     variance,
 )
-from tests.utils import IS_IN_STORED_PROC, TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils, multithreaded_run
 
 
 def test_pivot(session):
@@ -187,6 +184,7 @@ def test_group_by_pivot(session):
         ).agg([sum(col("amount")), avg(col("amount"))])
 
 
+@multithreaded_run()
 def test_group_by_pivot_dynamic_any(session, caplog):
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -200,12 +198,6 @@ def test_group_by_pivot_dynamic_any(session, caplog):
         ],
         sort=False,
     )
-
-    if not IS_IN_STORED_PROC and "snowflake.snowpark.modin.plugin" not in sys.modules:
-        # SNOW-1437979: caplog.text is empty in sp pre-commit env
-        # Snowpark pandas users don't get warnings about dynamic pivot
-        # features. See SNOW-1344848.
-        assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING in caplog.text
 
     Utils.check_answer(
         TestData.monthly_sales_with_team(session)
@@ -427,12 +419,6 @@ def test_pivot_default_on_none(session, caplog):
             ],
             sort=False,
         )
-
-    if not IS_IN_STORED_PROC and "snowflake.snowpark.modin.plugin" not in sys.modules:
-        # SNOW-1437979: caplog.text is empty in sp pre-commit env
-        # Snowpark pandas users don't get warnings about dynamic pivot
-        # features. See SNOW-1344848.
-        assert PIVOT_DEFAULT_ON_NULL_WARNING in caplog.text
 
 
 def test_rel_grouped_dataframe_agg(session):
@@ -1317,10 +1303,6 @@ def test_listagg(session):
     assert len(result) == 4
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: aggregate expression within group not supported",
-)
 def test_listagg_within_group(session):
     df = session.create_dataframe(
         [
@@ -1336,7 +1318,7 @@ def test_listagg_within_group(session):
     )
     Utils.check_answer(
         df.group_by("color")
-        .agg(listagg("length", ",").within_group(df.length.asc()))
+        .agg(listagg("length", ",").within_group(df.length))
         .sort("color"),
         [
             Row("blue", "14"),

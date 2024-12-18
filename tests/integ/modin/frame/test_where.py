@@ -11,12 +11,12 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture(scope="module")
@@ -443,7 +443,7 @@ def test_dataframe_where_not_implemented(test_data, test_cond, test_others):
         snow_dfs[0].where(snow_dfs[1], snow_dfs[2], axis=1)
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_where_cond_is_array(caplog):
     data = [[1, 2], [3, 4]]
     cond = np.array([[True, False], [False, True]])
@@ -506,7 +506,7 @@ def test_dataframe_where_with_callable_other():
     )
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=2, join_count=2)
 def test_dataframe_where_other_is_array():
     data = [[1, 3], [2, 4]]
     other = np.array([[99, -99], [101, -101]])
@@ -549,7 +549,7 @@ def test_dataframe_where_sizes_do_not_match_negative_test(test_data, test_cond):
         snow_df.where(snow_cond_df)
 
 
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=2, join_count=3)
 def test_dataframe_where_with_np_array_cond():
     data = [1, 2, 3]
     cond = np.array([[False, True, False]]).T
@@ -576,8 +576,7 @@ def test_dataframe_where_with_np_array_cond():
     )
 
 
-# one extra query to convert index to native pandas when creating the snowpark pandas dataframe
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=3)
 def test_dataframe_where_with_np_array_cond_mismatched_labels():
     data = [1, 2, 3]
     cond = np.array([[False, True, False]]).T
@@ -602,7 +601,7 @@ def test_dataframe_where_with_np_array_cond_mismatched_labels():
     )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=3)
 def test_dataframe_where_with_dataframe_cond_single_index_different_names():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -629,8 +628,7 @@ def test_dataframe_where_with_dataframe_cond_single_index_different_names():
     )
 
 
-# one extra query to convert index to native pandas when creating the snowpark pandas dataframe
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=3)
 def test_dataframe_where_with_dataframe_cond_single_index_different_names_2():
     data = [1, 2, 3]
     cond = [False, True, False]
@@ -902,7 +900,7 @@ def test_where_series_other_axis_not_specified():
     )
 
 
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=2, join_count=3)
 @pytest.mark.parametrize(
     "data",
     [[10], [10, 11, 12], [10, 11, 12, 13]],
@@ -947,7 +945,7 @@ def test_where_series_other_axis_0(index, data):
     )
 
 
-@sql_count_checker(query_count=3, join_count=2, union_count=1)
+@sql_count_checker(query_count=2, join_count=3, union_count=1)
 @pytest.mark.parametrize(
     "data",
     [[10], [10, 11, 12], [10, 11, 12, 13]],
@@ -1024,4 +1022,13 @@ def test_where_with_zero_other_SNOW_1372268():
     native_df_result = native_df.where(native_df["n"] == -99, 0)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
         df_result, native_df_result
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_where_timedelta(test_data):
+    native_df = native_pd.DataFrame(test_data, dtype="timedelta64[ns]")
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.where(df > pd.Timedelta(1))
     )

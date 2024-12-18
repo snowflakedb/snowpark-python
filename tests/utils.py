@@ -10,9 +10,11 @@ import platform
 import random
 import string
 import uuid
-from datetime import date, datetime, time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
-from typing import List, NamedTuple, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union
 
 import pytest
 import pytz
@@ -91,6 +93,12 @@ if RUNNING_ON_JENKINS:
 # Once rolled out this should be updated to include all accounts.
 STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
 ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
+STRUCTURED_TYPE_PARAMETERS = {
+    "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE",
+    "ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
+    "FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
+    "IGNORE_CLIENT_VESRION_IN_STRUCTURED_TYPES_RESPONSE",
+}
 
 
 def current_account(session):
@@ -109,6 +117,15 @@ def iceberg_supported(session, local_testing_mode):
     return current_account(session) in ICEBERG_ENVIRONMENTS
 
 
+@contextmanager
+def structured_types_enabled_session(session):
+    for param in STRUCTURED_TYPE_PARAMETERS:
+        session.sql(f"alter session set {param}=true").collect()
+    yield session
+    for param in STRUCTURED_TYPE_PARAMETERS:
+        session.sql(f"alter session unset {param}").collect()
+
+
 def running_on_public_ci() -> bool:
     """Whether tests are currently running on one of our public CIs."""
     return RUNNING_ON_GH
@@ -117,6 +134,25 @@ def running_on_public_ci() -> bool:
 def running_on_jenkins() -> bool:
     """Whether tests are currently running on a Jenkins node."""
     return RUNNING_ON_JENKINS
+
+
+def multithreaded_run(num_threads: int = 5) -> None:
+    """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
+    from tests.conftest import MULTITHREADING_TEST_MODE_ENABLED
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if MULTITHREADING_TEST_MODE_ENABLED:
+                with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                    for _ in range(num_threads):
+                        executor.submit(func, *args, **kwargs)
+            else:
+                func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class Utils:
@@ -337,9 +373,19 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
-        statement_params=None,
+        statement_params: Optional[Dict[str, str]] = None,
         float_equality_threshold=0.0,
     ) -> None:
+
+        # Check that statement_params are passed as Dict[str, str].
+        assert statement_params is None or (
+            isinstance(statement_params, dict)
+            and all(
+                isinstance(k, str) and isinstance(v, str)
+                for k, v in statement_params.items()
+            )
+        )
+
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data
@@ -351,6 +397,9 @@ class Utils:
                 raise TypeError(
                     "input_data must be a DataFrame, a list of Row objects or a Row object"
                 )
+
+            # Strip column names to make errors more concise
+            rows = [Row(*list(x)) for x in rows]
             return rows
 
         actual_rows = get_rows(actual)
@@ -382,6 +431,7 @@ class Utils:
                     meta.precision,
                     meta.scale,
                     meta.internal_size,
+                    session._conn.max_string_size,
                 )
                 == field.datatype
             )
@@ -702,6 +752,18 @@ class TestData:
                 )
             ],
             schema=["delim1", "delim2", "lower", "upper", "title", "sentence"],
+        )
+
+    @classmethod
+    def string9(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                ("foo\nbar1"),
+                ("foo\tbar2"),
+                ("foo\rbar3"),
+                ("foo\r\nbar4"),
+            ],
+            schema=["a"],
         )
 
     @classmethod
@@ -1163,6 +1225,21 @@ class TestData:
         )
 
     @classmethod
+    def xyz2(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                cls.Number2(1, 2, 1),
+                cls.Number2(1, 2, 3),
+                cls.Number2(2, 1, 10),
+                cls.Number2(2, 2, 1),
+                cls.Number2(2, 2, 3),
+                cls.Number2(2, 3, 5),
+                cls.Number2(2, 3, 8),
+                cls.Number2(2, 4, 7),
+            ]
+        )
+
+    @classmethod
     def long1(cls, session: "Session") -> DataFrame:
         data = [
             (1561479557),
@@ -1230,6 +1307,7 @@ class TestData:
                 (1, "electronics", 100, 200, 300, 100),
                 (2, "clothes", 100, 300, 150, 200),
                 (3, "cars", 200, 400, 100, 50),
+                (4, "appliances", 100, None, 100, 50),
             ],
             schema=["empid", "dept", "jan", "feb", "mar", "apr"],
         )
@@ -1340,6 +1418,14 @@ class TestFiles:
     @property
     def test_file_orc(self):
         return os.path.join(self.resources_path, "test.orc")
+
+    @property
+    def test_file_sas_sas7bdat(self):
+        return os.path.join(self.resources_path, "test_sas.sas7bdat")
+
+    @property
+    def test_file_sas_xpt(self):
+        return os.path.join(self.resources_path, "test_sas.xpt")
 
     @property
     def test_file_xml(self):
@@ -1489,3 +1575,30 @@ def check_tracing_span_answers(results: list, expected_answer: tuple):
             if check_tracing_span_single_answer(result[1], expected_answer[1]):
                 return True
     return False
+
+
+def local_to_utc_offset_in_hours():
+    """In tests on CI UTC is assumed. However, when comparing dates these are returned in local timezone format.
+    Adjust expectations with this localization function.
+    Returns difference between UTC and current, local timezone."""
+    offset = datetime.now(timezone.utc).astimezone().tzinfo.utcoffset(datetime.now())
+    if offset.days < 0:
+        return -(24 - offset.seconds / 3600)
+    else:
+        return offset.seconds / 3600
+
+
+def add_to_time(t: datetime.time, delta: timedelta) -> time:
+    """datetime.time does not support +, implement this here."""
+    now = datetime.now()
+    dt = datetime(
+        now.year,
+        now.month,
+        now.day,
+        hour=t.hour,
+        minute=t.minute,
+        second=t.second,
+        microsecond=t.microsecond,
+    )
+    ans = dt + delta
+    return time(ans.hour, ans.minute, ans.second, ans.microsecond)

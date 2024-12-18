@@ -12,15 +12,8 @@ from pandas.io.formats.printing import PrettyDict
 from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_dicts_equal, eval_snowpark_pandas_result
-
-PANDAS_SORT_BUG_REASON = """
-    pandas bug (this bug fixed in pandas 2.2): groupby.apply doesn't respect sort=False when grouping by a level of an index.
-    df = pd.DataFrame([], index=pd.MultiIndex.from_tuples([(3.1, 17), (1.1, 6)], names=['a', 'b']))
-    df.groupby('a', sort=True).apply(lambda group: 0)
-    df.groupby('a', sort=False).apply(lambda group: 0)
-    """
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 def _pandas_groupby_groups_workaround(
@@ -223,12 +216,6 @@ def test_groups_and_indices(
     sort,
     pandas_workaround,
 ):
-    if index_cols == ["col3", "col4"] and by == "col3" and sort is False:
-        # test this case separately so that we can explicitly write out the
-        # expected result instead of further complicating the workaround
-        # pandas method.
-        pytest.skip(reason=PANDAS_SORT_BUG_REASON)
-
     df = eval(df_name)
 
     if index_cols is not None:
@@ -255,84 +242,6 @@ def test_groups_and_indices(
         df.to_pandas(),
         get_property,
         comparator=assert_dicts_equal,
-    )
-
-
-@sql_count_checker(query_count=1, join_count=0)
-def test_groups_grouping_by_single_index_column_with_sort_false(
-    basic_snowpark_pandas_df_with_missing_values,
-):
-    # Because sort=False, the group keys appear in the value they appear in
-    # the original dataframe, that is in basic_snowpark_pandas_df_with_missing_values.
-    # see PANDAS_SORT_BUG_REASON for why we test this case separately and cannot use pandas
-    # to create the expected output.
-    assert_dicts_equal(
-        basic_snowpark_pandas_df_with_missing_values.set_index(["col3", "col4"])
-        .groupby(by="col3", sort=False, dropna=False)
-        .groups,
-        PrettyDict(
-            {
-                3.1: pd.MultiIndex.from_arrays(
-                    [
-                        native_pd.Index([3.1], name="col3"),
-                        native_pd.Index([17.0], name="col4"),
-                    ]
-                ),
-                8.0: pd.MultiIndex.from_arrays(
-                    [
-                        native_pd.Index([8.0], name="col3"),
-                        native_pd.Index([3.0], name="col4"),
-                    ]
-                ),
-                12.0: pd.MultiIndex.from_arrays(
-                    [
-                        native_pd.Index([12.0], name="col3"),
-                        native_pd.Index([16.0], name="col4"),
-                    ]
-                ),
-                10.0: pd.MultiIndex.from_arrays(
-                    [
-                        native_pd.Index([10.0], name="col3"),
-                        native_pd.Index([15.0], name="col4"),
-                    ]
-                ),
-                4.0: pd.MultiIndex.from_arrays(
-                    [
-                        native_pd.Index([4.0], name="col3"),
-                        native_pd.Index([np.nan], name="col4"),
-                    ]
-                ),
-                np.nan: pd.MultiIndex.from_arrays(
-                    [
-                        native_pd.Index([np.nan], name="col3"),
-                        native_pd.Index([np.nan], name="col4"),
-                    ]
-                ),
-            }
-        ),
-    )
-
-
-@sql_count_checker(query_count=1, join_count=0)
-def test_indices_grouping_by_single_index_column_with_sort_false(
-    basic_snowpark_pandas_df_with_missing_values,
-):
-    # Because sort=False, the group keys appear in the value they appear in
-    # the original dataframe, that is in basic_snowpark_pandas_df_with_missing_values.
-    # see PANDAS_SORT_BUG_REASON for why we test this case separately and cannot use pandas
-    # to create the expected output.
-    assert_dicts_equal(
-        basic_snowpark_pandas_df_with_missing_values.set_index(["col3", "col4"])
-        .groupby(by="col3", sort=False, dropna=False)
-        .indices,
-        {
-            3.1: np.array([0]),
-            8.0: np.array([1]),
-            12.0: np.array([2]),
-            10.0: np.array([3]),
-            4.0: np.array([4]),
-            np.nan: np.array([5]),
-        },
     )
 
 

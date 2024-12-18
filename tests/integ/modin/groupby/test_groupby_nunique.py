@@ -2,15 +2,16 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import modin.pandas as pd
 import pandas as native_pd
 import pytest
 
-import snowflake.snowpark.modin.pandas as pd
-from tests.integ.modin.sql_counter import sql_count_checker
+import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -48,11 +49,16 @@ def test_groupby_nunique(df, groupby_columns, dropna):
         snow_df,
         df,
         lambda df: df.groupby(groupby_columns).agg("nunique", dropna=dropna),
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
     # Test invoking nunique directly
     eval_snowpark_pandas_result(
-        snow_df, df, lambda df: df.groupby(groupby_columns).nunique(dropna)
+        snow_df,
+        df,
+        lambda df: df.groupby(groupby_columns).nunique(dropna),
+        test_attrs=False,
     )
 
     # Test invoking per column.
@@ -79,4 +85,26 @@ def test_groupby_nunique(df, groupby_columns, dropna):
             lambda df: df.groupby(groupby_columns).agg(
                 {"value1": "count", "value2": "nunique"}, dropna=dropna
             ),
+            test_attrs=False,
         )
+
+
+@pytest.mark.parametrize("by", ["A", "B", ["A", "B"]])
+@sql_count_checker(query_count=1)
+def test_timedelta(by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+            "C": ["the", "name", "is", "bond"],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby(by).nunique(),
+    )

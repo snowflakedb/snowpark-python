@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import collections.abc
+import inspect
 import io
 import os
 import pickle
@@ -36,6 +37,8 @@ from snowflake.snowpark._internal.type_utils import (
     infer_type,
     python_type_str_to_object,
     python_type_to_snow_type,
+    python_value_str_to_object,
+    retrieve_func_defaults_from_source,
     retrieve_func_type_hints_from_source,
 )
 from snowflake.snowpark._internal.utils import (
@@ -95,6 +98,9 @@ REGISTER_KWARGS_ALLOWLIST = {
     "anonymous",
     "force_inline_code",
     "_from_pandas_udf_function",
+    "input_names",  # for pandas_udtf
+    "max_batch_size",  # for pandas_udtf
+    "_registered_object_name",  # object name within Snowflake (post registration)
 }
 
 
@@ -382,6 +388,82 @@ def get_types_from_type_hints(
     return return_type, input_types
 
 
+def get_opt_arg_defaults(
+    func: Union[Callable, Tuple[str, str]],
+    object_type: TempObjectType,
+    input_types: List[DataType],
+) -> List[Optional[str]]:
+    EMPTY_DEFAULT_VALUES = [None] * len(input_types)
+
+    def build_default_values_result(
+        default_values: Any,
+        input_types: List[DataType],
+        convert_python_str_to_object: bool,
+    ) -> List[Optional[str]]:
+        if default_values is None:
+            return EMPTY_DEFAULT_VALUES
+        num_optional_args = len(default_values)
+        num_positional_args = len(input_types) - num_optional_args
+        input_types_for_default_args = input_types[-num_optional_args:]
+        if convert_python_str_to_object:
+            default_values = [
+                python_value_str_to_object(value, tp)
+                for value, tp in zip(default_values, input_types_for_default_args)
+            ]
+
+        if num_optional_args != 0:
+            default_values_to_sql_str = [
+                to_sql(value, datatype)
+                for value, datatype in zip(default_values, input_types_for_default_args)
+            ]
+        else:
+            default_values_to_sql_str = []
+        return [None] * num_positional_args + default_values_to_sql_str
+
+    def get_opt_arg_defaults_from_callable():
+        target_func = None
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            # extract from process method
+            if hasattr(func, TABLE_FUNCTION_PROCESS_METHOD):
+                target_func = getattr(func, TABLE_FUNCTION_PROCESS_METHOD)
+        if object_type in (TempObjectType.PROCEDURE, TempObjectType.FUNCTION):
+            # sproc and udf
+            target_func = func
+
+        if target_func is None:
+            return EMPTY_DEFAULT_VALUES
+
+        arg_spec = inspect.getfullargspec(target_func)
+        return build_default_values_result(arg_spec.defaults, input_types, False)
+
+    def get_opt_arg_defaults_from_file():
+        filename, func_name = func[0], func[1]
+        default_values_str = None
+        if not is_local_python_file(filename):
+            return EMPTY_DEFAULT_VALUES
+
+        if object_type == TempObjectType.TABLE_FUNCTION:
+            default_values_str = retrieve_func_defaults_from_source(
+                filename, TABLE_FUNCTION_PROCESS_METHOD, func_name
+            )
+        elif object_type in (TempObjectType.FUNCTION, TempObjectType.PROCEDURE):
+            default_values_str = retrieve_func_defaults_from_source(filename, func_name)
+
+        return build_default_values_result(default_values_str, input_types, True)
+
+    try:
+        if isinstance(func, Callable):
+            return get_opt_arg_defaults_from_callable()
+        else:
+            return get_opt_arg_defaults_from_file()
+    except TypeError as e:
+        logger.warn(
+            f"Got error {e} when trying to read default values from function: {func}. "
+            "Proceeding without creating optional arguments"
+        )
+        return EMPTY_DEFAULT_VALUES
+
+
 def get_error_message_abbr(object_type: TempObjectType) -> str:
     if object_type == TempObjectType.FUNCTION:
         return "udf"
@@ -606,7 +688,7 @@ def process_registration_inputs(
     name: Optional[Union[str, Iterable[str]]],
     anonymous: bool = False,
     output_schema: Optional[List[str]] = None,
-) -> Tuple[str, bool, bool, DataType, List[DataType]]:
+) -> Tuple[str, bool, bool, DataType, List[DataType], List[Optional[str]]]:
     """
 
     Args:
@@ -629,8 +711,21 @@ def process_registration_inputs(
     ) = extract_return_input_types(
         func, return_type, input_types or [], object_type, output_schema
     )
+    if is_pandas_udf or is_dataframe_input:
+        # vectorized UDF/UDTF does not support default values. They only
+        # take a single input which is of type DataFrame
+        opt_arg_defaults = [None] * len(input_types)
+    else:
+        opt_arg_defaults = get_opt_arg_defaults(func, object_type, input_types)
 
-    return object_name, is_pandas_udf, is_dataframe_input, return_type, input_types
+    return (
+        object_name,
+        is_pandas_udf,
+        is_dataframe_input,
+        return_type,
+        input_types,
+        opt_arg_defaults,
+    )
 
 
 def cleanup_failed_permanent_registration(
@@ -891,12 +986,26 @@ def add_snowpark_package_to_sproc_packages(
     if packages is None:
         if session is None:
             packages = [this_package]
-        elif package_name not in session._packages:
-            packages = list(session._packages.values()) + [this_package]
-    else:
-        package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
-        if not any(p.startswith(package_name) for p in package_names):
-            packages.append(this_package)
+        else:
+            with session._package_lock:
+                if package_name not in session._packages:
+                    packages = list(session._packages.values()) + [this_package]
+        return packages
+
+    return add_package_to_existing_packages(packages, package_name, this_package)
+
+
+def add_package_to_existing_packages(
+    packages: Optional[List[Union[str, ModuleType]]],
+    package: Union[str, ModuleType],
+    package_spec: Optional[str] = None,
+) -> List[Union[str, ModuleType]]:
+    if packages is None:
+        return [package]
+    package_name = package if isinstance(package, str) else package.__name__
+    package_names = [p if isinstance(p, str) else p.__name__ for p in packages]
+    if not any(p.startswith(package_name) for p in package_names):
+        packages.append(package_spec or package)
     return packages
 
 
@@ -984,6 +1093,7 @@ def resolve_imports_and_packages(
             )
         )
 
+    all_urls = []
     if session is not None:
         import_only_stage = (
             unwrap_stage_location_single_quote(stage_location)
@@ -997,7 +1107,6 @@ def resolve_imports_and_packages(
             else session.get_session_stage(statement_params=statement_params)
         )
 
-    if session:
         if imports:
             udf_level_imports = {}
             for udf_import in imports:
@@ -1025,22 +1134,15 @@ def resolve_imports_and_packages(
                 upload_and_import_stage,
                 statement_params=statement_params,
             )
-        else:
-            all_urls = []
-    else:
-        all_urls = []
 
     dest_prefix = get_udf_upload_prefix(udf_name)
 
     # Upload closure to stage if it is beyond inline closure size limit
     handler = inline_code = upload_file_stage_location = None
-    custom_python_runtime_version_allowed = False
+    # As cloudpickle is being used, we cannot allow a custom runtime
+    custom_python_runtime_version_allowed = not isinstance(func, Callable)
     if session is not None:
         if isinstance(func, Callable):
-            custom_python_runtime_version_allowed = (
-                False  # As cloudpickle is being used, we cannot allow a custom runtime
-            )
-
             # generate a random name for udf py file
             # and we compress it first then upload it
             udf_file_name_base = f"udf_py_{random_number()}"
@@ -1110,11 +1212,6 @@ def resolve_imports_and_packages(
                     skip_upload_on_content_match=skip_upload_on_content_match,
                 )
                 all_urls.append(upload_file_stage_location)
-    else:
-        if isinstance(func, Callable):
-            custom_python_runtime_version_allowed = False
-        else:
-            custom_python_runtime_version_allowed = True
 
     # build imports and packages string
     all_imports = ",".join(
@@ -1136,6 +1233,7 @@ def create_python_udf_or_sp(
     func: Union[Callable, Tuple[str, str]],
     return_type: DataType,
     input_args: List[UDFColumn],
+    opt_arg_defaults: List[Optional[str]],
     handler: Optional[str],
     object_type: TempObjectType,
     object_name: str,
@@ -1156,11 +1254,10 @@ def create_python_udf_or_sp(
     statement_params: Optional[Dict[str, str]] = None,
     comment: Optional[str] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
+    copy_grants: bool = False,
+    runtime_version: Optional[str] = None,
 ) -> None:
-    if session is not None and session._runtime_version_from_requirement:
-        runtime_version = session._runtime_version_from_requirement
-    else:
-        runtime_version = f"{sys.version_info[0]}.{sys.version_info[1]}"
+    runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
 
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
@@ -1172,7 +1269,10 @@ def create_python_udf_or_sp(
         return_sql = f"RETURNS {convert_sp_to_sf_type(return_type)}"
     input_sql_types = [convert_sp_to_sf_type(arg.datatype) for arg in input_args]
     sql_func_args = ",".join(
-        [f"{a.name} {t}" for a, t in zip(input_args, input_sql_types)]
+        [
+            f"{a.name} {t}{f' DEFAULT {value}' if value else ''}"
+            for a, t, value in zip(input_args, input_sql_types, opt_arg_defaults)
+        ]
     )
     imports_in_sql = f"IMPORTS=({all_imports})" if all_imports else ""
     packages_in_sql = f"PACKAGES=({all_packages})" if all_packages else ""
@@ -1246,6 +1346,7 @@ $$
     create_query = f"""
 CREATE{" OR REPLACE " if replace else ""}
 {"" if is_permanent else "TEMPORARY"} {"SECURE" if secure else ""} {object_type.value.replace("_", " ")} {"IF NOT EXISTS" if if_not_exists else ""} {object_name}({sql_func_args})
+{" COPY GRANTS " if copy_grants else ""}
 {return_sql}
 LANGUAGE PYTHON {strict_as_sql}
 {mutability}
@@ -1296,7 +1397,7 @@ def generate_anonymous_python_sp_sql(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
-):
+) -> str:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
         if not runtime_version

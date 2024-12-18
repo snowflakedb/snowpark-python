@@ -16,15 +16,11 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 @pytest.mark.parametrize(
     "io_method, kwargs",
     [
-        ["read_xml", {"path_or_buffer": ""}],
         ["read_gbq", {"query": ""}],
-        ["read_html", {"io": ""}],
         ["read_clipboard", {}],
         ["read_hdf", {"path_or_buf": ""}],
         ["read_feather", {"path": ""}],
         ["read_stata", {"filepath_or_buffer": ""}],
-        ["read_sas", {"filepath_or_buffer": ""}],
-        ["read_pickle", {"filepath_or_buffer": ""}],
         ["read_sql", {"sql": "", "con": ""}],
         ["read_fwf", {"filepath_or_buffer": ""}],
         ["read_sql_table", {"table_name": "", "con": ""}],
@@ -44,12 +40,9 @@ def test_unsupported_io(io_method, kwargs):
     "general_method, kwargs",
     [
         ["merge_ordered", {"left": "", "right": ""}],
-        ["merge_asof", {"left": "", "right": ""}],
         ["value_counts", {"values": ""}],
-        ["crosstab", {"index": "", "columns": ""}],
         ["lreshape", {"data": "", "groups": ""}],
         ["wide_to_long", {"df": "", "stubnames": "", "i": "", "j": ""}],
-        ["to_timedelta", {"arg": ""}],
     ],
 )
 def test_unsupported_general(general_method, kwargs):
@@ -60,29 +53,24 @@ def test_unsupported_general(general_method, kwargs):
 @pytest.mark.parametrize(
     "df_method, kwargs",
     [
-        ["align", {"other": ""}],
-        ["asfreq", {"freq": ""}],
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
-        ["backfill", {}],
         ["between_time", {"start_time": "", "end_time": ""}],
-        ["bfill", {}],
         ["bool", {}],
         ["boxplot", {}],
         ["clip", {}],
         ["combine", {"other": "", "func": ""}],
         ["combine_first", {"other": ""}],
-        ["compare", {"other": ""}],
         ["corrwith", {"other": ""}],
         ["cov", {}],
         ["dot", {"other": ""}],
         ["droplevel", {"level": ""}],
         ["eval", {"expr": "xxx"}],
         ["ewm", {}],
-        ["explode", {"column": ""}],
+        ["clip", {}],
+        ["combine", {"other": "", "func": ""}],
+        ["combine_first", {"other": ""}],
         ["filter", {}],
-        ["from_dict", {"data": ""}],
-        ["from_records", {"data": ""}],
         ["hist", {}],
         ["infer_objects", {}],
         ["interpolate", {}],
@@ -99,7 +87,6 @@ def test_unsupported_general(general_method, kwargs):
         ["reorder_levels", {"order": ""}],
         ["sem", {}],
         ["set_flags", {}],
-        ["style", {}],
         ["swapaxes", {"axis1": "", "axis2": ""}],
         ["swaplevel", {}],
         ["to_clipboard", {}],
@@ -124,11 +111,7 @@ def test_unsupported_general(general_method, kwargs):
         ["to_xml", {}],
         ["transform", {"func": [[], {}]}],
         ["truncate", {}],
-        ["tz_convert", {"tz": ""}],
-        ["tz_localize", {"tz": ""}],
-        ["unstack", {}],
         ["xs", {"key": ""}],
-        ["__dataframe__", {}],
     ],
 )
 def test_unsupported_df(df_method, kwargs):
@@ -141,40 +124,21 @@ def test_unsupported_df(df_method, kwargs):
 
 
 @pytest.mark.parametrize(
-    "df_method, kwargs",
-    [["items", {}], ["iteritems", {}]],
-)
-def test_unsupported_df_generator(df_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = DataFrame(query_compiler=mock_query_compiler)
-
-    with pytest.raises(NotImplementedError):
-        for x in getattr(mock_df, df_method)(**kwargs):
-            x + 1
-
-
-@pytest.mark.parametrize(
     "series_method, kwargs",
     [
-        ["align", {"other": ""}],
         ["argmax", {}],
         ["argmin", {}],
         ["argsort", {}],
         ["array", {}],
-        ["asfreq", {"freq": ""}],
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
         ["autocorr", {}],
-        ["backfill", {}],
         ["between", {"left": "", "right": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
-        ["bfill", {}],
         ["bool", {}],
         ["clip", {}],
         ["combine", {"other": "", "func": ""}],
         ["combine_first", {"other": ""}],
-        ["compare", {"other": ""}],
         ["corr", {"other": ""}],
         ["cov", {"other": ""}],
         ["divmod", {"other": ""}],
@@ -219,9 +183,6 @@ def test_unsupported_df_generator(df_method, kwargs):
         ["to_xarray", {}],
         ["transform", {"func": ""}],
         ["truncate", {}],
-        ["tz_convert", {"tz": ""}],
-        ["tz_localize", {"tz": ""}],
-        ["unstack", {}],
         ["view", {}],
         ["xs", {"key": ""}],
     ],
@@ -233,17 +194,3 @@ def test_unsupported_series(series_method, kwargs):
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, series_method)(**kwargs)
-
-
-@pytest.mark.parametrize(
-    "series_method, kwargs",
-    [["items", {}]],
-)
-def test_unsupported_series_generator(series_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = Series(query_compiler=mock_query_compiler)
-
-    with pytest.raises(NotImplementedError):
-        for x in getattr(mock_df, series_method)(**kwargs):
-            x + 1

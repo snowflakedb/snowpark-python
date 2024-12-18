@@ -8,8 +8,8 @@ import pytest
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.pivot.pivot_utils import pivot_table_test_helper
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize("fill_value", [None, 999, 3.14519])
@@ -46,7 +46,7 @@ def test_pivot_table_single_with_dropna_type_incompatible_fill_value(
         ).to_pandas()
 
 
-@sql_count_checker(query_count=1, join_count=9)
+@sql_count_checker(query_count=1, join_count=5)
 def test_pivot_table_multiple_values_fill_value_nonnull_data(
     df_data,
 ):
@@ -66,11 +66,11 @@ def test_pivot_table_multiple_values_fill_value_nonnull_data(
 @pytest.mark.parametrize(
     "aggfunc, expected_join_count",
     [
-        ({"E": "count", "F": ["mean", "sum"]}, 5),
-        ({"E": ["min", "max"], "F": ["mean", "sum"]}, 7),
-        (["min", "max"], 7),
-        ({"E": "min", "F": "mean"}, 3),
-        ({"E": "max", "F": "max"}, 3),
+        ({"E": "count", "F": ["mean", "sum"]}, 3),
+        ({"E": ["min", "max"], "F": ["mean", "sum"]}, 4),
+        (["min", "max"], 4),
+        ({"E": "min", "F": "mean"}, 2),
+        ({"E": "max", "F": "max"}, 2),
     ],
 )
 def test_pivot_table_multiple_pivot_values_fill_value_null_data(
@@ -90,7 +90,7 @@ def test_pivot_table_multiple_pivot_values_fill_value_null_data(
         )
 
 
-@sql_count_checker(query_count=1, join_count=11)
+@sql_count_checker(query_count=1, join_count=5)
 def test_pivot_table_multiple_index_single_pivot_values_dfill_value_null_data(
     df_data_with_nulls_2,
 ):
@@ -109,7 +109,7 @@ def test_pivot_table_multiple_index_single_pivot_values_dfill_value_null_data(
 
 @pytest.mark.parametrize(
     "values, expected_join_count",
-    [(["D"], 9), (["E"], 9), (["F"], 9), (["E", "F"], 19)],
+    [(["D"], 5), (["E"], 5), (["F"], 5), (["E", "F"], 10)],
 )
 def test_pivot_table_single_all_aggfuncs_fill_value_and_null_data(
     df_data_with_nulls_2,
@@ -130,7 +130,7 @@ def test_pivot_table_single_all_aggfuncs_fill_value_and_null_data(
         )
 
 
-@sql_count_checker(query_count=1, join_count=7)
+@sql_count_checker(query_count=1, join_count=4)
 def test_pivot_table_single_nuance_aggfuncs_fill_value_and_null_data(
     df_data_with_nulls_2,
 ):

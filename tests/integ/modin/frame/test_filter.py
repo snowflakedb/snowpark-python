@@ -3,24 +3,25 @@
 #
 
 import random
-import re
 
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def _generate_data(N=100):
     data = {
+        "timedelta": native_pd.timedelta_range(start="1 day", periods=N),
         "X": np.random.randint(-100, 100, size=N),
         "Y": np.random.randint(-100, 100, size=N),
         "Z": np.random.randint(-100, 100, size=N),
@@ -62,6 +63,23 @@ def test_basic_filter_single_column(key):
         lambda df: df[df["A"] == "Zebra"],
         lambda df: df[df["A"] != "Mouse"],
         lambda df: df[~(df["A"] == "Zebra")],
+        param(
+            lambda df: df[~(df["timedelta"] == pd.Timedelta("1 day"))],
+            id="timedelta_not_equal",
+        ),
+        param(
+            lambda df: df[
+                ~(
+                    (df["timedelta"] == pd.Timedelta("1 day"))
+                    | (df["timedelta"] == pd.Timedelta("2 days"))
+                )
+            ],
+            id="timedelta_exclude_two_values",
+        ),
+        param(
+            lambda df: df[df["timedelta"] > pd.Timedelta("50 days")],
+            id="timedelta_greater_than_scalar",
+        ),
     ],
 )
 @sql_count_checker(query_count=6)
@@ -89,7 +107,7 @@ def test_filtering_with_self_not_implemented(
     snow_df = pd.DataFrame(data)
     with pytest.raises(
         NotImplementedError,
-        match=re.escape("casefold is not yet implemented for Series.str"),
+        match="Snowpark pandas does not yet support the method Series.str.casefold",
     ):
         func(snow_df)
 
@@ -119,6 +137,18 @@ def test_filtering_with_self_not_implemented(
             lambda df1, df2: df1[df2.Y != 0],
             1,
             1,
+        ),
+        param(
+            native_pd.DataFrame(
+                {"A": native_pd.to_timedelta([0, "2 days"]), "B": [3, 4]}
+            ),
+            native_pd.DataFrame(
+                {"A": native_pd.to_timedelta(["1 days", "2 days"]), "B": [3, 4]}
+            ),
+            lambda df1, df2: df2[df1.A != pd.Timedelta(1)],
+            1,
+            1,
+            id="timedelta_and_int_column",
         ),
     ],
 )

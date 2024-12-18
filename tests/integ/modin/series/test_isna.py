@@ -12,11 +12,11 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.data import RAW_NA_DF_SERIES_TEST_CASES
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
     update_none_in_series_data_test_cases,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 def run_series_test_helper_on_df_data(series_input, operation=lambda df: df.isna()):

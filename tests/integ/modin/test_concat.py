@@ -12,7 +12,6 @@ from pandas import Index, MultiIndex
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_index_equal,
@@ -20,61 +19,62 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
-from tests.utils import TestFiles
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import TestFiles, multithreaded_run
 
 
 @pytest.fixture(scope="function")
 def df1():
-    return pd.DataFrame(
+    return native_pd.DataFrame(
         {
             "C": [1, 2, 3],
             "A": ["a", "b", "c"],
             "D": [3, 2, 1],
         },
-        index=pd.Index([3, 1, 2], name="left_i"),
+        index=native_pd.Index([3, 1, 2], name="left_i"),
     )
 
 
 @pytest.fixture(scope="function")
 def df2():
-    return pd.DataFrame(
+    return native_pd.DataFrame(
         {
             "P": [3, 2, 1, 3],
             "A": ["a", "b", "c", "a"],
             "C": [1, 2, 3, 2],
         },
-        index=pd.Index([2, 0, 3, 4], name="right_i"),
+        index=native_pd.Index([2, 0, 3, 4], name="right_i"),
     )
 
 
 @pytest.fixture(scope="function")
 def df_single_col():
-    return pd.DataFrame([1], columns=["A"])
+    return native_pd.DataFrame([1], columns=["A"])
 
 
 @pytest.fixture(scope="function")
 def zero_rows_df():
-    return pd.DataFrame(columns=["A", "B"])
+    return native_pd.DataFrame(columns=["A", "B"])
 
 
 @pytest.fixture(scope="function")
 def zero_columns_df():
-    return pd.DataFrame(index=pd.Index([1, 2]))
+    return native_pd.DataFrame(index=pd.Index([1, 2]))
 
 
 @pytest.fixture(scope="function")
 def empty_df():
-    return pd.DataFrame()
+    return native_pd.DataFrame()
 
 
 @pytest.fixture(scope="function")
 def series1():
-    return pd.Series([1, 2])
+    return native_pd.Series([1, 2])
 
 
 @pytest.fixture(scope="function")
 def series2():
-    return pd.Series([2, 1])
+    return native_pd.Series([2, 1])
 
 
 @pytest.fixture(params=["inner", "outer"])
@@ -109,11 +109,9 @@ def axis(request):
     return request.param
 
 
-def _concat_operation(objs, native_objs=None, **kwargs):
-    if native_objs is None:
-        native_objs = [obj.to_pandas() for obj in objs]
+def _concat_operation(snow_objs, native_objs, **kwargs):
     return (
-        lambda x: pd.concat(objs, **kwargs)
+        lambda x: pd.concat(snow_objs, **kwargs)
         if x == "pd"
         else native_pd.concat(native_objs, **kwargs)
     )
@@ -121,12 +119,19 @@ def _concat_operation(objs, native_objs=None, **kwargs):
 
 def test_concat_basic(df1, df2, join, sort, axis, ignore_index):
     expected_join_count = 1 if axis == 1 else 0
-    with SqlCounter(query_count=3, join_count=expected_join_count):
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
             _concat_operation(
-                [df1, df2], axis=axis, join=join, sort=sort, ignore_index=ignore_index
+                snow_objs,
+                native_objs,
+                axis=axis,
+                join=join,
+                sort=sort,
+                ignore_index=ignore_index,
             ),
         )
 
@@ -136,7 +141,7 @@ def test_concat_no_items_negative():
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([]),
+        _concat_operation(snow_objs=[], native_objs=[]),
         expect_exception=True,
         expect_exception_type=ValueError,
         expect_exception_match="No objects to concatenate",
@@ -147,6 +152,7 @@ def test_concat_exclude_none(df1, df2, axis):
     expected_join_count = 2 if axis == 1 else 0
     with SqlCounter(query_count=2, join_count=expected_join_count):
         # Verify that none objects are simply ignored.
+        df1, df2 = pd.DataFrame(df1), pd.DataFrame(df2)
         pieces = [df1, None, df2, None]
         result = pd.concat(pieces, axis=axis)
         expected = pd.concat([df1, df2], axis=axis)
@@ -158,7 +164,7 @@ def test_concat_all_none_negative():
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([None, None], [None, None]),
+        _concat_operation(snow_objs=[None, None], native_objs=[None, None]),
         expect_exception=True,
         expect_exception_type=ValueError,
         expect_exception_match="All objects passed were None",
@@ -170,43 +176,53 @@ def test_concat_mixed_objs(df1, df2, series1, series2, axis, join):
     expected_join_count_with_duplicates = 2 if axis == 1 else 0
 
     # Series and Dataframes
-    with SqlCounter(query_count=3, join_count=expected_join_count):
+    native_objs = [df1, series1]
+    snow_objs = [pd.DataFrame(df1), pd.Series(series1)]
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
-            _concat_operation([df1, series1], axis=axis, join=join),
+            _concat_operation(snow_objs, native_objs, axis=axis, join=join),
         )
 
     # All dataframes
-    with SqlCounter(query_count=3, join_count=expected_join_count):
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
-            _concat_operation([df1, df2], axis=axis, join=join),
+            _concat_operation(snow_objs, native_objs, axis=axis, join=join),
         )
 
     # All dataframes with duplicates
-    with SqlCounter(query_count=4, join_count=expected_join_count_with_duplicates):
+    native_objs = [df1, df2, df1]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
+    with SqlCounter(query_count=1, join_count=expected_join_count_with_duplicates):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
-            _concat_operation([df1, df2, df1], axis=axis, join=join),
+            _concat_operation(snow_objs, native_objs, axis=axis, join=join),
         )
 
     # All series
-    with SqlCounter(query_count=3, join_count=expected_join_count):
+    native_objs = [series1, series2]
+    snow_objs = [pd.Series(series) for series in native_objs]
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
-            _concat_operation([series1, series2], axis=axis, join=join),
+            _concat_operation(snow_objs, native_objs, axis=axis, join=join),
         )
 
     # All series with duplicates
-    with SqlCounter(query_count=4, join_count=expected_join_count_with_duplicates):
+    native_objs = [series1, series2, series1]
+    snow_objs = [pd.Series(series) for series in native_objs]
+    with SqlCounter(query_count=1, join_count=expected_join_count_with_duplicates):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
-            _concat_operation([series1, series2, series1], axis=axis, join=join),
+            _concat_operation(snow_objs, native_objs, axis=axis, join=join),
         )
 
 
@@ -220,15 +236,15 @@ def test_concat_mixed_objs(df1, df2, series1, series2, axis, join):
         ("foo", "foo", ["foo", "foo"]),
     ],
 )
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_concat_series_names_axis1(series1, series2, name1, name2, expected_columns):
-    series1 = series1.rename(name1)
-    series2 = series2.rename(name2)
-    native_s1 = series1.to_pandas()
-    native_s2 = series2.to_pandas()
+    native_series1 = series1.rename(name1)
+    native_series2 = series2.rename(name2)
+    snow_series1 = pd.Series(series1).rename(name1)
+    snow_series2 = pd.Series(series2).rename(name2)
     # snow result
-    snow_res = pd.concat([series1, series2], axis=1)
-    native_res = native_pd.concat([native_s1, native_s2], axis=1)
+    snow_res = pd.concat([snow_series1, snow_series2], axis=1)
+    native_res = native_pd.concat([native_series1, native_series2], axis=1)
     assert_frame_equal(snow_res, native_res)
     # Explicit check for column names
     assert snow_res.columns.tolist() == expected_columns
@@ -244,26 +260,28 @@ def test_concat_series_names_axis1(series1, series2, name1, name2, expected_colu
         ("foo", "foo", "foo"),
     ],
 )
-@sql_count_checker(query_count=3, union_count=1)
+@sql_count_checker(query_count=1, union_count=1)
 def test_concat_series_names_axis0(series1, series2, name1, name2, expected_name):
-    series1 = series1.rename(name1)
-    series2 = series2.rename(name2)
-    native_s1 = series1.to_pandas()
-    native_s2 = series2.to_pandas()
+    native_series1 = series1.rename(name1)
+    native_series2 = series2.rename(name2)
+    snow_series1 = pd.Series(series1).rename(name1)
+    snow_series2 = pd.Series(series2).rename(name2)
     # snow result
-    snow_res = pd.concat([series1, series2])
-    native_res = native_pd.concat([native_s1, native_s2])
+    snow_res = pd.concat([snow_series1, snow_series2])
+    native_res = native_pd.concat([native_series1, native_series2])
     assert_series_equal(snow_res, native_res)
     # Explicit check for column names
     assert snow_res.name == expected_name
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_concat_invalid_join_negative(df1, df2):
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([df1, df2], join="left"),
+        _concat_operation(snow_objs, native_objs, join="left"),
         expect_exception=True,
         expect_exception_type=ValueError,
         expect_exception_match=r"Only can inner \(intersect\) or outer \(union\) join the other axis",
@@ -272,7 +290,8 @@ def test_concat_invalid_join_negative(df1, df2):
 
 def test_concat_iterables(df1, df2, axis):
     # verify that concat works with tuples, list, deque, generators and custom iterables
-    expected = native_pd.concat([df1.to_pandas(), df2.to_pandas()], axis=axis)
+    expected = native_pd.concat([df1, df2], axis=axis)
+    df1, df2 = pd.DataFrame(df1), pd.DataFrame(df2)
 
     expected_join_count = 1 if axis == 1 else 0
 
@@ -330,7 +349,7 @@ def test_concat_non_iterables_negative():
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation("abc", "abc"),
+        _concat_operation(snow_objs="abc", native_objs="abc"),
         expect_exception=True,
         expect_exception_type=TypeError,
         expect_exception_match=msg,
@@ -355,12 +374,14 @@ def test_concat_native_object_negative(obj):
         pd.concat({"a": obj})
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_concat_invalid_type_negative(df1):
+    native_objs = [df1, "abc"]
+    snow_objs = [pd.DataFrame(df1), "abc"]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([df1, "abc"], [df1.to_pandas(), "abc"]),
+        _concat_operation(snow_objs, native_objs),
         expect_exception=True,
         expect_exception_type=TypeError,
         expect_exception_match="cannot concatenate object of type '<class 'str'>'; only Series and DataFrame objs are valid",
@@ -398,9 +419,8 @@ def _multiindex(labels: list[tuple[Hashable, ...]]) -> MultiIndex:
 def test_concat_multiindex_columns_axis1(
     columns1, columns2, df_single_col, expected_cols
 ):
-    df1 = df_single_col.copy()
+    df1, df2 = pd.DataFrame(df_single_col), pd.DataFrame(df_single_col)
     df1.columns = columns1
-    df2 = df_single_col.copy()
     df2.columns = columns2
 
     result_columns = pd.concat([df1, df2], axis=1).columns
@@ -438,9 +458,8 @@ def test_concat_multiindex_columns_axis1(
 def test_concat_multiindex_row_labels_axis0(
     index1, index2, df_single_col, expected_index, expected_join_count
 ):
-    df1 = df_single_col.copy()
+    df1, df2 = pd.DataFrame(df_single_col), pd.DataFrame(df_single_col)
     df1.index = index1
-    df2 = df_single_col.copy()
     df2.index = index2
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
@@ -481,9 +500,8 @@ def test_concat_multiindex_row_labels_axis0(
 def test_concat_multiindex_row_labels_axis1(
     index1, index2, df_single_col, expected_index, expected_join_count
 ):
-    df1 = df_single_col.copy()
+    df1, df2 = pd.DataFrame(df_single_col), pd.DataFrame(df_single_col)
     df1.index = index1
-    df2 = df_single_col.copy()
     df2.index = index2
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
@@ -518,9 +536,8 @@ def test_concat_multiindex_row_labels_axis1(
     ],
 )
 def test_concat_multiindex_row_labels_axis1_negative(index1, index2, df_single_col):
-    df1 = df_single_col.copy()
+    df1, df2 = pd.DataFrame(df_single_col), pd.DataFrame(df_single_col)
     df1.index = index1
-    df2 = df_single_col.copy()
     df2.index = index2
 
     # This behavior is different with Native pandas, where native pandas cast the index
@@ -553,9 +570,8 @@ def test_concat_multiindex_row_labels_axis1_negative(index1, index2, df_single_c
 def test_concat_multiindex_columns_axis0(
     columns1, columns2, df_single_col, expected_cols
 ):
-    df1 = df_single_col.copy()
+    df1, df2 = pd.DataFrame(df_single_col), pd.DataFrame(df_single_col)
     df1.columns = columns1
-    df2 = df_single_col.copy()
     df2.columns = columns2
 
     result_columns = pd.concat([df1, df2], axis=0).columns
@@ -563,10 +579,15 @@ def test_concat_multiindex_columns_axis0(
 
 
 def test_concat_index_with_nulls(df1, df2):
+    native_objs = [df1, df2]
+    df1, df2 = pd.DataFrame(df1), pd.DataFrame(df2)
     df1.set_index([[None, "a", None]])
     df2.set_index([[4, 5, None, 1]])
-    with SqlCounter(query_count=3):
-        eval_snowpark_pandas_result("pd", "native_pd", _concat_operation([df1, df2]))
+    snow_objs = [df1, df2]
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            "pd", "native_pd", _concat_operation(snow_objs, native_objs)
+        )
 
 
 @pytest.mark.parametrize(
@@ -581,12 +602,14 @@ def test_concat_index_with_nulls(df1, df2):
     ],
 )
 def test_concat_with_keys(df1, df2, series1, keys, axis):
+    native_objs = [df1, df2, series1]
+    snow_objs = [pd.DataFrame(df1), pd.DataFrame(df2), pd.Series(series1)]
     expected_join_count = 2 if axis == 1 and len(keys) > 1 else 0
-    with SqlCounter(query_count=4, join_count=expected_join_count):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
-            _concat_operation([df1, df2, series1], keys=keys, axis=axis),
+            _concat_operation(snow_objs, native_objs, keys=keys, axis=axis),
         )
 
 
@@ -601,42 +624,52 @@ def test_concat_with_keys(df1, df2, series1, keys, axis):
     ],
 )
 def test_concat_same_frame_with_keys(df1, keys, axis):
+    native_objs = [df1, df1]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
     expected_join_count = 1 if axis == 1 and len(keys) > 1 else 0
-    with SqlCounter(query_count=3, join_count=expected_join_count):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
-            "pd", "native_pd", _concat_operation([df1, df1], keys=keys, axis=axis)
+            "pd",
+            "native_pd",
+            _concat_operation(snow_objs, native_objs, keys=keys, axis=axis),
         )
 
 
 @pytest.mark.parametrize("nlevels", [2, 3])
 @pytest.mark.parametrize("keys", [["x", "y"], [("x", 1), ("y", 2)]])
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_concat_multiindex_columns_with_keys_axis1(df1, df2, nlevels, keys):
-    df1 = df1.copy()
+    df1, df2 = df1.copy(), df2.copy()
     df1.columns = MultiIndex.from_arrays([df1.columns.tolist()] * nlevels)
-    df2 = df2.copy()
     df2.columns = MultiIndex.from_arrays([df2.columns.tolist()] * nlevels)
-
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
     eval_snowpark_pandas_result(
-        "pd", "native_pd", _concat_operation([df1, df2], axis=1, keys=keys)
+        "pd", "native_pd", _concat_operation(snow_objs, native_objs, axis=1, keys=keys)
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_concat_single_with_key(df1, axis):
-    eval_snowpark_pandas_result(
-        "pd", "native_pd", _concat_operation([df1], keys=["foo"], axis=axis)
-    )
-
-
-@sql_count_checker(query_count=3)
-def test_concat_keys_with_none(df1, df2, axis):
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
         _concat_operation(
-            [df1, None, df2],
-            [df1.to_pandas(), None, df2.to_pandas()],
+            snow_objs=[pd.DataFrame(df1)], native_objs=[df1], keys=["foo"], axis=axis
+        ),
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_concat_keys_with_none(df1, df2, axis):
+    native_objs = [df1, None, df2]
+    snow_objs = [pd.DataFrame(df1), None, pd.DataFrame(df2)]
+    eval_snowpark_pandas_result(
+        "pd",
+        "native_pd",
+        _concat_operation(
+            snow_objs,
+            native_objs,
             keys=["x", "y"],
             axis=axis,
         ),
@@ -656,39 +689,31 @@ def test_concat_keys_with_none(df1, df2, axis):
     "name1, name2", [("one", "two"), ("one", None), (None, "two"), (None, None)]
 )
 def test_concat_with_keys_and_names(df1, df2, names, name1, name2, axis):
-    # One extra query to convert index to native pandas when creating df
-    with SqlCounter(query_count=0 if name1 is None or axis == 1 else 4, join_count=0):
-        df1 = df1.rename_axis(name1, axis=axis)
-    # One extra query to convert index to native pandas when creating df
-    with SqlCounter(query_count=0 if name2 is None or axis == 1 else 4, join_count=0):
-        df2 = df2.rename_axis(name2, axis=axis)
+    df1 = df1.rename_axis(name1, axis=axis)
+    df2 = df2.rename_axis(name2, axis=axis)
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
 
-    expected_join_count = (
-        1 if name1 is not None or name2 is not None or axis == 1 else 0
-    )
-    if axis == 0:
-        if name1 is not None:
-            expected_join_count += 1
-        if name2 is not None:
-            expected_join_count += 1
-        if name1 is not None and name2 is not None:
-            expected_join_count += 1
     # One extra query to convert index to native pandas when creating df
-    with SqlCounter(query_count=3, join_count=expected_join_count):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
-            _concat_operation([df1, df2], keys=["x", "y"], names=names, axis=axis),
+            _concat_operation(
+                snow_objs, native_objs, keys=["x", "y"], names=names, axis=axis
+            ),
         )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_concat_with_keys_and_extra_names_negative(df1, df2, axis):
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
         _concat_operation(
-            [df1, df2], keys=["x", "y"], names=["a", "b", "c"], axis=axis
+            snow_objs, native_objs, keys=["x", "y"], names=["a", "b", "c"], axis=axis
         ),
         expect_exception=True,
         expect_exception_type=ValueError,
@@ -696,12 +721,14 @@ def test_concat_with_keys_and_extra_names_negative(df1, df2, axis):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_concat_empty_keys_negative(df1, df2, axis):
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([df1, df2], keys=[], axis=axis),
+        _concat_operation(snow_objs, native_objs, keys=[], axis=axis),
         expect_exception=True,
         expect_exception_type=ValueError,
     )
@@ -709,63 +736,64 @@ def test_concat_empty_keys_negative(df1, df2, axis):
 
 @pytest.mark.parametrize("dict_keys", [["x", "y"], ["y", "x"]])
 def test_concat_dict(df1, df2, dict_keys, axis):
+    native_objs = {dict_keys[0]: df1, dict_keys[1]: df2}
+    snow_objs = {dict_keys[0]: pd.DataFrame(df1), dict_keys[1]: pd.DataFrame(df2)}
     expected_join_count = 1 if axis == 1 else 0
-    with SqlCounter(query_count=3, join_count=expected_join_count):
-        objs = {dict_keys[0]: df1, dict_keys[1]: df2}
-        native_objs = {dict_keys[0]: df1.to_pandas(), dict_keys[1]: df2.to_pandas()}
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
-            "pd", "native_pd", _concat_operation(objs, native_objs, axis=axis)
+            "pd", "native_pd", _concat_operation(snow_objs, native_objs, axis=axis)
         )
 
 
+@multithreaded_run()
 @pytest.mark.parametrize("dict_keys", [["x", "y"], ["y", "x"]])
 @pytest.mark.parametrize("keys", [["x", "y"], ["y", "x"], ["x"], ["y"]])
 def test_concat_dict_with_keys(df1, df2, dict_keys, keys, axis):
+    native_objs = {dict_keys[0]: df1, dict_keys[1]: df2}
+    snow_objs = {dict_keys[0]: pd.DataFrame(df1), dict_keys[1]: pd.DataFrame(df2)}
     expected_join_count = 1 if axis == 1 and len(keys) > 1 else 0
-    with SqlCounter(query_count=3, join_count=expected_join_count):
-        objs = {dict_keys[0]: df1, dict_keys[1]: df2}
-        native_objs = {dict_keys[0]: df1.to_pandas(), dict_keys[1]: df2.to_pandas()}
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             "pd",
             "native_pd",
-            _concat_operation(objs, native_objs, axis=axis, keys=keys),
+            _concat_operation(snow_objs, native_objs, axis=axis, keys=keys),
         )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=0)
 def test_concat_dict_with_invalid_keys_negative(df1, df2, axis):
-    objs = {"x": df1, "y": df2}
-    native_objs = {"x": df1.to_pandas(), "y": df2.to_pandas()}
+    native_objs = {"x": df1, "y": df2}
+    snow_objs = {"x": pd.DataFrame(df1), "y": pd.DataFrame(df2)}
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation(objs, native_objs, keys=["x", "z"], axis=axis),
+        _concat_operation(snow_objs, native_objs, keys=["x", "z"], axis=axis),
         expect_exception=True,
         expect_exception_type=KeyError,
         expect_exception_match="z",
     )
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_concat_with_mixed_tuples_as_column_labels(sort):
     # columns have mixed tuples
-    df1 = pd.DataFrame({"A": "foo", ("B", 1): "bar"}, index=range(2))
-    df2 = pd.DataFrame({"B": "foo", ("B", 1): "bar"}, index=range(2))
+    df1 = native_pd.DataFrame({"A": "foo", ("B", 1): "bar"}, index=range(2))
+    df2 = native_pd.DataFrame({"B": "foo", ("B", 1): "bar"}, index=range(2))
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation(
-            [df1, df2], [df1.to_pandas(), df2.to_pandas()], axis=1, sort=sort
-        ),
+        _concat_operation(snow_objs, native_objs, axis=1, sort=sort),
     )
 
 
 def test_concat_empty_df(df1, empty_df, zero_rows_df, zero_columns_df, axis):
-    objs = [df1, empty_df, zero_columns_df, zero_rows_df]
-    snow_res = pd.concat(objs)
-
-    native_objs = [df.to_pandas() for df in objs]
+    native_objs = [df1, empty_df, zero_columns_df, zero_rows_df]
     native_res = native_pd.concat(native_objs)
+
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
+    snow_res = pd.concat(snow_objs)
 
     with SqlCounter(query_count=1):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_res, native_res)
@@ -788,54 +816,61 @@ def test_concat_empty_df(df1, empty_df, zero_rows_df, zero_columns_df, axis):
         ),  # same levels, one overlapping name
     ],
 )
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_concat_multiindex(index1, index2):
-    df1 = pd.DataFrame({"A": [0, 1]}, index=index1)
-    df2 = pd.DataFrame({"B": [2, 3]}, index=index2)
+    df1 = native_pd.DataFrame({"A": [0, 1]}, index=index1)
+    df2 = native_pd.DataFrame({"B": [2, 3]}, index=index2)
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(df) for df in native_objs]
     eval_snowpark_pandas_result(
-        "pd", "native_pd", _concat_operation([df1, df2], axis=1)
+        "pd", "native_pd", _concat_operation(snow_objs, native_objs, axis=1)
     )
 
 
 @pytest.mark.parametrize(
     "type1, type2",
-    [(pd.DataFrame, pd.DataFrame), (pd.Series, pd.Series), (pd.DataFrame, pd.Series)],
+    [("df", "df"), ("series", "series"), ("df", "series")],
 )
 @pytest.mark.parametrize("col1, col2", [("A", None), ("A", "a"), (1, "1")])
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_concat_verify_integrity_axis1(type1, type2, col1, col2):
-    obj1 = (
-        pd.DataFrame([1, 2], columns=[col1])
-        if type1 == pd.DataFrame
-        else pd.Series([1, 2], name=col1)
-    )
-    obj2 = (
-        pd.DataFrame([1, 2], columns=[col2])
-        if type2 == pd.DataFrame
-        else pd.Series([1, 2], name=col2)
-    )
+    if type1 == "df":
+        native_obj1 = native_pd.DataFrame([1, 2], columns=[col1])
+        snow_obj1 = pd.DataFrame(native_obj1)
+    else:
+        native_obj1 = native_pd.Series([1, 2], name=col1)
+        snow_obj1 = pd.Series(native_obj1)
+
+    if type2 == "df":
+        native_obj2 = native_pd.DataFrame([1, 2], columns=[col2])
+        snow_obj2 = pd.DataFrame(native_obj2)
+    else:
+        native_obj2 = native_pd.Series([1, 2], name=col2)
+        snow_obj2 = pd.Series(native_obj2)
+
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([obj1, obj2], axis=1, verify_integrity=True),
+        _concat_operation(
+            snow_objs=[snow_obj1, snow_obj2],
+            native_objs=[native_obj1, native_obj2],
+            axis=1,
+            verify_integrity=True,
+        ),
     )
 
 
-@pytest.mark.parametrize(
-    "type1, type2", [(pd.DataFrame, pd.DataFrame), (pd.DataFrame, pd.Series)]
-)
+@pytest.mark.parametrize("obj2_type", ["df", "series"])
 @sql_count_checker(query_count=0)
-def test_concat_verify_integrity_axis1_negative(type1, type2):
-    obj1 = (
-        pd.DataFrame([1, 2], columns=["A"])
-        if type1 == pd.DataFrame
-        else pd.Series([1, 2], name="A")
-    )
-    obj2 = (
-        pd.DataFrame([3, 4], columns=["A"])
-        if type2 == pd.DataFrame
-        else pd.Series([3, 4], name="A")
-    )
+def test_concat_verify_integrity_axis1_negative(obj2_type):
+    # obj1 is always a DataFrame.
+    obj1 = pd.DataFrame([1, 2], columns=["A"])
+
+    if obj2_type == "df":
+        obj2 = pd.DataFrame([3, 4], columns=["A"])
+    else:
+        obj2 = pd.Series([3, 4], name="A")
+
     msg = "Columns have overlapping values"
     with pytest.raises(ValueError, match=msg):
         pd.concat([obj1, obj2], axis=1, verify_integrity=True)
@@ -852,16 +887,20 @@ def test_concat_all_series_verify_integrity_axis1_negative():
         pd.concat([obj1, obj2], axis=1, verify_integrity=True)
 
 
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_concat_verify_integrity_axis1_with_keys():
     # Even though original frames have duplicate columns, after adding keys to column
     # labels duplicates are resolved, hence no error.
-    obj1 = pd.DataFrame([1, 2], columns=["A"])
-    obj2 = pd.DataFrame([3, 4], columns=["A"])
+    obj1 = native_pd.DataFrame([1, 2], columns=["A"])
+    obj2 = native_pd.DataFrame([3, 4], columns=["A"])
+    native_objs = [obj1, obj2]
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([obj1, obj2], axis=1, verify_integrity=True, keys=["x", "y"]),
+        _concat_operation(
+            snow_objs, native_objs, axis=1, verify_integrity=True, keys=["x", "y"]
+        ),
     )
 
 
@@ -872,12 +911,16 @@ def test_concat_verify_integrity_axis1_with_keys():
         (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (2, 2)])),
     ],
 )
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=2, union_count=2)
 def test_concat_verify_integrity_axis0(index1, index2):
-    df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
-    df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
+    df1 = native_pd.DataFrame([1, 2], columns=["a"], index=index1)
+    df2 = native_pd.DataFrame([1, 2], columns=["a"], index=index2)
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
     eval_snowpark_pandas_result(
-        "pd", "native_pd", _concat_operation([df1, df2], verify_integrity=True)
+        "pd",
+        "native_pd",
+        _concat_operation(snow_objs, native_objs, verify_integrity=True),
     )
 
 
@@ -885,16 +928,20 @@ def test_concat_verify_integrity_axis0(index1, index2):
     "index1, index2",
     [([0, 1], [0, 1]), (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (1, 2)]))],
 )
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=2, union_count=2)
 def test_concat_verify_integrity_axis0_with_keys(index1, index2):
     # Even though original frames have duplicate columns, after adding keys to column
     # labels duplicates are resolved, hence no error.
-    df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
-    df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
+    df1 = native_pd.DataFrame([1, 2], columns=["a"], index=index1)
+    df2 = native_pd.DataFrame([1, 2], columns=["a"], index=index2)
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([df1, df2], verify_integrity=True, keys=["red", "green"]),
+        _concat_operation(
+            snow_objs, native_objs, verify_integrity=True, keys=["red", "green"]
+        ),
     )
 
 
@@ -902,16 +949,20 @@ def test_concat_verify_integrity_axis0_with_keys(index1, index2):
     "index1, index2",
     [([0, 1], [0, 1]), (_multiindex([(1, 1), (1, 2)]), _multiindex([(2, 1), (1, 2)]))],
 )
-@sql_count_checker(query_count=3, union_count=1)
+@sql_count_checker(query_count=1, union_count=1)
 def test_concat_verify_integrity_axis0_with_ignore_index(index1, index2):
     # Even though original frames have duplicate columns, ignore_index=True will
     # replace original index values with values 0 to n-1, hence no error.
-    df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
-    df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
+    df1 = native_pd.DataFrame([1, 2], columns=["a"], index=index1)
+    df2 = native_pd.DataFrame([1, 2], columns=["a"], index=index2)
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([df1, df2], verify_integrity=True, ignore_index=True),
+        _concat_operation(
+            snow_objs, native_objs, verify_integrity=True, ignore_index=True
+        ),
     )
 
 
@@ -923,21 +974,23 @@ def test_concat_verify_integrity_axis0_with_ignore_index(index1, index2):
         ([1, 1], [2, 3]),
     ],
 )
-@sql_count_checker(query_count=5, union_count=3)
+@sql_count_checker(query_count=2, union_count=2)
 def test_concat_verify_integrity_axis0_negative(index1, index2):
-    df1 = pd.DataFrame([1, 2], columns=["a"], index=index1)
-    df2 = pd.DataFrame([1, 2], columns=["a"], index=index2)
+    df1 = native_pd.DataFrame([1, 2], columns=["a"], index=index1)
+    df2 = native_pd.DataFrame([1, 2], columns=["a"], index=index2)
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([df1, df2], verify_integrity=True),
+        _concat_operation(snow_objs, native_objs, verify_integrity=True),
         expect_exception=True,
         expect_exception_type=ValueError,
         expect_exception_match="Indexes have overlapping values: ",
     )
 
 
-@sql_count_checker(query_count=3, union_count=3)
+@sql_count_checker(query_count=2, union_count=2)
 def test_concat_verify_integrity_axis0_large_overlap_negative():
     df = pd.DataFrame(data=list(range(100)))
     msg = "Indexes have overlapping values. Few of them are: .* Please run "
@@ -947,6 +1000,7 @@ def test_concat_verify_integrity_axis0_large_overlap_negative():
 
 @sql_count_checker(query_count=0)
 def test_concat_levels_negative(df1, df2):
+    df1, df2 = pd.DataFrame(df1), pd.DataFrame(df2)
     with pytest.raises(
         NotImplementedError,
         match="Snowpark pandas doesn't support 'levels' argument in concat API",
@@ -955,19 +1009,25 @@ def test_concat_levels_negative(df1, df2):
 
 
 def test_concat_sorted_frames():
-    df1 = pd.DataFrame({"A": [5, 2, 7]})
-    df2 = pd.DataFrame({"B": [3, 5, 6]})
-    df3 = pd.DataFrame({"A": [2, 1, 7], "B": [3, 5, 4]})
-    objs = [df1, df2, df3]
-    with SqlCounter(query_count=4):
-        eval_snowpark_pandas_result("pd", "native_pd", _concat_operation(objs))
-    objs = [
+    df1 = native_pd.DataFrame({"A": [5, 2, 7]})
+    df2 = native_pd.DataFrame({"B": [3, 5, 6]})
+    df3 = native_pd.DataFrame({"A": [2, 1, 7], "B": [3, 5, 4]})
+    native_objs = [df1, df2, df3]
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            "pd", "native_pd", _concat_operation(snow_objs, native_objs)
+        )
+    native_objs = [
         df1.sort_values(by="A"),
         df2.sort_values(by="B"),
         df3.sort_values(by=["B", "A"]),
     ]
-    with SqlCounter(query_count=4):
-        eval_snowpark_pandas_result("pd", "native_pd", _concat_operation(objs))
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            "pd", "native_pd", _concat_operation(snow_objs, native_objs)
+        )
 
 
 @pytest.mark.parametrize(
@@ -1000,25 +1060,25 @@ def test_concat_sorted_frames():
     ],
 )
 @sql_count_checker(query_count=2, union_count=1)
-def test_concat_duplicate_columns(
-    df1, df2, columns1, columns2, expected_rows, expected_cols
-):
+def test_concat_duplicate_columns(columns1, columns2, expected_rows, expected_cols):
     df1 = pd.DataFrame([[1, 2, 3]], columns=columns1)
     df2 = pd.DataFrame([[4, 5, 6]], columns=columns2)
     expected_df = pd.DataFrame(expected_rows, columns=expected_cols, index=[0, 0])
-    assert_frame_equal(pd.concat([df1, df2]), expected_df)
+    assert_frame_equal(pd.concat([df1, df2]), expected_df, check_dtype=False)
 
 
 @pytest.mark.parametrize("value1", [4, 1.5, True, "c", (1, 2), {"a": 1}])
 @pytest.mark.parametrize("value2", [4, 1.5, True, "c", (1, 2), {"a": 1}])
-@sql_count_checker(query_count=3, union_count=1)
+@sql_count_checker(query_count=1, union_count=1)
 def test_concat_type_mismatch(value1, value2):
-    df1 = pd.DataFrame({"A": [value1]})
-    df2 = pd.DataFrame({"A": [value2]})
+    df1 = native_pd.DataFrame({"A": [value1]})
+    df2 = native_pd.DataFrame({"A": [value2]})
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([df1, df2]),
+        _concat_operation(snow_objs, native_objs),
     )
 
 
@@ -1035,27 +1095,32 @@ def test_concat_type_mismatch(value1, value2):
         ),
     ],
 )
-@sql_count_checker(query_count=5, union_count=1)
+@sql_count_checker(query_count=1, union_count=1)
 def test_concat_none_index_name(index1, index2):
-    df1 = pd.DataFrame([11], columns=["A"], index=index1)
-    df2 = pd.DataFrame([22], columns=["B"], index=index2)
-    _concat_operation([df1, df2]),
+    df1 = native_pd.DataFrame([11], columns=["A"], index=index1)
+    df2 = native_pd.DataFrame([22], columns=["B"], index=index2)
+    native_objs = [df1, df2]
+    snow_objs = [pd.DataFrame(obj) for obj in native_objs]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([df1, df2]),
+        _concat_operation(snow_objs, native_objs),
     )
 
 
-@sql_count_checker(query_count=5, union_count=1)
+@sql_count_checker(query_count=3, union_count=1)
 def test_concat_from_file(resources_path):
     test_files = TestFiles(resources_path)
+    df1 = native_pd.read_csv(test_files.test_concat_file1_csv)
+    df2 = native_pd.read_csv(test_files.test_concat_file1_csv)
+    native_objs = [df1, df2]
     df1 = pd.read_csv(test_files.test_concat_file1_csv)
     df2 = pd.read_csv(test_files.test_concat_file1_csv)
+    snow_objs = [df1, df2]
     eval_snowpark_pandas_result(
         "pd",
         "native_pd",
-        _concat_operation([df1, df2]),
+        _concat_operation(snow_objs, native_objs),
     )
 
 
@@ -1075,3 +1140,95 @@ def test_concat_keys():
     }
     snow_df = pd.concat(data.values(), axis=1, keys=data.keys())
     assert_frame_equal(snow_df, native_df, check_dtype=False)
+
+
+@sql_count_checker(query_count=1, join_count=0)
+def test_concat_object_with_same_index_with_dup(join):
+    df = native_pd.DataFrame(
+        {
+            "C": [1, 2, 3],
+            "A": ["a", "b", "c"],
+            "D": [3, 2, 1],
+        },
+        index=native_pd.Index([2, 1, 2]),
+    )
+    native_objs = [df[["C", "A"]], df["D"], df["C"] + 1]
+    snow_df = pd.DataFrame(df)
+    snow_objs = [snow_df[["C", "A"]], snow_df["D"], snow_df["C"] + 1]
+    eval_snowpark_pandas_result(
+        "pd",
+        "native_pd",
+        _concat_operation(snow_objs, native_objs, join=join, axis=1),
+    )
+
+
+@sql_count_checker(query_count=1, join_count=0)
+def test_concat_object_with_same_index_with_dup_sort(join):
+    df = native_pd.DataFrame(
+        {
+            "C": [1, 2, 3],
+            "A": ["a", "b", "c"],
+            "D": [3, 2, 1],
+        },
+        index=native_pd.Index([2, 1, 2]),
+    )
+    snow_df = pd.DataFrame(df)
+    snow_objs = [snow_df["D"], snow_df["C"] + 1]
+
+    # Note this behavior is different from native pandas, native pandas
+    # throws ValueError: cannot reindex on an axis with duplicate labels.
+    # With snowpark pandas, the operation will be successful with an align
+    # behavior.
+    expected_result = native_pd.DataFrame(
+        {
+            "D": [2, 3, 1],
+            "C": [3, 2, 4],
+        },
+        index=native_pd.Index([1, 2, 2]),
+    )
+    snow_res = pd.concat(snow_objs, join=join, axis=1, sort=True)
+    assert_frame_equal(snow_res, expected_result)
+
+
+@sql_count_checker(query_count=4, join_count=0)
+def test_concat_series_from_same_df(join):
+    num_cols = 4
+    select_data = [f'{i} as "{i}"' for i in range(num_cols)]
+    query = f"select {', '.join(select_data)}"
+
+    # concat today uses join_on_index to concat all series, we use
+    # read_snowflake here so that the default index is created and
+    # managed by snowpark pandas, which is the same as row position
+    # column. This creates a valid optimization scenario for join, where
+    # join performed on the same row_position column doesn't require
+    # actual join.
+    # This can not be done with pd.DataFrame constructor because the index
+    # and row position column is controlled by client side, which are
+    # different columns.
+    df = pd.read_snowflake(query)
+
+    series = [df[col] for col in df.columns]
+    final_df = pd.concat(series, join=join, axis=1)
+
+    assert_frame_equal(df, final_df)
+
+
+@sql_count_checker(query_count=4, join_count=0)
+def test_df_creation_from_series_from_same_df():
+    num_cols = 6
+    select_data = [f'{i} as "{i}"' for i in range(num_cols)]
+    query = f"select {', '.join(select_data)}"
+
+    df = pd.read_snowflake(query)
+
+    df_dict = {col: df[col] for col in df.columns}
+    final_df = pd.DataFrame(df_dict)
+
+    assert_frame_equal(df, final_df)
+
+
+@sql_count_checker(query_count=0)
+def test_concat_timedelta_not_implemented(df1):
+    df1 = pd.DataFrame(df1)
+    with pytest.raises(NotImplementedError):
+        pd.concat([df1, df1, df1.astype({"C": "timedelta64[ns]"})])

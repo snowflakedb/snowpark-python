@@ -4,8 +4,10 @@
 #
 
 import datetime
+import decimal
 import logging
 import os
+import re
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 
@@ -39,19 +41,29 @@ from snowflake.snowpark.functions import (
     pow,
     sproc,
     sqrt,
+    system_reference,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     ArrayType,
     DateType,
     DoubleType,
+    Geography,
+    Geometry,
     IntegerType,
     LongType,
     MapType,
     StringType,
     StructField,
     StructType,
+    Variant,
     VectorType,
+)
+
+# flake8: noqa
+from tests.integ.scala.test_datatype_suite import (
+    structured_type_session,
+    structured_type_support,
 )
 from tests.utils import (
     IS_IN_STORED_PROC,
@@ -59,6 +71,7 @@ from tests.utils import (
     TempObjectType,
     TestFiles,
     Utils,
+    structured_types_enabled_session,
     structured_types_supported,
 )
 
@@ -352,8 +365,10 @@ def test_call_named_stored_procedure(
     "config.getoption('local_testing_mode', default=False)",
     reason="Structured types are not supported in Local Testing",
 )
-def test_stored_procedure_with_structured_returns(session, local_testing_mode):
-    if not structured_types_supported(session, local_testing_mode):
+def test_stored_procedure_with_structured_returns(
+    structured_type_session, structured_type_support
+):
+    if not structured_type_support:
         pytest.skip("Structured types not enabled in this account.")
     expected_dtypes = [
         ("VEC", "vector<int,5>"),
@@ -373,8 +388,8 @@ def test_stored_procedure_with_structured_returns(session, local_testing_mode):
                 "OBJ",
                 StructType(
                     [
-                        StructField("A", StringType(16777216), nullable=True),
-                        StructField("B", DoubleType(), nullable=True),
+                        StructField("a", StringType(16777216), nullable=True),
+                        StructField("b", DoubleType(), nullable=True),
                     ],
                     structured=True,
                 ),
@@ -386,8 +401,8 @@ def test_stored_procedure_with_structured_returns(session, local_testing_mode):
 
     sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
 
-    def test_sproc(session: Session) -> DataFrame:
-        return session.sql(
+    def test_sproc(_session: Session) -> DataFrame:
+        return _session.sql(
             """
         select
           [1,2,3,4,5] :: vector(int, 5) as vec,
@@ -398,14 +413,49 @@ def test_stored_procedure_with_structured_returns(session, local_testing_mode):
         """
         )
 
-    session.sproc.register(
+    structured_type_session.sproc.register(
         test_sproc,
         name=sproc_name,
         replace=True,
     )
-    df = session.call(sproc_name)
+    df = structured_type_session.call(sproc_name)
     assert df.schema == expected_schema
     assert df.dtypes == expected_dtypes
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_sproc_pass_system_reference(session, validate_ast):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1,)]).to_df(["a"])
+    df.write.save_as_table(
+        table_name,
+        mode="ignore" if validate_ast else "errorifexists",
+    )
+
+    def insert_and_return_count(session_: Session, table_name_: str) -> int:
+        session_.sql(f"INSERT INTO {table_name_} VALUES (2)").collect()
+        return session_.table(table_name_).count()
+
+    insert_sproc = sproc(insert_and_return_count, return_type=IntegerType())
+
+    try:
+        assert (
+            insert_sproc(
+                system_reference(
+                    "TABLE",
+                    table_name,
+                    "SESSION",
+                    ["SELECT", "INSERT", "UPDATE", "TRUNCATE"],
+                )
+            )
+            == 2
+        )
+        Utils.check_answer(session.table(table_name), [Row(1), Row(2)])
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 @pytest.mark.parametrize("anonymous", [True, False])
@@ -851,6 +901,126 @@ def return_datetime(_: Session) -> datetime.datetime:
 
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1412530 to fix bug",
+    run=False,
+)
+@pytest.mark.parametrize("register_from_file", [True, False])
+def test_register_sp_with_optional_args(session: Session, tmpdir, register_from_file):
+    import_body = """
+import datetime
+import decimal
+from snowflake.snowpark import Session
+from snowflake.snowpark.types import Variant, Geometry, Geography
+from snowflake.snowpark.functions import (
+    col,
+    iff,
+    lit
+)
+from typing import Dict, List, Optional
+"""
+    func_body = """
+def add(session_: Session, x: int = 0, y: int = 0) -> int:
+    return (
+        session_.create_dataframe([[x, y]], schema=["x", "y"])
+        .select(col("x") + col("y"))
+        .collect()[0][0]
+    )
+
+def snow(session_: Session, x: int = 1) -> Optional[str]:
+    return (
+        session_.create_dataframe([[x]], schema=["x"])
+        .select(iff(col("x") % 2 == 0, lit("snow"), lit(None)))
+        .collect()[0][0]
+    )
+
+def double_str_list(session_: Session, x: str = "a") -> List[str]:
+    val = session_.create_dataframe([[str(x)]]).collect()[0][0]
+    return [val, val]
+
+def return_date(
+    _: Session, dt: datetime.date = datetime.date(2017, 1, 1)
+) -> datetime.date:
+    return dt
+
+def return_arr(
+    _: Session, base_arr: List[int], extra_arr: List[int] = [4]
+) -> List[int]:
+    base_arr.extend(extra_arr)
+    return base_arr
+
+def return_all_datatypes(
+    _: Session,
+    a: int = 1,
+    b: float = 1.0,
+    c: str = "one",
+    d: List[int] = [],
+    e: Dict[str, int] = {"s": 1},
+    f: Variant = {"key": "val"},
+    g: Geometry = "POINT(-122.35 37.55)",
+    h: Geography = "POINT(-122.35 37.55)",
+    i: datetime.datetime = datetime.datetime(2021, 1, 1, 0, 0, 0),
+    j: datetime.date = datetime.date(2021, 1, 1),
+    k: datetime.time = datetime.time(0, 0, 0),
+    l: bytes = b"123",
+    m: bool = True,
+    n: decimal.Decimal = decimal.Decimal(1.0),
+) -> str:
+    final_str = f"{a}, {b}, {c}, {d}, {e}, {f}, {g}, {h}, {i}, {j}, {k}, {l}, {m}, {n}"
+    return final_str
+"""
+    if register_from_file:
+        file_path = os.path.join(tmpdir, "register_from_file_optional_args.py")
+        with open(file_path, "w") as f:
+            source = f"{import_body}\n{func_body}"
+            f.write(source)
+
+        add_sp = session.sproc.register_from_file(file_path, "add")
+        snow_sp = session.sproc.register_from_file(file_path, "snow")
+        double_str_list_sp = session.sproc.register_from_file(
+            file_path, "double_str_list"
+        )
+        return_date_sp = session.sproc.register_from_file(file_path, "return_date")
+        return_arr_sp = session.sproc.register_from_file(file_path, "return_arr")
+        return_all_types_sp = session.sproc.register_from_file(
+            file_path, "return_all_datatypes"
+        )
+    else:
+        d = {}
+        exec(func_body, {**globals(), **locals()}, d)
+
+        add_sp = session.sproc.register(d["add"])
+        snow_sp = session.sproc.register(d["snow"])
+        double_str_list_sp = session.sproc.register(d["double_str_list"])
+        return_date_sp = session.sproc.register(d["return_date"])
+        return_arr_sp = session.sproc.register(d["return_arr"])
+        return_all_types_sp = session.sproc.register(d["return_all_datatypes"])
+
+    assert add_sp(1, 2) == 3
+    assert add_sp(1) == 1
+    assert add_sp() == 0
+    assert snow_sp(0) == "snow"
+    assert snow_sp(1) is None
+    assert snow_sp() is None
+    assert double_str_list_sp("abc") == '[\n  "abc",\n  "abc"\n]'
+    assert double_str_list_sp() == '[\n  "a",\n  "a"\n]'
+    assert return_date_sp(datetime.date(2024, 1, 2)) == datetime.date(2024, 1, 2)
+    assert return_date_sp() == datetime.date(2017, 1, 1)
+    assert return_arr_sp([1, 2, 3], [4, 5]) == "[\n  1,\n  2,\n  3,\n  4,\n  5\n]"
+    assert return_arr_sp([1, 2, 3]) == "[\n  1,\n  2,\n  3,\n  4\n]"
+    assert return_all_types_sp() == (
+        "1, 1.0, one, [], {'s': 1}, {'key': 'val'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, "
+        "{'coordinates': [-122.35, 37.55], 'type': 'Point'}, 2021-01-01 00:00:00, 2021-01-01, 00:00:00, "
+        "b'123', True, 1.000000000000000000"
+    )
+    assert return_all_types_sp(2, 2.0, "two", [1, 2, 3]) == (
+        "2, 2.0, two, [1, 2, 3], {'s': 1}, {'key': 'val'}, {'coordinates': [-122.35, 37.55], 'type': 'Point'}, "
+        "{'coordinates': [-122.35, 37.55], 'type': 'Point'}, 2021-01-01 00:00:00, 2021-01-01, 00:00:00, "
+        "b'123', True, 1.000000000000000000"
+    )
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
     reason="Database objects do not persist across sessions in Local Testing",
     run=False,
 )
@@ -932,12 +1102,15 @@ def test_sp_negative(session, local_testing_mode):
         sproc(1, return_type=IntegerType())
     assert "Invalid function: not a function or callable" in str(ex_info)
 
-    # if return_type is specified, it must be passed passed with keyword argument
-    with pytest.raises(TypeError) as ex_info:
+    # if return_type is specified, it must be passed with keyword argument
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            "sproc() takes from 0 to 1 positional arguments but 2"
+            " positional arguments (and 1 keyword-only argument) were given"
+        ),
+    ):
         sproc(f, IntegerType())
-    assert "sproc() takes from 0 to 1 positional arguments but 2 were given" in str(
-        ex_info
-    )
 
     f_sp = sproc(f, return_type=IntegerType(), input_types=[IntegerType()])
     with pytest.raises(ValueError) as ex_info:
@@ -1765,6 +1938,9 @@ def test_force_inline_code(session):
     assert any("AS $$" in query.sql_text for query in query_history.queries)
 
 
+@pytest.mark.skip(
+    reason="SNOW-1818207 conflict numpy dependency in snowpark python backend"
+)
 @pytest.mark.skipif(not is_pandas_available, reason="Requires pandas")
 def test_stored_proc_register_with_module(session):
     # use pandas module here
@@ -1781,3 +1957,47 @@ def test_stored_proc_register_with_module(session):
         source_code_display=False,
         packages=packages,
     )
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="use schema is not allowed in stored proc (owner mode)"
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
+def test_register_sproc_after_switch_schema(session):
+    add_sp = session.sproc.register(
+        lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    assert add_sp(1, 2) == 3
+
+    current_schema = session.get_current_schema()
+    current_database = session.get_current_database()
+
+    databases = []
+    try:
+        for i in range(2):
+            new_database = f"db_{Utils.random_alphanumeric_str(10)}"
+            databases.append(new_database)
+            new_schema = f"{new_database}.test"
+
+            session._run_query(f"create database if not exists {new_database}")
+            session._run_query(f"create schema if not exists {new_schema}")
+            session._run_query(f"use schema {new_schema}")
+
+            add_sp = session.sproc.register(
+                lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[
+                    0
+                ][0],
+                return_type=IntegerType(),
+                input_types=[IntegerType(), IntegerType()],
+            )
+            assert add_sp(1, 2) == 3
+    finally:
+        for db in databases:
+            Utils.drop_database(session, db)
+        session.use_database(current_database)
+        session.use_schema(current_schema)

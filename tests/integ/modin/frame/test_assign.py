@@ -9,15 +9,15 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_assign_basic_series():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -36,7 +36,7 @@ def test_assign_basic_series():
     eval_snowpark_pandas_result(snow_df, native_df, assign_func)
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize(
     "index", [[2, 1, 0], [4, 5, 6]], ids=["reversed_index", "different_index"]
 )
@@ -60,8 +60,8 @@ def test_assign_basic_series_mismatched_index(index):
 
 @pytest.mark.parametrize("new_col_value", [2, [10, 11, 12], "x"])
 def test_assign_basic_non_pandas_object(new_col_value):
-    join_count = 2 if isinstance(new_col_value, list) else 0
-    with SqlCounter(query_count=2, join_count=join_count):
+    join_count = 3 if isinstance(new_col_value, list) else 1
+    with SqlCounter(query_count=1, join_count=join_count):
         snow_df, native_df = create_test_dfs(
             [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
             columns=native_pd.Index(list("abc"), name="columns"),
@@ -74,11 +74,11 @@ def test_assign_basic_non_pandas_object(new_col_value):
         )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=3)
 def test_assign_invalid_long_column_length_negative():
     # pandas errors out in this test, since we are attempting to assign a column of length 5 to a DataFrame with length 3.
     # Snowpark pandas on the other hand, just truncates the last element of the new column so that it is the correct length. If we wanted
-    # to error and match pandas behavior, we'd need to eagerly materialize the DataFrame in order to confirm lengths are correct
+    # to error and match pandas behavior, we'd need to eagerly materialize the DataFrame to confirm lengths are correct
     # and error otherwise.
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -98,11 +98,11 @@ def test_assign_invalid_long_column_length_negative():
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=3)
 def test_assign_invalid_short_column_length_negative():
     # pandas errors out in this test, since we are attempting to assign a column of length 2 to a DataFrame with length 3.
     # Snowpark pandas on the other hand, just broadcasts the last element of the new column so that it is filled. If we wanted
-    # to error and match pandas behavior, we'd need to eagerly materialize the DataFrame in order to confirm lengths are correct
+    # to error and match pandas behavior, we'd need to eagerly materialize the DataFrame to confirm lengths are correct
     # and error otherwise.
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -122,7 +122,7 @@ def test_assign_invalid_short_column_length_negative():
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_assign_short_series():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -136,7 +136,7 @@ def test_assign_short_series():
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 @pytest.mark.parametrize(
     "index", [[1, 0], [4, 5]], ids=["reversed_index", "different_index"]
 )
@@ -153,7 +153,7 @@ def test_assign_short_series_mismatched_index(index):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 @pytest.mark.parametrize(
     "callable_fn",
     [lambda x: x["a"], lambda x: x["a"] + x["b"]],
@@ -172,7 +172,7 @@ def test_assign_basic_callable(callable_fn):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_assign_chained_callable():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -190,7 +190,7 @@ def test_assign_chained_callable():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_assign_chained_callable_wrong_order():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -212,7 +212,7 @@ def test_assign_chained_callable_wrong_order():
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1, join_count=1)
 def test_assign_self_columns():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -226,7 +226,7 @@ def test_assign_self_columns():
     )
 
 
-@sql_count_checker(query_count=2, join_count=2)
+@sql_count_checker(query_count=1, join_count=3)
 def test_overwrite_columns_via_assign():
     snow_df, native_df = create_test_dfs(
         [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
@@ -238,3 +238,24 @@ def test_overwrite_columns_via_assign():
     eval_snowpark_pandas_result(
         snow_df, native_df, lambda df: df.assign(a=df["b"], last_col=[10, 11, 12])
     )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_assign_basic_timedelta_series():
+    snow_df, native_df = create_test_dfs(
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+        columns=native_pd.Index(list("abc"), name="columns"),
+        index=native_pd.Index([0, 1, 2], name="index"),
+    )
+    native_df.columns.names = ["columns"]
+    native_df.index.names = ["index"]
+
+    native_td = native_pd.timedelta_range("1 day", periods=3)
+
+    def assign_func(df):
+        if isinstance(df, pd.DataFrame):
+            return df.assign(new_col=pd.Series(native_td))
+        else:
+            return df.assign(new_col=native_pd.Series(native_td))
+
+    eval_snowpark_pandas_result(snow_df, native_df, assign_func)

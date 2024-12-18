@@ -10,9 +10,9 @@ from snowflake.snowpark.modin.plugin.extensions.index import Index
 
 
 def test_class_equivalence():
-    # all classes imported from native pandas in src/snowflake/snowpark/modin/pandas/__init__.py
-    # should be listed and tested here
-    # TODO: SNOW-837070 make these modules as a list in __init__.py so we can test from this list
+    # all classes imported from native pandas modin/pandas/__init__.py should be listed and tested here
+    # TODO: SNOW-837070 make these modules as a list in src/snowflake/snowpark/plugin/__init__.py
+    # so we can test from this list
     assert pd.describe_option is native_pd.describe_option
     assert pd.get_option is native_pd.get_option
     assert pd.option_context is native_pd.option_context
@@ -24,7 +24,6 @@ def test_class_equivalence():
     assert pd.CategoricalDtype is native_pd.CategoricalDtype
     assert pd.CategoricalIndex is native_pd.CategoricalIndex
     assert pd.DateOffset is native_pd.DateOffset
-    assert pd.DatetimeIndex is native_pd.DatetimeIndex
     assert pd.DatetimeTZDtype is native_pd.DatetimeTZDtype
     assert pd.ExcelWriter is native_pd.ExcelWriter
     assert pd.Flags is native_pd.Flags
@@ -50,7 +49,6 @@ def test_class_equivalence():
     assert pd.SparseDtype is native_pd.SparseDtype
     assert pd.StringDtype is native_pd.StringDtype
     assert pd.Timedelta is native_pd.Timedelta
-    assert pd.TimedeltaIndex is native_pd.TimedeltaIndex
     assert pd.Timestamp is native_pd.Timestamp
     assert pd.UInt8Dtype is native_pd.UInt8Dtype
     assert pd.UInt16Dtype is native_pd.UInt16Dtype
@@ -62,7 +60,6 @@ def test_class_equivalence():
     # structure, we also overwrite this export.
     # assert pd.api is native_pd.api
     assert pd.array is native_pd.array
-    assert pd.bdate_range is native_pd.bdate_range
     assert pd.eval is native_pd.eval
     assert pd.factorize is native_pd.factorize
     assert pd.from_dummies is native_pd.from_dummies

@@ -1,0 +1,583 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+df.create_or_replace_view("test_view", statement_params={"foo": "bar"})
+
+df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
+
+# TODO: remove the suppress check in `copy_into_table()`.
+# session.file.put(local_file_name="test.json", stage_location="test", auto_compress=False)
+# df2 = session.read.option("INFER_SCHEMA", True).json("@test/test.json")
+
+df.copy_into_table(
+    ["test_db", "test_schema", tables.table2],
+    files=["file1", "file2"],
+    pattern="[A-Z]+",
+    validation_mode="RETURN_ERRORS",
+    target_columns=["n", "str"],
+    transformations=[col("n") * 10, col("str")],
+    format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"},
+    statement_params={"foo": "bar"},
+    force=True,
+)
+
+df3 = df.cache_result()
+
+df4 = df.cache_result(statement_params={"foo": "bar"})
+
+df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+res1 = df.create_or_replace_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+res2 = df.create_or_replace_view("test_view", statement_params={"foo": "bar"})
+
+res3 = df.create_or_replace_temp_view(["test_db", "test_schema", "test_view"], comment="foo")
+
+res4 = df.create_or_replace_temp_view("test_view", statement_params={"foo": "bar"})
+
+df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"], pattern="[A-Z]+", validation_mode="RETURN_ERRORS", target_columns=["n", "str"], transformations=[col("n") * 10, col("str")], format_type_options={"COMPRESSION": "GZIP", "RECORD_DELIMITER": "|"}, statement_params={"foo": "bar"}, force=True)
+
+df3 = df.cache_result()
+
+df3 = df.write
+
+df4 = df.cache_result(statement_params={"foo": "bar"})
+
+df4 = df.write
+
+res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite"])
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_create_or_replace_view {
+        comment {
+          value: "foo"
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        name: "test_db"
+        name: "test_schema"
+        name: "test_view"
+        src {
+          end_column: 89
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_create_or_replace_view {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        name: "test_view"
+        src {
+          end_column: 79
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 29
+        }
+        statement_params {
+          _1: "foo"
+          _2: "bar"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_create_or_replace_view {
+        comment {
+          value: "foo"
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        is_temp: true
+        name: "test_db"
+        name: "test_schema"
+        name: "test_view"
+        src {
+          end_column: 94
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_create_or_replace_view {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        is_temp: true
+        name: "test_view"
+        src {
+          end_column: 84
+          end_line: 33
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 33
+        }
+        statement_params {
+          _1: "foo"
+          _2: "bar"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_copy_into_table {
+        copy_options {
+          _1: "force"
+          _2 {
+            bool_val {
+              src {
+                end_column: 9
+                end_line: 49
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 39
+              }
+              v: true
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        files: "file1"
+        files: "file2"
+        format_type_options {
+          _1: "COMPRESSION"
+          _2 {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 49
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 39
+              }
+              v: "GZIP"
+            }
+          }
+        }
+        format_type_options {
+          _1: "RECORD_DELIMITER"
+          _2 {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 49
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 39
+              }
+              v: "|"
+            }
+          }
+        }
+        pattern {
+          value: "[A-Z]+"
+        }
+        src {
+          end_column: 9
+          end_line: 49
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 39
+        }
+        statement_params {
+          _1: "foo"
+          _2: "bar"
+        }
+        table_name: "test_db"
+        table_name: "test_schema"
+        table_name: "table2"
+        target_columns: "n"
+        target_columns: "str"
+        transformations {
+          mul {
+            lhs {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 37
+                      end_line: 45
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 29
+                      start_line: 45
+                    }
+                    v: "n"
+                  }
+                }
+                src {
+                  end_column: 37
+                  end_line: 45
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 29
+                  start_line: 45
+                }
+              }
+            }
+            rhs {
+              int64_val {
+                src {
+                  end_column: 42
+                  end_line: 45
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 29
+                  start_line: 45
+                }
+                v: 10
+              }
+            }
+            src {
+              end_column: 42
+              end_line: 45
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 29
+              start_line: 45
+            }
+          }
+        }
+        transformations {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  fn_name_flat {
+                    name: "col"
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 54
+                  end_line: 45
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 44
+                  start_line: 45
+                }
+                v: "str"
+              }
+            }
+            src {
+              end_column: 54
+              end_line: 45
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 44
+              start_line: 45
+            }
+          }
+        }
+        validation_mode {
+          value: "RETURN_ERRORS"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  eval {
+    uid: 7
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_cache_result {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 31
+          end_line: 51
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 51
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 31
+          end_line: 51
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 51
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_cache_result {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 53
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 53
+        }
+        statement_params {
+          _1: "foo"
+          _2: "bar"
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 53
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 53
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_create_or_replace_dynamic_table {
+        comment {
+          value: "foo"
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        lag: "1 hour"
+        mode {
+          sp_save_mode_overwrite: true
+        }
+        name: "test_dyn_table"
+        src {
+          end_column: 110
+          end_line: 55
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 55
+        }
+        warehouse: "test_wh"
+      }
+    }
+    symbol {
+    }
+    uid: 12
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

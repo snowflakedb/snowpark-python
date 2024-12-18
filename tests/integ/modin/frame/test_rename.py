@@ -13,12 +13,13 @@ import pytest
 from modin.pandas import DataFrame, Index, MultiIndex, Series
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_index_equal,
+    create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 class TestRename:
@@ -490,3 +491,11 @@ class TestRename:
 
         snow_float_frame.rename(columns={"C": "foo"}, copy=True)
         assert msg in caplog.text
+
+    @pytest.mark.parametrize("axis, join_count", [(0, 1), (1, 0)])
+    def test_rename_timedelta_values(self, axis, join_count):
+        with SqlCounter(query_count=1, join_count=join_count):
+            eval_snowpark_pandas_result(
+                *create_test_dfs([pd.Timedelta(1)]),
+                lambda df: df.rename(mapper={0: "a"}, axis=axis)
+            )

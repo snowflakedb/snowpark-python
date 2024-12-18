@@ -15,7 +15,7 @@ from pytest import fail
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
-from tests.integ.modin.sql_counter import (
+from tests.integ.utils.sql_counter import (
     SqlCounter,
     clear_sql_counter_called,
     generate_sql_count_report,
@@ -44,7 +44,6 @@ def pytest_addoption(parser):
     parser.addoption(
         "--generate_pandas_api_coverage", action="store_true", default=False
     )
-    parser.addoption("--skip_sql_count_check", action="store_true", default=False)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -52,17 +51,6 @@ def setup_pandas_api_coverage_generator(pytestconfig):
     enable_coverage = pytestconfig.getoption("generate_pandas_api_coverage")
     if enable_coverage:
         PandasAPICoverageGenerator()
-
-
-SKIP_SQL_COUNT_CHECK = False
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_skip_sql_count_check(pytestconfig):
-    skip = pytestconfig.getoption("skip_sql_count_check")
-    if skip:
-        global SKIP_SQL_COUNT_CHECK
-        SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(scope="function")
@@ -91,8 +79,12 @@ def auto_annotate_sql_counter(request):
 
 @pytest.fixture(autouse=True)
 def check_sql_counter_invoked(request):
+    from tests.conftest import SKIP_SQL_COUNT_CHECK
+
     do_check = (
-        INTEG_PANDAS_SUBPATH in request.node.location[0] and running_on_public_ci()
+        INTEG_PANDAS_SUBPATH in request.node.location[0]
+        and running_on_public_ci()
+        and not SKIP_SQL_COUNT_CHECK
     )
 
     if do_check:
@@ -344,8 +336,8 @@ def float_string_frame():
     """
     df = pandas.DataFrame(
         np.random.default_rng(2).standard_normal((30, 4)),
-        index=pd.Index([f"foo_{i}" for i in range(30)], dtype=object),
-        columns=pd.Index(list("ABCD"), dtype=object),
+        index=pandas.Index([f"foo_{i}" for i in range(30)], dtype=object),
+        columns=pandas.Index(list("ABCD"), dtype=object),
     )
     df["foo"] = "bar"
     return df
@@ -369,9 +361,7 @@ def iloc_snowpark_pandas_input_map():
         "categorical[int]": pd.Categorical([1, 3, 4]),
         "Index": pd.Index([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, 1]),
         "Series": pd.Series([-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1, -1]),
-        "Series[positive_int]": pd.Series(
-            [0, 1]
-        ),  # To test `convert_positional_key` shortcircuit
+        "Series[positive_int]": pd.Series([0, 1]),
         "Series_all_positive_int": pd.Series([1, 1, 2]),
         "RangeIndex": pd.RangeIndex(1, 4),
         "Index[bool]": pd.Index([True, True, False, False, False, True, True]),
@@ -715,3 +705,30 @@ def numeric_test_data_4x4():
         "C": [7, 10, 13, 16],
         "D": [8, 11, 14, 17],
     }
+
+
+@pytest.fixture
+def timedelta_native_df() -> pandas.DataFrame:
+    return pandas.DataFrame(
+        {
+            "A": [
+                pd.Timedelta(days=1),
+                pd.Timedelta(days=2),
+                pd.Timedelta(days=3),
+                pd.Timedelta(days=4),
+            ],
+            "B": [
+                pd.Timedelta(minutes=-1),
+                pd.Timedelta(minutes=0),
+                pd.Timedelta(minutes=5),
+                pd.Timedelta(minutes=6),
+            ],
+            "C": [
+                None,
+                pd.Timedelta(nanoseconds=5),
+                pd.Timedelta(nanoseconds=0),
+                pd.Timedelta(nanoseconds=4),
+            ],
+            "D": pandas.to_timedelta([pd.NaT] * 4),
+        }
+    )

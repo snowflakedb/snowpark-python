@@ -8,8 +8,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_series_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # To generate seeded random data.
 rng = np.random.default_rng(12345)
@@ -53,6 +53,7 @@ def assert_iterators_equal(snowpark_iterator, native_iterator):
         ),
         # empty df
         native_pd.DataFrame([]),
+        native_pd.DataFrame({"ts": native_pd.timedelta_range(10, periods=4)}),
     ],
 )
 def test_df_iterrows(native_df):
@@ -60,7 +61,7 @@ def test_df_iterrows(native_df):
     snowpark_df = pd.DataFrame(native_df)
     # One query is used to get the number of rows. One query is used to retrieve each row - each query has 4 JOIN
     # operations performed due to iloc.
-    with SqlCounter(query_count=len(native_df) + 1, join_count=4 * len(native_df)):
+    with SqlCounter(query_count=len(native_df) + 1):
         eval_snowpark_pandas_result(
             snowpark_df,
             native_df,
@@ -69,7 +70,7 @@ def test_df_iterrows(native_df):
         )
 
 
-@sql_count_checker(query_count=8, join_count=28, union_count=7)
+@sql_count_checker(query_count=8, union_count=7)
 def test_df_iterrows_mixed_types(default_index_native_df):
     # Same test as above on bigger df with mixed types.
     # One query is used to get the number of rows. One query is used to retrieve each row - each query has 4 JOIN
@@ -84,7 +85,7 @@ def test_df_iterrows_mixed_types(default_index_native_df):
     )
 
 
-@sql_count_checker(query_count=7, join_count=24, union_count=6)
+@sql_count_checker(query_count=7, union_count=6)
 def test_df_iterrows_multindex_df():
     # Create df with a MultiIndex index.
     # One query is used to get the number of rows. One query is used to retrieve each row - each query has 4 JOIN

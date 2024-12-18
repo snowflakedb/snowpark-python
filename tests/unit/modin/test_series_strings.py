@@ -21,7 +21,8 @@ def test_str_cat_no_others(mock_str_register, mock_series):
     return_callable.return_value = result_query_compiler
     mock_str_register.return_value = return_callable
     with pytest.raises(
-        NotImplementedError, match="cat is not yet implemented for Series.str"
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.cat",
     ):
         mock_series.str.cat()
 
@@ -35,10 +36,6 @@ def test_str_cat_no_others(mock_str_register, mock_series):
         (lambda s: s.str.encode("utf-8"), "encode"),
         (lambda s: s.str.rsplit("_", n=1), "rsplit"),
         (lambda s: s.str.join("_"), "join"),
-        (lambda s: s.str.pad(10), "pad"),
-        (lambda s: s.str.center(10), "center"),
-        (lambda s: s.str.ljust(8), "ljust"),
-        (lambda s: s.str.rjust(8), "rjust"),
         (lambda s: s.str.zfill(8), "zfill"),
         (lambda s: s.str.wrap(3), "wrap"),
         (lambda s: s.str.slice_replace(start=3, stop=5, repl="abc"), "slice_replace"),
@@ -65,7 +62,7 @@ def test_str_cat_no_others(mock_str_register, mock_series):
 def test_str_methods_with_series_return(func, func_name, mock_series):
     with pytest.raises(
         NotImplementedError,
-        match=f"{func_name} is not yet implemented for Series.str",
+        match=f"Snowpark pandas does not yet support the method Series.str.{func_name}",
     ):
         func(mock_series)
 
@@ -81,7 +78,8 @@ def test_str_methods_with_series_return(func, func_name, mock_series):
 )
 def test_str_methods_with_dataframe_return(func, func_name, mock_series):
     with pytest.raises(
-        NotImplementedError, match="is not yet implemented for Series.str"
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method Series.str.",
     ):
         func(mock_series)
 
@@ -99,26 +97,6 @@ def test_str_methods_with_dataframe_return(func, func_name, mock_series):
             lambda s: s.str.join(sep=None),
             AttributeError,
             "'NoneType' object has no attribute 'join'",
-        ),
-        (
-            lambda s: s.str.pad(8, fillchar="abc"),
-            TypeError,
-            "fillchar must be a character, not str",
-        ),
-        (
-            lambda s: s.str.center(8, fillchar="abc"),
-            TypeError,
-            "fillchar must be a character, not str",
-        ),
-        (
-            lambda s: s.str.ljust(3, fillchar="abc"),
-            TypeError,
-            "fillchar must be a character, not str",
-        ),
-        (
-            lambda s: s.str.rjust(3, fillchar="abc"),
-            TypeError,
-            "fillchar must be a character, not str",
         ),
         (lambda s: s.str.wrap(-1), ValueError, r"invalid width -1 \(must be > 0\)"),
         (

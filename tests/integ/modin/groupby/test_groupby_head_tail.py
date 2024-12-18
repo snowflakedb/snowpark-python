@@ -1,12 +1,14 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
 
 from tests.integ.modin.groupby.conftest import multiindex_data
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 # Seeded random number generator.
 rng = np.random.default_rng(1234)
@@ -156,4 +158,44 @@ def test_df_groupby_head_tail_df_with_duplicate_columns(op_type, n):
         ),
         lambda df: df.groupby(by="col1").__getattribute__(op_type)(n),
         check_index_type=False,
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_df_groupby_last_chained_pivot_table_SNOW_1628228():
+    native_df = native_pd.DataFrame(
+        data=native_pd.Series(
+            native_pd.date_range(start="2024-01-01", freq="min", periods=10)
+        ).values,
+        columns=["A"],
+    )
+    native_df["B"] = 2
+    native_df["C"] = 3
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.pivot_table(index="A", values="C", aggfunc="mean")
+        .groupby("A")
+        .last(),
+    )
+
+
+@pytest.mark.parametrize("agg_func", ["head", "tail"])
+@pytest.mark.parametrize("by", ["A", "B"])
+@sql_count_checker(query_count=1)
+def test_timedelta(agg_func, by):
+    native_df = native_pd.DataFrame(
+        {
+            "A": native_pd.to_timedelta(
+                ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+            ),
+            "B": [8, 8, 12, 10],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: getattr(df.groupby(by), agg_func)()
     )

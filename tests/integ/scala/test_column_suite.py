@@ -34,7 +34,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestData, Utils
+from tests.utils import IS_IN_STORED_PROC, TestData, Utils, multithreaded_run
 
 
 def test_column_names_with_space(session):
@@ -50,6 +50,7 @@ def test_column_names_with_space(session):
     assert df.select(df[c2]).collect() == [Row("a")]
 
 
+@multithreaded_run()
 def test_column_alias_and_case_insensitive_name(session):
     df = session.create_dataframe([1, 2]).to_df(["a"])
     assert df.select(df["a"].as_("b")).schema.fields[0].name == "B"
@@ -167,6 +168,7 @@ def test_leq_and_geq(session):
     ]
 
 
+@multithreaded_run()
 def test_null_safe_operators(session):
     df = session.create_dataframe([[None, 1], [2, 2], [None, None]], schema=["a", "b"])
     assert df.select(df["A"].equal_null(df["B"])).collect() == [
@@ -204,6 +206,7 @@ def test_and_or(session):
     ]
 
 
+@multithreaded_run()
 def test_add_subtract_multiply_divide_mod_pow(session):
     df = session.create_dataframe([[11, 13]], schema=["a", "b"])
     assert df.select(df["A"] + df["B"]).collect() == [Row(24)]
@@ -283,6 +286,7 @@ def test_order(session):
     ]
 
 
+@multithreaded_run()
 def test_bitwise_operator(session):
     df = session.create_dataframe([[1, 2]], schema=["a", "b"])
     assert df.select(df["A"].bitand(df["B"])).collect() == [Row(0)]
@@ -637,6 +641,31 @@ def test_regexp(session):
     ]
     assert TestData.string4(session).where(col("A").regexp("%a%")).collect() == []
 
+    # Test flags - case sensitive
+    assert (
+        TestData.string4(session).where(col("A").regexp("AP.LE", "c")).collect() == []
+    )
+
+    # Test flags - case insensitive
+    assert TestData.string4(session).where(col("A").regexp("AP.LE", "i")).collect() == [
+        Row("apple")
+    ]
+
+    # Test flags - case multiline
+    assert TestData.string9(session).where(
+        col("A").regexp("foo.*bar.", "m")
+    ).collect() == [Row(A="foo\tbar2"), Row(A="foo\rbar3")]
+
+    # Test flags - case newline
+    assert TestData.string9(session).where(
+        col("A").regexp("foo.*bar.", "s")
+    ).collect() == [
+        Row(A="foo\nbar1"),
+        Row(A="foo\tbar2"),
+        Row(A="foo\rbar3"),
+        Row(A="foo\r\nbar4"),
+    ]
+
     with pytest.raises(SnowparkSQLException) as ex_info:
         TestData.string4(session).where(col("A").regexp("+*")).collect()
     assert "Invalid regular expression" in str(ex_info)
@@ -713,29 +742,29 @@ def test_in_expression_1_in_with_constant_value_list(session):
     ).to_df(["a", "b", "c", "d"])
 
     df1 = df.filter(col("a").in_(1, 2))
-    Utils.check_answer([Row(1, "a", 1, 1), Row(2, "b", 2, 2)], df1, sort=False)
+    Utils.check_answer(df1, [Row(1, "a", 1, 1), Row(2, "b", 2, 2)], sort=False)
 
     df2 = df.filter(~col("a").in_(lit(1), lit(2)))
-    Utils.check_answer([Row(3, "b", 33, 33)], df2, sort=False)
+    Utils.check_answer(df2, [Row(3, "b", 33, 33)], sort=False)
 
     df3 = df.select(col("a").in_(1, 2).as_("in_result"))
-    Utils.check_answer([Row(True), Row(True), Row(False)], df3, sort=False)
+    Utils.check_answer(df3, [Row(True), Row(True), Row(False)], sort=False)
 
     df4 = df.select(~col("a").in_(lit(1), lit(2)).as_("in_result"))
-    Utils.check_answer([Row(False), Row(False), Row(True)], df4, sort=False)
+    Utils.check_answer(df4, [Row(False), Row(False), Row(True)], sort=False)
 
     # Redo tests with list inputs
     df1 = df.filter(col("a").in_([1, 2]))
-    Utils.check_answer([Row(1, "a", 1, 1), Row(2, "b", 2, 2)], df1, sort=False)
+    Utils.check_answer(df1, [Row(1, "a", 1, 1), Row(2, "b", 2, 2)], sort=False)
 
     df2 = df.filter(~col("a").in_([lit(1), lit(2)]))
-    Utils.check_answer([Row(3, "b", 33, 33)], df2, sort=False)
+    Utils.check_answer(df2, [Row(3, "b", 33, 33)], sort=False)
 
     df3 = df.select(col("a").in_([1, 2]).as_("in_result"))
-    Utils.check_answer([Row(True), Row(True), Row(False)], df3, sort=False)
+    Utils.check_answer(df3, [Row(True), Row(True), Row(False)], sort=False)
 
     df4 = df.select(~col("a").in_([lit(1), lit(2)]).as_("in_result"))
-    Utils.check_answer([Row(False), Row(False), Row(True)], df4, sort=False)
+    Utils.check_answer(df4, [Row(False), Row(False), Row(True)], sort=False)
 
 
 def test_in_expression_2_in_with_subquery(session):
@@ -979,6 +1008,49 @@ def test_in_expression_with_multiple_queries(session):
     Utils.check_answer(
         df2.select(col("a").in_(df1.select("a"))), [Row(True), Row(False)]
     )
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1573222: Local testing does not handle nulls correctly in boolean expressions.",
+    run=False,
+)
+def test_in_expression_null_cases(session):
+    df = session.create_dataframe(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33], [None, "c", 44, 44]]
+    ).to_df(["a", "b", "c", "d"])
+
+    # Check positive and negative literal cases.
+    df1 = df.select(col("a").in_(1, 2).as_("in_result"))
+    Utils.check_answer(df1, [Row(True), Row(True), Row(False), Row(None)], sort=False)
+
+    df2 = df.select(~col("a").in_(lit(1), lit(2)).as_("in_result"))
+    Utils.check_answer(df2, [Row(False), Row(False), Row(True), Row(None)], sort=False)
+
+    # Check positive and negative list cases.
+    df3 = df.select(col("a").in_([1, 2]).as_("in_result"))
+    Utils.check_answer(df3, [Row(True), Row(True), Row(False), Row(None)], sort=False)
+
+    df4 = df.select(~col("a").in_([lit(1), lit(2)]).as_("in_result"))
+    Utils.check_answer(df4, [Row(False), Row(False), Row(True), Row(None)], sort=False)
+
+    # Check empty list case
+    df5 = df.filter(col("a").in_([]))
+    Utils.check_answer(df5, [], sort=False)
+
+    # Check subquery cases
+    df0 = session.create_dataframe([[1], [2], [5]]).to_df(["a"])
+    df = session.create_dataframe(
+        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
+    ).to_df(["a", "b", "c", "d"])
+
+    # filter
+    df1 = df.filter(col("a").in_(df0.filter(col("a") < 3)))
+    Utils.check_answer(df1, [Row(1, "a", 1, 1), Row(2, "b", 2, 2)])
+
+    # select with collect
+    df4 = df.select(df["a"].in_(df0.filter(col("a") > 100).collect()).as_("in_result"))
+    Utils.check_answer(df4, [Row(False), Row(False), Row(False)])
 
 
 @pytest.mark.skipif(

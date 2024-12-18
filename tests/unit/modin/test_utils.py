@@ -10,12 +10,15 @@ import pandas as native_pd
 import pytest
 from modin.pandas import DataFrame, Series
 
-from snowflake.snowpark import Column
 from snowflake.snowpark._internal.analyzer.analyzer_utils import DOUBLE_QUOTE
 from snowflake.snowpark._internal.type_utils import VALID_PYTHON_TYPES_FOR_LITERAL_VALUE
+from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.functions import col
-from snowflake.snowpark.modin.pandas.indexing import is_boolean_array
-from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import OrderedDataFrame
+from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
+    DataFrameReference,
+    OrderedDataFrame,
+    OrderingColumn,
+)
 from snowflake.snowpark.modin.plugin._internal.utils import (
     _MAX_IDENTIFIER_LENGTH,
     INDEX_LABEL,
@@ -47,6 +50,15 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     to_pandas_label,
     try_convert_to_simple_slice,
     unquote_name_if_quoted,
+)
+from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+    is_boolean_array,
+)
+from snowflake.snowpark.types import (
+    ColumnIdentifier,
+    IntegerType,
+    StructField,
+    StructType,
 )
 
 
@@ -698,8 +710,6 @@ def test_fillna_label_to_value_map(value, columns, expected):
         np.double(2.5),
         np.bool_(True),
         np.datetime64("2005-02-25"),
-        native_pd.Timestamp(2017, 1, 1, 12),
-        native_pd.Timestamp("2017-01-01T12"),
         np.nan,
         native_pd.NaT,
         native_pd.NA,
@@ -714,6 +724,20 @@ def test_convert_numpy_pandas_scalar_to_snowpark_literal(value):
         )
 
     check(value, convert_numpy_pandas_scalar_to_snowpark_literal(value))
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        native_pd.Timestamp(2017, 1, 1, 12),
+        native_pd.Timestamp("2017-01-01T12"),
+    ],
+)
+def test_convert_numpy_pandas_scalar_to_snowpark_literal_invalid_for_timestamp(value):
+    with pytest.raises(
+        ValueError, match="cannot represent Timestamp as a Snowpark literal"
+    ):
+        convert_numpy_pandas_scalar_to_snowpark_literal(value)
 
 
 @pytest.mark.parametrize(
@@ -827,44 +851,54 @@ def test_try_convert_to_simple_slice(input, output):
 
 
 def test_append_columns():
-    mock_ordered_dataframe = mock.create_autospec(OrderedDataFrame)
-    mock_ordered_dataframe.select = lambda *x: x
-    mock_ordered_dataframe.projected_column_snowflake_quoted_identifiers = [
+    fake_snowpark_dataframe = mock.create_autospec(SnowparkDataFrame)
+    snowpark_df_schema = StructType(
+        [
+            StructField(
+                column_identifier=ColumnIdentifier('"a"'), datatype=IntegerType
+            ),
+            StructField(
+                column_identifier=ColumnIdentifier('"B"'), datatype=IntegerType
+            ),
+            StructField(
+                column_identifier=ColumnIdentifier('"C"'), datatype=IntegerType
+            ),
+            StructField(
+                column_identifier=ColumnIdentifier('"d"'), datatype=IntegerType
+            ),
+        ]
+    )
+    fake_snowpark_dataframe.schema = snowpark_df_schema
+    ordered_dataframe = OrderedDataFrame(
+        DataFrameReference(fake_snowpark_dataframe),
+        ordering_columns=[OrderingColumn('"a"'), OrderingColumn('"B"')],
+        projected_column_snowflake_quoted_identifiers=['"a"', '"B"', '"C"', '"d"'],
+    )
+    new_ordered_dataframe = append_columns(ordered_dataframe, '"e"', col("E"))
+    assert new_ordered_dataframe.projected_column_snowflake_quoted_identifiers == [
         '"a"',
         '"B"',
         '"C"',
         '"d"',
+        '"e"',
     ]
 
-    def check_column_equality(results: list, expected_results: list) -> None:
-        for result, expected_result in zip(results, expected_results):
-            assert type(result) == type(expected_result)
-            if isinstance(result, Column):
-                assert str(result._expression) == str(expected_result._expression)
-
-    expected_result = ['"a"', '"B"', '"C"', '"d"', col("E").as_('"e"')]
-    check_column_equality(
-        append_columns(mock_ordered_dataframe, '"e"', col("E")), expected_result
+    new_ordered_dataframe = append_columns(
+        ordered_dataframe, ['"e"', '"f"'], [col("E"), col("F")]
     )
-
-    expected_result = [
+    assert new_ordered_dataframe.projected_column_snowflake_quoted_identifiers == [
         '"a"',
         '"B"',
         '"C"',
         '"d"',
-        col("E").as_('"e"'),
-        col("F").as_('"f"'),
+        '"e"',
+        '"f"',
     ]
-    check_column_equality(
-        append_columns(mock_ordered_dataframe, ['"e"', '"f"'], [col("E"), col("F")]),
-        expected_result,
-    )
 
-    # negative tests
     with pytest.raises(
         AssertionError, match="is not equal to the number of column objects"
     ):
-        append_columns(mock_ordered_dataframe, ['"e"', '"f"'], [col("E")])
+        append_columns(ordered_dataframe, ['"e"', '"f"'], [col("E")])
 
 
 @pytest.mark.parametrize(

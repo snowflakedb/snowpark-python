@@ -43,6 +43,7 @@ Functions
     array_min
     array_position
     array_prepend
+    array_remove
     array_size
     array_slice
     array_sort
@@ -91,6 +92,7 @@ Functions
     col
     collate
     collation
+    collect_list
     collect_set
     column
     concat
@@ -141,6 +143,7 @@ Functions
     desc_nulls_first
     desc_nulls_last
     div0
+    divnull
     endswith
     equal_nan
     exp
@@ -195,11 +198,13 @@ Functions
     length
     listagg
     lit
+    ln
     locate
     log
     lower
     lpad
     ltrim
+    make_interval
     max
     md5
     mean
@@ -215,6 +220,7 @@ Functions
     next_day
     not_
     ntile
+    nullifzero
     object_agg
     object_construct
     object_construct_keep_null
@@ -254,7 +260,10 @@ Functions
     sha2
     sin
     sinh
+    size
     skew
+    snowflake_cortex_sentiment
+    snowflake_cortex_summarize
     sort_array
     soundex
     split
@@ -273,6 +282,7 @@ Functions
     sum
     sum_distinct
     sysdate
+    system_reference
     table_function
     tan
     tanh
@@ -317,5 +327,6 @@ Functions
     when
     when_matched
     when_not_matched
+    window
     xmlget
     year

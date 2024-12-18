@@ -11,16 +11,20 @@ import functools
 import hashlib
 import importlib
 import io
+import itertools
 import logging
 import os
 import platform
 import random
 import re
 import string
+import sys
+import threading
 import traceback
 import zipfile
 from enum import Enum
 from functools import lru_cache
+from itertools import count
 from json import JSONEncoder
 from random import choice
 from typing import (
@@ -34,6 +38,7 @@ from typing import (
     List,
     Literal,
     Optional,
+    Set,
     Tuple,
     Type,
     Union,
@@ -42,11 +47,7 @@ from typing import (
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
-from snowflake.connector.options import (
-    MissingOptionalDependency,
-    ModuleLikeObject,
-    pandas,
-)
+from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
@@ -57,6 +58,8 @@ if TYPE_CHECKING:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
         ResultMetadataV2 = ResultMetadata
+
+_logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
@@ -149,7 +152,7 @@ GENERATED_PY_FILE_EXT = (".pyc", ".pyo", ".pyd", ".pyi")
 
 INFER_SCHEMA_FORMAT_TYPES = ("PARQUET", "ORC", "AVRO", "JSON", "CSV")
 
-COPY_OPTIONS = {
+COPY_INTO_TABLE_COPY_OPTIONS = {
     "ON_ERROR",
     "SIZE_LIMIT",
     "PURGE",
@@ -161,6 +164,14 @@ COPY_OPTIONS = {
     "LOAD_UNCERTAIN_FILES",
 }
 
+COPY_INTO_LOCATION_COPY_OPTIONS = {
+    "OVERWRITE",
+    "SINGLE",
+    "MAX_FILE_SIZE",
+    "INCLUDE_QUERY_ID",
+    "DETAILED_OUTPUT",
+}
+
 NON_FORMAT_TYPE_OPTIONS = {
     "PATTERN",
     "VALIDATION_MODE",
@@ -169,6 +180,7 @@ NON_FORMAT_TYPE_OPTIONS = {
     "FILES",
     # The following are not copy into SQL command options but client side options.
     "INFER_SCHEMA",
+    "INFER_SCHEMA_OPTIONS",
     "FORMAT_TYPE_OPTIONS",
     "TARGET_COLUMNS",
     "TRANSFORMATIONS",
@@ -187,15 +199,23 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
-PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING = (
-    "Calling pivot() with the `value` parameter set to None or to a Snowpark "
-    + "DataFrame is in private preview since v1.15.0. Do not use this feature "
-    + "in production."
-)
-PIVOT_DEFAULT_ON_NULL_WARNING = (
-    "Calling pivot() with a non-None value for `default_on_null` is in "
-    + "private preview since v1.15.0. Do not use this feature in production."
-)
+# TODO: merge fixed pandas importer changes to connector.
+def _pandas_importer():  # noqa: E302
+    """Helper function to lazily import pandas and return MissingPandas if not installed."""
+    from snowflake.connector.options import MissingPandas
+
+    pandas = MissingPandas()
+    try:
+        pandas = importlib.import_module("pandas")
+        # since we enable relative imports without dots this import gives us an issues when ran from test directory
+        from pandas import DataFrame  # NOQA
+    except ImportError as e:
+        _logger.error(f"pandas is not installed {e}")
+    return pandas
+
+
+pandas = _pandas_importer()
+installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
 class TempObjectType(Enum):
@@ -211,6 +231,66 @@ class TempObjectType(Enum):
     DYNAMIC_TABLE = "DYNAMIC_TABLE"
     AGGREGATE_FUNCTION = "AGGREGATE_FUNCTION"
     CTE = "CTE"
+
+
+# More info about all allowed aliases here:
+# https://docs.snowflake.com/en/sql-reference/functions-date-time#label-supported-date-time-parts
+
+DATETIME_PART_TO_ALIASES = {
+    "year": {"year", "y", "yy", "yyy", "yyyy", "yr", "years", "yrs"},
+    "quarter": {"quarter", "q", "qtr", "qtrs", "quarters"},
+    "month": {"month", "mm", "mon", "mons", "months"},
+    "week": {"week", "w", "wk", "weekofyear", "woy", "wy"},
+    "day": {"day", "d", "dd", "days", "dayofmonth"},
+    "hour": {"hour", "h", "hh", "hr", "hours", "hrs"},
+    "minute": {"minute", "m", "mi", "min", "minutes", "mins"},
+    "second": {"second", "s", "sec", "seconds", "secs"},
+    "millisecond": {"millisecond", "ms", "msec", "milliseconds"},
+    "microsecond": {"microsecond", "us", "usec", "microseconds"},
+    "nanosecond": {
+        "nanosecond",
+        "ns",
+        "nsec",
+        "nanosec",
+        "nsecond",
+        "nanoseconds",
+        "nanosecs",
+        "nseconds",
+    },
+    "dayofweek": {"dayofweek", "weekday", "dow", "dw"},
+    "dayofweekiso": {"dayofweekiso", "weekday_iso", "dow_iso", "dw_iso"},
+    "dayofyear": {"dayofyear", "yearday", "doy", "dy"},
+    "weekiso": {"weekiso", "week_iso", "weekofyeariso", "weekofyear_iso"},
+    "yearofweek": {"yearofweek"},
+    "yearofweekiso": {"yearofweekiso"},
+    "epoch_second": {"epoch_second", "epoch", "epoch_seconds"},
+    "epoch_millisecond": {"epoch_millisecond", "epoch_milliseconds"},
+    "epoch_microsecond": {"epoch_microsecond", "epoch_microseconds"},
+    "epoch_nanosecond": {"epoch_nanosecond", "epoch_nanoseconds"},
+    "timezone_hour": {"timezone_hour", "tzh"},
+    "timezone_minute": {"timezone_minute", "tzm"},
+}
+
+DATETIME_PARTS = set(DATETIME_PART_TO_ALIASES.keys())
+ALIASES_TO_DATETIME_PART = {
+    v: k for k, l in DATETIME_PART_TO_ALIASES.items() for v in l
+}
+DATETIME_ALIASES = set(ALIASES_TO_DATETIME_PART.keys())
+
+
+def unalias_datetime_part(part):
+    lowered_part = part.lower()
+    if lowered_part in DATETIME_ALIASES:
+        return ALIASES_TO_DATETIME_PART[lowered_part]
+    else:
+        raise ValueError(f"{part} is not a recognized date or time part.")
+
+
+def parse_duration_string(duration: str) -> Tuple[int, str]:
+    length, unit = duration.split(" ")
+    length = int(length)
+    unit = unalias_datetime_part(unit)
+    return length, unit
 
 
 def validate_object_name(name: str):
@@ -294,6 +374,20 @@ def normalize_path(path: str, is_local: bool) -> str:
     if not any(path.startswith(prefix) for prefix in prefixes):
         path = f"{prefixes[0]}{path}"
     return f"'{path}'"
+
+
+def warn_session_config_update_in_multithreaded_mode(
+    config: str, thread_safe_mode_enabled: bool
+) -> None:
+    if not thread_safe_mode_enabled:
+        return
+
+    if threading.active_count() > 1:
+        _logger.warning(
+            "You might have more than one threads sharing the Session object trying to update "
+            f"{config}. Updating this while other tasks are running can potentially cause "
+            "unexpected behavior. Please update the session configuration before starting the threads."
+        )
 
 
 def normalize_remote_file_or_dir(name: str) -> str:
@@ -411,6 +505,14 @@ def parse_positional_args_to_list(*inputs: Any) -> List:
         )
     else:
         return [*inputs]
+
+
+def parse_positional_args_to_list_variadic(*inputs: Any) -> Tuple[List, bool]:
+    """Convert the positional arguments to a list, indicating whether to treat the argument list as a variadic list."""
+    if len(inputs) == 1 and isinstance(inputs[0], (list, tuple, set)):
+        return ([*inputs[0]], False)
+    else:
+        return ([*inputs], True)
 
 
 def _hash_file(
@@ -650,9 +752,6 @@ class PythonObjJSONEncoder(JSONEncoder):
             return super().default(value)
 
 
-logger = logging.getLogger("snowflake.snowpark")
-
-
 class WarningHelper:
     def __init__(self, warning_times: int) -> None:
         self.warning_times = warning_times
@@ -660,8 +759,49 @@ class WarningHelper:
 
     def warning(self, text: str) -> None:
         if self.count < self.warning_times:
-            logger.warning(text)
+            _logger.warning(text)
         self.count += 1
+
+
+# TODO: SNOW-1720855: Remove DummyRLock and DummyThreadLocal after the rollout
+class DummyRLock:
+    """This is a dummy lock that is used in place of threading.Rlock when multithreading is
+    disabled."""
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def acquire(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+    def release(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+
+class DummyThreadLocal:
+    """This is a dummy thread local class that is used in place of threading.local when
+    multithreading is disabled."""
+
+    pass
+
+
+def create_thread_local(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.local, DummyThreadLocal]:
+    if thread_safe_session_enabled:
+        return threading.local()
+    return DummyThreadLocal()
+
+
+def create_rlock(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.RLock, DummyRLock]:
+    if thread_safe_session_enabled:
+        return threading.RLock()
+    return DummyRLock()
 
 
 warning_dict: Dict[str, WarningHelper] = {}
@@ -671,6 +811,155 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     if name not in warning_dict:
         warning_dict[name] = WarningHelper(warning_times)
     warning_dict[name].warning(text)
+
+
+# TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
+def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:  # pragma: no cover
+    session = None
+    try:
+        # Multiple default session attempts:
+        session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+            None
+        )
+        assert session is not None
+    except (
+        snowflake.snowpark.exceptions.SnowparkSessionException,
+        AssertionError,
+    ):
+        # Use modin session retrieval first, as it supports multiple sessions.
+        # Expect this to fail if modin was not installed, for Python 3.8, ... but that's ok.
+        try:
+            import modin.pandas as pd
+
+            session = pd.session
+        except Exception as e:  # noqa: F841
+            try:
+                # Get from default session.
+                from snowflake.snowpark.context import get_active_session
+
+                session = get_active_session()
+            except Exception as e:  # noqa: F841
+                pass
+    finally:
+        if session is None:
+            _logger.debug(
+                f"Could not retrieve default session "
+                f"for function {func.__qualname__}, capturing AST by default."
+            )
+            # session has not been created yet. To not lose information, always encode AST.
+            return True  # noqa: B012
+        else:
+            return session.ast_enabled  # noqa: B012
+
+
+def publicapi(func) -> Callable:
+    """decorator to safeguard public APIs with global feature flags."""
+
+    # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
+    @functools.wraps(func)
+    def func_call_wrapper(*args, **kwargs):  # pragma: no cover
+        # warning(func.__qualname__, warning_text)
+
+        # Handle AST encoding, by modifying default behavior.
+        # If a function supports AST encoding, it must have a parameter _emit_ast.
+        # If now _emit_ast is passed as part of kwargs (we do not allow for the positional syntax!)
+        # then we use this value directly. If not, but the function supports _emit_ast,
+        # we override _emit_ast with the session parameter.
+        if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
+            # No arguments, or single argument with function.
+            if len(args) == 0 or (len(args) == 1 and isinstance(args[0], Callable)):
+                if func.__name__ in {
+                    "udf",
+                    "udtf",
+                    "udaf",
+                    "pandas_udf",
+                    "pandas_udtf",
+                    "sproc",
+                }:
+                    session = kwargs.get("session")
+                    # Lookup session directly as in implementation of these decorators.
+                    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
+                        session
+                    )
+                    # If session is None, do nothing (i.e., keep encoding AST).
+                    # This happens when the decorator is called before a session is started.
+                    if session is not None:
+                        kwargs["_emit_ast"] = session.ast_enabled
+                # Function passed fully with kwargs only (i.e., not a method - self will always be passed positionally)
+                elif len(kwargs) != 0:
+                    # Check if one of the kwargs holds a session object. If so, retrieve AST enabled from there.
+                    session_vars = [
+                        var
+                        for var in kwargs.values()
+                        if isinstance(var, snowflake.snowpark.session.Session)
+                    ]
+                    if session_vars:
+                        kwargs["_emit_ast"] = session_vars[0].ast_enabled
+                    else:
+                        kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(
+                            func
+                        )
+            elif isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
+                # special case: __init__ called, self._session is then not initialized yet.
+                if func.__qualname__.endswith(".__init__"):
+                    # Try to find a session argument.
+                    session_args = [
+                        arg
+                        for arg in args
+                        if isinstance(arg, snowflake.snowpark.session.Session)
+                    ]
+                    assert (
+                        len(session_args) != 0
+                    ), f"{func.__qualname__} must have at least one session arg."
+                    kwargs["_emit_ast"] = session_args[0].ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(
+                args[0], snowflake.snowpark.dataframe_reader.DataFrameReader
+            ):
+                if func.__qualname__.endswith(".__init__"):
+                    assert isinstance(
+                        args[1], snowflake.snowpark.session.Session
+                    ), f"{func.__qualname__} second arg must be session."
+                    kwargs["_emit_ast"] = args[1].ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(
+                args[0], snowflake.snowpark.dataframe_writer.DataFrameWriter
+            ):
+                if func.__qualname__.endswith(".__init__"):
+                    assert isinstance(
+                        args[1], snowflake.snowpark.DataFrame
+                    ), f"{func.__qualname__} second arg must be dataframe."
+                    kwargs["_emit_ast"] = args[1]._session.ast_enabled
+                else:
+                    kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
+            elif isinstance(
+                args[0],
+                (
+                    snowflake.snowpark.dataframe_stat_functions.DataFrameStatFunctions,
+                    snowflake.snowpark.dataframe_analytics_functions.DataFrameAnalyticsFunctions,
+                    snowflake.snowpark.dataframe_na_functions.DataFrameNaFunctions,
+                ),
+            ):
+                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
+            elif hasattr(args[0], "_session") and args[0]._session is not None:
+                kwargs["_emit_ast"] = args[0]._session.ast_enabled
+            elif isinstance(args[0], snowflake.snowpark.session.Session):
+                kwargs["_emit_ast"] = args[0].ast_enabled
+            elif isinstance(
+                args[0],
+                snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
+            ):
+                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
+            else:
+                kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(func)
+
+        # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
+
+        return func(*args, **kwargs)
+
+    return func_call_wrapper
 
 
 def func_decorator(
@@ -779,17 +1068,106 @@ def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
         )
 
 
-def get_copy_into_table_options(
-    options: Dict[str, Any]
+def check_imports_type(
+    imports: Optional[List[Union[str, Tuple[str, str]]]], name: str = ""
+) -> None:
+    """Check that import parameter adheres to type hint given, if not raises TypeError."""
+    if not (
+        imports is None
+        or (
+            isinstance(imports, list)
+            and all(
+                isinstance(imp, str)
+                or (
+                    isinstance(imp, tuple)
+                    and len(imp) == 2
+                    and isinstance(imp[0], str)
+                    and isinstance(imp[1], str)
+                )
+                for imp in imports
+            )
+        )
+    ):
+        raise TypeError(
+            f"{name} import can only be a file path (str) or a tuple of the file path (str) and the import path (str)"
+        )
+
+
+def check_output_schema_type(  # noqa: F821
+    output_schema: Union[  # noqa: F821
+        "StructType", Iterable[str], "PandasDataFrameType"  # noqa: F821
+    ]  # noqa: F821
+) -> None:
+    """Helper function to ensure output_schema adheres to type hint."""
+
+    from snowflake.snowpark.types import StructType
+
+    if installed_pandas:
+        from snowflake.snowpark.types import PandasDataFrameType
+    else:
+        PandasDataFrameType = int  # dummy type.
+
+    if not (
+        isinstance(output_schema, StructType)
+        or (installed_pandas and isinstance(output_schema, PandasDataFrameType))
+        or isinstance(output_schema, Iterable)
+    ):
+        raise ValueError(
+            f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
+        )
+
+
+def _get_options(
+    options: Dict[str, Any], allowed_options: Set[str]
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Helper method that extracts common logic for getting options for
+    COPY INTO TABLE and COPY INTO LOCATION command.
+    """
     file_format_type_options = options.get("FORMAT_TYPE_OPTIONS", {})
     copy_options = options.get("COPY_OPTIONS", {})
     for k, v in options.items():
-        if k in COPY_OPTIONS:
+        if k in allowed_options:
             copy_options[k] = v
         elif k not in NON_FORMAT_TYPE_OPTIONS:
             file_format_type_options[k] = v
     return file_format_type_options, copy_options
+
+
+def get_copy_into_table_options(
+    options: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Method that extracts options for COPY INTO TABLE command into file
+    format type options and copy options.
+    """
+    return _get_options(options, COPY_INTO_TABLE_COPY_OPTIONS)
+
+
+def get_copy_into_location_options(
+    options: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Method that extracts options for COPY INTO LOCATION command into file
+    format type options and copy options.
+    """
+    return _get_options(options, COPY_INTO_LOCATION_COPY_OPTIONS)
+
+
+def get_aliased_option_name(
+    key: str,
+    alias_map: Dict[str, str],
+) -> str:
+    """Method that takes a key and an option alias map as arguments and returns
+    the aliased key if the key is present in the alias map. Also raise a warning
+    if alias key is applied.
+    """
+    upper_key = key.strip().upper()
+    aliased_key = alias_map.get(upper_key, upper_key)
+    if aliased_key != upper_key:
+        _logger.warning(
+            f"Option '{key}' is aliased to '{aliased_key}'. You may see unexpected behavior."
+            " Please refer to format specific options for more information"
+        )
+
+    return aliased_key
 
 
 def strip_double_quotes_in_like_statement_in_table_name(table_name: str) -> str:
@@ -895,9 +1273,6 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
-should_warn_dynamic_pivot_is_in_private_preview = True
-
-
 def prepare_pivot_arguments(
     df: "snowflake.snowpark.DataFrame",
     df_name: str,
@@ -917,18 +1292,6 @@ def prepare_pivot_arguments(
         DateFrame, pivot column, pivot_values and default_on_null value.
     """
     from snowflake.snowpark.dataframe import DataFrame
-
-    if should_warn_dynamic_pivot_is_in_private_preview:
-        if values is None or isinstance(values, DataFrame):
-            warning(
-                df_name,
-                PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
-            )
-        if default_on_null is not None:
-            warning(
-                df_name,
-                PIVOT_DEFAULT_ON_NULL_WARNING,
-            )
 
     if values is not None and not values:
         raise ValueError("values cannot be empty")
@@ -961,6 +1324,67 @@ def prepare_pivot_arguments(
     return df, pc, pivot_values, default_on_null
 
 
+def check_flatten_mode(mode: str) -> None:
+    if not isinstance(mode, str) or mode.upper() not in ["OBJECT", "ARRAY", "BOTH"]:
+        raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
+
+
+def check_create_map_parameter(*cols: Any) -> None:
+    """Helper function to check parameter cols for create_map function."""
+
+    error_message = "The 'create_map' function requires an even number of parameters but the actual number is {}"
+
+    # TODO SNOW-1790918: Keep error messages for now identical to current state, make more distinct by replacing text in blocks.
+    if len(cols) == 1:
+        cols = cols[0]
+        if not isinstance(cols, (tuple, list)):
+            raise ValueError(error_message.format(len(cols)))
+
+    if not len(cols) % 2 == 0:
+        raise ValueError(error_message.format(len(cols)))
+
+
+def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
+    from snowflake.snowpark import Column
+
+    return len(e) == 2 and isinstance(e[0], (Column, str)) and isinstance(e[1], str)
+
+
+def check_agg_exprs(
+    exprs: Union[
+        "snowflake.snowpark.Column",
+        Tuple["snowflake.snowpark.ColumnOrName", str],
+        Dict[str, str],
+    ]
+):
+    """Helper function to raise exceptions when invalid exprs have been passed."""
+    from snowflake.snowpark import Column
+
+    exprs, _ = parse_positional_args_to_list_variadic(*exprs)
+
+    # special case for single list or tuple
+    if is_valid_tuple_for_agg(exprs):
+        exprs = [exprs]
+
+    if len(exprs) > 0 and isinstance(exprs[0], dict):
+        for k, v in exprs[0].items():
+            if not (isinstance(k, str) and isinstance(v, str)):
+                raise TypeError(
+                    "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() "
+                    f"should contain only strings: got key-value pair with types {type(k), type(v)}"
+                )
+    else:
+        for e in exprs:
+            if not (
+                isinstance(e, Column)
+                or (isinstance(e, (list, tuple)) and is_valid_tuple_for_agg(e))
+            ):
+                raise TypeError(
+                    "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should "
+                    "contain only Column objects, or pairs of Column object (or column name) and strings."
+                )
+
+
 class MissingModin(MissingOptionalDependency):
     """The class is specifically for modin optional dependency."""
 
@@ -977,3 +1401,24 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         return modin, True
     except ImportError:
         return MissingModin(), False
+
+
+# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
+COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
+
+
+class GlobalCounter:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._counter: count[int] = itertools.count()
+
+    def reset(self):
+        with self._lock:
+            self._counter = itertools.count()
+
+    def next(self) -> int:
+        with self._lock:
+            return next(self._counter)
+
+
+global_counter: GlobalCounter = GlobalCounter()

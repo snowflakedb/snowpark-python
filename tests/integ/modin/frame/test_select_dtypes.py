@@ -3,18 +3,20 @@
 #
 
 import datetime as dt
+import re
 
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 SELECT_DTYPES_DATA = {
     "ints": [1, 2, 3, 4],
@@ -45,6 +47,7 @@ SELECT_DTYPES_DATA = {
     "explicit int32": list(map(np.int32, [9, 10, 11, 12])),
     "explicit int64": list(map(np.int64, [13, 14, 15, 16])),
     "bools": [True, False, True, True],
+    "timedelta": [pd.Timedelta(1), pd.Timedelta(2), pd.Timedelta(3), pd.Timedelta(4)],
 }
 
 INCLUDE_EXCLUDE_OPTIONS = [
@@ -62,6 +65,10 @@ INCLUDE_EXCLUDE_OPTIONS = [
     (object, [np.datetime64, bool]),
     (int, np.number),
     (np.number, int),
+    param("timedelta64[ns]", None, id="include_timedelta64_ns"),
+    param("timedelta64", None, id="include_timedelta64"),
+    param(None, "timedelta64[ns]", id="exclude_timedelta64_ns"),
+    param(None, "timedelta64", id="exclude_timedelta64"),
 ]
 
 
@@ -147,6 +154,18 @@ def test_select_dtypes_duplicate_col_names(include, exclude):
         # string dtypes are prohibited by pandas
         (str, None, TypeError, "string dtypes are not allowed, use 'object' instead"),
         (None, str, TypeError, "string dtypes are not allowed, use 'object' instead"),
+        (
+            "timedelta64[s]",
+            None,
+            ValueError,
+            "'timedelta64[s]' is too specific of a frequency, try passing 'timedelta64'",
+        ),
+        (
+            None,
+            "timedelta64[s]",
+            ValueError,
+            "'timedelta64[s]' is too specific of a frequency, try passing 'timedelta64'",
+        ),
     ],
 )
 @sql_count_checker(query_count=0)
@@ -159,6 +178,6 @@ def test_select_dtypes_invalid_args(include, exclude, exc, exc_match):
         lambda df: df.select_dtypes(include, exclude),
         expect_exception=True,
         expect_exception_type=exc,
-        expect_exception_match=exc_match,
+        expect_exception_match=re.escape(exc_match),
         assert_exception_equal=True,
     )

@@ -8,12 +8,13 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 TEST_DATA = [
     {
@@ -45,10 +46,10 @@ TEST_NULL_DATA = [
     "subset",
     [None, "A", "B", ["A"], ["B"], ["A", "B"], ["A", "A", "B"], ["B", "B", "A"]],
 )
+@pytest.mark.parametrize("dtype", [int, "timedelta64[ns]"])
 @sql_count_checker(query_count=1)
-def test_value_counts_subset(test_data, on_index, subset):
-    snow_df = pd.DataFrame(test_data)
-    native_df = native_pd.DataFrame(test_data)
+def test_value_counts_subset(test_data, on_index, subset, dtype):
+    snow_df, native_df = create_test_dfs(test_data, dtype=dtype)
     if on_index:
         snow_df = snow_df.set_index("A")
         native_df = native_df.set_index("A")

@@ -5,6 +5,7 @@ import atexit
 import json
 import logging
 import os
+import threading
 import uuid
 from datetime import datetime
 from enum import Enum
@@ -91,6 +92,8 @@ class LocalTestOOBTelemetryService(TelemetryService):
             os.getenv("SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY", False)
         )
         self._deployment_url = self.PROD
+        self._enable = True
+        self._lock = threading.RLock()
 
     def _upload_payload(self, payload) -> None:
         if not REQUESTS_AVAILABLE:
@@ -135,17 +138,44 @@ class LocalTestOOBTelemetryService(TelemetryService):
         if not self.enabled:
             return
 
-        self.queue.put(event)
-        if self.queue.qsize() > self.batch_size:
-            payload = self.export_queue_to_string()
-            if payload is None:
-                return
-            self._upload_payload(payload)
+        with self._lock:
+            self.queue.put(event)
+            if self.queue.qsize() > self.batch_size:
+                payload = self.export_queue_to_string()
+                if payload is None:
+                    return
+                self._upload_payload(payload)
+
+    def flush(self) -> None:
+        """Flushes all telemetry events in the queue and submit them to the back-end."""
+        if not self.enabled:
+            return
+
+        with self._lock:
+            if not self.queue.empty():
+                payload = self.export_queue_to_string()
+                if payload is None:
+                    return
+                self._upload_payload(payload)
+
+    @property
+    def enabled(self) -> bool:
+        """Whether the Telemetry service is enabled or not."""
+        return self._enabled
+
+    def enable(self) -> None:
+        """Enable Telemetry Service."""
+        self._enabled = True
+
+    def disable(self) -> None:
+        """Disable Telemetry Service."""
+        self._enabled = False
 
     def export_queue_to_string(self):
         logs = list()
-        while not self.queue.empty():
-            logs.append(self.queue.get())
+        with self._lock:
+            while not self.queue.empty():
+                logs.append(self.queue.get())
         # We may get an exception trying to serialize a python object to JSON
         try:
             payload = json.dumps(logs)

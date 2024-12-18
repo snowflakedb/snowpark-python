@@ -10,8 +10,17 @@ import pytest
 from pandas._testing import assert_almost_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    create_test_series,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
+)
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # Inexplicably, native pandas does not propagate attrs for series.quantile but does for dataframe.quantile
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
+
 
 NUMERIC_DATA = [-5, -2, -1, 0, 1, 3, 4, 5]
 DATETIME_DATA = [

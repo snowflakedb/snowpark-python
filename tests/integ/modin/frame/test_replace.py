@@ -1,15 +1,18 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 from pandas._libs.lib import no_default
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture
@@ -142,6 +145,58 @@ def test_replace_limit_negative(snow_df):
         match="Snowpark pandas replace API does not support 'limit' parameter",
     ):
         snow_df.replace("abc", "ABC", limit=10)
+
+
+@pytest.mark.parametrize(
+    "pandas_df",
+    [
+        native_pd.DataFrame([pd.Timedelta(1)]),
+        native_pd.DataFrame([1], index=[pd.Timedelta(2)]),
+    ],
+)
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+def test_replace_frame_with_timedelta_index_or_column_negative(pandas_df):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            pandas_df,
+        ),
+        lambda df: df.replace({1: 3})
+    )
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        param(
+            {"to_replace": {1: native_pd.Timedelta(1)}},
+            id="to_replace_dict_with_pandas_timedelta",
+        ),
+        param(
+            {"to_replace": {1: np.timedelta64(1)}},
+            id="to_replace_dict_with_numpy_timedelta",
+        ),
+        param(
+            {"to_replace": {1: datetime.timedelta(days=1)}},
+            id="to_replace_dict_with_datetime_timedelta",
+        ),
+        param(
+            {"to_replace": 1, "value": native_pd.Timedelta(1)},
+            id="value_timedelta_scalar",
+        ),
+        param(
+            {"to_replace": [1, 2], "value": [native_pd.Timedelta(1), 3]},
+            id="value_timedelta_list",
+        ),
+    ],
+)
+def test_replace_integer_value_with_timedelta_negative(kwargs):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            [1],
+        ),
+        lambda df: df.replace(**kwargs)
+    )
 
 
 @sql_count_checker(query_count=0)

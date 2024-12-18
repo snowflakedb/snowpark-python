@@ -8,8 +8,7 @@ from typing import List, Optional
 
 import pytest
 
-from snowflake.snowpark import Column, Row, Session, Window
-from snowflake.snowpark._internal.analyzer.expression import Interval
+from snowflake.snowpark import Row, Session, Window
 from snowflake.snowpark._internal.utils import TempObjectType, quote_name
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.functions import (
@@ -25,6 +24,7 @@ from snowflake.snowpark.functions import (
     lead,
     listagg,
     lit,
+    make_interval,
     rank,
     upper,
     when,
@@ -42,7 +42,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     VariantType,
 )
-from tests.utils import Utils
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 paramList = [True, False]
 
@@ -81,12 +81,22 @@ def verify_column_result(
     for (datatype, expected_type) in zip(metadata_column_dtypes, expected_dtypes):
         if isinstance(expected_type, StringType):
             assert isinstance(datatype, StringType)
+        elif isinstance(expected_type, TimestampType):
+            assert isinstance(datatype, TimestampType)
         else:
             assert datatype == expected_type
 
     if expected_rows is not None:
         res = df.collect()
         assert res == expected_rows
+
+
+def test_nested_alias(session):
+    df = session.create_dataframe(["v"], schema=["c"])
+    df2 = df.select(df.c.alias("foo").alias("bar"))
+    rows = df.collect()
+    assert df2.columns == ["BAR"]
+    assert rows == [Row(BAR="v")]
 
 
 def test_like(session):
@@ -118,6 +128,13 @@ def test_regexp(session):
 
     verify_column_result(
         session, df2, ['"""C C"" REGEXP \'V%\'"'], [BooleanType()], [Row(False)]
+    )
+
+    df1 = session.create_dataframe(["v"], schema=["c"])
+    df2 = df1.select(df1["c"].regexp(lit("v%"), "c"))
+
+    verify_column_result(
+        session, df2, ['"RLIKE(""C"", \'V%\', \'C\')"'], [BooleanType()], [Row(False)]
     )
 
 
@@ -248,12 +265,8 @@ def test_cast(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1355930: any_value is not supported in Local Testing",
-)
 def test_unspecified_frame(session):
-    df1 = session.sql("select 'v' as \" a\"")
+    df1 = session.create_dataframe([("v",)], schema=[" a"])
     verify_column_result(session, df1, ['" a"'], [StringType()], [Row("v")])
     df2 = df1.select(any_value(df1[" a"]).over())
     verify_column_result(
@@ -364,10 +377,6 @@ def test_literal(session, local_testing_mode):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-1358946: Interval is not supported in Local Testing",
-)
 def test_interval(session):
     df1 = session.create_dataframe(
         [
@@ -378,19 +387,17 @@ def test_interval(session):
     )
     df2 = df1.select(
         df1["a"]
-        + Column(
-            Interval(
-                quarter=1,
-                month=1,
-                week=2,
-                day=2,
-                hour=2,
-                minute=3,
-                second=3,
-                millisecond=3,
-                microsecond=4,
-                nanosecond=4,
-            )
+        + make_interval(
+            quarters=1,
+            months=1,
+            weeks=2,
+            days=2,
+            hours=2,
+            minutes=3,
+            seconds=3,
+            milliseconds=3,
+            microseconds=4,
+            nanoseconds=4,
         )
     )
     verify_column_result(
@@ -480,6 +487,9 @@ def test_function_expression(session, local_testing_mode):
     )
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Temp function not supported in stored proc environment"
+)
 @pytest.mark.udf
 @pytest.mark.parametrize("use_qualified_name", [True, False])
 def test_udf(session, use_qualified_name, local_testing_mode):
@@ -648,7 +658,7 @@ def test_unary_expression(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="Window function WithinGroup is not supported",
+    reason="Window function ListAgg is not supported",
 )
 def test_list_agg_within_group_sort_order(session):
     df1 = session.sql(
@@ -893,7 +903,7 @@ def test_str_column_name_no_quotes(session, local_testing_mode):
 def test_show_column_name_with_quotes(session, local_testing_mode):
     df = session.create_dataframe([1, 2], schema=["a"])
     assert (
-        df.select(col("a"))._show_string()
+        df.select(col("a"))._show_string(_emit_ast=session.ast_enabled)
         == """\
 -------
 |"A"  |
@@ -904,7 +914,7 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
 """
     )
     assert (
-        df.select(avg(col("a")))._show_string()
+        df.select(avg(col("a")))._show_string(_emit_ast=session.ast_enabled)
         == """\
 ----------------
 |"AVG(""A"")"  |
@@ -917,7 +927,7 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
     # column name with quotes
     df = session.create_dataframe([1, 2], schema=['"a"'])
     assert (
-        df.select(col('"a"'))._show_string()
+        df.select(col('"a"'))._show_string(_emit_ast=session.ast_enabled)
         == """\
 -------
 |"a"  |
@@ -928,7 +938,7 @@ def test_show_column_name_with_quotes(session, local_testing_mode):
 """
     )
     assert (
-        df.select(avg(col('"a"')))._show_string()
+        df.select(avg(col('"a"')))._show_string(_emit_ast=session.ast_enabled)
         == """\
 ----------------
 |"AVG(""A"")"  |

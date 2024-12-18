@@ -2,40 +2,32 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import math
 from typing import Any, Literal, NoReturn, Optional, Union
 
-import pandas as native_pd
+import modin.pandas as pd
 from pandas._libs.lib import no_default
 from pandas._libs.tslibs import to_offset
+from pandas._typing import Frequency
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.functions import (
     builtin,
-    coalesce,
-    col,
     dateadd,
     datediff,
-    lead,
+    last_day,
     lit,
-    row_number,
     to_timestamp_ntz,
 )
+from snowflake.snowpark.modin.plugin._internal import join_utils
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
-from snowflake.snowpark.modin.plugin._internal.join_utils import InheritJoinIndex, join
-from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
-    DataFrameReference,
-    OrderedDataFrame,
-)
-from snowflake.snowpark.modin.plugin._internal.utils import (
-    generate_snowflake_quoted_identifiers_helper,
-    pandas_lit,
+from snowflake.snowpark.modin.plugin._internal.join_utils import (
+    InheritJoinIndex,
+    MatchComparator,
+    join,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.types import DateType, TimestampType
-from snowflake.snowpark.window import Window
 
 RESAMPLE_INDEX_LABEL = "__resample_index__"
 
@@ -53,12 +45,13 @@ IMPLEMENTED_AGG_METHODS = [
     "size",
     "first",
     "last",
+    "quantile",
+    "nunique",
+    "indices",
 ]
-IMPLEMENTED_MISC_METHODS = ["ffill"]
-
-ResampleMethodTypeLit = Literal["ffill", "max", "min", "mean"]
-
-SUPPORTED_RESAMPLE_RULES = ["day", "hour", "second", "minute"]
+SUPPORTED_RESAMPLE_RULES = ("second", "minute", "hour", "day", "week", "month", "year")
+RULE_SECOND_TO_DAY = ("second", "minute", "hour", "day")
+RULE_WEEK_TO_YEAR = ("week", "quarter", "month", "year")
 
 
 # https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#dateoffset-objects
@@ -93,9 +86,21 @@ ALL_DATEOFFSET_STRINGS = [
     "ns",
 ]
 
-SNOWFLAKE_SUPPORTED_DATEOFFSETS = ["W", "ME", "QE", "QS", "YS", "D", "h", "min", "s"]
+SNOWFLAKE_SUPPORTED_DATEOFFSETS = [
+    "s",
+    "min",
+    "h",
+    "D",
+    "W",
+    "MS",
+    "ME",
+    "QS",
+    "QE",
+    "YS",
+    "YE",
+]
 
-IMPLEMENTED_DATEOFFSET_STRINGS = ["min", "s", "h", "D"]
+IMPLEMENTED_DATEOFFSET_STRINGS = ["s", "min", "h", "D", "W", "ME", "YE"]
 
 UNSUPPORTED_DATEOFFSET_STRINGS = list(
     # sort so that tests that generate test cases from this last always use the
@@ -110,15 +115,15 @@ NOT_IMPLEMENTED_DATEOFFSET_STRINGS = list(
 )
 
 
-def rule_to_snowflake_width_and_slice_unit(rule: str) -> tuple[int, str]:
+def rule_to_snowflake_width_and_slice_unit(rule: Frequency) -> tuple[int, str]:
     """
     Converts pandas resample bin rule to Snowflake's slice_width and slice_unit
     format.
 
     Parameters
     ----------
-    rule : str
-        The offset string representing resample bin size. For example: '1D', '2T', etc.
+    rule : Frequency
+        The offset or string representing resample bin size. For example: '1D', '2T', etc.
 
     Returns
     -------
@@ -145,7 +150,6 @@ def rule_to_snowflake_width_and_slice_unit(rule: str) -> tuple[int, str]:
 
     rule_code = offset.rule_code
     slice_width = offset.n
-
     if rule_code == "s":
         slice_unit = "second"
     elif rule_code == "min":
@@ -154,16 +158,16 @@ def rule_to_snowflake_width_and_slice_unit(rule: str) -> tuple[int, str]:
         slice_unit = "hour"
     elif rule_code == "D":
         slice_unit = "day"
-    elif rule_code[0] == "W":  # pragma: no cover
+    elif rule_code[0] == "W":
         # treat codes like W-MON and W-SUN as "week":
         slice_unit = "week"
-    elif rule_code == "ME":  # pragma: no cover
+    elif rule_code == "ME":
         slice_unit = "month"
-    elif rule_code[0] == "QE":  # pragma: no cover
-        # treat codes like Q-DEC and Q-JAN as "quarter":
+    elif rule_code[0:2] == "QE":  # pragma: no cover
+        # treat codes like QE-DEC and QE-JAN as "quarter":
         slice_unit = "quarter"
-    elif rule_code[0] == "YE":  # pragma: no cover
-        # treat codes like A-DEC and A-JAN as "year":
+    elif rule_code[0:2] == "YE":
+        # treat codes like YE-DEC and YE-JAN as "year":
         slice_unit = "year"
     else:
         raise NotImplementedError(
@@ -215,9 +219,7 @@ def validate_resample_supported_by_snowflake(
     """
     rule = resample_kwargs.get("rule")
 
-    _, slice_unit = rule_to_snowflake_width_and_slice_unit(
-        rule  # type:  ignore[arg-type]
-    )
+    _, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
 
     if slice_unit not in SUPPORTED_RESAMPLE_RULES:
         _argument_not_implemented("rule", rule)
@@ -227,8 +229,13 @@ def validate_resample_supported_by_snowflake(
         _argument_not_implemented("axis", axis)
 
     closed = resample_kwargs.get("closed")
-    if closed is not None:  # pragma: no cover
+    if closed not in ("left", None) and slice_unit in RULE_SECOND_TO_DAY:
         _argument_not_implemented("closed", closed)
+    if slice_unit in RULE_WEEK_TO_YEAR:
+        if closed != "left":
+            ErrorMessage.not_implemented(
+                f"resample with rule offset {rule} is only implemented with closed='left'"
+            )
 
     label = resample_kwargs.get("label")
     if label is not None:  # pragma: no cover
@@ -241,10 +248,6 @@ def validate_resample_supported_by_snowflake(
     kind = resample_kwargs.get("kind")
     if kind is not None:  # pragma: no cover
         _argument_not_implemented("kind", kind)
-
-    on = resample_kwargs.get("on")
-    if on is not None:  # pragma: no cover
-        _argument_not_implemented("on", on)
 
     level = resample_kwargs.get("level")
     if level is not None:  # pragma: no cover
@@ -294,10 +297,10 @@ def get_snowflake_quoted_identifier_for_resample_index_col(frame: InternalFrame)
         )
 
     index_col = index_cols[0]
-    sf_type = frame.quoted_identifier_to_snowflake_type()[index_col]
+    sf_type = frame.get_snowflake_type(index_col)
 
     if not isinstance(sf_type, (TimestampType, DateType)):
-        raise TypeError("Only valid with DatetimeIndex.")
+        raise TypeError("Only valid with DatetimeIndex or TimedeltaIndex")
 
     return index_col
 
@@ -340,7 +343,11 @@ def time_slice(
 
 
 def perform_resample_binning_on_frame(
-    frame: InternalFrame, start_date: str, bin_size: str
+    frame: InternalFrame,
+    datetime_index_col_identifier: str,
+    start_date: str,
+    slice_width: int,
+    slice_unit: str,
 ) -> InternalFrame:
     """
     Returns a new dataframe where each item of the index column
@@ -352,21 +359,25 @@ def perform_resample_binning_on_frame(
         The internal frame with a single DatetimeIndex column
         to perform resample binning on.
 
+    datetime_index_col_identifier : str
+        The datetime-like column snowflake quoted identifier to use for resampling.
+
     start_date : str
         The earliest date in the Datetime index column of
         `frame`.
 
-    bin_size : str
-        The offset string or object representing target conversion.
+    slice_width : int
+        Width of the slice (i.e. how many units of time are contained in the slice).
+
+    slice_unit : str
+        Time unit for the slice length.
 
     Returns
     -------
     frame : InternalFrame
         A new internal frame where items in the index column are
-        placed in a bin based on `bin_length` and `bin_unit`
+        placed in a bin based on `slice_width` and `slice_unit`
     """
-
-    slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(bin_size)
     # Consider the following example:
     # frame:
     #             data_col
@@ -380,20 +391,21 @@ def perform_resample_binning_on_frame(
     # 2023-08-15         7
     # 2023-08-16         8
     # 2023-08-17         9
-    # start_date = 2023-08-07, bin_size = 3D (3 days)
-
-    datetime_index_col = get_snowflake_quoted_identifier_for_resample_index_col(frame)
+    # start_date = 2023-08-07, rule = 3D (3 days)
 
     # Time slices in Snowflake are aligned to snowflake_timeslice_alignment_date,
     # so we must normalize input datetimes.
     normalization_amt = (
-        native_pd.to_datetime(start_date)
-        - native_pd.to_datetime(SNOWFLAKE_TIMESLICE_ALIGNMENT_DATE)
+        pd.to_datetime(start_date) - pd.to_datetime(SNOWFLAKE_TIMESLICE_ALIGNMENT_DATE)
     ).total_seconds()
 
     # Subtract the normalization amount in seconds from the input datetime.
     normalized_dates = to_timestamp_ntz(
-        datediff("second", to_timestamp_ntz(lit(normalization_amt)), datetime_index_col)
+        datediff(
+            "second",
+            to_timestamp_ntz(lit(normalization_amt)),
+            datetime_index_col_identifier,
+        )
     )
     # frame:
     #             data_col
@@ -410,7 +422,12 @@ def perform_resample_binning_on_frame(
 
     # Call time_slice on the normalized datetime column with the slice_width and slice_unit.
     # time_slice is not supported for timestamps with timezones, only TIMESTAMP_NTZ
-    normalized_dates_set_to_bins = time_slice(normalized_dates, slice_width, slice_unit)
+    normalized_dates_set_to_bins = time_slice(
+        column=normalized_dates,
+        slice_length=slice_width,
+        date_or_time_part=slice_unit,
+        start_or_end="start" if slice_unit in RULE_SECOND_TO_DAY else "end",
+    )
     # frame:
     #             data_col
     # date
@@ -425,8 +442,15 @@ def perform_resample_binning_on_frame(
     # 1970-01-10         9
 
     # Add the normalization amount in seconds back to the input datetime for the correct result.
-    unnormalized_dates_set_to_bins = dateadd(
-        "second", lit(normalization_amt), normalized_dates_set_to_bins
+    unnormalized_dates_set_to_bins = (
+        dateadd("second", lit(normalization_amt), normalized_dates_set_to_bins)
+        if slice_unit in RULE_SECOND_TO_DAY
+        else to_timestamp_ntz(
+            last_day(
+                dateadd("second", lit(normalization_amt), normalized_dates_set_to_bins),
+                slice_unit,
+            )
+        )
     )
     # frame:
     #             data_col
@@ -442,7 +466,7 @@ def perform_resample_binning_on_frame(
     # 2023-08-16         9
 
     return frame.update_snowflake_quoted_identifiers_with_expressions(
-        {datetime_index_col: unnormalized_dates_set_to_bins}
+        {datetime_index_col_identifier: unnormalized_dates_set_to_bins}
     ).frame
 
 
@@ -479,40 +503,18 @@ def get_expected_resample_bins_frame(
     2020-01-07
     2020-01-09
     """
-    slice_width, slice_unit = rule_to_snowflake_width_and_slice_unit(rule)
-
-    index_column_snowflake_quoted_identifiers = (
-        generate_snowflake_quoted_identifiers_helper(
-            pandas_labels=[RESAMPLE_INDEX_LABEL]
-        )
-    )
-
-    # row_number ensures there are no gaps in the sequence.
-    all_resample_bins_col = dateadd(
-        slice_unit,
-        (row_number().over(Window.order_by(lit(1))) - 1) * slice_width,
-        to_timestamp_ntz(lit(start_date)),
-    ).as_(index_column_snowflake_quoted_identifiers[0])
-
-    rowcount = math.floor(
-        (native_pd.to_datetime(end_date) - native_pd.to_datetime(start_date))
-        / to_offset(rule)
-        + 1
-    )
-
-    expected_resample_bins_snowpark_frame = pd.session.generator(
-        all_resample_bins_col, rowcount=rowcount
-    )
-
+    expected_resample_bins_snowpark_frame = pd.date_range(
+        start_date, end_date, freq=rule
+    )._query_compiler._modin_frame
     return InternalFrame.create(
-        ordered_dataframe=OrderedDataFrame(
-            DataFrameReference(expected_resample_bins_snowpark_frame)
-        ),
+        ordered_dataframe=expected_resample_bins_snowpark_frame.ordered_dataframe,
         data_column_pandas_labels=[],
         data_column_snowflake_quoted_identifiers=[],
         index_column_pandas_labels=[RESAMPLE_INDEX_LABEL],
-        index_column_snowflake_quoted_identifiers=index_column_snowflake_quoted_identifiers,
+        index_column_snowflake_quoted_identifiers=expected_resample_bins_snowpark_frame.index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=[None],
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -617,12 +619,13 @@ def fill_missing_resample_bins_for_frame(
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=joined_frame.index_column_snowflake_quoted_identifiers,
         data_column_pandas_index_names=frame.data_column_pandas_index_names,
+        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
     )
 
 
-# TODO: SNOW-989398 Migrate function to ASOF join
 def perform_asof_join_on_frame(
-    preserving_frame: InternalFrame, referenced_frame: InternalFrame
+    preserving_frame: InternalFrame, referenced_frame: InternalFrame, fill_method: str
 ) -> InternalFrame:
     """
     Returns a new InternalFrame that performs an ASOF join on the preserving
@@ -642,12 +645,17 @@ def perform_asof_join_on_frame(
     referenced_frame: InternalFrame
         The frame to select the closest match from using its DatetimeIndex.
 
+    fill_method: str
+        The method to use for filling values.
+
     Returns
     -------
     frame : InternalFrame
         A new frame that holds the result of an ASOF join.
     """
-    # Consider the following example:
+    # Consider the following example where we want to perform an ASOF JOIN of preserving_frame
+    # and referenced_frame where __resample_index__ >= __index__ if forward fill
+    # or __resample_index__ <= __index__ if backward fill:
     #
     # preserved_frame:
     #  __resample_index__
@@ -666,94 +674,30 @@ def perform_asof_join_on_frame(
     # 2023-01-07 02:00:00   NaN
     # 2023-01-10 00:00:00     6
 
-    # We want to perform an ASOF JOIN of preserving_frame and referenced_frame. Here
-    # are the steps to take:
-
-    # 1. Construct right_frame using referenced_frame, which has a
-    # temporary column, interval_end_col, that olds the closest
-    # following timestamp to every value in __index__. The last value in
-    # interval_end_col is dummy value that represents the largest
-    # possible date in Snowflake.
-    interval_end_pandas_label = "interval_end_col"
-    interval_start_snowflake_quoted_identifier = (
-        get_snowflake_quoted_identifier_for_resample_index_col(referenced_frame)
-    )
-    interval_end_col = coalesce(
-        lead(col(interval_start_snowflake_quoted_identifier)).over(
-            Window.order_by(col(interval_start_snowflake_quoted_identifier).asc())
-        ),
-        pandas_lit("9999-01-01 00:00:00"),
-    )
-    right_frame = referenced_frame.append_column(
-        interval_end_pandas_label, interval_end_col
-    )
-    # right_frame:
-    #                         a      interval_end_col
-    #           __index__
-    # 2023-01-03 01:00:00     1   2023-01-04 00:00:00
-    # 2023-01-04 00:00:00     2   2023-01-05 23:00:00
-    # 2023-01-05 23:00:00     3   2023-01-06 00:00:00
-    # 2023-01-06 00:00:00     4   2023-01-07 02:00:00
-    # 2023-01-07 02:00:00   NaN   2023-01-10 00:00:00
-    # 2023-01-10 00:00:00     6   9999-01-01 00:00:00
-
-    # 2. Get the Snowflake identifiers needed for the join condition.
-    # interval_start_snowflake_quoted_identifier is needed as well,
-    # but has already been fetched above.
     left_timecol_snowflake_quoted_identifier = (
         get_snowflake_quoted_identifier_for_resample_index_col(preserving_frame)
     )
-    interval_end_snowflake_quoted_identifier = (
-        right_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
-            pandas_labels=[interval_end_pandas_label]
-        )[0][0]
+    right_timecol_snowflake_quoted_identifier = (
+        get_snowflake_quoted_identifier_for_resample_index_col(referenced_frame)
     )
-
-    # 3. Convert both preserved_frame and right_frame to Snowpark DataFrames to perform
-    # a non-equi-join.
-    left_snowpark_df = (
-        preserving_frame.ordered_dataframe.to_projected_snowpark_dataframe()
-    )
-    right_snowpark_df = right_frame.ordered_dataframe.to_projected_snowpark_dataframe()
-
-    # 4. Join left_snowpark_df and right_snowpark_df using the following logic:
-    # For each element left_frame's __resample_index__, join it with a single row
-    # in right_frame whose __index__ value is less than or equal to it and is closest in time.
-    # If a row cannot be found, pad the joined columns from right_frame with null.
-    joined_snowpark_df = left_snowpark_df.join(
-        right=right_snowpark_df,
-        on=(
-            left_snowpark_df[left_timecol_snowflake_quoted_identifier]
-            >= right_snowpark_df[interval_start_snowflake_quoted_identifier]
-        )
-        & (
-            left_snowpark_df[left_timecol_snowflake_quoted_identifier]
-            < right_snowpark_df[interval_end_snowflake_quoted_identifier]
+    output_frame, _ = join_utils.join(
+        left=preserving_frame,
+        right=referenced_frame,
+        how="asof",
+        left_match_col=left_timecol_snowflake_quoted_identifier,
+        right_match_col=right_timecol_snowflake_quoted_identifier,
+        match_comparator=(
+            MatchComparator.GREATER_THAN_OR_EQUAL_TO
+            if fill_method == "ffill"
+            else MatchComparator.LESS_THAN_OR_EQUAL_TO
         ),
-        how="left",
+        sort=True,
     )
-    # joined_snowpark_df:
-    #
-    #  __resample_index__             __index__     a      interval_end_col
-    # 2023-01-03 00:00:00                  NULL  NULL   NULL
-    # 2023-01-05 00:00:00   2023-01-04 00:00:00     2   2023-01-05 23:00:00
-    # 2023-01-07 00:00:00   2023-01-06 00:00:00     4   2023-01-07 02:00:00
-    # 2023-01-09 00:00:00   2023-01-07 02:00:00  NULL   2023-01-10 00:00:00
-
-    # 5. Construct a final result with correct frame metadata.
-    #                         a
-    # __resample_index__
-    # 2023-01-03 00:00:00   NaN
-    # 2023-01-05 00:00:00     2
-    # 2023-01-07 00:00:00     4
-    # 2023-01-09 00:00:00   NaN
-    return InternalFrame.create(
-        ordered_dataframe=OrderedDataFrame(DataFrameReference(joined_snowpark_df)),
-        data_column_pandas_labels=referenced_frame.data_column_pandas_labels,
-        data_column_snowflake_quoted_identifiers=referenced_frame.data_column_snowflake_quoted_identifiers,
-        index_column_pandas_labels=referenced_frame.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=[
-            left_timecol_snowflake_quoted_identifier
-        ],
-        data_column_pandas_index_names=referenced_frame.data_column_pandas_index_names,
-    )
+    # output_frame:
+    #                            a
+    #  __resample_index__
+    # 2023-01-03 00:00:00     NULL
+    # 2023-01-05 00:00:00        2
+    # 2023-01-07 00:00:00        4
+    # 2023-01-09 00:00:00     NULL
+    return output_frame

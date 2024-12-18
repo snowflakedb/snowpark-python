@@ -13,12 +13,12 @@ from pandas.errors import MergeError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture
@@ -213,7 +213,7 @@ def _verify_merge(
         left_index: If True, use index from left DataFrame as join keys.
         right_index: If True, use index from right DataFrame as join keys.
         force_output_column_order: If provided, reorder native result using this list.
-        indicator: If true include indicator column.
+        indicator: If True, include indicator column.
 
     Returns:
         None
@@ -587,7 +587,7 @@ def test_merge_cross(left_df, right_df, sort):
         {"left_index": True, "right_on": "A"},
     ],
 )
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=3, join_count=3)
 def test_merge_non_empty_with_empty(left_df, empty_df, how, kwargs, sort):
     _verify_merge(left_df, empty_df, how, sort=sort, **kwargs)
 
@@ -601,7 +601,7 @@ def test_merge_non_empty_with_empty(left_df, empty_df, how, kwargs, sort):
         {"left_index": True, "right_on": "A"},
     ],
 )
-@sql_count_checker(query_count=3, join_count=1)
+@sql_count_checker(query_count=3, join_count=3)
 def test_merge_empty_with_non_empty(empty_df, right_df, how, kwargs, sort):
     # Native pandas returns incorrect column order when left frame is empty.
     # https://github.com/pandas-dev/pandas/issues/51929
@@ -856,6 +856,7 @@ def test_merge_with_self():
         snow_df,
         snow_df.to_pandas(),
         lambda df: df.merge(df, on="A"),
+        test_attrs=False,  # native pandas propagates attrs on self-merge, but we do not
     )
 
 
@@ -1156,3 +1157,62 @@ def test_merge_validate_negative(lvalues, rvalues, validate):
     msg = "Snowpark pandas merge API doesn't yet support 'validate' parameter"
     with pytest.raises(NotImplementedError, match=msg):
         left.merge(right, left_on="A", right_on="B", validate=validate)
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_merge_timedelta_on():
+    left_df = native_pd.DataFrame(
+        {"lkey": ["foo", "bar", "baz", "foo"], "value": [1, 2, 3, 5]}
+    ).astype({"value": "timedelta64[ns]"})
+    right_df = native_pd.DataFrame(
+        {"rkey": ["foo", "bar", "baz", "foo"], "value": [5, 6, 7, 8]}
+    ).astype({"value": "timedelta64[ns]"})
+    eval_snowpark_pandas_result(
+        pd.DataFrame(left_df),
+        left_df,
+        lambda df: df.merge(
+            pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
+            left_on="lkey",
+            right_on="rkey",
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"how": "inner", "on": "a"},
+        {"how": "right", "on": "a"},
+        {"how": "right", "on": "b"},
+        {"how": "left", "on": "c"},
+        {"how": "cross"},
+    ],
+)
+def test_merge_timedelta_how(kwargs):
+    left_df = native_pd.DataFrame(
+        {"a": ["foo", "bar"], "b": [1, 2], "c": [3, 5]}
+    ).astype({"b": "timedelta64[ns]"})
+    right_df = native_pd.DataFrame(
+        {"a": ["foo", "baz"], "b": [1, 3], "c": [3, 4]}
+    ).astype({"b": "timedelta64[ns]", "c": "timedelta64[ns]"})
+    count = 1
+    expect_exception = False
+    if "c" == kwargs.get("on", None):  # merge timedelta with int exception
+        expect_exception = True
+        count = 0
+
+    with SqlCounter(query_count=count, join_count=count):
+        eval_snowpark_pandas_result(
+            pd.DataFrame(left_df),
+            left_df,
+            lambda df: df.merge(
+                pd.DataFrame(right_df) if isinstance(df, pd.DataFrame) else right_df,
+                **kwargs,
+            ),
+            expect_exception=expect_exception,
+            expect_exception_match="You are trying to merge on LongType and TimedeltaType columns for key 'c'. If you "
+            "wish to proceed you should use pd.concat",
+            expect_exception_type=ValueError,
+            assert_exception_equal=False,  # pandas exception: You are trying to merge on int64 and timedelta64[ns]
+            # columns for key 'c'. If you wish to proceed you should use pd.concat
+        )

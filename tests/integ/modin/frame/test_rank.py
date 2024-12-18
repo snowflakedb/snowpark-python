@@ -5,16 +5,22 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 TEST_RANK_DATA = [
     ({"a": [1, 2, 2, 2, 3, 3, 3]}, None),
+    param(
+        {"timedelta": native_pd.to_timedelta([1, 2, 2, 2, 3, 3, 3])},
+        None,
+        id="timedelta",
+    ),
     (
         {
             "a": [4, -2, 4, 8, 3],

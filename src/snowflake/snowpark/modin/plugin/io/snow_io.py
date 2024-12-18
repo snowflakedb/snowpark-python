@@ -5,6 +5,7 @@
 # this module houses classes for IO and interacting with Snowflake engine
 
 import inspect
+from collections import OrderedDict
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -18,6 +19,7 @@ from typing import (
 )
 
 import pandas
+from modin.core.io import BaseIO
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     CSVEngine,
@@ -29,7 +31,6 @@ from pandas._typing import (
 )
 from pandas.core.dtypes.common import is_list_like
 
-from snowflake.snowpark.modin.core.execution.dispatching.factories.baseio import BaseIO
 from snowflake.snowpark.modin.plugin._internal.io_utils import (
     is_local_filepath,
     is_snowflake_stage_path,
@@ -177,6 +178,35 @@ class PandasOnSnowflakeIO(BaseIO):
         return cls.query_compiler_cls.from_pandas(df, pandas.DataFrame)
 
     @classmethod
+    def json_normalize(cls, **kwargs):  # noqa: PR01
+        """
+        Normalize semi-structured JSON data into a query compiler representing a flat table.
+        """
+        return cls.from_pandas(pandas.json_normalize(**kwargs))
+
+    @classmethod
+    def read_excel(cls, **kwargs):  # noqa: PR01
+        """
+        Read an excel file into a query compiler.
+
+        Snowpark pandas has a slightly different error message from the upstream modin version.
+        """
+        try:
+            intermediate = pandas.read_excel(**kwargs)
+        except ImportError as e:
+            raise ImportError(
+                "Snowpark Pandas requires an additional package to read excel files such as openpyxl, pyxlsb, or xlrd",
+                e,
+            )
+        if isinstance(intermediate, (OrderedDict, dict)):  # pragma: no cover
+            parsed = type(intermediate)()
+            for key in intermediate.keys():
+                parsed[key] = cls.from_pandas(intermediate.get(key))
+            return parsed
+        else:
+            return cls.from_pandas(intermediate)
+
+    @classmethod
     def read_snowflake(
         cls,
         name_or_query: Union[str, Iterable[str]],
@@ -185,7 +215,7 @@ class PandasOnSnowflakeIO(BaseIO):
     ):
         """
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
-        src/snowflake/snowpark/modin/pandas/io.py
+        src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
         return cls.query_compiler_cls.from_snowflake(name_or_query, index_col, columns)
 
@@ -233,7 +263,7 @@ class PandasOnSnowflakeIO(BaseIO):
         Note:
              The labels of the Snowpark pandas DataFrame/Series or index_label provided will be used as Normalized Snowflake
              Identifiers of the Snowpark DataFrame.
-             For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~snowflake.snowpark.modin.pandas.io.read_snowflake`
+             For details about Normalized Snowflake Identifiers, please refer to the Note in :func:`~modin.pandas.read_snowflake`
         """
         return cls.query_compiler_cls.to_snowpark(
             index, index_label
@@ -434,7 +464,7 @@ class PandasOnSnowflakeIO(BaseIO):
         path_or_buf: FilePath,
         *,
         orient: Optional[str] = None,
-        typ: Optional[Literal["frame", "series"]] = None,
+        typ: Optional[Literal["frame", "series"]] = "frame",
         dtype: Optional[DtypeArg] = None,
         convert_axes: Optional[bool] = None,
         convert_dates: Optional[Union[bool, list[str]]] = None,
@@ -463,7 +493,7 @@ class PandasOnSnowflakeIO(BaseIO):
             )
 
         error_not_implemented_parameter("orient", orient is not None)
-        error_not_implemented_parameter("typ", typ is not None)
+        error_not_implemented_parameter("typ", typ != "frame")
         error_not_implemented_parameter("dtype", dtype is not None)
         error_not_implemented_parameter("convert_axes", convert_axes is not None)
         error_not_implemented_parameter("convert_dates", convert_dates is not None)
@@ -570,28 +600,18 @@ class PandasOnSnowflakeIO(BaseIO):
         pass  # pragma: no cover
 
     @classmethod
-    @pandas_module_level_function_not_implemented()
-    def read_html(
-        cls,
-        io,
-        *,
-        match=".+",
-        flavor=None,
-        header=None,
-        index_col=None,
-        skiprows=None,
-        attrs=None,
-        parse_dates=False,
-        thousands=",",
-        encoding=None,
-        decimal=".",
-        converters=None,
-        na_values=None,
-        keep_default_na=True,
-        displayed_only=True,
-        **kwargs,
-    ):
-        pass  # pragma: no cover
+    def read_html(cls, **kwargs) -> list[SnowflakeQueryCompiler]:
+        """
+        Read HTML tables into a list of query compilers.
+        """
+        return [cls.from_pandas(df) for df in pandas.read_html(**kwargs)]
+
+    @classmethod
+    def read_xml(cls, **kwargs) -> SnowflakeQueryCompiler:
+        """
+        Read XML document into a query compiler.
+        """
+        return cls.from_pandas(pandas.read_xml(**kwargs))
 
     @classmethod
     @pandas_module_level_function_not_implemented()
@@ -635,28 +655,18 @@ class PandasOnSnowflakeIO(BaseIO):
         pass  # pragma: no cover
 
     @classmethod
-    @pandas_module_level_function_not_implemented()
-    def read_sas(
-        cls,
-        filepath_or_buffer,
-        *,
-        format=None,
-        index=None,
-        encoding=None,
-        chunksize=None,
-        iterator=False,
-        **kwargs,
-    ):
-        pass  # pragma: no cover
+    def read_sas(cls, **kwargs):  # noqa: PR01
+        """
+        Read SAS files stored as either XPORT or SAS7BDAT format files into a query compiler.
+        """
+        return cls.from_pandas(pandas.read_sas(**kwargs))
 
     @classmethod
-    @pandas_module_level_function_not_implemented()
-    def read_pickle(
-        cls,
-        filepath_or_buffer,
-        **kwargs,
-    ):
-        pass  # pragma: no cover
+    def read_pickle(cls, **kwargs) -> SnowflakeQueryCompiler:
+        """
+        Load pickled pandas object (or any object) from file into a query compiler.
+        """
+        return cls.from_pandas(pandas.read_pickle(**kwargs))
 
     @classmethod
     @pandas_module_level_function_not_implemented()

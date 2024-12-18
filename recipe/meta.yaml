@@ -1,5 +1,6 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.19.0" %}
+{% set version = "1.26.0" %}
+{% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 
 package:
   name: {{ name|lower }}
@@ -15,6 +16,9 @@ build:
   script: {{ PYTHON }} -m pip install . --no-deps -vvv
   script_env:
     - SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1
+{% if noarch_build %}
+  noarch: python
+{% endif %}
 
 requirements:
   host:
@@ -22,16 +26,23 @@ requirements:
     - pip
     - setuptools >=40.6.0
     - wheel
+    # Snowpark IR
+    - protobuf==3.20.1  # [py<=310]
+    - protobuf==4.25.3  # [py>310]
+    - mypy-protobuf
   run:
     - python
-    - cloudpickle >=1.6.0,<=2.0.0  # [py<=310]
-    - cloudpickle==2.2.1  # [py==311]
-    - snowflake-connector-python >=3.10.0,<4.0.0
-    - typing-extensions >=4.1.0
+    - cloudpickle >=1.6.0,<=2.2.1,!=2.1.0,!=2.2.0
+    - snowflake-connector-python >=3.12.0,<4.0.0
+    - typing-extensions >=4.1.0,<5.0.0
     # need to pin libffi because of problems in cryptography.
     # This might no longer hold true but keep it just to avoid it from biting us again
     - libffi <=3.4.4
     - pyyaml
+    # Snowpark IR
+    - protobuf >=3.20,<6
+    - python-dateutil
+    - tzlocal
 
 test:
   imports:

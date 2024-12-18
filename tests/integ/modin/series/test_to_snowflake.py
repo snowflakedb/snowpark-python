@@ -8,8 +8,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import VALID_PANDAS_LABELS
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +29,7 @@ def _verify_num_rows(session, table_name: str, expected: int) -> None:
 
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=1)
 def test_to_snowflake_index(test_table_name, snow_series, index, index_labels):
     snow_series.to_snowflake(
         test_table_name, if_exists="replace", index=index, index_label=index_labels
@@ -108,7 +108,7 @@ def test_to_snowflake_if_exists(session, test_table_name, snow_series):
         _verify_num_rows(session, test_table_name, 6)
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=4, join_count=1)
 def test_to_snowflake_if_exists_negative(session, test_table_name, snow_series):
     # Create a table.
     snow_series.to_snowflake(test_table_name, if_exists="fail", index=False)
@@ -127,7 +127,7 @@ def test_to_snowflake_if_exists_negative(session, test_table_name, snow_series):
 
 
 @pytest.mark.parametrize("index_label", VALID_PANDAS_LABELS)
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=1)
 def test_to_snowflake_index_column_labels(index_label, test_table_name, snow_series):
     snow_series.to_snowflake(
         test_table_name, if_exists="replace", index=True, index_label=index_label
@@ -136,7 +136,7 @@ def test_to_snowflake_index_column_labels(index_label, test_table_name, snow_ser
 
 
 @pytest.mark.parametrize("col_label", VALID_PANDAS_LABELS)
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=1)
 def test_to_snowflake_data_column_labels(col_label, test_table_name, snow_series):
     snow_series = snow_series.rename(col_label)
     snow_series.to_snowflake(test_table_name, if_exists="replace", index=False)

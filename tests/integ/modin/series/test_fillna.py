@@ -3,14 +3,16 @@
 #
 
 
+import string
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.fixture(scope="function")
@@ -187,4 +189,31 @@ def test_argument_negative(test_fillna_series, test_fillna_df):
         expect_exception_match='"value" parameter must be a scalar, dict or Series',
         expect_exception_type=TypeError,
         assert_exception_equal=False,
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_inplace_fillna_from_df():
+    def inplace_fillna(df):
+        df["B"].fillna(method="ffill", inplace=True)
+        return df
+
+    eval_snowpark_pandas_result(
+        pd.DataFrame([[1, 2, 3], [4, None, 6]], columns=list("ABC")),
+        native_pd.DataFrame([[1, 2, 3], [4, None, 6]], columns=list("ABC")),
+        inplace_fillna,
+    )
+
+
+@pytest.mark.parametrize("index", [list(range(8)), list(string.ascii_lowercase[:8])])
+@sql_count_checker(query_count=1, join_count=3)
+def test_inplace_fillna_from_series(index):
+    def inplace_fillna(series):
+        series.iloc[:4].fillna(14, inplace=True)
+        return series
+
+    eval_snowpark_pandas_result(
+        pd.Series([np.nan, 1, 2, 3, 4, 5, 6, 7], index=index),
+        native_pd.Series([np.nan, 1, 2, 3, 4, 5, 6, 7], index=index),
+        inplace_fillna,
     )

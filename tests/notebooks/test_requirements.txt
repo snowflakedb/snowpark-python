@@ -3,3 +3,4 @@ pytest<8.0.0
 nbmake
 matplotlib
 seaborn
+scikit-learn

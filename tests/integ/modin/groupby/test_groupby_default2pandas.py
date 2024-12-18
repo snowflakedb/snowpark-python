@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import re
 import string
 
 import modin.pandas as pd
@@ -9,9 +10,17 @@ import numpy as np
 import pandas as native_pd
 import pytest
 from pandas._typing import Frequency
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
+)
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN = re.escape(
+    f"Snowpark pandas GroupBy.aggregate {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
+)
 
 
 def getTimeSeriesData(nper=30, freq: Frequency = "B") -> dict[str, native_pd.Series]:
@@ -26,6 +35,10 @@ def getTimeSeriesData(nper=30, freq: Frequency = "B") -> dict[str, native_pd.Ser
 def makeTimeDataFrame(nper=30, freq: Frequency = "B") -> native_pd.DataFrame:
     data = getTimeSeriesData(nper, freq)
     return native_pd.DataFrame(data)
+
+
+def sensitive_function_name(col: native_pd.Series) -> int:
+    return col.sum()
 
 
 @pytest.fixture
@@ -44,8 +57,9 @@ def test_groupby_axis_1(group_name):
 
     snow_df = pd.DataFrame(pandas_df)
 
-    msg = "Snowpark pandas GroupBy.max does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.raises(
+        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+    ):
         snow_df.groupby(axis=1, by=group_name).max()
 
 
@@ -60,12 +74,14 @@ def test_groupby_axis_1_mi(group_name):
     )
     snow_df_mi = pd.DataFrame(pandas_df_mi)
 
-    msg = "Snowpark pandas GroupBy.sum does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.raises(
+        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+    ):
         snow_df_mi.groupby(axis=1, by=group_name).sum()
 
-    msg = "Snowpark pandas GroupBy.min does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.raises(
+        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+    ):
         snow_df_mi.groupby(axis=1, level=0).min()
 
 
@@ -78,12 +94,13 @@ def test_groupby_axis_1_mi(group_name):
     ],
 )
 def test_groupby_with_callable_and_array(basic_snowpark_pandas_df, by) -> None:
-    msg = "Snowpark pandas GroupBy.min does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
     expected_query_count = 0
     if isinstance(by, list):
         expected_query_count = 1
     with SqlCounter(query_count=expected_query_count):
-        with pytest.raises(NotImplementedError, match=msg):
+        with pytest.raises(
+            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        ):
             basic_snowpark_pandas_df.groupby(by).min()
 
 
@@ -94,53 +111,12 @@ def test_timeseries_groupby_with_callable(tsframe):
         snow_ts_df.groupby(lambda x: x.month).agg(np.percentile, 80, axis=0)
 
 
-@pytest.mark.parametrize(
-    "agg_func, args",
-    [
-        (lambda x: np.sum(x), []),  # callable
-        ([lambda x: np.sum(x), lambda x: np.max(x)], []),  # list of callable
-        (np.percentile, [80]),  # unsupported aggregation function
-        (np.quantile, [0.6]),  # unsupported aggregation function
-        ({"col2": "max", "col4": lambda x: np.sum(x)}, []),  # dict includes callable
-    ],
-)
-@sql_count_checker(query_count=0)
-def test_groupby_agg_func_unsupported(basic_snowpark_pandas_df, agg_func, args):
-    by = "col1"
-    with pytest.raises(NotImplementedError):
-        basic_snowpark_pandas_df.groupby(by).agg(agg_func, *args)
-
-
-@pytest.mark.parametrize(
-    "agg_func",
-    [
-        lambda x: np.sum(x),  # callable
-        np.ptp,  # Unsupported aggregation function
-    ],
-)
-@sql_count_checker(query_count=0)
-def test_groupby_agg_func_unsupported_named_agg(basic_snowpark_pandas_df, agg_func):
-    by = "col1"
-    with pytest.raises(NotImplementedError):
-        basic_snowpark_pandas_df.groupby(by=by).agg(new_col=("col2", agg_func))
-
-
-@pytest.mark.parametrize(
-    "agg_func",
-    [lambda x: x * 2, np.sin, {"col2": "max", "col4": np.sin}],
-)
-@sql_count_checker(query_count=0)
-def test_groupby_invalid_agg_func_raises(basic_snowpark_pandas_df, agg_func):
-    by = "col1"
-    with pytest.raises(NotImplementedError):
-        basic_snowpark_pandas_df.groupby(by=by).aggregate(agg_func)
-
-
 @sql_count_checker(query_count=1)
 def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
     by = [1, 1, 4, 2, 2, 4]
-    msg = "Snowpark pandas GroupBy.max does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.raises(
+        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+    ):
         basic_snowpark_pandas_df.groupby(by=by).max()
 
 
@@ -150,8 +126,9 @@ def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
 )
 @sql_count_checker(query_count=1)
 def test_groupby_series_with_numpy_array(series_multi_numeric, by_list) -> None:
-    msg = "Snowpark pandas GroupBy.max does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.raises(
+        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+    ):
         series_multi_numeric.groupby(by=by_list).max()
 
 
@@ -160,15 +137,97 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
     native_series = native_pd.Series(series_data)
     snowpark_pandas_series = pd.Series(native_series)
 
-    msg = "Snowpark pandas GroupBy.sum does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
     with SqlCounter(query_count=0):
-        with pytest.raises(NotImplementedError, match=msg):
+        with pytest.raises(
+            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        ):
             basic_snowpark_pandas_df.groupby(by=snowpark_pandas_series).sum()
 
     with SqlCounter(query_count=1):
         by_list = ["col1", "col2", snowpark_pandas_series]
-        with pytest.raises(NotImplementedError, match=msg):
+        with pytest.raises(
+            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        ):
             basic_snowpark_pandas_df.groupby(by=by_list).sum()
+
+
+@pytest.mark.parametrize(
+    "func, kwargs, error_pattern",
+    # note that we expect some functions like `any` to become strings like
+    # 'any' in the error message because of preprocessing in the modin API
+    # layer in [1]. That's okay.
+    # [1] https://github.com/snowflakedb/snowpark-python/blob/7c854cb30df2383042d7899526d5237a44f9fdaf/src/snowflake/snowpark/modin/pandas/utils.py#L633
+    [
+        param(
+            np.argmin,
+            {},
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation np.argmin with the given arguments",
+            id="numpy_aggregation_function",
+        ),
+        param(
+            sensitive_function_name,
+            {},
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation Callable with the given arguments",
+            id="user_defined_function",
+        ),
+        param(
+            [sensitive_function_name, "size"],
+            {},
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            id="list_with_user_defined_function_and_string",
+        ),
+        param(
+            (sensitive_function_name, "size"),
+            {},
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            id="tuple_with_user_defined_function_and_string",
+        ),
+        param(
+            {sensitive_function_name, "size"},
+            {},
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation \\[Callable, 'size'\\]|\\['size', Callable\\] with the given arguments",
+            id="set_with_user_defined_function_and_string",
+        ),
+        param(
+            (all, any, len, list, min, max, set, str, tuple, native_pd.Series.sum),
+            {},
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation "
+            + "\\['all', 'any', <built-in function len>, list, 'min', 'max', set, str, tuple, Callable]"
+            + " with the given arguments",
+            id="tuple_with_builtins_and_native_pandas_function",
+        ),
+        param(
+            {
+                "col2": sensitive_function_name,
+                "col3": sum,
+                "col4": "size",
+                "col5": [np.mean, "size"],
+            },
+            {},
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation "
+            + "{label: Callable, label: 'sum', label: 'size', label: \\[np.mean, 'size'\\]}"
+            + " with the given arguments",
+            id="dict",
+        ),
+        param(
+            None,
+            {
+                "new_col": ("col2", sensitive_function_name),
+                "new_col2": pd.NamedAgg("col3", sum),
+            },
+            "Snowpark pandas GroupBy.aggregate does not yet support the aggregation "
+            + "new_label=\\(label, Callable\\), new_label=\\(label, <built-in function sum>\\)"
+            + " with the given arguments",
+            id="named_agg",
+        ),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_groupby_agg_unsupported_function_SNOW_1305464(
+    basic_snowpark_pandas_df, func, kwargs, error_pattern
+):
+    with pytest.raises(NotImplementedError, match=error_pattern):
+        basic_snowpark_pandas_df.groupby("col1").agg(func, **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -190,8 +249,9 @@ def test_groupby_level_mapper(mapper, level):
         index=index,
         columns=native_pd.Index(["A", "B", "C"], name="exp"),
     )
-    msg = "Snowpark pandas GroupBy.sum does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.raises(
+        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+    ):
         snow_df.groupby(mapper, level=level).sum()
 
 
@@ -206,7 +266,7 @@ def test_groupby_level_mapper(mapper, level):
 @sql_count_checker(query_count=0)
 def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, agg_name, by):
     snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-    msg = f"Snowpark pandas GroupBy.{agg_name} does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
+    msg = f"Snowpark pandas GroupBy.aggregate does not yet support the aggregation '{agg_name}' with the given arguments"
     with pytest.raises(NotImplementedError, match=msg):
         grp_agg(snowpark_pandas_group)
 
@@ -221,8 +281,9 @@ def test_std_var_ddof_unsupported(basic_snowpark_pandas_df, grp_agg, agg_name, b
 def test_grouper_unsupported(basic_snowpark_pandas_df, by, query_count):
     with SqlCounter(query_count=query_count):
         snowpark_pandas_group = basic_snowpark_pandas_df.groupby(by)
-        msg = "Snowpark pandas GroupBy.max does not yet support pd.Grouper, axis == 1, by != None and level != None, by containing any non-pandas hashable labels, or unsupported aggregation parameters."
-        with pytest.raises(NotImplementedError, match=msg):
+        with pytest.raises(
+            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        ):
             snowpark_pandas_group.max()
 
 
@@ -236,8 +297,12 @@ def test_groupby_ngroups_axis_1():
     native_df.columns.name = "x"
     snow_df = pd.DataFrame(native_df)
 
-    msg = "Snowpark pandas GroupBy.ngroups does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"Snowpark pandas GroupBy.ngroups {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
+        ),
+    ):
         snow_df.groupby(by=by, axis=1).ngroups
 
 
@@ -251,6 +316,20 @@ def test_groupby_ngroups_axis_1_mi():
     )
     snow_df = pd.DataFrame(native_df)
 
-    msg = "Snowpark pandas GroupBy.ngroups does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
-    with pytest.raises(NotImplementedError, match=msg):
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"Snowpark pandas GroupBy.ngroups {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
+        ),
+    ):
         snow_df.groupby(by=by, axis=1).ngroups
+
+
+@sql_count_checker(query_count=0)
+def test_non_callable_func(basic_snowpark_pandas_df):
+    # pandas error messages for non-callable aggregation functions are not
+    # consistent, so don't check for a match with pandas.
+    with pytest.raises(
+        ValueError, match=re.escape("aggregation function is not callable")
+    ):
+        basic_snowpark_pandas_df.groupby("col1").agg([1])

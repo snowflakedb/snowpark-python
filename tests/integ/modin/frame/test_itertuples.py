@@ -8,9 +8,11 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.snow_partition_iterator import PARTITION_SIZE
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
+    PARTITION_SIZE,
+)
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 # To generate seeded random data.
@@ -37,6 +39,7 @@ ITERTUPLES_DF_DATA = [
     native_pd.DataFrame([[1, 1.5], [2, 2.5], [3, 7.8]], columns=["i nt", "flo at"]),
     # empty df
     native_pd.DataFrame([]),
+    native_pd.DataFrame({"ts": native_pd.timedelta_range(10, periods=10)}),
 ]
 
 
@@ -149,7 +152,7 @@ def test_df_itertuples_nan_data_negative():
     )
 
 
-@pytest.mark.parametrize("size", [100000, 10000, PARTITION_SIZE])
+@pytest.mark.parametrize("size", [10000, PARTITION_SIZE, PARTITION_SIZE * 2])
 @pytest.mark.skipif(running_on_public_ci(), reason="slow test")
 def test_df_itertuples_large_df(size):
     data = rng.integers(low=-1500, high=1500, size=size)

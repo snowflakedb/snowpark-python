@@ -7,7 +7,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pivot.pivot_utils import pivot_table_test_helper
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize("index", [None, "A"], ids=["no_index", "single_index"])
@@ -91,7 +91,7 @@ def test_pivot_table_multiple_columns_values_with_margins(
     if isinstance(aggfunc, list):
         expected_join_count += 2
     if not dropna:
-        expected_join_count += expected_join_count
+        expected_join_count += 1
     with SqlCounter(query_count=1, join_count=expected_join_count):
         pivot_table_test_helper(
             df_data,
@@ -134,7 +134,7 @@ def test_pivot_table_multiple_columns_values_with_margins(
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=9, union_count=1)
+@sql_count_checker(query_count=1, join_count=5, union_count=1)
 def test_pivot_table_multiple_pivot_values_null_data_with_margins(
     df_data_with_nulls, index, fill_value
 ):
@@ -173,7 +173,7 @@ def test_pivot_table_multiple_pivot_values_null_data_with_margins(
 def test_pivot_table_multiple_pivot_values_null_data_with_margins_nan_blocked(
     df_data_with_nulls, index, fill_value
 ):
-    join_count = 7 if index is None and fill_value is None else 6
+    join_count = 5 if index is None and fill_value is None else 4
     union_count = 0 if index is None and fill_value is None else 1
     with SqlCounter(query_count=1, join_count=join_count, union_count=union_count):
         pivot_table_test_helper(
@@ -191,7 +191,7 @@ def test_pivot_table_multiple_pivot_values_null_data_with_margins_nan_blocked(
         )
 
 
-@sql_count_checker(query_count=1, join_count=12, union_count=1)
+@sql_count_checker(query_count=1, join_count=6, union_count=1)
 def test_pivot_table_mixed_index_types_with_margins(
     df_data,
 ):
@@ -208,7 +208,7 @@ def test_pivot_table_mixed_index_types_with_margins(
     )
 
 
-@sql_count_checker(query_count=1, join_count=8, union_count=1)
+@sql_count_checker(query_count=1, join_count=5, union_count=1)
 def test_pivot_table_single_aggfuncs_dropna_and_null_data_pandas_drops_columns(
     df_data_with_nulls_2,
 ):
@@ -262,18 +262,20 @@ class TestPivotTableMarginsNoIndexFewerPivotValues:
             },
         )
 
-    @sql_count_checker(query_count=1, join_count=1, union_count=2)
     def test_multiple_value_single_aggfunc(self, columns, df_data):
-        pivot_table_test_helper(
-            df_data,
-            {
-                "columns": columns,
-                "values": ["D", "E"],
-                "aggfunc": ["sum"],
-                "dropna": True,
-                "margins": True,
-            },
-        )
+        with SqlCounter(
+            query_count=1, join_count=1, union_count=2 if len(columns) > 1 else 1
+        ):
+            pivot_table_test_helper(
+                df_data,
+                {
+                    "columns": columns,
+                    "values": ["D", "E"],
+                    "aggfunc": ["sum"],
+                    "dropna": True,
+                    "margins": True,
+                },
+            )
 
     @sql_count_checker(query_count=1, join_count=3)
     def test_single_value_multiple_aggfunc(self, columns, df_data):
@@ -350,21 +352,23 @@ class TestPivotTableMarginsNoIndexMorePivotValues:
             named_columns=named_columns,
         )
 
-    @sql_count_checker(query_count=1, join_count=1, union_count=2)
     def test_multiple_value_single_aggfunc(
         self, columns, named_columns, df_data_more_pivot_values
     ):
-        pivot_table_test_helper(
-            df_data_more_pivot_values,
-            {
-                "columns": columns,
-                "values": ["D", "E"],
-                "aggfunc": "sum",
-                "dropna": True,
-                "margins": True,
-            },
-            named_columns=named_columns,
-        )
+        with SqlCounter(
+            query_count=1, join_count=1, union_count=2 if len(columns) > 1 else 1
+        ):
+            pivot_table_test_helper(
+                df_data_more_pivot_values,
+                {
+                    "columns": columns,
+                    "values": ["D", "E"],
+                    "aggfunc": "sum",
+                    "dropna": True,
+                    "margins": True,
+                },
+                named_columns=named_columns,
+            )
 
     @sql_count_checker(query_count=1, join_count=3)
     def test_single_value_multiple_aggfunc(

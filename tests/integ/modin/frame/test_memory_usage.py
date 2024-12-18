@@ -5,7 +5,7 @@
 import modin.pandas as pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=0)

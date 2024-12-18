@@ -5,8 +5,8 @@ import modin.pandas as pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_series_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.fixture
@@ -86,14 +86,3 @@ def test_nlargest_nsmallest_non_numeric_types(method, data):
     n = 2
     expected_s = snow_s.sort_values(ascending=(method == "nsmallest")).head(n)
     assert_series_equal(getattr(snow_s, method)(n), expected_s)
-
-
-@sql_count_checker(query_count=3)
-def test_nlargest_nsmallest_no_columns(method):
-    snow_s = pd.Series(query_compiler=pd.DataFrame(index=[1, 2])._query_compiler)
-    snow_s = snow_s
-    eval_snowpark_pandas_result(
-        snow_s,
-        snow_s.to_pandas().astype(float),  # cast to float to match behavior
-        lambda s: getattr(s, method)(),
-    )

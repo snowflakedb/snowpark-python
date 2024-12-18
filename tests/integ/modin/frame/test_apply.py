@@ -21,13 +21,21 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     DEFAULT_UDTF_PARTITION_SIZE,
 )
 from snowflake.snowpark.types import DoubleType, PandasSeriesType
-from tests.integ.modin.series.test_apply import create_func_with_return_type_hint
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.modin.series.test_apply_and_map import (
+    create_func_with_return_type_hint,
+)
 from tests.integ.modin.utils import (
+    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
+)
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+pytestmark = pytest.mark.skipif(
+    PANDAS_VERSION_PREDICATE,
+    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
 )
 
 # TODO SNOW-891796: replace native_pd with pd after allowing using snowpandas module/function in UDF
@@ -35,6 +43,15 @@ from tests.integ.modin.utils import (
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
 BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
     [[[1.1, 2.2], [3, np.nan]], np.min, "float"],
+    param(
+        [[1.0, 2.2], [3, np.nan]],
+        lambda x: native_pd.Timedelta(1),
+        "native_pd.Timedelta",
+        id="return_timedelta_scalar",
+        marks=pytest.mark.xfail(
+            strict=True, raises=AssertionError, reason="SNOW-1619940"
+        ),
+    ),
     [[[1.1, 2.2], [3, np.nan]], lambda x: x.sum(), "float"],
     [[[1.1, 2.2], [3, np.nan]], lambda x: x.size, "int"],
     [[[1.1, 2.2], [3, np.nan]], lambda x: "0" if x.sum() > 1 else 0, "object"],
@@ -58,46 +75,23 @@ BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
         lambda x: str(x[0]) + str(x[1]),
         "str",
     ),
-]
-
-# test data where return type is a pandas Series
-BASIC_DATA_FUNC_SERIES_RETURN_TYPE_MAP = [
-    [[[1.1, 2.2], [3, np.nan]], lambda x: x + 1, "native_pd.Series"],
-    [[[1.1, 2.2], [3, np.nan]], np.sqrt, "native_pd.Series"],
-    [[[1.1, 2.2], [3, np.nan]], lambda x: x > 2, "native_pd.Series"],
-    [
-        [["snow", "flake"], ["data", "cloud"]],
-        lambda x: x.str.replace("a", "b"),
-        "native_pd.Series",
-    ],
-    [[[True, False], [False, False]], lambda x: x.astype(np.int64), "native_pd.Series"],
-    [[[True, False], [False, False]], lambda x: x[0] ^ x[1], "bool"],
-    (
+    param(
         [
-            [bytes("snow", "utf-8"), bytes("flake", "utf-8")],
-            [bytes("data", "utf-8"), bytes("cloud", "utf-8")],
+            [native_pd.Timedelta(1), native_pd.Timedelta(2)],
+            [native_pd.Timedelta(3), native_pd.Timedelta(4)],
         ],
-        lambda x: x.astype(str),
-        "native_pd.Series",
-    ),
-    (
-        [[["a", "b"], ["c", "d"]], [["a", "b"], ["c", "d"]]],
-        lambda x: x,
-        "native_pd.Series",
-    ),
-    (
-        [[{"a": "b"}, {"c": "d"}], [{"c": "b"}, {"a": "d"}]],
-        lambda x: x,
-        "native_pd.Series",
+        lambda row: row.sum().value,
+        "int",
+        id="apply_on_frame_with_timedelta_data_columns_returns_int",
+        marks=pytest.mark.xfail(strict=True, raises=NotImplementedError),
     ),
 ]
 
-BASIC_DATA_FUNC_RETURN_TYPE_MAP = (
-    BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP + BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
+
+@pytest.mark.parametrize(
+    "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
 )
-
-
-@pytest.mark.parametrize("data, func, return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
+@pytest.mark.modin_sp_precommit
 def test_axis_1_basic_types_without_type_hints(data, func, return_type):
     # this test processes functions without type hints and invokes the UDTF solution.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
@@ -109,6 +103,7 @@ def test_axis_1_basic_types_without_type_hints(data, func, return_type):
 @pytest.mark.parametrize(
     "data, func, return_type", BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP
 )
+@pytest.mark.modin_sp_precommit
 def test_axis_1_basic_types_with_type_hints(data, func, return_type):
     # create explicitly for supported python types UDF with type hints and process via vUDF.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
@@ -154,6 +149,17 @@ def test_axis_1_index_passed_as_name(df, row_label):
     #  Invoking a single UDF typically requires 3 queries (package management, code upload, UDF registration) upfront.
     with SqlCounter(query_count=4, join_count=0, udtf_count=0):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=1))
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@sql_count_checker(query_count=0)
+def test_frame_with_timedelta_index():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            native_pd.DataFrame([0], index=[native_pd.Timedelta(1)]),
+        ),
+        lambda df: df.apply(lambda row: row, axis=1)
+    )
 
 
 @pytest.mark.parametrize(
@@ -369,14 +375,6 @@ def test_axis_1_apply_args_kwargs():
 
 
 class TestNotImplemented:
-    @pytest.mark.parametrize("data, func, return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
-    @sql_count_checker(query_count=0)
-    def test_axis_0(self, data, func, return_type):
-        snow_df = pd.DataFrame(data)
-        msg = "Snowpark pandas apply API doesn't yet support axis == 0"
-        with pytest.raises(NotImplementedError, match=msg):
-            snow_df.apply(func)
-
     @pytest.mark.parametrize("result_type", ["reduce", "expand", "broadcast"])
     @sql_count_checker(query_count=0)
     def test_result_type(self, result_type):
@@ -584,33 +582,70 @@ def test_apply_variant_json_null():
         ]
 
 
-TRANSFORM_DATA_FUNC_MAP = [
-    [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1],
-    [[[0, 1, 2], [1, 2, 3]], np.exp],
-    [[[0, 1, 2], [1, 2, 3]], "exp"],
-    [[["Leonhard", "Jianzhun"]], lambda x: x + " is awesome!!"],
-    [[[1.3, 2.5]], np.sqrt],
-    [[[1.3, 2.5]], "sqrt"],
-    [[[1.3, 2.5]], np.log],
-    [[[1.3, 2.5]], "log"],
-    [[[1.3, 2.5]], np.square],
-    [[[1.3, 2.5]], "square"],
+@pytest.mark.xfail(
+    strict=True,
+    raises=SnowparkSQLException,
+    reason="SNOW-1650918: Apply on dataframe data columns containing NULL fails with invalid arguments to udtf function",
+)
+@pytest.mark.parametrize(
+    "data, apply_func",
     [
-        [[None, "abcd"]],
-        lambda x: x + " are first 4 letters of alphabet" if x is not None else None,
+        [
+            [[None, "abcd"]],
+            lambda x: x + " are first 4 letters of alphabet" if x is not None else None,
+        ],
+        [
+            [[123, None]],
+            lambda x: x + 100 if x is not None else None,
+        ],
     ],
-    [[[1.5, float("nan")]], lambda x: np.sqrt(x)],
+)
+def test_apply_bug_1650918(data, apply_func):
+    native_df = native_pd.DataFrame(data)
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda x: x.apply(apply_func, axis=1),
+    )
+
+
+TRANSFORM_TEST_MAP = [
+    [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1, 16],
+    [[[0, 1, 2], [1, 2, 3]], np.exp, 16],
+    [[[0, 1, 2], [1, 2, 3]], "exp", None],
+    [[["Leonhard", "Jianzhun"]], lambda x: x + " is awesome!!", 11],
+    [[[1.3, 2.5]], np.sqrt, 11],
+    [[[1.3, 2.5]], "sqrt", None],
+    [[[1.3, 2.5]], np.log, 11],
+    [[[1.3, 2.5]], "log", None],
+    [[[1.3, 2.5]], np.square, 11],
+    [[[1.3, 2.5]], "square", None],
+    [[[1.5, float("nan")]], lambda x: np.sqrt(x), 11],
 ]
 
 
-@pytest.mark.modin_sp_short_regress
-@pytest.mark.parametrize("data, apply_func", TRANSFORM_DATA_FUNC_MAP)
-@sql_count_checker(query_count=0)
-def test_basic_dataframe_transform(data, apply_func):
-    msg = "Snowpark pandas apply API doesn't yet support axis == 0"
-    with pytest.raises(NotImplementedError, match=msg):
+@pytest.mark.modin_sp_precommit
+@pytest.mark.parametrize("data, apply_func, expected_query_count", TRANSFORM_TEST_MAP)
+def test_basic_dataframe_transform(data, apply_func, expected_query_count):
+    if expected_query_count is None:
+        msg = "Snowpark pandas apply API only supports callables func"
+        with SqlCounter(query_count=0):
+            with pytest.raises(NotImplementedError, match=msg):
+                snow_df = pd.DataFrame(data)
+                snow_df.transform(apply_func)
+    else:
+        msg = "SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function"
+        native_df = native_pd.DataFrame(data)
         snow_df = pd.DataFrame(data)
-        snow_df.transform(apply_func)
+        with SqlCounter(
+            query_count=expected_query_count,
+            high_count_expected=True,
+            high_count_reason=msg,
+        ):
+            eval_snowpark_pandas_result(
+                snow_df, native_df, lambda x: x.transform(apply_func)
+            )
 
 
 AGGREGATION_FUNCTIONS = [
@@ -640,7 +675,7 @@ def test_dataframe_transform_invalid_function_name_negative(session):
     snow_df = pd.DataFrame([[0, 1, 2], [1, 2, 3]])
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas apply API doesn't yet support axis == 0",
+        match="Snowpark pandas apply API only supports callables func",
     ):
         snow_df.transform("mxyzptlk")
 
@@ -732,7 +767,7 @@ def test_bug_SNOW_1172448():
     ],
 )
 @sql_count_checker(
-    query_count=18,
+    query_count=13,
     udtf_count=1,
     join_count=3,
     high_count_expected=True,
@@ -846,6 +881,7 @@ def test_apply_axis_1_frame_with_column_of_all_nulls_snow_1233832(null_value):
 import scipy.stats  # noqa: E402
 
 
+@pytest.mark.modin_sp_precommit
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [

@@ -1,0 +1,618 @@
+## TEST CASE
+
+df = session.table_function("my_fn", lit(1), lit("two"))
+
+df2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
+
+df3 = session.table_function(["foo", "bar"])
+
+fn1 = table_function("my_fn1")
+df4 = session.table_function(fn1())
+
+fn2 = table_function("my_fn2")
+df5 = session.table_function(fn2("foo"))
+
+fn3 = call_table_function("my_fn3")
+df6 = session.table_function(fn3)
+
+fn4 = call_table_function("my_fn4", "foo")
+df7 = session.table_function(fn4)
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table_function("my_fn", lit(1), lit("two"))
+
+df2 = session.table_function("my_fn", foo=lit("bar"), kwd=lit(3))
+
+df3 = session.table_function(["foo", "bar"])
+
+df4 = session.table_function(call_table_function("my_fn1"))
+
+df5 = session.table_function(call_table_function("my_fn2", "foo"))
+
+df6 = session.table_function(call_table_function("my_fn3"))
+
+df7 = session.table_function(call_table_function("my_fn4", "foo"))
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_name_ref {
+                name {
+                  fn_name_flat {
+                    name: "my_fn"
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      end_column: 51
+                      end_line: 25
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 45
+                      start_line: 25
+                    }
+                    v: 1
+                  }
+                }
+                src {
+                  end_column: 51
+                  end_line: 25
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 45
+                  start_line: 25
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 63
+                      end_line: 25
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 53
+                      start_line: 25
+                    }
+                    v: "two"
+                  }
+                }
+                src {
+                  end_column: 63
+                  end_line: 25
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 53
+                  start_line: 25
+                }
+              }
+            }
+            src {
+              end_column: 64
+              end_line: 25
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 13
+              start_line: 25
+            }
+          }
+        }
+        src {
+          end_column: 64
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 25
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_name_ref {
+                name {
+                  fn_name_flat {
+                    name: "my_fn"
+                  }
+                }
+              }
+            }
+            named_args {
+              _1: "foo"
+              _2 {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 72
+                        end_line: 27
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_column: 62
+                        start_line: 27
+                      }
+                      v: "bar"
+                    }
+                  }
+                  src {
+                    end_column: 72
+                    end_line: 27
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_column: 62
+                    start_line: 27
+                  }
+                }
+              }
+            }
+            named_args {
+              _1: "kwd"
+              _2 {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        fn_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 56
+                        end_line: 27
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_column: 50
+                        start_line: 27
+                      }
+                      v: 3
+                    }
+                  }
+                  src {
+                    end_column: 56
+                    end_line: 27
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_column: 50
+                    start_line: 27
+                  }
+                }
+              }
+            }
+            src {
+              end_column: 73
+              end_line: 27
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 27
+            }
+          }
+        }
+        src {
+          end_column: 73
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_name_ref {
+                name {
+                  fn_name_structured {
+                    name: "foo"
+                    name: "bar"
+                  }
+                }
+              }
+            }
+            src {
+              end_column: 52
+              end_line: 29
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 29
+            }
+          }
+        }
+        src {
+          end_column: 52
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              fn_name_flat {
+                name: "my_fn1"
+              }
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 32
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 37
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 4
+                }
+              }
+            }
+            src {
+              end_column: 43
+              end_line: 32
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 32
+            }
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 32
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              fn_name_flat {
+                name: "my_fn2"
+              }
+            }
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              end_column: 47
+              end_line: 35
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 37
+              start_line: 35
+            }
+            v: "foo"
+          }
+        }
+        src {
+          end_column: 47
+          end_line: 35
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 37
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 6
+                }
+              }
+            }
+            src {
+              end_column: 48
+              end_line: 35
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 35
+            }
+          }
+        }
+        src {
+          end_column: 48
+          end_line: 35
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+      value: "df5"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              fn_name_flat {
+                name: "my_fn3"
+              }
+            }
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 37
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 37
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 8
+                }
+              }
+            }
+            src {
+              end_column: 41
+              end_line: 38
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 38
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 38
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 38
+        }
+      }
+    }
+    symbol {
+      value: "df6"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      apply_expr {
+        fn {
+          call_table_function_expr {
+            name {
+              fn_name_flat {
+                name: "my_fn4"
+              }
+            }
+          }
+        }
+        pos_args {
+          string_val {
+            src {
+              end_column: 50
+              end_line: 40
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 40
+            }
+            v: "foo"
+          }
+        }
+        src {
+          end_column: 50
+          end_line: 40
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 40
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 10
+                }
+              }
+            }
+            src {
+              end_column: 41
+              end_line: 41
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 41
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 41
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 41
+        }
+      }
+    }
+    symbol {
+      value: "df7"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

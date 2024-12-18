@@ -10,11 +10,12 @@ import pytest
 from pandas.testing import assert_frame_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import (
+    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
 )
+from tests.integ.utils.sql_counter import SqlCounter
 
 
 def assert_empty_snowpark_pandas_equals_to_pandas(snow_df, native_df):
@@ -130,7 +131,7 @@ class TestCacheResultReducesQueryCount:
         native_df = perform_chained_operations(
             native_pd.DataFrame(np.arange(15).reshape((3, 5))), native_pd
         )
-        with SqlCounter(query_count=1, union_count=29):
+        with SqlCounter(query_count=1, union_count=11):
             snow_df = perform_chained_operations(snow_df, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_df, native_df
@@ -160,7 +161,7 @@ class TestCacheResultReducesQueryCount:
         native_df = perform_chained_operations(
             native_df.pivot_table(**pivot_kwargs), native_pd
         )
-        with SqlCounter(query_count=1, join_count=10, union_count=9):
+        with SqlCounter(query_count=1, join_count=1, union_count=9):
             snow_df = perform_chained_operations(snow_df, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_df, native_df
@@ -176,6 +177,10 @@ class TestCacheResultReducesQueryCount:
                 cached_snow_df, native_df
             )
 
+    @pytest.mark.skipif(
+        PANDAS_VERSION_PREDICATE,
+        reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+    )
     def test_cache_result_post_apply(self, inplace, simple_test_data):
         # In this test, the caching doesn't aid in the query counts since
         # the implementation of apply(axis=1) itself contains intermediate
@@ -204,6 +209,10 @@ class TestCacheResultReducesQueryCount:
                 native_df,
             )
 
+    @pytest.mark.skipif(
+        PANDAS_VERSION_PREDICATE,
+        reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+    )
     def test_cache_result_post_applymap(self, inplace, simple_test_data):
         # The high query counts in this test case come from the setup and definition
         # of the UDFs used.
@@ -213,7 +222,7 @@ class TestCacheResultReducesQueryCount:
         with SqlCounter(
             query_count=11,
             union_count=9,
-            udf_count=2,
+            udf_count=1,
             high_count_expected=True,
             high_count_reason="applymap requires additional queries to setup the UDF.",
         ):

@@ -2,10 +2,11 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import typing
-from collections.abc import Hashable
+from collections.abc import Hashable, Sized
 from enum import Enum
 from typing import Any, Literal, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
@@ -13,18 +14,13 @@ from pandas.api.types import is_list_like
 from pandas.core.common import is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_float_dtype, is_integer_dtype
 from pandas.core.dtypes.inference import is_integer, is_scalar
-from pandas.core.indexers.utils import is_list_like_indexer
 from pandas.core.indexing import IndexingError
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.functions import (
     Column,
-    cast,
-    ceil,
     coalesce,
     col,
-    floor,
     get,
     greatest,
     iff,
@@ -46,9 +42,12 @@ from snowflake.snowpark.modin.plugin._internal.join_utils import (
     join,
 )
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import OrderingColumn
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasColumn,
+    SnowparkPandasType,
+)
 from snowflake.snowpark.modin.plugin._internal.type_utils import (
     NUMERIC_SNOWFLAKE_TYPES_TUPLE,
-    is_numeric_snowpark_type,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
     DEFAULT_DATA_COLUMN_LABEL,
@@ -57,16 +56,14 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     ROW_COUNT_COLUMN_LABEL,
     ROW_POSITION_COLUMN_LABEL,
     append_columns,
-    is_integer_list_like,
     pandas_lit,
     rindex,
 )
 from snowflake.snowpark.modin.plugin.compiler import snowflake_query_compiler
-from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
+from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL, ErrorMessage
 from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
-    IntegerType,
     _FractionalType,
     _IntegralType,
 )
@@ -99,6 +96,7 @@ LOC_SET_ITEM_KV_MISMATCH_ERROR_MESSAGE = (
     "Must have equal len keys and value when setting with an iterable"
 )
 LOC_SET_ITEM_EMPTY_ERROR = "The length of the value/item to set is empty"
+_LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR = "Snowpark pandas does not yet support assigning timedelta values to an existing column."
 
 
 # Used for `first_valid_index` and `last_valid_index` Snowpark pandas APIs
@@ -125,6 +123,7 @@ def get_valid_index_values(
     -------
     Optional[Row]: The desired index (a Snowpark Row) if it exists, else None.
     """
+    frame = frame.ensure_row_position_column()
     index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers
     data_quoted_identifier = frame.data_column_snowflake_quoted_identifiers
     row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
@@ -137,7 +136,7 @@ def get_valid_index_values(
             ordered_dataframe.select(index_quoted_identifier).limit(1).collect()
         )
     else:
-        assert first_or_last is ValidIndex.LAST
+        assert first_or_last is ValidIndex.LAST, "first_or_last is not ValidIndex.LAST"
         valid_index_values = (
             ordered_dataframe.sort(
                 [OrderingColumn(row_position_quoted_identifier, ascending=False)]
@@ -215,156 +214,6 @@ def validate_out_of_bound(key_max: Any, key_min: Any, axis_len: int) -> None:
         raise IndexError("positional indexers are out-of-bounds")
 
 
-# TODO: SNOW-916739 this method needs refactoring to improve its readability and structure
-def convert_positional_key(
-    query_compiler: "snowflake_query_compiler.SnowflakeQueryCompiler",
-    key: Any,
-    axis: int,
-) -> Union[InternalFrame, slice, Union[list[int], list[float]], int]:
-    """Convert iloc input key for rows when axis == 0 or columns when axis == 1
-
-    Conversion of each input type:
-    Series[bool]:
-        raise Error.
-    array_like[bool]:
-        convert to List. If axis = 0, convert to slice(None) or InternalFrame.
-    Series[none_bool]:
-        Out-of-bound check.
-        If axis = 0: convert to int then negative to positive return its InternalFrame
-        else: convert to List then following list_like input procedure.
-    slice or range_like:
-        convert to List or a new slice if none-empty, axis = 0, and step is 1 or -1.
-    List[int] | List[float]:
-        convert to int then negative to positive, return List
-        If axis = 0, convert to InternalFrame.
-    integer:
-        convert negative to positive
-        If axis == 1 convert to List; else convert to int.
-
-    Return
-    ------
-    Union[InternalFrame, slice, List[int], int]:
-        axis == 0: InternalFrame, slice, or int
-        axis == 1: List[int]
-            int type for axis == 1 could be other types of integer. See Notes for details.
-
-    Notes
-    ------
-    slice(None) means selecting every item of that axis.
-    range_like: Any type has attribute __iter__, start, stop, and step.
-    integer: the Cython equivalent of `isinstance(val, (int, long, np.integer)) and not isinstance(val, bool)`.
-            See source code in pandas/_libs/tslibs/util.pxd:is_integer_object for details.
-    """
-    from snowflake.snowpark.modin.pandas.indexing import is_range_like
-
-    if isinstance(key, pd.Series):
-        key_frame = key._query_compiler._modin_frame
-        if key.empty:
-            if axis == 1:
-                return []
-            return key_frame
-        key_max, key_min = key_frame.ordered_dataframe.agg(
-            max_(key_frame.data_column_snowflake_quoted_identifiers[0]),
-            min_(key_frame.data_column_snowflake_quoted_identifiers[0]),
-        ).collect()[0]
-        # out-of-bound check:
-        validate_out_of_bound(key_max, key_min, query_compiler.get_axis_len(axis))
-
-        # if axis == 1 convert to np.ndarray and go through conversion of list-like type
-        if axis == 1:
-            key = key.to_numpy().tolist()
-
-        # else axis == 0:
-        # If the series has integer type and all values are non-negative, return the original series's InternalFrame.
-        # Else cast values to int type by ceiling the negative value and flooring the possitive value, then if there is
-        # any negative value, cast negative values to positive. Return the modified series's InternalFrame.
-        else:
-            if is_integer_dtype(key.dtype) and key_min >= 0:
-                return key_frame
-            data_col = col(key_frame.data_column_snowflake_quoted_identifiers[0])
-            # If the dtype is numerical but not integer, cast to int type
-            # Note: Same as pandas iloc, negative values are upcast and positive values are downcast to nearest integer.
-            # e.g. df.iloc[[-0.9, -1.0, -1.1, 0.0, 1.0, 0.9, 1.1]] is like cast to df.iloc[[0, -1, -1, 0, 1, 0, 1]]
-            if not is_integer_dtype(key.dtype):
-                data_col = cast(
-                    iff(
-                        data_col < 0,
-                        ceil(data_col),
-                        floor(data_col),
-                    ),
-                    IntegerType(),
-                )
-            # If the minimum value is smaller or equal to -1, add axis_len to the negative value
-            # Note: if -1 < key_min < 0, all negative values will be cast to 0 during numeric to int conversion.
-            if key_min <= -1:
-                axis_len = query_compiler.get_axis_len(axis)
-                data_col = iff(
-                    data_col < 0,
-                    data_col + axis_len,
-                    data_col,
-                )
-            # convert key_frame: since `is_integer_dtype(key.dtype) and key_min >= 0` case is returned earlier,
-            # data_col is guaranteed to be modified
-            key_frame = key_frame.update_snowflake_quoted_identifiers_with_expressions(
-                {key_frame.data_column_snowflake_quoted_identifiers[0]: data_col}
-            ).frame
-            return key_frame
-
-    # If `key` is a boolean array_like indexer, convert to a List with the array-index of True values
-    if is_bool_indexer(key):
-        key = [index for index, val in enumerate(key) if val]
-    # If key is Slice type or range_like:
-    # e.g. [1:5:2], range(5)
-    # If step is 1 or -1, axis == 0, and sliced outcome is not empty: return slice which will be called with filter
-    # Else: convert to List which later is converted to slice(None) if axis == 0 and has the same len as the axis
-    elif isinstance(key, slice) or is_range_like(key):
-        if key.step == 0:
-            # same as pandas
-            raise ValueError("slice step cannot be zero")
-        # If axis == 0 and key = slice(None) means select all rows thus we do nothing.
-        if axis == 0 and isinstance(key, slice) and key == slice(None):
-            return key
-
-        # for slice or range like key, if step is None, it is treated the same as 1
-        step = 1 if key.step is None else key.step
-        key = list(range(query_compiler.get_axis_len(axis)))[
-            slice(key.start, key.stop, key.step)
-        ]
-        if axis == 0:
-            if len(key) == 0:
-                # When len(key) == 0, it means no row needs to be selected, simply set the range to (0, 0),
-                # which will apply filter row_position >= 0 and row_position < 0, instead of going through join.
-                return slice(0, 0)
-            elif len(key) > 0 and step == 1:
-                # Convert to List first then return a new slice to deal with negative int, and empty slice
-                # e.g. slice(-1,3) out of 6, in filter row_position >= -1 and <3 is not empty.
-                # Note: step=-1 can not return slice since filter can not assure the reversed order.
-                return slice(int(key[0]), int(key[-1]) + 1)
-    elif is_list_like_indexer(key):
-        # convert float like keys to integers
-        if not is_integer_list_like(key):
-            key = np.array(key)
-            assert is_float_dtype(
-                key.dtype
-            ), "list-like key must be list of int or float"
-            key = key.astype(int)
-        axis_len = query_compiler.get_axis_len(axis)
-        key = [val + axis_len if val < 0 else val for val in key]
-    else:  # integer type
-        if key < 0:
-            key += query_compiler.get_axis_len(axis)
-        if axis == 0:
-            return key
-        return [key]
-
-    # Return column indexing key (axis=1) as List.
-    if axis == 1:
-        return key
-
-    # Convert and return row indexing key (axis=0) as InternalFrame type to join df that calls iloc.
-    return pd.Series(key)._query_compiler._modin_frame
-
-
 def get_frame_by_row_pos_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
@@ -379,9 +228,9 @@ def get_frame_by_row_pos_frame(
         The selected frame
     """
     # check data type
-    key_datatype = key.quoted_identifier_to_snowflake_type()[
+    key_datatype = key.get_snowflake_type(
         key.data_column_snowflake_quoted_identifiers[0]
-    ]
+    )
     # implicitly allow float types to be compatible with pandas
     assert isinstance(
         key_datatype, NUMERIC_SNOWFLAKE_TYPES_TUPLE
@@ -406,6 +255,8 @@ def get_frame_by_row_pos_frame(
             data_column_pandas_index_names=key.data_column_pandas_index_names,
             index_column_snowflake_quoted_identifiers=key.index_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=key.index_column_pandas_labels,
+            data_column_types=key.cached_data_column_snowpark_pandas_types[1:],
+            index_column_types=key.cached_index_column_snowpark_pandas_types,
         )
     return _get_frame_by_row_pos_int_frame(internal_frame, key)
 
@@ -453,6 +304,8 @@ def _get_frame_by_row_pos_boolean_frame(
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_left_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -500,6 +353,8 @@ def _get_frame_by_row_pos_int_frame(
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -553,6 +408,8 @@ def _get_adjusted_key_frame_by_row_pos_int_frame(
             count_ordered_dataframe.row_position_snowflake_quoted_identifier
         ],
         data_column_pandas_index_names=[None],
+        data_column_types=[None],
+        index_column_types=[None],
     )
 
     # cross join the count with the key to append the count column with the key frame. For example: if the
@@ -573,8 +430,6 @@ def _get_adjusted_key_frame_by_row_pos_int_frame(
         key,
         count_frame,
         "cross",
-        left_on=[],
-        right_on=[],
         inherit_join_index=InheritJoinIndex.FROM_LEFT,
     )
 
@@ -625,18 +480,38 @@ def get_frame_by_row_pos_slice_frame(
     frame = internal_frame.ensure_row_position_column()
     row_pos_col = col(frame.row_position_snowflake_quoted_identifier)
 
-    # create a count column which will be used to check step
-    frame = frame.append_column("count", pandas_lit(1) + max_(row_pos_col).over())
-    count_col = col(frame.data_column_snowflake_quoted_identifiers[-1])
+    def get_count_col() -> Column:
+        """
+        The purpose of this helper function is to avoid creating row count column if it is not needed. Creating row
+        count column will cause the query to scan the whole table.
+        """
+        nonlocal frame
+        frame = frame.ensure_row_count_column()
+        return col(frame.row_count_snowflake_quoted_identifier)
 
     ordering_columns = internal_frame.ordering_columns
     start, stop, step = key.start, key.stop, key.step
 
     def make_positive(val: int) -> Column:
         # Helper to turn negative start and stop values to positive values. Example: -1 --> num_rows - 1.
-        return val + count_col if val < 0 else pandas_lit(val)
+        return val + get_count_col() if val < 0 else pandas_lit(val)
 
     step = 1 if step is None else step
+
+    # if `limit_n` is not None, use limit in the query to narrow down the search.
+    limit_n = None
+    if step < 0:
+        # Switch start and stop; convert given slice key into a similar slice key with positive step.
+        start, stop = stop, start
+    if (stop is not None and stop >= 0) and (start is None or start >= 0):
+        # set limit_n = abs(stop - start) // step when we exactly know how many rows it is going to return.
+        limit_n = stop
+        if start is not None:
+            limit_n = abs(limit_n - start)
+        if step < 0 and start is None:
+            limit_n += 1  # e.g., df.iloc[1:None:-1] return 2 rows
+        limit_n = 1 + (limit_n - 1) // abs(step)
+
     if step < 0:
         # Set ascending to False if step is negative.
         ordering_columns = [
@@ -644,14 +519,12 @@ def get_frame_by_row_pos_slice_frame(
                 internal_frame.row_position_snowflake_quoted_identifier, ascending=False
             )
         ]
-        # Switch start and stop; convert given slice key into a similar slice key with positive step.
-        start, stop = stop, start
         start = 0 if start is None else make_positive(start) + 1
-        stop = count_col - 1 if stop is None else make_positive(stop)
+        stop = get_count_col() - 1 if stop is None else make_positive(stop)
     else:  # step > 0
         # Assign default values or convert to positive values.
         start = pandas_lit(0) if start is None else make_positive(start)
-        stop = (count_col if stop is None else make_positive(stop)) - 1
+        stop = (get_count_col() if stop is None else make_positive(stop)) - 1
 
     # Both start and stop are inclusive.
     left_bound_filter = row_pos_col >= start
@@ -660,13 +533,13 @@ def get_frame_by_row_pos_slice_frame(
     if step > 1:
         # start can be negative --> make the lower-bound 0.
         step_bound_filter = (
-            (row_pos_col - greatest(pandas_lit(0), least(start, count_col - 1)))
+            (row_pos_col - greatest(pandas_lit(0), least(start, get_count_col() - 1)))
             % pandas_lit(step)
         ) == 0
     elif step < -1:
         # Similarly, stop can be too large --> make the upper-bound the max row number.
         step_bound_filter = (
-            (greatest(pandas_lit(0), least(stop, count_col - 1)) - row_pos_col)
+            (greatest(pandas_lit(0), least(stop, get_count_col() - 1)) - row_pos_col)
             % pandas_lit(abs(step))
         ) == 0
     else:  # abs(step) == 1, so all values in range are included.
@@ -674,6 +547,10 @@ def get_frame_by_row_pos_slice_frame(
 
     filter_cond = left_bound_filter & right_bound_filter & step_bound_filter
     ordered_dataframe = frame.ordered_dataframe.filter(filter_cond)
+    if limit_n is not None:
+        # adding limit here could improve performance when the filter is applied directly on a table, because it can
+        # exit the scanning of table once enough record is found
+        ordered_dataframe = ordered_dataframe.limit(limit_n, sort=False)
     ordered_dataframe = ordered_dataframe.sort(ordering_columns)
     return InternalFrame.create(
         ordered_dataframe=ordered_dataframe,
@@ -682,6 +559,8 @@ def get_frame_by_row_pos_slice_frame(
         data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -776,8 +655,8 @@ def _extract_loc_set_col_info(
             label for label in columns if label not in frame_data_columns
         ]
         columns = [label for label in columns if label in frame_data_columns]
-        before = frame_data_columns.to_pandas().value_counts()
-        after = union_data_columns.to_pandas().value_counts()
+        before = frame_data_columns.value_counts()
+        after = union_data_columns.value_counts()
         frame_data_col_labels = frame_data_columns.tolist()
         for label in after.index:
             if label in frame_data_columns:
@@ -872,7 +751,9 @@ def get_valid_col_positions_from_col_labels(
                     )
                 )
             )
-            col_loc = pd.Index(col_loc, convert_to_lazy=False)
+            col_loc = col_loc.index
+            if isinstance(col_loc, pd.Index):
+                col_loc = col_loc.to_pandas()
             # get the position of the selected labels
             return [pos for pos, label in enumerate(columns) if label in col_loc]
         else:
@@ -939,11 +820,8 @@ def get_valid_col_positions_from_col_labels(
         # Convert col_loc to Index with object dtype since _get_indexer_strict() converts None values in lists to
         # np.nan. This does not filter columns with label None and errors. Not using np.array(col_loc) as the key since
         # np.array(["A", 12]) turns into array(['A', '12'].
-        col_loc = pd.Index(
-            [label for label in col_loc if label in columns],
-            dtype=object,
-            # we do not convert to lazy because we are using this index as columns
-            convert_to_lazy=False,
+        col_loc = native_pd.Index(
+            [label for label in col_loc if label in columns], dtype=object
         )
 
         # `Index._get_indexer_strict` returns position index from label index
@@ -1014,6 +892,8 @@ def get_frame_by_col_label(
             data_column_pandas_index_names=new_data_column_pandas_index_names,
             index_column_pandas_labels=result.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=result.index_column_snowflake_quoted_identifiers,
+            data_column_types=result.cached_data_column_snowpark_pandas_types,
+            index_column_types=result.cached_index_column_snowpark_pandas_types,
         )
     return result
 
@@ -1130,10 +1010,19 @@ def get_frame_by_col_pos(
     selected_columns: list[ColumnOrName] = []
     # the snowflake quoted identifiers for the selected Snowpark columns
     selected_columns_quoted_identifiers: list[str] = []
+    selected_columns_types = []
+
     for col_index in valid_indices:
         snowflake_quoted_identifier = frame_data_column_quoted_identifiers_list[
             col_index
         ]
+
+        selected_columns_types.append(
+            internal_frame.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                snowflake_quoted_identifier
+            ]
+        )
+
         pandas_label = frame_data_column_pandas_labels_list[col_index]
         if snowflake_quoted_identifier in selected_columns_quoted_identifiers:
             # if the current column has already been selected, duplicate the column with
@@ -1162,6 +1051,8 @@ def get_frame_by_col_pos(
         data_column_snowflake_quoted_identifiers=selected_columns_quoted_identifiers,
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=selected_columns_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -1212,9 +1103,9 @@ def get_frame_by_row_label(
     ), f"frontend should convert key to the supported types but got {type(key)}"
 
     # check data type
-    key_datatype = key.quoted_identifier_to_snowflake_type()[
+    key_datatype = key.get_snowflake_type(
         key.data_column_snowflake_quoted_identifiers[0]
-    ]
+    )
 
     # boolean indexer
     if isinstance(key_datatype, BooleanType):
@@ -1276,6 +1167,9 @@ def _get_frame_by_row_multiindex_label_tuple(
     new_index_column_snowflake_quoted_identifiers = (
         filtered_frame.index_column_snowflake_quoted_identifiers[levels_to_drop:]
     )
+    new_index_types = filtered_frame.cached_index_column_snowpark_pandas_types[
+        levels_to_drop:
+    ]
 
     return InternalFrame.create(
         ordered_dataframe=filtered_frame.ordered_dataframe,
@@ -1284,6 +1178,8 @@ def _get_frame_by_row_multiindex_label_tuple(
         data_column_pandas_index_names=filtered_frame.data_column_pandas_index_names,
         index_column_pandas_labels=new_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
+        data_column_types=filtered_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=new_index_types,
     )
 
 
@@ -1542,6 +1438,8 @@ def _get_frame_by_row_label_slice(
         data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=internal_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=internal_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -1591,6 +1489,8 @@ def _get_frame_by_row_label_boolean_frame(
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_left_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -1617,9 +1517,7 @@ def _get_frame_by_row_label_non_boolean_frame(
         # Otherwise, when key value is not array type, loc does prefix match, i.e., match the top level only
         # e.g., if the internal frame has multiindex ["foo", "bar"]
         if isinstance(
-            key.quoted_identifier_to_snowflake_type()[
-                key.data_column_snowflake_quoted_identifiers[0]
-            ],
+            key.get_snowflake_type(key.data_column_snowflake_quoted_identifiers[0]),
             ArrayType,
         ):
             # if the key is array type, pandas performs exact match, so the value in the array needs to be exact
@@ -1665,87 +1563,8 @@ def _get_frame_by_row_label_non_boolean_frame(
         index_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
             internal_frame.index_column_snowflake_quoted_identifiers
         ),
-    )
-
-
-def _get_frame_by_row_series_bool(
-    internal_frame: InternalFrame,
-    key: InternalFrame,
-) -> InternalFrame:
-    """
-    Helper function for `get_frame_2d_by_label_and_positional` by row with Series[bool] input.
-
-    key will be reindexed to match DataFrame index.
-    Return an InternalFrame with rows from `internal_frame` whose index are indexes in the boolean mask with True value.
-
-    Parameters
-    ----------
-    internal_frame: the InternalFrame of the series calling loc
-    key: InternalFrame of Series[bool] input.
-
-    Returns
-    -------
-    Result InternalFrame from loc by row with Series boolean mask.
-
-    """
-    # TODO: SNOW-884220 support Series[bool] with multiindex
-    # we only support single index for now.
-    key_index_identifier = key.index_column_snowflake_quoted_identifiers[0]
-
-    # validate no duplicate index in key
-    if not key.has_unique_index(axis=0):
-        raise UNALIGNABLE_INDEXING_ERROR
-    # raise error unless both are numeric or have the same type, otherwise isin will do Implicit Casting (“Coercion”)
-    # e.g. if key's index is Index([1, 2, 3]) and df's index is Index(["1", "2", "3"]) they do not match in pandas
-    # TODO SNOW-878592: if key has DateTimeIndex, and df has str index, it should be valid and supported.
-    #  No need to support the other way around.
-    # e.g. `df = pd.DataFrame({'val': range(3)}, index=['2023-01-01', '2023-01-02', '2023-01-03', ])
-    # bool_series = pd.Series([False, False, True, ],index=pd.date_range('2023-01-01', periods=3, freq='D'))
-    # `df.loc[bool_series]` should return a dataframe with the third row from df
-    key_index_type = key.quoted_identifier_to_snowflake_type()[key_index_identifier]
-    df_index_type = internal_frame.quoted_identifier_to_snowflake_type()[
-        internal_frame.index_column_snowflake_quoted_identifiers[0]
-    ]
-    if (
-        not (
-            is_numeric_snowpark_type(key_index_type)
-            and is_numeric_snowpark_type(df_index_type)
-        )
-        and df_index_type != key_index_type
-    ):
-        raise UNALIGNABLE_INDEXING_ERROR
-
-    new_key = InternalFrame.create(
-        # filter key based on boolean mask
-        ordered_dataframe=key.ordered_dataframe.filter(
-            key.data_column_snowflake_quoted_identifiers[0]
-        ),
-        data_column_pandas_labels=key.data_column_pandas_labels,
-        data_column_pandas_index_names=key.data_column_pandas_index_names,
-        data_column_snowflake_quoted_identifiers=key.data_column_snowflake_quoted_identifiers,
-        index_column_pandas_labels=key.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=key.index_column_snowflake_quoted_identifiers,
-    )
-
-    joined_frame, result_column_mapper = join(
-        left=new_key,
-        right=internal_frame,
-        left_on=key.index_column_snowflake_quoted_identifiers,
-        right_on=internal_frame.index_column_snowflake_quoted_identifiers,
-        how="inner",
-        inherit_join_index=InheritJoinIndex.FROM_RIGHT,
-    )
-    return InternalFrame.create(
-        ordered_dataframe=joined_frame.ordered_dataframe,
-        data_column_pandas_labels=internal_frame.data_column_pandas_labels,
-        data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
-        data_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
-            internal_frame.data_column_snowflake_quoted_identifiers
-        ),
-        index_column_pandas_labels=internal_frame.index_column_pandas_labels,
-        index_column_snowflake_quoted_identifiers=result_column_mapper.map_right_quoted_identifiers(
-            internal_frame.index_column_snowflake_quoted_identifiers
-        ),
+        data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -1938,6 +1757,7 @@ def _set_2d_labels_helper_for_frame_item(
     assert len(index.data_column_snowflake_quoted_identifiers) == len(
         item.index_column_snowflake_quoted_identifiers
     ), "TODO: SNOW-966427 handle it well in multiindex case"
+
     if not matching_item_rows_by_label:
         index = index.ensure_row_position_column()
         left_on = [index.row_position_snowflake_quoted_identifier]
@@ -2116,21 +1936,29 @@ def _set_2d_labels_helper_for_single_column_wise_item(
         [item.row_position_snowflake_quoted_identifier]
     )[0]
 
+    new_left_ids = index_with_item_mapper.map_left_quoted_identifiers(
+        index.data_column_snowflake_quoted_identifiers
+    )
     # If the item values is shorter than the index, we will fill in with the last item value.
+    last_item_id = index_with_item.data_column_snowflake_quoted_identifiers[-1]
     index_with_item = index_with_item.project_columns(
         index_with_item.data_column_pandas_labels,
-        [
-            col(col_id)
-            for col_id in index_with_item_mapper.map_left_quoted_identifiers(
-                index.data_column_snowflake_quoted_identifiers
-            )
-        ]
+        [col(col_id) for col_id in new_left_ids]
         + [
             iff(
                 col(item_row_position_column).is_null(),
                 pandas_lit(item_values[-1]),
-                col(index_with_item.data_column_snowflake_quoted_identifiers[-1]),
+                col(last_item_id),
             )
+        ],
+        column_types=[
+            index_with_item.snowflake_quoted_identifier_to_snowpark_pandas_type[id]
+            for id in new_left_ids
+        ]
+        + [
+            index_with_item.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                last_item_id
+            ]
         ],
     )
 
@@ -2158,6 +1986,96 @@ def _set_2d_labels_helper_for_single_column_wise_item(
     ).result_frame
 
 
+def _convert_series_item_to_row_for_set_frame_2d_labels(
+    columns: Union[
+        "snowflake_query_compiler.SnowflakeQueryCompiler",
+        tuple,
+        slice,
+        list,
+        "pd.Index",
+        np.ndarray,
+    ],
+    col_info: LocSetColInfo,
+    item: InternalFrame,
+) -> InternalFrame:
+    """
+    Helper method to convert a Series to a row for a locset.
+
+    Args:
+        columns: the column labels to set
+        col_info: information about the column labels to set
+        item: the new values to set
+    Returns:
+        New item frame that has been converted from Series (single column) to single
+        row - in effect a transpose.
+    """
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
+    col_len = len(col_info.existing_column_positions)
+
+    if isinstance(columns, SnowflakeQueryCompiler):
+        # In the following step, we convert the Series item value to a single row.
+        # The column names for that row will come from the Series index. In the
+        # remainder of this set operation, we will use label based matching to
+        # match the column names of the item value and the column names of the
+        # frame that we are setting. If we are passed in columns as a Series,
+        # we want to match the values positionally (example below). To do this,
+        # we set the index of the item frame to the columns key passed in, so
+        # that after the next step, the item frame (single row frame) will have
+        # the columns key as the columns.
+        # Example:
+        # df.loc[:, pd.Series(["C", "B", "A"])] = pd.Series([1, 2, 3])
+        # In the above example, we want to set column C to 1, column B
+        # to 2, and column A to 3. If we didn't do the step below (the set_index
+        # step), then after the transpose, the item would look like this:
+        #    0  1  2
+        # 0  1  2  3
+        # but we want instead for it to look like this:
+        #    C  B  A
+        # 0  1  2  3
+        # so by setting the index to ["C", "B", "A"], then we get the desired result.
+        item = SnowflakeQueryCompiler(item).set_index_from_series(columns)._modin_frame
+
+    # Here we do the `reset_index`, since it may be the case that we set the index
+    # in the previous step to the columns key, rather than what the index was previously,
+    # which can lead to Snowflake internal errors if, for example, the index of the internal
+    # frame we are setting is of type int, but the columns are of type string, since the
+    # new index of item after the transpose will be of type string rather than of type int
+    # causing a join error.
+    item = (
+        SnowflakeQueryCompiler(
+            get_item_series_as_single_row_frame(item, col_len, move_index_to_cols=True)
+        )
+        .reset_index(drop=True)
+        ._modin_frame
+    )
+    return item
+
+
+def _add_scalar_index_to_item_and_convert_index_to_internal_frame(
+    item: InternalFrame, index: Scalar
+) -> tuple[InternalFrame, InternalFrame]:
+    """
+    Helper method to convert a scalar index to an InternalFrame and add it to the item InternalFrame.
+
+    Args:
+        item: the new values to set
+        index: the row labels to set. None means all rows are included.
+    Returns:
+        New item value with the index value as its index, and new index value converted
+        to a Series with a single value.
+    """
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
+    index = pd.Series([index])._query_compiler
+    item = SnowflakeQueryCompiler(item).set_index_from_series(index)._modin_frame
+    return item, index._modin_frame
+
+
 def set_frame_2d_labels(
     internal_frame: InternalFrame,
     index: Union[Scalar, slice, InternalFrame],
@@ -2174,6 +2092,7 @@ def set_frame_2d_labels(
     matching_item_rows_by_label: bool,
     index_is_bool_indexer: bool,
     deduplicate_columns: bool,
+    frame_is_df_and_item_is_series: bool,
 ) -> InternalFrame:
     """
     Helper function to handle the general loc set functionality. The general idea here is to join the key from ``index``
@@ -2200,6 +2119,7 @@ def set_frame_2d_labels(
         index_is_bool_indexer: if True, the index is a boolean indexer. Note we only handle boolean indexer with
                 item is a SnowflakeQueryCompiler here.
         deduplicate_columns: if True, deduplicate columns from ``columns``.
+        frame_is_df_and_item_is_series: Whether item is from a Series object and is being assigned to a DataFrame object
     Returns:
         New frame where values have been set
     """
@@ -2262,6 +2182,7 @@ def set_frame_2d_labels(
     index_is_frame = isinstance(index, InternalFrame)
     item_is_frame = isinstance(item, InternalFrame)
     item_is_scalar = is_scalar(item)
+    original_index = index
 
     assert not isinstance(index, slice) or index == slice(
         None
@@ -2272,6 +2193,30 @@ def set_frame_2d_labels(
     # map from item's data column label to its position in the joined frame or item_column_values
     item_data_col_label_to_pos_map: dict[Hashable, int] = {}
     if item_is_frame:
+        from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+            SnowflakeQueryCompiler,
+        )
+
+        # If `item` is from a Series (rather than a Dataframe), flip the series item values to apply them
+        # across columns rather than rows.
+        is_multi_col_set = (
+            isinstance(columns, Sized) and len(columns) > 1
+        ) or isinstance(columns, (slice, SnowflakeQueryCompiler))
+        if frame_is_df_and_item_is_series and is_multi_col_set:
+            # If columns is slice(None), we are setting all columns in the InternalFrame.
+            matching_item_columns_by_label = True
+            matching_item_rows_by_label = False
+            item = _convert_series_item_to_row_for_set_frame_2d_labels(
+                columns, col_info, item
+            )
+            if is_scalar(index):
+                (
+                    item,
+                    index,
+                ) = _add_scalar_index_to_item_and_convert_index_to_internal_frame(
+                    item, index
+                )
+
         # when item is not frame, this map will be initialized later
         item_data_col_label_to_pos_map = {
             label: pos
@@ -2399,16 +2344,17 @@ def set_frame_2d_labels(
     )
 
     def generate_updated_expr_for_existing_col(
-        col_pos: int,
-    ) -> Column:
+        col_pos: int, origin_col_type: Optional[SnowparkPandasType]
+    ) -> SnowparkPandasColumn:
         """
         Helper function to generate the updated existing column based on the item value.
 
         Args:
             col_pos: the existing column position from internal_frame
+            origin_col_type: the original column type
 
         Returns:
-            The updated column
+            The updated SnowparkPandasColumn
         """
         original_col = col(
             result_frame.data_column_snowflake_quoted_identifiers[col_pos]
@@ -2416,15 +2362,21 @@ def set_frame_2d_labels(
         # col_pos can be any column in the original frame, i.e., internal_frame. So if it is not in
         # existing_column_positions, we can just return the original column
         if col_pos not in col_info.existing_column_positions:
-            return original_col
+            return SnowparkPandasColumn(original_col, origin_col_type)
 
         col_label = result_frame.data_column_pandas_labels[col_pos]
         # col will be updated
+        col_obj_type = None
         if item_is_scalar:
             col_obj = pandas_lit(item)
+            col_obj_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+                type(item)
+            )
         elif item_column_values:
-            col_obj = pandas_lit(
-                item_column_values[item_data_col_label_to_pos_map[col_label]]
+            item_val = item_column_values[item_data_col_label_to_pos_map[col_label]]
+            col_obj = pandas_lit(item_val)
+            col_obj_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+                type(item_val)
             )
         elif not matching_item_columns_by_label:
             # columns in item is matched by position not label here. E.g., assuming df as A, B, C three columns,
@@ -2432,28 +2384,26 @@ def set_frame_2d_labels(
             # df[["B", "A"]] = item will treat the first item's column as B and the second as A. Also, if column key
             # contains duplicates, e.g, df[["A", "A"]] = item, then only the right index matters, i.e., the second
             # column will be treated as A.
-            col_obj = col(
-                result_frame.data_column_snowflake_quoted_identifiers[
-                    item_data_col_offset
-                    + rindex(col_info.existing_column_positions, col_pos)
-                ]
+            offset = item_data_col_offset + rindex(
+                col_info.existing_column_positions, col_pos
             )
+            col_obj = col(result_frame.data_column_snowflake_quoted_identifiers[offset])
+            col_obj_type = result_frame.cached_data_column_snowpark_pandas_types[offset]
         elif (
             matching_item_columns_by_label
             and col_label in item_data_col_label_to_pos_map
         ):
             # col may have value in item, e.g., column "X"
-            col_obj = col(
-                result_frame.data_column_snowflake_quoted_identifiers[
-                    item_data_col_offset + item_data_col_label_to_pos_map[col_label]
-                ]
-            )
+            offset = item_data_col_offset + item_data_col_label_to_pos_map[col_label]
+            col_obj = col(result_frame.data_column_snowflake_quoted_identifiers[offset])
+            col_obj_type = result_frame.cached_data_column_snowpark_pandas_types[offset]
         else:
             # e.g., columns "E", i.e., column exists in the column key but not in item
             col_obj = pandas_lit(None)
+
         if index_is_scalar:
             col_obj = iff(
-                result_frame_index_col.equal_null(pandas_lit(index)),
+                result_frame_index_col.equal_null(pandas_lit(original_index)),
                 col_obj,
                 original_col,
             )
@@ -2462,9 +2412,41 @@ def set_frame_2d_labels(
             col_obj = iff(index_data_col, col_obj, original_col)
         elif index_is_frame:
             col_obj = iff(index_data_col.is_null(), original_col, col_obj)
-        return col_obj
 
-    def generate_updated_expr_for_new_col(col_label: Hashable) -> Column:
+        if (
+            # In these cases, we can infer that the resulting column has a
+            # SnowparkPandasType of `col_obj_type`:
+            # Case 1: The values we are inserting have the same type as the
+            # original column. For example, we are inserting Timedelta values
+            # into a timedelta column, or int values into an int column. In
+            # this case, we just propagate the original column type.
+            col_obj_type == origin_col_type
+            or  # noqa: W504
+            # Case 2: We are inserting a null value. Inserting a scalar null
+            # value should not change a column from TimedeltaType to a
+            # non-timedelta type, or vice versa.
+            (is_scalar(item) and pd.isna(item))
+            or  # noqa: W504
+            # Case 3: We are inserting a list-like of null values. Inserting
+            # null values should not change a column from TimedeltaType to a
+            # non-timedelta type, or vice versa.
+            (item_column_values and (pd.isna(v) for v in item_column_values))
+        ):
+            final_col_obj_type = origin_col_type
+        else:
+            # In these cases, we can't necessarily infer the type of the
+            # resulting column. For example, inserting 3 timedelta values
+            # into a column of 3 integer values would change the
+            # SnowparkPandasType from None to TimedeltaType, but inserting
+            # only 1 timedelta value into a column of 3 integer values would
+            # produce a mixed column of integers and timedelta values.
+            # TODO(SNOW-1738952): Deduce the result types in these cases.
+            ErrorMessage.not_implemented(_LOC_SET_NON_TIMEDELTA_TO_TIMEDELTA_ERROR)
+        return SnowparkPandasColumn(col_obj, final_col_obj_type)
+
+    def generate_updated_expr_for_new_col(
+        col_label: Hashable,
+    ) -> SnowparkPandasColumn:
         """
         Helper function to generate the newly added column.
 
@@ -2472,32 +2454,38 @@ def set_frame_2d_labels(
             col_label: the label of the new column
 
         Returns:
-            The new column
+            The new SnowparkPandasColumn
         """
         if item_is_scalar:
             new_column = pandas_lit(item)
+            col_obj_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+                type(item)
+            )
         elif item_column_values:
             new_column = item_column_values[item_data_col_label_to_pos_map[col_label]]
-        elif not matching_item_columns_by_label:
-            new_column = col(
-                result_frame.data_column_snowflake_quoted_identifiers[
-                    item_data_col_offset + item_data_col_label_to_pos_map[col_label]
-                ]
+            col_obj_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+                type(new_column)
             )
+        elif not matching_item_columns_by_label:
+            offset = item_data_col_offset + item_data_col_label_to_pos_map[col_label]
+            new_column = col(
+                result_frame.data_column_snowflake_quoted_identifiers[offset]
+            )
+            col_obj_type = result_frame.cached_data_column_snowpark_pandas_types[offset]
         elif (
             matching_item_columns_by_label
             and col_label in item_data_col_label_to_pos_map
         ):
+            offset = item_data_col_offset + item_data_col_label_to_pos_map[col_label]
             new_column = col(
-                result_frame.data_column_snowflake_quoted_identifiers[
-                    item_data_col_offset + item_data_col_label_to_pos_map[col_label]
-                ]
+                result_frame.data_column_snowflake_quoted_identifiers[offset]
             )
+            col_obj_type = result_frame.cached_data_column_snowpark_pandas_types[offset]
         else:
-            return pandas_lit(None)
+            return SnowparkPandasColumn(pandas_lit(None), None)
         if index_is_scalar:
             new_column = iff(
-                result_frame_index_col.equal_null(pandas_lit(index)),
+                result_frame_index_col.equal_null(pandas_lit(original_index)),
                 new_column,
                 pandas_lit(None),
             )
@@ -2506,14 +2494,14 @@ def set_frame_2d_labels(
             new_column = iff(index_data_col, new_column, pandas_lit(None))
         elif index_is_frame:
             new_column = iff(index_data_col.is_null(), pandas_lit(None), new_column)
-        return new_column
+        return SnowparkPandasColumn(new_column, col_obj_type)
 
     # The rest of code is to generate the list of project columns and labels for a loc set operation that can involve
     # replacing existing column values as well as adding new columns. The caller must provide the callables to select
     # the appropriate column replacement or new column logic.
     #
     # We use project_columns methods to handle all columns in one go
-    project_labels, project_columns = [], []
+    project_labels, project_columns, project_column_types = [], [], []
 
     num_data_columns = len(internal_frame.data_column_pandas_labels)
     duplicate_data_column_pos_to_count_map = (
@@ -2536,23 +2524,31 @@ def set_frame_2d_labels(
     for col_pos in range(num_data_columns):
         col_label = result_frame.data_column_pandas_labels[col_pos]
         project_labels.append(col_label)
-        col_obj = generate_updated_expr_for_existing_col(col_pos)
-        project_columns.append(col_obj)
+        origin_col_type = result_frame.cached_data_column_snowpark_pandas_types[col_pos]
+        snowpark_pandas_col = generate_updated_expr_for_existing_col(
+            col_pos, origin_col_type
+        )
+        project_columns.append(snowpark_pandas_col.snowpark_column)
+        project_column_types.append(snowpark_pandas_col.snowpark_pandas_type)
 
         # When duplicate is needed, pandas will duplicate the column right after the original columns.
         if col_pos in duplicate_data_column_pos_to_count_map:
             cnt = duplicate_data_column_pos_to_count_map[col_pos]
             project_labels += [col_label] * cnt
-            project_columns += [col_obj] * cnt
+            project_columns += [snowpark_pandas_col.snowpark_column] * cnt
+            project_column_types += [snowpark_pandas_col.snowpark_pandas_type] * cnt
 
     # Last, append new columns
     for col_label in new_data_column_pandas_labels_to_append:
-        new_column = generate_updated_expr_for_new_col(col_label)
+        new_snowpark_pandas_column = generate_updated_expr_for_new_col(col_label)
         project_labels.append(col_label)
-        project_columns.append(new_column)
+        project_columns.append(new_snowpark_pandas_column.snowpark_column)
+        project_column_types.append(new_snowpark_pandas_column.snowpark_pandas_type)
 
     return result_frame.project_columns(
-        pandas_labels=project_labels, column_objects=project_columns
+        pandas_labels=project_labels,
+        column_objects=project_columns,
+        column_types=project_column_types,
     )
 
 
@@ -2614,9 +2610,9 @@ def set_frame_2d_positional(
     -------
     The result is a frame that has the indexed row and columns replaced with item values.
     """
-    index_data_type = index.quoted_identifier_to_snowflake_type()[
+    index_data_type = index.get_snowflake_type(
         index.data_column_snowflake_quoted_identifiers[0]
-    ]
+    )
 
     # If index is a bool_indexer then convert to same-sized position index, False values will be null.
     if isinstance(index_data_type, BooleanType):
@@ -2625,7 +2621,6 @@ def set_frame_2d_positional(
         index = _get_adjusted_key_frame_by_row_pos_int_frame(internal_frame, index)
 
     assert isinstance(index_data_type, (_IntegralType, BooleanType))
-
     if isinstance(item, InternalFrame):
         # If item is Series (rather than a Dataframe), then we need to flip the series item values so they apply across
         # columns rather than rows.
@@ -2637,7 +2632,10 @@ def set_frame_2d_positional(
         kv_frame = get_kv_frame_from_index_and_item_frames(index, item)
         item_data_columns_len = len(item.data_column_snowflake_quoted_identifiers)
     else:
-        kv_frame = index.append_column(ITEM_VALUE_LABEL, pandas_lit(item))
+        item_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+            type(item)
+        )
+        kv_frame = index.append_column(ITEM_VALUE_LABEL, pandas_lit(item), item_type)
         item_data_columns_len = 1
 
     # Next we join the key-value frame with the original frame based on row_position and row key
@@ -2656,6 +2654,7 @@ def set_frame_2d_positional(
 
     frame = internal_frame.ensure_row_position_column()
     kv_frame = kv_frame.ensure_row_position_column()
+    item_type = kv_frame.cached_data_column_snowpark_pandas_types[-1]
 
     # To match the columns of the original dataframe (see [df] above) and the item values (see [item] above) we
     # use the "columns" containing the column position indices.  For example, if columns=[0, 2, 3] this would
@@ -2702,6 +2701,7 @@ def set_frame_2d_positional(
 
     df_kv_frame = df_kv_frame.ensure_row_position_column()
 
+    new_data_column_types = []
     for col_pos, snowflake_quoted_identifier_pair in enumerate(
         zip(
             frame.data_column_snowflake_quoted_identifiers,
@@ -2744,11 +2744,25 @@ def set_frame_2d_positional(
                     df_snowflake_quoted_identifier,
                 ).as_(new_snowflake_quoted_identifier)
             )
+            original_type = frame.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                original_snowflake_quoted_identifier
+            ]
+            if is_scalar(item) and pd.isna(item):
+                new_data_column_types.append(original_type)
+            elif original_type == item_type:
+                new_data_column_types.append(item_type)
+            else:
+                new_data_column_types.append(None)
         else:
             select_list.append(
                 col(original_snowflake_quoted_identifier).as_(
                     new_snowflake_quoted_identifier
                 )
+            )
+            new_data_column_types.append(
+                frame.snowflake_quoted_identifier_to_snowpark_pandas_type[
+                    original_snowflake_quoted_identifier
+                ]
             )
 
     select_list.append(df_kv_frame.row_position_snowflake_quoted_identifier)
@@ -2760,6 +2774,8 @@ def set_frame_2d_positional(
         data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=new_data_column_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
     )
 
 
@@ -2910,13 +2926,17 @@ def get_kv_frame_from_index_and_item_frames(
         + new_item_data_column_snowflake_identifiers,
         index_column_pandas_labels=kv_frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=kv_frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=kv_frame.cached_data_column_snowpark_pandas_types,
+        index_column_types=kv_frame.cached_index_column_snowpark_pandas_types,
     )
 
     return new_kv_frame
 
 
 def get_item_series_as_single_row_frame(
-    item: InternalFrame, num_columns: int
+    item: InternalFrame,
+    num_columns: int,
+    move_index_to_cols: Optional[bool] = False,
 ) -> InternalFrame:
     """
     Get an internal frame that transpose single data column into frame with single row.  For example, if the
@@ -2938,13 +2958,18 @@ def get_item_series_as_single_row_frame(
     ----------
         num_columns: Number of columns in the return frame
         item: Item frame that contains a single column of values.
+        move_index_to_cols: Whether to use the index as the column names.
 
     Returns
     -------
         Frame containing single row with columns for each row.
     """
     item = item.ensure_row_position_column()
-    item_series_pandas_labels = list(range(num_columns))
+    item_series_pandas_labels = (
+        list(range(num_columns))
+        if not move_index_to_cols
+        else item.index_columns_pandas_index().values
+    )
 
     # This is a 2 step process.
     #
@@ -2973,6 +2998,7 @@ def get_item_series_as_single_row_frame(
         last_value(col(item.data_column_snowflake_quoted_identifiers[0])).over(
             Window.order_by(col(item.row_position_snowflake_quoted_identifier))
         ),
+        item.cached_data_column_snowpark_pandas_types[0],
     )
     last_value_snowflake_quoted_identifier = (
         item_frame.data_column_snowflake_quoted_identifiers[-1]
@@ -2980,6 +3006,8 @@ def get_item_series_as_single_row_frame(
 
     item_series_snowflake_quoted_identifiers: list[str] = []
     item_series_column_exprs: list[Column] = []
+    item_series_data_column_types = []
+
     for row_position, pandas_label in enumerate(item_series_pandas_labels):
         new_snowflake_quoted_identifier = (
             item_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -3000,6 +3028,9 @@ def get_item_series_as_single_row_frame(
         )
         item_series_snowflake_quoted_identifiers.append(new_snowflake_quoted_identifier)
         item_series_column_exprs.append(new_column_expr)
+        item_series_data_column_types.append(
+            item.cached_data_column_snowpark_pandas_types[0]
+        )
 
     item_ordered_dataframe = append_columns(
         item_frame.ordered_dataframe,
@@ -3023,6 +3054,8 @@ def get_item_series_as_single_row_frame(
         index_column_snowflake_quoted_identifiers=item.index_column_snowflake_quoted_identifiers[
             :1
         ],
+        data_column_types=item_series_data_column_types,
+        index_column_types=item.cached_index_column_snowpark_pandas_types[:1],
     )
     return item
 
@@ -3114,6 +3147,16 @@ def get_row_position_index_from_bool_indexer(index: InternalFrame) -> InternalFr
         index_column_pandas_labels=index.index_column_pandas_labels[:1],
         index_column_snowflake_quoted_identifiers=[
             index_column_snowflake_quoted_identifier
+        ],
+        data_column_types=[
+            index.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                data_column_snowflake_quoted_identifier, None
+            )
+        ],
+        index_column_types=[
+            index.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                index_column_snowflake_quoted_identifier, None
+            )
         ],
     )
     return index

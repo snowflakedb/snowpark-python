@@ -2,16 +2,18 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from functools import reduce
-
 import modin.pandas as pd
+import numpy as np
+import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pivot.pivot_utils import (
+    pivot_table_test_helper,
     pivot_table_test_helper_expects_exception,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -145,19 +147,90 @@ def test_pivot_table_not_implemented_or_supported(df_data):
     with pytest.raises(NotImplementedError, match="Not implemented non-string"):
         snow_df2.pivot_table(index="A", columns="B", values=[baz])
 
-    def dummy_aggr_func(series):
-        return reduce(lambda x, y: x + y, series)
-
-    with pytest.raises(
-        NotImplementedError, match=r"Not implemented callable aggregation function .*"
-    ):
-        snow_df.pivot_table(index="A", columns="C", values="E", aggfunc=dummy_aggr_func)
-
-    with pytest.raises(KeyError, match="foo"):
+    with pytest.raises(NotImplementedError, match="foo"):
         snow_df.pivot_table(index="A", columns="C", values="E", aggfunc="foo")
 
     with pytest.raises(
-        KeyError,
+        NotImplementedError,
         match="median",
     ):
         snow_df.pivot_table(index="A", columns="C", values="D", aggfunc="median")
+
+
+def sensitive_function_name(col: native_pd.Series) -> int:
+    return col.sum()
+
+
+@pytest.mark.parametrize(
+    "func, error_pattern",
+    [
+        param(
+            sensitive_function_name,
+            "Snowpark pandas DataFrame.pivot_table does not yet support the aggregation Callable with the given arguments",
+            id="user_defined_function",
+        ),
+        param(
+            [sensitive_function_name, "size"],
+            "Snowpark pandas DataFrame.pivot_table does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            id="list_with_user_defined_function_and_string",
+        ),
+        param(
+            (sensitive_function_name, "size"),
+            "Snowpark pandas DataFrame.pivot_table does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            id="tuple_with_user_defined_function_and_string",
+        ),
+        param(
+            {sensitive_function_name, "size"},
+            "Snowpark pandas DataFrame.pivot_table does not yet support the aggregation \\[Callable, 'size'\\]|\\['size', Callable\\] with the given arguments",
+            id="set_with_user_defined_function_and_string",
+        ),
+        param(
+            (all, any, len, list, min, max, set, str, tuple, native_pd.Series.sum),
+            "Snowpark pandas DataFrame.pivot_table does not yet support the aggregation "
+            + "\\[<built-in function all>, <built-in function any>, <built-in function len>, list, <built-in function min>, <built-in function max>, set, str, tuple, Callable]"
+            + " with the given arguments",
+            id="tuple_with_builtins_and_native_pandas_function",
+        ),
+        param(
+            {"D": sensitive_function_name, "E": sum, "F": [np.mean, "size"]},
+            "Snowpark pandas DataFrame.pivot_table does not yet support the aggregation "
+            + "{label: Callable, label: <built-in function sum>, label: \\[np\\.mean, 'size'\\]}"
+            + " with the given arguments",
+            id="dict",
+        ),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_pivot_table_aggfunc_not_implemented_or_supported(df_data, func, error_pattern):
+    with pytest.raises(NotImplementedError, match=error_pattern):
+        pd.DataFrame(df_data).pivot_table(
+            index="A", columns="C", values=["D", "E", "F"], aggfunc=func
+        )
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@pytest.mark.parametrize(
+    "df_data",
+    [
+        {
+            "A": ["foo", "bar"],
+            "B": ["one", "two"],
+            "C": [pd.Timedelta(1), pd.Timedelta(2)],
+        },
+        {
+            "A": [pd.Timedelta(1), pd.Timedelta(2)],
+            "B": ["one", "two"],
+            "C": ["foo", "bar"],
+        },
+        {
+            "A": ["one", "two"],
+            "B": [pd.Timedelta(1), pd.Timedelta(2)],
+            "C": ["foo", "bar"],
+        },
+    ],
+)
+def test_timedelta_input_not_supported(df_data):
+    pivot_table_test_helper(
+        df_data,
+        pivot_table_kwargs=dict(index="A", columns="B", values="C", aggfunc="max"),
+    )

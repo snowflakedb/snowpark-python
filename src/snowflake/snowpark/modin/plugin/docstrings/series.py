@@ -15,6 +15,8 @@ from snowflake.snowpark.modin.plugin.docstrings.shared_docs import (
 )
 from snowflake.snowpark.modin.utils import _create_operator_docstring
 
+from .base import BasePandasDataset
+
 _shared_doc_kwargs = {
     "axes": "index",
     "klass": "Series",
@@ -35,7 +37,7 @@ axis : int or str, optional
 }
 
 
-class Series:
+class Series(BasePandasDataset):
     """
     Snowpark pandas representation of `pandas.Series` with a lazily-evaluated relational dataset.
 
@@ -556,7 +558,7 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or None
+        Snowpark pandas :class:`~modin.pandas.Series` or None
             Series with specified index labels removed or None if ``inplace=True``.
 
         Raises
@@ -670,17 +672,17 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        Snowpark pandas :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
             If func returns a Series object the result will be a DataFrame.
 
 
         See Also
         --------
-        :func:`Series.map <snowflake.snowpark.modin.pandas.Series.map>` : For applying more complex functions on a Series.
+        :func:`Series.map <modin.pandas.Series.map>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -700,7 +702,7 @@ class Series:
         When no type annotation is provided and Variant data is returned, Python ``None`` is translated to
         JSON NULL, and all other pandas missing values (np.nan, pd.NA, pd.NaT) are translated to SQL NULL.
 
-        4. For working with 3rd-party-packages see :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>`.
+        4. For working with 3rd-party-packages see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
         """
 
     def argmax():
@@ -728,9 +730,146 @@ class Series:
         Return boolean Series equivalent to left <= series <= right.
         """
 
+    def bfill():
+        """
+        Fill NA/NaN values by using the next valid observation to fill the gap.
+
+        Parameters
+        ----------
+        axis : {0 or ‘index’} for Series, {0 or ‘index’, 1 or ‘columns’} for DataFrame
+            Axis along which to fill missing values. For Series this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any other views on this object (e.g., a no-copy slice for a column in a DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive NaN values to forward/backward fill. In other words, if there is a gap with more than this number of consecutive NaNs, it will only be partially filled. If method is not specified, this is the maximum number of entries along the entire axis where NaNs will be filled. Must be greater than 0 if not None.
+        limit_area : {None, ‘inside’, ‘outside’}, default None
+            If limit is specified, consecutive NaNs will be filled with this restriction.
+            - None: No fill restriction.
+            - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
+            - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
+
+        Deprecated since version 2.2.0.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        For Series:
+
+        >>> s = pd.Series([1, None, None, 2])
+        >>> s.bfill()
+        0    1.0
+        1    2.0
+        2    2.0
+        3    2.0
+        dtype: float64
+        >>> s.bfill(limit=1)
+        0    1.0
+        1    NaN
+        2    2.0
+        3    2.0
+        dtype: float64
+
+        With DataFrame:
+
+        >>> df = pd.DataFrame({'A': [1, None, None, 4], 'B': [None, 5, None, 7]})
+        >>> df
+             A    B
+        0  1.0  NaN
+        1  NaN  5.0
+        2  NaN  NaN
+        3  4.0  7.0
+        >>> df.bfill()
+             A    B
+        0  1.0  5.0
+        1  4.0  5.0
+        2  4.0  7.0
+        3  4.0  7.0
+        >>> df.bfill(limit=1)
+             A    B
+        0  1.0  5.0
+        1  NaN  5.0
+        2  4.0  7.0
+        3  4.0  7.0
+        """
+
     def compare():
         """
         Compare to another Series and show the differences.
+
+        Parameters
+        ----------
+        other : Series
+            Series to compare with.
+
+        align_axis : {{0 or 'index', 1 or 'columns'}}, default 1
+            Which axis to align the comparison on.
+
+            * 0, or 'index' : Resulting differences are stacked vertically
+                with rows drawn alternately from self and other.
+            * 1, or 'columns' : Resulting differences are aligned horizontally
+                with columns drawn alternately from self and other.
+
+            Snowpark pandas does not yet support 1 / 'columns'.
+
+        keep_shape : bool, default False
+            If true, keep all rows.
+            Otherwise, only keep rows with different values.
+
+            Snowpark pandas does not yet support `keep_shape = True`.
+
+        keep_equal : bool, default False
+            If true, keep values that are equal.
+            Otherwise, show equal values as nulls.
+
+            Snowpark pandas does not yet support `keep_equal = True`.
+
+        result_names : tuple, default ('self', 'other')
+            How to distinguish this series's values from the other's values in
+            the result.
+
+            Snowpark pandas does not yet support names other than the default.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or Snowpark pandas :class:`~modin.pandas.DataFrame`
+            If axis is 0 or 'index' the result will be a Series.
+            The resulting index will be a MultiIndex with 'self' and 'other'
+            stacked alternately at the inner level.
+
+            If axis is 1 or 'columns' the result will be a DataFrame.
+            It will have two columns whose names are `result_names`.
+
+
+        See Also
+        --------
+        DataFrame.compare : Show the differences between two DataFrames.
+
+        Notes
+        -----
+        Matching null values, such as None and NaN, will not appear as a
+        difference.
+
+        Examples
+        --------
+        >>> s1 = pd.Series(["a", "b", "c", "d", "e"])
+        >>> s2 = pd.Series(["a", "a", "c", "b", "e"])
+
+        Align the differences on columns
+
+        >>> s1.compare(s2)
+          self other
+        1    b     a
+        3    d     b
+
         """
 
     def corr():
@@ -828,8 +967,8 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series`
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` with the first differences of the Series.
+        Snowpark pandas :class:`~modin.pandas.Series`
+            Snowpark pandas :class:`~modin.pandas.Series` with the first differences of the Series.
 
         Notes
         -----
@@ -962,7 +1101,7 @@ class Series:
 
         Returns
         -------
-        Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` or None
+        Snowpark pandas :class:`~modin.pandas.Series` or None
             Series with NA entries dropped from it or None if ``inplace=True``.
 
         See Also
@@ -1038,7 +1177,7 @@ class Series:
         Returns
         -------
         Snowpark pandas Series[bool]
-            Snowpark pandas :class:`~snowflake.snowpark.modin.pandas.Series` indicating whether each value has occurred
+            Snowpark pandas :class:`~modin.pandas.Series` indicating whether each value has occurred
             in the preceding values.
 
         See Also
@@ -1099,7 +1238,91 @@ class Series:
 
     def equals():
         """
-        Test whether two objects contain the same elements.
+        Test whether two series contain the same elements.
+
+        This function allows two Series to be compared against
+        each other to see if they have the same shape and elements. NaNs in
+        the same location are considered equal.
+
+        The row/column index do not need to have the same type, as long
+        as the values are considered equal. Corresponding columns and
+        index must be of the same dtype. Note: int variants (int8, int16 etc) are
+        considered equal dtype i.e int8 == int16. Similarly, float variants (float32,
+        float64 etc) are considered equal dtype.
+
+        Parameters
+        ----------
+        other : Series
+            The other Series to be compared with the first.
+
+        Returns
+        -------
+        bool
+            True if all elements are the same in both series, False
+            otherwise.
+
+        See Also
+        --------
+        Series.eq : Compare two Series objects of the same length
+            and return a Series where each element is True if the element
+            in each Series is equal, False otherwise.
+        DataFrame.eq : Compare two DataFrame objects of the same shape and
+            return a DataFrame where each element is True if the respective
+            element in each DataFrame is equal, False otherwise.
+        testing.assert_series_equal : Raises an AssertionError if left and
+            right are not equal. Provides an easy interface to ignore
+            inequality in dtypes, indexes and precision among others.
+        testing.assert_frame_equal : Like assert_series_equal, but targets
+            DataFrames.
+        numpy.array_equal : Return True if two arrays have the same shape
+            and elements, False otherwise.
+
+        Examples
+        --------
+        >>> series = pd.Series([1, 2, 3], name=99)
+        >>> series
+        0    1
+        1    2
+        2    3
+        Name: 99, dtype: int64
+
+        Series 'series' and 'exactly_equal' have the same types and values for
+        their elements and names, which will return True.
+
+        >>> exactly_equal = pd.Series([1, 2, 3], name=99)
+        >>> exactly_equal
+        0    1
+        1    2
+        2    3
+        Name: 99, dtype: int64
+        >>> series.equals(exactly_equal)
+        True
+
+        Series 'series' and 'different_column_type' have the same element
+        types and values, but have different types for names,
+        which will still return True.
+
+        >>> different_column_type = pd.Series([1, 2, 3], name=99.0)
+        >>> different_column_type
+        0    1
+        1    2
+        2    3
+        Name: 99.0, dtype: int64
+        >>> series.equals(different_column_type)
+        True
+
+        Series 'series' and 'different_data_type' have different types for the
+        same values for their elements, and will return False even though
+        their names are the same values and types.
+
+        >>> different_data_type = pd.Series([1.0, 2.0, 3.0], name=99)
+        >>> different_data_type
+        0    1.0
+        1    2.0
+        2    3.0
+        Name: 99, dtype: float64
+        >>> series.equals(different_data_type)
+        False
         """
 
     def explode():
@@ -1156,6 +1379,66 @@ class Series:
         2    1
         3    2
         Name: c, dtype: int64
+        """
+
+    def ffill():
+        """
+        Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        Parameters
+        ----------
+        axis : {0 or ‘index’} for Series, {0 or ‘index’, 1 or ‘columns’} for DataFrame
+            Axis along which to fill missing values. For Series this parameter is unused and defaults to 0.
+        inplace : bool, default False
+            If True, fill in-place. Note: this will modify any other views on this object (e.g., a no-copy slice for a column in a DataFrame).
+        limit : int, default None
+            If method is specified, this is the maximum number of consecutive NaN values to forward/backward fill. In other words, if there is a gap with more than this number of consecutive NaNs, it will only be partially filled. If method is not specified, this is the maximum number of entries along the entire axis where NaNs will be filled. Must be greater than 0 if not None.
+        limit_area : {None, ‘inside’, ‘outside’}, default None
+            If limit is specified, consecutive NaNs will be filled with this restriction.
+            - None: No fill restriction.
+            - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
+            - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
+        downcast : dict, default is None
+            A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
+
+        Deprecated since version 2.2.0.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([[np.nan, 2, np.nan, 0],
+        ...                    [3, 4, np.nan, 1],
+        ...                    [np.nan, np.nan, np.nan, np.nan],
+        ...                    [np.nan, 3, np.nan, 4]],
+        ...                   columns=list("ABCD"))
+        >>> df
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  NaN  NaN NaN  NaN
+        3  NaN  3.0 NaN  4.0
+
+        >>> df.ffill()
+             A    B   C    D
+        0  NaN  2.0 NaN  0.0
+        1  3.0  4.0 NaN  1.0
+        2  3.0  4.0 NaN  1.0
+        3  3.0  3.0 NaN  4.0
+
+        >>> ser = pd.Series([1, np.nan, 2, 3])
+        >>> ser.ffill()
+        0    1.0
+        1    1.0
+        2    2.0
+        3    3.0
+        dtype: float64
         """
 
     def fillna():
@@ -1447,6 +1730,37 @@ class Series:
     def items():
         """
         Lazily iterate over (index, value) tuples.
+
+        This method returns an iterable tuple (index, value). This is convenient if you want
+        to create a lazy iterator.
+
+        Returns
+        -------
+        Iterable
+            Iterable of tuples containing the (index, value) pairs from a Series.
+
+        See Also
+        --------
+        :func:`DataFrame.items <modin.pandas.DataFrame.items>`
+            Iterate over (column name, Series) pairs.
+        :func:`DataFrame.iterrows <modin.pandas.DataFrame.iterrows>`
+            Iterate over DataFrame rows as (index, Series) pairs.
+
+        Notes
+        -----
+        1. Iterating over rows is an antipattern in Snowpark pandas and pandas. Use Series.apply() or other aggregation
+           methods when possible instead of iterating over a Series. Iterators and for loops do not scale well.
+        2. You should **never modify** something you are iterating over. This will not work. The iterator returns a copy
+           of the data and writing to it will have no effect.
+
+        Examples
+        --------
+        >>> s = pd.Series(['A', 'B', 'C'])
+        >>> for index, value in s.items():
+        ...     print(f"Index : {index}, Value : {value}")
+        Index : 0, Value : A
+        Index : 1, Value : B
+        Index : 2, Value : C
         """
 
     def keys():
@@ -1481,10 +1795,12 @@ class Series:
         ----------
         arg : function, collections.abc.Mapping subclass or Series
             Mapping correspondence.
+            Only function is currently supported by Snowpark pandas.
         na_action : {None, 'ignore'}, default None
             If 'ignore', propagate NULL values, without passing them to the
             mapping correspondence. Note that, it will not bypass NaN values
             in a FLOAT column in Snowflake.
+            'ignore' is currently not supported by Snowpark pandas.
 
         Returns
         -------
@@ -1493,11 +1809,11 @@ class Series:
 
         See Also
         --------
-        :func:`Series.apply <snowflake.snowpark.modin.pandas.Series.apply>` : For applying more complex functions on a Series.
+        :func:`Series.apply <modin.pandas.Series.apply>` : For applying more complex functions on a Series.
 
-        :func:`DataFrame.apply <snowflake.snowpark.modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
+        :func:`DataFrame.apply <modin.pandas.DataFrame.apply>` : Apply a function row-/column-wise.
 
-        :func:`DataFrame.applymap <snowflake.snowpark.modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
+        :func:`DataFrame.applymap <modin.pandas.DataFrame.applymap>` : Apply a function elementwise on a whole DataFrame.
 
         Notes
         -----
@@ -1509,7 +1825,7 @@ class Series:
 
         Examples
         --------
-        >>> s = pd.Series(['cat', 'dog', np.nan, 'rabbit'])
+        >>> s = pd.Series(['cat', 'dog', None, 'rabbit'])
         >>> s
         0       cat
         1       dog
@@ -1521,7 +1837,7 @@ class Series:
         in the ``dict`` are converted to ``NaN``, unless the dict has a default
         value (e.g. ``defaultdict``):
 
-        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})  # doctest: +SKIP
+        >>> s.map({'cat': 'kitten', 'dog': 'puppy'})
         0    kitten
         1     puppy
         2      None
@@ -1538,7 +1854,7 @@ class Series:
         dtype: object
 
         To avoid applying the function to missing values (and keep them as
-        ``NaN``) ``na_action='ignore'`` can be used:
+        ``NaN``) ``na_action='ignore'`` can be used (Currently not supported by Snowpark pandas):
 
         >>> s.map('I am a {}'.format, na_action='ignore')  # doctest: +SKIP
         0       I am a cat
@@ -1549,6 +1865,9 @@ class Series:
 
         Note that in the above example, the missing value in Snowflake is NULL,
         it is mapped to ``None`` in a string/object column.
+
+        Snowpark pandas does not yet support `dict` subclasses other than
+        `collections.defaultdict` that define a `__missing__` method.
         """
 
     def mask():
@@ -1832,6 +2151,20 @@ class Series:
         dtype: int64
         """
 
+    def pad():
+        """
+        Fill NA/NaN values by propagating the last valid observation to next valid.
+
+        Returns
+        -------
+        Series/DataFrame or None
+            Object with missing values filled or None if inplace=True.
+
+        Examples
+        --------
+        Please see examples for DataFrame.ffill() or Series.ffill().
+        """
+
     def set_axis():
         """
         Assign desired index to given axis.
@@ -1869,6 +2202,46 @@ class Series:
     def unstack():
         """
         Unstack, also known as pivot, Series with MultiIndex to produce DataFrame.
+
+        Parameters
+        ----------
+        level : int, str, list, default -1
+            Level(s) of index to unstack, can pass level name.
+
+        fillna : int, str, dict, optional
+            Replace NaN with this value if the unstack produces missing values.
+
+        sort : bool, default True
+            Sort the level(s) in the resulting MultiIndex columns.
+
+        Returns
+        -------
+        Snowpark pandas :class:`~modin.pandas.DataFrame`
+
+        Notes
+        -----
+        Supports only integer ``level`` and ``sort = True``. Internally, calls ``pivot_table``
+        or ``melt`` to perform ``unstack`` operation.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3, 4],
+        ...               index=pd.MultiIndex.from_product([['one', 'two'],
+        ...                                                 ['a', 'b']]))
+        >>> s
+        one  a    1
+             b    2
+        two  a    3
+             b    4
+        dtype: int64
+        >>> s.unstack(level=-1)
+             a  b
+        one  1  2
+        two  3  4
+        >>> s.unstack(level=0)
+           one  two
+        a    1    3
+        b    2    4
         """
 
     @property
@@ -1892,7 +2265,215 @@ class Series:
         """
 
     def reindex():
-        pass
+        """
+        Conform Series to new index with optional filling logic.
+
+        Places NA/NaN in locations having no value in the previous index. A new object is produced
+        unless the new index is equivalent to the current one and copy=False.
+
+        Parameters
+        ----------
+        index : array-like, optional
+            New labels for the index.
+        axis : int or str, optional
+            Unused.
+        method :  {None, "backfill"/"bfill", "pad"/"ffill", "nearest"}, default: None
+            Method to use for filling holes in reindexed DataFrame.
+
+            * None (default): don't fill gaps
+            * pad / ffill: Propagate last valid observation forward to next valid.
+            * backfill / bfill: Use next valid observation to fill gap.
+            * nearest: Use nearest valid observations to fill gap. Unsupported by Snowpark pandas.
+
+        copy : bool, default True
+            Return a new object, even if the passed indexes are the same.
+
+        level : int or name
+            Broadcast across a level, matching Index values on the passed MultiIndex level.
+
+        fill_value : scalar, default np.nan
+            Value to use for missing values. Defaults to NaN, but can be any “compatible” value.
+
+        limit : int, default None
+            Maximum number of consecutive elements to forward or backward fill.
+
+        tolerance : optional
+            Maximum distance between original and new labels for inexact matches.
+            The values of the index at the matching locations most satisfy the
+            equation abs(index[indexer] - target) <= tolerance. Unsupported by
+            Snowpark pandas.
+
+        Returns
+        -------
+        Series
+            Series with changed index.
+
+        Notes
+        -----
+        For axis 0, Snowpark pandas' behaviour diverges from vanilla pandas in order
+        to maintain Snowpark's lazy execution paradigm. The behaviour changes are as follows:
+
+            * Snowpark pandas does not error if the existing index is not monotonically increasing
+              or decreasing when `method` is specified for filling. It instead assumes that
+              the index is monotonically increasing, performs the reindex, and fills the values
+              as though the index is sorted (which involves sorting internally).
+            * Snowpark pandas does not error out if there are duplicates - they are included in the
+              output.
+            * Snowpark pandas does not error if a `limit` value is passed and the new index is not
+              monotonically increasing or decreasing - instead, it reindexes, sorts the new index,
+              fills using limit, and then reorders the data to be in the correct order (the order
+              of the target labels passed in to the method).
+
+        For axis 1, Snowpark pandas' error checking remains the same as vanilla pandas.
+
+        MultiIndex is currently unsupported.
+
+        ``method="nearest"`` is currently unsupported.
+
+        Examples
+        --------
+        Create a dataframe with some fictional data.
+
+        >>> index = ['Firefox', 'Chrome', 'Safari', 'IE10', 'Konqueror']
+        >>> df = pd.DataFrame({'http_status': [200, 200, 404, 404, 301],
+        ...             'response_time': [0.04, 0.02, 0.07, 0.08, 1.0]},
+        ...             index=index)
+        >>> df
+                   http_status  response_time
+        Firefox            200           0.04
+        Chrome             200           0.02
+        Safari             404           0.07
+        IE10               404           0.08
+        Konqueror          301           1.00
+
+        Create a new index and reindex the dataframe. By default, values in the new index
+        that do not have corresponding records in the dataframe are assigned NaN.
+
+        >>> new_index = ['Safari', 'Iceweasel', 'Comodo Dragon', 'IE10',
+        ...              'Chrome']
+        >>> df.reindex(new_index)
+                       http_status  response_time
+        Safari               404.0           0.07
+        Iceweasel              NaN            NaN
+        Comodo Dragon          NaN            NaN
+        IE10                 404.0           0.08
+        Chrome               200.0           0.02
+
+        We can fill in the missing values by passing a value to the keyword fill_value.
+
+        >>> df.reindex(new_index, fill_value=0)
+                       http_status  response_time
+        Safari                 404           0.07
+        Iceweasel                0           0.00
+        Comodo Dragon            0           0.00
+        IE10                   404           0.08
+        Chrome                 200           0.02
+
+        >>> df.reindex(new_index, fill_value=-1)  # doctest: +NORMALIZE_WHITESPACE
+                       http_status    response_time
+        Safari                 404             0.07
+        Iceweasel               -1            -1.00
+        Comodo Dragon           -1            -1.00
+        IE10                   404             0.08
+        Chrome                 200             0.02
+
+        We can also reindex the columns.
+
+        >>> df.reindex(columns=['http_status', 'user_agent']) # doctest: +NORMALIZE_WHITESPACE
+                   http_status   user_agent
+        Firefox            200         None
+        Chrome             200         None
+        Safari             404         None
+        IE10               404         None
+        Konqueror          301         None
+
+        Or we can use “axis-style” keyword arguments
+
+        >>> df.reindex(['http_status', 'user_agent'], axis="columns")  # doctest: +NORMALIZE_WHITESPACE
+                   http_status   user_agent
+        Firefox            200         None
+        Chrome             200         None
+        Safari             404         None
+        IE10               404         None
+        Konqueror          301         None
+
+        To further illustrate the filling functionality in reindex, we will create a dataframe
+        with a monotonically increasing index (for example, a sequence of dates).
+
+        >>> date_index = pd.date_range('1/1/2010', periods=6, freq='D')
+        >>> df2 = pd.DataFrame({"prices": [100, 101, np.nan, 100, 89, 88]},
+        ...                    index=date_index)
+        >>> df2
+                    prices
+        2010-01-01   100.0
+        2010-01-02   101.0
+        2010-01-03     NaN
+        2010-01-04   100.0
+        2010-01-05    89.0
+        2010-01-06    88.0
+
+        Suppose we decide to expand the dataframe to cover a wider date range.
+
+        >>> date_index2 = pd.date_range('12/29/2009', periods=10, freq='D')
+        >>> df2.reindex(date_index2)
+                    prices
+        2009-12-29     NaN
+        2009-12-30     NaN
+        2009-12-31     NaN
+        2010-01-01   100.0
+        2010-01-02   101.0
+        2010-01-03     NaN
+        2010-01-04   100.0
+        2010-01-05    89.0
+        2010-01-06    88.0
+        2010-01-07     NaN
+
+        The index entries that did not have a value in the original data frame (for example,
+        ``2009-12-29``) are by default filled with NaN. If desired, we can fill in the missing
+        values using one of several options.
+
+        For example, to back-propagate the last valid value to fill the NaN values, pass bfill as
+        an argument to the method keyword.
+
+        >>> df2.reindex(date_index2, method='bfill')
+                    prices
+        2009-12-29   100.0
+        2009-12-30   100.0
+        2009-12-31   100.0
+        2010-01-01   100.0
+        2010-01-02   101.0
+        2010-01-03     NaN
+        2010-01-04   100.0
+        2010-01-05    89.0
+        2010-01-06    88.0
+        2010-01-07     NaN
+
+        Please note that the NaN value present in the original dataframe (at index value 2010-01-03) will
+        not be filled by any of the value propagation schemes. This is because filling while reindexing
+        does not look at dataframe values, but only compares the original and desired indexes. If you do
+        want to fill in the NaN values present in the original dataframe, use the fillna() method.
+
+        An example illustrating Snowpark pandas' behavior when dealing with non-monotonic indices.
+        >>> unordered_dataframe = pd.DataFrame([[5]*3, [8]*3, [6]*3], columns=list("ABC"), index=[5, 8, 6])
+        >>> unordered_dataframe
+           A  B  C
+        5  5  5  5
+        8  8  8  8
+        6  6  6  6
+        >>> unordered_dataframe.reindex([6, 8, 7], method="ffill")
+           A  B  C
+        6  6  6  6
+        8  8  8  8
+        7  6  6  6
+
+        In the example above, index value ``7`` is forward filled from index value ``6``, since that
+        is the previous index value when the data is sorted.
+        """
+
+    def reindex_like():
+        """
+        Return an object with matching indices as `other` object.
+        """
 
     def rename_axis():
         """
@@ -2654,9 +3235,8 @@ class Series:
 
         Slicing a single row from a single column will produce a single
         scalar DataFrame:
-        # TODO: SNOW-1372242: Remove instances of to_pandas when lazy index is implemented
 
-        >>> df_0a = df.loc[df.index.to_pandas() < 1, ['a']]
+        >>> df_0a = df.loc[df.index < 1, ['a']]
         >>> df_0a
            a
         0  1
@@ -2729,14 +3309,6 @@ class Series:
         Take elements at positions 0 and 3 along the axis 0 (default).
 
         >>> ser.take([0, 3])
-        0   -1
-        3    2
-        dtype: int64
-
-
-        For `Series` axis parameter is unused and defaults to 0.
-
-        >>> ser.take([0, 3], axis=1)
         0   -1
         3    2
         dtype: int64
@@ -2814,6 +3386,57 @@ class Series:
         Returns
         -------
         numpy.ndarray
+
+        See Also
+        --------
+        Series.array
+            Get the actual data stored within.
+        Index.array
+            Get the actual data stored within.
+        DataFrame.to_numpy
+            Similar method for DataFrame.
+
+        Notes
+        -----
+        The returned array will be the same up to equality (values equal in self will be equal in the returned array; likewise for values that are not equal). When self contains an ExtensionArray, the dtype may be different. For example, for a category-dtype Series, to_numpy() will return a NumPy array and the categorical dtype will be lost.
+
+        This table lays out the different dtypes and default return types of to_numpy() for various dtypes within pandas.
+
+        +--------------------+----------------------------------+
+        | dtype              | array type                       |
+        +--------------------+----------------------------------+
+        | category[T]        | ndarray[T] (same dtype as input) |
+        +--------------------+----------------------------------+
+        | period             | ndarray[object] (Periods)        |
+        +--------------------+----------------------------------+
+        | interval           | ndarray[object] (Intervals)      |
+        +--------------------+----------------------------------+
+        | IntegerNA          | ndarray[object]                  |
+        +--------------------+----------------------------------+
+        | datetime64[ns]     | datetime64[ns]                   |
+        +--------------------+----------------------------------+
+        | datetime64[ns, tz] | ndarray[object] (Timestamps)     |
+        +--------------------+----------------------------------+
+
+        Examples
+        --------
+        >>> ser = pd.Series(pd.Categorical(['a', 'b', 'a']))  # doctest: +SKIP
+        >>> ser.to_numpy()  # doctest: +SKIP
+        array(['a', 'b', 'a'], dtype=object)
+
+        Specify the dtype to control how datetime-aware data is represented. Use dtype=object to return an ndarray of pandas Timestamp objects, each with the correct tz.
+
+        >>> ser = pd.Series(pd.date_range('2000', periods=2, tz="CET"))
+        >>> ser.to_numpy(dtype=object)
+        array([Timestamp('2000-01-01 00:00:00+0100', tz='UTC+01:00'),
+               Timestamp('2000-01-02 00:00:00+0100', tz='UTC+01:00')],
+              dtype=object)
+
+        Or dtype='datetime64[ns]' to return an ndarray of native datetime64 values. The values are converted to UTC and the timezone info is dropped.
+
+        >>> ser.to_numpy(dtype="datetime64[ns]")
+        array(['1999-12-31T23:00:00.000000000', '2000-01-01T23:00:00...'],
+              dtype='datetime64[ns]')
         """
 
     tolist = to_list
@@ -2831,6 +3454,11 @@ class Series:
     def to_timestamp():
         """
         Cast to DatetimeIndex of Timestamps, at beginning of period.
+        """
+
+    def transform():
+        """
+        Call ``func`` on self producing a `BasePandasDataset` with the same axis shape as self.
         """
 
     def transpose():
@@ -2851,6 +3479,163 @@ class Series:
     def truncate():
         """
         Truncate a Series before and after some index value.
+        """
+
+    def tz_convert():
+        """
+        Convert tz-aware axis to target time zone.
+
+        Parameters
+        ----------
+        tz : str or tzinfo object or None
+            Target time zone. Passing None will convert to UTC and remove the timezone information.
+        axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+            The axis to convert
+        level : int, str, default None
+            If axis is a MultiIndex, convert a specific level. Otherwise must be None.
+        copy : bool, default True
+            Also make a copy of the underlying data.
+
+        Returns
+        -------
+        Series/DataFrame
+            Object with time zone converted axis.
+
+        Raises
+        ------
+        TypeError
+            If the axis is tz-naive.
+
+        Examples
+        --------
+        Change to another time zone:
+
+        >>> s = pd.Series(
+        ...     [1],
+        ...     index=pd.DatetimeIndex(['2018-09-15 01:30:00+02:00']),
+        ... )
+        >>> s.tz_convert('Asia/Shanghai')
+        2018-09-15 07:30:00+08:00    1
+        Freq: None, dtype: int64
+
+        Pass None to convert to UTC and get a tz-naive index:
+
+        >>> s = pd.Series([1],
+        ...             index=pd.DatetimeIndex(['2018-09-15 01:30:00+02:00']))
+        >>> s.tz_convert(None)
+        2018-09-14 23:30:00    1
+        Freq: None, dtype: int64
+        """
+
+    def tz_localize():
+        """
+        Localize tz-naive index of a Series or DataFrame to target time zone.
+
+        This operation localizes the Index. To localize the values in a timezone-naive Series, use Series.dt.tz_localize().
+
+        Parameters
+        ----------
+        tz : str or tzinfo or None
+            Time zone to localize. Passing None will remove the time zone information and preserve local time.
+        axis : {0 or ‘index’, 1 or ‘columns’}, default 0
+            The axis to localize
+        level : int, str, default None
+            If axis is a MultiIndex, localize a specific level. Otherwise must be None.
+        copy : bool, default True
+            Also make a copy of the underlying data.
+        ambiguous : ‘infer’, bool-ndarray, ‘NaT’, default ‘raise’
+            When clocks moved backward due to DST, ambiguous times may arise. For example in Central European Time (UTC+01), when going from 03:00 DST to 02:00 non-DST, 02:30:00 local time occurs both at 00:30:00 UTC and at 01:30:00 UTC. In such a situation, the ambiguous parameter dictates how ambiguous times should be handled.
+            - ‘infer’ will attempt to infer fall dst-transition hours based on order
+            - bool-ndarray where True signifies a DST time, False designates a non-DST time (note that this flag is only applicable for ambiguous times)
+            - ‘NaT’ will return NaT where there are ambiguous times
+            - ‘raise’ will raise an AmbiguousTimeError if there are ambiguous times.
+        nonexistent : str, default ‘raise’
+            A nonexistent time does not exist in a particular timezone where clocks moved forward due to DST. Valid values are:
+            - ‘shift_forward’ will shift the nonexistent time forward to the closest existing time
+            - ‘shift_backward’ will shift the nonexistent time backward to the closest existing time
+            - ‘NaT’ will return NaT where there are nonexistent times
+            - timedelta objects will shift nonexistent times by the timedelta
+            - ‘raise’ will raise an NonExistentTimeError if there are nonexistent times.
+
+        Returns
+        -------
+        Series/DataFrame
+            Same type as the input.
+
+        Raises
+        ------
+        TypeError
+            If the TimeSeries is tz-aware and tz is not None.
+
+        Examples
+        --------
+        Localize local times:
+
+        >>> s = pd.Series(
+        ...     [1],
+        ...     index=pd.DatetimeIndex(['2018-09-15 01:30:00']),
+        ... )
+        >>> s.tz_localize('CET')
+        2018-09-15 01:30:00+02:00    1
+        Freq: None, dtype: int64
+
+        Pass None to convert to tz-naive index and preserve local time:
+
+        >>> s = pd.Series([1],
+        ...             index=pd.DatetimeIndex(['2018-09-15 01:30:00+02:00']))
+        >>> s.tz_localize(None)
+        2018-09-15 01:30:00    1
+        Freq: None, dtype: int64
+
+        Be careful with DST changes. When there is sequential data, pandas can infer the DST time:
+
+        >>> s = pd.Series(range(7),
+        ...             index=pd.DatetimeIndex(['2018-10-28 01:30:00',
+        ...                                     '2018-10-28 02:00:00',
+        ...                                     '2018-10-28 02:30:00',
+        ...                                     '2018-10-28 02:00:00',
+        ...                                     '2018-10-28 02:30:00',
+        ...                                     '2018-10-28 03:00:00',
+        ...                                     '2018-10-28 03:30:00']))
+        >>> s.tz_localize('CET', ambiguous='infer')  # doctest: +SKIP
+        2018-10-28 01:30:00+02:00    0
+        2018-10-28 02:00:00+02:00    1
+        2018-10-28 02:30:00+02:00    2
+        2018-10-28 02:00:00+01:00    3
+        2018-10-28 02:30:00+01:00    4
+        2018-10-28 03:00:00+01:00    5
+        2018-10-28 03:30:00+01:00    6
+        dtype: int64
+
+        In some cases, inferring the DST is impossible. In such cases, you can pass an ndarray to the ambiguous parameter to set the DST explicitly
+
+        >>> s = pd.Series(range(3),
+        ...             index=pd.DatetimeIndex(['2018-10-28 01:20:00',
+        ...                                     '2018-10-28 02:36:00',
+        ...                                     '2018-10-28 03:46:00']))
+        >>> s.tz_localize('CET', ambiguous=np.array([True, True, False]))  # doctest: +SKIP
+        2018-10-28 01:20:00+02:00    0
+        2018-10-28 02:36:00+02:00    1
+        2018-10-28 03:46:00+01:00    2
+        dtype: int64
+
+        If the DST transition causes nonexistent times, you can shift these dates forward or backward with a timedelta object or ‘shift_forward’ or ‘shift_backward’.
+
+        >>> s = pd.Series(range(2),
+        ...             index=pd.DatetimeIndex(['2015-03-29 02:30:00',
+        ...                                     '2015-03-29 03:30:00']))
+        >>> s.tz_localize('Europe/Warsaw', nonexistent='shift_forward')  # doctest: +SKIP
+        2015-03-29 03:00:00+02:00    0
+        2015-03-29 03:30:00+02:00    1
+        dtype: int64
+        >>> s.tz_localize('Europe/Warsaw', nonexistent='shift_backward')  # doctest: +SKIP
+        2015-03-29 01:59:59.999999999+01:00    0
+        2015-03-29 03:30:00+02:00              1
+        dtype: int64
+        >>> s.tz_localize('Europe/Warsaw', nonexistent=pd.Timedelta('1h'))  # doctest: +SKIP
+        2015-03-29 03:30:00+02:00    0
+        2015-03-29 03:30:00+02:00    1
+        dtype: int64
         """
 
     def unique():
@@ -2887,7 +3672,7 @@ class Series:
 
         >>> pd.Series([pd.Timestamp('2016-01-01', tz='US/Eastern')
         ...            for _ in range(3)]).unique()
-        array([Timestamp('2015-12-31 21:00:00-0800', tz='America/Los_Angeles')],
+        array([Timestamp('2016-01-01 00:00:00-0500', tz='UTC-05:00')],
               dtype=object)
 
         """
@@ -2913,10 +3698,15 @@ class Series:
             Snowpark pandas will return a Series with `decimal.Decimal` values.
         sort : bool, default True
             Sort by frequencies when True. Preserve the order of the data when False.
-            When there is a tie between counts, the order is still deterministic, but
-            may be different from the result from native pandas.
+            When there is a tie between counts, the order is still deterministic where
+            the order in the original data is preserved, but may be different from the
+            result from native pandas. Snowpark pandas will always respect the order of
+            insertion during ties. Native pandas is not deterministic when `sort=True`
+            since the original order/order of insertion is based on the Python hashmap
+            which may produce different results on different versions.
+            Refer to: https://github.com/pandas-dev/pandas/issues/15833
         ascending : bool, default False
-            Sort in ascending order.
+            Whether to sort the frequencies in ascending order or descending order.
         bins : int, optional
             Rather than count values, group them into half-open bins,
             a convenience for ``pd.cut``, only works with numeric data.
@@ -3107,6 +3897,48 @@ class Series:
         Return True if there are any NaNs.
         """
 
+    @property
+    def is_monotonic_decreasing():
+        """
+        Return boolean if values in the object are monotonically decreasing.
+
+        Returns
+        -------
+        bool
+            Whether or not the Series is monotonically decreasing.
+
+        Examples
+        --------
+        >>> s = pd.Series([3, 2, 2, 1])
+        >>> s.is_monotonic_decreasing
+        True
+
+        >>> s = pd.Series([1, 2, 3])
+        >>> s.is_monotonic_decreasing
+        False
+        """
+
+    @property
+    def is_monotonic_increasing():
+        """
+        Return boolean if values in the object are monotonically increasing.
+
+        Returns
+        -------
+        bool
+            Whether or not the Series is monotonically increasing.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 2])
+        >>> s.is_monotonic_increasing
+        True
+
+        >>> s = pd.Series([3, 2, 1])
+        >>> s.is_monotonic_increasing
+        False
+        """
+
     def isna():
         """
         Detect missing values.
@@ -3168,18 +4000,6 @@ class Series:
         """
 
     @property
-    def is_monotonic_increasing():
-        """
-        Return True if values in the Series are monotonic_increasing.
-        """
-
-    @property
-    def is_monotonic_decreasing():
-        """
-        Return True if values in the Series are monotonic_decreasing.
-        """
-
-    @property
     def is_unique():
         """
         Return True if values in the Series are unique.
@@ -3216,7 +4036,6 @@ class Series:
 
         Examples
         --------
-        >>> import snowflake.snowpark.modin.pandas as pd
         >>> import numpy as np
         >>> s = pd.Series([1, 3, 5, 7, 7])
         >>> s

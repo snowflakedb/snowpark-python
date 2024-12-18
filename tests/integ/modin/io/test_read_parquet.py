@@ -14,8 +14,8 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import TestFiles, Utils
 
 tmp_stage_name1 = Utils.random_stage_name()

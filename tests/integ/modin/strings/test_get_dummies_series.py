@@ -6,12 +6,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark._internal.utils import (
-    PIVOT_DEFAULT_ON_NULL_WARNING,
-    PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
-)
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("data", [list("abca"), list("mxyzptlk")])
@@ -56,12 +52,3 @@ def test_get_dummies_series_negative(data):
             native_pd.get_dummies(pandas_ser),
             check_dtype=False,
         )
-
-
-@sql_count_checker(query_count=1)
-def test_get_dummies_does_not_raise_pivot_warning_snow_1344848(caplog):
-    # Test get_dummies, which uses the `default_on_null` parameter of
-    # snowflake.snowpark.dataframe.pivot()
-    pd.get_dummies(pd.Series(["a"])).to_pandas()
-    assert PIVOT_DEFAULT_ON_NULL_WARNING not in caplog.text
-    assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING not in caplog.text

@@ -31,11 +31,11 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderingColumn,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import unquote_name_if_quoted
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     get_snowpark_dataframe_quoted_identifiers,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture
@@ -397,7 +397,7 @@ def test_join_with_column_conflict(session, df1, df2, how):
 
 @pytest.mark.parametrize(
     "how",
-    ["left", "outer"],
+    ["left", "outer", "inner"],
 )
 @sql_count_checker(query_count=1, join_count=1)
 def test_align_on_matching_columns(session, how):
@@ -497,6 +497,35 @@ def test_align_on_mismatch_columns(session, df1, df2, how):
         how=how,
         sort=sort,
     )
+
+
+@sql_count_checker(query_count=0)
+def test_align_on_matching_columns_right_negative(session):
+    how = "right"
+    df1 = native_pd.DataFrame({"A": [3, 2, 3], "B": [2, 2, 1], "row_pos": [0, 1, 2]})
+    df2 = native_pd.DataFrame(
+        {"A_2": [2, 3, 3], "B_2": [2, 2, 1], "row_pos_2": [0, 1, 2]}
+    )
+    ordered_df1 = _create_ordered_dataframe(
+        session, df1, ordering_columns=['"row_pos"'], row_position_column='"row_pos"'
+    )
+    ordered_df2 = _create_ordered_dataframe(
+        session,
+        df2,
+        ordering_columns=['"row_pos_2"'],
+        row_position_column='"row_pos_2"',
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=f"how={how} is not valid argument for ordered_dataframe.align.",
+    ):
+        ordered_df1.align(
+            ordered_df2,
+            left_on_cols=['"B"', '"row_pos"'],
+            right_on_cols=['"B_2"', '"row_pos_2"'],
+            how=how,
+        )
 
 
 @pytest.mark.parametrize("how", ["inner", "left", "right", "outer"])

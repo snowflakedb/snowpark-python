@@ -14,12 +14,20 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_WINDOWS, TestFiles, Utils
 
 tmp_stage_name1 = Utils.random_stage_name()
 test_file_csv = "testCSV.csv"
+
+
+# Explicitly redefine here to make it work on precommit tests
+@pytest.fixture(scope="session")
+def resources_path() -> str:
+    return os.path.normpath(
+        os.path.join(os.path.dirname(__file__), "../../../resources")
+    )
 
 
 # these tests have high query_counts since
@@ -79,6 +87,7 @@ def test_read_csv_header_simple(resources_path, header):
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
+@pytest.mark.modin_sp_precommit
 @pytest.mark.parametrize("engine", ["c", "python", "pyarrow"])
 @sql_count_checker(query_count=2)
 def test_read_csv_engine_local(resources_path, engine):
@@ -89,6 +98,7 @@ def test_read_csv_engine_local(resources_path, engine):
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
+@pytest.mark.modin_sp_precommit
 @sql_count_checker(query_count=9)
 def test_read_csv_engine_snowflake(resources_path):
     test_files = TestFiles(resources_path)

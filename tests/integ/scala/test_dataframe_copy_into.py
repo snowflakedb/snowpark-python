@@ -25,7 +25,12 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    TestFiles,
+    Utils,
+    iceberg_supported,
+)
 
 test_file_csv = "testCSV.csv"
 test_file2_csv = "test2CSV.csv"
@@ -243,6 +248,36 @@ def test_copy_csv_basic(session, tmp_stage_name1, tmp_table_name):
             Row(2, "two", 2.2),
         ],
     )
+
+
+def test_copy_into_csv_iceberg(
+    session, tmp_stage_name1, tmp_table_name, local_testing_mode
+):
+    if not iceberg_supported(session, local_testing_mode):
+        pytest.skip("Test requires iceberg support.")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = session.read.schema(user_schema).csv(test_file_on_stage)
+
+    test_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df.copy_into_table(
+        test_table_name,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "CATALOG": "SNOWFLAKE",
+            "BASE_LOCATION": "snowpark_python_tests",
+        },
+    )
+    try:
+        # Check that table is an iceberg table with correct properties set
+        ddl = session._run_query(f"select get_ddl('table', '{test_table_name}')")
+        assert (
+            ddl[0][0]
+            == f"create or replace ICEBERG TABLE {test_table_name} (\n\tA LONG,\n\tB STRING,\n\tC DOUBLE\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
+        )
+        # Check that a copy_into works on the newly created table.
+        df.copy_into_table(test_table_name)
+    finally:
+        Utils.drop_table(session, test_table_name)
 
 
 def test_copy_csv_create_table_if_not_exists(session, tmp_stage_name1):
@@ -488,7 +523,7 @@ def test_csv_read_format_name(session, tmp_stage_name1):
     temp_file_fmt_name = Utils.random_name_for_temp_object(TempObjectType.FILE_FORMAT)
     session.sql(
         f"create temporary file format {temp_file_fmt_name} type = csv skip_header=1 "
-        "null_if = 'none';"
+        "null_if = ('none','NA');"
     ).collect()
     df = (
         session.read.schema(
@@ -564,7 +599,9 @@ def test_json_read_format_name(session, tmp_stage_name1):
     )
 
     assert any(
-        f"FILE_FORMAT  => '{file_fmt_name}'" in q for q in sf_df.queries["queries"]
+        "CREATE SCOPED TEMPORARY FILE  FORMAT" in q
+        and "TYPE = 'json' NULL_IF = '' COMPRESSION = 'gzip'" in q
+        for q in sf_df.queries["queries"]
     )
 
     df = sf_df.collect()
@@ -940,8 +977,16 @@ def test_copy_non_csv_transformation(
                     C="a",
                     D=datetime.date(2022, 4, 1),
                     T=datetime.time(11, 11, 11),
-                    TS_NTZ=datetime.datetime(2022, 4, 1, 11, 11, 11),
-                    TS=datetime.datetime(2022, 4, 1, 11, 11, 11),
+                    TS_NTZ=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
+                    )
+                    .astimezone()
+                    .replace(tzinfo=None),
+                    TS=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
+                    )
+                    .astimezone()
+                    .replace(tzinfo=None),
                     V='{"key":"value"}',
                 )
             ],

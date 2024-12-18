@@ -1,7 +1,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import time
+import traceback
 from typing import TYPE_CHECKING, List, Union
 
 import snowflake.snowpark
@@ -86,13 +87,26 @@ def analyze_attributes(
         return get_attributes()
     if lowercase.startswith("describe"):
         session._run_query(sql)
-        return convert_result_meta_to_attribute(session._conn._cursor.description)
+        return convert_result_meta_to_attribute(
+            session._conn._cursor.description, session._conn.max_string_size
+        )
 
-    return session._get_result_attributes(sql)
+    # collect describe query details for telemetry
+    stack = traceback.extract_stack(limit=10)[:-1]
+    stack_trace = [frame.line for frame in stack] if len(stack) > 0 else None
+    start_time = time.time()
+    attributes = session._get_result_attributes(sql)
+    e2e_time = time.time() - start_time
+    session._conn._telemetry_client.send_describe_query_details(
+        session._session_id, sql, e2e_time, stack_trace
+    )
+
+    return attributes
 
 
 def convert_result_meta_to_attribute(
     meta: Union[List[ResultMetadata], List["ResultMetadataV2"]],  # pyright: ignore
+    max_string_size: int,
 ) -> List[Attribute]:
     # ResultMetadataV2 may not currently be a type, depending on the connector
     # version, so the argument types are pyright ignored
@@ -103,7 +117,7 @@ def convert_result_meta_to_attribute(
         attributes.append(
             Attribute(
                 quoted_name,
-                convert_metadata_to_sp_type(column_metadata),
+                convert_metadata_to_sp_type(column_metadata, max_string_size),
                 column_metadata.is_nullable,
             )
         )

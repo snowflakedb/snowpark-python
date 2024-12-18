@@ -4,12 +4,15 @@
 import base64
 import binascii
 import datetime
+import decimal
 import json
+import logging
 import math
 import numbers
 import operator
 import re
 import string
+import threading
 from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
@@ -20,8 +23,11 @@ import pytz
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
+from snowflake.snowpark._internal.utils import unalias_datetime_part
 from snowflake.snowpark.mock._options import numpy, pandas
 from snowflake.snowpark.mock._snowflake_data_type import (
+    _TIMESTAMP_TYPE_MAPPING,
+    _TIMESTAMP_TYPE_TIMEZONE_MAPPING,
     ColumnEmulator,
     ColumnType,
     TableEmulator,
@@ -54,7 +60,6 @@ from ._util import (
     convert_numeric_string_value_to_float_seconds,
     convert_snowflake_datetime_format,
     process_string_time_with_fractional_seconds,
-    unalias_datetime_part,
 )
 
 RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
@@ -65,6 +70,8 @@ _DEFAULT_OUTPUT_FORMAT = {
     TimeType: "HH24:MI:SS",
     TimestampType: "YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM",
 }
+
+_logger = logging.getLogger(__name__)
 
 
 class MockedFunction:
@@ -128,14 +135,17 @@ class MockedFunction:
 
 class MockedFunctionRegistry:
     _instance = None
+    _lock_init = threading.Lock()
 
     def __init__(self) -> None:
         self._registry = dict()
+        self._lock = threading.RLock()
 
     @classmethod
     def get_or_create(cls) -> "MockedFunctionRegistry":
-        if cls._instance is None:
-            cls._instance = MockedFunctionRegistry()
+        with cls._lock_init:
+            if cls._instance is None:
+                cls._instance = MockedFunctionRegistry()
         return cls._instance
 
     def get_function(
@@ -149,10 +159,11 @@ class MockedFunctionRegistry:
             distinct = func.is_distinct
         func_name = func_name.lower()
 
-        if func_name not in self._registry:
-            return None
+        with self._lock:
+            if func_name not in self._registry:
+                return None
 
-        function = self._registry[func_name]
+            function = self._registry[func_name]
 
         return function.distinct if distinct else function
 
@@ -167,7 +178,8 @@ class MockedFunctionRegistry:
             snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
         )
         mocked_function = MockedFunction(name, func_implementation, *args, **kwargs)
-        self._registry[name] = mocked_function
+        with self._lock:
+            self._registry[name] = mocked_function
         return mocked_function
 
     def unregister(
@@ -178,8 +190,9 @@ class MockedFunctionRegistry:
             snowpark_func if isinstance(snowpark_func, str) else snowpark_func.__name__
         )
 
-        if name in self._registry:
-            del self._registry[name]
+        with self._lock:
+            if name in self._registry:
+                del self._registry[name]
 
 
 class LocalTimezone:
@@ -320,9 +333,83 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
 
     notna = column[~column.isna()]
     res = notna.mean()
+    if isinstance(res_type, DecimalType):
+        fmt_string = f"{{:.{res_type.scale}f}}"
+        res_formatted = fmt_string.format(res)
+        res = decimal.Decimal(res_formatted)
+    return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
+
+
+@patch("stddev")
+def mock_stddev(column: ColumnEmulator) -> ColumnEmulator:
+    if not isinstance(column.sf_type.datatype, (_NumericType, NullType)):
+        raise SnowparkLocalTestingException(
+            f"Cannot compute stddev on a column of type {column.sf_type.datatype}"
+        )
+
+    if isinstance(column.sf_type.datatype, NullType) or column.isna().all():
+        return ColumnEmulator(data=[None], sf_type=ColumnType(NullType(), True))
+    elif isinstance(column.sf_type.datatype, _IntegralType):
+        res_type = DecimalType(38, 6)
+    elif isinstance(column.sf_type.datatype, DecimalType):
+        precision, scale = (
+            column.sf_type.datatype.precision,
+            column.sf_type.datatype.scale,
+        )
+        precision = max(38, column.sf_type.datatype.precision + 12)
+        if scale <= 6:
+            scale = scale + 6
+        elif scale < 12:
+            scale = 12
+        res_type = DecimalType(precision, scale)
+    else:
+        assert isinstance(column.sf_type.datatype, _FractionalType)
+        res_type = FloatType()
+
+    notna = column[~column.isna()]
+    res = notna.std()
     if isinstance(res_type, Decimal):
         res = round(res, scale)
     return ColumnEmulator(data=[res], sf_type=ColumnType(res_type, False))
+
+
+@patch("approx_percentile_accumulate")
+def mock_approx_percentile_accumulate(
+    column: Union[TableEmulator, ColumnEmulator]
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("approx_percentile_estimate")
+def mock_approx_percentile_estimate(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("covar_samp")
+def mock_covar_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
+
+
+@patch("corr")
+def mock_corr_samp(
+    column1: Union[TableEmulator, ColumnEmulator],
+    column2: Union[TableEmulator, ColumnEmulator],
+) -> ColumnEmulator:
+    # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
+    return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
 
 
 @patch("count_distinct")
@@ -390,6 +477,15 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
     )
 
 
+@patch("array_agg")
+def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
+    columns_data = ColumnEmulator(column.unique()) if is_distinct else column
+    return ColumnEmulator(
+        data=[list(columns_data.dropna())],
+        sf_type=ColumnType(ArrayType(), False),
+    )
+
+
 @patch("listagg")
 def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
@@ -403,6 +499,13 @@ def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
 @patch("sqrt")
 def mock_sqrt(column: ColumnEmulator):
     result = column.apply(math.sqrt)
+    result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
+    return result
+
+
+@patch("ln")
+def mock_ln(column: ColumnEmulator):
+    result = column.apply(math.log)
     result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
     return result
 
@@ -808,7 +911,7 @@ def _to_timestamp(
 
     def convert_timestamp(row):
         _fmt = fmt[row.name]
-        data = row[0]
+        data = row.iloc[0]
         auto_detect = _fmt is None or str(_fmt).lower() == "auto"
         default_format = "%Y-%m-%d %H:%M:%S.%f"
 
@@ -933,13 +1036,17 @@ def mock_to_timestamp(
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
 ):
-    result = mock_timestamp_ntz(column, fmt, try_cast)
-    result.sf_type = ColumnType(TimestampType(), column.sf_type.nullable)
+    result = mock_to_timestamp_ntz(column, fmt, try_cast)
+
+    result.sf_type = ColumnType(
+        TimestampType(_TIMESTAMP_TYPE_TIMEZONE_MAPPING[_TIMESTAMP_TYPE_MAPPING]),
+        column.sf_type.nullable,
+    )
     return result
 
 
 @patch("to_timestamp_ntz")
-def mock_timestamp_ntz(
+def mock_to_timestamp_ntz(
     column: ColumnEmulator,
     fmt: Optional[ColumnEmulator] = None,
     try_cast: bool = False,
@@ -1256,6 +1363,10 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
         new_col = column.apply(lambda x: try_convert(bool, try_cast, x))
         new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
         return new_col
+    elif isinstance(column.sf_type.datatype, VariantType):
+        new_col = column.apply(lambda x: try_convert(bool, try_cast, x))
+        new_col.sf_type = ColumnType(BooleanType(), column.sf_type.nullable)
+        return new_col
     else:
         raise SnowparkLocalTestingException(
             f"Invalid type {column.sf_type.datatype} for parameter 'TO_BOOLEAN'"
@@ -1501,6 +1612,8 @@ def add_months(scalar, date, duration):
 
 
 def add_timedelta(unit, date, duration, scalar=1):
+    if date is None:
+        return date
     return date + datetime.timedelta(**{f"{unit}s": float(duration) * scalar})
 
 
@@ -1692,6 +1805,52 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
         truncated = truncated.dt.date
 
     return ColumnEmulator(truncated, sf_type=datetime_expr.sf_type)
+
+
+@patch("datediff")
+def mock_datediff(
+    part: str, col1: ColumnEmulator, col2: ColumnEmulator
+) -> ColumnEmulator:
+    from dateutil import relativedelta
+
+    time_unit = unalias_datetime_part(part)
+
+    if time_unit in {
+        "week",
+        "day",
+        "hour",
+        "minute",
+        "second",
+        "millisecond",
+        "microsecond",
+    }:
+
+        def func(x, y):
+            return (y - x) // datetime.timedelta(**{f"{time_unit}s": 1})
+
+    elif time_unit in {"year", "month"}:
+        if time_unit == "year":
+            denom = 12
+        else:
+            denom = 1
+
+        def func(x, y):
+            delta = relativedelta.relativedelta(y, x)
+            return ((delta.years * 12) + delta.months) // denom
+
+    else:
+        raise SnowparkLocalTestingException(
+            f"Specified part {part} is not supported by local testing datediff."
+        )
+
+    data = []
+    for x, y in zip(col1, col2):
+        data.append(None if x is None or y is None else func(x, y))
+
+    return ColumnEmulator(
+        pandas.Series(data, dtype=object),
+        sf_type=ColumnType(LongType(), col1.sf_type.nullable and col2.sf_type.nullable),
+    )
 
 
 CompareType = TypeVar("CompareType")
@@ -1930,12 +2089,21 @@ def cast_column_to(
 ) -> Optional[ColumnEmulator]:
     # col.sf_type.nullable = target_column_type.nullable
     target_data_type = target_column_type.datatype
+    if col.sf_type == target_column_type:
+        return col
     if isinstance(target_data_type, DateType):
         return mock_to_date(col, try_cast=try_cast)
     if isinstance(target_data_type, TimeType):
         return mock_to_time(col, try_cast=try_cast)
     if isinstance(target_data_type, TimestampType):
-        return mock_to_timestamp(col, try_cast=try_cast)
+        if target_data_type.tz is TimestampTimeZone.LTZ:
+            return mock_to_timestamp_ltz(col, try_cast=try_cast)
+        elif target_data_type.tz is TimestampTimeZone.NTZ:
+            return mock_to_timestamp_ntz(col, try_cast=try_cast)
+        elif target_data_type.tz is TimestampTimeZone.TZ:
+            return mock_to_timestamp_tz(col, try_cast=try_cast)
+        else:
+            return mock_to_timestamp(col, try_cast=try_cast)
     if isinstance(target_data_type, DecimalType):
         return mock_to_decimal(
             col,
@@ -1947,7 +2115,7 @@ def cast_column_to(
         target_data_type, _IntegralType
     ):  # includes ByteType, ShortType, IntegerType, LongType
         res = mock_to_decimal(col, try_cast=try_cast)
-        res.set_sf_type(ColumnType(target_data_type, nullable=True))
+        res.sf_type = ColumnType(target_data_type, nullable=True)
         return res
     if isinstance(target_data_type, BinaryType):
         return mock_to_binary(col, try_cast=try_cast)
@@ -1994,4 +2162,81 @@ def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator
     return ColumnEmulator(
         data=[gen.integers(rand_min, rand_max) for _ in range(len(column_index))],
         sf_type=ColumnType(LongType(), False),
+    )
+
+
+def _rank(raw_input, dense=False):
+    method = "dense" if dense else "min"
+    return (
+        raw_input[raw_input.sorted_by].apply(tuple, 1).rank(method=method).astype(int)
+    )
+
+
+@patch("rank", pass_input_data=True, pass_row_index=True)
+def mock_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    rank = _rank(raw_input)
+    return ColumnEmulator(
+        data=rank.iloc[row_index], sf_type=ColumnType(LongType(), False)
+    )
+
+
+@patch("dense_rank", pass_input_data=True, pass_row_index=True)
+def mock_dense_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    rank = _rank(raw_input, True)
+    return ColumnEmulator(
+        data=rank.iloc[row_index], sf_type=ColumnType(LongType(), False)
+    )
+
+
+@patch("percent_rank", pass_input_data=True, pass_row_index=True)
+def mock_percent_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    length = len(raw_input) - 1
+    rank = _rank(raw_input).apply(lambda x: (x - 1.0) / length)
+    return ColumnEmulator(
+        data=rank.iloc[row_index], sf_type=ColumnType(DoubleType(), False)
+    )
+
+
+@patch("cume_dist", pass_input_data=True, pass_row_index=True)
+def mock_cume_dist(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    # Calculate dense rank
+    rank = _rank(raw_input, True)
+
+    # Get distribution of values
+    agged = rank.value_counts().sort_index()
+
+    # Calculate probability distribution
+    pdf = agged.apply(lambda x: x / rank.size)
+
+    # Compute cumulative probability
+    cdf = pdf.cumsum()
+
+    # Map cumulative probability back to rank
+    cume_dist = rank.map(cdf)
+
+    return ColumnEmulator(
+        cume_dist.iloc[row_index], sf_type=ColumnType(DoubleType(), False)
+    )
+
+
+@patch("ntile", pass_input_data=True, pass_row_index=True)
+def mock_ntile(ntile: int, raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+    current_ntile = ntile.iloc[row_index]
+    if current_ntile <= 0:
+        raise SnowparkLocalTestingException("NTILE argument must be at least 1")
+
+    num_rows = raw_input.shape[0]
+    if num_rows <= current_ntile:
+        bucket = row_index + 1
+    else:
+        bucket = math.floor(row_index * current_ntile / num_rows) + 1
+
+    return ColumnEmulator([bucket], sf_type=ColumnType(LongType(), False))
+
+
+@patch("any_value")
+def mock_any_value(col: ColumnEmulator):
+    return ColumnEmulator(
+        col.sample(1),
+        sf_type=col.sf_type,
     )

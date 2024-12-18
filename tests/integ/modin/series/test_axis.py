@@ -9,11 +9,11 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # Tests for Series.set_axis()
 # ---------------------------
@@ -30,7 +30,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         native_pd.Series({"A": [1, 2, 3], 5 / 6: [4, 5, 6]}),
         "index",
         [None] * 2,
-        4,
+        1,
         1,
     ],
     [
@@ -44,7 +44,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         "index",
         ["iccanobif", "serauqs", "semirp"],
-        4,
+        1,
         1,
     ],
     [
@@ -58,7 +58,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         "index",
         native_pd.Series(["iccanobif", "serauqs", "semirp"], name="reverse names"),
-        4,
+        1,
         1,
     ],
     [
@@ -73,7 +73,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         0,
         native_pd.Index([99, 999, 9999, 99999, 999999]),
-        4,
+        1,
         1,
     ],
     [
@@ -88,7 +88,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         0,
         native_pd.Index([99, 999, 9999, 99999, 999999], name="index with name"),
-        4,
+        1,
         1,
     ],
     [
@@ -104,7 +104,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         ),
         0,
         native_pd.Index([99, 999, 9999, 99999, 999999], name="index with name"),
-        4,
+        1,
         1,
     ],
     [  # Index is a MultiIndex from tuples.
@@ -113,7 +113,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         native_pd.MultiIndex.from_tuples(
             [("r0", "rA"), ("r1", "rB")], names=["Courses", "Fee"]
         ),
-        4,
+        1,
         2,
     ],
     [  # Index is a MultiIndex from arrays.
@@ -135,7 +135,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
             ],
             names=("tea", "steep time", "caffeine"),
         ),
-        5,
+        1,
         3,
     ],
     [  # Index is a MultiIndex from a DataFrame.
@@ -149,7 +149,7 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
                 columns=["a", "b"],
             ),
         ),
-        4,
+        1,
         2,
     ],
     [  # Index is a MultiIndex from a product.
@@ -158,21 +158,21 @@ TEST_DATA_FOR_SERIES_SET_AXIS = [
         native_pd.MultiIndex.from_product(
             [[0, 1, 2], ["green", "purple"]], names=["number", "color"]
         ),
-        4,
+        1,
         2,
     ],
     [
         native_pd.Series({"A": ["foo", "bar", 3], "B": [4, "baz", 6]}),
         "index",
         {1: 1, 2: 2},
-        4,
+        1,
         1,
     ],
     [
         native_pd.Series({"A": ["foo", "bar", 3], "B": [4, "baz", 6]}),
         "rows",
         {1, 2},
-        4,
+        1,
         1,
     ],
 ]
@@ -432,20 +432,6 @@ def test_set_axis_series_copy(native_series, axis, labels, num_queries, num_join
 
 # Invalid input tests for Series.set_axis().
 @pytest.mark.parametrize(
-    "ser, axis, labels, error_msg",
-    TEST_DATA_FOR_SERIES_SET_AXIS_RAISES_VALUE_ERROR_DIFF_ERROR_MSG,
-)
-def test_set_axis_series_raises_value_error_diff_error_msg(
-    ser, axis, labels, error_msg
-):
-    # Should raise a ValueError if length of labels passed in
-    # don't match the number of rows.
-    with SqlCounter(query_count=2 if isinstance(labels, native_pd.MultiIndex) else 3):
-        with pytest.raises(ValueError, match=error_msg):
-            pd.Series(ser).set_axis(labels, axis=axis)
-
-
-@pytest.mark.parametrize(
     "ser, axis, labels",
     TEST_DATA_FOR_SERIES_SET_AXIS_RAISES_VALUE_ERROR,
 )
@@ -474,7 +460,7 @@ def test_set_axis_series_raises_type_error(ser, axis, labels, error_msg):
         pd.Series(ser).set_axis(labels, axis=axis)
 
 
-@sql_count_checker(query_count=4, join_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_series_set_axis_copy_true(caplog):
     # Test that warning is raised when copy argument is used.
     series = native_pd.Series([1.25])

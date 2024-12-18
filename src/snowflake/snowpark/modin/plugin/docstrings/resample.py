@@ -30,7 +30,52 @@ class Resampler:
 
     @property
     def indices():
-        pass
+        """
+        Dict {group name -> group indices}.
+
+        Returns
+        -------
+        collections.defaultdict[Hashable, list]
+
+        Notes
+        -----
+        Beware that the return value is a python dictionary, so evaluating this
+        property will trigger evaluation of the pandas dataframe and will
+        materialize data that could be as large as the size of the grouping
+        columns.
+
+        Examples
+        --------
+        For Series:
+
+        >>> lst1 = pd.date_range('2020-01-01', periods=4, freq='1D')
+        >>> ser1 = pd.Series([1, 2, 3, 4], index=lst1)
+        >>> ser1
+        2020-01-01    1
+        2020-01-02    2
+        2020-01-03    3
+        2020-01-04    4
+        Freq: None, dtype: int64
+
+        >>> ser1.resample('2D').indices
+        defaultdict(<class 'list'>, {Timestamp('2020-01-01 00:00:00'): [0, 1], Timestamp('2020-01-03 00:00:00'): [2, 3]})
+
+        For DataFrame:
+
+        >>> data = [[1, 8, 2], [1, 2, 5], [2, 5, 8], [2, 6, 9]]
+        >>> df = pd.DataFrame(data,
+        ...      columns=["a", "b", "c"],
+        ...      index=pd.date_range('2020-01-01', periods=4, freq='1D'))
+        >>> df
+                    a  b  c
+        2020-01-01  1  8  2
+        2020-01-02  1  2  5
+        2020-01-03  2  5  8
+        2020-01-04  2  6  9
+
+        >>> df.resample('2D').indices
+        defaultdict(<class 'list'>, {Timestamp('2020-01-01 00:00:00'): [0, 1], Timestamp('2020-01-03 00:00:00'): [2, 3]})
+        """
 
     def get_group():
         pass
@@ -170,7 +215,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             A DataFrame with values forward filled for missing resample bins.
 
         Examples
@@ -200,7 +245,7 @@ class Resampler:
         2020-01-06    3
         Freq: None, dtype: int64
 
-        >>> lst2 = pd.to_datetime(['2023-01-03 1:00:00', '2023-01-04', '2023-01-05 23:00:00', '2023-01-06', '2023-01-07 2:00:00', '2023-01-10'])
+        >>> lst2 = pd.to_datetime(pd.Index(['2023-01-03 1:00:00', '2023-01-04', '2023-01-05 23:00:00', '2023-01-06', '2023-01-07 2:00:00', '2023-01-10']))
         >>> ser2 = pd.Series([1, 2, 3, 4, None, 6], index=lst2)
         >>> ser2
         2023-01-03 01:00:00    1.0
@@ -257,7 +302,7 @@ class Resampler:
         2020-01-03  0  15
         2020-01-06  2  17
 
-        >>> index2 = pd.to_datetime(['2023-01-03 1:00:00', '2023-01-04', '2023-01-05 23:00:00', '2023-01-06', '2023-01-07 2:00:00', '2023-01-10'])
+        >>> index2 = pd.to_datetime(pd.Index(['2023-01-03 1:00:00', '2023-01-04', '2023-01-05 23:00:00', '2023-01-06', '2023-01-07 2:00:00', '2023-01-10']))
         >>> df2 = pd.DataFrame({'a': range(len(index2)),
         ... 'b': range(len(index2) + 10, len(index2) * 2 + 10)},
         ...  index=index2)
@@ -289,23 +334,161 @@ class Resampler:
         2023-01-09  4.0  20.0
         """
 
-    def backfill():
-        pass
-
     def bfill():
-        pass
+        """
+        Backward fill the new missing values in the resampled data.
 
-    def pad():
-        pass
+        Parameters
+        ----------
+        limit : int, optional
+            This parameter is not supported and will raise NotImplementedError.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
+            An upsampled Series or DataFrame with backward filled NaN values.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3],
+        ... index=pd.date_range('20180101', periods=3, freq='h'))
+        >>> s
+        2018-01-01 00:00:00    1
+        2018-01-01 01:00:00    2
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> s.resample('30min').bfill()
+        2018-01-01 00:00:00    1
+        2018-01-01 00:30:00    2
+        2018-01-01 01:00:00    2
+        2018-01-01 01:30:00    3
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> df = pd.DataFrame({'a': [2, np.nan, 6], 'b': [1, 3, 5]},
+        ...      index=pd.date_range('20180101', periods=3,
+        ...      freq='h'))
+        >>> df
+                               a  b
+        2018-01-01 00:00:00  2.0  1
+        2018-01-01 01:00:00  NaN  3
+        2018-01-01 02:00:00  6.0  5
+        >>> df.resample('30min').bfill()
+                               a  b
+        2018-01-01 00:00:00  2.0  1
+        2018-01-01 00:30:00  NaN  3
+        2018-01-01 01:00:00  NaN  3
+        2018-01-01 01:30:00  6.0  5
+        2018-01-01 02:00:00  6.0  5
+        """
 
     def nearest():
         pass
 
     def fillna():
-        pass
+        """
+        Fill missing values introduced by upsampling.
+        Missing values that existed in the original data will not be modified.
+
+        Parameters
+        ----------
+        method : {'pad', 'backfill', 'ffill', 'bfill', 'nearest'}
+            Method to use for filling holes in resampled data. Note that only 'ffill' and 'pad' are currently supported.
+            'pad' or 'ffill': use previous valid observation to fill gap (forward fill).
+            'backfill' or 'bfill': use next valid observation to fill gap.
+            'nearest': use nearest valid observation to fill gap.
+
+        limit : int, optional
+            This parameter is not supported and will raise NotImplementedError.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
+            An upsampled Series or DataFrame with missing values filled.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3], index=pd.date_range('20180101', periods=3, freq='h'))
+        >>> s
+        2018-01-01 00:00:00    1
+        2018-01-01 01:00:00    2
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> s.resample('30min').fillna("pad")
+        2018-01-01 00:00:00    1
+        2018-01-01 00:30:00    1
+        2018-01-01 01:00:00    2
+        2018-01-01 01:30:00    2
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> s.resample('30min').fillna("backfill")
+        2018-01-01 00:00:00    1
+        2018-01-01 00:30:00    2
+        2018-01-01 01:00:00    2
+        2018-01-01 01:30:00    3
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> sm = pd.Series([1, None, 3],
+        ... index=pd.date_range('20180101', periods=3, freq='h'))
+        >>> sm
+        2018-01-01 00:00:00    1.0
+        2018-01-01 01:00:00    NaN
+        2018-01-01 02:00:00    3.0
+        Freq: None, dtype: float64
+        >>> sm.resample('30min').fillna('pad')
+        2018-01-01 00:00:00    1.0
+        2018-01-01 00:30:00    1.0
+        2018-01-01 01:00:00    NaN
+        2018-01-01 01:30:00    NaN
+        2018-01-01 02:00:00    3.0
+        Freq: None, dtype: float64
+        >>> sm.resample('30min').fillna('backfill')
+        2018-01-01 00:00:00    1.0
+        2018-01-01 00:30:00    NaN
+        2018-01-01 01:00:00    NaN
+        2018-01-01 01:30:00    3.0
+        2018-01-01 02:00:00    3.0
+        Freq: None, dtype: float64
+        """
 
     def asfreq():
-        pass
+        """
+        Return the values at the new freq, essentially a reindex.
+
+        Parameters
+        ----------
+        fill_value : scalar, optional
+            This parameter is not supported and will raise NotImplementedError.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
+            Values at the specified freq.
+
+        See Also
+        --------
+        Series.asfreq: Convert TimeSeries to specified frequency.
+        DataFrame.asfreq: Convert TimeSeries to specified frequency.
+
+        Examples
+        --------
+        >>> s = pd.Series([1, 2, 3], index=pd.date_range('20180101', periods=3, freq='h'))
+        >>> s
+        2018-01-01 00:00:00    1
+        2018-01-01 01:00:00    2
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        >>> s.resample("30min").asfreq()
+        2018-01-01 00:00:00    1.0
+        2018-01-01 00:30:00    NaN
+        2018-01-01 01:00:00    2.0
+        2018-01-01 01:30:00    NaN
+        2018-01-01 02:00:00    3.0
+        Freq: None, dtype: float64
+        >>> s.resample("2h").asfreq()
+        2018-01-01 00:00:00    1
+        2018-01-01 02:00:00    3
+        Freq: None, dtype: int64
+        """
 
     def interpolate():
         pass
@@ -316,7 +499,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed count of values within each resample bin.
 
         Examples
@@ -371,7 +554,50 @@ class Resampler:
         """
 
     def nunique():
-        pass
+        """
+        Return number of unique elements in the group.
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series`
+            Number of unique values within each group.
+
+        Examples
+        --------
+        For Series:
+
+        >>> lst1 = pd.date_range('2020-01-01', periods=4, freq='1D')
+        >>> ser1 = pd.Series([1, 1, 2, 2], index=lst1)
+        >>> ser1
+        2020-01-01    1
+        2020-01-02    1
+        2020-01-03    2
+        2020-01-04    2
+        Freq: None, dtype: int64
+
+        >>> ser1.resample('2D').nunique()
+        2020-01-01    1
+        2020-01-03    1
+        Freq: None, dtype: int64
+
+        For DataFrame:
+
+        >>> data = [[1, 8, 2], [1, 2, 5], [2, 5, 8], [2, 6, 9]]
+        >>> df = pd.DataFrame(data,
+        ...      columns=["a", "b", "c"],
+        ...      index=pd.date_range('2020-01-01', periods=4, freq='1D'))
+        >>> df
+                    a  b  c
+        2020-01-01  1  8  2
+        2020-01-02  1  2  5
+        2020-01-03  2  5  8
+        2020-01-04  2  6  9
+
+        >>> df.resample('2D').nunique()
+                    a  b  c
+        2020-01-01  1  2  2
+        2020-01-03  1  2  2
+        """
 
     def first():
         """
@@ -393,7 +619,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             First values within each group.
 
         Examples
@@ -467,7 +693,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Last values within each group.
 
         Examples
@@ -542,7 +768,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed maximum of values within each resample bin.
 
         Examples
@@ -628,7 +854,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed mean of values within each resample bin.
 
         Examples
@@ -721,7 +947,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed median of values within each resample bin.
 
         Examples
@@ -796,7 +1022,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed minimum of values within each resample bin.
 
         Examples
@@ -866,7 +1092,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Number of rows in each group as a Series if ``as_index`` is True or a DataFrame if ``as_index`` is False.
 
         Examples
@@ -948,7 +1174,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed standard deviation of values within each resample bin.
 
         Examples
@@ -1023,7 +1249,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed sum of values within each resample bin.
 
         Examples
@@ -1102,7 +1328,7 @@ class Resampler:
 
         Returns
         -------
-        :class:`~snowflake.snowpark.modin.pandas.Series` or :class:`~snowflake.snowpark.modin.pandas.DataFrame`
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Computed variance of values within each resample bin.
 
         Examples
@@ -1157,4 +1383,63 @@ class Resampler:
         """
 
     def quantile():
-        pass
+        """
+        Return value at the given quantile.
+
+        Parameters
+        ----------
+        q : float or array-like, default 0.5 (50% quantile)
+
+        Returns
+        -------
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
+            Quantile of values within each group.
+
+        See Also
+        --------
+        Series.quantile : Return a series, where the index is q and the values are the quantiles.
+        DataFrame.quantile : Return a DataFrame, where the columns are the columns of self,
+            and the values are the quantiles.
+        DataFrameGroupBy.quantile : Return a DataFrame, where the columns are groupby columns,
+            and the values are its quantiles.
+
+        Notes
+        -----
+        List-like ``q`` is not yet supported.
+
+        Examples
+        --------
+        For Series:
+
+        >>> lst1 = pd.date_range('2020-01-01', periods=4, freq='1D')
+        >>> ser1 = pd.Series([1, 2, 3, 4], index=lst1)
+        >>> ser1
+        2020-01-01    1
+        2020-01-02    2
+        2020-01-03    3
+        2020-01-04    4
+        Freq: None, dtype: int64
+
+        >>> ser1.resample('2D').quantile()
+        2020-01-01    1.5
+        2020-01-03    3.5
+        Freq: None, dtype: float64
+
+        For DataFrame:
+
+        >>> data = [[1, 8, 2], [1, 2, 5], [2, 5, 8], [2, 6, 9]]
+        >>> df = pd.DataFrame(data,
+        ...      columns=["a", "b", "c"],
+        ...      index=pd.date_range('2020-01-01', periods=4, freq='1D'))
+        >>> df
+                    a  b  c
+        2020-01-01  1  8  2
+        2020-01-02  1  2  5
+        2020-01-03  2  5  8
+        2020-01-04  2  6  9
+
+        >>> df.resample('2D').quantile(q=0.2)
+                      a      b    c
+        2020-01-01  1.0  3.199  2.6
+        2020-01-03  2.0  5.200  8.2
+        """

@@ -7,14 +7,21 @@ import re
 import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
-from typing import Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
-from pandas._typing import Scalar
-from pandas.core.dtypes.common import is_integer_dtype, is_scalar
+from pandas._typing import AnyArrayLike, Scalar
+from pandas.core.dtypes.base import ExtensionDtype
+from pandas.core.dtypes.common import (
+    is_bool_dtype,
+    is_integer_dtype,
+    is_object_dtype,
+    is_scalar,
+)
+from pandas.core.dtypes.inference import is_list_like
 
-import snowflake.snowpark.modin.pandas as pd
 import snowflake.snowpark.modin.plugin._internal.statement_params_constants as STATEMENT_PARAMS
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     DOUBLE_QUOTE,
@@ -27,6 +34,7 @@ from snowflake.snowpark._internal.utils import (
     SNOWFLAKE_OBJECT_RE_PATTERN,
     TempObjectType,
     generate_random_alphanumeric,
+    get_temp_type_for_object,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import Column
@@ -34,17 +42,27 @@ from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
     count,
+    equal_nan,
+    floor,
+    iff,
     max as max_,
     mean,
     min as min_,
     sum as sum_,
+    to_char,
+    to_timestamp_ntz,
+    to_timestamp_tz,
     typeof,
 )
-from snowflake.snowpark.modin.plugin._internal import frame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
     OrderedDataFrame,
     OrderingColumn,
+)
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+    TimedeltaType,
+    ensure_snowpark_python_type,
 )
 from snowflake.snowpark.modin.plugin._typing import LabelTuple
 from snowflake.snowpark.modin.plugin.utils.exceptions import (
@@ -58,11 +76,24 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 from snowflake.snowpark.types import (
     ArrayType,
     DataType,
+    DecimalType,
+    DoubleType,
+    LongType,
     MapType,
+    StringType,
     StructField,
     StructType,
+    TimestampTimeZone,
+    TimestampType,
     VariantType,
+    _FractionalType,
 )
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.modin.plugin._internal import frame
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
 
 ROW_POSITION_COLUMN_LABEL = "row_position"
 MAX_ROW_POSITION_COLUMN_LABEL = f"MAX_{ROW_POSITION_COLUMN_LABEL}"
@@ -242,7 +273,7 @@ def _create_read_only_table(
     readonly_table_name = (
         f"{random_name_for_temp_object(TempObjectType.TABLE)}{READ_ONLY_TABLE_SUFFIX}"
     )
-
+    use_scoped_temp_table = session._use_scoped_temp_read_only_table
     # If we need to materialize into a temp table our create table expression
     # needs to be SELECT * FROM (object).
     if materialize_into_temp_table:
@@ -250,8 +281,9 @@ def _create_read_only_table(
         temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
 
         _logger.warning(
-            f"Data from source table/view '{table_name}' is being copied into a new "
-            f"temporary table '{temp_table_name}'. DataFrame creation might take some time."
+            f"Snapshot source table/view '{table_name}' failed due to reason: `{materialization_reason}'. Data from "
+            f"source table/view '{table_name}' is being copied into a new "
+            f"temporary table '{temp_table_name}' for snapshotting. DataFrame creation might take some time."
         )
 
         statement_params = get_default_snowpark_pandas_statement_params()
@@ -266,7 +298,7 @@ def _create_read_only_table(
         }
         statement_params.update(new_params)
         session.sql(
-            f"CREATE OR REPLACE TEMPORARY TABLE {temp_table_name} AS {ctas_query}"
+            f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} TABLE {temp_table_name} AS {ctas_query}"
         ).collect(statement_params=statement_params)
         table_name = temp_table_name
 
@@ -279,9 +311,11 @@ def _create_read_only_table(
             STATEMENT_PARAMS.READONLY_TABLE_NAME: readonly_table_name,
         }
     )
+    # TODO (SNOW-1669224): pushing read only table creation down to snowpark for general usage
     session.sql(
-        f"CREATE OR REPLACE TEMPORARY READ ONLY TABLE {readonly_table_name} CLONE {table_name}"
-    ).collect(statement_params=statement_params)
+        f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} READ ONLY TABLE {readonly_table_name} CLONE {table_name}",
+        _emit_ast=False,
+    ).collect(statement_params=statement_params, _emit_ast=False)
 
     return readonly_table_name
 
@@ -356,7 +390,7 @@ def create_ordered_dataframe_with_readonly_temp_table(
                     error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
                 ) from ex
         initial_ordered_dataframe = OrderedDataFrame(
-            DataFrameReference(session.table(readonly_table_name))
+            DataFrameReference(session.table(readonly_table_name, _emit_ast=False))
         )
         # generate a snowflake quoted identifier for row position column that can be used for aliasing
         snowflake_quoted_identifiers = (
@@ -382,7 +416,7 @@ def create_ordered_dataframe_with_readonly_temp_table(
         # with the created snowpark dataframe. In order to get the metadata column access in the created
         # dataframe, we create dataframe through sql which access the corresponding metadata column.
         dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
-        snowpark_df = session.sql(dataframe_sql)
+        snowpark_df = session.sql(dataframe_sql, _emit_ast=False)
 
         result_columns_quoted_identifiers = [
             row_position_snowflake_quoted_identifier
@@ -620,7 +654,9 @@ def extract_pandas_label_from_snowflake_quoted_identifier(
     Returns:
         pandas label.
     """
-    assert is_valid_snowflake_quoted_identifier(snowflake_identifier)
+    assert is_valid_snowflake_quoted_identifier(
+        snowflake_identifier
+    ), f"invalid snowflake_identifier {snowflake_identifier}"
     return snowflake_identifier[1:-1].replace(DOUBLE_QUOTE + DOUBLE_QUOTE, DOUBLE_QUOTE)
 
 
@@ -1019,9 +1055,44 @@ def fill_missing_levels_for_pandas_label(
     return final_label
 
 
+def infer_snowpark_types_from_pandas(
+    df: native_pd.DataFrame,
+) -> tuple[list[Optional[SnowparkPandasType]], list[DataType]]:
+    """
+    Infer Snowpark pandas and Snowpark Python types for a pandas dataframe.
+
+    Args:
+        df: native_pd.DataFrame
+            The native pandas dataframe out of which we will create a Snowpark
+            pandas dataframe.
+
+    Returns:
+        Tuple containing
+            1) The list of Snowpark pandas types for each column in the dataframe.
+            2) The list of Snowpark Python types for each column in the dataframe.
+    """
+    from snowflake.snowpark.modin.plugin._internal.type_utils import infer_series_type
+
+    snowpark_pandas_types = []
+    snowpark_types = []
+    for _, column in df.items():
+        snowflake_type = infer_series_type(column)
+        if isinstance(snowflake_type, SnowparkPandasType):
+            snowpark_types.append(snowflake_type.snowpark_type)
+            snowpark_pandas_types.append(snowflake_type)
+        else:
+            snowpark_types.append(snowflake_type)
+            # For types that are not SnowparkPandasType, we need to ask
+            # Snowflake for the type, so we mark the type as unknown by
+            # returning None.
+            snowpark_pandas_types.append(None)
+    return snowpark_pandas_types, snowpark_types
+
+
 def create_ordered_dataframe_from_pandas(
     df: native_pd.DataFrame,
     snowflake_quoted_identifiers: list[str],
+    snowpark_types: list[DataType],
     ordering_columns: Optional[list[OrderingColumn]] = None,
     row_position_snowflake_quoted_identifier: Optional[str] = None,
 ) -> OrderedDataFrame:
@@ -1036,6 +1107,7 @@ def create_ordered_dataframe_from_pandas(
         df: native_pd.DataFrame, the native pandas dataframe that is used to create the snowpark dataframe
         snowflake_quoted_identifiers: List[str], list of snowflake quoted identifiers that are used as the
             snowflake quoted identifiers for the snowpark dataframe
+        snowpark_types: The column types for the Snowpark dataframe.
         ordering_columns: a list of OrderingColumns
         row_position_snowflake_quoted_identifier: a row position snowflake quoted identifier
 
@@ -1046,17 +1118,9 @@ def create_ordered_dataframe_from_pandas(
         df.columns
     ), "length of snowflake quoted identifier must be the same as length of dataframe columns"
 
-    from snowflake.snowpark.modin.plugin._internal.type_utils import infer_series_type
-
     # marker for the missing values for the original dataframe, pandas treated
     # np.nan, pd.NA, pd.NaT and None all as missing value.
     isna_data = df.isna().to_numpy().tolist()
-
-    struct_fields = []
-    for i, (label, _) in enumerate(df.dtypes.items()):
-        quoted_identifier = snowflake_quoted_identifiers[i]
-        snowflake_type = infer_series_type(df[label])
-        struct_fields.append(StructField(quoted_identifier, snowflake_type))
 
     # in pandas, missing value can be represented ad np.nan, pd.NA, pd.NaT and None,
     # and should be mapped to None in Snowpark input, and eventually be mapped to NULL
@@ -1071,11 +1135,21 @@ def create_ordered_dataframe_from_pandas(
                 else (
                     data[x][y].item()
                     if isinstance(data[x][y], np.generic)
-                    else data[x][y]
+                    else ensure_snowpark_python_type(data[x][y])
                 )
             )
 
-    snowpark_df = pd.session.create_dataframe(data, StructType(struct_fields))
+    snowpark_df = pd.session.create_dataframe(
+        data,
+        schema=StructType(
+            [
+                StructField(column_identifier=id, datatype=each_datatype)
+                for id, each_datatype in zip(
+                    snowflake_quoted_identifiers, snowpark_types
+                )
+            ]
+        ),
+    )
     return OrderedDataFrame(
         DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
         projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
@@ -1118,14 +1192,7 @@ def fill_none_in_index_labels(
 def is_snowpark_pandas_dataframe_or_series_type(obj: Any) -> bool:
     # Return True if result is (Snowpark pandas) DataFrame/Series type.
     # Note: Native pandas.DataFrame/Series return False
-    # Checking type name instead of using isinstance because of circle import.
-    class_type = type(obj)
-    if not class_type.__module__.startswith("snowflake.snowpark.modin.pandas"):
-        return False
-    return class_type.__name__ in {
-        "DataFrame",
-        "Series",
-    }
+    return isinstance(obj, (pd.DataFrame, pd.Series))
 
 
 # TODO: (SNOW-853334) Support other agg functions (any, all, prod, median, skew, kurt, sem, var, std, mad, etc)
@@ -1215,7 +1282,7 @@ def check_snowpark_pandas_object_in_arg(arg: Any) -> bool:
             if check_snowpark_pandas_object_in_arg(v):
                 return True
     else:
-        from snowflake.snowpark.modin.pandas import DataFrame, Series
+        from modin.pandas import DataFrame, Series
 
         return isinstance(arg, (DataFrame, Series))
 
@@ -1223,26 +1290,85 @@ def check_snowpark_pandas_object_in_arg(arg: Any) -> bool:
 
 
 def snowpark_to_pandas_helper(
-    ordered_dataframe: OrderedDataFrame,
+    frame: "frame.InternalFrame",
     *,
+    index_only: bool = False,
     statement_params: Optional[dict[str, str]] = None,
     **kwargs: Any,
-) -> native_pd.DataFrame:
+) -> Union[native_pd.Index, native_pd.DataFrame]:
     """
     The helper function retrieves a pandas dataframe from an OrderedDataFrame. Performs necessary type
-    conversions for variant types on the client. This function issues 2 queries, one metadata query
-    to retrieve the schema and one query to retrieve the data values.
+    conversions including
+    1. For VARIANT types, OrderedDataFrame.to_pandas may convert datetime like types to string. So we add one `typeof`
+    column for each variant column and use that metadata to convert datetime like types back to their original types.
+    2. For TIMESTAMP_TZ type, OrderedDataFrame.to_pandas will convert them into the local session timezone and lose the
+    original timezone. So we cast TIMESTAMP_TZ columns to string first and then convert them back after to_pandas to
+    preserve the original timezone. Note that the actual timezone will be lost in Snowflake backend but only the offset
+    preserved.
+    3. For Timedelta columns, since currently we represent the values using integers, here we need to explicitly cast
+    them back to Timedelta.
 
     Args:
-        ordered_dataframe: Ordered Dataframe abstraction to convert to pandas Dataframe
-        statement_params: Dictionary of statement level parameters to be passed to conversion function of ordered dataframe abstraction.
-        kwargs: Additional keyword-only args to pass to internal `to_pandas` conversion for orderded dataframe abstraction.
+        frame: The internal frame to convert to pandas Dataframe (or Index if index_only is true)
+        index_only: if true, only turn the index columns into a pandas Index
+        statement_params: Dictionary of statement level parameters to be passed to conversion function of ordered
+        dataframe abstraction.
+        kwargs: Additional keyword-only args to pass to internal `to_pandas` conversion for ordered dataframe
+        abstraction.
 
     Returns:
         pandas dataframe
     """
+    ids = frame.index_column_snowflake_quoted_identifiers
+    cached_snowpark_pandas_types = frame.cached_index_column_snowpark_pandas_types
 
-    # Step 1: Retrieve schema of Snowpark dataframe and
+    if not index_only:
+        ids += frame.data_column_snowflake_quoted_identifiers
+        cached_snowpark_pandas_types += frame.cached_data_column_snowpark_pandas_types
+
+    ordered_dataframe = frame.ordered_dataframe.select(*ids)
+    # Step 1: preprocessing on Snowpark pandas types
+    # Here we convert Timedelta to string before to_pandas to avoid precision loss.
+    if cached_snowpark_pandas_types is not None:
+        astype_mapping = {}
+        column_type_map = {
+            f.column_identifier.quoted_name: f.datatype
+            for f in ordered_dataframe.schema.fields
+        }
+        for col_id, snowpark_pandas_type in zip(ids, cached_snowpark_pandas_types):
+            if (
+                snowpark_pandas_type is not None
+                and snowpark_pandas_type == TimedeltaType()
+            ):
+                col_td = col(col_id)
+                if isinstance(column_type_map[col_id], _FractionalType):
+                    if isinstance(column_type_map[col_id], DecimalType):
+                        check_non = col_td.cast(DoubleType())
+                    else:
+                        check_non = col_td
+                    check_non = equal_nan(check_non)
+                    # Timedelta's underneath Snowflake type may not always be int after other operations, so
+                    # explicitly floor them to integer first before converting to string. Note if it is float nan,
+                    # we have to keep it as is, otherwise it will raise exception when casting to integer.
+                    astype_mapping[col_id] = iff(
+                        check_non,
+                        col_td,
+                        floor(col_td).cast(LongType()).cast(StringType()),
+                    )
+                else:  # integer type
+                    astype_mapping[col_id] = col_td.cast(StringType())
+        if astype_mapping:
+            (
+                frame,
+                old_to_new_id_mapping,
+            ) = frame.update_snowflake_quoted_identifiers_with_expressions(
+                quoted_identifier_to_column_map=astype_mapping,
+            )
+            ordered_dataframe = frame.ordered_dataframe.select(
+                [old_to_new_id_mapping.get(id, id) for id in ids]
+            )
+
+    # Step 2: Retrieve schema of Snowpark dataframe and
     # capture information about each quoted identifier and its corresponding datatype, store
     # as list to keep information about order of columns.
     columns_info = [
@@ -1257,7 +1383,7 @@ def snowpark_to_pandas_helper(
     )
     variant_type_identifiers = list(map(lambda t: t[0], variant_type_columns_info))
 
-    # Step 2: Create for each variant type column a separate type column (append at end), and retrieve data values
+    # Step 3.1: Create for each variant type column a separate type column (append at end), and retrieve data values
     # (and types for variant type columns).
     variant_type_typeof_identifiers = (
         ordered_dataframe.generate_snowflake_quoted_identifiers(
@@ -1276,14 +1402,40 @@ def snowpark_to_pandas_helper(
             [typeof(col(id)) for id in variant_type_identifiers],
         )
 
+    # Step 3.2: cast timestamp_tz to string to preserve their original timezone offsets
+    timestamp_tz_identifiers = [
+        info[0]
+        for info in columns_info
+        if info[1] == TimestampType(TimestampTimeZone.TZ)
+    ]
+    timestamp_tz_str_identifiers = (
+        ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=[
+                f"{unquote_name_if_quoted(id)}_str" for id in timestamp_tz_identifiers
+            ],
+            excluded=column_identifiers,
+        )
+    )
+    if len(timestamp_tz_identifiers):
+        ordered_dataframe = append_columns(
+            ordered_dataframe,
+            timestamp_tz_str_identifiers,
+            [
+                to_char(col(id), format="YYYY-MM-DD HH24:MI:SS.FF9 TZHTZM")
+                for id in timestamp_tz_identifiers
+            ],
+        )
+
     # ensure that snowpark_df has unique identifiers, so the native pandas DataFrame object created here
     # also does have unique column names which is a prerequisite for the post-processing logic following.
     assert is_duplicate_free(
-        column_identifiers + variant_type_typeof_identifiers
+        column_identifiers
+        + variant_type_typeof_identifiers
+        + timestamp_tz_str_identifiers
     ), "Snowpark DataFrame to convert must have unique column identifiers"
     pandas_df = ordered_dataframe.to_pandas(statement_params=statement_params, **kwargs)
 
-    # Step 3: perform post-processing
+    # Step 4: perform post-processing
     # If the dataframe has no rows, do not perform this. Using the result of the `apply` on
     # an empty frame would erroneously update the dtype of the column to be `float64` instead of `object`.
     # TODO SNOW-982779: verify correctness of this behavior
@@ -1292,7 +1444,9 @@ def snowpark_to_pandas_helper(
             # Step 3a: post-process variant type columns, if any exist.
             id_to_label_mapping = dict(
                 zip(
-                    column_identifiers + variant_type_typeof_identifiers,
+                    column_identifiers
+                    + variant_type_typeof_identifiers
+                    + timestamp_tz_str_identifiers,
                     pandas_df.columns,
                 )
             )
@@ -1331,9 +1485,116 @@ def snowpark_to_pandas_helper(
                         id_to_label_mapping[quoted_name]
                     ].apply(lambda value: None if value is None else json.loads(value))
 
-    # Return the original amount of columns by stripping any typeof(...) columns appended if
+        # Convert timestamp_tz in string back to datetime64tz.
+        if any(
+            dtype == TimestampType(TimestampTimeZone.TZ) for (_, dtype) in columns_info
+        ):
+            id_to_label_mapping = dict(
+                zip(
+                    column_identifiers
+                    + variant_type_typeof_identifiers
+                    + timestamp_tz_str_identifiers,
+                    pandas_df.columns,
+                )
+            )
+            for ts_id, ts_str_id in zip(
+                timestamp_tz_identifiers, timestamp_tz_str_identifiers
+            ):
+                pandas_df[id_to_label_mapping[ts_id]] = native_pd.to_datetime(
+                    pandas_df[id_to_label_mapping[ts_str_id]]
+                )
+
+    # Step 5. Return the original amount of columns by stripping any typeof(...) columns appended if
     # schema contained VariantType.
-    return pandas_df[pandas_df.columns[: len(columns_info)]]
+    downcast_pandas_df = pandas_df[pandas_df.columns[: len(columns_info)]]
+
+    # Step 6. postprocessing for Snowpark pandas types
+    if cached_snowpark_pandas_types is not None:
+        timedelta_t = TimedeltaType()
+
+        def convert_str_to_timedelta(x: str) -> pd.Timedelta:
+            return (
+                x
+                if pd.isna(x)
+                else pd.NaT
+                if x == "NaN"
+                else timedelta_t.to_pandas(int(x))
+            )
+
+        for pandas_label, snowpark_pandas_type in zip(
+            downcast_pandas_df.columns, cached_snowpark_pandas_types
+        ):
+            if snowpark_pandas_type is not None and snowpark_pandas_type == timedelta_t:
+                # By default, pandas warns, "A value is trying to be set on a
+                # copy of a slice from a DataFrame" here because we are
+                # assigning a column to downcast_pandas_df, which is a copy of
+                # a slice of pandas_df. We don't care what happens to pandas_df,
+                # so the warning isn't useful to us.
+                with native_pd.option_context("mode.chained_assignment", None):
+                    downcast_pandas_df[pandas_label] = pandas_df[pandas_label].apply(
+                        convert_str_to_timedelta
+                    )
+
+    # Step 7. postprocessing for return types
+    if index_only:
+        index_values = downcast_pandas_df.values
+        if frame.is_multiindex(axis=0):
+            value_tuples = [tuple(row) for row in index_values]
+            return native_pd.MultiIndex.from_tuples(
+                value_tuples, names=frame.index_column_pandas_labels
+            )
+        else:
+            # We have one index column. Fill in the type correctly.
+            index_identifier = frame.index_column_snowflake_quoted_identifiers[0]
+            from snowflake.snowpark.modin.plugin._internal.type_utils import TypeMapper
+
+            index_type = TypeMapper.to_pandas(
+                frame.get_snowflake_type(index_identifier)
+            )
+            ret = native_pd.Index(
+                [row[0] for row in index_values],
+                name=frame.index_column_pandas_labels[0],
+                # setting tupleize_cols=False to avoid creating a MultiIndex
+                # otherwise, when labels are tuples (e.g., [("A", "a"), ("B", "b")]),
+                # a MultiIndex will be created incorrectly
+                tupleize_cols=False,
+            )
+            # When pd.Index() failed to reduce dtype to a numpy or pandas extension type, it will be object type. For
+            # example, an empty dataframe will be object dtype by default, or a variant, or a timestamp column with
+            # multiple timezones. So here we cast the index to the index_type when ret = pd.Index(...) above cannot
+            # figure out a non-object dtype. Note that the index_type is a logical type may not be 100% accurate.
+            # We exclude the case where ret.dtype is object dtype while index_dtype is bool dtype. This is because
+            # casting None values to bool converts them to False, which results in a descripency with the pandas
+            # behavior.
+            if (
+                is_object_dtype(ret.dtype)
+                and not is_object_dtype(index_type)
+                and not is_bool_dtype(index_type)
+            ):
+                # TODO: SNOW-1657460 fix index_type for timestamp_tz
+                try:
+                    ret = ret.astype(index_type)
+                except ValueError:  # e.g., Tz-aware datetime.datetime cannot be converted to datetime64
+                    pass
+            return ret
+
+    # to_pandas() does not preserve the index information and will just return a
+    # RangeIndex. Therefore, we need to set the index column manually
+    downcast_pandas_df.set_index(
+        [
+            extract_pandas_label_from_snowflake_quoted_identifier(identifier)
+            for identifier in frame.index_column_snowflake_quoted_identifiers
+        ],
+        inplace=True,
+    )
+    # set index name
+    downcast_pandas_df.index = downcast_pandas_df.index.set_names(
+        frame.index_column_pandas_labels
+    )
+
+    # set column names and potential casting
+    downcast_pandas_df.columns = frame.data_columns_index
+    return downcast_pandas_df
 
 
 def is_integer_list_like(arr: Union[list, np.ndarray]) -> bool:
@@ -1432,7 +1693,10 @@ def convert_numpy_pandas_scalar_to_snowpark_literal(value: Any) -> LiteralType:
     if isinstance(value, np.generic):
         value = value.item()
     elif isinstance(value, native_pd.Timestamp):
-        value = value.to_pydatetime()
+        raise ValueError(
+            "Internal error: cannot represent Timestamp as a Snowpark literal. "
+            + "Represent as a string and call to_timestamp() instead."
+        )
     elif native_pd.isna(value):
         value = None
     return value
@@ -1452,6 +1716,20 @@ def pandas_lit(value: Any, datatype: Optional[DataType] = None) -> Column:
     Returns:
         Snowpark Column expression
     """
+    if isinstance(value, native_pd.Timestamp):
+        # Reuse the Timestamp literal conversion code from
+        # snowflake.snowpark.Session.create_dataframe:
+        # https://github.com/snowflakedb/snowpark-python/blob/19a9139be1cb41eb1e6179f3cd3c427618c0e6b1/src/snowflake/snowpark/session.py#L2775
+        return (to_timestamp_ntz if value.tz is None else to_timestamp_tz)(
+            Column(Literal(str(value)))
+        )
+
+    snowpark_pandas_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
+        type(value)
+    )
+    if snowpark_pandas_type:
+        return Column(Literal(type(snowpark_pandas_type).from_pandas(value)))
+
     value = (
         convert_numpy_pandas_scalar_to_snowpark_literal(value)
         if is_scalar(value)
@@ -1507,7 +1785,9 @@ def try_convert_to_simple_slice(s: Any) -> Optional[slice]:
     Returns:
         The simple slice if possible; otherwise None.
     """
-    from snowflake.snowpark.modin.pandas.indexing import is_range_like
+    from snowflake.snowpark.modin.plugin.extensions.indexing_overrides import (
+        is_range_like,
+    )
 
     if not isinstance(s, slice) and not is_range_like(s):
         return None
@@ -1635,12 +1915,11 @@ def append_columns(
         column_objects
     ), f"The number of column identifiers ({len(column_identifiers)}) is not equal to the number of column objects ({len(column_objects)})"
 
-    existing_columns = df.projected_column_snowflake_quoted_identifiers
     new_columns = [
         column_object.as_(column_identifier)
         for column_identifier, column_object in zip(column_identifiers, column_objects)
     ]
-    return df.select(*existing_columns, *new_columns)
+    return df.select("*", *new_columns)
 
 
 def cache_result(ordered_dataframe: OrderedDataFrame) -> OrderedDataFrame:
@@ -1693,6 +1972,7 @@ def create_frame_with_data_columns(
 
     new_frame_data_column_pandas_labels = []
     new_frame_data_column_snowflake_quoted_identifier = []
+    new_frame_data_column_types = []
 
     data_column_label_to_snowflake_quoted_identifier = {
         data_column_pandas_label: data_column_snowflake_quoted_identifier
@@ -1714,6 +1994,11 @@ def create_frame_with_data_columns(
         new_frame_data_column_snowflake_quoted_identifier.append(
             snowflake_quoted_identifier
         )
+        new_frame_data_column_types.append(
+            frame.snowflake_quoted_identifier_to_snowpark_pandas_type.get(
+                snowflake_quoted_identifier, None
+            )
+        )
 
     return InternalFrame.create(
         ordered_dataframe=frame.ordered_dataframe,
@@ -1722,9 +2007,166 @@ def create_frame_with_data_columns(
         data_column_pandas_index_names=frame.data_column_pandas_index_names,
         index_column_pandas_labels=frame.index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+        data_column_types=new_frame_data_column_types,
+        index_column_types=frame.cached_index_column_snowpark_pandas_types,
     )
 
 
 def rindex(lst: list, value: int) -> int:
     """Find the last index in the list of item value."""
     return len(lst) - lst[::-1].index(value) - 1
+
+
+def error_checking_for_init(
+    index: Any, dtype: Union[str, np.dtype, ExtensionDtype]
+) -> None:
+    """
+    Common error messages for the Series and DataFrame constructors.
+
+    Parameters
+    ----------
+    index: Any
+        The index to check.
+    dtype: str, numpy.dtype, or ExtensionDtype
+        The dtype to check.
+    """
+    from modin.pandas import DataFrame
+
+    if isinstance(index, DataFrame):  # pandas raises the same error
+        raise ValueError("Index data must be 1-dimensional")
+
+    if dtype == "category":
+        raise NotImplementedError("pandas type category is not implemented")
+
+
+def assert_fields_are_none(
+    class_name: str, data: Any, index: Any, dtype: Any, columns: Any = None
+) -> None:
+    assert (
+        data is None
+    ), f"Invalid {class_name} construction! The `data` parameter is not supported when `query_compiler` is given."
+    assert (
+        index is None
+    ), f"Invalid {class_name} construction! The `index` parameter is not supported when `query_compiler` is given."
+    assert (
+        dtype is None
+    ), f"Invalid {class_name} construction! The `dtype` parameter is not supported when `query_compiler` is given."
+    assert (
+        columns is None
+    ), f"Invalid {class_name} construction! The `columns` parameter is not supported when `query_compiler` is given."
+
+
+def convert_index_to_qc(index: Any) -> "SnowflakeQueryCompiler":
+    """
+    Method to convert an object representing an index into a query compiler for set_index or reindex.
+
+    Parameters
+    ----------
+    index: Any
+        The object to convert to a query compiler.
+
+    Returns
+    -------
+    SnowflakeQueryCompiler
+        The converted query compiler.
+    """
+    from modin.pandas import Series
+
+    from snowflake.snowpark.modin.plugin.extensions.index import Index
+
+    if isinstance(index, Index):
+        idx_qc = index.to_series()._query_compiler
+    elif isinstance(index, Series):
+        # The name of the index comes from the Series' name, not the index name. `reindex` does not handle this,
+        # so we need to set the name of the index to the name of the Series.
+        index.index.name = index.name
+        idx_qc = index._query_compiler
+    else:
+        idx_qc = Series(index)._query_compiler
+    return idx_qc
+
+
+def convert_index_to_list_of_qcs(index: Any) -> list:
+    """
+    Method to convert an object representing an index into a list of query compilers for set_index.
+
+    Parameters
+    ----------
+    index: Any
+        The object to convert to a list of query compilers.
+
+    Returns
+    -------
+    list
+        The list of query compilers.
+    """
+    from modin.pandas import Series
+
+    from snowflake.snowpark.modin.plugin.extensions.index import Index
+
+    if (
+        not isinstance(index, (native_pd.MultiIndex, Series, Index))
+        and is_list_like(index)
+        and len(index) > 0
+        and all((is_list_like(i) and not isinstance(i, tuple)) for i in index)
+    ):
+        # If given a list of lists, convert it to a MultiIndex.
+        index = native_pd.MultiIndex.from_arrays(index)
+    if isinstance(index, native_pd.MultiIndex):
+        index_qc_list = [
+            s._query_compiler
+            for s in [
+                Series(index.get_level_values(level)) for level in range(index.nlevels)
+            ]
+        ]
+    else:
+        index_qc_list = [convert_index_to_qc(index)]
+    return index_qc_list
+
+
+def add_extra_columns_and_select_required_columns(
+    query_compiler: "SnowflakeQueryCompiler",
+    columns: Union[AnyArrayLike, list],
+) -> "SnowflakeQueryCompiler":
+    """
+    Method to add extra columns to and select the required columns from the provided query compiler.
+    This is used in DataFrame construction in the following cases:
+    - general case when data is a DataFrame
+    - data is a named Series, and this name is in `columns`
+
+    Parameters
+    ----------
+    query_compiler: Any
+        The query compiler to select columns from, i.e., data's query compiler.
+    columns: AnyArrayLike or list
+        The columns to select from the query compiler.
+    """
+    from modin.pandas import DataFrame
+
+    data_columns = query_compiler.get_columns().to_list()
+    # The `columns` parameter is used to select the columns from `data` that will be in the resultant DataFrame.
+    # If a value in `columns` is not present in data's columns, it will be added as a new column filled with NaN values.
+    # These columns are tracked by the `extra_columns` variable.
+    if data_columns is not None and columns is not None:
+        extra_columns = [col for col in columns if col not in data_columns]
+        if extra_columns is not []:
+            # To add these new columns to the DataFrame, perform `__setitem__` only with the extra columns
+            # and set them to None.
+            extra_columns_df = DataFrame(query_compiler=query_compiler)
+            # In the case that the columns are MultiIndex but not all extra columns are tuples, we need to flatten the
+            # columns to ensure that the columns are a single-level index. If not, `__setitem__` will raise an error
+            # when trying to add new columns that are not in the expected tuple format.
+            if not all(isinstance(col, tuple) for col in extra_columns) and isinstance(
+                query_compiler.get_columns(), native_pd.MultiIndex
+            ):
+                flattened_columns = extra_columns_df.columns.to_flat_index()
+                extra_columns_df.columns = flattened_columns
+            extra_columns_df[extra_columns] = None
+            query_compiler = extra_columns_df._query_compiler
+
+    # To select the columns for the resultant DataFrame, perform `take_2d_labels` on the created query compiler.
+    # This is the equivalent of `__getitem__` for a DataFrame.
+    # This step is performed to ensure that the right columns are picked from the InternalFrame since we never
+    # explicitly drop the unwanted columns. This also ensures that the columns in the resultant DataFrame are in the
+    # same order as the columns in the `columns` parameter.
+    return query_compiler.take_2d_labels(slice(None), columns)

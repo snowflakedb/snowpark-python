@@ -9,12 +9,12 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 
@@ -65,7 +65,7 @@ def test_count():
         ([1, 2, 3, 4, 5, 6], ["a", "bb", np.nan, "cccc", np.nan, "dddddd"]),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_repeat(repeat, expected_result_data):
     ser = pd.Series(["a", "b", np.nan, "c", np.nan, "d"], dtype=object)
 
@@ -80,7 +80,7 @@ def test_repeat(repeat, expected_result_data):
     raises=RuntimeError,
 )
 @pytest.mark.parametrize("arg, repeat", [[None, 4], ["b", None]])
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_repeat_with_null(arg, repeat):
     ser = pd.Series(["a", arg], dtype=object)
     result = ser.str.repeat([3, repeat])
@@ -93,12 +93,12 @@ def test_repeat_with_null(arg, repeat):
     strict=True,
     raises=RuntimeError,
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_empty_str_empty_cat():
     assert pd.Series(dtype=object).str.cat() == ""
 
 
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=0)
 def test_empty_df_float_raises():
     with pytest.raises(AttributeError):
         pd.Series(dtype="float64").str.cat()
@@ -109,7 +109,7 @@ def test_empty_df_float_raises():
     strict=True,
     raises=RuntimeError,
 )
-@sql_count_checker(query_count=10, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=10, sproc_count=1)
 def test_empty_str_self_cat():
     # The query count is higher in this test because of the creation of a temp table for the
     # second series argument being passed in as argument to the cat sproc
@@ -246,7 +246,7 @@ def test_ismethods(method, expected, query_count, sproc_count):
         ("isdecimal", [False, True, False, False, False, True, False]),
     ],
 )
-@sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=9, sproc_count=1)
 def test_isnumeric_unicode(method, expected):
     # 0x00bc: ¼ VULGAR FRACTION ONE QUARTER
     # 0x2605: ★ not number
@@ -276,7 +276,7 @@ def test_isnumeric_unicode(method, expected):
         ("isdecimal", [False, np.nan, False, False, np.nan, True, False]),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_isnumeric_unicode_missing(method, expected):
     values = ["A", np.nan, "¼", "★", np.nan, "３", "four"]
     ser = pd.Series(values, dtype=object)
@@ -290,7 +290,7 @@ def test_isnumeric_unicode_missing(method, expected):
     strict=True,
     raises=RuntimeError,
 )
-@sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=9, sproc_count=1)
 def test_split_join_roundtrip():
     ser = pd.Series(["a_b_c", "c_d_e", np.nan, "f_g_h"], dtype=object)
     result = ser.str.split("_").str.join("_")
@@ -298,7 +298,7 @@ def test_split_join_roundtrip():
     assert_snowpark_pandas_equal_to_pandas(result, expected)
 
 
-@sql_count_checker(query_count=1, fallback_count=0, sproc_count=0)
+@sql_count_checker(query_count=1, sproc_count=0)
 def test_len():
     ser = pd.Series(
         ["foo", "fooo", "fooooo", np.nan, "fooooooo", "foo\n", "あ"],
@@ -325,7 +325,7 @@ def test_len():
         ("rindex", "E", 0, 5, [4, 3, 1, 4]),
     ],
 )
-@sql_count_checker(query_count=9, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=9, sproc_count=1)
 def test_index(method, sub, start, end, expected):
     data = ["ABCDEFG", "BCDEFEF", "DEFGHIJEF", "EFGHEF"]
     native_obj = native_pd.Series(data, dtype=object)
@@ -356,7 +356,7 @@ def test_index_not_found_raises():
 @sql_count_checker(query_count=0)
 def test_index_raises_not_implemented_error(method):
     obj = pd.Series([], dtype=object)
-    msg = f"{method} is not yet implemented for Series.str"
+    msg = f"Snowpark pandas does not yet support the method Series.str.{method}"
 
     with pytest.raises(NotImplementedError, match=msg):
         getattr(obj.str, method)("sub")
@@ -374,7 +374,7 @@ def test_index_raises_not_implemented_error(method):
         ["rindex", [3, 1, 2]],
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_index_missing(method, exp):
     ser = pd.Series(["abcb", "ab", "bcbe", np.nan], dtype=object)
 
@@ -419,7 +419,7 @@ def test_slice(start, stop, step, expected):
         (-10, 3, "z", ["zrt", "a zit longer", "evenlongzerthanthat", "z", np.nan]),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_slice_replace(start, stop, repl, expected):
     ser = pd.Series(
         ["short", "a bit longer", "evenlongerthanthat", "", np.nan],
@@ -454,7 +454,7 @@ def test_lstrip_rstrip(method, exp):
 @pytest.mark.parametrize(
     "prefix, expected", [("a", ["b", " b c", "bc"]), ("ab", ["", "a b c", "bc"])]
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_removeprefix(prefix, expected):
     ser = pd.Series(["ab", "a b c", "bc"], dtype=object)
     result = ser.str.removeprefix(prefix)
@@ -470,7 +470,7 @@ def test_removeprefix(prefix, expected):
 @pytest.mark.parametrize(
     "suffix, expected", [("c", ["ab", "a b ", "b"]), ("bc", ["ab", "a b c", ""])]
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_removesuffix(suffix, expected):
     ser = pd.Series(["ab", "a b c", "bc"], dtype=object)
     result = ser.str.removesuffix(suffix)
@@ -483,7 +483,7 @@ def test_removesuffix(suffix, expected):
     strict=True,
     raises=RuntimeError,
 )
-@sql_count_checker(query_count=16, fallback_count=2, sproc_count=2)
+@sql_count_checker(query_count=16, sproc_count=2)
 def test_encode_decode():
     ser = pd.Series(["a", "b", "a\xe4"], dtype=object).str.encode("utf-8")
     result = ser.str.decode("utf-8")
@@ -504,7 +504,7 @@ def test_encode_decode():
         ("NFC", ["ABC", "ＡＢＣ", "１２３", np.nan, "ｱｲｴ"]),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_normalize(
     form,
     expected,
@@ -531,7 +531,7 @@ def test_normalize(
         (5, ["-2", "+5"], ["-0002", "+0005"]),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_zfill(width, data, expected_data):
     # https://github.com/pandas-dev/pandas/issues/20868
     value = pd.Series(data)
@@ -545,7 +545,7 @@ def test_zfill(width, data, expected_data):
     strict=True,
     raises=RuntimeError,
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_zfill_with_leading_sign():
     value = pd.Series(["-cat", "-1", "+dog"])
     expected = native_pd.Series(["-0cat", "-0001", "+0dog"])
@@ -565,7 +565,7 @@ def test_zfill_with_leading_sign():
         ("value", ["World", "Planet", "Sea"]),
     ],
 )
-@sql_count_checker(query_count=8, fallback_count=1, sproc_count=1)
+@sql_count_checker(query_count=8, sproc_count=1)
 def test_get_with_dict_label(key, expected_result):
     # GH47911
     s = pd.Series(

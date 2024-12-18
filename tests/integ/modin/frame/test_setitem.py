@@ -9,15 +9,17 @@ import numpy as np
 import pandas as native_pd
 import pytest
 from modin.pandas.utils import is_scalar
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    create_test_dfs,
     eval_snowpark_pandas_result,
     try_cast_to_snowpark_pandas_series,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # these tests are from original pandas and modified slightly to cover more scenarios.
 # Original tests can be found in pandas/tests/copy_view/test_setitem.py.
@@ -46,14 +48,14 @@ SCALAR_LIKE_VALUES = [0, "xyz", None, 3.14]
         native_pd.Series(["b", "a"]),
     ],
 )
-def test_df_setitem_df_value(key):
+@pytest.mark.parametrize("dtype", ["int", "timedelta64[ns]"])
+def test_df_setitem_df_value(key, dtype):
     data = {"a": [1, 2, 3], "b": [4, 5, 6]}
-    snow_df = pd.DataFrame(data)
-    native_df = native_pd.DataFrame(data)
+    snow_df, native_df = create_test_dfs(data, dtype=dtype)
     val = (
-        native_pd.DataFrame({"a": [10, 20, 30]})
+        native_pd.DataFrame({"a": [10, 20, 30]}, dtype=dtype)
         if is_scalar(key)
-        else native_pd.DataFrame({"a": [10, 20, 30], "c": [40, 50, 60]})
+        else native_pd.DataFrame({"a": [10, 20, 30], "c": [40, 50, 60]}, dtype=dtype)
     )
 
     def setitem(df):
@@ -126,12 +128,14 @@ def test_df_setitem_df_value_dedup_columns(key, key_type):
         slice("-10", "100"),
     ],
 )
-def test_df_setitem_slice_key_df_value(key):
+@pytest.mark.parametrize("dtype", ["int", "timedelta64[ns]"])
+def test_df_setitem_slice_key_df_value(key, dtype):
     data = {"a": [1, 2, 3], "b": [4, 5, 6]}
     index = ["0", "1", "2"]
-    snow_df = pd.DataFrame(data, index=index)
-    native_df = native_pd.DataFrame(data, index=index)
-    val = native_pd.DataFrame({"a": [10, 20, 30], "c": [40, 50, 60]}, index=index)
+    snow_df, native_df = create_test_dfs(data, index=index, dtype=dtype)
+    val = native_pd.DataFrame(
+        {"a": [10, 20, 30], "c": [40, 50, 60]}, index=index, dtype=dtype
+    )
     val = val[key]
 
     def setitem(df):
@@ -141,7 +145,7 @@ def test_df_setitem_slice_key_df_value(key):
         else:
             df[key] = val
 
-    expected_join_count = 3 if isinstance(key.start, int) else 4
+    expected_join_count = 3
 
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(snow_df, native_df, setitem, inplace=True)
@@ -168,14 +172,16 @@ def test_df_setitem_slice_key_df_value(key):
         "A",
     ],
 )  # matching_item_columns_by_label is always True
-def test_df_setitem_df_single_value(key, val_index, val_columns):
+@pytest.mark.parametrize("dtype", ["int", "timedelta64[ns]"])
+def test_df_setitem_df_single_value(key, val_index, val_columns, dtype):
     native_df = native_pd.DataFrame(
         [[91, -2, 83, 74], [95, -6, 87, 78], [99, -10, 811, 712], [913, -14, 815, 716]],
         index=["x", "x", "z", "w"],
         columns=["A", "B", "C", "D"],
+        dtype=dtype,
     )
 
-    val = native_pd.DataFrame([100], columns=val_columns, index=val_index)
+    val = native_pd.DataFrame([100], columns=val_columns, index=val_index, dtype=dtype)
 
     def setitem(df):
         if isinstance(df, pd.DataFrame):
@@ -240,7 +246,7 @@ def test_df_setitem_array_value_duplicate_index():
 
 
 # matching_item_row_by_label is False here.
-@sql_count_checker(query_count=2, join_count=8)
+@sql_count_checker(query_count=2, join_count=6)
 def test_df_setitem_array_value():
     # Case: setting an array as a new column (df[col] = arr) copies that data
     data = {"a": [1, 2, 3], "b": [4, 5, 6]}
@@ -330,7 +336,11 @@ def test_df_setitem_self_df_set_aligned_row_key(native_df):
             index=[100, 101, 102]
         ),  # non-matching index will replace with NULLs
         native_pd.Series([]),
-        ["a", "c", "b"],  # replace with different type
+        param(["a", "c", "b"], id="string_type"),
+        param(
+            [pd.Timedelta(5), pd.Timedelta(6), pd.Timedelta(7)],
+            id="timedelta_type",
+        ),
         native_pd.Series(["x", "y", "z"], index=[2, 0, 1]),
         native_pd.RangeIndex(3),
         native_pd.Index(
@@ -366,22 +376,37 @@ def test_df_setitem_replace_column_with_single_column(column, key):
     elif isinstance(column, native_pd.Index) and not isinstance(
         column, native_pd.DatetimeIndex
     ):
-        expected_join_count = 4
+        expected_join_count = 3
 
-    # 3 extra queries, 2 for iter and 1 for tolist
-    with SqlCounter(
-        query_count=4
-        if isinstance(column, native_pd.Index)
-        and not isinstance(column, native_pd.DatetimeIndex)
-        else 1,
-        join_count=expected_join_count,
+    if (
+        key == "a"
+        and isinstance(column, list)
+        and column == [pd.Timedelta(5), pd.Timedelta(6), pd.Timedelta(7)]
     ):
-        eval_snowpark_pandas_result(
-            snow_df,
-            native_df,
-            lambda df: func_insert_new_column(df, column),
-            inplace=True,
-        )
+        # failure because of SNOW-1738952. SNOW-1738952 only applies to this
+        # case because we're replacing an existing column.
+        with SqlCounter(query_count=0), pytest.raises(NotImplementedError):
+            eval_snowpark_pandas_result(
+                snow_df,
+                native_df,
+                lambda df: func_insert_new_column(df, column),
+                inplace=True,
+            )
+    else:
+        # 3 extra queries, 2 for iter and 1 for tolist
+        with SqlCounter(
+            query_count=4
+            if isinstance(column, native_pd.Index)
+            and not isinstance(column, native_pd.DatetimeIndex)
+            else 1,
+            join_count=expected_join_count,
+        ):
+            eval_snowpark_pandas_result(
+                snow_df,
+                native_df,
+                lambda df: func_insert_new_column(df, column),
+                inplace=True,
+            )
 
 
 @pytest.mark.parametrize("value", [[], [1, 2], np.array([4, 5, 6, 7])])
@@ -540,13 +565,26 @@ def test_df_setitem_full_columns(key, value):
 
 
 @sql_count_checker(query_count=1)
-def test_df_setitem_lambda_dataframe():
-    data = {"a": [1, 2, 3], "b": [4, 5, 6]}
+@pytest.mark.parametrize(
+    "data, comparison_value, set_value",
+    [
+        ({"a": [1, 2, 3], "b": [4, 5, 6]}, 2, 8),
+        (
+            {
+                "a": native_pd.to_timedelta([1, 2, 3]),
+                "b": native_pd.to_timedelta([4, 5, 6]),
+            },
+            pd.Timedelta(2),
+            pd.Timedelta(8),
+        ),
+    ],
+)
+def test_df_setitem_lambda_dataframe(data, comparison_value, set_value):
     snow_df = pd.DataFrame(data)
     native_df = native_pd.DataFrame(data)
 
     def masking_function(df):
-        df[lambda x: x < 2] = 8
+        df[lambda x: x < comparison_value] = set_value
 
     eval_snowpark_pandas_result(snow_df, native_df, masking_function, inplace=True)
 
@@ -634,7 +672,7 @@ def test_df_setitem_optimized():
     def helper(df):
         df["x"] = df.loc[df.b < 0, "b"]
 
-    with SqlCounter(query_count=1, join_count=3):
+    with SqlCounter(query_count=1, join_count=2):
         eval_snowpark_pandas_result(snow_df, native_df, helper, inplace=True)
 
 
@@ -1294,6 +1332,18 @@ def test_df_setitem_2d_array(indexer, item_type):
             setitem_helper,
             inplace=True,
         )
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError, reason="SNOW-1738952")
+def test_df_setitem_2d_array_timedelta_negative():
+    def setitem(df):
+        df[[1]] = np.array([[pd.Timedelta(3)]])
+
+    eval_snowpark_pandas_result(
+        *create_test_dfs(native_pd.DataFrame([[pd.Timedelta(1), pd.Timedelta(2)]])),
+        setitem,
+        inplace=True
+    )
 
 
 def test_df_setitem_2d_array_row_length_no_match():

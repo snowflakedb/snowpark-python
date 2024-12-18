@@ -4,11 +4,27 @@
 
 import modin.pandas as pd
 import numpy as np
+import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    PANDAS_VERSION_PREDICATE,
+    create_test_dfs,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
+)
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+pytestmark = pytest.mark.skipif(
+    PANDAS_VERSION_PREDICATE,
+    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
+)
+
+
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
 
 
 @pytest.mark.parametrize("dropna", [True, False])
@@ -132,7 +148,7 @@ def test_dataframe_groupby_transform_conflicting_labels_negative():
 
 @sql_count_checker(
     query_count=11,
-    join_count=10,
+    join_count=8,
     udtf_count=2,
     high_count_expected=True,
     high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",
@@ -180,4 +196,37 @@ def test_dataframe_groupby_transform_conflicting_labels_chained():
             {"X": [1, 2, 3, 1, 2, 2], "Y": [4, 5, 6, 7, 8, 9], "Z": [9, 8, 7, 6, 5, 4]}
         ),
         transform_helper,
+    )
+
+
+@pytest.mark.xfail(strict=True, raises=AssertionError, reason="SNOW-1619940")
+def test_return_timedelta():
+    eval_snowpark_pandas_result(
+        *create_test_dfs([[5, 7]]),
+        lambda df: df.groupby(0).transform(
+            lambda series: native_pd.Series([native_pd.Timedelta(series.sum())])
+        ),
+    )
+
+
+@pytest.mark.xfail(strict=True, raises=NotImplementedError)
+@pytest.mark.parametrize(
+    "pandas_df",
+    [
+        param(
+            native_pd.DataFrame([["key0", native_pd.Timedelta(1)]]),
+            id="timedelta_column",
+        ),
+        param(
+            native_pd.DataFrame(
+                [["key0", "value1"]], index=native_pd.Index([native_pd.Timedelta(1)])
+            ),
+            id="timedelta_index",
+        ),
+    ],
+)
+def test_timedelta_input(pandas_df):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(pandas_df),
+        lambda df: df.groupby(0).transform(lambda series: 1),
     )

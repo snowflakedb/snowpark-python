@@ -14,7 +14,8 @@ import numpy as np
 import pandas as native_pd
 import pandas.testing as tm
 import pytest
-from modin.pandas import DataFrame, Series
+from modin.pandas import DataFrame, Index, Series
+from packaging import version
 from pandas import isna
 from pandas._typing import Scalar
 from pandas.core.dtypes.common import is_list_like
@@ -22,10 +23,14 @@ from pandas.core.dtypes.inference import is_scalar
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from snowflake.snowpark.modin.utils import SupportsPublicToPandas
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import StructField, StructType
+
+PANDAS_VERSION_PREDICATE = version.parse(native_pd.__version__) >= version.parse(
+    "2.2.3"
+)
 
 ValuesEqualType = Optional[
     Union[
@@ -194,7 +199,7 @@ def create_test_dfs(*args, **kwargs) -> tuple[pd.DataFrame, native_pd.DataFrame]
         and isinstance(native_kw_args["columns"], native_pd.Index)
         and not isinstance(native_kw_args["columns"], pd.MultiIndex)
     ):
-        kwargs["columns"] = pd.Index(native_kw_args["columns"], convert_to_lazy=False)
+        kwargs["columns"] = native_pd.Index(native_kw_args["columns"])
     return (pd.DataFrame(*args, **kwargs), native_pd.DataFrame(*args, **native_kw_args))
 
 
@@ -249,8 +254,10 @@ def assert_snowpark_pandas_equal_to_pandas(
     Raises:
         AssertionError if the converted dataframe does not match with the original one
     """
-    assert isinstance(snow, (DataFrame, Series))
-    assert isinstance(expected_pandas, (native_pd.DataFrame, native_pd.Series))
+    assert isinstance(snow, (DataFrame, Series, Index)), f"Got type: {type(snow)}"
+    assert isinstance(
+        expected_pandas, (native_pd.DataFrame, native_pd.Series, native_pd.Index)
+    ), f"Got type: {type(expected_pandas)}"
     # Due to server-side compression, only check that index values are equivalent and ignore the
     # index types. Snowpark pandas will use the smallest possible dtype (typically int8), while
     # native pandas will default to int64.
@@ -264,10 +271,16 @@ def assert_snowpark_pandas_equal_to_pandas(
         assert isinstance(snow, DataFrame)
         snow_to_native = snow_to_native.replace({None: pd.NA})
         tm.assert_frame_equal(snow_to_native, expected_pandas, **kwargs)
-    else:
-        assert isinstance(snow, Series)
+    elif isinstance(snow, Series):
         snow_to_native = snow_to_native.replace({None: pd.NA})
         tm.assert_series_equal(snow_to_native, expected_pandas, **kwargs)
+    else:
+        assert isinstance(snow, Index)
+        if "check_dtype" in kwargs:
+            kwargs.pop("check_dtype")
+        if kwargs.pop("check_index_type"):
+            kwargs.update(exact=False)
+        tm.assert_index_equal(snow_to_native, expected_pandas, **kwargs)
     if expected_index_type is not None:
         assert (
             expected_index_type == snow_to_native.index.dtype.name
@@ -280,8 +293,8 @@ def assert_snowpark_pandas_equal_to_pandas(
 
 
 def assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
-    snow: DataFrame | Series,
-    native: native_pd.DataFrame | native_pd.Series,
+    snow: DataFrame | Series | Index,
+    native: native_pd.DataFrame | native_pd.Series | native_pd.Index,
     **kwargs,
 ) -> None:
     """
@@ -291,8 +304,8 @@ def assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
 
 
 def assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(
-    snow: DataFrame | Series,
-    native: native_pd.DataFrame | native_pd.Series,
+    snow: DataFrame | Series | Index,
+    native: native_pd.DataFrame | native_pd.Series | native_pd.Index,
     **kwargs,
 ) -> None:
     """
@@ -327,13 +340,15 @@ def assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64(
             rtol=1.0e-5,
             **kwargs,
         )
-    else:
+    elif isinstance(snow, Series):
         assert_series_equal(
             snow_to_native.astype("float64"),
             native.astype("float64"),
             rtol=1.0e-5,
             **kwargs,
         )
+    else:
+        assert_index_equal(snow_to_native, native, **kwargs)
 
 
 def assert_series_equal(*args, **kwargs) -> None:
@@ -372,6 +387,7 @@ def eval_snowpark_pandas_result(
     # For general snowpark pandas api evaluation, we want to focus on the evaluation of the result
     # shape and values, the type mapping will be tested separately (SNOW-841273).
     comparator: Callable = assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    test_attrs: bool = True,
     inplace: bool = False,
     expect_exception: bool = False,
     expect_exception_type: type[Exception] | None = None,
@@ -388,6 +404,8 @@ def eval_snowpark_pandas_result(
         operation: Callable. The operation to be applied on the Snowpark pandas and pandas object
         comparator: Callable. Function used to perform the comparison, which must be in format of
                                 comparator(snowpark_pandas_res, pandas_res, **key_words)
+        test_attrs: bool. If True and the operation returns a DF/Series, sets `attrs` on the input
+            to a sentinel value and ensures the output DF/Series has the same `attrs`.
         inplace: bool. Whether the operation is an inplace operation or not
         expect_exception: tuple of an Exception type. do we expect an exception during the operation
         expect_exception_type: if not None, assert the exception type is expected
@@ -411,7 +429,7 @@ def eval_snowpark_pandas_result(
                 # If the operation affected the snow_pandas object in place,
                 # we have to call to_pandas() on snow_pandas.
                 snow_pandas.to_pandas()
-            elif isinstance(result, (DataFrame, Series)):
+            elif isinstance(result, (DataFrame, Series, Index)):
                 # otherwise, we have to call to_pandas() on the result.
                 result.to_pandas()
         if expect_exception_type:
@@ -439,12 +457,25 @@ def eval_snowpark_pandas_result(
                 == snow_err_msg[: snow_err_msg.index("dtype")]
             ), f"Snowpark pandas Exception {snow_e.value} doesn't match pandas Exception {pd_e.value}"
     else:
+        test_attrs_dict = {"key": "attrs propagation test"}
+        if test_attrs and isinstance(snow_pandas, (Series, DataFrame)):
+            native_pandas.attrs = test_attrs_dict
+            snow_pandas.attrs = test_attrs_dict
         pd_result = operation(native_pandas)
         snow_result = operation(snow_pandas)
         if inplace:
             pd_result = native_pandas
             snow_result = snow_pandas
-
+        if (
+            test_attrs
+            and isinstance(snow_pandas, (Series, DataFrame))
+            and isinstance(snow_result, (Series, DataFrame))
+        ):
+            # Check that attrs was properly propagated.
+            # Note that attrs may be empty--all that matters is that snow_result and pd_result agree.
+            assert (
+                snow_result.attrs == pd_result.attrs
+            ), f"Snowpark pandas attrs {snow_result.attrs} doesn't match pandas attrs {pd_result.attrs}"
         comparator(snow_result, pd_result, **(kwargs or {}))
 
 

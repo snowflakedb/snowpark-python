@@ -13,12 +13,14 @@ import pytest
 import pytz
 
 from snowflake.snowpark import Row
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     _columns_from_timestamp_parts,
     _timestamp_from_parts_internal,
     abs,
     acos,
+    any_value,
     approx_count_distinct,
     approx_percentile,
     approx_percentile_accumulate,
@@ -35,6 +37,7 @@ from snowflake.snowpark.functions import (
     array_intersection,
     array_position,
     array_prepend,
+    array_remove,
     array_size,
     array_slice,
     array_to_string,
@@ -178,6 +181,7 @@ from snowflake.snowpark.functions import (
     substring,
     sum,
     sum_distinct,
+    system_reference,
     tan,
     tanh,
     time_from_parts,
@@ -247,6 +251,22 @@ def test_col(session):
 def test_lit(session):
     res = TestData.test_data1(session).select(lit(1)).collect()
     assert res == [Row(1), Row(1)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="system functions not supported by local testing",
+)
+def test_system_reference(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([(1,)]).to_df(["a"])
+    df.write.save_as_table(table_name)
+
+    try:
+        data = df.select(system_reference("TABLE", table_name)).collect()
+        assert data[0][0].startswith("ENT_REF_TABLE")
+    finally:
+        session.table(table_name).drop_table()
 
 
 def test_avg(session):
@@ -671,30 +691,68 @@ def test_translate(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="datediff is not yet supported in local testing mode.",
-)
 def test_datediff(session):
     Utils.check_answer(
-        [Row(1), Row(1)],
         TestData.timestamp1(session)
         .select(col("a"), dateadd("year", lit(1), col("a")).as_("b"))
         .select(datediff("year", col("a"), col("b"))),
+        [Row(1), Row(1)],
     )
 
     # Same as above, but pass str instead of Column
     Utils.check_answer(
-        [Row(1), Row(1)],
         TestData.timestamp1(session)
         .select("a", dateadd("year", lit(1), "a").as_("b"))
         .select(datediff("year", "a", "b")),
+        [Row(1), Row(1)],
+    )
+
+
+@pytest.mark.parametrize(
+    "unit,v1,v2,expected",
+    [
+        ("year", "2023-01-01 00:00:00.000", "2024-01-01 00:00:00.000", 1),
+        ("month", "2023-01-01 00:00:00.000", "2024-02-01 00:00:00.000", 13),
+        ("week", "2024-01-01 00:00:00.000", "2024-03-05 00:00:00.000", 9),
+        ("day", "2024-01-01 00:00:00.000", "2024-02-05 00:00:00.000", 35),
+        ("hour", "2024-01-01 00:00:00.000", "2024-01-01 6:35:00.000", 6),
+        ("minute", "2024-01-01 00:00:00.000", "2024-01-01 1:12:00.000", 72),
+        ("second", "2024-01-01 00:00:00.000", "2024-01-01 1:10:00.000", 4200),
+        ("millisecond", "2024-01-01 00:00:00.000", "2024-01-01 00:00:02.100", 2100),
+        ("microsecond", "2024-01-01 00:00:00.000", "2024-01-01 00:00:00.234", 234000),
+    ],
+)
+def test_datediff_edge_cases(session, unit, v1, v2, expected):
+    df = session.create_dataframe(
+        [
+            (v1, v2),
+            (v1, None),
+            (None, v2),
+            (None, None),
+        ],
+        schema=["a", "b"],
+    ).select(to_timestamp("a").alias("a"), to_timestamp("b").alias("b"))
+
+    Utils.check_answer(
+        df.select(datediff(unit, "a", "b")),
+        [
+            Row(expected),
+            Row(None),
+            Row(None),
+            Row(None),
+        ],
     )
 
 
 def test_datediff_negative(session):
+    df = TestData.timestamp1(session).select(
+        col("a"), dateadd("year", lit(1), col("a")).as_("b")
+    )
     with pytest.raises(ValueError, match="part must be a string"):
-        TestData.timestamp1(session).select(dateadd(7, lit(1), col("a")))
+        df.select(datediff(7, col("b"), col("a"))).collect()
+
+    with pytest.raises(SnowparkSQLException):
+        df.select(datediff("epoch_second", col("b"), col("a"))).collect()
 
 
 @pytest.mark.parametrize(
@@ -1898,6 +1956,7 @@ def test_to_date(session):
             df.select(*[to_date(col(column)) for column in df.columns]), expected
         )
 
+    # with format column
     expected4 = [
         Row(date(2024, 4, 18)),
         Row(date(1999, 9, 1)),
@@ -1905,9 +1964,17 @@ def test_to_date(session):
         Row(date(2015, 5, 15)),
     ]
     df = TestData.date_primitives4(session)
-    Utils.check_answer(
-        df.select(to_date(*[col(column) for column in df.columns])), expected4
-    )
+    Utils.check_answer(df.select(to_date(df.a, df.b)), expected4)
+
+    # with string format column
+    data5 = ["1999-01-01", "2000-02-02", "2024-03-03"]
+    expected5 = [
+        Row(date(1999, 1, 1)),
+        Row(date(2000, 2, 2)),
+        Row(date(2024, 3, 3)),
+    ]
+    df = session.create_dataframe(data5).to_df(["a"])
+    Utils.check_answer(df.select(to_date(df.a, "YYYY-MM-DD")), expected5)
 
 
 @pytest.mark.skipif(
@@ -2612,10 +2679,6 @@ def test_array_agg(session, col_amount):
     ) == [200, 400, 800, 2500, 3000, 4500, 5000, 6000, 8000, 9500, 10000, 35000, 90500]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_array_agg_within_group(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2641,10 +2704,6 @@ def test_array_agg_within_group(session):
     ]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_array_agg_within_group_order_by_desc(session):
     assert json.loads(
         TestData.monthly_sales(session)
@@ -2670,10 +2729,6 @@ def test_array_agg_within_group_order_by_desc(session):
     ]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_array_agg_within_group_order_by_multiple_columns(session):
     sort_columns = [col("month").asc(), col("empid").desc(), col("amount")]
     amount_values = (
@@ -2690,10 +2745,6 @@ def test_array_agg_within_group_order_by_multiple_columns(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_window_function_array_agg_within_group(session):
     value1 = "[\n  1,\n  3\n]"
     value2 = "[\n  1,\n  3,\n  10\n]"
@@ -2771,6 +2822,110 @@ def test_array_append(session):
             Row('[\n  6,\n  7,\n  8,\n  1,\n  "e2"\n]'),
         ],
         TestData.array2(session).select(array_append(array_append("arr1", "d"), "e")),
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="array_remove is not yet supported in local testing mode.",
+)
+def test_array_remove(session):
+    actual = session.createDataFrame([([1, 2, 4, 4, 3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 4))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  1,\n  2,\n  3\n]"),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([(["a", "b", "c", "a", "a"],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, "a"))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "b",\n  "c"\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame(
+        [(["apple", "banana", "apple", "orange"],), ([],)], ["data"]
+    )
+    actual = actual.select(array_remove(actual.data, "apple"))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "banana",\n  "orange"\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([([1, "2", 3.1, 1, 3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 1))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "2",\n  3.1,\n  3\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([(["@", ";", "3.1", 1, 5 / 3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 1))
+    Utils.check_answer(
+        actual,
+        [
+            Row('[\n  "@",\n  ";",\n  "3.1",\n  1.6666666666666667\n]'),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([([-1, -2, -4, -4, -3],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 1))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  -1,\n  -2,\n  -4,\n  -4,\n  -3\n]"),
+            Row("[]"),
+        ],
+    )
+
+    actual = session.createDataFrame([([4.4, 5.5, 1.1],), ([],)], ["data"])
+    actual = actual.select(array_remove(actual.data, 5.5))
+    Utils.check_answer(
+        actual,
+        [
+            Row("[\n  4.4,\n  1.1\n]"),
+            Row("[]"),
+        ],
+    )
+
+    actual = TestData.array1(session).select(
+        array_remove(array_remove(col("arr1"), lit(1)), lit(8))
+    )
+
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), lit(1)), lit(8))
+        ),
+        sort=False,
+    )
+
+    Utils.check_answer(
+        [
+            Row("[\n  2,\n  3\n]"),
+            Row("[\n  6,\n  7\n]"),
+        ],
+        TestData.array1(session).select(
+            array_remove(array_remove(col("arr1"), 1), lit(8))
+        ),
+        sort=False,
     )
 
 
@@ -3808,6 +3963,35 @@ def test_convert_timezone(session, local_testing_mode):
             ],
         )
 
+        df = TestData.datetime_primitives1(session).select("timestamp", "timestamp_ntz")
+
+        Utils.check_answer(
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ),
+            [
+                Row(
+                    datetime(2024, 2, 1, 4, 0),
+                    datetime(2017, 2, 24, 4, 0, 0, 456000),
+                )
+            ],
+        )
+
+        df = TestData.datetime_primitives1(session).select(
+            "timestamp_ltz", "timestamp_tz"
+        )
+        with pytest.raises(SnowparkSQLException):
+            # convert_timezone function does not accept non-TimestampTimeZone.NTZ datetime
+            df.select(
+                *[
+                    convert_timezone(lit("UTC"), col, lit("Asia/Shanghai"))
+                    for col in df.columns
+                ]
+            ).collect()
+
         LocalTimezone.set_local_timezone()
 
 
@@ -3959,7 +4143,7 @@ def test_timestamp_from_parts_internal():
 
 def test_timestamp_from_parts_internal_negative():
     func_name = "negative test"
-    with pytest.raises(ValueError, match="expected 2 or 6 required arguments"):
+    with pytest.raises(ValueError, match="expected 2, 6, 7 or 8"):
         _timestamp_from_parts_internal(func_name, 1)
 
     with pytest.raises(ValueError, match="does not accept timezone as an argument"):
@@ -4484,40 +4668,78 @@ def test_iff(session, local_testing_mode):
         )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="cume_dist is not yet supported in local testing mode.",
-)
 def test_cume_dist(session):
     Utils.check_answer(
         TestData.xyz(session).select(
-            cume_dist().over(Window.partition_by(col("X")).order_by(col("Y")))
+            "X", "Y", cume_dist().over(Window.partition_by(col("X")).order_by(col("Y")))
         ),
-        [Row(0.3333333333333333), Row(1.0), Row(1.0), Row(1.0), Row(1.0)],
-        sort=False,
+        [
+            Row(2, 1, 0.3333333333333333),
+            Row(2, 2, 1.0),
+            Row(2, 2, 1.0),
+            Row(1, 2, 1.0),
+            Row(1, 2, 1.0),
+        ],
+        sort=True,
+    )
+
+    Utils.check_answer(
+        TestData.xyz2(session).select(
+            "X", "Y", cume_dist().over(Window.partition_by(col("X")).order_by(col("Y")))
+        ),
+        [
+            Row(2, 1, 0.16666666666666666),
+            Row(2, 2, 0.5),
+            Row(2, 2, 0.5),
+            Row(2, 3, 0.8333333333333334),
+            Row(2, 3, 0.8333333333333334),
+            Row(2, 4, 1.0),
+            Row(1, 2, 1.0),
+            Row(1, 2, 1.0),
+        ],
+        sort=True,
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="dense_rank is not yet supported in local testing mode.",
-)
 def test_dense_rank(session):
+    # Basic example
+    basic = TestData.xyz(session).select(
+        "X", "Y", dense_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
     Utils.check_answer(
-        TestData.xyz(session).select(dense_rank().over(Window.order_by(col("X")))),
-        [Row(1), Row(1), Row(2), Row(2), Row(2)],
-        sort=False,
+        basic,
+        [Row(2, 1, 1), Row(2, 2, 2), Row(2, 2, 2), Row(1, 2, 1), Row(1, 2, 1)],
+        sort=True,
+    )
+
+    # Slightly less Basic example
+    basic2 = TestData.xyz2(session).select(
+        "X", "Y", dense_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
+    Utils.check_answer(
+        basic2,
+        [
+            Row(2, 1, 1),
+            Row(2, 2, 2),
+            Row(2, 2, 2),
+            Row(2, 3, 3),
+            Row(2, 3, 3),
+            Row(2, 4, 4),
+            Row(1, 2, 1),
+            Row(1, 2, 1),
+        ],
+        sort=True,
     )
 
 
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lag(session, col_z, local_testing_mode):
+def test_lag(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lag(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(0), Row(10), Row(1), Row(0), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4525,7 +4747,7 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4533,7 +4755,7 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(None), Row(10), Row(1), Row(None), Row(1)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4541,18 +4763,18 @@ def test_lag(session, col_z, local_testing_mode):
             lag(col_z, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(10), Row(1), Row(3), Row(1), Row(3)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
 
 @pytest.mark.parametrize("col_z", ["Z", col("Z")])
-def test_lead(session, col_z, local_testing_mode):
+def test_lead(session, col_z):
     Utils.check_answer(
         TestData.xyz(session).select(
             lead(col_z, 1, 0).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(0), Row(3), Row(0)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4560,7 +4782,7 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z, 1).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
     )
 
     Utils.check_answer(
@@ -4568,7 +4790,44 @@ def test_lead(session, col_z, local_testing_mode):
             lead(col_z).over(Window.partition_by(col("X")).order_by(col("X")))
         ),
         [Row(1), Row(3), Row(None), Row(3), Row(None)],
-        sort=local_testing_mode,
+        sort=True,
+    )
+
+
+def test_lead_lag_nulls(session):
+    data = [
+        (1, 1, 1, None),
+        (1, 1, 2, None),
+        (1, 1, 3, 1),
+        (1, 1, 4, None),
+        (1, 1, 5, None),
+        (1, 1, 6, 2),
+        (1, 1, 7, None),
+        (1, 1, 8, None),
+    ]
+    schema = ["COL1", "COL2", "COL3", "COLUMN_TO_FILL"]
+    df = session.create_dataframe(data=data, schema=schema)
+
+    window = Window.partition_by(["COL1", "COL2"]).order_by("COL3")
+
+    lead_col = lead(df.col("COLUMN_TO_FILL"), ignore_nulls=True).over(window)
+    lag_col = lag(df.col("COLUMN_TO_FILL"), ignore_nulls=True).over(window)
+    max_lead_lag = iff(lead_col > lag_col, lead_col, lag_col)
+
+    final_df = df.with_column("MAX_LEAD_LAG", max_lead_lag)
+    Utils.check_answer(
+        final_df,
+        [
+            Row(1, 1, 1, None, None),
+            Row(1, 1, 2, None, None),
+            Row(1, 1, 3, 1, None),
+            Row(1, 1, 4, None, 2),
+            Row(1, 1, 5, None, 2),
+            Row(1, 1, 6, 2, 1),
+            Row(1, 1, 7, None, 2),
+            Row(1, 1, 8, None, 2),
+        ],
+        sort=False,
     )
 
 
@@ -4595,10 +4854,6 @@ def test_first_value(session, col_z):
 
 
 @pytest.mark.parametrize("col_n", ["n", col("n"), 4, 0])
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="ntile is not yet supported in local testing mode.",
-)
 def test_ntile(session, col_n):
     df = TestData.xyz(session)
     if not isinstance(col_n, int):
@@ -4613,38 +4868,171 @@ def test_ntile(session, col_n):
     else:
         Utils.check_answer(
             df.select(
-                ntile(col_n).over(Window.partition_by(col("X")).order_by(col("Y")))
+                "X",
+                "Y",
+                ntile(col_n).over(Window.partition_by(col("X")).order_by(col("Y"))),
             ),
-            [Row(1), Row(2), Row(3), Row(1), Row(2)],
-            sort=False,
+            [Row(2, 1, 1), Row(2, 2, 2), Row(2, 2, 3), Row(1, 2, 1), Row(1, 2, 2)],
+            sort=True,
         )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="percent_rank is not yet supported in local testing mode.",
-)
-def test_percent_rank(session):
+def test_ntile_larger_example(session):
     Utils.check_answer(
-        TestData.xyz(session).select(
-            percent_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+        TestData.xyz2(session).select(
+            "X", "Y", ntile(3).over(Window.partition_by(col("X")).order_by(col("Y")))
         ),
-        [Row(0.0), Row(0.5), Row(0.5), Row(0.0), Row(0.0)],
-        sort=False,
+        [
+            Row(2, 1, 1),
+            Row(2, 2, 1),
+            Row(2, 2, 2),
+            Row(2, 3, 2),
+            Row(2, 3, 3),
+            Row(2, 4, 3),
+            Row(1, 2, 1),
+            Row(1, 2, 2),
+        ],
+        sort=True,
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="rank is not yet supported in local testing mode.",
-)
-def test_rank(session):
+def test_percent_rank(session):
+    # Basic example
+    basic = TestData.xyz(session).select(
+        "X", "Y", percent_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
     Utils.check_answer(
-        TestData.xyz(session).select(
-            rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+        basic,
+        [
+            Row(2, 1, 0.0),
+            Row(2, 2, 0.5),
+            Row(2, 2, 0.5),
+            Row(1, 2, 0.0),
+            Row(1, 2, 0.0),
+        ],
+        sort=True,
+    )
+
+    # Slightly less Basic example
+    basic2 = TestData.xyz2(session).select(
+        "X", "Y", percent_rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
+    Utils.check_answer(
+        basic2,
+        [
+            Row(2, 1, 0.0),
+            Row(2, 2, 0.2),
+            Row(2, 2, 0.2),
+            Row(2, 3, 0.6),
+            Row(2, 3, 0.6),
+            Row(2, 4, 1.0),
+            Row(1, 2, 0.0),
+            Row(1, 2, 0.0),
+        ],
+        sort=True,
+    )
+
+
+def test_rank(session):
+    df = TestData.xyz(session)
+
+    # Basic example
+    basic = df.select(
+        "X", "Y", rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
+    Utils.check_answer(
+        basic,
+        [Row(2, 1, 1), Row(2, 2, 2), Row(2, 2, 2), Row(1, 2, 1), Row(1, 2, 1)],
+        sort=True,
+    )
+
+    # Slightly less Basic example
+    basic2 = TestData.xyz2(session).select(
+        "X", "Y", rank().over(Window.partition_by(col("X")).order_by(col("Y")))
+    )
+    Utils.check_answer(
+        basic2,
+        [
+            Row(2, 1, 1),
+            Row(2, 2, 2),
+            Row(2, 2, 2),
+            Row(2, 3, 4),
+            Row(2, 3, 4),
+            Row(2, 4, 6),
+            Row(1, 2, 1),
+            Row(1, 2, 1),
+        ],
+        sort=True,
+    )
+
+    # Order by multiple
+    mult_ord = df.select(
+        "X",
+        "Y",
+        "Z",
+        rank().over(Window.partition_by(col("X")).order_by(col("Y"), col("Z"))),
+    )
+    Utils.check_answer(
+        mult_ord,
+        [
+            Row(2, 1, 10, 1),
+            Row(2, 2, 1, 2),
+            Row(2, 2, 3, 3),
+            Row(1, 2, 1, 1),
+            Row(1, 2, 3, 2),
+        ],
+        sort=True,
+    )
+
+    # Order by expression
+    expr_order = df.select(
+        "X",
+        "Y",
+        "Z",
+        rank().over(Window.partition_by(col("X")).order_by(col("Y") + col("Z"))),
+    )
+    Utils.check_answer(
+        expr_order,
+        [
+            Row(1, 2, 1, 1),
+            Row(1, 2, 3, 2),
+            Row(2, 2, 1, 1),
+            Row(2, 2, 3, 2),
+            Row(2, 1, 10, 3),
+        ],
+        sort=True,
+    )
+
+    # Rows Between
+    rows_between = df.select(
+        "X",
+        "Y",
+        rank().over(
+            Window.partition_by(col("X"))
+            .order_by(col("Y"))
+            .rows_between(Window.CURRENT_ROW, 2)
         ),
-        [Row(1), Row(2), Row(2), Row(1), Row(1)],
-        sort=False,
+    )
+    Utils.check_answer(
+        rows_between,
+        [Row(2, 1, 1), Row(2, 2, 1), Row(2, 2, 1), Row(1, 2, 1), Row(1, 2, 1)],
+        sort=True,
+    )
+
+    # Range Between
+    range_between = df.select(
+        "X",
+        "Y",
+        rank().over(
+            Window.partition_by(col("X"))
+            .order_by(col("Y"))
+            .range_between(Window.UNBOUNDED_PRECEDING, Window.UNBOUNDED_FOLLOWING)
+        ),
+    )
+    Utils.check_answer(
+        range_between,
+        [Row(2, 1, 1), Row(2, 2, 2), Row(2, 2, 2), Row(1, 2, 1), Row(1, 2, 1)],
+        sort=True,
     )
 
 
@@ -4660,10 +5048,6 @@ def test_row_number(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="WithinGroup expressions are not yet supported by local testing mode.",
-)
 def test_listagg(session):
     df = session.create_dataframe([1, 2, 3, 2, 4, 5], schema=["col"])
     Utils.check_answer(
@@ -5151,3 +5535,33 @@ def test_collation(session):
         TestData.zero1(session).select(collation(lit("f").collate("de"))),
         [Row("de")],
     )
+
+
+def test_any_value(session):
+    df = session.create_dataframe(
+        [
+            (1, 1),
+            (1, 1),
+            (2, 1),
+            (2, 2),
+            (2, 2),
+        ],
+        schema=["id", "subid"],
+    ).order_by("id", "subid")
+
+    Utils.check_answer(
+        df.group_by("id", "subid").agg(any_value("id")).order_by("id", "subid"),
+        [Row(1, 1, 1), Row(2, 1, 2), Row(2, 2, 2)],
+    )
+
+    non_deterministic_result_1 = df.select(any_value("id")).collect()
+    assert non_deterministic_result_1 == [Row(1)] or non_deterministic_result_1 == [
+        Row(2)
+    ]
+    non_deterministic_result_2 = (
+        df.group_by("id").agg(any_value("subid")).order_by("id").collect()
+    )
+    assert non_deterministic_result_2 == [
+        Row(1, 1),
+        Row(2, 1),
+    ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]

@@ -8,8 +8,7 @@ from decimal import Decimal
 
 import pytest
 
-from snowflake.snowpark import Column, Row
-from snowflake.snowpark._internal.analyzer.expression import Literal
+from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import PythonObjJSONEncoder
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -44,32 +43,19 @@ def test_literal_basic_types(session):
 
     field_str = str(df.schema.fields)
 
-    if session.sql_simplifier_enabled:
-        assert (
-            field_str == "[StructField('ID', LongType(), nullable=False), "
-            "StructField('NULL', StringType(), nullable=True), "
-            "StructField('STR', StringType(6), nullable=False), "
-            "StructField('CHAR', StringType(1), nullable=False), "
-            "StructField('BOOL', BooleanType(), nullable=True), "
-            "StructField('BYTES', BinaryType(), nullable=False), "
-            "StructField('INT', LongType(), nullable=False), "
-            "StructField('FLOAT', DoubleType(), nullable=False), "
-            "StructField('DECIMAL', DecimalType(38, 18), nullable=False)]"
-        )
-    else:
-        assert (
-            field_str == "[StructField('ID', LongType(), nullable=False), "
-            "StructField('NULL', StringType(16777216), nullable=True), "
-            "StructField('STR', StringType(6), nullable=False), "
-            "StructField('CHAR', StringType(1), nullable=False), "
-            "StructField('BOOL', BooleanType(), nullable=True), "
-            "StructField('BYTES', BinaryType(), nullable=False), "
-            "StructField('INT', LongType(), nullable=False), "
-            "StructField('FLOAT', DoubleType(), nullable=False), "
-            "StructField('DECIMAL', DecimalType(38, 18), nullable=False)]"
-        )
+    assert (
+        field_str == "[StructField('ID', LongType(), nullable=False), "
+        "StructField('NULL', StringType(), nullable=True), "
+        "StructField('STR', StringType(6), nullable=False), "
+        "StructField('CHAR', StringType(1), nullable=False), "
+        "StructField('BOOL', BooleanType(), nullable=True), "
+        "StructField('BYTES', BinaryType(), nullable=False), "
+        "StructField('INT', LongType(), nullable=False), "
+        "StructField('FLOAT', DoubleType(), nullable=False), "
+        "StructField('DECIMAL', DecimalType(38, 18), nullable=False)]"
+    )
 
-    show_str = df._show_string(10)
+    show_str = df._show_string(10, _emit_ast=session.ast_enabled)
     assert (
         show_str
         == """------------------------------------------------------------------------------------------------------------
@@ -117,7 +103,7 @@ def test_literal_timestamp_and_instant(session):
     )
     Utils.is_schema_same(df.schema, expected_schema)
 
-    show_str = df._show_string(10)
+    show_str = df._show_string(10, _emit_ast=session.ast_enabled)
     assert (
         show_str
         == """------------------------------------------------------------------------------------------------------------
@@ -142,7 +128,7 @@ def test_date(session):
         "StructField('DATE', DateType(), nullable=False)]"
     )
 
-    show_str = df._show_string(10)
+    show_str = df._show_string(10, _emit_ast=session.ast_enabled)
     assert (
         show_str
         == """---------------------
@@ -164,26 +150,17 @@ def test_special_literals(session):
     df = (
         session.range(2)
         .with_column("null", lit(None))
-        .with_column("literal", lit(source_literal))
+        .with_column("literal", source_literal)
     )
 
-    if session.sql_simplifier_enabled:
-        assert (
-            str(df.schema)
-            == "StructType([StructField('ID', LongType(), nullable=False), "
-            "StructField('NULL', StringType(), nullable=True), "
-            "StructField('LITERAL', LongType(), nullable=False)])"
-        )
-    else:
-        assert (
-            str(df.schema)
-            == "StructType([StructField('ID', LongType(), nullable=False), "
-            "StructField('NULL', StringType(16777216), nullable=True), "
-            "StructField('LITERAL', LongType(), nullable=False)])"
-        )
+    assert (
+        str(df.schema) == "StructType([StructField('ID', LongType(), nullable=False), "
+        "StructField('NULL', StringType(), nullable=True), "
+        "StructField('LITERAL', LongType(), nullable=False)])"
+    )
 
     assert (
-        df._show_string(10)
+        df._show_string(10, _emit_ast=session.ast_enabled)
         == """
 -----------------------------
 |"ID"  |"NULL"  |"LITERAL"  |
@@ -202,11 +179,11 @@ def test_special_literals(session):
 )
 def test_special_decimal_literals(session):
     normal_scale = lit(Decimal("0.1"))
-    small_scale = Column(Literal(Decimal("0.00001"), DecimalType(5, 5)))
+    small_scale = lit(Decimal("0.00001"), DecimalType(5, 5))
 
     df = session.range(2).select(normal_scale, small_scale)
 
-    show_str = df._show_string(10)
+    show_str = df._show_string(10, _emit_ast=session.ast_enabled)
     assert (
         show_str
         == """-----------------------------------------------------------
@@ -291,7 +268,7 @@ def test_literal_variant(session):
     df = session.range(1)
 
     for i, value in enumerate(LITERAL_VALUES):
-        df = df.with_column(f"x{i}", Column(Literal(value, VariantType())))
+        df = df.with_column(f"x{i}", lit(value, VariantType()))
 
     field_str = str(df.schema.fields)
     ref_field_str = (

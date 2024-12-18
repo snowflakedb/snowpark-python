@@ -20,6 +20,9 @@ jobs:
             uses: actions/setup-python@v4
             with:
               python-version: '3.9'
+          - name: Install protoc
+            shell: bash
+            run: .github/scripts/install_protoc.sh
           - name: Display Python version
             run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
           - name: Upgrade setuptools and pip
@@ -40,13 +43,16 @@ jobs:
               uses: actions/setup-python@v4
               with:
                 python-version: 3.9
+            - name: Install protoc
+              shell: bash
+              run: .github/scripts/install_protoc.sh
             - name: Upgrade setuptools and pip
               run: python -m pip install -U setuptools pip wheel
             - name: Generate wheel
               run: python -m pip wheel -v -w dist --no-deps .
             - name: Show wheels generated
               run: ls -lh dist
-            - uses: actions/upload-artifact@v1
+            - uses: actions/upload-artifact@v4
               with:
                 name: wheel
                 path: dist/
@@ -82,8 +88,15 @@ jobs:
               env:
                   PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
                   CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+            - name: Install protoc
+              shell: bash
+              run: .github/scripts/install_protoc.sh
+            - name: Add protoc to Windows path
+              if: runner.os == 'Windows'
+              run: |
+                echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
             - name: Download wheel(s)
-              uses: actions/download-artifact@v3
+              uses: actions/download-artifact@v4
               with:
                 name: wheel
                 path: dist
@@ -91,7 +104,9 @@ jobs:
               run: ls -lh dist
               shell: bash
             - name: Upgrade setuptools, pip and wheel
-              run: python -m pip install -U setuptools pip wheel
+              run: python -m pip install -U setuptools pip wheel tox
+            - name: Build protobuf Python files
+              run: python -m tox -e protoc
             - name: Install project
               run: python -m pip install -e ".[modin-development]"
             - name: Install test requirements

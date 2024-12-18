@@ -2,9 +2,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
-from collections import Counter
-from typing import Dict, List, Optional, Union
+from collections import Counter, defaultdict
+from typing import DefaultDict, Dict, List, Optional, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -57,6 +56,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     FunctionExpression,
     InExpression,
+    Interval,
     Like,
     ListAgg,
     Literal,
@@ -83,8 +83,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     Range,
     SnowflakeCreateTable,
+    SnowflakeTable,
     SnowflakeValues,
-    UnresolvedRelation,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -149,15 +149,17 @@ class MockAnalyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self.plan_builder = MockSnowflakePlanBuilder(self.session)
-        self.generated_alias_maps = {}
         self.subquery_plans = []
+        self.generated_alias_maps = {}
         self.alias_maps_to_use = None
         self._conn = self.session._conn
 
     def analyze(
         self,
         expr: Union[Expression, NamedExpression],
-        expr_to_alias: Optional[Dict[str, str]] = None,
+        df_aliased_col_name_to_real_col_name: Optional[
+            DefaultDict[str, Dict[str, str]]
+        ] = None,
         parse_local_name=False,
         keep_alias=True,
     ) -> Union[str, List[str]]:
@@ -170,8 +172,6 @@ class MockAnalyzer:
             however, in the result calculation, we want to column name to be the output name, which is 'totB',
             so we set keep_alias to False in the execution.
         """
-        if expr_to_alias is None:
-            expr_to_alias = {}
         if isinstance(expr, GroupingSetsExpression):
             self._conn.log_not_supported_error(
                 external_feature_name="DataFrame.group_by_grouping_sets",
@@ -180,14 +180,29 @@ class MockAnalyzer:
 
         if isinstance(expr, Like):
             return like_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
+                self.analyze(
+                    expr.pattern, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
             )
 
         if isinstance(expr, RegExp):
             return regexp_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                self.analyze(expr.pattern, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
+                self.analyze(
+                    expr.pattern, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
+                self.analyze(
+                    expr.parameters,
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
+                )
+                if expr.parameters is not None
+                else None,
             )
 
         if isinstance(expr, Collate):
@@ -195,7 +210,10 @@ class MockAnalyzer:
                 expr.collation_spec.upper() if parse_local_name else expr.collation_spec
             )
             return collate_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name), collation_spec
+                self.analyze(
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
+                collation_spec,
             )
 
         if isinstance(expr, (SubfieldString, SubfieldInt)):
@@ -203,19 +221,34 @@ class MockAnalyzer:
             if parse_local_name and isinstance(field, str):
                 field = field.upper()
             return subfield_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name), field
+                self.analyze(
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
+                field,
             )
 
         if isinstance(expr, CaseWhen):
             return case_when_expression(
                 [
                     (
-                        self.analyze(condition, expr_to_alias, parse_local_name),
-                        self.analyze(value, expr_to_alias, parse_local_name),
+                        self.analyze(
+                            condition,
+                            df_aliased_col_name_to_real_col_name,
+                            parse_local_name,
+                        ),
+                        self.analyze(
+                            value,
+                            df_aliased_col_name_to_real_col_name,
+                            parse_local_name,
+                        ),
                     )
                     for condition, value in expr.branches
                 ],
-                self.analyze(expr.else_value, expr_to_alias, parse_local_name)
+                self.analyze(
+                    expr.else_value,
+                    df_aliased_col_name_to_real_col_name,
+                    parse_local_name,
+                )
                 if expr.else_value
                 else "NULL",
             )
@@ -226,13 +259,13 @@ class MockAnalyzer:
                 if self.session.eliminate_numeric_sql_value_cast_enabled:
                     resolved_expr = self.to_sql_try_avoid_cast(
                         expression,
-                        expr_to_alias,
+                        df_aliased_col_name_to_real_col_name,
                         parse_local_name,
                     )
                 else:
                     resolved_expr = self.analyze(
                         expression,
-                        expr_to_alias,
+                        df_aliased_col_name_to_real_col_name,
                         parse_local_name,
                     )
 
@@ -245,19 +278,21 @@ class MockAnalyzer:
                 if self.session.eliminate_numeric_sql_value_cast_enabled:
                     in_value = self.to_sql_try_avoid_cast(
                         expression,
-                        expr_to_alias,
+                        df_aliased_col_name_to_real_col_name,
                         parse_local_name,
                     )
                 else:
                     in_value = self.analyze(
                         expression,
-                        expr_to_alias,
+                        df_aliased_col_name_to_real_col_name,
                         parse_local_name,
                     )
 
                 in_values.append(in_value)
             return in_expression(
-                self.analyze(expr.columns, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.columns, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
                 in_values,
             )
 
@@ -271,10 +306,12 @@ class MockAnalyzer:
             return window_expression(
                 self.analyze(
                     expr.window_function,
+                    df_aliased_col_name_to_real_col_name=df_aliased_col_name_to_real_col_name,
                     parse_local_name=parse_local_name,
                 ),
                 self.analyze(
                     expr.window_spec,
+                    df_aliased_col_name_to_real_col_name=df_aliased_col_name_to_real_col_name,
                     parse_local_name=parse_local_name,
                 ),
             )
@@ -282,15 +319,24 @@ class MockAnalyzer:
         if isinstance(expr, WindowSpecDefinition):
             return window_spec_expression(
                 [
-                    self.analyze(x, parse_local_name=parse_local_name)
+                    self.analyze(
+                        x,
+                        df_aliased_col_name_to_real_col_name=df_aliased_col_name_to_real_col_name,
+                        parse_local_name=parse_local_name,
+                    )
                     for x in expr.partition_spec
                 ],
                 [
-                    self.analyze(x, parse_local_name=parse_local_name)
+                    self.analyze(
+                        x,
+                        df_aliased_col_name_to_real_col_name=df_aliased_col_name_to_real_col_name,
+                        parse_local_name=parse_local_name,
+                    )
                     for x in expr.order_spec
                 ],
                 self.analyze(
                     expr.frame_spec,
+                    df_aliased_col_name_to_real_col_name=df_aliased_col_name_to_real_col_name,
                     parse_local_name=parse_local_name,
                 ),
             )
@@ -314,7 +360,15 @@ class MockAnalyzer:
             return f"{sql}"
 
         if isinstance(expr, Attribute):
-            name = expr_to_alias.get(expr.expr_id, expr.name)
+            # this is different from live connection, in live connection we assert alias_maps_to_use is not None.
+            # However, it's not the case in local testing because we don't have the alias map when we use
+            # the plan to get attributes. So we need to check if alias_maps_to_use is None here.
+            if self.alias_maps_to_use:
+                # this is the case when we resolve plan
+                name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            else:
+                # this is the case when we describe plan to get attributes
+                name = expr.name
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
@@ -329,7 +383,9 @@ class MockAnalyzer:
 
             children = []
             for c in expr.children:
-                extracted = self.to_sql_try_avoid_cast(c, expr_to_alias)
+                extracted = self.to_sql_try_avoid_cast(
+                    c, df_aliased_col_name_to_real_col_name
+                )
                 if isinstance(extracted, list):
                     children.extend(extracted)
                 else:
@@ -345,7 +401,10 @@ class MockAnalyzer:
             if not expr.expressions:
                 return "*"
             else:
-                return [self.analyze(e, expr_to_alias) for e in expr.expressions]
+                return [
+                    self.analyze(e, df_aliased_col_name_to_real_col_name)
+                    for e in expr.expressions
+                ]
 
         if isinstance(expr, SnowflakeUDF):
             if expr.api_call_source is not None:
@@ -356,26 +415,34 @@ class MockAnalyzer:
             return function_expression(
                 func_name,
                 [
-                    self.analyze(x, expr_to_alias, parse_local_name)
+                    self.analyze(
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
+                    )
                     for x in expr.children
                 ],
                 False,
             )
 
         if isinstance(expr, TableFunctionExpression):
-            return self.table_function_expression_extractor(expr, expr_to_alias)
+            return self.table_function_expression_extractor(
+                expr, df_aliased_col_name_to_real_col_name
+            )
 
         if isinstance(expr, TableFunctionPartitionSpecDefinition):
             return table_function_partition_spec(
                 expr.over,
                 [
-                    self.analyze(x, expr_to_alias, parse_local_name)
+                    self.analyze(
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
+                    )
                     for x in expr.partition_spec
                 ]
                 if expr.partition_spec
                 else [],
                 [
-                    self.analyze(x, expr_to_alias, parse_local_name)
+                    self.analyze(
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
+                    )
                     for x in expr.order_spec
                 ]
                 if expr.order_spec
@@ -385,14 +452,16 @@ class MockAnalyzer:
         if isinstance(expr, UnaryExpression):
             return self.unary_expression_extractor(
                 expr,
-                expr_to_alias,
+                df_aliased_col_name_to_real_col_name,
                 parse_local_name,
                 keep_alias=keep_alias,
             )
 
         if isinstance(expr, SortOrder):
             return order_expression(
-                self.analyze(expr.child, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
                 expr.direction.sql,
                 expr.null_ordering.sql,
             )
@@ -403,41 +472,62 @@ class MockAnalyzer:
 
         if isinstance(expr, WithinGroup):
             return within_group_expression(
-                self.analyze(expr.expr, expr_to_alias, parse_local_name),
-                [self.analyze(e, expr_to_alias) for e in expr.order_by_cols],
+                self.analyze(
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
+                [
+                    self.analyze(e, df_aliased_col_name_to_real_col_name)
+                    for e in expr.order_by_cols
+                ],
             )
 
         if isinstance(expr, BinaryExpression):
             return self.binary_operator_extractor(
                 expr,
-                expr_to_alias,
+                df_aliased_col_name_to_real_col_name,
                 parse_local_name,
             )
 
         if isinstance(expr, InsertMergeExpression):
             return insert_merge_statement(
-                self.analyze(expr.condition, expr_to_alias) if expr.condition else None,
-                [self.analyze(k, expr_to_alias) for k in expr.keys],
-                [self.analyze(v, expr_to_alias) for v in expr.values],
+                self.analyze(expr.condition, df_aliased_col_name_to_real_col_name)
+                if expr.condition
+                else None,
+                [
+                    self.analyze(k, df_aliased_col_name_to_real_col_name)
+                    for k in expr.keys
+                ],
+                [
+                    self.analyze(v, df_aliased_col_name_to_real_col_name)
+                    for v in expr.values
+                ],
             )
 
         if isinstance(expr, UpdateMergeExpression):
             return update_merge_statement(
-                self.analyze(expr.condition, expr_to_alias) if expr.condition else None,
+                self.analyze(expr.condition, df_aliased_col_name_to_real_col_name)
+                if expr.condition
+                else None,
                 {
-                    self.analyze(k, expr_to_alias): self.analyze(v, expr_to_alias)
+                    self.analyze(k, df_aliased_col_name_to_real_col_name): self.analyze(
+                        v, df_aliased_col_name_to_real_col_name
+                    )
                     for k, v in expr.assignments.items()
                 },
             )
 
         if isinstance(expr, DeleteMergeExpression):
             return delete_merge_statement(
-                self.analyze(expr.condition, expr_to_alias) if expr.condition else None
+                self.analyze(expr.condition, df_aliased_col_name_to_real_col_name)
+                if expr.condition
+                else None
             )
 
         if isinstance(expr, ListAgg):
             return list_agg(
-                self.analyze(expr.col, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.col, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
                 str_to_sql(expr.delimiter),
                 expr.is_distinct,
             )
@@ -445,7 +535,9 @@ class MockAnalyzer:
         if isinstance(expr, ColumnSum):
             return column_sum(
                 [
-                    self.analyze(col, expr_to_alias, parse_local_name)
+                    self.analyze(
+                        col, df_aliased_col_name_to_real_col_name, parse_local_name
+                    )
                     for col in expr.exprs
                 ]
             )
@@ -453,13 +545,20 @@ class MockAnalyzer:
         if isinstance(expr, RankRelatedFunctionExpression):
             return rank_related_function_expression(
                 expr.sql,
-                self.analyze(expr.expr, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.expr, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
                 expr.offset,
-                self.analyze(expr.default, expr_to_alias, parse_local_name)
+                self.analyze(
+                    expr.default, df_aliased_col_name_to_real_col_name, parse_local_name
+                )
                 if expr.default
                 else None,
                 expr.ignore_nulls,
             )
+
+        if isinstance(expr, Interval):
+            return str(expr)
 
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(
             str(expr)
@@ -468,12 +567,14 @@ class MockAnalyzer:
     def table_function_expression_extractor(
         self,
         expr: TableFunctionExpression,
-        expr_to_alias: Dict[str, str],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name=False,
     ) -> str:
         if isinstance(expr, FlattenFunction):
             return flatten_expression(
-                self.analyze(expr.input, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.input, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
                 expr.path,
                 expr.outer,
                 expr.recursive,
@@ -482,14 +583,21 @@ class MockAnalyzer:
         elif isinstance(expr, PosArgumentsTableFunction):
             sql = function_expression(
                 expr.func_name,
-                [self.analyze(x, expr_to_alias, parse_local_name) for x in expr.args],
+                [
+                    self.analyze(
+                        x, df_aliased_col_name_to_real_col_name, parse_local_name
+                    )
+                    for x in expr.args
+                ],
                 False,
             )
         elif isinstance(expr, (NamedArgumentsTableFunction, GeneratorTableFunction)):
             sql = named_arguments_function(
                 expr.func_name,
                 {
-                    key: self.analyze(value, expr_to_alias, parse_local_name)
+                    key: self.analyze(
+                        value, df_aliased_col_name_to_real_col_name, parse_local_name
+                    )
                     for key, value in expr.args.items()
                 },
             )
@@ -499,7 +607,7 @@ class MockAnalyzer:
                 "NamedArgumentsTableFunction, GeneratorTableFunction, or FlattenFunction."
             )
         partition_spec_sql = (
-            self.analyze(expr.partition_spec, expr_to_alias)
+            self.analyze(expr.partition_spec, df_aliased_col_name_to_real_col_name)
             if expr.partition_spec
             else ""
         )
@@ -508,38 +616,60 @@ class MockAnalyzer:
     def unary_expression_extractor(
         self,
         expr: UnaryExpression,
-        expr_to_alias: Dict[str, str],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name=False,
         keep_alias=True,
     ) -> str:
         if isinstance(expr, Alias):
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
-                expr_to_alias[expr.child.expr_id] = quoted_name
-                for k, v in expr_to_alias.items():
+                self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                assert self.alias_maps_to_use is not None
+                for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
-                        expr_to_alias[k] = quoted_name
+                        self.generated_alias_maps[k] = quoted_name
+
+                if df_aliased_col_name_to_real_col_name:
+                    for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
+                        for k, v in df_alias_dict.items():
+                            if v == expr.child.name:
+                                df_alias_dict[k] = quoted_name
+
             alias_exp = alias_expression(
-                self.analyze(expr.child, expr_to_alias, parse_local_name), quoted_name
+                self.analyze(
+                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
+                quoted_name,
             )
 
             expr_str = alias_exp if keep_alias else expr.name or keep_alias
             expr_str = expr_str.upper() if parse_local_name else expr_str
             return expr_str
         if isinstance(expr, UnresolvedAlias):
-            expr_str = self.analyze(expr.child, expr_to_alias, parse_local_name)
-            if parse_local_name:
-                expr_str = expr_str.upper()
-            return quote_name(expr_str.strip())
+            expr_str = self.analyze(
+                expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+            )
+            assert isinstance(expr_str, (str, list))
+            if isinstance(expr_str, str):
+                if parse_local_name:
+                    expr_str = expr_str.upper()
+                return quote_name(expr_str.strip())
+            else:  # expr_str is a list
+                assert all(isinstance(e, str) for e in expr_str)
+                return ",".join([quote_name(e.strip()) for e in expr_str])
         elif isinstance(expr, Cast):
             return cast_expression(
-                self.analyze(expr.child, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
                 expr.to,
                 expr.try_,
             )
         else:
             return unary_expression(
-                self.analyze(expr.child, expr_to_alias, parse_local_name),
+                self.analyze(
+                    expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
+                ),
                 expr.sql_operator,
                 expr.operator_first,
             )
@@ -547,21 +677,25 @@ class MockAnalyzer:
     def binary_operator_extractor(
         self,
         expr: BinaryExpression,
-        expr_to_alias: Dict[str, str],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
         parse_local_name=False,
     ) -> str:
         if self.session.eliminate_numeric_sql_value_cast_enabled:
             left_sql_expr = self.to_sql_try_avoid_cast(
-                expr.left, expr_to_alias, parse_local_name
+                expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
             )
             right_sql_expr = self.to_sql_try_avoid_cast(
                 expr.right,
-                expr_to_alias,
+                df_aliased_col_name_to_real_col_name,
                 parse_local_name,
             )
         else:
-            left_sql_expr = self.analyze(expr.left, expr_to_alias, parse_local_name)
-            right_sql_expr = self.analyze(expr.right, expr_to_alias, parse_local_name)
+            left_sql_expr = self.analyze(
+                expr.left, df_aliased_col_name_to_real_col_name, parse_local_name
+            )
+            right_sql_expr = self.analyze(
+                expr.right, df_aliased_col_name_to_real_col_name, parse_local_name
+            )
 
         operator = expr.sql_operator.lower()
         if isinstance(expr, BinaryArithmeticExpression):
@@ -581,7 +715,9 @@ class MockAnalyzer:
             )
 
     def grouping_extractor(
-        self, expr: GroupingSet, expr_to_alias: Dict[str, str]
+        self,
+        expr: GroupingSet,
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
     ) -> str:
         return self.analyze(
             FunctionExpression(
@@ -589,7 +725,7 @@ class MockAnalyzer:
                 [c.child if isinstance(c, Alias) else c for c in expr.children],
                 False,
             ),
-            expr_to_alias,
+            df_aliased_col_name_to_real_col_name,
         )
 
     def window_frame_boundary(self, offset: str) -> str:
@@ -600,74 +736,83 @@ class MockAnalyzer:
             return offset
 
     def to_sql_try_avoid_cast(
-        self, expr: Expression, expr_to_alias: Dict[str, str], parse_local_name=False
+        self,
+        expr: Expression,
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
+        parse_local_name=False,
     ) -> str:
         # if expression is a numeric literal, return the number without casting,
         # otherwise process as normal
         if isinstance(expr, Literal) and isinstance(expr.datatype, _NumericType):
             return numeric_to_sql_without_cast(expr.value, expr.datatype)
         else:
-            return self.analyze(expr, expr_to_alias, parse_local_name)
+            return self.analyze(
+                expr, df_aliased_col_name_to_real_col_name, parse_local_name
+            )
 
-    def resolve(
-        self, logical_plan: LogicalPlan, expr_to_alias: Optional[Dict[str, str]] = None
-    ) -> MockExecutionPlan:
+    def resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
         self.subquery_plans = []
-        if expr_to_alias is None:
-            expr_to_alias = {}
-        result = self.do_resolve(logical_plan, expr_to_alias)
-
+        self.generated_alias_maps = {}
+        result = self.do_resolve(logical_plan)
+        result.add_aliases(self.generated_alias_maps)
         return result
 
-    def do_resolve(
-        self, logical_plan: LogicalPlan, expr_to_alias: Dict[str, str]
-    ) -> MockExecutionPlan:
+    def do_resolve(self, logical_plan: LogicalPlan) -> MockExecutionPlan:
         resolved_children = {}
-        expr_to_alias_maps = {}
+        df_aliased_col_name_to_real_col_name = defaultdict(dict)
         for c in logical_plan.children:
-            _expr_to_alias = {}
-            resolved_children[c] = self.resolve(c, _expr_to_alias)
-            expr_to_alias_maps[c] = _expr_to_alias
+            resolved = self.resolve(c)
+            df_aliased_col_name_to_real_col_name.update(
+                resolved.df_aliased_col_name_to_real_col_name
+            )
+            resolved_children[c] = resolved
 
-        # get counts of expr_to_alias keys
-        counts = Counter()
-        for v in expr_to_alias_maps.values():
-            counts.update(list(v.keys()))
+        if isinstance(logical_plan, MockSelectable):
+            # Selectable doesn't have children. It already has the expr_to_alias dict.
+            assert logical_plan.expr_to_alias is not None
+            self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
+        else:
+            use_maps = {}
+            # get counts of expr_to_alias keys
+            counts = Counter()
+            for v in resolved_children.values():
+                if v.expr_to_alias:
+                    counts.update(list(v.expr_to_alias.keys()))
 
-        # Keep only non-shared expr_to_alias keys
-        # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
-        for v in expr_to_alias_maps.values():
-            expr_to_alias.update({p: q for p, q in v.items() if counts[p] < 2})
+            # Keep only non-shared expr_to_alias keys
+            # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
+            for v in resolved_children.values():
+                if v.expr_to_alias:
+                    use_maps.update(
+                        {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
+                    )
+            self.alias_maps_to_use = use_maps
 
-        return self.do_resolve_with_resolved_children(
-            logical_plan, resolved_children, expr_to_alias
+        res = self.do_resolve_with_resolved_children(
+            logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
         )
+        assert hasattr(res, "df_aliased_col_name_to_real_col_name"), (
+            f"The resolved plan {res!r} should have the attribute "
+            "df_aliased_col_name_to_real_col_name"
+        )
+        res.df_aliased_col_name_to_real_col_name.update(
+            df_aliased_col_name_to_real_col_name
+        )
+        return res
 
     def do_resolve_with_resolved_children(
         self,
         logical_plan: LogicalPlan,
         resolved_children: Dict[LogicalPlan, SnowflakePlan],
-        expr_to_alias: Dict[str, str],
+        df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
     ) -> MockExecutionPlan:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
 
-        if isinstance(logical_plan, Rename):
+        if isinstance(logical_plan, (Rename, TableFunctionJoin, TableFunctionRelation)):
             return MockExecutionPlan(
                 logical_plan,
                 self.session,
-            )
-
-        if isinstance(logical_plan, TableFunctionJoin):
-            self._conn.log_not_supported_error(
-                external_feature_name="table_function.TableFunctionJoin",
-                raise_error=NotImplementedError,
-            )
-
-        if isinstance(logical_plan, TableFunctionRelation):
-            self._conn.log_not_supported_error(
-                external_feature_name="table_function.TableFunctionRelation",
-                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, Lateral):
@@ -683,17 +828,37 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Project):
-            return logical_plan
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Filter):
-            return logical_plan
+            return MockExecutionPlan(logical_plan, self.session)
 
         # Add a sample stop to the plan being built
         if isinstance(logical_plan, Sample):
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Join):
-            return MockExecutionPlan(logical_plan, self.session)
+            left = self.do_resolve(logical_plan.children[0])
+            right = self.do_resolve(logical_plan.children[1])
+            # the following two attributes call are used to resolve the alias map
+            # this aligns with the live connection behavior where for Join expression analysis, the analyzer calls
+            # plan_builder.join -> SnowflakePlanBuilder.build_binary which issues sql to evaluate the schema
+            left.attributes
+            right.attributes
+            common_columns = set(left.expr_to_alias.keys()).intersection(
+                right.expr_to_alias.keys()
+            )
+            new_expr_to_alias = {
+                k: v
+                for k, v in {
+                    **left.expr_to_alias,
+                    **right.expr_to_alias,
+                }.items()
+                if k not in common_columns
+            }
+            return MockExecutionPlan(
+                logical_plan, self.session, expr_to_alias=new_expr_to_alias
+            )
 
         if isinstance(logical_plan, Sort):
             return self.plan_builder.sort(
@@ -724,10 +889,13 @@ class MockAnalyzer:
         if isinstance(logical_plan, SnowflakeValues):
             return MockExecutionPlan(logical_plan, self.session)
 
-        if isinstance(logical_plan, UnresolvedRelation):
+        if isinstance(logical_plan, SnowflakeTable):
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
+            return MockExecutionPlan(logical_plan, self.session)
+
+        if isinstance(logical_plan, SnowflakePlan):
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Limit):
@@ -735,8 +903,12 @@ class MockAnalyzer:
                 logical_plan.child, SnowflakePlan
             ) and isinstance(logical_plan.child.source_plan, Sort)
             return self.plan_builder.limit(
-                self.to_sql_try_avoid_cast(logical_plan.limit_expr, expr_to_alias),
-                self.to_sql_try_avoid_cast(logical_plan.offset_expr, expr_to_alias),
+                self.to_sql_try_avoid_cast(
+                    logical_plan.limit_expr, df_aliased_col_name_to_real_col_name
+                ),
+                self.to_sql_try_avoid_cast(
+                    logical_plan.offset_expr, df_aliased_col_name_to_real_col_name
+                ),
                 resolved_children[logical_plan.child],
                 on_top_of_order_by,
                 logical_plan,
@@ -764,7 +936,10 @@ class MockAnalyzer:
             return self.plan_builder.copy_into_location(
                 query=resolved_children[logical_plan.child],
                 stage_location=logical_plan.stage_location,
-                partition_by=self.analyze(logical_plan.partition_by, expr_to_alias)
+                source_plan=logical_plan,
+                partition_by=self.analyze(
+                    logical_plan.partition_by, df_aliased_col_name_to_real_col_name
+                )
                 if logical_plan.partition_by
                 else None,
                 file_format_name=logical_plan.file_format_name,
@@ -790,6 +965,10 @@ class MockAnalyzer:
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, MockSelectable):
+            if isinstance(logical_plan, MockSelectStatement):
+                # align with the live connection behavior where the analyzer calls
+                # logical_plan.projection_in_str to materialize an lazy property to resolve the alias map
+                logical_plan.projection_in_str
             return MockExecutionPlan(logical_plan, self.session)
 
     def create_select_statement(self, *args, **kwargs):

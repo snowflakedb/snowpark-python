@@ -7,11 +7,11 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_index_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -39,7 +39,7 @@ def test_create_dataframe_from_object_with_name(sample):
     )
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=1, join_count=0, union_count=1)
 def test_create_dataframe_from_snowpark_pandas_series():
     df = pd.DataFrame([[2, 3, 4], [5, 6, 7]], columns=["X", "Y", "Z"])
     df = pd.DataFrame([df.X, df.iloc[:, 2]])

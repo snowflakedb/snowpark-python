@@ -12,11 +12,11 @@ import pytest
 from pandas.testing import assert_series_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_series,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def cache_and_return_series(snow_series, inplace):
@@ -104,11 +104,7 @@ class TestCacheResultReducesQueryCount:
         native_series = perform_chained_operations(
             native_pd.Series(np.arange(50)), native_pd
         )
-        # Fix for https://snowflakecomputing.atlassian.net/browse/SNOW-1442354
-        # snow_series.reset_index names the returned series 0, so we must
-        # name the pandas Series as well so that they match.
-        native_series.name = 0
-        with SqlCounter(query_count=1, union_count=99):
+        with SqlCounter(query_count=1, union_count=18):
             snow_series = perform_chained_operations(snow_series, pd)
             assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
                 snow_series, native_series
@@ -133,10 +129,6 @@ class TestCacheResultReducesQueryCount:
         native_series = perform_chained_operations(
             native_pd.Series(simple_test_data).apply(lambda x: x + x), native_pd
         )
-        # Fix for https://snowflakecomputing.atlassian.net/browse/SNOW-1442354
-        # snow_series.reset_index names the returned series 0, so we must
-        # name the pandas Series as well so that they match.
-        native_series.name = 0
         with SqlCounter(query_count=5, union_count=9):
             snow_series = pd.Series(simple_test_data).apply(lambda x: x + x)
             repr(snow_series)
@@ -157,3 +149,15 @@ class TestCacheResultReducesQueryCount:
                 cached_snow_series,
                 native_series,
             )
+
+
+@sql_count_checker(query_count=1)
+def test_cacheresult_timedelta():
+    native_s = native_pd.Series(
+        [
+            native_pd.Timedelta("1 days"),
+            native_pd.Timedelta("2 days"),
+            native_pd.Timedelta("3 days"),
+        ]
+    )
+    assert "timedelta64[ns]" == pd.Series(native_s).cache_result().dtype
