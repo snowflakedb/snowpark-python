@@ -3147,8 +3147,9 @@ class Session:
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
             if isinstance(self._conn, MockServerConnection):
-                schema, data = _extract_schema_and_data_from_pandas_df(data)
-                # we do not return here as live connection and keep using the data frame logic and compose table
+                if not isinstance(schema, StructType):
+                    schema, data = _extract_schema_and_data_from_pandas_df(data)
+                    # we do not return here as live connection and keep using the data frame logic and compose table
             else:
                 sf_database = self._conn._get_current_parameter(
                     "database", quoted=False
