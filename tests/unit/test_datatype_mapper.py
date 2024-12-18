@@ -5,15 +5,18 @@
 
 import datetime
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 import pytest
 
+from snowflake.snowpark import Session
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     numeric_to_sql_without_cast,
     schema_expression,
     to_sql,
     to_sql_no_cast,
 )
+from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -254,6 +257,14 @@ def test_to_sql_system_function():
     assert (
         to_sql_no_cast([1, 2, 31234567, -1928, 0, -3], VectorType(int, 5))
         == "[1, 2, 31234567, -1928, 0, -3]"
+    )
+
+
+def test_generate_call_python_sp_sql():
+    fake_session = MagicMock(Session)
+    assert (
+        generate_call_python_sp_sql(fake_session, "system$wait", 1)
+        == "CALL system$wait(1)"
     )
 
 
