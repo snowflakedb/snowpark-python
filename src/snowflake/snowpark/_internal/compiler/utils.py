@@ -427,14 +427,14 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         score = get_complexity_score(node)
         sql_text = get_sql_text(node)
         sql_size = len(sql_text)
-        num_ref_ctes = None
+        ref_ctes = None
         if isinstance(node, (SnowflakePlan, Selectable)):
-            num_ref_ctes = len(node.referenced_ctes)
+            ref_ctes = list(map(lambda node: node.name, node.referenced_ctes))
             for with_query_block in node.referenced_ctes:
                 sql_size += len(get_sql_text(with_query_block.children[0]))
         sql_preview = sql_text[:50]
 
-        return f"{name=}\n{score=}, {num_ref_ctes=}, {sql_size=}\n{sql_preview=}"
+        return f"{name=}\n{score=}, {ref_ctes=}, {sql_size=}\n{sql_preview=}"
 
     g = graphviz.Graph(format="png")
 
