@@ -417,16 +417,21 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
                 properties.append("Offset")  # pragma: no cover
             name = f"{name} :: ({'| '.join(properties)})"
 
+        def get_sql_text(node: LogicalPlan) -> str:
+            if isinstance(node, Selectable):
+                return node.sql_query
+            if isinstance(node, SnowflakePlan):
+                return node.queries[-1].sql
+            return ""
+
         score = get_complexity_score(node)
-        num_ref_ctes = "nil"
+        sql_text = get_sql_text(node)
+        sql_size = len(sql_text)
+        num_ref_ctes = None
         if isinstance(node, (SnowflakePlan, Selectable)):
             num_ref_ctes = len(node.referenced_ctes)
-        sql_text = ""
-        if isinstance(node, Selectable):
-            sql_text = node.sql_query
-        elif isinstance(node, SnowflakePlan):
-            sql_text = node.queries[-1].sql
-        sql_size = len(sql_text)
+            for with_query_block in node.referenced_ctes:
+                sql_size += len(get_sql_text(with_query_block.children[0]))
         sql_preview = sql_text[:50]
 
         return f"{name=}\n{score=}, {num_ref_ctes=}, {sql_size=}\n{sql_preview=}"
