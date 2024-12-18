@@ -101,6 +101,9 @@ def _array_agg_keepna(
     # parse_json(lit("null")) per [2].
     # [1] https://stackoverflow.com/a/77422662
     # [2] https://github.com/snowflakedb/snowflake-connector-python/issues/1388#issuecomment-1371091831
+
+    # HOWEVER it appears that this workaround only works for integer values.
+    # See details in SNOW-1859090.
     return array_flatten(
         array_agg(
             array_construct(
