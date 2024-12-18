@@ -6,7 +6,9 @@ import uuid
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
+from unittest import mock
 
+import logging
 import pytest
 
 import snowflake.snowpark.context as context
@@ -21,6 +23,7 @@ from snowflake.snowpark.functions import (
     lit,
     object_construct,
     sum_distinct,
+    udaf,
     udf,
 )
 from snowflake.snowpark.types import (
@@ -520,6 +523,72 @@ def test_structured_dtypes_iceberg(
     finally:
         Utils.drop_table(structured_type_session, table_name)
         Utils.drop_dynamic_table(structured_type_session, dynamic_table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_structured_dtypes_negative(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    # SNOW-1862700: Array Type and Map Type missing element or value fails to generate AST
+    with pytest.raises(
+        NotImplementedError, match="AST does not support empty element_type."
+    ):
+        x = ArrayType()
+        x._fill_ast(mock.Mock())
+
+    with pytest.raises(
+        NotImplementedError, match="AST does not support empty key or value type."
+    ):
+        x = MapType()
+        x._fill_ast(mock.Mock())
+
+    # Maptype requires both key and value type be set if either is set
+    with pytest.raises(
+        ValueError,
+        match="Must either set both key_type and value_type or leave both unset.",
+    ):
+        MapType(StringType())
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_udaf_structured_map_downcast(
+    structured_type_session, structured_type_support, caplog
+):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    with caplog.at_level(logging.WARNING):
+
+        @udaf(return_type=MapType(StringType(), StringType(), structured=True))
+        class MapCollector:
+            def __init__(self) -> None:
+                self._agg_state = dict()
+
+            @property
+            def aggregate_state(self) -> dict:
+                return self._agg_state
+
+            def accumulate(self, int_: int) -> None:
+                self._agg_state[int_] = self._agg_state.get(int_, 0) + 1
+
+            def merge(self, other_state: int) -> None:
+                self._agg_state = {**self._agg_state, **other_state}
+
+            def finish(self) -> dict:
+                return self._agg_state
+
+        assert (
+            "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object."
+            in caplog.text
+        )
+        assert MapCollector._return_type == MapType()
 
 
 @pytest.mark.skipif(
