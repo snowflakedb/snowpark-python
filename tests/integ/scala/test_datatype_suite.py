@@ -1001,6 +1001,33 @@ def test_structured_type_print_schema(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
+def test_structured_array_contains_null(
+    structured_type_session, structured_type_support
+):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    # SNOW-1862947 create DDL test once save as table supported
+    array_df = structured_type_session.sql(
+        "select [1, 2, 3] :: ARRAY(INT NOT NULL) as A, [1, 2, 3] :: ARRAY(INT) as A_N"
+    )
+    expected_schema = StructType(
+        [
+            StructField(
+                "A", ArrayType(LongType(), structured=True, contains_null=False)
+            ),
+            StructField(
+                "A_N", ArrayType(LongType(), structured=True, contains_null=True)
+            ),
+        ]
+    )
+    assert array_df.schema == expected_schema
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
 def test_structured_type_schema_expression(
     structured_type_session, local_testing_mode, structured_type_support
 ):
@@ -1112,11 +1139,11 @@ def test_structured_type_schema_expression(
         non_null_union = non_null_table.union(non_null_table)
         assert non_null_union._plan.schema_query == (
             "( SELECT object_construct_keep_null('a' ::  STRING (16777216), 0 :: DOUBLE) :: "
-            'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(0 :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR",'
+            'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR",'
             " object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
             'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ") UNION ( SELECT '
             "object_construct_keep_null('a' ::  STRING (16777216), 0 :: DOUBLE) :: "
-            'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(0 :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", '
+            'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", '
             "object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
             'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ")'
         )
