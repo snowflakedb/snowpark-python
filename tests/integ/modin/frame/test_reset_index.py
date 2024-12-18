@@ -8,8 +8,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import VALID_PANDAS_LABELS, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 # TODO SNOW-824304: Add tests for datetime index
 
@@ -20,6 +20,11 @@ def native_df_simple():
         {
             "a": ["one", "two", "three"],
             "b": ["abc", "pqr", "xyz"],
+            "dt": [
+                native_pd.Timedelta("1 days"),
+                native_pd.Timedelta("2 days"),
+                native_pd.Timedelta("3 days"),
+            ],
         },
         index=native_pd.Index(["a", "b", "c"], name="c"),
     )
@@ -74,13 +79,13 @@ def test_reset_index_drop_false(native_df_simple):
     eval_snowpark_pandas_result(snow_df, native_df_simple, lambda df: df.reset_index())
 
     snow_df = snow_df.reset_index()
-    assert ["c", "a", "b"] == list(snow_df.columns)
+    assert ["c", "a", "b", "dt"] == list(snow_df.columns)
 
     snow_df = snow_df.reset_index()
-    assert ["index", "c", "a", "b"] == list(snow_df.columns)
+    assert ["index", "c", "a", "b", "dt"] == list(snow_df.columns)
 
     snow_df = snow_df.reset_index()
-    assert ["level_0", "index", "c", "a", "b"] == list(snow_df.columns)
+    assert ["level_0", "index", "c", "a", "b", "dt"] == list(snow_df.columns)
 
 
 @sql_count_checker(query_count=1)
@@ -168,7 +173,7 @@ def test_reset_index_allow_duplicates(native_df_simple):
     # Allow duplicates when provided name conflicts with existing data label.
     snow_df = pd.DataFrame(native_df_simple)
     snow_df = snow_df.reset_index(drop=False, allow_duplicates=True, names=["a"])
-    assert ["a", "a", "b"] == list(snow_df.columns)
+    assert ["a", "a", "b", "dt"] == list(snow_df.columns)
 
     # Verify even if allow_duplicates is True, "index" is not duplicated.
     snow_df = pd.DataFrame({"index": ["one", "two", "three"]})

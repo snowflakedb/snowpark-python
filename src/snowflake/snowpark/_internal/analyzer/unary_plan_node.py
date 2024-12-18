@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -14,6 +14,9 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     sum_node_complexities,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    DynamicTableCreateMode,
+)
 from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
 
 
@@ -166,12 +169,14 @@ class Unpivot(UnaryNode):
         value_column: str,
         name_column: str,
         column_list: List[Expression],
+        include_nulls: bool,
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
         self.value_column = value_column
         self.name_column = name_column
         self.column_list = column_list
+        self.include_nulls = include_nulls
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -270,10 +275,26 @@ class CreateDynamicTableCommand(UnaryNode):
         warehouse: str,
         lag: str,
         comment: Optional[str],
+        create_mode: DynamicTableCreateMode,
+        refresh_mode: Optional[str],
+        initialize: Optional[str],
+        clustering_exprs: Iterable[Expression],
+        is_transient: bool,
+        data_retention_time: Optional[int],
+        max_data_extension_time: Optional[int],
         child: LogicalPlan,
+        iceberg_config: Optional[dict] = None,
     ) -> None:
         super().__init__(child)
         self.name = name
         self.warehouse = warehouse
         self.lag = lag
         self.comment = comment
+        self.create_mode = create_mode
+        self.refresh_mode = refresh_mode
+        self.initialize = initialize
+        self.clustering_exprs = clustering_exprs
+        self.is_transient = is_transient
+        self.data_retention_time = data_retention_time
+        self.max_data_extension_time = max_data_extension_time
+        self.iceberg_config = iceberg_config

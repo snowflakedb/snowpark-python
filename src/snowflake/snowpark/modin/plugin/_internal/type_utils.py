@@ -1,8 +1,8 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from functools import reduce
-from typing import Any, Union
+from functools import lru_cache, reduce
+from typing import Any, Callable, Union
 
 import numpy as np
 import pandas as native_pd
@@ -27,24 +27,26 @@ from pandas.core.arrays.integer import (
     UInt64Dtype,
 )
 from pandas.core.arrays.string_ import StringDtype
-from pandas.core.dtypes.common import (
-    is_bool_dtype,
-    is_float_dtype,
-    is_integer_dtype,
-    is_timedelta64_dtype,
-)
+from pandas.core.dtypes.common import is_bool_dtype, is_float_dtype, is_integer_dtype
 
 from snowflake.snowpark import Column
 from snowflake.snowpark._internal.type_utils import infer_type, merge_type
+from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.functions import (
     builtin,
     cast,
     col,
     date_part,
+    floor,
     iff,
     length,
+    to_char,
     to_varchar,
     to_variant,
+)
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+    TimedeltaType,
 )
 from snowflake.snowpark.modin.plugin._internal.timestamp_utils import (
     generate_timestamp_col,
@@ -76,6 +78,11 @@ from snowflake.snowpark.types import (
     _IntegralType,
     _NumericType,
 )
+
+# This type is for a function that returns a DataType. By using it to lazily
+# get a DataType, we can sometimes defer metadata queries until we need to
+# check a type.
+DataTypeGetter = Callable[[], DataType]
 
 # The order of this mapping is important because the first match in either
 # direction is used by TypeMapper.to_pandas() and TypeMapper.to_snowflake()
@@ -180,10 +187,6 @@ def infer_series_type(series: native_pd.Series) -> DataType:
     """Infer the snowpark DataType for the given native pandas series"""
 
     data_type = series.dtype
-    if is_timedelta64_dtype(data_type):
-        raise NotImplementedError(
-            "Snowpark pandas does not support timedelta64 data type."
-        )
     if data_type == np.object_:
         # if the series type is object type, try to derive the snowpark type based on
         # the type of each data element of the series. If failed to derive the type
@@ -234,6 +237,12 @@ class TypeMapper:
         """
         map a pandas or numpy type to snowpark data type.
         """
+        snowpark_pandas_type = (
+            SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(p)
+        )
+        if snowpark_pandas_type is not None:
+            return snowpark_pandas_type
+
         if isinstance(p, DatetimeTZDtype):
             return TimestampType(TimestampTimeZone.TZ)
         if p is native_pd.Timestamp or is_datetime64_any_dtype(p):
@@ -265,9 +274,13 @@ class TypeMapper:
             return np.dtype("int64") if s.scale == 0 else np.dtype("float64")
         if isinstance(s, TimestampType):
             return np.dtype("datetime64[ns]")
+        if isinstance(s, TimedeltaType):
+            return np.dtype("timedelta64[ns]")
         # We also need to treat parameterized types correctly
         if isinstance(s, (StringType, ArrayType, MapType, GeographyType)):
             return np.dtype(np.object_)
+        if isinstance(s, SnowparkPandasType):
+            return type(s).pandas_type
         return SNOWFLAKE_TO_PANDAS_MAP.get(s, np.dtype(np.object_))
 
 
@@ -292,8 +305,11 @@ def column_astype(
 
     if to_dtype == np.object_:
         return to_variant(curr_col)
-
     if from_sf_type == to_sf_type:
+        if isinstance(to_sf_type, BooleanType):
+            new_col = to_variant(curr_col)
+            # treat NULL values in boolean columns as False to match pandas behavior
+            return iff(curr_col.is_null(), False, curr_col)
         return curr_col
 
     if isinstance(to_sf_type, _IntegralType) and "int64" not in str(to_dtype).lower():
@@ -313,12 +329,12 @@ def column_astype(
         isinstance(from_sf_type, TimestampType)
         and from_sf_type.tz == TimestampTimeZone.LTZ
     ):
-        # treat TIMESTAMPT_LTZ columns as same as TIMESTAMPT_TZ
+        # treat TIMESTAMP_LTZ columns as same as TIMESTAMP_TZ
         curr_col = builtin("to_timestamp_tz")(curr_col)
 
     if isinstance(to_sf_type, TimestampType):
         assert to_sf_type.tz != TimestampTimeZone.LTZ, (
-            "Cast to TIMESTAMPT_LTZ is not supported in astype since "
+            "Cast to TIMESTAMP_LTZ is not supported in astype since "
             "Snowpark pandas API maps tz aware datetime to TIMESTAMP_TZ"
         )
         # convert to timestamp
@@ -364,10 +380,20 @@ def column_astype(
     ):
         # e.g., pd.Series([date(year=1, month=1, day=1)]*3).astype(bool) returns all true values
         new_col = cast(pandas_lit(True), to_sf_type)
+    elif isinstance(to_sf_type, TimedeltaType):
+        if isinstance(from_sf_type, _NumericType):
+            # pandas always rounds down for Fractional type conversion to timedelta
+            new_col = cast(floor(curr_col), LongType())
+        else:
+            new_col = cast(curr_col, LongType())
     else:
         new_col = cast(curr_col, to_sf_type)
-    # astype should not have any effect on NULL values
-    return iff(curr_col.is_null(), None, new_col)
+    # astype should not have any effect on NULL values except when casting to boolean
+    if isinstance(to_sf_type, BooleanType):
+        # treat NULL values in boolean columns as False to match pandas behavior
+        return iff(curr_col.is_null(), False, new_col)
+    else:
+        return iff(curr_col.is_null(), None, new_col)
 
 
 def is_astype_type_error(
@@ -403,6 +429,10 @@ def is_astype_type_error(
         return True
     elif isinstance(from_sf_type, DateType) and isinstance(to_sf_type, _NumericType):
         return True
+    elif isinstance(from_sf_type, TimestampType) and isinstance(
+        to_sf_type, TimedeltaType
+    ):
+        return True
     else:
         return False
 
@@ -426,3 +456,23 @@ def is_compatible_snowpark_types(sp_type_1: DataType, sp_type_2: DataType) -> bo
     if isinstance(sp_type_1, StringType) and isinstance(sp_type_2, StringType):
         return True
     return False
+
+
+@lru_cache
+def _get_timezone_from_timestamp_tz(
+    snowpark_dataframe: SnowparkDataFrame, snowflake_quoted_identifier: str
+) -> Union[str, DatetimeTZDtype]:
+    tz_df = (
+        snowpark_dataframe.filter(col(snowflake_quoted_identifier).is_not_null())
+        .select(to_char(col(snowflake_quoted_identifier), format="TZHTZM").as_("tz"))
+        .group_by(["tz"])
+        .agg()
+        .limit(2)  # only need 2 to check whether it contains multiple timezones
+        .to_pandas()
+    )
+    assert (
+        len(tz_df) > 0
+    ), f"col {snowflake_quoted_identifier} does not contain valid timezone offset"
+    if len(tz_df) == 2:  # multi timezone cases
+        return "object"
+    return DatetimeTZDtype(tz="UTC" + tz_df.iloc[0, 0].replace("Z", ""))

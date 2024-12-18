@@ -7,8 +7,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import assert_frame_equal
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize("subset", ["a", ["a"], ["a", "B"], []])
@@ -64,8 +64,7 @@ def test_drop_duplicates(subset, keep, ignore_index):
     query_count = 1
     join_count = 2
     if ignore_index is True:
-        # One extra query to convert index to native pandas in series constructor
-        query_count += 3
+        query_count += 1
         join_count += 3
     with SqlCounter(query_count=query_count, join_count=join_count):
         assert_frame_equal(
@@ -90,6 +89,21 @@ def test_drop_duplicates_on_empty_frame(subset, keep):
     assert_frame_equal(
         snow_df.drop_duplicates(subset=subset, keep=keep),
         pandas_df.drop_duplicates(subset=subset, keep=keep),
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_drop_duplicates_post_sort_values():
+    pandas_df = native_pd.DataFrame(
+        {"A": [0, 1, 1, 2, 0], "B": ["a", "b", "c", "b", "a"]}
+    )
+    snow_df = pd.DataFrame(pandas_df)
+
+    assert_frame_equal(
+        snow_df.sort_values("A", kind="stable").drop_duplicates(),
+        pandas_df.sort_values("A", kind="stable").drop_duplicates(),
         check_dtype=False,
         check_index_type=False,
     )

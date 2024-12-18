@@ -36,7 +36,7 @@ from snowflake.snowpark.modin.utils import hashable
 from snowflake.snowpark.window import Window
 
 BaseInternalKeyType = Union[
-    "snowflake.snowpark.modin.pandas.series.Series",  # type: ignore [name-defined] # noqa: F821
+    "modin.pandas.Series",  # type: ignore [name-defined] # noqa: F821
     Hashable,
 ]
 
@@ -47,7 +47,7 @@ def is_groupby_value_label_like(val: Any) -> bool:
     """
     Check if the groupby value can be treated as pandas label.
     """
-    from snowflake.snowpark.modin.pandas.series import Series
+    from modin.pandas import Series
 
     # A pandas label is a hashable, and we exclude the callable, Series and Grouper, which are
     # by values that should not be handled as pandas label of the dataframe.
@@ -386,6 +386,8 @@ def get_frame_with_groupby_columns_as_index(
             data_column_pandas_labels=internal_frame.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=internal_frame.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=internal_frame.data_column_pandas_index_names,
+            data_column_types=internal_frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=internal_frame.cached_index_column_snowpark_pandas_types,
         )
     )
 

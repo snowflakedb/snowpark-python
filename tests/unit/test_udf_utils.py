@@ -5,6 +5,7 @@
 import logging
 import os
 import pickle
+import threading
 from unittest import mock
 
 import pytest
@@ -249,6 +250,7 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
         "random_package_one": "random_package_one",
         "random_package_two": "random_package_two",
     }
+    fake_session._package_lock = threading.RLock()
     result = add_snowpark_package_to_sproc_packages(session=fake_session, packages=None)
 
     major, minor, patch = VERSION
@@ -264,6 +266,45 @@ def test_add_snowpark_package_to_sproc_packages_to_session():
     assert result is None
 
 
+@pytest.mark.parametrize("copy_grants", [True, False])
+@pytest.mark.parametrize(
+    "object_type",
+    [
+        TempObjectType.FUNCTION,
+        TempObjectType.PROCEDURE,
+        TempObjectType.TABLE_FUNCTION,
+        TempObjectType.AGGREGATE_FUNCTION,
+    ],
+)
+def test_copy_grant_for_udf_or_sp_registration(
+    mock_session, mock_server_connection, copy_grants, object_type
+):
+    mock_session._conn = mock_server_connection
+    mock_session._runtime_version_from_requirement = None
+    with mock.patch.object(mock_session, "_run_query") as mock_run_query:
+        create_python_udf_or_sp(
+            session=mock_session,
+            func=lambda: None,
+            return_type=StringType(),
+            input_args=[],
+            opt_arg_defaults=[],
+            handler="",
+            object_type=object_type,
+            object_name="",
+            all_imports="",
+            all_packages="",
+            raw_imports=None,
+            is_permanent=True,
+            replace=False,
+            if_not_exists=False,
+            copy_grants=copy_grants,
+        )
+        if copy_grants:
+            mock_run_query.assert_called_once()
+            assert "COPY GRANTS" in mock_run_query.call_args[0][0]
+    pass
+
+
 def test_create_python_udf_or_sp_with_none_session():
     mock_callback = mock.MagicMock(return_value=False)
 
@@ -276,6 +317,7 @@ def test_create_python_udf_or_sp_with_none_session():
             func=lambda: None,
             return_type=StringType(),
             input_args=[],
+            opt_arg_defaults=[],
             handler="",
             object_type=TempObjectType.FUNCTION,
             object_name="",

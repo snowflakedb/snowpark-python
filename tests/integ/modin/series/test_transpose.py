@@ -8,8 +8,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -52,7 +52,7 @@ def test_series_transpose_empty():
 
 
 @sql_count_checker(query_count=1)
-def test_series_transpose_multi_index():
+def test_series_transpose_multiindex():
     data = [1, 2, 3, 4, 5]
     index = [("a", "x"), ("b", "y"), ("c", "z"), ("d", "u"), ("e", "v")]
 

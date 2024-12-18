@@ -58,4 +58,4 @@ def test_lock_function(has_lock):
     if has_lock:
         assert load_model_called == 1
     else:
-        assert load_model_called > 1
+        assert load_model_called >= 1

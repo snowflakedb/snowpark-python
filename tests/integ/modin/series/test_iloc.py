@@ -14,14 +14,14 @@ from pandas._libs.lib import is_scalar
 from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_iloc import snowpark_pandas_input_keys
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 # default_index_native_series and default_index_snowpark_pandas_series have size axis_len x 1
 axis_len = 7
@@ -66,7 +66,7 @@ def test_series_iloc_snowpark_pandas_input_return_dataframe(
         )
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_diff2native(default_index_snowpark_pandas_series, default_index_native_series):
     assert (
         default_index_snowpark_pandas_series.iloc[..., 3]
@@ -78,7 +78,7 @@ def test_diff2native(default_index_snowpark_pandas_series, default_index_native_
     "key, val",
     setitem_key_val_pair,
 )
-def test_setitem(
+def test_series_iloc_setitem(
     key,
     val,
     default_index_native_int_snowpark_pandas_series,
@@ -198,8 +198,7 @@ def test_series_iloc_get_key_bool(
 
     expected_join_count = 1
 
-    # 1 extra query for converting to series
-    expected_query_count = 2 if "index" in key_type else 1
+    expected_query_count = 1
     if key == [] and key_type in ["list", "ndarray"]:
         expected_join_count += 1
 
@@ -289,12 +288,9 @@ def test_series_iloc_get_key_numeric(
         # Index objects have dtype object when empty
         return
 
-    # 1 extra query for converting to series
-    query_count = 2 if "index" in key_type else 1
-
     default_index_int_series = pd.Series(default_index_native_int_series)
     # test ser with default index
-    with SqlCounter(query_count=query_count, join_count=2):
+    with SqlCounter(query_count=1, join_count=2):
         eval_snowpark_pandas_result(
             default_index_int_series,
             default_index_native_int_series,
@@ -306,7 +302,7 @@ def test_series_iloc_get_key_numeric(
         native_int_series_with_non_default_index
     )
     # test ser with non default index
-    with SqlCounter(query_count=query_count, join_count=2):
+    with SqlCounter(query_count=1, join_count=2):
         eval_snowpark_pandas_result(
             int_series_with_non_default_index,
             native_int_series_with_non_default_index,
@@ -316,7 +312,7 @@ def test_series_iloc_get_key_numeric(
     # test ser with MultiIndex
     # Index dtype is different between Snowpark and native pandas if key produces empty df.
     int_series_with_multiindex = pd.Series(multiindex_native_int_series)
-    with SqlCounter(query_count=query_count, join_count=2):
+    with SqlCounter(query_count=1, join_count=2):
         eval_snowpark_pandas_result(
             int_series_with_multiindex,
             multiindex_native_int_series,
@@ -342,7 +338,7 @@ def test_series_iloc_get_key_scalar(
     # One join is performed for each query.
 
     # test ser with default index
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=1):
         snowpark_res = iloc_helper(default_index_int_series)
         native_res = iloc_helper(default_index_native_int_series)
         assert snowpark_res == native_res
@@ -352,14 +348,14 @@ def test_series_iloc_get_key_scalar(
     int_series_with_non_default_index = pd.Series(
         native_int_series_with_non_default_index
     )
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=1):
         snowpark_res = iloc_helper(int_series_with_non_default_index)
         native_res = iloc_helper(native_int_series_with_non_default_index)
         assert snowpark_res == native_res
 
     # test ser with MultiIndex
     int_series_with_multiindex = pd.Series(multiindex_native_int_series)
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=1):
         snowpark_res = iloc_helper(int_series_with_multiindex)
         native_res = iloc_helper(multiindex_native_int_series)
         assert snowpark_res == native_res
@@ -482,8 +478,8 @@ def test_series_iloc_get_non_numeric_key_negative(key, default_index_native_int_
         key = pd.Index(key)
     snowpark_index_int_series = pd.Series(default_index_native_int_series)
     error_msg = re.escape(f".iloc requires numeric indexers, got {key}")
-    # 2 extra queries for repr
-    with SqlCounter(query_count=2 if isinstance(key, pd.Index) else 0):
+    # 1 extra queries for repr
+    with SqlCounter(query_count=1 if isinstance(key, pd.Index) else 0):
         with pytest.raises(IndexError, match=error_msg):
             _ = snowpark_index_int_series.iloc[key]
 
@@ -531,7 +527,7 @@ def test_series_iloc_get_key_raises_not_implemented_error_negative(
         _ = snowpark_index_int_series.iloc[key]
 
 
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_series_iloc_get_empty(empty_snowpark_pandas_series):
     _ = empty_snowpark_pandas_series.iloc[0]
 
@@ -798,7 +794,7 @@ def test_iloc_with_row_key_series_rhs_series_no_shape_check(
         [TEST_ITEMS_DATA_2X1, [("r", 20), ("s", 25)], 5],
     ],
 )
-def test_df_iloc_set_with_multi_index(
+def test_df_iloc_set_with_multiindex(
     row_key, row_key_index, item_values, item_index, expected_join_count
 ):
     ser_data = [10, 11, 12, 13, 14]
@@ -827,8 +823,9 @@ def test_df_iloc_set_with_multi_index(
         native_items.index = pd.MultiIndex.from_tuples(item_index)
 
     if row_key_index:
-        snow_row_key = pd.Series(row_key, index=pd.Index(row_key_index))
-        native_row_key = native_pd.Series(row_key, index=pd.Index(row_key_index))
+        # Using native pandas index since row_key[2] is a MultiIndex object.
+        snow_row_key = pd.Series(row_key, index=native_pd.Index(row_key_index))
+        native_row_key = native_pd.Series(row_key, index=native_pd.Index(row_key_index))
     else:
         snow_row_key = row_key
         native_row_key = row_key
@@ -961,3 +958,28 @@ def test_series_iloc_set_scalar_key_with_list_value_negative():
         series.iloc[0] = [4, 5, 6]
 
     eval_snowpark_pandas_result(series, native_s, helper, inplace=True)
+
+
+@pytest.mark.parametrize(
+    "ops",
+    [
+        lambda df: df.head(),
+        lambda df: df.iloc[1:100],
+        lambda df: df.iloc[1000:100:-1],
+        lambda df: df.iloc[0],
+        lambda df: df.iloc[100],
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_iloc_efficient_sql(session, ops):
+    df = pd.Series({"a": [1] * 10000})
+    with session.query_history() as query_listener:
+        res = ops(df)
+        if isinstance(res, pd.Series):
+            res._to_pandas()
+    eval_query = query_listener.queries[-1].sql_text.lower()
+    # check no row count
+    assert "count" not in eval_query
+    # check orderBy is after limit in the sql query
+    assert "count" not in eval_query
+    assert eval_query.index("limit") < eval_query.index("order by")

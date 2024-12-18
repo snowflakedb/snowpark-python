@@ -10,8 +10,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_values_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 def _make_nan_interleaved_float_series():
@@ -87,3 +87,31 @@ def test_unique_post_sort_values(input_data: list[Any]):
     eval_snowpark_pandas_result(
         snowpark_pandas_series, native_series, pipeline, comparator=assert_values_equal
     )
+
+
+@pytest.mark.xfail(
+    reason="SNOW-1524901: Wrong result when index and a data column have the same name",
+    strict=True,
+)
+@sql_count_checker(query_count=0)
+def test_index_unique_data_columns_should_not_affect_index_column():
+    # The index column and data columns in a DataFrame object can have
+    # the same column names. We need to ensure that the correct column is
+    # picked during access to df.index and df.col_name, and the results
+    # for df.col_name.unique() and df.index.unique() are different.
+    # In this test, both the index and a data column have the name "A".
+    # Check that they produce different results with unique.
+    # TODO: SNOW-1524901: snow_df.A.unique() does not produce the correct result here.
+    #  Right now an empty result is returned: []. This only occurs when the index and
+    #  a data column in a DataFrame share the same name.
+    # The expected result is [11, 22, 33, 44, 55].
+    native_df = native_pd.DataFrame(
+        {
+            "B": [10, 20, 30, 40, 50],
+            "A": [11, 22, 33, 44, 55],
+            "C": [60, 70, 80, 90, 100],
+        },
+        index=native_pd.Index([5, 4, 3, 2, 1], name="A"),
+    )
+    snow_df = pd.DataFrame(native_df)
+    assert snow_df.A.unique() == native_df.A.unique()

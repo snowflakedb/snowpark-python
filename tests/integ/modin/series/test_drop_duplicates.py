@@ -8,8 +8,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_series_equal
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("keep", ["first", "last", False])
@@ -57,6 +57,19 @@ def test_drop_duplicates_nan_none(keep, expected):
     assert_series_equal(
         result,
         expected,
+        check_dtype=False,
+        check_index_type=False,
+    )
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_drop_duplicates_post_sort_values():
+    pandas_ser = native_pd.Series(["a", "b", "b", "c", "a"], name="name")
+    snow_ser = pd.Series(pandas_ser)
+
+    assert_series_equal(
+        snow_ser.sort_values(kind="stable").drop_duplicates(),
+        pandas_ser.sort_values(kind="stable").drop_duplicates(),
         check_dtype=False,
         check_index_type=False,
     )

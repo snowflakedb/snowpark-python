@@ -9,8 +9,8 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -20,12 +20,14 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result
         ({"A": [1, 2], "B": [3, 4], "C": [5, 6]}),
         ({"A": [], "B": []}),
         ({"A": [np.nan]}),
+        ({"A": [pd.Timedelta(1)]}),
     ],
     ids=[
         "non-empty 2x2",
         "non-empty 2x3",
         "empty column",
         "np nan column",
+        "timedelta",
     ],
 )
 @sql_count_checker(query_count=1)

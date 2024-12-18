@@ -11,11 +11,11 @@ import pytest
 from pandas.errors import SpecificationError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("by", ["a", ["b"], ["a", "b"]])
@@ -54,7 +54,11 @@ def test_groupby_series_count_with_nan():
     index.names = ["grp_col"]
     series = pd.Series([1.2, np.nan, np.nan, np.nan, np.nan], index=index)
     eval_snowpark_pandas_result(
-        series, series.to_pandas(), lambda se: se.groupby("grp_col").count()
+        series,
+        series.to_pandas(),
+        lambda se: se.groupby("grp_col").count(),
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 
@@ -92,6 +96,8 @@ def test_groupby_agg_series(agg_func, sort):
         series,
         series.to_pandas(),
         perform_groupby,
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 
@@ -149,11 +155,13 @@ def test_groupby_agg_series_named_agg(aggs, sort):
         series,
         series.to_pandas(),
         lambda se: se.groupby(by="grp_col", sort=sort).agg(**aggs),
+        # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+        test_attrs=False,
     )
 
 
 @pytest.mark.parametrize("numeric_only", [False, None])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=2, join_count=2)
 def test_groupby_series_numeric_only(series_str, numeric_only):
     native_series = series_str.to_pandas()
     eval_snowpark_pandas_result(

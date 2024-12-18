@@ -5,21 +5,41 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("ascending", [True, False])
 @pytest.mark.parametrize("na_position", ["first", "last"])
 @pytest.mark.parametrize("ignore_index", [True, False])
 @pytest.mark.parametrize("inplace", [True, False])
+@pytest.mark.parametrize(
+    "native_df",
+    [
+        param(
+            native_pd.DataFrame(
+                [1, 2, None, 4, 5], index=[np.nan, 29, 234, 1, 150], columns=["A"]
+            ),
+            id="integers",
+        ),
+        param(
+            # We have to construct the timedelta frame slightly differently to work
+            # around https://github.com/pandas-dev/pandas/issues/60064
+            native_pd.DataFrame(
+                [1, 2, pd.NaT, 4, 5],
+                index=[np.nan, 29, 234, 1, 150],
+                columns=["A"],
+                dtype="timedelta64[ns]",
+            ),
+            id="timedeltas",
+        ),
+    ],
+)
 @sql_count_checker(query_count=1)
-def test_sort_index_dataframe(ascending, na_position, ignore_index, inplace):
-    native_df = native_pd.DataFrame(
-        [1, 2, np.nan, 4, 5], index=[np.nan, 29, 234, 1, 150], columns=["A"]
-    )
+def test_sort_index_dataframe(ascending, na_position, ignore_index, inplace, native_df):
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
         snow_df,

@@ -8,21 +8,17 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark._internal.utils import (
-    PIVOT_DEFAULT_ON_NULL_WARNING,
-    PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING,
-)
-from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
-    UNPIVOT_NULL_REPLACE_VALUE,
-)
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
+    create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 transpose_and_double_transpose_parameterize = pytest.mark.parametrize(
@@ -58,6 +54,41 @@ def test_dataframe_transpose_set_single_index(
             snow_df,
             native_df,
             lambda df: transpose_operation(df.set_index(["name"])),
+        )
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        param(lambda df: df.T, id="transpose_once"),
+        param(
+            lambda df: df.T.T,
+            marks=pytest.mark.xfail(
+                raises=NotImplementedError, strict=True, reason="SNOW-886400"
+            ),
+            id="transpose_twice",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "index",
+    [
+        [[pd.Timedelta("-1 days"), pd.NaT, pd.Timedelta("2 days")]],
+        native_pd.MultiIndex.from_tuples(
+            [
+                (pd.Timedelta("-1 days"), -1),
+                (pd.NaT, None),
+                (pd.Timedelta("2 days"), 2),
+            ]
+        ),
+    ],
+)
+def test_dataframe_transpose_set_timedelta_index_SNOW_1652608(
+    operation, score_test_data, index
+):
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(score_test_data), lambda df: operation(df.set_index(index))
         )
 
 
@@ -167,21 +198,12 @@ def test_dataframe_transpose_single_row(transpose_operation, expected_query_coun
         {"B": [1, 1, 1, 1, 1]},  # value all same
         {"None": [None]},
         {"none": [None, None, None]},
-        {UNPIVOT_NULL_REPLACE_VALUE: [np.nan, np.nan, np.nan]},
         {"NaT": [pd.NaT, pd.NaT, pd.NaT]},
         {"nan": [6.0, 7.1, np.nan]},
         {"A": [None, 1, 2, 3]},
         {"None": [None, 1, 1, None]},
         {"float": [1.1, 1.0 / 7]},
         {"str": ["abc", None, ("a", "c")]},
-        {
-            UNPIVOT_NULL_REPLACE_VALUE: [
-                None,
-                UNPIVOT_NULL_REPLACE_VALUE,
-                None,
-                UNPIVOT_NULL_REPLACE_VALUE,
-            ]
-        },
         {123: ["a", "b", "c"]},
         {False: [1, 2, 3], True: ["4", "5", "6"]},
         # Note that if no label is provided, a default integer label is created.
@@ -352,12 +374,3 @@ def test_dataframe_transpose_args_warning_log(caplog, score_test_data):
         "Transpose ignores args in Snowpark pandas API."
         in [r.msg for r in caplog.records]
     )
-
-
-@sql_count_checker(query_count=1, union_count=1)
-def test_transpose_does_not_raise_pivot_warning_snow_1344848(caplog):
-    # Test transpose, which calls snowflake.snowpark.dataframe.pivot() with
-    # the `values` parameter as None or a Snowpark DataFrame.
-    pd.DataFrame([1]).T.to_pandas()
-    assert PIVOT_DEFAULT_ON_NULL_WARNING not in caplog.text
-    assert PIVOT_VALUES_NONE_OR_DATAFRAME_WARNING not in caplog.text

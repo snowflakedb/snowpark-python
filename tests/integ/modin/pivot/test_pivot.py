@@ -6,8 +6,8 @@ import modin.pandas as pd
 import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def test_pivot(df_pivot_data):
@@ -18,16 +18,22 @@ def test_pivot(df_pivot_data):
             snow_df,
             native_df,
             lambda df: df.pivot(index="foo", columns="bar", values="baz"),
+            # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+            test_attrs=False,
         )
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
-            snow_df, native_df, lambda df: df.pivot(index="foo", columns="bar")["baz"]
+            snow_df,
+            native_df,
+            lambda df: df.pivot(index="foo", columns="bar")["baz"],
+            test_attrs=False,
         )
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.pivot(index="foo", columns="bar", values=["baz", "zoo"]),
+            test_attrs=False,
         )
 
 
@@ -61,4 +67,6 @@ def test_pivot_list_columns_names():
             lambda df: df.pivot(
                 index="lev1", columns=["lev2", "lev3"], values="values"
             ),
+            # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+            test_attrs=False,
         )

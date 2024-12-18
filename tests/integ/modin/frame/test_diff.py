@@ -8,11 +8,11 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 NUM_COLS_TALL_DF = 4
 NUM_ROWS_TALL_DF = 32
@@ -138,6 +138,37 @@ def test_df_diff_bool_df(periods):
     native_df = native_df.astype({"A": bool, "C": bool})
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.diff(periods=periods))
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("periods", [0, 1])
+def test_df_diff_timedelta_df(periods):
+    native_df = native_pd.DataFrame(
+        np.arange(NUM_ROWS_TALL_DF * NUM_COLS_TALL_DF).reshape(
+            (NUM_ROWS_TALL_DF, NUM_COLS_TALL_DF)
+        ),
+        columns=["A", "B", "C", "D"],
+    )
+    native_df = native_df.astype({"A": "timedelta64[ns]", "C": "timedelta64[ns]"})
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.diff(periods=periods))
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("periods", [-1, 0, 1])
+@pytest.mark.parametrize("axis", [0, 1])
+def test_df_diff_datetime_df(periods, axis):
+    native_df = native_pd.DataFrame(
+        np.arange(NUM_ROWS_TALL_DF * NUM_COLS_TALL_DF).reshape(
+            (NUM_ROWS_TALL_DF, NUM_COLS_TALL_DF)
+        ),
+        columns=["A", "B", "C", "D"],
+    )
+    native_df = native_df.astype("datetime64[ns]")
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df.diff(periods=periods, axis=axis)
+    )
 
 
 @sql_count_checker(query_count=1)

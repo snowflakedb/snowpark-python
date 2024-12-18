@@ -2,11 +2,15 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import modin.pandas as pd
+import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
-from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equal_to_pandas,
+    eval_snowpark_pandas_result,
+)
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture(scope="function")
@@ -77,3 +81,15 @@ def test_copy_inplace_operations_on_shallow_copy(snow_series, operation):
 
         # Verify that 'snow_series' is also changed.
         assert_snowpark_pandas_equal_to_pandas(snow_series, copy.to_pandas())
+
+
+@sql_count_checker(query_count=1)
+def test_copy_timedelta():
+    native_s = native_pd.Series(
+        [
+            native_pd.Timedelta("1 days"),
+            native_pd.Timedelta("2 days"),
+            native_pd.Timedelta("3 days"),
+        ]
+    )
+    eval_snowpark_pandas_result(pd.Series(native_s), native_s, lambda s: s.copy())

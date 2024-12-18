@@ -19,7 +19,6 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
 )
 from snowflake.snowpark.types import ArrayType, MapType, StructType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     BASIC_TYPE_DATA1,
     BASIC_TYPE_DATA2,
@@ -29,6 +28,7 @@ from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 # Those index types are used to verify the type mapping in a round trip, i.e., from_pandas to to_pandas.
@@ -157,7 +157,9 @@ def test_type_mismatch_index_type(name, indices_dict):
 
 @pytest.mark.parametrize("name", FROM_TO_PANDAS_VALUE_TYPE_MISMATCH_INDICES)
 def test_value_type_mismatch_index_type(name, indices_dict):
-    expected_query_count = 6 if "datetime" in name else 0
+    # We can create a pandas dataframe out of the datetime and timedelta
+    # values, so we execute some queries for those cases.
+    expected_query_count = 6 if ("datetime" in name or "timedelta" in name) else 0
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
         size = len(index)
@@ -252,7 +254,7 @@ def test_column_index_names(pandas_label):
 def test_to_pandas_column_index_names(name):
     df = pd.DataFrame(
         data=[[1] * 2, [2] * 2],
-        columns=pd.Index([1, 2], name=name, convert_to_lazy=False),
+        columns=native_pd.Index([1, 2], name=name),
     )
     assert df.columns.names == [name]
     pdf = df.to_pandas()
@@ -306,7 +308,7 @@ def test_from_to_pandas_datetime64_support():
     )
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_rw_datetimeindex():
     test_datetime_index = native_pd.DatetimeIndex(
         ["2017-12-31 16:00:00", "2017-12-31 17:00:00", "2017-12-31 18:00:00"],
@@ -325,12 +327,14 @@ def test_rw_datetimeindex():
     df = pd.DataFrame({"ntz": test_datetime_index, "tz": test_datetime_index_tz})
     assert_series_equal(
         df.dtypes,
-        native_pd.Series(["datetime64[ns]", "datetime64[ns]"], index=["ntz", "tz"]),
+        native_pd.Series(
+            ["datetime64[ns]", "datetime64[ns, UTC-08:00]"], index=["ntz", "tz"]
+        ),
     )
     assert_series_equal(
         df.to_pandas().dtypes,
         native_pd.Series(
-            ["datetime64[ns]", "datetime64[ns, America/Los_Angeles]"],
+            ["datetime64[ns]", "datetime64[ns, UTC-08:00]"],
             index=["ntz", "tz"],
         ),
     )
@@ -357,8 +361,7 @@ def test_rw_datetimeindex():
                 "2017-12-31 17:00:00-08:00",
                 "2017-12-31 18:00:00-08:00",
             ],
-            # it will get the session timezone as the timezone, same as to_pandas
-            dtype=pd.DatetimeTZDtype(unit="ns", tz="America/Los_Angeles"),
+            dtype=pd.DatetimeTZDtype(unit="ns", tz="UTC-08:00"),
             # has preserved
             name="tz",
             freq=None,  # freq has been lost
@@ -366,121 +369,75 @@ def test_rw_datetimeindex():
     )
 
 
-@pytest.mark.parametrize("timezone", ["UTC", "US/Pacific", "US/Eastern"])
-@sql_count_checker(query_count=3)
-def test_from_to_pandas_datetime64_timezone_support(session, timezone):
-    # This test verifies the conversion behavior for datetime64 with timezone (ie., DatetimeTZDtype), including from and
-    # to pandas:
-    #
-    # DatetimeTZDtype with any_tz => from_pandas => TIMESTAMP_TZ(any_tz) => to_pandas => DatetimeTZDtype(session_tz)
-    #
-    # Note that python connector will convert any TIMESTAMP_TZ to DatetimeTZDtype with the current session/statement
-    # timezone, e.g., 1969-12-31 19:00:00 -0500 will be converted to 1970-00-01 00:00:00 in UTC if the session/statement
-    # parameter TIMEZONE = 'UTC'
-    # TODO: SNOW-871210 no need session parameter change once the bug is fixed
-    try:
-        session.sql(f"alter session set timezone = '{timezone}'").collect()
+@sql_count_checker(query_count=1)
+def test_from_to_pandas_datetime64_timezone_support():
+    def get_series_with_tz(tz):
+        return native_pd.Series([1] * 3).astype("int64").astype(f"datetime64[ns, {tz}]")
 
-        def get_series_with_tz(tz):
-            return (
-                native_pd.Series([1] * 3)
-                .astype("int64")
-                .astype(f"datetime64[ns, {tz}]")
-            )
+    # same timestamps representing in different time zone
+    test_data_columns = {
+        "utc": get_series_with_tz("UTC"),
+        "pacific": get_series_with_tz("US/Pacific"),
+        "tokyo": get_series_with_tz("Asia/Tokyo"),
+    }
 
-        # same timestamps representing in different time zone
-        test_data_columns = {
-            "utc": get_series_with_tz("UTC"),
-            "pacific": get_series_with_tz("US/Pacific"),
-            "tokyo": get_series_with_tz("Asia/Tokyo"),
-        }
-
-        # expected to_pandas dataframe's timezone is controlled by session/statement parameter TIMEZONE
-        expected_to_pandas = native_pd.DataFrame(
-            {
-                series: test_data_columns[series].dt.tz_convert(timezone)
-                for series in test_data_columns
-            }
-        )
-        assert_snowpark_pandas_equal_to_pandas(
-            pd.DataFrame(test_data_columns),
-            expected_to_pandas,
-            # configure different timezones to to_pandas and verify the timestamps are converted correctly
-            statement_params={"timezone": timezone},
-        )
-    finally:
-        # TODO: SNOW-871210 no need session parameter change once the bug is fixed
-        session.sql("alter session unset timezone").collect()
+    expected_data_columns = {
+        "utc": get_series_with_tz("UTC"),
+        "pacific": get_series_with_tz("UTC-08:00"),
+        "tokyo": get_series_with_tz("UTC+09:00"),
+    }
+    # expected to_pandas dataframe's timezone is controlled by session/statement parameter TIMEZONE
+    expected_to_pandas = native_pd.DataFrame(expected_data_columns)
+    assert_snowpark_pandas_equal_to_pandas(
+        pd.DataFrame(test_data_columns),
+        expected_to_pandas,
+    )
 
 
-@pytest.mark.parametrize("timezone", ["UTC", "US/Pacific", "US/Eastern"])
-@sql_count_checker(query_count=3)
-def test_from_to_pandas_datetime64_multi_timezone_current_behavior(session, timezone):
-    try:
-        # TODO: SNOW-871210 no need session parameter change once the bug is fixed
-        session.sql(f"alter session set timezone = '{timezone}'").collect()
+@sql_count_checker(query_count=1)
+def test_from_to_pandas_datetime64_multi_timezone_current_behavior():
+    # This test also verifies the current behaviors of to_pandas() for datetime with no tz, same tz, or multi tz:
+    # no tz    => TIMESTAMP_NTZ
+    # same tz  => TIMESTAMP_TZ
+    # multi tz => TIMESTAMP_TZ
+    multi_tz_data = ["2019-05-21 12:00:00-06:00", "2019-05-21 12:15:00-07:00"]
+    test_data_columns = {
+        "no tz": native_pd.to_datetime(
+            native_pd.Series(["2019-05-21 12:00:00", "2019-05-21 12:15:00"])
+        ),  # dtype = datetime64[ns]
+        "same tz": native_pd.to_datetime(
+            native_pd.Series(["2019-05-21 12:00:00-06:00", "2019-05-21 12:15:00-06:00"])
+        ),  # dtype = datetime64[ns, tz]
+        "multi tz": native_pd.to_datetime(
+            native_pd.Series(multi_tz_data)
+        ),  # dtype = object and value type is Python datetime
+    }
 
-        # This test also verifies the current behaviors of to_pandas() for datetime with no tz, same tz, or multi tz:
-        # no tz    => TIMESTAMP_NTZ
-        # same tz  => TIMESTAMP_TZ
-        # multi tz => TIMESTAMP_NTZ
-        multi_tz_data = ["2019-05-21 12:00:00-06:00", "2019-05-21 12:15:00-07:00"]
-        test_data_columns = {
-            "no tz": native_pd.to_datetime(
-                native_pd.Series(["2019-05-21 12:00:00", "2019-05-21 12:15:00"])
-            ),  # dtype = datetime64[ns]
-            "same tz": native_pd.to_datetime(
-                native_pd.Series(
-                    ["2019-05-21 12:00:00-06:00", "2019-05-21 12:15:00-06:00"]
-                )
-            ),  # dtype = datetime64[ns, tz]
-            "multi tz": native_pd.to_datetime(
-                native_pd.Series(multi_tz_data)
-            ),  # dtype = object and value type is Python datetime
-        }
+    expected_to_pandas = native_pd.DataFrame(test_data_columns)
 
-        expected_to_pandas = native_pd.DataFrame(
-            {
-                "no tz": test_data_columns["no tz"],  # dtype = datetime64[ns]
-                "same tz": test_data_columns["same tz"].dt.tz_convert(
-                    timezone
-                ),  # dtype = datetime64[ns, tz]
-                "multi tz": native_pd.Series(
-                    [
-                        native_pd.to_datetime(t).tz_convert(timezone)
-                        for t in multi_tz_data
-                    ]
-                ),
-            }
-        )
-
-        test_df = native_pd.DataFrame(test_data_columns)
-        # dtype checks for each series
-        no_tz_dtype = test_df.dtypes["no tz"]
-        assert is_datetime64_any_dtype(no_tz_dtype) and not isinstance(
-            no_tz_dtype, DatetimeTZDtype
-        )
-        same_tz_dtype = test_df.dtypes["same tz"]
-        assert is_datetime64_any_dtype(same_tz_dtype) and isinstance(
-            same_tz_dtype, DatetimeTZDtype
-        )
-        multi_tz_dtype = test_df.dtypes["multi tz"]
-        assert (
-            not is_datetime64_any_dtype(multi_tz_dtype)
-            and not isinstance(multi_tz_dtype, DatetimeTZDtype)
-            and str(multi_tz_dtype) == "object"
-        )
-        # sample value
-        assert isinstance(test_df["multi tz"][0], datetime.datetime)
-        assert test_df["multi tz"][0].tzinfo is not None
-        assert_snowpark_pandas_equal_to_pandas(
-            pd.DataFrame(test_df),
-            expected_to_pandas,
-            statement_params={"timezone": timezone},
-        )
-    finally:
-        # TODO: SNOW-871210 no need session parameter change once the bug is fixed
-        session.sql("alter session unset timezone").collect()
+    test_df = native_pd.DataFrame(test_data_columns)
+    # dtype checks for each series
+    no_tz_dtype = test_df.dtypes["no tz"]
+    assert is_datetime64_any_dtype(no_tz_dtype) and not isinstance(
+        no_tz_dtype, DatetimeTZDtype
+    )
+    same_tz_dtype = test_df.dtypes["same tz"]
+    assert is_datetime64_any_dtype(same_tz_dtype) and isinstance(
+        same_tz_dtype, DatetimeTZDtype
+    )
+    multi_tz_dtype = test_df.dtypes["multi tz"]
+    assert (
+        not is_datetime64_any_dtype(multi_tz_dtype)
+        and not isinstance(multi_tz_dtype, DatetimeTZDtype)
+        and str(multi_tz_dtype) == "object"
+    )
+    # sample value
+    assert isinstance(test_df["multi tz"][0], datetime.datetime)
+    assert test_df["multi tz"][0].tzinfo is not None
+    assert_snowpark_pandas_equal_to_pandas(
+        pd.DataFrame(test_df),
+        expected_to_pandas,
+    )
 
 
 @sql_count_checker(query_count=1)

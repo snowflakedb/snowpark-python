@@ -30,10 +30,12 @@ from typing import (  # noqa: F401
     get_origin,
 )
 
+import snowflake.snowpark.context as context
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
+from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -66,6 +68,8 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     VectorType,
+    _FractionalType,
+    _IntegralType,
     _NumericType,
 )
 
@@ -94,6 +98,7 @@ if TYPE_CHECKING:
 
 def convert_metadata_to_sp_type(
     metadata: Union[ResultMetadata, "ResultMetadataV2"],
+    max_string_size: int,
 ) -> DataType:
     column_type_name = FIELD_ID_TO_NAME[metadata.type_code]
     if column_type_name == "VECTOR":
@@ -134,15 +139,16 @@ def convert_metadata_to_sp_type(
                 len(metadata.fields) == 1
             ), "ArrayType columns should have one metadata field."
             return ArrayType(
-                convert_metadata_to_sp_type(metadata.fields[0]), structured=True
+                convert_metadata_to_sp_type(metadata.fields[0], max_string_size),
+                structured=True,
             )
         elif column_type_name == "MAP":
             assert (
                 len(metadata.fields) == 2
             ), "MapType columns should have two metadata fields."
             return MapType(
-                convert_metadata_to_sp_type(metadata.fields[0]),
-                convert_metadata_to_sp_type(metadata.fields[1]),
+                convert_metadata_to_sp_type(metadata.fields[0], max_string_size),
+                convert_metadata_to_sp_type(metadata.fields[1], max_string_size),
                 structured=True,
             )
         else:
@@ -151,7 +157,14 @@ def convert_metadata_to_sp_type(
             ), "All fields of a StructType should be named."
             return StructType(
                 [
-                    StructField(field.name, convert_metadata_to_sp_type(field))
+                    StructField(
+                        field.name
+                        if context._should_use_structured_type_semantics
+                        else quote_name(field.name, keep_case=True),
+                        convert_metadata_to_sp_type(field, max_string_size),
+                        nullable=field.is_nullable,
+                        _is_column=False,
+                    )
                     for field in metadata.fields
                 ],
                 structured=True,
@@ -162,11 +175,16 @@ def convert_metadata_to_sp_type(
             metadata.precision or 0,
             metadata.scale or 0,
             metadata.internal_size or 0,
+            max_string_size,
         )
 
 
 def convert_sf_to_sp_type(
-    column_type_name: str, precision: int, scale: int, internal_size: int
+    column_type_name: str,
+    precision: int,
+    scale: int,
+    internal_size: int,
+    max_string_size: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     if column_type_name == "ARRAY":
@@ -185,7 +203,7 @@ def convert_sf_to_sp_type(
         return BinaryType()
     if column_type_name == "TEXT":
         if internal_size > 0:
-            return StringType(internal_size)
+            return StringType(internal_size, internal_size == max_string_size)
         elif internal_size == 0:
             return StringType()
         raise ValueError("Negative value is not a valid input for StringType")
@@ -278,7 +296,7 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
     if isinstance(datatype, StructType):
         if datatype.structured:
             fields = ", ".join(
-                f"{field.name.upper()} {convert_sp_to_sf_type(field.datatype)}"
+                f"{field.name} {convert_sp_to_sf_type(field.datatype)}"
                 for field in datatype.fields
             )
             return f"OBJECT({fields})"
@@ -516,6 +534,52 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         return a
 
 
+def python_value_str_to_object(value, tp: DataType) -> Any:
+    if isinstance(tp, StringType):
+        return value
+
+    if isinstance(
+        tp,
+        (
+            _IntegralType,
+            _FractionalType,
+            BooleanType,
+            BinaryType,
+            TimeType,
+            DateType,
+            TimestampType,
+        ),
+    ):
+        return eval(value)
+
+    if isinstance(tp, ArrayType):
+        curr_list = eval(value)
+        if curr_list is None:
+            return None
+        element_tp = tp.element_type or StringType()
+        return [python_value_str_to_object(val, element_tp) for val in curr_list]
+
+    if isinstance(tp, MapType):
+        curr_dict: dict = eval(value)
+        if curr_dict is None:
+            return None
+        key_tp = tp.key_type or StringType()
+        val_tp = tp.value_type or StringType()
+        return {
+            python_value_str_to_object(k, key_tp): python_value_str_to_object(v, val_tp)
+            for k, v in curr_dict.items()
+        }
+
+    if isinstance(tp, (GeometryType, GeographyType, VariantType)):
+        if value.strip() == "None":
+            return None
+        return value
+
+    raise TypeError(
+        f"Unsupported data type: {tp}, value {value} by python_value_str_to_object()"
+    )
+
+
 def python_type_str_to_object(
     tp_str: str, is_return_type_for_sproc: bool = False
 ) -> Type:
@@ -697,6 +761,102 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
         return f"vector<{snow_type.element_type},{snow_type.dimension}>"
 
     raise TypeError(f"invalid DataType {snow_type}")
+
+
+def retrieve_func_defaults_from_source(
+    file_path: str,
+    func_name: str,
+    class_name: Optional[str] = None,
+    _source: Optional[str] = None,
+) -> Optional[List[Optional[str]]]:
+    """
+    Retrieve default values assigned to optional arguments of a function from a
+    source file, or a source string (test only).
+
+    Returns list of str(default value) if the function is found, None otherwise.
+    """
+
+    def parse_default_value(
+        value: ast.expr, enquote_string: bool = False
+    ) -> Optional[str]:
+        # recursively parse the default value if it is tuple or list
+        if isinstance(value, (ast.Tuple, ast.List)):
+            return f"{[parse_default_value(e) for e in value.elts]}"
+        # recursively parse the default keys and values if it is dict
+        if isinstance(value, ast.Dict):
+            key_val_tuples = [
+                (parse_default_value(k), parse_default_value(v))
+                for k, v in zip(value.keys, value.values)
+            ]
+            return f"{dict(key_val_tuples)}"
+        # recursively parse the default value.value and extract value.attr
+        if isinstance(value, ast.Attribute):
+            return f"{parse_default_value(value.value)}.{value.attr}"
+        # recursively parse value.value and extract value.arg
+        if isinstance(value, ast.keyword):
+            return f"{value.arg}={parse_default_value(value.value)}"
+        # extract constant value
+        if isinstance(value, ast.Constant):
+            if isinstance(value.value, str) and enquote_string:
+                return f"'{value.value}'"
+            if value.value is None:
+                return None
+            return f"{value.value}"
+        # extract value.id from Name
+        if isinstance(value, ast.Name):
+            return value.id
+        # recursively parse value.func and extract value.args and value.keywords
+        if isinstance(value, ast.Call):
+            parsed_args = ", ".join(
+                parse_default_value(arg, True) for arg in value.args
+            )
+            parsed_kwargs = ", ".join(
+                parse_default_value(kw, True) for kw in value.keywords
+            )
+            combined_parsed_input = (
+                f"{parsed_args}, {parsed_kwargs}"
+                if parsed_args and parsed_kwargs
+                else parsed_args or parsed_kwargs
+            )
+            return f"{parse_default_value(value.func)}({combined_parsed_input})"
+        raise TypeError(f"invalid default value: {value}")
+
+    class FuncNodeVisitor(ast.NodeVisitor):
+        default_values = []
+        func_exist = False
+
+        def visit_FunctionDef(self, node):
+            if node.name == func_name:
+                for value in node.args.defaults:
+                    self.default_values.append(parse_default_value(value))
+                self.func_exist = True
+
+    if not _source:
+        with open(file_path) as f:
+            _source = f.read()
+
+    if class_name:
+
+        class ClassNodeVisitor(ast.NodeVisitor):
+            class_node = None
+
+            def visit_ClassDef(self, node):
+                if node.name == class_name:
+                    self.class_node = node
+
+        class_visitor = ClassNodeVisitor()
+        class_visitor.visit(ast.parse(_source))
+        if class_visitor.class_node is None:
+            return None
+        to_visit_node_for_func = class_visitor.class_node
+    else:
+        to_visit_node_for_func = ast.parse(_source)
+
+    visitor = FuncNodeVisitor()
+    visitor.visit(to_visit_node_for_func)
+    if not visitor.func_exist:
+        return None
+    return visitor.default_values
 
 
 def retrieve_func_type_hints_from_source(

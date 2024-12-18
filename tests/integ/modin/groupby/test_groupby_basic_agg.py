@@ -16,7 +16,6 @@ from pandas.core.groupby.generic import DataFrameGroupBy as PandasDFGroupBy
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.types import IntegerType, StringType, VariantType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     TEST_DF_DATA,
     ColumnSchema,
@@ -26,8 +25,9 @@ from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_snow_df_with_table_and_data,
     create_test_dfs,
-    eval_snowpark_pandas_result,
+    eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 
@@ -58,7 +58,11 @@ def eval_groupby_result(
     return snowpark_pandas_groupby, pandas_groupby
 
 
-@pytest.mark.modin_sp_short_regress
+def eval_snowpark_pandas_result(*args, **kwargs):
+    # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+    return _eval_snowpark_pandas_result(*args, test_attrs=False, **kwargs)
+
+
 @pytest.mark.parametrize("by", ["col1", ["col3"], ["col5"]])
 @sql_count_checker(query_count=2)
 def test_basic_single_group_row_groupby(
@@ -277,6 +281,54 @@ def test_groupby_agg_with_float_dtypes_named_agg() -> None:
             new_col6=("col7_float_missing", max),
             new_col7=("col8_mix_missing", min),
         ),
+    )
+
+
+@pytest.mark.parametrize(
+    "grpby_fn",
+    [
+        lambda gr: gr.quantile(),
+        lambda gr: gr.quantile(q=0.3),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_groupby_agg_quantile_with_int_dtypes(grpby_fn) -> None:
+    native_df = native_pd.DataFrame(
+        {
+            "col1_grp": ["g1", "g2", "g0", "g0", "g2", "g3", "g0", "g2", "g3"],
+            "col2_int64": np.arange(9, dtype="int64") // 3,
+            "col3_int_identical": [2] * 9,
+            "col4_int32": np.arange(9, dtype="int32") // 4,
+            "col5_int16": np.arange(9, dtype="int16") // 3,
+            "col6_mixed": np.concatenate(
+                [
+                    np.arange(3, dtype="int64") // 3,
+                    np.arange(3, dtype="int32") // 3,
+                    np.arange(3, dtype="int16") // 3,
+                ]
+            ),
+            "col7_int_missing": [5, 6, np.nan, 2, 1, np.nan, 5, np.nan, np.nan],
+            "col8_mixed_missing": np.concatenate(
+                [
+                    np.arange(2, dtype="int64") // 3,
+                    [np.nan],
+                    np.arange(2, dtype="int32") // 3,
+                    [np.nan],
+                    np.arange(2, dtype="int16") // 3,
+                    [np.nan],
+                ]
+            ),
+        }
+    )
+    snowpark_pandas_df = pd.DataFrame(native_df)
+    by = "col1_grp"
+    snowpark_pandas_groupby = snowpark_pandas_df.groupby(by=by)
+    pandas_groupby = native_df.groupby(by=by)
+    eval_snowpark_pandas_result(
+        snowpark_pandas_groupby,
+        pandas_groupby,
+        grpby_fn,
+        comparator=assert_snowpark_pandas_equals_to_pandas_with_coerce_to_float64,
     )
 
 
@@ -1095,3 +1147,83 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
         basic_snowpark_pandas_df.groupby("col1").agg(max, min_count=2),
         basic_snowpark_pandas_df.to_pandas().groupby("col1").max(min_count=2),
     )
+
+
+class TestTimedelta:
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "count",
+            "mean",
+            "min",
+            "max",
+            "idxmax",
+            "idxmin",
+            "sum",
+            "median",
+            "std",
+            "nunique",
+        ],
+    )
+    @pytest.mark.parametrize("by", ["A", "B"])
+    def test_aggregation_methods(self, method, by):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                {
+                    "A": native_pd.to_timedelta(
+                        ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                    ),
+                    "B": [8, 8, 12, 10],
+                }
+            ),
+            lambda df: getattr(df.groupby(by), method)(),
+        )
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "operation",
+        [
+            lambda df: df.groupby("A").agg({"B": ["sum", "median"], "C": "min"}),
+            lambda df: df.groupby("B").agg({"A": ["sum", "median"], "C": "min"}),
+            lambda df: df.groupby("B").agg({"A": ["sum", "count"], "C": "median"}),
+            lambda df: df.groupby("B").agg(["mean", "std"]),
+            lambda df: df.groupby("B").agg({"A": ["count", np.sum]}),
+            lambda df: df.groupby("B").agg({"A": "sum"}),
+        ],
+    )
+    def test_agg(self, operation):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                native_pd.DataFrame(
+                    {
+                        "A": native_pd.to_timedelta(
+                            ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                        ),
+                        "B": [8, 8, 12, 10],
+                        "C": [True, False, False, True],
+                    }
+                )
+            ),
+            operation,
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_groupby_timedelta_var(self):
+        """
+        Test that we can group by a timedelta column and take var() of an integer column.
+
+        Note that we can't take the groupby().var() of the timedelta column because
+        var() is not defined for timedelta, in pandas or in Snowpark pandas.
+        """
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                {
+                    "A": native_pd.to_timedelta(
+                        ["1 days 06:05:01.00003", "16us", "nan", "16us"]
+                    ),
+                    "B": [8, 8, 12, 10],
+                }
+            ),
+            lambda df: df.groupby("A").var(),
+        )

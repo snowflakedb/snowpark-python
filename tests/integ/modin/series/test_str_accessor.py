@@ -10,9 +10,10 @@ import numpy as np
 import pandas as native_pd
 import pytest
 
+from snowflake.snowpark._internal.utils import TempObjectType
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import assert_series_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 TEST_DATA = [
     "a%_.*?|&^$bc",
@@ -421,6 +422,76 @@ def test_str_no_params(func):
     )
 
 
+@pytest.mark.parametrize("func", ["center", "ljust", "rjust"])
+@pytest.mark.parametrize("width", [-1, 0, 1, 10, 100])
+@pytest.mark.parametrize("fillchar", [" ", "#"])
+@sql_count_checker(query_count=1)
+def test_str_center_ljust_rjust(func, width, fillchar):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: getattr(ser.str, func)(width=width, fillchar=fillchar),
+    )
+
+
+@pytest.mark.parametrize("func", ["center", "ljust", "rjust"])
+@pytest.mark.parametrize(
+    "width, fillchar",
+    [
+        (None, " "),
+        ("ten", " "),
+        (10, ""),
+        (10, "ab"),
+        (10, None),
+        (10, 10),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_str_center_ljust_rjust_neg(func, width, fillchar):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(TypeError):
+        getattr(snow_ser.str, func)(width=width, fillchar=fillchar)
+
+
+@pytest.mark.parametrize("width", [-1, 0, 1, 10, 100])
+@pytest.mark.parametrize("side", ["left", "right", "both"])
+@pytest.mark.parametrize("fillchar", [" ", "#"])
+@sql_count_checker(query_count=1)
+def test_str_pad(width, side, fillchar):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.pad(width=width, side=side, fillchar=fillchar),
+    )
+
+
+@pytest.mark.parametrize(
+    "width, side, fillchar, error",
+    [
+        (None, "both", " ", TypeError),
+        ("ten", "both", " ", TypeError),
+        (10, None, " ", ValueError),
+        (10, 10, " ", ValueError),
+        (10, "invalid", " ", ValueError),
+        (10, "both", "", TypeError),
+        (10, "both", "ab", TypeError),
+        (10, "both", None, TypeError),
+        (10, "both", 10, TypeError),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_str_pad_neg(width, side, fillchar, error):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    with pytest.raises(error):
+        snow_ser.str.pad(width=width, side=side, fillchar=fillchar)
+
+
 @pytest.mark.parametrize(
     "data",
     [
@@ -447,6 +518,60 @@ def test_str_len():
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
+
+
+@sql_count_checker(query_count=1)
+def test_str_len_list():
+    native_ser = native_pd.Series([["a", "b"], ["c", "d", None], None, []])
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(snow_ser, native_ser, lambda ser: ser.str.len())
+
+
+@pytest.mark.parametrize("enable_sql_simplifier", [True, False])
+def test_str_len_list_coin_base(session, enable_sql_simplifier):
+    session.sql_simplifier_enabled = enable_sql_simplifier
+    expected_udf_count = 2
+    if session.sql_simplifier_enabled:
+        expected_udf_count = 1
+    with SqlCounter(query_count=9, udf_count=expected_udf_count):
+        from tests.utils import Utils
+
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        Utils.create_table(
+            session, table_name, "SHARED_CARD_USERS array", is_temporary=True
+        )
+        session.sql(
+            f"""insert into {table_name} (SHARED_CARD_USERS) SELECT PARSE_JSON('["Apple", "Pear", "Cabbage"]')"""
+        ).collect()
+        session.sql(f"insert into {table_name} values (NULL)").collect()
+
+        df = pd.read_snowflake(table_name)
+
+        def compute_num_shared_card_users(x):
+            """
+            Helper function to compute the number of shared card users
+
+            Input:
+            - x: the array with the users
+
+            Output: Number of shared card users
+            """
+            if x:
+                return len(x)
+            else:
+                return 0
+
+        # The following two methods for computing the final result should be identical.
+
+        # The first one uses `Series.str.len` followed by `Series.fillna`.
+        str_len_res = df["SHARED_CARD_USERS"].str.len().fillna(0)
+
+        # The second one uses `Series.apply` and a user defined function.
+        apply_res = df["SHARED_CARD_USERS"].apply(
+            lambda x: compute_num_shared_card_users(x)
+        )
+
+        assert_series_equal(str_len_res, apply_res, check_dtype=False)
 
 
 @pytest.mark.parametrize(

@@ -1,14 +1,18 @@
 * @snowflakedb/snowpark-python-api-reviewers
+/src/snowflake/snowpark/ @snowflakedb/snowpark-python-api-reviewers @snowflakedb/snowpark-ir
 /src/snowflake/snowpark/modin/ @snowflakedb/snowpark-pandas-api
+/src/snowflake/snowpark/_internal/ast @snowflakedb/snowpark-ir
+/tests/ast/ @snowflakedb/snowpark-ir
+/tests/unit/ast/  @snowflakedb/snowpark-ir
 /tests/integ/modin/ @snowflakedb/snowpark-pandas-api
 /tests/unit/modin/ @snowflakedb/snowpark-pandas-api
 /docs/modin_api_coverage/ @snowflakedb/snowpark-pandas-api
 /docs/source/modin/ @snowflakedb/snowpark-pandas-api
 /tests/notebooks/ @snowflakedb/snowpark-pandas-api
-/.github/ @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers
-/scripts/ @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers
-setup.py @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers
-tox.ini @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers
+/.github/ @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers @snowflakedb/snowpark-ir
+/scripts/ @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers @snowflakedb/snowpark-ir
+setup.py @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers @snowflakedb/snowpark-ir
+tox.ini @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers @snowflakedb/snowpark-ir
 README.md @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers
 CONTRIBUTING.md @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers
 tests/README.md @snowflakedb/snowpark-pandas-api @snowflakedb/snowpark-python-api-reviewers

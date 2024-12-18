@@ -73,7 +73,7 @@ def _make_not_implemented_decorator(
                 def raise_not_implemented_function_error(
                     *args: tuple[Any, ...], **kwargs: dict[str, Any]
                 ) -> NoReturn:
-                    assert attribute_prefix is not None
+                    assert attribute_prefix is not None, "attribute_prefix is None"
                     ErrorMessage.not_implemented(
                         message=f"{_snowpark_pandas_does_not_yet_support} property {attribute_prefix}.{name}"
                     )
@@ -139,6 +139,14 @@ index_not_implemented = _make_not_implemented_decorator(
     decorating_functions=False, attribute_prefix="Index"
 )
 
+datetime_index_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="DatetimeIndex"
+)
+
+timedelta_index_not_implemented = _make_not_implemented_decorator(
+    decorating_functions=False, attribute_prefix="TimedeltaIndex"
+)
+
 pandas_module_level_function_not_implemented = _make_not_implemented_decorator(
     decorating_functions=True, attribute_prefix="pd"
 )
@@ -154,6 +162,12 @@ class ErrorMessage:
         logger.debug(f"NotImplementedError: {message}")
         raise NotImplementedError(message)
 
+    @classmethod
+    def not_implemented_for_timedelta(cls, method: str) -> NoReturn:
+        ErrorMessage.not_implemented(
+            f"SnowflakeQueryCompiler::{method} is not yet implemented for Timedelta Type"
+        )
+
     @staticmethod
     def method_not_implemented_error(
         name: str, class_: str
@@ -168,7 +182,7 @@ class ErrorMessage:
         class_: str
             The class of Snowpark pandas function associated with the method.
         """
-        message = f"{name} is not yet implemented for {class_}"
+        message = f"Snowpark pandas does not yet support the method {class_}.{name}"
         ErrorMessage.not_implemented(message)
 
     @staticmethod

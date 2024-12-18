@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
 import os
 from typing import Dict
 
@@ -12,8 +11,35 @@ import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
+from tests.ast.ast_test_utils import (
+    close_full_ast_validation_mode,
+    setup_full_ast_validation_mode,
+)
 from tests.parameters import CONNECTION_PARAMETERS
-from tests.utils import TEST_SCHEMA, Utils, running_on_jenkins, running_on_public_ci
+from tests.utils import (
+    TEST_SCHEMA,
+    TestFiles,
+    Utils,
+    running_on_jenkins,
+    running_on_public_ci,
+)
+
+RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
+RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
+
+test_dir = os.path.dirname(__file__)
+test_data_dir = os.path.join(test_dir, "cassettes")
+
+SNOWFLAKE_CREDENTIAL_HEADER_FIELDS = [
+    "Authorization",
+    "x-amz-server-side-encryption-customer-key-MD5",
+    "x-amz-server-side-encryption-customer-key-md5",
+    "x-amz-server-side-encryption-customer-key",
+    "x-amz-server-side-encryption-customer-algorithm",
+    "x-amz-id-2",
+    "x-amz-request-id",
+    "x-amz-version-id",
+]
 
 
 def print_help() -> None:
@@ -193,6 +219,60 @@ def session(
     sql_simplifier_enabled,
     local_testing_mode,
     cte_optimization_enabled,
+    multithreading_mode_enabled,
+    ast_enabled,
+    validate_ast,
+    unparser_jar,
+):
+    rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
+    rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
+    key1 = f"key1{Utils.random_alphanumeric_str(10)}"
+    key2 = f"key2{Utils.random_alphanumeric_str(10)}"
+    integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
+    integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
+
+    session = (
+        Session.builder.configs(db_parameters)
+        .config("local_testing", local_testing_mode)
+        .config(
+            "session_parameters",
+            {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled},
+        )
+        .create()
+    )
+    session.sql_simplifier_enabled = sql_simplifier_enabled
+    session._cte_optimization_enabled = cte_optimization_enabled
+    session.ast_enabled = ast_enabled
+
+    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+        set_up_external_access_integration_resources(
+            session, rule1, rule2, key1, key2, integration1, integration2
+        )
+
+    if validate_ast:
+        full_ast_validation_listener = setup_full_ast_validation_mode(
+            session, db_parameters, unparser_jar
+        )
+
+    yield session
+
+    if validate_ast:
+        close_full_ast_validation_mode(full_ast_validation_listener)
+
+    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+        clean_up_external_access_integration_resources(
+            session, rule1, rule2, key1, key2, integration1, integration2
+        )
+    session.close()
+
+
+@pytest.fixture(scope="function")
+def profiler_session(
+    db_parameters,
+    resources_path,
+    sql_simplifier_enabled,
+    local_testing_mode,
+    cte_optimization_enabled,
 ):
     rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
     rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
@@ -235,3 +315,28 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             )
             yield temp_schema_name
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
+
+
+@pytest.fixture(scope="module")
+def temp_stage(session, resources_path, local_testing_mode):
+    tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+
+    if not local_testing_mode:
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, tmp_stage_name, test_files.test_file_parquet, compress=False
+    )
+    yield tmp_stage_name
+    if not local_testing_mode:
+        Utils.drop_stage(session, tmp_stage_name)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def clear_session_ast_batch_on_validate_ast(session, validate_ast):
+    """
+    After each test, flush the AST batch so it does not pollute the next test validation.
+    """
+    yield
+    if validate_ast:
+        session._ast_batch.flush()

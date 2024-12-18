@@ -13,7 +13,6 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.types import VariantType
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     ColumnSchema,
     assert_snowpark_pandas_equal_to_pandas,
@@ -21,6 +20,11 @@ from tests.integ.modin.utils import (
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+
+
+def sensitive_function_name(col: native_pd.Series) -> int:
+    return col.sum()
 
 
 @pytest.fixture(scope="function")
@@ -154,7 +158,14 @@ def test_corr_negative(numeric_native_df, method):
 @sql_count_checker(query_count=1)
 def test_string_sum(data, numeric_only_kwargs):
     eval_snowpark_pandas_result(
-        *create_test_dfs(data), lambda df: df.sum(**numeric_only_kwargs)
+        *create_test_dfs(data),
+        lambda df: df.sum(**numeric_only_kwargs),
+        # pandas doesn't propagate attrs if the frame is empty after type filtering,
+        # which happens if numeric_only=True and all columns are strings, but Snowpark pandas does.
+        test_attrs=not (
+            numeric_only_kwargs.get("numeric_only", False)
+            and isinstance(data["col1"][0], str)
+        ),
     )
 
 
@@ -181,6 +192,108 @@ def test_string_sum_with_nulls():
         pandas_df.sum(numeric_only=False)
     snow_result = snow_df.sum(numeric_only=False)
     assert_series_equal(snow_result.to_pandas(), native_pd.Series(["ab"]))
+
+
+class TestTimedelta:
+    """Test aggregating dataframes containing timedelta columns."""
+
+    @pytest.mark.parametrize(
+        "func, union_count",
+        [
+            param(
+                lambda df: df.aggregate(["min"]),
+                0,
+                id="aggregate_list_with_one_element",
+            ),
+            param(lambda df: df.aggregate(x=("A", "max")), 0, id="single_named_agg"),
+            # this works since all results are timedelta and we don't need to do any concats.
+            param(
+                lambda df: df.aggregate({"B": "mean", "A": "sum"}),
+                0,
+                id="dict_producing_two_timedeltas",
+            ),
+            # this works since even though we need to do concats, all the results are non-timdelta.
+            param(
+                lambda df: df.aggregate(x=("B", "all"), y=("B", "any")),
+                1,
+                id="named_agg_producing_two_bools",
+            ),
+            # note following aggregation requires transpose
+            param(lambda df: df.aggregate(max), 0, id="aggregate_max"),
+            param(lambda df: df.min(), 0, id="min"),
+            param(lambda df: df.max(), 0, id="max"),
+            param(lambda df: df.count(), 0, id="count"),
+            param(lambda df: df.sum(), 0, id="sum"),
+            param(lambda df: df.mean(), 0, id="mean"),
+            param(lambda df: df.median(), 0, id="median"),
+            param(lambda df: df.std(), 0, id="std"),
+            param(lambda df: df.quantile(), 0, id="single_quantile"),
+            param(lambda df: df.quantile([0.01, 0.99]), 1, id="two_quantiles"),
+        ],
+    )
+    def test_supported_axis_0(self, func, union_count, timedelta_native_df):
+        with SqlCounter(query_count=1, union_count=union_count):
+            eval_snowpark_pandas_result(
+                *create_test_dfs(timedelta_native_df),
+                func,
+            )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.xfail(strict=True, raises=NotImplementedError, reason="SNOW-1653126")
+    def test_axis_1(self, timedelta_native_df):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(timedelta_native_df), lambda df: df.sum(axis=1)
+        )
+
+    @sql_count_checker(query_count=0)
+    def test_var_invalid(self, timedelta_native_df):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(timedelta_native_df),
+            lambda df: df.var(),
+            expect_exception=True,
+            expect_exception_type=TypeError,
+            assert_exception_equal=False,
+            expect_exception_match=re.escape(
+                "timedelta64 type does not support var operations"
+            ),
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.xfail(
+        strict=True,
+        raises=NotImplementedError,
+        reason="requires concat(), which we cannot do with Timedelta.",
+    )
+    @pytest.mark.parametrize(
+        "operation",
+        [
+            lambda df: df.aggregate({"A": ["count", "max"], "B": [max, "min"]}),
+            lambda df: df.aggregate({"B": ["count"], "A": "sum", "C": ["max", "min"]}),
+            lambda df: df.aggregate(
+                x=pd.NamedAgg("A", "max"), y=("B", "min"), c=("A", "count")
+            ),
+            lambda df: df.aggregate(["min", np.max]),
+            lambda df: df.aggregate(x=("A", "max"), y=("C", "min"), z=("A", "min")),
+            lambda df: df.aggregate(x=("A", "max"), y=pd.NamedAgg("A", "max")),
+            lambda df: df.aggregate(
+                {"B": ["idxmax"], "A": "sum", "C": ["max", "idxmin"]}
+            ),
+        ],
+    )
+    def test_agg_requires_concat_with_timedelta(self, timedelta_native_df, operation):
+        eval_snowpark_pandas_result(*create_test_dfs(timedelta_native_df), operation)
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.xfail(
+        strict=True,
+        raises=NotImplementedError,
+        reason="requires transposing a one-row frame with integer and timedelta.",
+    )
+    def test_agg_produces_timedelta_and_non_timedelta_type(self, timedelta_native_df):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(timedelta_native_df),
+            lambda df: df.aggregate({"B": "idxmax", "A": "sum"}),
+        )
 
 
 @pytest.mark.parametrize(
@@ -576,20 +689,24 @@ def test_agg_with_no_column_raises(pandas_df):
 
 
 @pytest.mark.parametrize(
-    "func",
+    "func, test_attrs",
     [
-        lambda df: df.aggregate(min),
-        lambda df: df.max(),
-        lambda df: df.count(),
-        lambda df: df.corr(),
-        lambda df: df.aggregate(x=("A", "min")),
+        (lambda df: df.aggregate(min), True),
+        # This is a bug in pandas - the attrs are not propagated for
+        # size, but are propagated for other functions.
+        (lambda df: df.aggregate("size"), False),
+        (lambda df: df.aggregate(len), False),
+        (lambda df: df.max(), True),
+        (lambda df: df.count(), True),
+        (lambda df: df.corr(), True),
+        (lambda df: df.aggregate(x=("A", "min")), True),
     ],
 )
 @sql_count_checker(query_count=1)
-def test_agg_with_single_col(func):
+def test_agg_with_single_col(func, test_attrs):
     native_df = native_pd.DataFrame({"A": [1, 2, 3]})
     snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(snow_df, native_df, func)
+    eval_snowpark_pandas_result(snow_df, native_df, func, test_attrs=test_attrs)
 
 
 @pytest.mark.parametrize(
@@ -645,8 +762,8 @@ def test_ddof(numeric_native_df, func):
 @pytest.mark.parametrize(
     "func",
     [
-        lambda df: df.std(ddof=2),
-        lambda df: df.var(ddof=2),
+        "std",
+        "var",
     ],
 )
 @sql_count_checker(query_count=0)
@@ -655,9 +772,13 @@ def test_ddof_fallback_negative(numeric_native_df, func):
     snow_df = pd.DataFrame(numeric_native_df)
     with pytest.raises(
         NotImplementedError,
-        match="Aggregate function .* not supported yet in Snowpark pandas.",
+        match=re.escape(
+            f"Snowpark pandas aggregate does not yet support the aggregation '{func}' with the given arguments."
+        ),
     ):
-        eval_snowpark_pandas_result(snow_df, numeric_native_df, func)
+        eval_snowpark_pandas_result(
+            snow_df, numeric_native_df, lambda df: getattr(df, func)(ddof=2)
+        )
 
 
 @pytest.mark.parametrize("skipna", [True, False])
@@ -740,6 +861,8 @@ def test_agg_valid_variant_col(session, test_table_name):
         np.min,
         np.max,
         np.sum,
+        "size",
+        len,
         ["max", "min", "count", "sum"],
         ["min"],
         ["idxmax", "max", "idxmin", "min"],
@@ -750,7 +873,12 @@ def test_agg_axis_1_simple(agg_func):
     data = [[1, 2, 3], [2, 4, -1], [3, 0, 6]]
     native_df = native_pd.DataFrame(data)
     df = pd.DataFrame(data)
-    eval_snowpark_pandas_result(df, native_df, lambda df: df.agg(agg_func, axis=1))
+    eval_snowpark_pandas_result(
+        df,
+        native_df,
+        lambda df: df.agg(agg_func, axis=1),
+        test_attrs=agg_func not in ("size", len),
+    )  # native pandas does not propagate attrs for size, but snowpark pandas does
 
 
 @pytest.mark.parametrize(
@@ -964,18 +1092,73 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
         snow_df.agg(x=("A", "min"), axis=1)
 
 
+@pytest.mark.parametrize(
+    "func, kwargs, error_pattern",
+    # note that we expect some functions like `any` to become strings like
+    # 'any' in the error message because of preprocessing in the modin API
+    # layer in [1]. That's okay.
+    # [1] https://github.com/snowflakedb/snowpark-python/blob/7c854cb30df2383042d7899526d5237a44f9fdaf/src/snowflake/snowpark/modin/pandas/utils.py#L633
+    [
+        param(
+            sensitive_function_name,
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation Callable with the given arguments",
+            id="user_defined_function",
+        ),
+        param(
+            [sensitive_function_name, "size"],
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            id="list_with_user_defined_function_and_string",
+        ),
+        param(
+            (sensitive_function_name, "size"),
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation \\[Callable, 'size'\\] with the given arguments",
+            id="tuple_with_user_defined_function_and_string",
+        ),
+        param(
+            {sensitive_function_name, "size"},
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation \\[Callable, 'size'\\]|\\['size', Callable\\] with the given arguments",
+            id="set_with_user_defined_function_and_string",
+        ),
+        param(
+            (all, any, len, list, min, max, set, str, tuple, native_pd.Series.sum),
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation "
+            + "\\['all', 'any', <built-in function len>, list, 'min', 'max', set, str, tuple, Callable]"
+            + " with the given arguments",
+            id="tuple_with_builtins_and_native_pandas_function",
+        ),
+        param(
+            {"A": sensitive_function_name, "B": sum, "C": [np.mean, "size"]},
+            {},
+            "Snowpark pandas aggregate does not yet support the aggregation "
+            + "{label: Callable, label: 'sum', label: \\[np\\.mean, 'size'\\]}"
+            + " with the given arguments",
+            id="dict",
+        ),
+        param(
+            None,
+            {"x": ("A", np.exp), "y": pd.NamedAgg("C", sum)},
+            "Snowpark pandas aggregate does not yet support the aggregation "
+            + "new_label=\\(label, np\\.exp\\), new_label=\\(label, <built-in function sum>\\)"
+            + " with the given arguments",
+            id="named_agg",
+        ),
+    ],
+)
 @sql_count_checker(query_count=0)
-def test_named_agg_not_supported_function(numeric_native_df):
+def test_aggregate_unsupported_aggregation_SNOW_1526422(
+    numeric_native_df, func, kwargs, error_pattern
+):
     snow_df = pd.DataFrame(numeric_native_df)
     with pytest.raises(
         NotImplementedError,
-        match=re.escape(
-            "Aggregate with func=None and parameters "
-            + f"x=('A', {np.exp})"
-            + " not supported yet in Snowpark pandas."
-        ),
+        match=error_pattern,
     ):
-        snow_df.agg(x=("A", np.exp))
+        snow_df.agg(func, **kwargs)
 
 
 @sql_count_checker(query_count=0)

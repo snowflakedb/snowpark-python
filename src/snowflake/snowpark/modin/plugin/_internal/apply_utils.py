@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import inspect
 import json
 import sys
 from collections import namedtuple
@@ -14,10 +15,18 @@ import pandas as native_pd
 from pandas._typing import AggFuncType
 from pandas.api.types import is_scalar
 
+from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
+from collections.abc import Mapping
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
+import functools
 from snowflake.snowpark.column import Column as SnowparkColumn
-from snowflake.snowpark.functions import builtin, col, dense_rank, udf, udtf
+from snowflake.snowpark.modin.plugin._internal.type_utils import (
+    infer_object_type,
+    pandas_lit,
+    is_compatible_snowpark_types,
+)
+from snowflake.snowpark import functions as sp_func
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
@@ -29,6 +38,9 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
 )
+from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
+import itertools
+from collections import defaultdict
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -58,6 +70,26 @@ DEFAULT_UDTF_PARTITION_SIZE = 1000
 # https://github.com/cloudpipe/cloudpickle?tab=readme-ov-file#overriding-pickles-serialization-mechanism-for-importable-constructs
 cloudpickle.register_pickle_by_value(sys.modules[__name__])
 
+SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
+    sp_func.exp,
+    sp_func.ln,
+    sp_func.log,
+    sp_func._log2,
+    sp_func._log10,
+    sp_func.sin,
+    sp_func.cos,
+    sp_func.tan,
+    sp_func.sinh,
+    sp_func.cosh,
+    sp_func.tanh,
+    sp_func.ceil,
+    sp_func.floor,
+    sp_func.trunc,
+    sp_func.sqrt,
+    sp_func.snowflake_cortex_summarize,
+    sp_func.snowflake_cortex_sentiment,
+}
+
 
 class GroupbyApplySortMethod(Enum):
     """
@@ -81,7 +113,7 @@ class GroupbyApplySortMethod(Enum):
 
 def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, DataType]:
     """Check whether the function returns a variant in Snowflake, and get its return type."""
-    return_type, _ = get_types_from_type_hints(func, TempObjectType.FUNCTION)
+    return_type = deduce_return_type_from_function(func)
     if return_type is None or isinstance(
         return_type, (VariantType, PandasSeriesType, PandasDataFrameType)
     ):
@@ -230,7 +262,7 @@ def create_udtf_for_apply_axis_1(
     ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
 
     packages = list(session.get_packages().values()) + udf_packages
-    func_udtf = udtf(
+    func_udtf = sp_func.udtf(
         ApplyFunc,
         output_schema=PandasDataFrameType(
             [LongType(), StringType(), VariantType()],
@@ -390,6 +422,7 @@ def create_udtf_for_groupby_apply(
     series_groupby: bool,
     by_types: list[DataType],
     existing_identifiers: list[str],
+    force_list_like_to_series: bool = False,
 ) -> UserDefinedTableFunction:
     """
     Create a UDTF from the Python function for groupby.apply.
@@ -480,6 +513,7 @@ def create_udtf_for_groupby_apply(
     series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
     by_types: The snowflake types of the by columns.
     existing_identifiers: List of existing column identifiers; these are omitted when creating new column identifiers.
+    force_list_like_to_series: Force the function result to series if it is list-like
 
     Returns
     -------
@@ -490,7 +524,9 @@ def create_udtf_for_groupby_apply(
     # Get the length of this list outside the vUDTF function because the vUDTF
     # doesn't have access to the Snowpark module, which defines these types.
     num_by = len(by_types)
-    from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+    from snowflake.snowpark.modin.plugin.extensions.utils import (
+        try_convert_index_to_native,
+    )
 
     data_column_index = try_convert_index_to_native(data_column_index)
 
@@ -553,6 +589,17 @@ def create_udtf_for_groupby_apply(
             # https://github.com/snowflakedb/snowpandas/pull/823/files#r1507286892
             input_object = input_object.infer_objects()
             func_result = func(input_object, *args, **kwargs)
+            if (
+                force_list_like_to_series
+                and not isinstance(func_result, native_pd.Series)
+                and native_pd.api.types.is_list_like(func_result)
+            ):
+                if len(func_result) == 1:
+                    func_result = func_result[0]
+                else:
+                    func_result = native_pd.Series(func_result)
+                    if len(func_result) == len(df.index):
+                        func_result.index = df.index
             if isinstance(func_result, native_pd.Series):
                 if series_groupby:
                     func_result_as_frame = func_result.to_frame()
@@ -637,7 +684,7 @@ def create_udtf_for_groupby_apply(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
-    return udtf(
+    return sp_func.udtf(
         ApplyFunc,
         output_schema=PandasDataFrameType(
             [StringType(), IntegerType(), VariantType(), IntegerType(), IntegerType()],
@@ -682,7 +729,9 @@ def create_udf_for_series_apply(
     # Snowpark function with annotations, extract underlying func to wrap.
     if isinstance(func, UserDefinedFunction):
         # Ensure return_type specified is identical.
-        assert func._return_type == return_type
+        assert (
+            func._return_type == return_type
+        ), f"UserDefinedFunction has invalid return type {func.return_type} vs. {return_type}"
 
         # Append packages from function.
         if func._packages:
@@ -709,7 +758,7 @@ def create_udf_for_series_apply(
         def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
             return x.apply(func, args=args, **kwargs)
 
-    func_udf = udf(
+    func_udf = sp_func.udf(
         apply_func,
         return_type=PandasSeriesType(return_type),
         input_types=[PandasSeriesType(input_type)],
@@ -752,7 +801,7 @@ def handle_missing_value_in_variant(value: Any) -> Any:
 
 def convert_numpy_int_result_to_int(value: Any) -> Any:
     """
-    If the result is a numpy int, convert it to a python int.
+    If the result is a numpy int (or bool), convert it to a python int (or bool.)
 
     Use this function to make UDF results JSON-serializable. numpy ints are not
     JSON-serializable, but python ints are. Note that this function cannot make
@@ -770,9 +819,14 @@ def convert_numpy_int_result_to_int(value: Any) -> Any:
 
     Returns
     -------
-    int(value) if the value is a numpy int, otherwise the value.
+    int(value) if the value is a numpy int,
+    bool(value) if the value is a numpy bool, otherwise the value.
     """
-    return int(value) if np.issubdtype(type(value), np.integer) else value
+    return (
+        int(value)
+        if np.issubdtype(type(value), np.integer)
+        else (bool(value) if np.issubdtype(type(value), np.bool_) else value)
+    )
 
 
 def deduce_return_type_from_function(
@@ -885,7 +939,7 @@ def get_metadata_from_groupby_apply_pivot_result_column_names(
     input:
 
     get_metadata_from_groupby_apply_pivot_result_column_names([
-                 # this representa a data column named ('a', 'group_key') at position 0
+                 # this represents a data column named ('a', 'group_key') at position 0
                  '"\'{""0"": ""a"", ""1"": ""group_key"", ""data_pos"": 0, ""names"": [""c1"", ""c2""]}\'"',
                  # this represents a data column named  ('b', 'int_col') at position 1
                 '"\'{""0"": ""b"", ""1"": ""int_col"", ""data_pos"": 1, ""names"": [""c1"", ""c2""]}\'"',
@@ -1108,10 +1162,12 @@ def groupby_apply_pivot_result_to_final_ordered_dataframe(
             #       in GROUP_KEY_APPEARANCE_ORDER) and assign the
             #       label i to all rows that came from func(group_i).
             [
-                original_row_position_snowflake_quoted_identifier
+                sp_func.col(original_row_position_snowflake_quoted_identifier).as_(
+                    new_index_identifier
+                )
                 if sort_method is GroupbyApplySortMethod.ORIGINAL_ROW_ORDER
                 else (
-                    dense_rank().over(
+                    sp_func.dense_rank().over(
                         Window.order_by(
                             *(
                                 SnowparkColumn(col).asc_nulls_last()
@@ -1132,9 +1188,11 @@ def groupby_apply_pivot_result_to_final_ordered_dataframe(
         ),
         *[
             (
-                col(old_quoted_identifier).as_(quoted_identifier)
+                sp_func.col(old_quoted_identifier).as_(quoted_identifier)
                 if return_variant
-                else col(old_quoted_identifier).cast(return_type).as_(quoted_identifier)
+                else sp_func.col(old_quoted_identifier)
+                .cast(return_type)
+                .as_(quoted_identifier)
             )
             for old_quoted_identifier, quoted_identifier in zip(
                 data_column_snowflake_quoted_identifiers
@@ -1257,6 +1315,8 @@ def groupby_apply_create_internal_frame_from_final_ordered_dataframe(
         + func_result_index_column_pandas_labels,
         index_column_snowflake_quoted_identifiers=group_quoted_identifiers
         + func_result_index_column_snowflake_quoted_identifiers,
+        data_column_types=None,
+        index_column_types=None,
     )
 
 
@@ -1317,7 +1377,7 @@ def groupby_apply_sort_method(
     # Need to wrap column name in IDENTIFIER, or else bool agg function
     # will treat the name as a string literal
     is_transform: bool = not ordered_dataframe_before_sort.agg(
-        builtin("boolor_agg")(
+        sp_func.builtin("boolor_agg")(
             SnowparkColumn(original_row_position_quoted_identifier) == -1
         ).as_("is_transform")
     ).collect()[0][0]
@@ -1330,3 +1390,109 @@ def groupby_apply_sort_method(
             else GroupbyApplySortMethod.GROUP_KEY_APPEARANCE_ORDER
         )
     )
+
+
+def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
+    """Return True if the `func` is a supported Snowpark Python function."""
+    func_module = inspect.getmodule(func)
+    if functions != func_module:
+        return False
+    if func not in SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY:
+        ErrorMessage.not_implemented(
+            f"Snowpark Python function `{func.__name__}` is not supported yet."
+        )
+    return True
+
+
+def make_series_map_snowpark_function(
+    mapping: Union[Mapping, native_pd.Series], self_type: DataType
+) -> Callable[[SnowparkColumn], SnowparkColumn]:
+    """
+    Make a snowpark function that implements Series.map() with a dict mapping.
+
+    Args:
+        mapping: The mapping. If this is a defaultdict, default_value must not
+                 be None.
+        self_type: The Snowpark type of this series.
+
+    Returns:
+        A function mapping the existing snowpark column to a snowpark column
+        that reflects the mapping.
+    """
+
+    if (
+        isinstance(mapping, dict)
+        and not isinstance(mapping, defaultdict)
+        and hasattr(mapping, "__missing__")
+    ):
+        # TODO(SNOW-1804017): Implement this case.
+        raise NotImplementedError(
+            "Cannot handle objects other than defaultdict with __missing__"
+        )
+
+    if isinstance(mapping, defaultdict):
+        # We should exclude this case earlier because applying built-in
+        # Snowpark functions cannot emulate raising a KeyError for values that
+        # are not in the mapping.
+        assert mapping.default_factory is not None
+
+    def do_map(col: SnowparkColumn) -> SnowparkColumn:
+        if len(mapping) == 0:
+            # An empty dict-like is an edge case that should not produce a
+            # conditional expression. Instead, we replace the column with the
+            # default value, which is mapping.default_factory() for
+            # defaultdict and None for other mappings.
+            return (
+                pandas_lit(mapping.default_factory())  # type: ignore
+                if isinstance(mapping, defaultdict)
+                else pandas_lit(None)
+            )
+
+        def make_condition(key: Any) -> SnowparkColumn:
+            # Cast one of the values in the comparison to variant so that we
+            # we can compare types that are otherwise not comparable in
+            # Snowflake, like timestamp and int.
+            return col.equal_null(sp_func.to_variant(pandas_lit(key)))
+
+        # If any of the values we are mapping to have types that are
+        # incompatible with the current column's type, we have to cast the new
+        # values to variant type. For example, this could happen if we mapped a
+        # column of strings with the mapping {"cat": 1}. Some of the result
+        # values could have value 1. Note that we have to cast all the result
+        # values to variant even if only one of them is of an incompatible
+        # type, because otherwise Snowflake might coerce the values to an
+        # unexpected type.
+        should_cast_result_to_variant = any(
+            not is_compatible_snowpark_types(infer_object_type(v), self_type)
+            for _, v in mapping.items()
+        ) or (
+            isinstance(mapping, defaultdict)
+            and not is_compatible_snowpark_types(
+                infer_object_type(mapping.default_factory()), self_type  # type: ignore
+            )
+        )
+
+        def make_result(value: Any) -> SnowparkColumn:
+            value_expression = pandas_lit(value)
+            return (
+                sp_func.to_variant(value_expression)
+                if should_cast_result_to_variant
+                else value_expression
+            )
+
+        map_items = mapping.items()
+        first_key, first_value = next(iter(map_items))
+        case_expression = functools.reduce(
+            lambda case_expression, key_and_value: case_expression.when(
+                make_condition(key_and_value[0]), make_result(key_and_value[1])
+            ),
+            itertools.islice(map_items, 1, None),
+            sp_func.when(make_condition(first_key), make_result(first_value)),
+        )
+        if isinstance(mapping, defaultdict):
+            case_expression = case_expression.otherwise(
+                make_result(pandas_lit(mapping.default_factory()))  # type: ignore
+            )
+        return case_expression
+
+    return do_map

@@ -3,13 +3,23 @@
 #
 
 import sys
+from typing import Dict, List
 
 import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    PlanQueryType,
+    Query,
+    SnowflakePlan,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    SaveMode,
+    TableCreationSource,
+)
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.functions import col, lit, table_function
 from snowflake.snowpark.session import Session
@@ -119,57 +129,124 @@ def test_multiple_queries(session):
         Utils.drop_table(session, table_name2)
 
 
+def test_execution_queries_and_post_actions(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df1 = df.select("a", "b")
+    # create a df where cte optimization can be applied
+    df2 = df1.union(df1)
+    original_cte_enabled_value = session.cte_optimization_enabled
+
+    plan_queries = {
+        PlanQueryType.QUERIES: df2._plan.queries,
+        PlanQueryType.POST_ACTIONS: df2._plan.post_actions,
+    }
+
+    def check_plan_queries(
+        cte_applied: bool, exec_queries: Dict[PlanQueryType, List["Query"]]
+    ) -> None:
+        assert (
+            exec_queries[PlanQueryType.POST_ACTIONS]
+            == plan_queries[PlanQueryType.POST_ACTIONS]
+            == []
+        )
+        if cte_applied:
+            assert (
+                exec_queries[PlanQueryType.QUERIES][-1].sql
+                != plan_queries[PlanQueryType.QUERIES][-1].sql
+            )
+            assert exec_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH")
+            assert not plan_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH")
+        else:
+            assert (
+                exec_queries[PlanQueryType.QUERIES]
+                == plan_queries[PlanQueryType.QUERIES]
+            )
+            assert not (exec_queries[PlanQueryType.QUERIES][-1].sql.startswith("WITH"))
+
+    try:
+        # when cte is disabled, verify that the execution query got is the same as
+        # the plan queries and post actions
+        session.cte_optimization_enabled = False
+        check_plan_queries(cte_applied=False, exec_queries=df2._plan.execution_queries)
+
+        # when cte is enabled, verify that the execution query got is different
+        # from the original plan queries
+        session.cte_optimization_enabled = True
+        check_plan_queries(
+            # the cte optimization is not kicking in when sql simplifier disabled, because
+            # the cte_optimization_enabled is set to False when constructing the plan for df2,
+            # and place_holder is not propogated.
+            cte_applied=session.sql_simplifier_enabled
+            or session._query_compilation_stage_enabled,
+            exec_queries=df2._plan.execution_queries,
+        )
+
+    finally:
+        session.cte_optimization_enabled = original_cte_enabled_value
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Unable to detect sql_simplifier_enabled fixture in SP"
 )
 def test_plan_height(session, temp_table, sql_simplifier_enabled):
     df1 = session.table(temp_table)
-    assert df1._plan.plan_height == 1
+    if sql_simplifier_enabled:
+        assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
+    else:
+        assert df1._plan.plan_state[PlanState.PLAN_HEIGHT] == 1
 
     df2 = session.create_dataframe([(1, 20), (3, 40)], schema=["a", "c"])
     df3 = session.create_dataframe(
         [(2, "twenty two"), (4, "forty four"), (4, "forty four")], schema=["b", "d"]
     )
-    assert df2._plan.plan_height == 2
-    assert df2._plan.plan_height == 2
+    assert df2._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
+    assert df2._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
 
     filter1 = df1.where(col("a") > 1)
-    assert filter1._plan.plan_height == 2
+    assert filter1._plan.plan_state[PlanState.PLAN_HEIGHT] == 2
 
     join1 = filter1.join(df2, on=["a"])
-    assert join1._plan.plan_height == 4
+    assert join1._plan.plan_state[PlanState.PLAN_HEIGHT] == 4
 
     aggregate1 = df3.distinct()
     if sql_simplifier_enabled:
-        assert aggregate1._plan.plan_height == 4
+        assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == 4
     else:
-        assert aggregate1._plan.plan_height == 3
+        assert aggregate1._plan.plan_state[PlanState.PLAN_HEIGHT] == 3
 
     join2 = join1.join(aggregate1, on=["b"])
-    assert join2._plan.plan_height == 6
+    assert join2._plan.plan_state[PlanState.PLAN_HEIGHT] == 6
 
     split_to_table = table_function("split_to_table")
     table_function1 = join2.select("a", "b", split_to_table("d", lit(" ")))
-    assert table_function1._plan.plan_height == 8
+    assert table_function1._plan.plan_state[PlanState.PLAN_HEIGHT] == 8
 
     filter3 = join2.where(col("a") > 1)
     filter4 = join2.where(col("a") < 1)
     if sql_simplifier_enabled:
-        assert filter3._plan.plan_height == filter4._plan.plan_height == 6
+        assert (
+            filter3._plan.plan_state[PlanState.PLAN_HEIGHT]
+            == filter4._plan.plan_state[PlanState.PLAN_HEIGHT]
+            == 6
+        )
     else:
-        assert filter3._plan.plan_height == filter4._plan.plan_height == 7
+        assert (
+            filter3._plan.plan_state[PlanState.PLAN_HEIGHT]
+            == filter4._plan.plan_state[PlanState.PLAN_HEIGHT]
+            == 7
+        )
 
     union1 = filter3.union_all_by_name(filter4)
     if sql_simplifier_enabled:
-        assert union1._plan.plan_height == 8
+        assert union1._plan.plan_state[PlanState.PLAN_HEIGHT] == 8
     else:
-        assert union1._plan.plan_height == 9
+        assert union1._plan.plan_state[PlanState.PLAN_HEIGHT] == 9
 
 
 def test_plan_num_duplicate_nodes_describe_query(session, temp_table):
     df1 = session.sql(f"describe table {temp_table}")
     with session.query_history() as query_history:
-        assert df1._plan.num_duplicate_nodes == 0
+        assert df1._plan.plan_state[PlanState.NUM_CTE_NODES] == 0
     assert len(query_history.queries) == 0
     with session.query_history() as query_history:
         df1.collect()
@@ -186,37 +263,172 @@ def test_create_scoped_temp_table(session):
         df = session.table(table_name)
         temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         assert (
-            session._plan_builder.create_temp_table(
-                temp_table_name,
-                df._plan,
+            session._plan_builder.save_as_table(
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temp",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
                 use_scoped_temp_objects=True,
-                is_generated=True,
+                creation_source=TableCreationSource.CACHE_RESULT,
+                child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
-            == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+            == f' CREATE  SCOPED TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
         )
         assert (
-            session._plan_builder.create_temp_table(
-                temp_table_name,
-                df._plan,
+            session._plan_builder.save_as_table(
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temp",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
                 use_scoped_temp_objects=False,
-                is_generated=True,
+                creation_source=TableCreationSource.CACHE_RESULT,
+                child_attributes=df._plan.attributes,
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))  '
+        )
+        inner_select_sql = (
+            f" SELECT  *  FROM {table_name}"
+            if session._sql_simplifier_enabled
+            else f" SELECT  *  FROM ({table_name})"
         )
         assert (
-            session._plan_builder.create_temp_table(
-                temp_table_name,
-                df._plan,
-                use_scoped_temp_objects=True,
-                is_generated=False,
+            session._plan_builder.save_as_table(
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temp",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
+                use_scoped_temp_objects=False,
+                creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+                child_attributes=None,
             )
             .queries[0]
             .sql
-            == f' CREATE  TEMPORARY  TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+            == f" CREATE  TEMPORARY  TABLE  {temp_table_name}    AS  SELECT  *  FROM ({inner_select_sql})"
         )
+        expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+        assert expected_sql in (
+            session._plan_builder.save_as_table(
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temporary",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.OTHERS,
+                child_attributes=df._plan.attributes,
+            )
+            .queries[0]
+            .sql
+        )
+        expected_sql = (
+            f" CREATE  SCOPED TEMPORARY  TABLE  {temp_table_name}    AS  SELECT"
+        )
+        assert expected_sql in (
+            session._plan_builder.save_as_table(
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temporary",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.LARGE_QUERY_BREAKDOWN,
+                child_attributes=[],
+            )
+            .queries[0]
+            .sql
+        )
+        with pytest.raises(
+            ValueError,
+            match="Internally generated tables must be called with mode ERROR_IF_EXISTS",
+        ):
+            session._plan_builder.save_as_table(
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.APPEND,
+                table_type="temporary",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.CACHE_RESULT,
+                child_attributes=df._plan.attributes,
+            )
+
+        with pytest.raises(
+            ValueError,
+            match="child attribute must be provided when table creation source is not large query breakdown",
+        ):
+            session._plan_builder.save_as_table(
+                table_name=[temp_table_name],
+                column_names=None,
+                mode=SaveMode.ERROR_IF_EXISTS,
+                table_type="temporary",
+                clustering_keys=None,
+                comment=None,
+                enable_schema_evolution=None,
+                data_retention_time=None,
+                max_data_extension_time=None,
+                change_tracking=None,
+                copy_grants=False,
+                child=df._plan,
+                source_plan=None,
+                use_scoped_temp_objects=True,
+                creation_source=TableCreationSource.OTHERS,
+                child_attributes=None,
+            )
+
     finally:
         Utils.drop_table(session, table_name)

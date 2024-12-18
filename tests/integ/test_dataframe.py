@@ -15,7 +15,9 @@ from itertools import product
 from typing import Tuple
 from unittest import mock
 
+from snowflake.snowpark.dataframe import map
 from snowflake.snowpark.session import Session
+from tests.conftest import local_testing_mode
 
 try:
     import pandas as pd  # noqa: F401
@@ -31,8 +33,9 @@ import pytest
 from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
-from snowflake.snowpark._internal.analyzer.expression import Attribute, Interval, Star
+from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.dataframe_na_functions import _SUBSET_CHECK_ERROR_MESSAGE
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateDynamicTableException,
@@ -48,6 +51,7 @@ from snowflake.snowpark.functions import (
     explode,
     get_path,
     lit,
+    make_interval,
     rank,
     seq1,
     seq2,
@@ -86,6 +90,7 @@ from tests.utils import (
     TestData,
     TestFiles,
     Utils,
+    multithreaded_run,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -175,7 +180,7 @@ def test_read_stage_file_show(session, resources_path, local_testing_mode):
             session.read.option("purge", False)
             .schema(user_schema)
             .csv(test_file_on_stage)
-            ._show_string()
+            ._show_string(_emit_ast=session.ast_enabled)
         )
         assert (
             result_str
@@ -207,7 +212,7 @@ def test_show_using_with_select_statement(session):
         "select * from t1"
     )
     assert (
-        df._show_string()
+        df._show_string(_emit_ast=session.ast_enabled)
         == """
 -------
 |"A"  |
@@ -1275,6 +1280,37 @@ def test_join_left_outer(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="schema_query is not supported in Local Testing",
+    run=False,
+)
+def test_in_with_subquery_multiple_query(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+
+    try:
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+
+        df0 = session.create_dataframe([[1], [2], [3]], schema=["a"])
+        df1 = session.create_dataframe(
+            [[1, 11, 111], [2, 22, 222], [3, 33, 333]], schema=["a", "b", "c"]
+        )
+        df_filter = df0.filter(df0.a < 3)
+        df_in = df1.filter(~df1.a.in_(df_filter))
+
+        df_in = df_in.select("a", "b")
+        Utils.check_answer(df_in, [Row(3, 33)])
+        # check that schema query does not depend on temp tables
+        assert "SNOWPARK_TEMP_TABLE_" not in df_in._plan.schema_query
+        assert df_in.schema == StructType(
+            [StructField("A", LongType(), False), StructField("B", LongType(), False)]
+        )
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+
+
 def test_join_right_outer(session):
     """Test for right-outer join of dataframes."""
 
@@ -1335,6 +1371,7 @@ def test_join_left_semi(session):
     assert sorted(res, key=lambda r: r[0]) == expected
 
 
+@multithreaded_run()
 def test_join_cross(session):
     """Test for cross join of dataframes."""
 
@@ -1460,6 +1497,25 @@ def test_df_col(session):
     c = df.col("*")
     assert isinstance(c, Column)
     assert isinstance(c._expression, Star)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Session.query_history is not supported",
+    run=False,
+)
+def test_cache_result_query(session):
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+    with session.query_history() as history:
+        df.cache_result()
+
+    assert len(history.queries) == 2
+    assert "CREATE  SCOPED TEMPORARY  TABLE" in history.queries[0].sql_text
+    assert (
+        "INSERT  INTO" in history.queries[1].sql_text
+        and 'SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT)'
+        in history.queries[1].sql_text
+    )
 
 
 def test_create_dataframe_with_basic_data_types(session):
@@ -1724,6 +1780,7 @@ def test_create_dataframe_with_dict_given_schema(session):
     Utils.check_answer(df, [Row(None, None), Row(None, None)])
 
 
+@multithreaded_run()
 def test_create_dataframe_with_namedtuple(session):
     Data = namedtuple("Data", [f"snow_{idx + 1}" for idx in range(5)])
     data = Data(*[idx**3 for idx in range(5)])
@@ -1886,7 +1943,7 @@ def test_create_dataframe_empty(session):
 
     # show
     assert (
-        df._show_string()
+        df._show_string(_emit_ast=session.ast_enabled)
         == """
 -------------
 |"A"  |"B"  |
@@ -2237,9 +2294,10 @@ def test_dropna(session, local_testing_mode):
 
     with pytest.raises(TypeError) as ex_info:
         TestData.double3(session, local_testing_mode).dropna(subset={1: "a"})
-    assert "subset should be a list or tuple of column names" in str(ex_info)
+    assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
 
+@multithreaded_run()
 def test_dropna_large_num_of_columns(session):
     n = 1000
     data = [str(i) for i in range(n)]
@@ -2332,7 +2390,7 @@ def test_fillna(session, local_testing_mode):
     # negative case
     with pytest.raises(TypeError) as ex_info:
         df.fillna(1, subset={1: "a"})
-    assert "subset should be a list or tuple of column names" in str(ex_info)
+    assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
 
 def test_replace_with_coercion(session):
@@ -2378,10 +2436,6 @@ def test_replace_with_coercion(session):
         df.replace({1: None, 2: None, "2.0": None}),
         [Row(None, None, "1.0"), Row(None, None, None)],
     )
-    Utils.check_answer(
-        df.replace(1.0, None),
-        [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
-    )
 
     df = session.create_dataframe([[[1, 2], (1, 3)]], schema=["col1", "col2"])
     Utils.check_answer(
@@ -2406,10 +2460,28 @@ def test_replace_with_coercion(session):
     assert "The DataFrame does not contain the column named" in str(ex_info)
     with pytest.raises(TypeError) as ex_info:
         df.replace({1: 2}, subset={1: "a"})
-    assert "subset should be a list or tuple of column names" in str(ex_info)
+    assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
+
+
+@pytest.mark.skipif(
+    local_testing_mode,
+    reason="Bug in local testing mode, broadcast behavior "
+    "not implemented correctly in handle_expression for table_emulator.",
+)
+def test_replace_with_coercion_II(session):
+    # TODO: Once fixed in local testing mode, merge this test case with the ones in
+    # test_replace_with_coercion
+    df = session.create_dataframe(
+        [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
+    )
+
+    Utils.check_answer(
+        df.replace(1.0, None),
+        [Row(1, None, "1.0"), Row(2, 2.0, "2.0")],
+    )
 
 
 def test_select_case_expr(session):
@@ -2858,6 +2930,64 @@ def test_write_table_with_clustering_keys_and_comment(
         Utils.drop_table(session, table_name3)
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Clustering is a SQL feature",
+    run=False,
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="show parameters is not supported in SP")
+def test_write_table_with_all_options(session):
+    try:
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        df = session.create_dataframe(
+            [],
+            schema=StructType(
+                [
+                    StructField("c1", DateType()),
+                    StructField("c2", StringType()),
+                    StructField("c3", IntegerType()),
+                ]
+            ),
+        )
+        comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+
+        with session.query_history() as history:
+            df.write.save_as_table(
+                table_name,
+                mode="overwrite",
+                clustering_keys=["c1", "c2"],
+                comment=comment,
+                enable_schema_evolution=True,
+                data_retention_time=1,
+                max_data_extension_time=4,
+                change_tracking=True,
+                copy_grants=True,
+            )
+        ddl = session._run_query(f"select get_ddl('table', '{table_name}')")[0][0]
+        assert 'cluster by ("C1", "C2")' in ddl
+        assert comment in ddl
+
+        # data retention and max data extension time cannot be queried from get_ddl
+        # we run a show parameters query to get the values for these parameters
+        show_params_sql = f"show parameters like '%TIME_IN_DAYS%' in table {table_name}"
+        show_params_result = session._run_query(show_params_sql)
+        for row in show_params_result:
+            if row[0] == "DATA_RETENTION_TIME_IN_DAYS":
+                assert row[1] == "1"
+            elif row[0] == "MAX_DATA_EXTENSION_TIME_IN_DAYS":
+                assert row[1] == "4"
+
+        for query in history.queries:
+            # for the create table query, check we set the following options
+            # because it does not show up in ddl, or table parameters
+            if f"CREATE  OR  REPLACE    TABLE  {table_name}" in query.sql_text:
+                assert "ENABLE_SCHEMA_EVOLUTION  = True" in query.sql_text
+                assert "CHANGE_TRACKING  = True" in query.sql_text
+                assert "COPY GRANTS" in query.sql_text
+    finally:
+        Utils.drop_table(session, table_name)
+
+
 @pytest.mark.parametrize("table_type", ["temp", "temporary", "transient"])
 @pytest.mark.parametrize(
     "save_mode", ["append", "overwrite", "ignore", "errorifexists", "truncate"]
@@ -2918,16 +3048,31 @@ def test_append_existing_table(session, local_testing_mode):
     reason="Dynamic table is a SQL feature",
     run=False,
 )
-def test_create_dynamic_table(session, table_name_1):
+@pytest.mark.parametrize("is_transient", [True, False])
+def test_create_dynamic_table(session, table_name_1, is_transient):
     try:
         df = session.table(table_name_1)
         dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
         comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+        if is_transient:
+            # for transient dynamic tables, we cannot set data retention time
+            # and max data extension time
+            data_retention_time = None
+            max_data_extension_time = None
+        else:
+            data_retention_time = 1
+            max_data_extension_time = 4
         df.create_or_replace_dynamic_table(
             dt_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
             comment=comment,
+            refresh_mode="FULL",
+            initialize="ON_SCHEDULE",
+            clustering_keys=["num"],
+            is_transient=is_transient,
+            data_retention_time=data_retention_time,
+            max_data_extension_time=max_data_extension_time,
         )
         # scheduled refresh is not deterministic which leads to flakiness that dynamic table is not initialized
         # here we manually refresh the dynamic table
@@ -2936,8 +3081,133 @@ def test_create_dynamic_table(session, table_name_1):
         assert len(res) == 1
 
         ddl_sql = f"select get_ddl('TABLE', '{dt_name}')"
+        ddl_result = session.sql(ddl_sql).collect()[0][0]
+        assert comment in ddl_result, ddl_result
+        assert "refresh_mode = FULL" in ddl_result, ddl_result
+        assert "initialize = ON_SCHEDULE" in ddl_result, ddl_result
+        assert 'cluster by ("NUM")' in ddl_result, ddl_result
+        if is_transient:
+            assert "create or replace transient" in ddl_result, ddl_result
+        else:
+            if IS_IN_STORED_PROC:
+                pytest.skip("show parameters is not supported in SP")
+            # data retention and max data extension time cannot be queried from get_ddl
+            # we run a show parameters query to get the values for these parameters
+            show_params_sql = (
+                f"show parameters like '%TIME_IN_DAYS%' in table {dt_name}"
+            )
+            show_params_result = session.sql(show_params_sql).collect()
+            for row in show_params_result:
+                if row[0] == "DATA_RETENTION_TIME_IN_DAYS":
+                    assert row[1] == "1"
+                elif row[0] == "MAX_DATA_EXTENSION_TIME_IN_DAYS":
+                    assert row[1] == "4"
+
+    finally:
+        Utils.drop_dynamic_table(session, dt_name)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+    run=False,
+)
+def test_create_dynamic_table_with_explode(session):
+    dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+    temp_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        df = session.create_dataframe(
+            [[1, [1, 2, 3]], [2, [11, 22]]], schema=["idx", "lists"]
+        )
+        df.write.mode("overwrite").save_as_table(temp_table)
+        df = session.table(temp_table)
+        df1 = df.select(df.idx, explode(df.lists))
+        df1.create_or_replace_dynamic_table(
+            dt_name, warehouse=session.get_current_warehouse(), lag="1 min"
+        )
+        session.sql(f"alter dynamic table {dt_name} refresh").collect()
+        res = session.sql(f"show dynamic tables like '{dt_name}'").collect()
+        assert len(res) == 1
+    finally:
+        Utils.drop_table(session, temp_table)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+    run=False,
+)
+def test_create_dynamic_table_mode(session, table_name_1):
+    """We test create dynamic table modes in using the following sequence of
+    commands:
+    0. Drop dynamic table t1 if it exists
+    1. Create a dynamic table t1 with mode "errorifexists" (expect to succeed)
+    2. Create dynamic table t1 again with mode "errorifexists" (expect to fail)
+    3. Create dynamic table t1 again with mode "overwrite" and comment c1 (expect to succeed)
+    4a. Create dynamic table t1 again with mode "ignore" and no comment (expect to succeed)
+    4b. Check ddl for table t1 to ensure that the comment is still c1.
+    5a. Drop dynamic table t1.
+    5b. Create dynamic table t1 with mode "ignore" (expect to succeed)
+    5c. Check ddl for table t1 to ensure that comment is empty.
+
+    Args:
+        session: _description_
+        table_name_1: _description_
+    """
+    try:
+        df = session.table(table_name_1)
+        dt_name = Utils.random_name_for_temp_object(TempObjectType.DYNAMIC_TABLE)
+        comment = f"COMMENT_{Utils.random_alphanumeric_str(6)}"
+        ddl_sql = f"select get_ddl('TABLE', '{dt_name}')"
+
+        # step 0
+        Utils.drop_dynamic_table(session, dt_name)
+
+        # step 1
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="errorifexists",
+        )
+
+        # step 2
+        with pytest.raises(SnowparkSQLException, match=f"'{dt_name}' already exists."):
+            df.create_or_replace_dynamic_table(
+                dt_name,
+                warehouse=session.get_current_warehouse(),
+                lag="1000 minutes",
+                mode="errorifexists",
+            )
+
+        # step 3
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="overwrite",
+            comment=comment,
+        )
         assert comment in session.sql(ddl_sql).collect()[0][0]
 
+        # step 4
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="ignore",
+        )
+        assert comment in session.sql(ddl_sql).collect()[0][0]
+
+        # step 5
+        Utils.drop_dynamic_table(session, dt_name)
+        df.create_or_replace_dynamic_table(
+            dt_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            mode="ignore",
+        )
+        assert comment not in session.sql(ddl_sql).collect()[0][0]
     finally:
         Utils.drop_dynamic_table(session, dt_name)
 
@@ -3061,26 +3331,47 @@ def test_df_columns(session):
     "column_list",
     [["jan", "feb", "mar", "apr"], [col("jan"), col("feb"), col("mar"), col("apr")]],
 )
-def test_unpivot(session, column_list):
-    Utils.check_answer(
+@pytest.mark.parametrize("include_nulls", [True, False])
+def test_unpivot(session, column_list, include_nulls):
+    df = (
         TestData.monthly_sales_flat(session)
-        .unpivot("sales", "month", column_list)
-        .sort("empid"),
-        [
-            Row(1, "electronics", "JAN", 100),
-            Row(1, "electronics", "FEB", 200),
-            Row(1, "electronics", "MAR", 300),
-            Row(1, "electronics", "APR", 100),
-            Row(2, "clothes", "JAN", 100),
-            Row(2, "clothes", "FEB", 300),
-            Row(2, "clothes", "MAR", 150),
-            Row(2, "clothes", "APR", 200),
-            Row(3, "cars", "JAN", 200),
-            Row(3, "cars", "FEB", 400),
-            Row(3, "cars", "MAR", 100),
-            Row(3, "cars", "APR", 50),
-        ],
-        sort=False,
+        .unpivot("sales", "month", column_list, include_nulls)
+        .sort("empid")
+    )
+    expected_rows = [
+        Row(1, "electronics", "JAN", 100),
+        Row(1, "electronics", "FEB", 200),
+        Row(1, "electronics", "MAR", 300),
+        Row(1, "electronics", "APR", 100),
+        Row(2, "clothes", "JAN", 100),
+        Row(2, "clothes", "FEB", 300),
+        Row(2, "clothes", "MAR", 150),
+        Row(2, "clothes", "APR", 200),
+        Row(3, "cars", "JAN", 200),
+        Row(3, "cars", "FEB", 400),
+        Row(3, "cars", "MAR", 100),
+        Row(3, "cars", "APR", 50),
+    ]
+    if include_nulls:
+        expected_rows.extend(
+            [
+                Row(4, "appliances", "JAN", 100),
+                Row(4, "appliances", "FEB", None),
+                Row(4, "appliances", "MAR", 100),
+                Row(4, "appliances", "APR", 50),
+            ]
+        )
+    else:
+        expected_rows.extend(
+            [
+                Row(4, "appliances", "JAN", 100),
+                Row(4, "appliances", "MAR", 100),
+                Row(4, "appliances", "APR", 50),
+            ]
+        )
+    Utils.check_answer(
+        df,
+        expected_rows,
     )
 
 
@@ -3178,6 +3469,10 @@ def test_call_with_statement_params(session):
         "DATE_INPUT_FORMAT": "MM-DD-YYYY",
         "SF_PARTNER": "FAKE_PARTNER",
     }
+
+    # Note: When testing, pass statement_params as copy().
+    # Some operations may define the reference which leads to test failure in AST mode.
+
     schema = StructType([StructField("A", DateType())])
     df = session.create_dataframe(["01-01-1970", "12-31-2000"], schema=schema)
     pandas_df = PandasDF(
@@ -3191,7 +3486,7 @@ def test_call_with_statement_params(session):
 
     # collect
     with pytest.raises(SnowparkSQLException) as exc:
-        df.collect(statement_params=statement_params_wrong_date_format)
+        df.collect(statement_params=statement_params_wrong_date_format.copy())
     assert "is not recognized" in str(exc)
     assert (
         df.collect(statement_params=statement_params_correct_date_format)
@@ -3200,21 +3495,27 @@ def test_call_with_statement_params(session):
 
     # to_local_iterator
     with pytest.raises(SnowparkSQLException) as exc:
-        list(df.to_local_iterator(statement_params=statement_params_wrong_date_format))
+        list(
+            df.to_local_iterator(
+                statement_params=statement_params_wrong_date_format.copy()
+            )
+        )
     assert "is not recognized" in str(exc)
     assert (
         list(
-            df.to_local_iterator(statement_params=statement_params_correct_date_format)
+            df.to_local_iterator(
+                statement_params=statement_params_correct_date_format.copy()
+            )
         )
         == expected_rows
     )
 
     # to_pandas
     with pytest.raises(SnowparkSQLException) as exc:
-        df.to_pandas(statement_params=statement_params_wrong_date_format)
+        df.to_pandas(statement_params=statement_params_wrong_date_format.copy())
     assert "is not recognized" in str(exc)
     assert_frame_equal(
-        df.to_pandas(statement_params=statement_params_correct_date_format),
+        df.to_pandas(statement_params=statement_params_correct_date_format.copy()),
         pandas_df,
         check_dtype=False,
     )
@@ -3224,7 +3525,7 @@ def test_call_with_statement_params(session):
         pd.concat(
             list(
                 df.to_pandas_batches(
-                    statement_params=statement_params_wrong_date_format
+                    statement_params=statement_params_wrong_date_format.copy()
                 )
             ),
             ignore_index=True,
@@ -3234,7 +3535,7 @@ def test_call_with_statement_params(session):
         pd.concat(
             list(
                 df.to_pandas_batches(
-                    statement_params=statement_params_correct_date_format
+                    statement_params=statement_params_correct_date_format.copy()
                 )
             ),
             ignore_index=True,
@@ -3244,15 +3545,15 @@ def test_call_with_statement_params(session):
 
     # count
     # passing statement_params_wrong_date_format does not trigger error
-    assert df.count(statement_params=statement_params_correct_date_format) == 2
+    assert df.count(statement_params=statement_params_correct_date_format.copy()) == 2
 
     # copy_into_table test is covered in test_datafrom_copy_into as it requires complex config
 
     # show
     with pytest.raises(SnowparkSQLException) as exc:
-        df.show(statement_params=statement_params_wrong_date_format)
+        df.show(statement_params=statement_params_wrong_date_format.copy())
     assert "is not recognized" in str(exc)
-    df.show(statement_params=statement_params_correct_date_format)
+    df.show(statement_params=statement_params_correct_date_format.copy())
 
     # create_or_replace_view
     # passing statement_params_wrong_date_format does not trigger error
@@ -3260,7 +3561,7 @@ def test_call_with_statement_params(session):
         "successfully created"
         in df.create_or_replace_view(
             Utils.random_view_name(),
-            statement_params=statement_params_correct_date_format,
+            statement_params=statement_params_correct_date_format.copy(),
         )[0]["status"]
     )
 
@@ -3270,41 +3571,46 @@ def test_call_with_statement_params(session):
         "successfully created"
         in df.create_or_replace_temp_view(
             Utils.random_view_name(),
-            statement_params=statement_params_correct_date_format,
+            statement_params=statement_params_correct_date_format.copy(),
         )[0]["status"]
     )
 
     # first
     with pytest.raises(SnowparkSQLException) as exc:
-        df.first(statement_params=statement_params_wrong_date_format)
+        df.first(statement_params=statement_params_wrong_date_format.copy())
     assert "is not recognized" in str(exc)
 
     assert (
-        df.first(statement_params=statement_params_correct_date_format)
+        df.first(statement_params=statement_params_correct_date_format.copy())
         == expected_rows[0]
     )
 
     # cache_result
     with pytest.raises(SnowparkSQLException) as exc:
-        df.cache_result(statement_params=statement_params_wrong_date_format).collect()
+        df.cache_result(
+            statement_params=statement_params_wrong_date_format.copy()
+        ).collect()
     assert "is not recognized" in str(exc)
 
     assert (
-        df.cache_result(statement_params=statement_params_correct_date_format).collect()
+        df.cache_result(
+            statement_params=statement_params_correct_date_format.copy()
+        ).collect()
         == expected_rows
     )
 
     # random_split
     with pytest.raises(SnowparkSQLException) as exc:
         df.random_split(
-            weights=[0.5, 0.5], statement_params=statement_params_wrong_date_format
+            weights=[0.5, 0.5],
+            statement_params=statement_params_wrong_date_format.copy(),
         )
     assert "is not recognized" in str(exc)
     assert (
         len(
             df.random_split(
                 weights=[0.5, 0.5],
-                statement_params=statement_params_correct_date_format,
+                statement_params=statement_params_correct_date_format.copy(),
             )
         )
         == 2
@@ -3319,7 +3625,7 @@ def test_call_with_statement_params(session):
             table_name,
             mode="append",
             table_type="temporary",
-            statement_params=statement_params_correct_date_format,
+            statement_params=statement_params_correct_date_format.copy(),
         )
         Utils.check_answer(session.table(table_name), df, True)
         table_info = session.sql(f"show tables like '{table_name}'").collect()
@@ -3333,7 +3639,7 @@ def test_call_with_statement_params(session):
     Utils.create_stage(session, temp_stage, is_temporary=True)
     df = session.create_dataframe(["01-01-1970", "12-31-2000"]).toDF("a")
     df.write.copy_into_location(
-        temp_stage, statement_params=statement_params_correct_date_format
+        temp_stage, statement_params=statement_params_correct_date_format.copy()
     )
     copied_files = session.sql(f"list @{temp_stage}").collect()
     assert len(copied_files) == 1
@@ -3591,10 +3897,6 @@ def test_to_df_then_copy(session):
     Utils.check_answer(df1, Row("2023-01-01"))
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="DataFrame alias is not supported in Local Testing",
-)
 def test_to_df_then_alias_and_join(session):
     data = [
         ["2023-01-01", 101, 200],
@@ -3929,20 +4231,18 @@ def test_dataframe_interval_operation(session):
     df2 = df.with_column(
         "TWO_DAYS_AHEAD",
         df["a"]
-        + Column(
-            Interval(
-                year=1,
-                quarter=1,
-                month=1,
-                week=2,
-                day=2,
-                hour=2,
-                minute=3,
-                second=3,
-                millisecond=3,
-                microsecond=4,
-                nanosecond=4,
-            )
+        + make_interval(
+            years=1,
+            quarters=1,
+            months=1,
+            weeks=2,
+            days=2,
+            hours=2,
+            minutes=3,
+            seconds=3,
+            milliseconds=3,
+            microseconds=4,
+            nanoseconds=4,
         ),
     )
     Utils.check_answer(
@@ -4002,3 +4302,187 @@ def test_create_empty_dataframe(session):
         ]
     )
     assert not session.create_dataframe(data=[], schema=schema).collect()
+
+
+@pytest.mark.skipif(
+    not is_pandas_available or IS_IN_STORED_PROC_LOCALFS,
+    reason="pandas is not available, or in stored procedure local fs it's expected to fail when the result set is large",
+)
+def test_dataframe_to_local_iterator_with_to_pandas_isolation(
+    session, local_testing_mode
+):
+    df = session.create_dataframe(
+        [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
+    )
+    trigger_df = session.create_dataframe(
+        [[1.0]], schema=StructType([StructField("A", DecimalType())])
+    )
+    my_iter = df.to_pandas_batches()
+    batch_count = 0
+    for pdf in my_iter:
+        # modify result_cursor and trigger _fix_pandas_df_fixed_type()
+        trigger_df.select(col("A")).collect()
+        # column name should remain unchanged
+        assert tuple(pdf.columns) == ("A1", "B1")
+        batch_count += 1
+        print(batch_count)
+    # local testing always give 1 chunk
+    if not local_testing_mode:
+        assert batch_count > 1
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.udf
+@pytest.mark.parametrize("overlapping_columns", [True, False])
+@pytest.mark.parametrize(
+    "func,output_types,output_col_names,expected",
+    [
+        (lambda row: row[1] + 1, [IntegerType()], ["A"], [(i + 1,) for i in range(5)]),
+        (
+            lambda row: (row.B * 2, row.C),
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [
+                (
+                    i * 2,
+                    f"w{i}",
+                )
+                for i in range(5)
+            ],
+        ),
+        (
+            lambda row: Row(row.B * row.B, f"-{row.C}"),
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [(i * i, f"-w{i}") for i in range(5)],
+        ),
+    ],
+)
+def test_map_basic(
+    session, func, output_types, output_col_names, expected, overlapping_columns
+):
+    df = session.create_dataframe(
+        [
+            (
+                True,
+                i,
+                f"w{i}",
+            )
+            for i in range(5)
+        ],
+        schema=["A", "B", "C"],
+    )
+
+    if overlapping_columns:
+        row = Row(*output_col_names)
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(
+            map(df, func, output_types, output_column_names=output_col_names), expected
+        )
+    else:
+        row = Row(*[f"c_{i+1}" for i in range(len(output_types))])
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(map(df, func, output_types), expected)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
+@pytest.mark.udf
+@pytest.mark.parametrize(
+    "func,output_types,expected",
+    [
+        (lambda df: df["B"] + 1, [IntegerType()], [(i + 1,) for i in range(5)]),
+        (
+            lambda df: pd.concat([df["B"] * 2, df["C"]], axis=1),
+            [IntegerType(), StringType()],
+            [
+                (
+                    i * 2,
+                    f"w{i}",
+                )
+                for i in range(5)
+            ],
+        ),
+    ],
+)
+def test_map_vectorized(session, func, output_types, expected):
+    df = session.create_dataframe(
+        [
+            (
+                True,
+                i,
+                f"w{i}",
+            )
+            for i in range(5)
+        ],
+        schema=["A", "B", "C"],
+    )
+
+    Utils.check_answer(
+        map(df, func, output_types, vectorized=True, packages=["pandas"]), expected
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
+@pytest.mark.udf
+def test_map_chained(session):
+    df = session.create_dataframe(
+        [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
+    )
+
+    new_df = map(
+        map(
+            df,
+            lambda x: (x.B * x.B, f"_{x.C}_"),
+            output_types=[IntegerType(), StringType()],
+        ),
+        lambda x: len(x[1]) + x[0],
+        output_types=[IntegerType()],
+    )
+    expected = [(len(f"_w{i}_") + i * i,) for i in range(5)]
+
+    Utils.check_answer(new_df, expected)
+
+    # chained calls with repeated column names
+    new_df = map(
+        map(
+            df,
+            lambda x: Row(x.B * x.B, f"_{x.C}_"),
+            output_types=[IntegerType(), StringType()],
+            output_column_names=["A", "B"],
+        ),
+        lambda x: Row(len(x.B) + x.A),
+        output_types=[IntegerType()],
+        output_column_names=["A"],
+        packages=["snowflake-snowpark-python"],
+    )
+    Utils.check_answer(new_df, expected)
+
+
+def test_map_negative(session):
+    df1 = session.create_dataframe(
+        [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
+    )
+
+    with pytest.raises(ValueError, match="output_types cannot be empty."):
+        map(df1, lambda row: [row.B, row.C], output_types=[])
+
+    with pytest.raises(
+        ValueError,
+        match="'output_column_names' and 'output_types' must be of the same size.",
+    ):
+        map(
+            df1,
+            lambda row: [row.B, row.C],
+            output_types=[IntegerType(), StringType()],
+            output_column_names=["a", "b", "c"],
+        )

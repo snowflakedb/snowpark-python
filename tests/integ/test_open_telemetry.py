@@ -7,9 +7,6 @@ import os
 
 import pytest
 from opentelemetry import trace
-from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import span
 
@@ -26,6 +23,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
+from tests.conftest import opentelemetry_installed
 from tests.utils import IS_IN_STORED_PROC, check_tracing_span_answers
 
 pytestmark = [
@@ -33,6 +31,10 @@ pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="UDTF not supported in Local Testing",
+    ),
+    pytest.mark.skipif(
+        not opentelemetry_installed,
+        reason="opentelemetry is not installed",
     ),
 ]
 
@@ -55,15 +57,29 @@ def span_extractor(dict_exporter: InMemorySpanExporter):
     return spans
 
 
-@pytest.fixture(scope="module")
-def dict_exporter():
-    resource = Resource(attributes={SERVICE_NAME: "snowpark-python-open-telemetry"})
-    trace_provider = TracerProvider(resource=resource)
-    dict_exporter = InMemorySpanExporter()
-    processor = SimpleSpanProcessor(dict_exporter)
-    trace_provider.add_span_processor(processor)
-    trace.set_tracer_provider(trace_provider)
-    yield dict_exporter
+def test_without_open_telemetry(monkeypatch, dict_exporter, session):
+    from snowflake.snowpark._internal import open_telemetry
+
+    monkeypatch.setattr(open_telemetry, "open_telemetry_found", False)
+    session.create_dataframe([1, 2, 3, 4]).to_df("a").collect()
+
+    lineno = inspect.currentframe().f_lineno - 1
+    answer = (
+        "collect",
+        {"code.lineno": lineno, "code.filepath": "test_open_telemetry.py"},
+    )
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer) is False
+
+    def minus_udf(x: int, y: int) -> int:
+        return x - y
+
+    session.udf.register(minus_udf, name="test_minus_unit_no_telemetry")
+    lineno = inspect.currentframe().f_lineno - 1
+    answer = (
+        "register",
+        {"code.lineno": lineno, "snow.executable.name": "test_minus_unit_no_telemetry"},
+    )
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer) is False
 
 
 def test_open_telemetry_in_table_stored_proc(session, dict_exporter):
@@ -122,7 +138,7 @@ def test_catch_error_during_registration_function(session, dict_exporter):
     IS_IN_STORED_PROC,
     reason="Cannot create session in SP",
 )
-def test_register_stored_procedure_from_file(session, dict_exporter):
+def test_register_stored_procedure_from_file(session, dict_exporter, caplog):
     session.add_packages("snowflake-snowpark-python")
     test_file = os.path.normpath(
         os.path.join(
@@ -152,13 +168,14 @@ def test_register_stored_procedure_from_file(session, dict_exporter):
         },
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+    assert "Invalid type NoneType for attribute" not in caplog.text
 
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Cannot create session in SP",
 )
-def test_inline_register_stored_procedure(session, dict_exporter):
+def test_inline_register_stored_procedure(session, dict_exporter, caplog):
     session.add_packages("snowflake-snowpark-python")
     # test register with sproc.register
 
@@ -197,9 +214,10 @@ def test_inline_register_stored_procedure(session, dict_exporter):
         },
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+    assert "Invalid type NoneType for attribute" not in caplog.text
 
 
-def test_register_udaf_from_file(session, dict_exporter):
+def test_register_udaf_from_file(session, dict_exporter, caplog):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -229,9 +247,10 @@ def test_register_udaf_from_file(session, dict_exporter):
         },
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+    assert "Invalid type NoneType for attribute" not in caplog.text
 
 
-def test_inline_register_udaf(session, dict_exporter):
+def test_inline_register_udaf(session, dict_exporter, caplog):
     # test register with udaf.register
 
     class PythonSumUDAF:
@@ -305,9 +324,10 @@ def test_inline_register_udaf(session, dict_exporter):
         },
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+    assert "Invalid type NoneType for attribute" not in caplog.text
 
 
-def test_register_udtf_from_file(session, dict_exporter):
+def test_register_udtf_from_file(session, dict_exporter, caplog):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -357,9 +377,10 @@ def test_register_udtf_from_file(session, dict_exporter):
         },
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+    assert "Invalid type NoneType for attribute" not in caplog.text
 
 
-def test_inline_register_udtf(session, dict_exporter):
+def test_inline_register_udtf(session, dict_exporter, caplog):
     # test register with udtf.register
 
     class GeneratorUDTF:
@@ -407,9 +428,10 @@ def test_inline_register_udtf(session, dict_exporter):
         },
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+    assert "Invalid type NoneType for attribute" not in caplog.text
 
 
-def test_register_udf_from_file(session, dict_exporter):
+def test_register_udf_from_file(session, dict_exporter, caplog):
     test_file = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__),
@@ -439,9 +461,10 @@ def test_register_udf_from_file(session, dict_exporter):
         },
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+    assert "Invalid type NoneType for attribute" not in caplog.text
 
 
-def test_inline_register_udf(session, dict_exporter):
+def test_inline_register_udf(session, dict_exporter, caplog):
     # test register with udf.register
 
     def add_udf(x: int, y: int) -> int:
@@ -481,6 +504,8 @@ def test_inline_register_udf(session, dict_exporter):
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
 
+    assert "Invalid type NoneType for attribute" not in caplog.text
+
 
 def test_open_telemetry_span_from_dataframe_writer_and_dataframe(
     session, dict_exporter
@@ -514,3 +539,19 @@ def test_open_telemetry_span_from_dataframe_writer(session, dict_exporter):
         },
     )
     assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+
+
+def test_open_telemetry_from_cache_result(session, dict_exporter):
+    df = session.sql("select 1").cache_result()
+    lineno = inspect.currentframe().f_lineno - 1
+
+    answer = (
+        "cache_result",
+        {
+            "code.filepath": "test_open_telemetry.py",
+            "code.lineno": lineno,
+            "method.chain": "DataFrame.cache_result()",
+        },
+    )
+    assert check_tracing_span_answers(span_extractor(dict_exporter), answer)
+    assert df.collect()[0][0] == 1

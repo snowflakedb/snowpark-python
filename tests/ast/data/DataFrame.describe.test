@@ -1,0 +1,199 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df1 = df.describe()
+
+df2 = df.describe("num")
+
+df3 = df.describe("STR", "num")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df1 = df.describe()
+
+df2 = df.describe("num")
+
+df3 = df.describe("STR", "num")
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_describe {
+        cols {
+          variadic: true
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 27
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_describe {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 32
+                end_line: 29
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 14
+                start_line: 29
+              }
+              v: "num"
+            }
+          }
+          variadic: true
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 32
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_describe {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 39
+                end_line: 31
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 14
+                start_line: 31
+              }
+              v: "STR"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 39
+                end_line: 31
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 14
+                start_line: 31
+              }
+              v: "num"
+            }
+          }
+          variadic: true
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 39
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

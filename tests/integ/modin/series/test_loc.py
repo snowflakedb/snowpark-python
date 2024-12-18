@@ -4,7 +4,6 @@
 import functools
 import numbers
 import random
-import re
 
 import modin.pandas as pd
 import numpy as np
@@ -15,13 +14,12 @@ from pandas._libs.lib import is_bool, is_scalar
 from pandas.errors import IndexingError
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.frame.test_loc import (
     diff2native_negative_row_inputs,
     negative_snowpark_pandas_input_keys,
     row_inputs,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
@@ -29,6 +27,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
     generate_a_random_permuted_list_exclude_self,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 EMPTY_LIST_LIKE_VALUES = [
     [],
@@ -251,7 +250,7 @@ def test_series_loc_get_key_bool_series_with_aligned_indices(key, use_default_in
         [random.choice([True, False]) for _ in range(5)],
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_get_key_bool_series_with_unaligned_and_distinct_indices(
     key, use_default_index
 ):
@@ -319,7 +318,7 @@ def test_series_loc_get_key_bool(key, key_type, default_index_native_series):
         return _ser.loc[_key]
 
     default_index_series = pd.Series(default_index_native_series)
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_series,
             default_index_native_series,
@@ -343,7 +342,7 @@ def test_df_loc_get_callable_key(row):
     )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
     # index can have null values and duplicates
     key = [True] * 5
@@ -388,7 +387,7 @@ def test_series_loc_get_key_bool_series_with_unaligned_and_duplicate_indices():
         ],  # larger length
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=1, join_count=2)
 def test_series_loc_get_key_bool_series_with_mismatch_index_len(key, use_default_index):
     if use_default_index:
         index = None
@@ -477,10 +476,7 @@ def test_series_loc_get_key_non_boolean_series(
         return s.loc[type_convert(native_series_key, isinstance(s, pd.Series))]
 
     # default index
-    # Note: here number of queries are 2 due to the data type of the series is variant and to_pandas needs to call
-    # typeof to get the value types
-    # TODO: SNOW-933782 optimize to_pandas for variant columns to only fire one query
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_series,
             default_index_native_series,
@@ -497,7 +493,7 @@ def test_series_loc_get_key_non_boolean_series(
     non_default_index_snowpark_pandas_series = pd.Series(
         non_default_index_native_series
     )
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             non_default_index_snowpark_pandas_series,
             non_default_index_native_series,
@@ -514,7 +510,7 @@ def test_series_loc_get_key_non_boolean_series(
         ]
     )
     dup_snowpandas_series = pd.Series(dup_native_series)
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_series,
             dup_native_series,
@@ -539,7 +535,7 @@ def test_series_loc_get_key_non_boolean_series(
         ]
     )
     dup_snowpandas_series = pd.Series(dup_native_series)
-    with SqlCounter(query_count=2 if key_type == "index" else 1, join_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             dup_snowpandas_series,
             dup_native_series,
@@ -710,7 +706,7 @@ def test_series_loc_set_series_row_key_and_series_item(row_key):
             s.loc[pd.Series(row_key)] = pd.Series(item)
 
     expected_join_count = (
-        2 if len(row_key) > 0 and all(isinstance(i, bool) for i in row_key) else 4
+        2 if len(row_key) > 0 and all(isinstance(i, bool) for i in row_key) else 3
     )
     with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
@@ -740,12 +736,12 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
     series = native_pd.Series([1, 2, 3], name="abc")
     item = [10, 20, 30]
 
-    expected_join_count = 4
+    expected_join_count = 3
     if all(isinstance(i, bool) for i in row_key):
         if item_type.startswith("series"):
             expected_join_count = 2
         else:
-            expected_join_count = 6
+            expected_join_count = 4
 
     # With a boolean key, the number of items provided must match the number of True values in the key in pandas.
     if is_bool(row_key[0]):
@@ -776,15 +772,15 @@ def test_series_loc_set_series_and_list_like_row_key_and_item(
         s.loc[_row_key] = _item
 
     query_count = 1
-    # 6 extra queries: sum of two cases below
+    # 5 extra queries: sum of two cases below
     if item_type.startswith("index") and key_type.startswith("index"):
-        query_count = 7
+        query_count = 6
     # 4 extra queries: 1 query to convert item index to pandas in loc_set_helper, 2 for iter, and 1 for to_list
     elif item_type.startswith("index"):
         query_count = 5
-    # 2 extra queries: 1 query to convert key index to pandas in loc_set_helper and 1 to convert to series to setitem
+    # 1 extra query to convert to series to setitem
     elif key_type.startswith("index"):
-        query_count = 3
+        query_count = 2
     with SqlCounter(query_count=query_count, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             pd.Series(series), series, loc_set_helper, inplace=True
@@ -834,11 +830,7 @@ def test_series_loc_set_dataframe_item_negative(key_type):
         else:
             s.loc[pd.Series(row_key)] = pd.DataFrame(item)
 
-    qc = 0
-    if key_type == "index":
-        qc = 1
-
-    with SqlCounter(query_count=qc):
+    with SqlCounter(query_count=0):
         eval_snowpark_pandas_result(
             pd.Series(series),
             series,
@@ -950,25 +942,29 @@ def test_series_loc_set_key_slice_with_series(start, stop, step):
             else native_item_ser
         )
 
-    expected_join_count = 1 if not start and not stop and not step else 4
-
-    with SqlCounter(query_count=1, join_count=expected_join_count):
-        if slice_len == 0:
-            # pandas can fail in this case, so we skip call loc for it, see more below in
-            # test_series_loc_set_key_slice_with_series_item_pandas_bug
-            set_loc_helper(snow_ser)
-            # snow_ser should not change when slice_len = 0
+    if slice_len == 0:
+        # pandas can fail in this case, so we skip call loc for it, see more below in
+        # test_series_loc_set_key_slice_with_series_item_pandas_bug
+        set_loc_helper(snow_ser)
+        # snow_ser should not change when slice_len = 0
+        with SqlCounter(query_count=1):
             assert_snowpark_pandas_equal_to_pandas(snow_ser, native_ser)
+    else:
+        native_res = set_loc_helper(native_ser)
+        if is_scalar(native_res):
+            with SqlCounter(query_count=0):
+                snow_res = set_loc_helper(snow_ser)
+                assert snow_res == native_res
         else:
-            eval_snowpark_pandas_result(
-                snow_ser, native_ser, set_loc_helper, inplace=True
-            )
+            with SqlCounter(query_count=1, join_count=4):
+                snow_res = set_loc_helper(snow_ser)
+                assert_series_equal(snow_res, native_res)
 
 
 @pytest.mark.parametrize(
     "start, stop, step, pandas_fail", [[1, -1, None, True], [10, None, None, False]]
 )
-@sql_count_checker(query_count=2, join_count=4)
+@sql_count_checker(query_count=2, join_count=3)
 def test_series_loc_set_key_slice_with_series_item_pandas_bug(
     start, stop, step, pandas_fail
 ):
@@ -1060,7 +1056,7 @@ def test_series_loc_set_with_empty_key_and_empty_item_negative(
         assert_series_equal(snowpark_ser, native_ser)
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 @pytest.mark.parametrize("key", EMPTY_LIST_LIKE_VALUES)
 def test_series_loc_set_with_empty_key_and_empty_series_item(
     key,
@@ -1181,7 +1177,7 @@ def test_series_loc_set_with_empty_key_and_list_like_item_negative(
         assert_series_equal(snowpark_ser, native_ser)
 
 
-@sql_count_checker(query_count=1, join_count=4)
+@sql_count_checker(query_count=1, join_count=3)
 @pytest.mark.parametrize("key", EMPTY_LIST_LIKE_VALUES)
 @pytest.mark.parametrize(
     "item", [native_pd.Series([random.randint(0, 6) for _ in range(7)])]
@@ -1458,10 +1454,7 @@ def test_series_loc_set_df_key_negative(item, default_index_native_series):
         native_ser.loc[df_key] = item
 
     # Snowpark pandas error verification.
-    err_msg = re.escape(
-        "The truth value of a DataFrame is ambiguous. Use a.empty, a.bool(), a.item(), "
-        "a.any() or a.all()."
-    )
+    err_msg = "Data cannot be a DataFrame"
     with pytest.raises(ValueError, match=err_msg):
         snowpark_ser.loc[pd.DataFrame(df_key)] = item
         assert_series_equal(snowpark_ser, native_ser)
@@ -1493,7 +1486,7 @@ def test_series_loc_set_lambda_key(key, item):
 
     # Join is performed when the item is list-like - join index and list-like item for assignment.
     # If item is scalar, no join is performed.
-    with SqlCounter(query_count=1, join_count=4 if isinstance(item, list) else 0):
+    with SqlCounter(query_count=1, join_count=3 if isinstance(item, list) else 0):
         assert_series_equal(snowpark_ser, native_ser, check_dtype=False)
 
 
@@ -1753,7 +1746,7 @@ def test_series_non_partial_string_indexing_cases(ops, error):
 def test_series_partial_string_indexing_behavior_diff():
     native_series_minute = native_pd.Series(
         [1, 2, 3],
-        pd.DatetimeIndex(
+        native_pd.DatetimeIndex(
             ["2011-12-31 23:59:00", "2012-01-01 00:00:00", "2012-01-01 00:02:00"]
         ),
     )
@@ -1771,7 +1764,7 @@ def test_series_partial_string_indexing_behavior_diff():
         snow_res,
         native_pd.Series(
             [1],
-            pd.DatetimeIndex(["2011-12-31 23:59:00"]),
+            native_pd.DatetimeIndex(["2011-12-31 23:59:00"]),
         ),
         check_dtype=False,
     )
@@ -1794,3 +1787,112 @@ def test_series_loc_set_none():
     eval_snowpark_pandas_result(
         pd.Series(native_s), native_s, loc_set_helper, inplace=True
     )
+
+
+@pytest.mark.parametrize(
+    "key, query_count, join_count",
+    [
+        (
+            "1 day",
+            2,
+            4,
+        ),  # 1 join from series creation (double counted), 1 join from squeeze, 1 join from to_pandas during eval
+        (
+            native_pd.to_timedelta("1 day"),
+            2,
+            4,
+        ),  # 1 join from series creation (double counted), 1 join from squeeze, 1 join from to_pandas during eval
+        (["1 day", "3 days"], 1, 2),
+        ([True, False, False], 1, 2),
+        (slice(None, "4 days"), 1, 1),
+        (slice(None, "4 days", 2), 1, 1),
+        (slice("1 day", "2 days"), 1, 1),
+        (slice("1 day 1 hour", "2 days 2 hours", 1), 1, 1),
+    ],
+)
+def test_series_loc_get_with_timedelta(key, query_count, join_count):
+    data = ["A", "B", "C"]
+    idx = ["1 days", "2 days", "3 days"]
+    native_ser = native_pd.Series(data, index=native_pd.to_timedelta(idx))
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+
+    # Perform loc.
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        snow_res = snow_ser.loc[key]
+        native_res = native_ser.loc[key]
+        if is_scalar(key):
+            assert snow_res == native_res
+        else:
+            assert_series_equal(snow_res, native_res)
+
+
+@pytest.mark.parametrize(
+    "key, expected_result",
+    [
+        (
+            slice(None, "4 days"),
+            native_pd.Series(
+                ["A", "B", "C", "D"],
+                index=native_pd.to_timedelta(
+                    ["1 days", "2 days", "3 days", "1 day 1 hour"]
+                ),
+            ),
+        ),
+        (
+            slice(None, "4 days", 2),
+            native_pd.Series(
+                ["A", "C"], index=native_pd.to_timedelta(["1 day", "3 days"])
+            ),
+        ),
+        (
+            slice("1 day", "2 days"),
+            native_pd.Series(
+                ["A", "B"], index=native_pd.to_timedelta(["1 days", "2 days"])
+            ),
+        ),
+        (
+            slice("1 day 1 hour", "2 days 2 hours", -1),
+            native_pd.Series(
+                ["D", "C"], index=native_pd.to_timedelta(["1 day 1 hour", "3 days"])
+            ),
+        ),
+    ],
+)
+@sql_count_checker(query_count=1, join_count=1)
+def test_series_loc_get_with_timedelta_behavior_difference(key, expected_result):
+    data = ["A", "B", "C", "D"]
+    idx = ["1 days", "2 days", "3 days", "25 hours"]
+    native_ser = native_pd.Series(data, index=native_pd.to_timedelta(idx))
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+
+    with pytest.raises(KeyError):
+        # The error message is usually of the form KeyError: Timedelta('4 days 23:59:59.999999999').
+        native_ser.loc[key]
+
+    actual_result = snow_ser.loc[key]
+    assert_series_equal(actual_result, expected_result)
+
+
+@sql_count_checker(query_count=2, join_count=2)
+def test_series_loc_get_with_timedeltaindex_key():
+    data = ["A", "B", "C"]
+    idx = ["1 days", "2 days", "3 days"]
+    native_ser = native_pd.Series(data, index=native_pd.to_timedelta(idx))
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+
+    # Perform loc.
+    key = ["1 days", "3 days"]
+    snow_res = snow_ser.loc[pd.to_timedelta(key)]
+    native_res = native_ser.loc[native_pd.to_timedelta(key)]
+    assert_series_equal(snow_res, native_res)
+
+
+@pytest.mark.xfail(reason="SNOW-1653219 None key does not work with timedelta index")
+@sql_count_checker(query_count=2)
+def test_series_loc_get_with_timedelta_and_none_key():
+    data = ["A", "B", "C"]
+    idx = ["1 days", "2 days", "3 days"]
+    snow_ser = pd.Series(data, index=pd.to_timedelta(idx))
+    # Compare with an empty Series, since native pandas raises a KeyError.
+    expected_ser = native_pd.Series()
+    assert_series_equal(snow_ser.loc[None], expected_ser)

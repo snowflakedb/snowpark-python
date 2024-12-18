@@ -13,15 +13,16 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     ARRAY_DATA_AND_TYPE,
     MAP_DATA_AND_TYPE,
     MIXED_NUMERIC_STR_DATA_AND_TYPE,
     TIMESTAMP_DATA_AND_TYPE,
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.fixture(scope="function")
@@ -58,6 +59,8 @@ def validate_scalar_result(res1, res2):
         (lambda df: df.max(), True, False, 0),
         (lambda df: df.max(skipna=False), True, False, 0),
         (lambda df: df.count(), True, False, 0),
+        (lambda df: df.aggregate("size"), True, False, 0),
+        (lambda df: df.aggregate(len), True, False, 0),
         (lambda df: df.agg({"x": "min", "y": "max"}), False, False, 1),
         (lambda df: df.agg({"x": "min"}, y="max"), False, False, 0),
     ],
@@ -345,19 +348,6 @@ def test_skew_series():
 
 
 @sql_count_checker(query_count=0)
-def test_named_agg_not_supported_function(native_series):
-    snow_series = pd.Series(native_series)
-    with pytest.raises(
-        NotImplementedError,
-        match=re.escape(
-            "Aggregate with func=None and parameters "
-            + f"x={np.exp} not supported yet in Snowpark pandas."
-        ),
-    ):
-        snow_series.agg(x=np.exp)
-
-
-@sql_count_checker(query_count=0)
 @pytest.mark.parametrize(
     "agg_kwargs",
     [{"x": ("y", "min")}, {"x": pd.NamedAgg("y", "min")}],
@@ -373,3 +363,69 @@ def test_2_tuple_named_agg_errors_for_series(native_series, agg_kwargs):
         expect_exception_type=SpecificationError,
         assert_exception_equal=True,
     )
+
+
+class TestTimedelta:
+    """Test aggregating a timedelta series."""
+
+    @pytest.mark.parametrize(
+        "func, union_count, is_scalar",
+        [
+            pytest.param(*v, id=str(i))
+            for i, v in enumerate(
+                [
+                    (lambda series: series.aggregate(["min"]), 0, False),
+                    (lambda series: series.aggregate({"A": "max"}), 0, False),
+                    # this works since even though we need to do concats, all the results are non-timdelta.
+                    (lambda df: df.aggregate(["all", "any", "count"]), 2, False),
+                    # note following aggregation requires transpose
+                    (lambda df: df.aggregate(max), 0, True),
+                    (lambda df: df.min(), 0, True),
+                    (lambda df: df.max(), 0, True),
+                    (lambda df: df.count(), 0, True),
+                    (lambda df: df.sum(), 0, True),
+                    (lambda df: df.mean(), 0, True),
+                    (lambda df: df.median(), 0, True),
+                    (lambda df: df.std(), 0, True),
+                    (lambda df: df.quantile(), 0, True),
+                    (lambda df: df.quantile([0.01, 0.99]), 0, False),
+                ]
+            )
+        ],
+    )
+    def test_supported(self, func, union_count, timedelta_native_df, is_scalar):
+        with SqlCounter(query_count=1, union_count=union_count):
+            eval_snowpark_pandas_result(
+                *create_test_series(timedelta_native_df["A"]),
+                func,
+                comparator=validate_scalar_result
+                if is_scalar
+                else assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+                # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
+                test_attrs=False,
+            )
+
+    @sql_count_checker(query_count=0)
+    def test_var_invalid(self, timedelta_native_df):
+        eval_snowpark_pandas_result(
+            *create_test_series(timedelta_native_df["A"]),
+            lambda series: series.var(),
+            expect_exception=True,
+            expect_exception_type=TypeError,
+            assert_exception_equal=False,
+            expect_exception_match=re.escape(
+                "timedelta64 type does not support var operations"
+            ),
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.xfail(
+        strict=True,
+        raises=NotImplementedError,
+        reason="requires concat(), which we cannot do with Timedelta.",
+    )
+    def test_unsupported_due_to_concat(self, timedelta_native_df):
+        eval_snowpark_pandas_result(
+            *create_test_series(timedelta_native_df["A"]),
+            lambda df: df.agg(["count", "max"]),
+        )

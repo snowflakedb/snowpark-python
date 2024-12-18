@@ -5,8 +5,8 @@ import modin.pandas as pd
 import pytest
 from pandas.errors import IndexingError
 
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result  # noqa: F401
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -18,7 +18,7 @@ from tests.integ.modin.utils import eval_snowpark_pandas_result  # noqa: F401
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_iat_get_default_index_str_columns(
     key,
     default_index_snowpark_pandas_df,
@@ -62,7 +62,7 @@ def test_iat_set_default_index_str_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_iat_get_str_index_str_columns(
     key,
     str_index_snowpark_pandas_df,
@@ -103,7 +103,7 @@ def test_iat_set_str_index_str_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_iat_get_time_index_time_columns(
     key,
     time_index_snowpark_pandas_df,
@@ -147,7 +147,7 @@ def test_iat_set_time_index_time_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_iat_get_multiindex_index_str_columns(
     key,
     default_index_native_df,
@@ -190,7 +190,7 @@ def test_iat_set_multiindex_index_str_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_iat_get_default_index_multiindex_columns(
     key,
     native_df_with_multiindex_columns,
@@ -231,7 +231,7 @@ def test_iat_set_default_index_multiindex_columns(
         (-7, -7),
     ],
 )
-@sql_count_checker(query_count=1, join_count=2)
+@sql_count_checker(query_count=1)
 def test_iat_get_multiindex_index_multiindex_columns(
     key,
     native_df_with_multiindex_columns,
@@ -290,3 +290,12 @@ def test_iat_neg(
 ):
     with pytest.raises(error):
         default_index_snowpark_pandas_df.iat[key]
+
+
+@sql_count_checker(query_count=0)
+def test_raise_set_cell_with_list_like_value_error():
+    s = pd.Series([[1, 2], [3, 4]])
+    with pytest.raises(NotImplementedError):
+        s.iat[0] = [0, 0]
+    with pytest.raises(NotImplementedError):
+        s.to_frame().iat[0, 0] = [0, 0]

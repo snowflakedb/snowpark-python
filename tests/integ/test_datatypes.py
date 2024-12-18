@@ -35,7 +35,7 @@ def test_basic_filter(session):
             [
                 StructField("A", LongType(), nullable=False),
                 StructField("B", LongType(), nullable=False),
-                StructField("C", StringType(16777216), nullable=False),
+                StructField("C", StringType(), nullable=False),
             ]
         )
     )
@@ -298,12 +298,15 @@ def test_literal(session):
 
 def test_string_op_bool(session):
     df = session.create_dataframe([["value"]], schema=["a"])
-    df = df.select(df["a"].like("v%"), df["a"].regexp("v"))
+    df = df.select(df["a"].like("v%"), df["a"].regexp("v"), df["a"].regexp("v", "c"))
     assert repr(df.schema) == repr(
         StructType(
             [
                 StructField('"""A"" LIKE \'V%\'"', BooleanType(), nullable=True),
                 StructField('"""A"" REGEXP \'V\'"', BooleanType(), nullable=True),
+                StructField(
+                    '"RLIKE(""A"", \'V\', \'C\')"', BooleanType(), nullable=True
+                ),
             ]
         )
     )

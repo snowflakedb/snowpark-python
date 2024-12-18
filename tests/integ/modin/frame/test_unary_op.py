@@ -3,33 +3,44 @@
 #
 
 import math
+from operator import neg
 
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.series.test_unary_op import cast_using_snowflake_rules
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
-unary_operators = pytest.mark.parametrize("func", [abs, lambda x: -x])
+unary_operators = pytest.mark.parametrize("func", [abs, neg])
 
 
 @unary_operators
 @sql_count_checker(query_count=1)
-def test_df_unary_all_pos(func):
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "float",
+        param(
+            "timedelta64[ns]",
+            marks=pytest.mark.xfail(
+                strict=True, raises=NotImplementedError, reason="SNOW-1620415"
+            ),
+        ),
+    ],
+)
+def test_df_unary_all_pos(func, dtype):
     data = [[10, 1, 1.5], [3, 2, 0]]
-
-    native_df = native_pd.DataFrame(data)
-    snow_df = pd.DataFrame(native_df)
-
-    eval_snowpark_pandas_result(snow_df, native_df, func)
+    eval_snowpark_pandas_result(*create_test_dfs(data, dtype=dtype), func)
 
 
 @unary_operators

@@ -14,10 +14,10 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
     ORDER_BY_IN_SQL_QUERY_NOT_GUARANTEED_WARNING,
     WarningMessage,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 

@@ -20,6 +20,7 @@ repos:
                "--combine-as",
                "--project", "snowflake.connector",
                "--project", "snowflake.snowpark",
+               "--diff"
         ]
 -   repo: https://github.com/psf/black
     rev: 22.3.0
@@ -81,6 +82,8 @@ repos:
           - flake8-print
         args:
           - --per-file-ignores=tests/*.py:T201 # prints are allowed in test files
+          # Ignore errors for generated protocol buffer stubs
+          - --exclude=src/snowflake/snowpark/_internal/proto/generated/ast_pb2.py
     # Use mypy for static type checking.
 -   repo: https://github.com/pre-commit/mirrors-mypy
     rev: 'v0.991'
@@ -88,6 +91,7 @@ repos:
       - id: mypy
         files: >
           (?x)^(
+            src/snowflake/snowpark/_internal/ast/.*\.py|
             src/snowflake/snowpark/modin/pandas/indexing.py|
             src/snowflake/snowpark/modin/plugin/_internal/.*\.py|
             src/snowflake/snowpark/modin/pandas/snow_partition_iterator.py|
@@ -100,9 +104,12 @@ repos:
           - --disallow-incomplete-defs
         additional_dependencies:
           - types-requests
+          - types-python-dateutil
           - types-urllib3
           - types-setuptools
           - types-pyOpenSSL
           - types-setuptools
+          - mypy-protobuf
+          - typed-ast
           - pytest
           - numpy

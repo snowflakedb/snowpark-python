@@ -6,7 +6,7 @@ Please answer these questions before creating your pull request. Thanks!
 
    <!---
    In this section, please add a Snowflake Jira issue number.
-   
+
    Note that if a corresponding GitHub issue exists, you should still include
    the Snowflake Jira issue number. For example, for GitHub issue
    https://github.com/snowflakedb/snowpark-python/issues/1400, you should
@@ -24,6 +24,7 @@ Please answer these questions before creating your pull request. Thanks!
    - [ ] I am adding new credentials
    - [ ] I am adding a new dependency
    - [ ] If this is a new feature/behavior, I'm adding the Local Testing parity changes.
+   - [ ] I acknowledge that I have ensured my changes to be thread-safe. Follow the link for more information: [Thread-safe Developer Guidelines](https://github.com/snowflakedb/snowpark-python/blob/main/CONTRIBUTING.md#thread-safe-development)
 
 3. Please describe how your code solves the related issue.
 

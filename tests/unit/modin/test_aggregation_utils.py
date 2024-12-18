@@ -2,12 +2,20 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from types import MappingProxyType
+from unittest import mock
+
 import numpy as np
 import pytest
 
+import snowflake.snowpark.modin.plugin._internal.aggregation_utils as aggregation_utils
+from snowflake.snowpark.functions import greatest, sum as sum_
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
+    SnowflakeAggFunc,
+    _is_supported_snowflake_agg_func,
+    _SnowparkPandasAggregation,
     check_is_aggregation_supported_in_snowflake,
-    is_supported_snowflake_agg_func,
+    get_snowflake_agg_func,
 )
 
 
@@ -30,6 +38,10 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
         ("max", {}, 1, True),
         ("count", {}, 0, True),
         ("count", {}, 1, True),
+        ("size", {}, 0, True),
+        ("size", {}, 1, True),
+        (len, {}, 0, True),
+        (len, {}, 1, True),
         ("min", {}, 0, True),
         ("min", {}, 1, True),
         ("test", {}, 0, False),
@@ -53,8 +65,8 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
         ("quantile", {}, 1, False),
     ],
 )
-def test_is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) -> None:
-    assert is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis) is is_valid
+def test__is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) -> None:
+    assert _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis) is is_valid
 
 
 @pytest.mark.parametrize(
@@ -103,3 +115,40 @@ def test_check_aggregation_snowflake_execution_capability_by_args(
         agg_func=agg_func, agg_kwargs=agg_kwargs, axis=0
     )
     assert can_be_distributed == expected_result
+
+
+@pytest.mark.parametrize(
+    "agg_func, agg_kwargs, axis, expected",
+    [
+        (np.sum, {}, 0, SnowflakeAggFunc(sum_, True)),
+        ("max", {"skipna": False}, 1, SnowflakeAggFunc(greatest, True)),
+        ("test", {}, 0, None),
+    ],
+)
+def test_get_snowflake_agg_func(agg_func, agg_kwargs, axis, expected):
+    result = get_snowflake_agg_func(agg_func, agg_kwargs, axis)
+    if expected is None:
+        assert result is None
+    else:
+        assert result == expected
+
+
+def test_get_snowflake_agg_func_with_no_implementation_on_axis_0():
+    """Test get_snowflake_agg_func for a function that we support on axis=1 but not on axis=0."""
+    # We have to patch the internal dictionary
+    # _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION here because there is
+    # no real function that we support on axis=1 but not on axis=0.
+    with mock.patch.object(
+        aggregation_utils,
+        "_PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION",
+        MappingProxyType(
+            {
+                "max": _SnowparkPandasAggregation(
+                    preserves_snowpark_pandas_types=True,
+                    axis_1_aggregation_keepna=greatest,
+                    axis_1_aggregation_skipna=greatest,
+                )
+            }
+        ),
+    ):
+        assert get_snowflake_agg_func(agg_func="max", agg_kwargs={}, axis=0) is None

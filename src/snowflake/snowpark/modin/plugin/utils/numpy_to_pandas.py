@@ -1,11 +1,14 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Any, Optional, Union
+from typing import Any, Hashable, Optional, Union
 
-import snowflake.snowpark.modin.pandas as pd
-from snowflake.snowpark.modin.pandas.base import BasePandasDataset
-from snowflake.snowpark.modin.pandas.utils import is_scalar
+import modin.pandas as pd
+from modin.pandas.base import BasePandasDataset
+from modin.pandas.utils import is_scalar
+import numpy as np
+
+from snowflake.snowpark import functions as sp_func
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 
 
@@ -86,19 +89,72 @@ def where_mapper(
             return x.where(cond, y)  # type: ignore
 
         if is_scalar(x):
-            # broadcast scalar x to size of cond
-            object_shape = cond.shape
-            if len(object_shape) == 1:
-                df_scalar = pd.Series(x, index=range(object_shape[0]))
-            elif len(object_shape) == 2:
-                df_scalar = pd.DataFrame(
-                    x, index=range(object_shape[0]), columns=range(object_shape[1])
-                )
+            if cond.ndim == 1:
+                df_cond = cond.to_frame()
+            else:
+                df_cond = cond.copy()
+
+            origin_columns = df_cond.columns
+            # rename the columns of df_cond for ensure no conflict happens when
+            # appending new columns
+            renamed_columns = [f"col_{i}" for i in range(len(origin_columns))]
+            df_cond.columns = renamed_columns
+            # broadcast scalar x to size of cond through indexing
+            new_columns = [f"new_col_{i}" for i in range(len(origin_columns))]
+            df_cond[new_columns] = x
+
+            if cond.ndim == 1:
+                df_scalar = df_cond[new_columns[0]]
+                df_scalar.name = cond.name
+            else:
+                df_scalar = df_cond[new_columns]
+                # use the same name as the cond dataframe to make sure
+                # pandas where happens correctly
+                df_scalar.columns = origin_columns
 
             # handles np.where(df, scalar1, scalar2)
             # handles np.where(df1, scalar, df2)
             return df_scalar.where(cond, y)
+
     # return the sentinel NotImplemented if we do not support this function
+    return NotImplemented
+
+
+def may_share_memory_mapper(a: Any, b: Any, max_work: Optional[int] = None) -> bool:
+    """
+    Maps and executes the numpy may_share_memory signature and always
+    returns False
+    """
+    return False
+
+
+def full_like_mapper(
+    a: Union[pd.DataFrame, pd.Series],
+    fill_value: Hashable,
+    dtype: Optional[Any] = None,
+    order: Optional[str] = "K",
+    subok: Optional[bool] = True,
+    shape: Optional[tuple[Any]] = None,
+) -> Union[pd.DataFrame, pd.Series]:
+    if not subok:
+        return NotImplemented
+    if not order == "K":
+        return NotImplemented
+    if dtype is not None:
+        return NotImplemented
+
+    result_shape = shape
+    if isinstance(result_shape, tuple) and len(result_shape) == 0:
+        result_shape = (1,)
+    if isinstance(result_shape, int):
+        result_shape = (result_shape,)
+    if result_shape is None:
+        result_shape = a.shape
+    if len(result_shape) == 2:
+        height, width = result_shape  # type: ignore
+        return pd.DataFrame(fill_value, index=range(height), columns=range(width))
+    if len(result_shape) == 1:
+        return pd.Series(fill_value, index=range(result_shape[0]))
     return NotImplemented
 
 
@@ -112,23 +168,169 @@ def map_to_bools(inputs: Any) -> Any:
 # an associated pandas function (pd.where) using a mapping function
 # (where_mapper) which can adapt differing function signatures. These
 # functions are called by numpy
-numpy_to_pandas_func_map = {"where": where_mapper}
+numpy_to_pandas_func_map = {
+    "where": where_mapper,
+    "may_share_memory": may_share_memory_mapper,
+    "full_like": full_like_mapper,
+}
 
 # Map that associates a numpy universal function name that operates on
 # ndarrays in an element by element fashion with a lambda which performs
 # the same function on the input type. These functions are called from
 # the __array_ufunc__ function
+#
+# Functions which are not implemented are explicitly listed here as
+# well to provide the reader with an understanding of the current
+# breadth. If a new ufunc is defined by numpy the absence of that
+# function from this list also implies that is it NotImplemented
+#
+# Numpy ufunc Reference
 # https://numpy.org/doc/stable/reference/ufuncs.html
 numpy_to_pandas_universal_func_map = {
-    "add": lambda obj, inputs, kwargs: obj.__add__(*inputs, **kwargs),
-    "logical_and": lambda obj, inputs, kwargs: obj.astype("bool").__and__(
-        *map_to_bools(inputs), **kwargs
+    # Math functions
+    "add": lambda obj, inputs: obj.__add__(*inputs),
+    "subtract": lambda obj, inputs: obj.__sub__(*inputs),
+    "multiply": lambda obj, inputs: obj.__mul__(*inputs),
+    "divide": lambda obj, inputs: obj.__truediv__(*inputs),  # same as true_divide
+    "logaddexp": NotImplemented,
+    "logaddexp2": NotImplemented,
+    "true_divide": lambda obj, inputs: obj.__truediv__(*inputs),
+    "floor_divide": lambda obj, inputs: obj.__floordiv__(*inputs),
+    "negative": lambda obj, inputs: -obj,
+    "positive": lambda obj, inputs: obj,
+    "power": NotImplemented,  # cannot use obj.__pow__
+    "float_power": lambda obj, inputs: obj.__pow__(*inputs),
+    "remainder": lambda obj, inputs: obj.__mod__(*inputs),
+    "mod": lambda obj, inputs: obj.__mod__(*inputs),
+    "fmod": NotImplemented,
+    "divmod": NotImplemented,
+    "absolute": lambda obj, inputs: obj.abs(),
+    "abs": lambda obj, inputs: obj.abs(),
+    "rint": NotImplemented,
+    "sign": NotImplemented,
+    "heaviside": NotImplemented,  # heaviside step function
+    "conj": NotImplemented,  # same as conjugate
+    "conjugate": NotImplemented,
+    "exp": lambda obj, inputs: obj.apply(sp_func.exp),
+    "exp2": NotImplemented,
+    "log": lambda obj, inputs: obj.apply(sp_func.ln),  # use built-in function
+    "log2": lambda obj, inputs: obj.apply(sp_func._log2),
+    "log10": lambda obj, inputs: obj.apply(sp_func._log10),
+    "expm1": NotImplemented,
+    "log1p": NotImplemented,
+    "sqrt": lambda obj, inputs: obj.apply(sp_func.sqrt),
+    "square": NotImplemented,
+    "cbrt": NotImplemented,  # Cube root
+    "reciprocal": NotImplemented,
+    "gcd": NotImplemented,
+    "lcm": NotImplemented,
+    # trigonometric functions
+    "sin": lambda obj, inputs: obj.apply(sp_func.sin),
+    "cos": lambda obj, inputs: obj.apply(sp_func.cos),
+    "tan": lambda obj, inputs: obj.apply(sp_func.tan),
+    "arcsin": NotImplemented,
+    "arccos": NotImplemented,
+    "arctan": NotImplemented,
+    "arctan2": NotImplemented,
+    "hypot": NotImplemented,
+    "sinh": lambda obj, inputs: obj.apply(sp_func.sinh),
+    "cosh": lambda obj, inputs: obj.apply(sp_func.cosh),
+    "tanh": lambda obj, inputs: obj.apply(sp_func.tanh),
+    "arcsinh": NotImplemented,
+    "arccosh": NotImplemented,
+    "arctanh": NotImplemented,
+    "degrees": NotImplemented,
+    "radians": NotImplemented,
+    "deg2rad": NotImplemented,
+    "rad2deg": NotImplemented,
+    # bitwise operations
+    "bitwise_and": NotImplemented,
+    "bitwise_or": NotImplemented,
+    "bitwise_xor": NotImplemented,
+    "invert": NotImplemented,
+    "left_shift": NotImplemented,
+    "right_shift": NotImplemented,
+    # comparison functions
+    "greater": lambda obj, inputs: obj > inputs[0],
+    "greater_equal": lambda obj, inputs: obj >= inputs[0],
+    "less": lambda obj, inputs: obj < inputs[0],
+    "less_equal": lambda obj, inputs: obj <= inputs[0],
+    "not_equal": lambda obj, inputs: obj != inputs[0],
+    "equal": lambda obj, inputs: obj == inputs[0],
+    "logical_and": lambda obj, inputs: obj.astype("bool").__and__(
+        *map_to_bools(inputs)
     ),
-    "logical_or": lambda obj, inputs, kwargs: obj.astype("bool").__or__(
-        *map_to_bools(inputs), **kwargs
+    "logical_or": lambda obj, inputs: obj.astype("bool").__or__(*map_to_bools(inputs)),
+    "logical_not": lambda obj, inputs: ~obj.astype("bool"),
+    "logical_xor": lambda obj, inputs: obj.astype("bool").__xor__(
+        *map_to_bools(inputs)
     ),
-    "logical_not": lambda obj, inputs, kwargs: ~obj.astype("bool"),
-    "logical_xor": lambda obj, inputs, kwargs: obj.astype("bool").__xor__(
-        *map_to_bools(inputs), **kwargs
-    ),
+    "maximum": NotImplemented,
+    "minimum": NotImplemented,
+    "fmax": NotImplemented,
+    "fmin": NotImplemented,
+    # floating functions
+    "isfinite": NotImplemented,
+    "isinf": NotImplemented,
+    "isnan": NotImplemented,
+    "isnat": NotImplemented,
+    "fabs": NotImplemented,
+    "signbit": NotImplemented,
+    "copysign": NotImplemented,
+    "nextafter": NotImplemented,
+    "spacing": NotImplemented,
+    "modf": NotImplemented,
+    "ldexp": NotImplemented,
+    "frexp": NotImplemented,
+    "fmod": NotImplemented,
+    "floor": lambda obj, inputs: obj.apply(sp_func.floor),
+    "ceil": lambda obj, inputs: obj.apply(sp_func.ceil),
+    "trunc": lambda obj, inputs: obj.apply(
+        sp_func.trunc
+    ),  # df.truncate not supported in snowpandas yet
+}
+
+
+NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION = {
+    # Math operations
+    np.absolute: sp_func.abs,
+    np.sign: sp_func.sign,
+    np.negative: sp_func.negate,
+    np.positive: lambda col: col,
+    np.sqrt: sp_func.sqrt,
+    np.square: lambda col: sp_func.builtin("square")(col),
+    np.cbrt: lambda col: sp_func.builtin("cbrt")(col),
+    np.reciprocal: lambda col: 1 / col,
+    np.exp: sp_func.exp,
+    np.exp2: lambda col: sp_func.pow(2, col),
+    np.expm1: lambda col: sp_func.exp(col) - 1,
+    np.log: sp_func.ln,
+    np.log2: sp_func._log2,
+    np.log10: sp_func._log10,
+    np.log1p: lambda col: sp_func.ln(col + 1),
+    # Aggregate functions translate to identity functions when applied element wise
+    np.sum: lambda col: col,
+    np.min: lambda col: col,
+    np.max: lambda col: col,
+    # Trigonometric functions
+    np.sin: sp_func.sin,
+    np.cos: sp_func.cos,
+    np.tan: sp_func.tan,
+    np.sinh: sp_func.sinh,
+    np.cosh: sp_func.cosh,
+    np.tanh: sp_func.tanh,
+    np.arcsin: lambda col: sp_func.builtin("asin")(col),
+    np.arccos: lambda col: sp_func.builtin("acos")(col),
+    np.arctan: lambda col: sp_func.builtin("atan")(col),
+    np.arctan2: lambda col: sp_func.builtin("atan2")(col),
+    np.arcsinh: lambda col: sp_func.builtin("asinh")(col),
+    np.arccosh: lambda col: sp_func.builtin("acosh")(col),
+    np.arctanh: lambda col: sp_func.builtin("atanh")(col),
+    np.degrees: lambda col: sp_func.builtin("degrees")(col),
+    np.radians: lambda col: sp_func.builtin("radians")(col),
+    # Floating functions
+    np.ceil: sp_func.ceil,
+    np.floor: sp_func.floor,
+    np.trunc: sp_func.trunc,
+    np.isnan: sp_func.is_null,
 }

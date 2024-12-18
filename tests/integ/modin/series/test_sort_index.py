@@ -7,17 +7,29 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.mark.parametrize("ascending", [True, False])
 @pytest.mark.parametrize("na_position", ["first", "last"])
 @pytest.mark.parametrize("ignore_index", [True, False])
 @pytest.mark.parametrize("inplace", [True, False])
+@pytest.mark.parametrize(
+    "data",
+    [
+        ["a", "b", np.nan, "d"],
+        [
+            native_pd.Timedelta("1 days"),
+            native_pd.Timedelta("2 days"),
+            native_pd.Timedelta("3 days"),
+            native_pd.Timedelta(None),
+        ],
+    ],
+)
 @sql_count_checker(query_count=1)
-def test_sort_index_series(ascending, na_position, ignore_index, inplace):
-    native_series = native_pd.Series(["a", "b", np.nan, "d"], index=[3, 2, 1, np.nan])
+def test_sort_index_series(ascending, na_position, ignore_index, inplace, data):
+    native_series = native_pd.Series(data, index=[3, 2, 1, np.nan])
     snow_series = pd.Series(native_series)
     eval_snowpark_pandas_result(
         snow_series,

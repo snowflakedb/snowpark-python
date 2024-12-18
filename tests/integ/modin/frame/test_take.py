@@ -7,12 +7,15 @@ import numpy as np
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
 from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter
 
 
 @pytest.mark.parametrize("test_multiindex", [False, True])
-def test_df_take(float_native_df, test_multiindex):
+@pytest.mark.parametrize("dtype", ["float", "timedelta64[ns]"])
+def test_df_take(float_native_df, test_multiindex, dtype):
+    float_native_df = float_native_df.astype(dtype)
+
     def _test_take(native_df):
         df = pd.DataFrame(native_df)
 

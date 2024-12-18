@@ -26,8 +26,11 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
+from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
+    create_rlock,
     is_in_stored_procedure,
     result_set_to_rows,
 )
@@ -35,7 +38,7 @@ from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
-from snowflake.snowpark.mock._snowflake_data_type import TableEmulator
+from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock._util import get_fully_qualified_name
@@ -64,8 +67,16 @@ class MockedSnowflakeConnection(SnowflakeConnection):
         super().__init__(*args, **kwargs, application="localtesting")
         self._password = None
 
+        self._disable_query_context_cache = True
+
     def connect(self, **kwargs) -> None:
-        self._rest = Mock()
+        attrs = {
+            "request.return_value": {
+                "success": False,
+                "message": "Not implemented in MockConnection",
+            }
+        }
+        self._rest = Mock(**attrs)
 
     def close(self, retry: bool = True) -> None:
         self._rest = None
@@ -90,141 +101,219 @@ class MockServerConnection:
             self.table_registry = {}
             self.view_registry = {}
             self.conn = conn
+            self._lock = self.conn.get_lock()
 
         def is_existing_table(self, name: Union[str, Iterable[str]]) -> bool:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            qualified_name = get_fully_qualified_name(
-                name, current_schema, current_database
-            )
-            return qualified_name in self.table_registry
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                qualified_name = get_fully_qualified_name(
+                    name, current_schema, current_database
+                )
+                return qualified_name in self.table_registry
 
         def is_existing_view(self, name: Union[str, Iterable[str]]) -> bool:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            qualified_name = get_fully_qualified_name(
-                name, current_schema, current_database
-            )
-            return qualified_name in self.view_registry
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                qualified_name = get_fully_qualified_name(
+                    name, current_schema, current_database
+                )
+                return qualified_name in self.view_registry
 
         def read_table(self, name: Union[str, Iterable[str]]) -> TableEmulator:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            qualified_name = get_fully_qualified_name(
-                name, current_schema, current_database
-            )
-            if qualified_name in self.table_registry:
-                return copy(self.table_registry[qualified_name])
-            else:
-                raise SnowparkLocalTestingException(
-                    f"Object '{name}' does not exist or not authorized."
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                qualified_name = get_fully_qualified_name(
+                    name, current_schema, current_database
                 )
+                if qualified_name in self.table_registry:
+                    return copy(
+                        self.table_registry[qualified_name].reset_index(drop=True)
+                    )
+                else:
+                    raise SnowparkLocalTestingException(
+                        f"Object '{name}' does not exist or not authorized."
+                    )
 
         def write_table(
-            self, name: Union[str, Iterable[str]], table: TableEmulator, mode: SaveMode
-        ) -> Row:
-            for column in table.columns:
-                if not table[column].sf_type.nullable and table[column].isnull().any():
-                    raise SnowparkLocalTestingException(
-                        "NULL result in a non-nullable column"
-                    )
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            name = get_fully_qualified_name(name, current_schema, current_database)
-            table = copy(table)
-            if mode == SaveMode.APPEND:
-                # Fix append by index
-                if name in self.table_registry:
-                    target_table = self.table_registry[name]
-
-                    if len(table.columns.to_list()) != len(
-                        target_table.columns.to_list()
+            self,
+            name: Union[str, Iterable[str]],
+            table: TableEmulator,
+            mode: SaveMode,
+            column_names: Optional[List[str]] = None,
+        ) -> List[Row]:
+            with self._lock:
+                for column in table.columns:
+                    if (
+                        not table[column].sf_type.nullable
+                        and table[column].isnull().any()
                     ):
                         raise SnowparkLocalTestingException(
-                            f"Cannot append because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                            "NULL result in a non-nullable column"
                         )
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                name = get_fully_qualified_name(name, current_schema, current_database)
+                table = copy(table)
+                if mode == SaveMode.APPEND:
+                    if name in self.table_registry:
+                        target_table = self.table_registry[name]
+                        input_schema = table.columns.to_list()
+                        existing_schema = target_table.columns.to_list()
 
-                    table.columns = target_table.columns
-                    self.table_registry[name] = pandas.concat(
-                        [target_table, table], ignore_index=True
-                    )
-                    self.table_registry[name].sf_types = target_table.sf_types
-                else:
-                    self.table_registry[name] = table
-            elif mode == SaveMode.IGNORE:
-                if name not in self.table_registry:
-                    self.table_registry[name] = table
-            elif mode == SaveMode.OVERWRITE:
-                self.table_registry[name] = table
-            elif mode == SaveMode.ERROR_IF_EXISTS:
-                if name in self.table_registry:
-                    raise SnowparkLocalTestingException(f"Table {name} already exists")
-                else:
-                    self.table_registry[name] = table
-            elif mode == SaveMode.TRUNCATE:
-                if name in self.table_registry:
-                    target_table = self.table_registry[name]
-                    input_schema = table.columns.to_list()
-                    existing_schema = target_table.columns.to_list()
-                    if len(input_schema) <= len(existing_schema) and (
-                        all(
-                            target_table[col].sf_type.nullable
-                            for col in (existing_schema[len(input_schema) :])
+                        if not column_names:  # append with column_order being index
+                            if len(input_schema) != len(existing_schema):
+                                raise SnowparkLocalTestingException(
+                                    f"Cannot append because incoming data has different schema {input_schema} than existing table {existing_schema}"
+                                )
+                            # temporarily align the column names of both dataframe to be col indexes 0, 1, ... N - 1
+                            table.columns = range(table.shape[1])
+                            target_table.columns = range(target_table.shape[1])
+                        else:  # append with column_order being name
+                            if invalid_cols := set(input_schema) - set(existing_schema):
+                                identifiers = "', '".join(
+                                    unquote_if_quoted(id) for id in invalid_cols
+                                )
+                                raise SnowparkLocalTestingException(
+                                    f"table contains invalid identifier '{identifiers}'"
+                                )
+                            invalid_non_nullable_cols = []
+                            for missing_col in set(existing_schema) - set(input_schema):
+                                if target_table[missing_col].sf_type.nullable:
+                                    table[missing_col] = None
+                                    table.sf_types[missing_col] = target_table[
+                                        missing_col
+                                    ].sf_type
+                                else:
+                                    invalid_non_nullable_cols.append(missing_col)
+                            if invalid_non_nullable_cols:
+                                identifiers = "', '".join(
+                                    unquote_if_quoted(id)
+                                    for id in invalid_non_nullable_cols
+                                )
+                                raise SnowparkLocalTestingException(
+                                    f"NULL result in a non-nullable column '{identifiers}'"
+                                )
+
+                        self.table_registry[name] = pandas.concat(
+                            [target_table, table], ignore_index=True
                         )
-                    ):
-                        for col in existing_schema[len(input_schema) :]:
-                            table[col] = None
-                            table.sf_types[col] = target_table[col].sf_type
+                        self.table_registry[name].columns = existing_schema
+                        self.table_registry[name].sf_types = target_table.sf_types
                     else:
+                        self.table_registry[name] = table
+                elif mode == SaveMode.IGNORE:
+                    if name not in self.table_registry:
+                        self.table_registry[name] = table
+                elif mode == SaveMode.OVERWRITE:
+                    self.table_registry[name] = table
+                elif mode == SaveMode.ERROR_IF_EXISTS:
+                    if name in self.table_registry:
                         raise SnowparkLocalTestingException(
-                            f"Cannot truncate because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                            f"Table {name} already exists"
                         )
+                    else:
+                        self.table_registry[name] = table
+                elif mode == SaveMode.TRUNCATE:
+                    if name in self.table_registry:
+                        target_table = self.table_registry[name]
+                        input_schema = set(table.columns.to_list())
+                        existing_schema = set(target_table.columns.to_list())
+                        # input is a subset of existing schema and all missing columns are nullable
+                        if input_schema.issubset(existing_schema) and all(
+                            target_table[col].sf_type.nullable
+                            for col in set(existing_schema - input_schema)
+                        ):
+                            for col in set(existing_schema - input_schema):
+                                table[col] = ColumnEmulator(
+                                    data=[None] * table.shape[0],
+                                    sf_type=target_table[col].sf_type,
+                                    dtype=object,
+                                )
+                        else:
+                            raise SnowparkLocalTestingException(
+                                f"Cannot truncate because incoming data has different schema {table.columns.to_list()} than existing table { target_table.columns.to_list()}"
+                            )
+                        table.sf_types_by_col_index = target_table.sf_types_by_col_index
+                        table = table.reindex(columns=target_table.columns)
+                    self.table_registry[name] = table
+                else:
+                    raise SnowparkLocalTestingException(f"Unrecognized mode: {mode}")
+                return [
+                    Row(status=f"Table {name} successfully created.")
+                ]  # TODO: match message
 
-                self.table_registry[name] = table
-            else:
-                raise SnowparkLocalTestingException(f"Unrecognized mode: {mode}")
-            return [
-                Row(status=f"Table {name} successfully created.")
-            ]  # TODO: match message
+        def drop_table(self, name: Union[str, Iterable[str]], **kwargs) -> None:
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                name = get_fully_qualified_name(name, current_schema, current_database)
+                if name in self.table_registry:
+                    self.table_registry.pop(name)
 
-        def drop_table(self, name: Union[str, Iterable[str]]) -> None:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            name = get_fully_qualified_name(name, current_schema, current_database)
-            if name in self.table_registry:
-                self.table_registry.pop(name)
+                # Notify query listeners.
+                self.conn.notify_mock_query_record_listener(**kwargs)
 
         def create_or_replace_view(
             self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
         ):
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            name = get_fully_qualified_name(name, current_schema, current_database)
-            self.view_registry[name] = execution_plan
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                name = get_fully_qualified_name(name, current_schema, current_database)
+                self.view_registry[name] = execution_plan
 
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
-            current_schema = self.conn._get_current_parameter("schema")
-            current_database = self.conn._get_current_parameter("database")
-            name = get_fully_qualified_name(name, current_schema, current_database)
-            if name in self.view_registry:
-                return self.view_registry[name]
-            raise SnowparkLocalTestingException(f"View {name} does not exist")
+            with self._lock:
+                current_schema = self.conn._get_current_parameter("schema")
+                current_database = self.conn._get_current_parameter("database")
+                name = get_fully_qualified_name(name, current_schema, current_database)
+                if name in self.view_registry:
+                    return self.view_registry[name]
+                raise SnowparkLocalTestingException(f"View {name} does not exist")
+
+        def read_view_if_exists(
+            self, name: Union[str, Iterable[str]]
+        ) -> Optional[MockExecutionPlan]:
+            """Method to atomically read a view if it exists. Returns None if the view does not exist."""
+            with self._lock:
+                if self.is_existing_view(name):
+                    return self.get_review(name)
+                return None
+
+        def read_table_if_exists(
+            self, name: Union[str, Iterable[str]]
+        ) -> Optional[TableEmulator]:
+            """Method to atomically read a table if it exists. Returns None if the table does not exist."""
+            with self._lock:
+                if self.is_existing_table(name):
+                    return self.read_table(name)
+                return None
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         self._conn = MockedSnowflakeConnection()
         self._cursor = Mock()
+        self._options = options or {}
+        session_params = self._options.get("session_parameters", {})
+        # thread safe param protection
+        self._thread_safe_session_enabled = session_params.get(
+            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
+        )
+        self._lock = create_rlock(self._thread_safe_session_enabled)
         self._lower_case_parameters = {}
-        self.remove_query_listener = Mock()
-        self.add_query_listener = Mock()
+        self._query_listeners = set()
         self._telemetry_client = Mock()
         self.entity_registry = MockServerConnection.TabularEntityRegistry(self)
         self.stage_registry = StageEntityRegistry(self)
-        self._conn._session_parameters = {
-            "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
-            "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
-            "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
-        }
-        self._options = options or {}
+        self._conn._session_parameters = session_params.update(
+            {
+                "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
+                "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
+                "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
+            }
+        )
         self._active_account = self._options.get(
             "account", snowflake.snowpark.mock._constants.CURRENT_ACCOUNT
         )
@@ -254,6 +343,24 @@ class MockServerConnection:
             self._oob_telemetry.disable()
         else:
             self._oob_telemetry.log_session_creation(self._connection_uuid)
+        self._suppress_not_implemented_error = False
+
+    def add_query_listener(
+        self, listener: "snowflake.snowpark.query_history.QueryListener"
+    ) -> None:
+        self._query_listeners.add(listener)
+
+    def remove_query_listener(
+        self, listener: "snowflake.snowpark.query_history.QueryListener"
+    ) -> None:
+        self._query_listeners.remove(listener)
+
+    def notify_query_listeners(
+        self, query_record: "snowflake.snowpark.query_history.QueryRecord", **kwargs
+    ) -> None:
+        with self._lock:
+            for listener in self._query_listeners:
+                listener._notify(query_record, **kwargs)
 
     def log_not_supported_error(
         self,
@@ -265,7 +372,7 @@ class MockServerConnection:
         warning_logger: Optional[logging.Logger] = None,
     ):
         """
-        send telemetry to oob servie, can raise error or logging a warning based upon the input
+        send telemetry to oob service, can raise error or logging a warning based upon the input
 
         Args:
             external_feature_name: customer facing feature name, this information is used to raise error
@@ -275,37 +382,44 @@ class MockServerConnection:
             raise_error: Set to an exception to raise exception
             warning_logger: Set logger to log a warning message
         """
-        self._oob_telemetry.log_not_supported_error(
-            external_feature_name=external_feature_name,
-            internal_feature_name=internal_feature_name,
-            parameters_info=parameters_info,
-            error_message=error_message,
-            connection_uuid=self._connection_uuid,
-            raise_error=raise_error,
-            warning_logger=warning_logger,
-        )
+        if not self._suppress_not_implemented_error:
+            self._oob_telemetry.log_not_supported_error(
+                external_feature_name=external_feature_name,
+                internal_feature_name=internal_feature_name,
+                parameters_info=parameters_info,
+                error_message=error_message,
+                connection_uuid=self._connection_uuid,
+                raise_error=raise_error,
+                warning_logger=warning_logger,
+            )
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         # mock implementation
-        return (
-            self._conn._session_parameters.get(name, default_value)
-            if self._conn._session_parameters
-            else default_value
-        )
+        with self._lock:
+            return (
+                self._conn._session_parameters.get(name, default_value)
+                if self._conn._session_parameters
+                else default_value
+            )
 
     def get_session_id(self) -> int:
         return 1
 
+    def get_lock(self):
+        return self._lock
+
     def close(self) -> None:
-        if self._conn:
-            self._conn.close()
+        with self._lock:
+            if self._conn:
+                self._conn.close()
 
     def is_closed(self) -> bool:
         return self._conn.is_closed()
 
     def _get_current_parameter(self, param: str, quoted: bool = True) -> Optional[str]:
         try:
-            name = getattr(self, f"_active_{param}", None)
+            with self._lock:
+                name = getattr(self, f"_active_{param}", None)
             if name and len(name) >= 2 and name[0] == name[-1] == '"':
                 # it is a quoted identifier, return the original value
                 return name
@@ -369,7 +483,7 @@ class MockServerConnection:
                 name="source",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -378,7 +492,7 @@ class MockServerConnection:
                 name="target",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -387,7 +501,7 @@ class MockServerConnection:
                 name="source_size",
                 type_code=0,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=0,
                 scale=0,
                 is_nullable=False,
@@ -396,7 +510,7 @@ class MockServerConnection:
                 name="target_size",
                 type_code=0,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=0,
                 scale=0,
                 is_nullable=False,
@@ -405,7 +519,7 @@ class MockServerConnection:
                 name="source_compression",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -414,7 +528,7 @@ class MockServerConnection:
                 name="target_compression",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -423,7 +537,7 @@ class MockServerConnection:
                 name="status",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -432,7 +546,7 @@ class MockServerConnection:
                 name="message",
                 type_code=2,
                 display_size=None,
-                internal_size=16777216,
+                internal_size=DEFAULT_STRING_SIZE,
                 precision=None,
                 scale=None,
                 is_nullable=False,
@@ -524,6 +638,7 @@ class MockServerConnection:
                 raise_error=NotImplementedError,
             )
 
+        rows = []
         res = execute_mock_plan(plan, plan.expr_to_alias)
         if isinstance(res, TableEmulator):
             # stringfy the variant type in the result df
@@ -571,10 +686,12 @@ class MockServerConnection:
                 )
                 row = row_struct(
                     *[
-                        Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
-                        if isinstance(sf_types[i].datatype, DecimalType)
-                        and v is not None
-                        else v
+                        (
+                            Decimal("{0:.{1}f}".format(v, sf_types[i].datatype.scale))
+                            if isinstance(sf_types[i].datatype, DecimalType)
+                            and v is not None
+                            else v
+                        )
                         for i, v in enumerate(pdr)
                     ]
                 )
@@ -596,10 +713,18 @@ class MockServerConnection:
             # we do not mock the splitting into data chunks behavior
             rows = [rows] if to_iter else rows
 
-        if to_iter:
-            return iter(rows)
+        # Notify query listeners.
+        self.notify_mock_query_record_listener(**kwargs)
 
-        return rows
+        return iter(rows) if to_iter else rows
+
+    def notify_mock_query_record_listener(self, **kwargs: Dict[Any, Any]):
+        notify_kwargs = {"requestId": str(uuid.uuid4())}
+        if DATAFRAME_AST_PARAMETER in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        from snowflake.snowpark.query_history import QueryRecord
+
+        self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
 
     @SnowflakePlan.Decorator.wrap_exception
     def get_result_set(
@@ -636,9 +761,11 @@ class MockServerConnection:
         attrs = [
             Attribute(
                 name=quote_name(column_name.strip()),
-                datatype=column_data.sf_type
-                if column_data.sf_type
-                else res.sf_types[column_name],
+                datatype=(
+                    column_data.sf_type
+                    if column_data.sf_type
+                    else res.sf_types[column_name]
+                ),
             )
             for column_name, column_data in res.items()
         ]
@@ -658,14 +785,24 @@ class MockServerConnection:
                 values.append(value)
             rows.append(Row(*values))
 
+        # This should be internally backed by get_result_set. Need to notify query listeners here manually.
+        notify_kwargs = {"requestId": str(uuid.uuid4())}
+        if DATAFRAME_AST_PARAMETER in kwargs:
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        from snowflake.snowpark.query_history import QueryRecord
+
+        self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
+
         return rows, attrs
 
     def get_result_query_id(self, plan: SnowflakePlan, **kwargs) -> str:
-        self.log_not_supported_error(
-            external_feature_name="Running SQL queries",
-            internal_feature_name="MockServerConnection.get_result_query_id",
-            raise_error=NotImplementedError,
-        )
+        # get the iterator such that the data is not fetched
+        result_set, _ = self.get_result_set(plan, to_iter=True, **kwargs)
+        return result_set["sfqid"]
+
+    @property
+    def max_string_size(self) -> int:
+        return DEFAULT_STRING_SIZE
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":

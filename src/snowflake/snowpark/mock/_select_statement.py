@@ -2,8 +2,18 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 from abc import ABC
+from collections import defaultdict
 from copy import copy
-from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    DefaultDict,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from snowflake.snowpark._internal.analyzer.select_statement import (
     ColumnChangeState,
@@ -33,7 +43,11 @@ from snowflake.snowpark._internal.analyzer.expression import (
     derive_dependent_columns,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan, Range
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    LogicalPlan,
+    Range,
+    SnowflakeTable,
+)
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 
 SET_UNION = analyzer_utils.UNION
@@ -58,7 +72,9 @@ class MockSelectable(LogicalPlan, ABC):
         self._execution_plan: Optional[SnowflakePlan] = None
         self._attributes = None
         self.expr_to_alias = {}
-        self.df_aliased_col_name_to_real_col_name = {}
+        self.df_aliased_col_name_to_real_col_name: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
 
     @property
     def sql_query(self) -> str:
@@ -159,7 +175,10 @@ class MockSelectExecutionPlan(MockSelectable):
     def __init__(self, snowflake_plan: LogicalPlan, *, analyzer: "Analyzer") -> None:
         super().__init__(analyzer)
         self._execution_plan = analyzer.resolve(snowflake_plan)
-
+        self.expr_to_alias.update(self._execution_plan.expr_to_alias)
+        self.df_aliased_col_name_to_real_col_name.update(
+            self._execution_plan.df_aliased_col_name_to_real_col_name
+        )
         if isinstance(snowflake_plan, Range):
             self._attributes = [Attribute('"ID"', LongType(), False)]
 
@@ -193,6 +212,10 @@ class MockSelectStatement(MockSelectable):
         self._sql_query = None
         self._schema_query = None
         self._projection_in_str = None
+        self.expr_to_alias.update(self.from_.expr_to_alias)
+        self.df_aliased_col_name_to_real_col_name.update(
+            self.from_.df_aliased_col_name_to_real_col_name
+        )
         self.api_calls = (
             self.from_.api_calls.copy() if self.from_.api_calls is not None else None
         )  # will be replaced by new api calls if any operation.
@@ -209,6 +232,9 @@ class MockSelectStatement(MockSelectable):
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
+        new.df_aliased_col_name_to_real_col_name = (
+            self.df_aliased_col_name_to_real_col_name
+        )
         new._column_states = None
         new.flatten_disabled = False  # by default a SelectStatement can be flattened.
         return new
@@ -277,6 +303,9 @@ class MockSelectStatement(MockSelectable):
             new._projection_in_str = self._projection_in_str
             new._schema_query = self._schema_query
             new._column_states = self._column_states
+            new.expr_to_alias = copy(
+                self.expr_to_alias
+            )  # use copy because we don't want two plans to share the same list. If one mutates, the other ones won't be impacted.
             new.flatten_disabled = self.flatten_disabled
             new._execution_plan = self._execution_plan
             return new
@@ -490,7 +519,12 @@ class MockSelectableEntity(MockSelectable):
     Mainly used by session.table().
     """
 
-    def __init__(self, entity_name: str, *, analyzer: "Analyzer") -> None:
+    def __init__(
+        self,
+        entity: SnowflakeTable,
+        *,
+        analyzer: "Analyzer",
+    ) -> None:
         super().__init__(analyzer)
-        self.entity_name = entity_name
+        self.entity = entity
         self.api_calls = []

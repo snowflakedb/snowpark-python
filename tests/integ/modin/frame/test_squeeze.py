@@ -5,10 +5,11 @@
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import SqlCounter
 
 
 @pytest.fixture(params=[0, "index", 1, "columns", None])
@@ -19,7 +20,8 @@ def axis(request):
     return request.param
 
 
-def test_1d(axis):
+@pytest.mark.parametrize("dtype", ["int", "timedelta64[ns]"])
+def test_n_by_1(axis, dtype):
     if axis == 1 or axis == "columns":
         expected_query_count = 1
     else:
@@ -27,10 +29,13 @@ def test_1d(axis):
 
     with SqlCounter(query_count=expected_query_count):
         eval_snowpark_pandas_result(
-            pd.DataFrame([1, 2, 3]),
-            native_pd.DataFrame([1, 2, 3]),
+            *create_test_dfs([1, 2, 3], dtype=dtype),
             lambda df: df.squeeze(axis=axis),
         )
+
+
+@pytest.mark.parametrize("dtype", ["int", "timedelta64[ns]"])
+def test_1_by_n(axis, dtype):
     if axis is None:
         expected_query_count = 3
     elif axis in [0, "index"]:
@@ -39,8 +44,7 @@ def test_1d(axis):
         expected_query_count = 1
     with SqlCounter(query_count=expected_query_count):
         eval_snowpark_pandas_result(
-            pd.DataFrame({"a": [1], "b": [2], "c": [3]}),
-            native_pd.DataFrame({"a": [1], "b": [2], "c": [3]}),
+            *create_test_dfs({"a": [1], "b": [2], "c": [3]}, dtype=dtype),
             lambda df: df.squeeze(axis=axis),
         )
 
@@ -48,24 +52,46 @@ def test_1d(axis):
 def test_2d(axis):
     with SqlCounter(query_count=1 if axis in [1, "columns"] else 2):
         eval_snowpark_pandas_result(
-            pd.DataFrame({"A": [1, 2, 3], "B": [2, 3, 4]}),
-            native_pd.DataFrame({"A": [1, 2, 3], "B": [2, 3, 4]}),
+            *create_test_dfs(
+                {
+                    "A": [1, 2, 3],
+                    "B": [2, 3, 4],
+                    "Timedelta": native_pd.to_timedelta([5, 6, 7]),
+                }
+            ),
             lambda df: df.squeeze(axis=axis),
         )
 
 
-def test_scalar(axis):
+@pytest.mark.parametrize(
+    "scalar", [param(pd.Timedelta(1), id="timedelta"), param(1, id="int")]
+)
+def test_scalar(axis, scalar):
     if axis == 1 or axis == "columns":
         expected_query_count = 1
     else:
         expected_query_count = 2
+    snow_df, native_df = create_test_dfs([scalar])
     with SqlCounter(query_count=expected_query_count):
         if axis is None:
-            assert 1 == pd.DataFrame({"A": [1]}).squeeze()
+            assert scalar == snow_df.squeeze()
         else:
             # still return a dataframe/series
             eval_snowpark_pandas_result(
-                pd.DataFrame({"A": [1]}),
-                native_pd.DataFrame({"A": [1]}),
+                snow_df,
+                native_df,
                 lambda df: df.squeeze(axis=axis),
             )
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="Transpose produces a column with both an int value and a timedelta value, so it can't preserve the timedelta type for the timedelta row.",
+)
+@pytest.mark.parametrize("axis", [0, "index", None])
+def test_timedelta_1_by_n_horizontal(axis):
+    eval_snowpark_pandas_result(
+        *create_test_dfs([[1, pd.Timedelta(2)]]),
+        lambda df: df.squeeze(axis=axis),
+    )

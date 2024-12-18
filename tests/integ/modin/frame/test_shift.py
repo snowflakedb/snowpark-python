@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
 import random
 
 import modin.pandas as pd
@@ -8,10 +9,11 @@ import numpy as np
 import pandas as native_pd
 import pytest
 from pandas._libs.lib import no_default
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import create_test_dfs, eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 TEST_DATAFRAMES = [
     native_pd.DataFrame(),
@@ -43,9 +45,7 @@ TEST_DATAFRAMES = [
 @pytest.mark.parametrize(
     "periods", [0, -1, 1, 3, -3, 10, -10]
 )  # test here special cases and periods larger than number of rows of dataframe
-@pytest.mark.parametrize(
-    "fill_value", [None, no_default, 42]
-)  # no_default is the default value, so test explicitly as well. 42 is added to test for "type" conflicts.
+@pytest.mark.parametrize("fill_value", [None, no_default, 42])
 @pytest.mark.parametrize("axis", [0, 1])
 @sql_count_checker(query_count=1)
 def test_dataframe_with_values_shift(df, periods, fill_value, axis):
@@ -58,6 +58,70 @@ def test_dataframe_with_values_shift(df, periods, fill_value, axis):
         native_df,
         lambda df: df.shift(periods=periods, fill_value=fill_value, axis=axis),
         check_column_type=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "periods", [0, -1, 1, 3, -3, 10, -10]
+)  # test here special cases and periods larger than number of rows of dataframe
+@pytest.mark.parametrize(
+    "fill_value",
+    [
+        None,
+        no_default,
+        pd.Timedelta(42),
+        datetime.timedelta(42),
+        np.timedelta64(42),
+        "42",
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_dataframe_with_values_shift_timedelta_axis_0(periods, fill_value):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            [pd.Timedelta(1), None, pd.Timedelta(2), pd.Timedelta(3), pd.Timedelta(4)]
+        ),
+        lambda df: df.shift(periods=periods, fill_value=fill_value),
+    )
+
+
+@pytest.mark.parametrize("fill_value", ["not_a_timedelta", 42, pd.Timestamp(42)])
+@sql_count_checker(query_count=0)
+def test_dataframe_with_values_shift_timedelta_axis_0_invalid_fill_values(fill_value):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            [pd.Timedelta(1), None, pd.Timedelta(2), pd.Timedelta(3), pd.Timedelta(4)]
+        ),
+        lambda df: df.shift(periods=1, fill_value=fill_value),
+        expect_exception=True,
+        expect_exception_type=TypeError,
+    )
+
+
+@pytest.mark.parametrize("periods", [0, -1, 1, 3, -3, 10, -10])
+@pytest.mark.parametrize(
+    "fill_value",
+    [
+        param(42, id="int"),
+        param(pd.Timedelta(42), id="timedelta"),
+        param("42", id="string"),
+        None,
+        no_default,
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_shift_axis_1_with_timedelta_column(periods, fill_value):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {
+                "int": [0],
+                "string": ["a"],
+                "timedelta": [pd.Timedelta(0)],
+                "date": [pd.Timestamp(0)],
+                "list": [[0]],
+            }
+        ),
+        lambda df: df.shift(periods=periods, fill_value=fill_value, axis=1),
     )
 
 

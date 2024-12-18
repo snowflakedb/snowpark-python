@@ -9,13 +9,13 @@ import numpy as np
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_series_equal,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import TestFiles
 
 
@@ -49,11 +49,11 @@ def test_describe_numeric_only(data):
     # In total, we thus have 2 + 2 * (N - 1 + N) + 1 = 4N + 1 UNIONs for an N-column frame.
     [
         # If there are multiple modes, return the value that appears first
-        ({"a": ["k", "j", "j", "k"], "b": ["y", "y", "y", "z"]}, 9),
+        ({"a": ["k", "j", "j", "k"], "b": ["y", "y", "y", "z"]}, 5),
         # Empty columns are numeric by default (df constructor must explicitly specify object dtype)
-        ({"a": [], "b": []}, 9),
+        ({"a": [], "b": []}, 5),
         # Heterogeneous data is considered non-numeric
-        ({2: ["string", 0, None], -1: [1.1, 2.2, "hello"], 0: [None, None, None]}, 13),
+        ({2: ["string", 0, None], -1: [1.1, 2.2, "hello"], 0: [None, None, None]}, 6),
         (
             [
                 [None, "quick", None],
@@ -61,7 +61,7 @@ def test_describe_numeric_only(data):
                 ["dog", "dog", "lazy"],
                 [None, None, None],
             ],
-            13,
+            6,
         ),
     ],
 )
@@ -73,7 +73,7 @@ def test_describe_obj_only(data, expected_union_count):
 
 
 @pytest.mark.parametrize(
-    "dtype, expected_union_count", [(int, 7), (float, 7), (object, 9)]
+    "dtype, expected_union_count", [(int, 7), (float, 7), (object, 5)]
 )
 def test_describe_empty_rows(dtype, expected_union_count):
     with SqlCounter(query_count=1, union_count=expected_union_count):
@@ -107,7 +107,7 @@ def test_describe_empty_cols():
         # 4K-1 UNIONs to compute top/freq for K object-dtype columns (see comment on
         # test_describe_obj_only for reasoning).
         # Since we have K=2 object columns, the result is 9 + (4 * 2 - 1) = 16 UNIONs.
-        ([int, object], None, None, 16),
+        ([int, object], None, None, 12),
         (np.number, [], None, 7),
         # Including only datetimes has 7 statistics since std is not computed.
         # Since there is only 1 column, all quantiles are computed in a single QC.
@@ -127,8 +127,8 @@ def test_describe_empty_cols():
         # include and exclude cannot directly overlap
         ([int, "O"], [float, "O"], ValueError, 0),
         # Like select_dtypes, a dtype in include/exclude can be a subtype of a dtype in the other
-        ([int, "O"], [float, np.number, np.datetime64], None, 9),
-        ("O", None, None, 9),
+        ([int, "O"], [float, np.number, np.datetime64], None, 5),
+        ("O", None, None, 5),
     ],
 )
 def test_describe_include_exclude(
@@ -181,7 +181,7 @@ def test_describe_include_exclude_obj_only(include, exclude, expected_exception)
     }
     with SqlCounter(
         query_count=1 if expected_exception is None else 0,
-        union_count=9 if expected_exception is None else 0,
+        union_count=5 if expected_exception is None else 0,
     ):
         eval_snowpark_pandas_result(
             *create_test_dfs(data),
@@ -285,9 +285,9 @@ def test_describe_timestamps():
     # Don't need to test all permutations of include/exclude with MultiIndex -- this is covered by
     # tests for select_dtypes, as well as other tests in this file
     [
-        ("all", 16),
+        ("all", 12),
         (np.number, 7),
-        (object, 9),
+        (object, 5),
     ],
 )
 def test_describe_multiindex(index, columns, include, expected_union_count):
@@ -312,10 +312,10 @@ def test_describe_multiindex(index, columns, include, expected_union_count):
     "include, exclude, expected_union_count",
     [
         (None, None, 7),
-        ("all", None, 12),
+        ("all", None, 11),
         (np.number, None, 7),
-        (None, float, 10),
-        (object, None, 5),
+        (None, float, 9),
+        (object, None, 4),
         (None, object, 7),
         (int, float, 5),
         (float, int, 5),
@@ -350,7 +350,7 @@ def test_describe_duplicate_columns_mixed():
 
 @sql_count_checker(
     query_count=3,
-    union_count=21,
+    union_count=8,
 )
 # SNOW-1320296 - pd.concat SQL Compilation ambigious __row_position__ issue
 def test_describe_object_file(resources_path):
@@ -358,3 +358,18 @@ def test_describe_object_file(resources_path):
     df = pd.read_csv(test_files.test_concat_file1_csv)
     native_df = df.to_pandas()
     eval_snowpark_pandas_result(df, native_df, lambda x: x.describe(include="O"))
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.xfail(
+    strict=True,
+    raises=NotImplementedError,
+    reason="requires concat(), which we cannot do with Timedelta.",
+)
+def test_timedelta(timedelta_native_df):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            timedelta_native_df,
+        ),
+        lambda df: df.describe(),
+    )

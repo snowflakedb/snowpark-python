@@ -17,7 +17,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 
@@ -42,12 +42,15 @@ from tests.utils import Utils
         [datetime.datetime(2023, 1, 1), datetime.datetime(2023, 1, 1, 1, 2, 3), None],
     ],
 )
-@pytest.mark.parametrize("pandas_obj", ["DataFrame", "Series"])
+@pytest.mark.parametrize("pandas_obj", ["DataFrame", "Series", "Index"])
 @pytest.mark.parametrize("func", ["to_numpy", "values"])
 def test_to_numpy_basic(data, pandas_obj, func):
     if pandas_obj == "Series":
         df = pd.Series(data)
         native_df = native_pd.Series(data)
+    elif pandas_obj == "Index":
+        df = pd.Index(data)
+        native_df = native_pd.Index(data)
     else:
         df = pd.DataFrame([data, data])
         native_df = native_pd.DataFrame([data, data])
@@ -58,8 +61,8 @@ def test_to_numpy_basic(data, pandas_obj, func):
             assert_array_equal(df.values, native_df.values)
     if pandas_obj == "Series":
         with SqlCounter(query_count=1):
-            res = df.to_list()
-        expected_res = native_df.to_list()
+            res = df.to_numpy()
+        expected_res = native_df.to_numpy()
         for r1, r2 in zip(res, expected_res):
             # native pandas series returns a list of pandas Timestamp,
             # but Snowpark pandas returns a list of integers in ms.
@@ -108,7 +111,7 @@ def test_tz_aware_data_to_numpy(session):
     assert_array_equal(df.to_numpy(), expected_result)
 
 
-@pytest.mark.parametrize("pandas_obj", ["DataFrame", "Series"])
+@pytest.mark.parametrize("pandas_obj", ["DataFrame", "Series", "Index"])
 @sql_count_checker(query_count=1)
 def test_variant_data_to_numpy(pandas_obj):
     data = [
@@ -142,7 +145,7 @@ def test_variant_data_to_numpy(pandas_obj):
 
 
 @sql_count_checker(query_count=1)
-def test_to_numpy_copy_true(caplog):
+def test_to_numpy_copy_true_series(caplog):
     series = pd.Series([1])
 
     caplog.clear()
@@ -150,3 +153,28 @@ def test_to_numpy_copy_true(caplog):
     with caplog.at_level(logging.WARNING):
         assert_array_equal(series.to_numpy(copy=True), native_pd.Series([1]).to_numpy())
         assert "has been ignored by Snowpark pandas" in caplog.text
+
+
+@sql_count_checker(query_count=1)
+def test_to_numpy_copy_true_index(caplog):
+    idx = pd.Index([1])
+
+    caplog.clear()
+    WarningMessage.printed_warnings.clear()
+    with caplog.at_level(logging.WARNING):
+        assert_array_equal(idx.to_numpy(copy=True), native_pd.Index([1]).to_numpy())
+        assert "has been ignored by Snowpark pandas" in caplog.text
+
+
+@sql_count_checker(query_count=1)
+def test_to_numpy_warning(caplog):
+    series = pd.Series([1])
+
+    caplog.clear()
+    WarningMessage.printed_warnings.clear()
+    with caplog.at_level(logging.WARNING):
+        series.to_numpy()
+        assert (
+            "The current operation leads to materialization and can be slow if the data is large!"
+            in caplog.text
+        )

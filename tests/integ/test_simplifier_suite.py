@@ -8,7 +8,6 @@ from typing import Tuple
 import pytest
 
 from snowflake.snowpark import Row
-from snowflake.snowpark._internal.analyzer.expression import Literal
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
@@ -22,6 +21,7 @@ from snowflake.snowpark.functions import (
     iff,
     lit,
     min as min_,
+    object_construct_keep_null,
     row_number,
     seq1,
     sql_expr,
@@ -1201,7 +1201,7 @@ def test_chained_sort(session):
         # Flattened
         (
             lambda df: df.filter(col("A") > 1)
-            .select(col("A"), col("B"), col(Literal(12)).alias("TWELVE"))
+            .select(col("A"), col("B"), lit(12).alias("TWELVE"))
             .filter(col("A") > 2),
             'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" > 1{POSTFIX}) AND ("A" > 2{POSTFIX}))',
         ),
@@ -1331,3 +1331,40 @@ def test_data_generator_with_filter(session):
         df.with_column("B", seq1()).with_column("C", min_("B").over()).filter(df.A == 1)
     )
     Utils.check_answer(df, [Row(1, 1, 0)])
+
+
+def test_star_column(session):
+    # convert to a table
+    df = session.create_dataframe(
+        [[0, "a"], [1, "b"]], schema=["a", "b"]
+    ).cache_result()
+    # select a column and rename it twice
+    df1 = df.select(col("a").as_("x"), "b").select(col("x").as_("y"), "b")
+    df2 = df1.select(object_construct_keep_null("*"))
+    # expect that no subquery is flattened
+    query = df2.queries["queries"][0]
+    assert query.count("SELECT") == 3
+    Utils.check_answer(
+        df2, [Row('{\n  "B": "a",\n  "Y": 0\n}'), Row('{\n  "B": "b",\n  "Y": 1\n}')]
+    )
+
+
+def test_select_limit_orderby(session):
+    # convert to a table
+    df = session.create_dataframe([[5, "a"], [3, "b"]], schema=["a", "b"])
+    # call sort after limit
+    df1 = df.select("a", "b").limit(2).sort(col("a"))
+    Utils.check_answer(df1, [Row(3, "b"), Row(5, "a")])
+    # sql simplification is not applied, and order by clause is attached at end
+    expected_query = """SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) LIMIT 2) ORDER BY "A" ASC NULLS FIRST"""
+    assert df1.queries["queries"][0] == expected_query
+
+    df2 = df.select("a", "b").sort(col("a")).limit(2)
+    Utils.check_answer(df2, [Row(3, "b"), Row(5, "a")])
+    # sql simplification is applied, order by is in front of the limit
+    expected_query = """SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) ORDER BY "A" ASC NULLS FIRST LIMIT 2"""
+    assert df2.queries["queries"][0] == expected_query
+
+    df3 = df.select("a", "b").limit(2, offset=1).sort(col("a"))
+    expected_query = """SELECT  *  FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM  VALUES (5 :: INT, 'a' :: STRING), (3 :: INT, 'b' :: STRING)) LIMIT 2 OFFSET 1) ORDER BY "A" ASC NULLS FIRST"""
+    assert df3.queries["queries"][0] == expected_query

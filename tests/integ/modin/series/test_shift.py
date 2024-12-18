@@ -8,8 +8,8 @@ import pytest
 from pandas._libs.lib import no_default
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.utils.sql_counter import sql_count_checker
 
 TEST_SERIES = [
     native_pd.Series(),
@@ -17,6 +17,13 @@ TEST_SERIES = [
     native_pd.Series([1, 2, 3, 4]),
     native_pd.Series(["a", None, 1, 2, 4.5]),
     native_pd.Series([2.0, None, 3.6, -10], index=[1, 2, 3, 4]),
+    native_pd.Series(
+        [
+            native_pd.Timedelta("1 days"),
+            native_pd.Timedelta("2 days"),
+            native_pd.Timedelta("3 days"),
+        ],
+    ),
 ]
 
 
@@ -36,7 +43,12 @@ def test_series_with_values_shift(series, periods, fill_value):
     eval_snowpark_pandas_result(
         snow_series,
         native_series,
-        lambda s: s.shift(periods=periods, fill_value=fill_value),
+        lambda s: s.shift(
+            periods=periods,
+            fill_value=pd.Timedelta(fill_value)
+            if s.dtype == "timedelta64[ns]" and fill_value is not no_default
+            else fill_value,
+        ),
     )
 
 

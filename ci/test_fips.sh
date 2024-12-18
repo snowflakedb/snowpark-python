@@ -10,9 +10,12 @@ SNOWPARK_WHL="$(ls $SNOWPARK_DIR/dist/*.whl | sort -r | head -n 1)"
 
 python3.8 -m venv fips_env
 source fips_env/bin/activate
-export OPENSSL_FIPS=1
+export PATH=/usr/local/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/lib64/:/usr/local/lib/:$LD_LIBRARY_PATH
+
 pip install -U setuptools pip
-pip install "${SNOWPARK_WHL}[pandas,secure-local-storage,development,opentelemetry]" "cryptography<3.3.0" --force-reinstall --no-binary cryptography
+pip install protoc-wheel-0==21.1
+pip install "${SNOWPARK_WHL}[pandas,secure-local-storage,development,opentelemetry]"
 pip install "pytest-timeout"
 
 echo "!!! Environment description !!!"
@@ -25,6 +28,6 @@ python -c "import hashlib; print(hashlib.md5('test_str'.encode('utf-8')).hexdige
 pip freeze
 
 cd $SNOWPARK_DIR
-pytest -vvv --cov=snowflake.snowpark --cov-report=xml:coverage.xml -m "(unit or integ) or udfs" tests --ignore=src/snowflake/snowpark/modin --ignore=tests/integ/modin --ignore=tests/unit/modin
+pytest -vvv -n 48 --cov=snowflake.snowpark --cov-report=xml:coverage.xml -m "(unit or integ) or udfs" tests --ignore=src/snowflake/snowpark/modin --ignore=tests/integ/modin --ignore=tests/unit/modin
 
 deactivate

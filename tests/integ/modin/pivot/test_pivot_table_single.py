@@ -13,11 +13,11 @@ from tests.integ.modin.pivot.pivot_utils import (
     pivot_table_test_helper,
     pivot_table_test_helper_expects_exception,
 )
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     create_test_dfs,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @sql_count_checker(query_count=1)
@@ -32,7 +32,6 @@ def test_pivot_table_no_index_single_column_single_value(df_data):
     )
 
 
-@pytest.mark.modin_sp_short_regress
 @pytest.mark.parametrize(
     "aggfunc",
     [

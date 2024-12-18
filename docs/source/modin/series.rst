@@ -2,7 +2,7 @@
 Series
 =============================
 
-.. currentmodule:: snowflake.snowpark.modin.pandas
+.. currentmodule:: modin.pandas
 .. rubric:: :doc:`All supported Series APIs <supported/series_supported>`
 
 .. rubric:: Constructor
@@ -23,8 +23,11 @@ Series
     Series.dtype
     Series.dtypes
     Series.duplicated
+    Series.equals
     Series.empty
     Series.hasnans
+    Series.is_monotonic_increasing
+    Series.is_monotonic_decreasing
     Series.name
     Series.ndim
     Series.shape
@@ -63,6 +66,7 @@ Series
     :toctree: pandas_api/
 
     Series.iloc
+    Series.items
     Series.loc
     Series.__iter__
     Series.keys
@@ -179,6 +183,8 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.backfill
+    Series.bfill
     Series.dropna
     Series.ffill
     Series.fillna
@@ -196,6 +202,7 @@ Series
 
     Series.sort_values
     Series.sort_index
+    Series.unstack
     Series.nlargest
     Series.nsmallest
     Series.squeeze
@@ -205,6 +212,7 @@ Series
 .. autosummary::
     :toctree: pandas_api/
 
+    Series.compare
     Series.update
 
 .. rubric:: Time Series-related
@@ -222,15 +230,10 @@ Series
 
 .. autosummary::
     :toctree: pandas_api/
+    :template: autosummary/modin_accessor.rst
 
     Series.str
     Series.dt
-
-
-.. Series.str and Series.dt are imported from upstream modin.pandas, so we need to swap
-.. the current module here.
-
-.. currentmodule:: modin.pandas
 
 
 .. rubric:: Datetime accessor properties
@@ -242,18 +245,43 @@ Series
     :template: autosummary/modin_accessor_attribute.rst
 
     Series.dt.date
+    Series.dt.time
     Series.dt.year
     Series.dt.month
     Series.dt.day
     Series.dt.hour
     Series.dt.minute
     Series.dt.second
+    Series.dt.microsecond
+    Series.dt.nanosecond
     Series.dt.dayofweek
     Series.dt.day_of_week
+    Series.dt.weekday
     Series.dt.dayofyear
     Series.dt.day_of_year
+    Series.dt.days_in_month
+    Series.dt.daysinmonth
     Series.dt.quarter
     Series.dt.isocalendar
+    Series.dt.month_name
+    Series.dt.day_name
+    Series.dt.is_month_start
+    Series.dt.is_month_end
+    Series.dt.is_quarter_start
+    Series.dt.is_quarter_end
+    Series.dt.is_year_start
+    Series.dt.is_year_end
+    Series.dt.is_leap_year
+    Series.dt.floor
+    Series.dt.ceil
+    Series.dt.round
+    Series.dt.normalize
+    Series.dt.days
+    Series.dt.seconds
+    Series.dt.microseconds
+    Series.dt.nanoseconds
+    Series.dt.tz_convert
+    Series.dt.tz_localize
 
 
 .. rubric:: String accessor methods

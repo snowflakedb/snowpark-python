@@ -85,6 +85,8 @@ class _ObjectField:
     ID = "id"
     PARENT_ID = "parentId"
     PARENT_ID_DEPRECATED = "ParentId"
+    TABLE_TYPE = "tableType"
+    TYPE = "type"
 
     # A list of fileds queried on each object in the lineage.
     GRAPH_ENTITY_PROPERTIES = [
@@ -122,6 +124,7 @@ class _UserDomain:
 
     FEATURE_VIEW = "FEATURE_VIEW"
     MODEL = "MODEL"
+    SERVICE = "SERVICE"
 
 
 class _SnowflakeDomain:
@@ -134,6 +137,8 @@ class _SnowflakeDomain:
     MODULE = "MODULE"
     DATASET = "DATASET"
     VIEW = "VIEW"
+    COLUMN = "COLUMN"
+    SNOWSERVICE_INSTANCE = "SNOWSERVICE_INSTANCE"
 
 
 class _DGQLQueryBuilder:
@@ -146,6 +151,7 @@ class _DGQLQueryBuilder:
     USER_TO_SYSTEM_DOMAIN_MAP = {
         _UserDomain.FEATURE_VIEW: _SnowflakeDomain.TABLE,
         _UserDomain.MODEL: _SnowflakeDomain.MODULE,
+        _UserDomain.SERVICE: _SnowflakeDomain.SNOWSERVICE_INSTANCE,
     }
 
     @staticmethod
@@ -265,10 +271,6 @@ class Lineage:
 
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self._session = session
-        self._user_to_system_domain_map = {
-            _UserDomain.FEATURE_VIEW: _SnowflakeDomain.TABLE,
-            _UserDomain.MODEL: _SnowflakeDomain.MODULE,
-        }
         self._versioned_object_domains = {
             _UserDomain.FEATURE_VIEW,
             _UserDomain.MODEL,
@@ -424,10 +426,13 @@ class Lineage:
         if user_domain in self._versioned_object_domains:
             if user_domain == _UserDomain.FEATURE_VIEW:
                 if "$" in name:
-                    parts = name.split("$")
+                    had_quotes = name.startswith('"') and name.endswith('"')
+                    parts = name.strip('"').split("$")
                     if len(parts) >= 2:
                         base_name = "$".join(parts[:-1])
                         version = parts[-1]
+                        if had_quotes:
+                            base_name = f'"{base_name}"'
                         return (f"{db}.{schema}.{base_name}", version)
                 else:
                     raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
@@ -451,6 +456,17 @@ class Lineage:
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_LINEAGE(
                     f"missing name/version field for domain {graph_entity[_ObjectField.USER_DOMAIN]}."
                 )
+
+        if (
+            user_domain == _SnowflakeDomain.COLUMN
+            and _ObjectField.PROPERTIES in graph_entity
+            and _ObjectField.PARENT_NAME in graph_entity[_ObjectField.PROPERTIES]
+        ):
+            properties = graph_entity[_ObjectField.PROPERTIES]
+            return (
+                f"{db}.{schema}.{properties[_ObjectField.PARENT_NAME]}.{name}",
+                None,
+            )
 
         return (f"{db}.{schema}.{name}", None)
 
@@ -497,6 +513,12 @@ class Lineage:
         if version:
             user_entity[_ObjectField.VERSION] = version
 
+        if domain == _SnowflakeDomain.COLUMN:
+            if _ObjectField.PROPERTIES in graph_entity:
+                properties = graph_entity[_ObjectField.PROPERTIES]
+                if _ObjectField.TABLE_TYPE in properties:
+                    user_entity[_ObjectField.TYPE] = properties[_ObjectField.TABLE_TYPE]
+
         return user_entity
 
     def _get_result_dataframe(
@@ -527,16 +549,18 @@ class Lineage:
         )
         return self._session.create_dataframe(transformed_results, schema=schema)
 
-    def _check_valid_object_name(self, object_name: str) -> None:
+    def _check_valid_object_name(self, object_name: str, object_domain: str) -> None:
         """
         Checks if the object name is one of the below allowed format
-            Non-Case-sensitive: "database.schema.object"
-            Case-sensitive: "\"database\".\"schema\".\"object\""
+            Non-Case-sensitive: "database.schema.object" or "database.schema.object.column_name"
+            Case-sensitive: "\"database\".\"schema\".\"object\"" or "\"database\".\"schema\".\"object\"".\"column_name\"
         """
         parts = _DGQLQueryBuilder.split_fully_qualified_name(object_name)
 
-        # Check if the object name has three parts separated by dots
-        if len(parts) != 3:
+        is_column_domain = object_domain.upper() == _SnowflakeDomain.COLUMN
+        if (is_column_domain and len(parts) != 4) or (
+            not is_column_domain and len(parts) != 3
+        ):
             raise ValueError(f"Invalid object name: {object_name}")
 
         for part in parts:
@@ -565,13 +589,13 @@ class Lineage:
             object_domain (str): The domain of the Snowflake object to start trace. e.g., "table", "view".
             object_version (Optional[str]):Version of the versioned Snowflake object (e.g., model or dataset) to begin tracing. Defaults to None.
             direction (LineageDirection): The direction to trace (UPSTREAM, DOWNSTREAM, BOTH), defaults to BOTH.
-            distance (int): Trace distance, defaults to 2, with a maximum of 10.
+            distance (int): Trace distance, defaults to 2, with a maximum of 5.
 
         Returns:
             snowflake.snowpark.DataFrame: A DataFrame representing the traced lineage with the following schema:
                 - source (str): The source of the lineage.
                 - target (str): The target of the lineage.
-                - direction (str): The direction of the lineage ('FORWARD', 'BACKWARD', or 'BOTH').
+                - direction (str): The direction of the lineage ('upstream', 'downstream', or 'both').
                 - distance (int): The distance of the lineage tracing from given object.
 
             Example:
@@ -607,7 +631,7 @@ class Lineage:
                 f"Distance must be between {_MIN_TRACE_DISTANCE} and {_MAX_TRACE_DISTANCE}."
             )
 
-        self._check_valid_object_name(object_name)
+        self._check_valid_object_name(object_name, object_domain)
 
         if isinstance(direction, str):
             direction = LineageDirection.value_of(direction)

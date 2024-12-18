@@ -10,7 +10,7 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 def eval_and_validate_unsupported_methods(
@@ -56,8 +56,7 @@ UNSUPPORTED_DATAFRAME_METHODS = [
 # unsupported methods that can only be applied on series
 # This set triggers SeriesDefault.register
 UNSUPPORTED_SERIES_METHODS = [
-    (lambda se: se.is_monotonic_increasing, "property fget:is_monotonic_increasing"),
-    (lambda se: se.is_monotonic_decreasing, "property fget:is_monotonic_decreasing"),
+    (lambda df: df.transform(lambda x: x + 1), "transform"),
 ]
 
 # unsupported binary operations that can be applied on both dataframe and series
@@ -117,7 +116,7 @@ def test_unsupported_dataframe_binary_methods(func, func_name, caplog) -> None:
     "func, func_name",
     UNSUPPORTED_BINARY_METHODS,
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_unsupported_series_binary_methods(func, func_name, caplog) -> None:
     native_se1 = native_pd.Series([1, 2, 3, 0, 2])
     native_se2 = native_pd.Series([2, 3, 10, 0, 1])
@@ -148,60 +147,28 @@ def test_unsupported_str_methods(func, func_name, caplog) -> None:
     eval_and_validate_unsupported_methods(func, func_name, [native_series], caplog)
 
 
-# This set of method triggers DateTimeDefault
-# The full set of DateTimeAccessor test is under tests/integ/modin/series/test_dt_accessor.py
-UNSUPPORTED_DT_METHODS = [
-    (lambda ds: ds.dt.is_month_start, "property fget:is_month_start"),
-    (lambda ds: ds.dt.is_year_end, "property fget:is_year_end"),
-]
-
-
-@pytest.mark.parametrize(
-    "func, func_name",
-    UNSUPPORTED_DT_METHODS,
-)
-@sql_count_checker(query_count=0)
-def test_unsupported_dt_methods(func, func_name, caplog) -> None:
-    datetime_series = native_pd.Series(
-        native_pd.date_range("2000-01-01", periods=3, freq="h")
-    )
-    eval_and_validate_unsupported_methods(func, func_name, [datetime_series], caplog)
-
-
 # unsupported methods for Index
 UNSUPPORTED_INDEX_METHODS = [
-    lambda idx: idx.is_monotonic_increasing(),
-    lambda idx: idx.is_monotonic_decreasing(),
+    lambda idx: idx.duplicated(),
+    lambda idx: idx.drop(),
+    lambda idx: idx.union(),
+    lambda idx: idx.difference(),
+    lambda idx: idx.get_indexer_for(),
+    lambda idx: idx.get_level_values(),
+    lambda idx: idx.slice_indexer(),
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),
-    lambda idx: idx.all(),
-    lambda idx: idx.any(),
-    lambda idx: idx.all(),
-    lambda idx: idx.argmin(),
-    lambda idx: idx.argmax(),
     lambda idx: idx.delete(),
-    lambda idx: idx.all(),
     lambda idx: idx.drop_duplicates(),
     lambda idx: idx.factorize(),
-    lambda idx: idx.identical(),
     lambda idx: idx.insert(),
     lambda idx: idx.is_(),
-    lambda idx: idx.is_boolean(),
     lambda idx: idx.is_categorical(),
-    lambda idx: idx.is_floating(),
-    lambda idx: idx.is_integer(),
     lambda idx: idx.is_interval(),
-    lambda idx: idx.is_numeric(),
-    lambda idx: idx.is_object(),
-    lambda idx: idx.min(),
-    lambda idx: idx.max(),
-    lambda idx: idx.reindex(),
-    lambda idx: idx.rename(),
     lambda idx: idx.repeat(),
     lambda idx: idx.where(),
     lambda idx: idx.take(),
     lambda idx: idx.putmask(),
-    lambda idx: idx.nunique(),
     lambda idx: idx.droplevel(),
     lambda idx: idx.fillna(),
     lambda idx: idx.dropna(),

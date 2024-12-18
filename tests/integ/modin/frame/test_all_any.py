@@ -7,25 +7,20 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
-from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     assert_values_equal,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 def nonempty_boolagg_sql_counter(axis):
     # All operations incur 1 query to perform the initial aggregation, regardless of axis.
-    # axis=0 incurs an extra call to check the size of the index, and axis=None
-    # calls the query compiler function with axis=0 twice.
-    # There is no extra call for df.columnarize() because the result is already transposed in the QC.
-    # These numbers differ for empty dataframes depending on whether the columns/rows
-    # are empty or not.
-    expected_query_count = 3 if axis is None else 1 if axis in (1, "columns") else 2
+    # axis=None calls the query compiler function with axis=0 twice.
+    expected_query_count = 2 if axis is None else 1
     return SqlCounter(query_count=expected_query_count)
 
 
@@ -78,30 +73,10 @@ def test_empty(data, axis):
 @pytest.mark.parametrize(
     "data",
     [
-        param(
-            [],
-            marks=pytest.mark.xfail(
-                strict=True, raises=AssertionError, reason="SNOW-1017231"
-            ),
-        ),
-        param(
-            [[]],
-            marks=pytest.mark.xfail(
-                strict=True, raises=AssertionError, reason="SNOW-1017231"
-            ),
-        ),
-        param(
-            [[], [], []],
-            marks=pytest.mark.xfail(
-                strict=True, raises=AssertionError, reason="SNOW-1017231"
-            ),
-        ),
-        pytest.param(
-            {"a": [], "b": []},
-            marks=pytest.mark.skip(
-                "empty rows are treated as float64; TO_BOOLEAN cast does not accept float arguments"
-            ),
-        ),
+        [],
+        [[]],
+        [[], [], []],
+        {"a": [], "b": []},
     ],
 )
 @pytest.mark.parametrize("method", ["any", "all"])
@@ -109,9 +84,9 @@ def test_empty_axis_none(data, method):
     """This test function is separate from the other empty dataframe test
     function because we expected a scalar result, so we can't pass the
     check_index_type kwarg."""
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
-            pd.DataFrame(data),
+            pd.DataFrame(data, dtype=bool),
             native_pd.DataFrame(data),
             lambda df: getattr(df, method)(axis=None),
             comparator=assert_values_equal,
@@ -128,7 +103,7 @@ def test_empty_axis_none(data, method):
     ],
 )
 def test_all_int(data, axis):
-    with nonempty_boolagg_sql_counter(axis):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             pd.DataFrame(data),
             native_pd.DataFrame(data),
@@ -147,7 +122,7 @@ def test_all_int(data, axis):
     ],
 )
 def test_any_int(data, axis):
-    with nonempty_boolagg_sql_counter(axis):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             pd.DataFrame(data),
             native_pd.DataFrame(data),
@@ -180,7 +155,7 @@ def test_any_axis_str_arg(axis):
 
 @pytest.mark.parametrize("axis", [None, 0, 1])
 def test_all_named_index(axis):
-    with nonempty_boolagg_sql_counter(axis):
+    with SqlCounter(query_count=1):
         data = {"a": [1, 0, 3], "b": [4, 5, 6]}
         index_name = ["c", "d", "e"]
         eval_snowpark_pandas_result(
@@ -193,7 +168,7 @@ def test_all_named_index(axis):
 
 @pytest.mark.parametrize("axis", [None, 0, 1])
 def test_any_named_index(axis):
-    with nonempty_boolagg_sql_counter(axis):
+    with SqlCounter(query_count=1):
         data = {"a": [1, 0, 3], "b": [4, 5, 6]}
         index_name = ["c", "d", "e"]
         eval_snowpark_pandas_result(
@@ -217,7 +192,7 @@ def test_any_named_index(axis):
     ],
 )
 def test_all_bool_only(data, axis):
-    with nonempty_boolagg_sql_counter(axis):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             pd.DataFrame(data),
             native_pd.DataFrame(data),
@@ -239,7 +214,7 @@ def test_all_bool_only(data, axis):
     ],
 )
 def test_any_bool_only(data, axis):
-    with nonempty_boolagg_sql_counter(axis):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             pd.DataFrame(data),
             native_pd.DataFrame(data),

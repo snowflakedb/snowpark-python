@@ -16,9 +16,7 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.series.test_bitwise_operators import try_cast_to_snow_series
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -26,6 +24,7 @@ from tests.integ.modin.utils import (
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
 
 
@@ -336,6 +335,26 @@ def test_binary_method_numpy_and_pandas_type_scalar(data, scalars):
             ],
             2,
         ],
+        pytest.param(
+            [pd.Timestamp(1, unit="ns")],
+            [
+                pd.Timestamp(0, unit="ns"),
+                pd.Timestamp(1, unit="ns"),
+                pd.Timestamp(2, unit="ns"),
+            ],
+            3,
+            id="with_nanoseconds_no_timezone_SNOW_1628400",
+        ),
+        pytest.param(
+            [pd.Timestamp(1, unit="ns", tz="Asia/Kolkata")],
+            [
+                pd.Timestamp(0, unit="ns", tz="Asia/Kolkata"),
+                pd.Timestamp(1, unit="ns", tz="Asia/Kolkata"),
+                pd.Timestamp(2, unit="ns", tz="Asia/Kolkata"),
+            ],
+            3,
+            id="with_nanoseconds_and_timezone_SNOW_1628400",
+        ),
     ],
 )
 @pytest.mark.parametrize(
@@ -442,7 +461,9 @@ def test_binary_logic_operations_between_df_and_list_like(op, rhs):
     ],
 )
 @pytest.mark.parametrize("rhs", list_like_rhs_params([0, 2, -11, -12, -99]))
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(
+    query_count=1, join_count=1, window_count=1
+)  # before optimization, the window count is 5
 def test_binary_comparison_between_series_and_list_like(op, rhs):
     lhs = [1, 2, -10, 3.14, -99]
     eval_snowpark_pandas_result(
@@ -462,7 +483,7 @@ def test_binary_comparison_between_series_and_list_like(op, rhs):
     ],
 )
 @pytest.mark.parametrize("rhs", list_like_rhs_params([1, 2, 3]))
-@sql_count_checker(query_count=1, join_count=1)
+@sql_count_checker(query_count=1, join_count=1, window_count=1)
 def test_binary_comparison_between_df_and_list_like_on_axis_0(op, rhs):
     lhs = [[1, 2], [2, 3], [1, 3]]
     eval_snowpark_pandas_result(
@@ -482,7 +503,7 @@ def test_binary_comparison_between_df_and_list_like_on_axis_0(op, rhs):
     ],
 )
 @pytest.mark.parametrize("rhs", list_like_rhs_params([1, 2, 3]))
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=0, window_count=0)
 def test_binary_comparison_between_df_and_list_like_on_axis_1(op, rhs):
     lhs = [[1, 2, 2], [3, 1, 3]]
     eval_snowpark_pandas_result(
@@ -1269,20 +1290,20 @@ def test_other_with_native_pandas_object_raises(op):
     ],
 )
 @pytest.mark.parametrize("op", [operator.add])
-@sql_count_checker(query_count=2, join_count=2)
 def test_binary_add_between_series_for_index_alignment(lhs, rhs, op):
     def check_op(native_lhs, native_rhs, snow_lhs, snow_rhs):
         snow_ans = op(snow_lhs, snow_rhs)
         native_ans = op(native_lhs, native_rhs)
         # for one multi-index test case (marked with comment) the "inferred_type" doesn't match (Snowpark: float vs. pandas integer)
-        eval_snowpark_pandas_result(
-            snow_ans, native_ans, lambda s: s, check_index_type=False
-        )
+        with SqlCounter(query_count=1, join_count=1):
+            eval_snowpark_pandas_result(
+                snow_ans, native_ans, lambda s: s, check_index_type=False
+            )
 
-    check_op(lhs, rhs, try_cast_to_snow_series(lhs), try_cast_to_snow_series(rhs))
-
+    snow_lhs, snow_rhs = pd.Series(lhs), pd.Series(rhs)
+    check_op(lhs, rhs, snow_lhs, snow_rhs)
     # commute series
-    check_op(rhs, lhs, try_cast_to_snow_series(rhs), try_cast_to_snow_series(lhs))
+    check_op(rhs, lhs, snow_rhs, snow_lhs)
 
 
 # MOD TESTS
@@ -1926,7 +1947,7 @@ def test_binary_comparison_method_between_series_different_types(op):
 @pytest.mark.parametrize(
     "op", [operator.eq, operator.ne, operator.gt, operator.ge, operator.lt, operator.le]
 )
-@sql_count_checker(query_count=2, join_count=5)
+@sql_count_checker(query_count=2, join_count=2)
 def test_binary_comparison_method_between_series_variant(lhs, rhs, op):
     snow_ans = op(pd.Series(lhs), pd.Series(rhs))
     native_ans = op(native_pd.Series(lhs), native_pd.Series(rhs))
@@ -2565,4 +2586,27 @@ def test_df_sub_series():
 
     eval_snowpark_pandas_result(
         snow_df, native_df, lambda df: df.sub(df["two"], axis="index"), inplace=True
+    )
+
+
+@sql_count_checker(query_count=2, join_count=0)
+def test_binary_op_multi_series_from_same_df():
+    native_df = native_pd.DataFrame(
+        {
+            "A": [1, 2, 3],
+            "B": [2, 3, 4],
+            "C": [4, 5, 6],
+            "D": [2, 2, 3],
+        },
+        index=["a", "b", "c"],
+    )
+    snow_df = pd.DataFrame(native_df)
+    # ensure performing more than one binary operation for series coming from same
+    # dataframe does not produce any join.
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df["A"] + df["B"] + df["C"]
+    )
+    # perform binary operations in different orders
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: (df["A"] + df["B"]) + (df["C"] + df["D"])
     )

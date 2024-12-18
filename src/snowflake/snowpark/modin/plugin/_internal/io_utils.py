@@ -7,11 +7,11 @@ import os
 from collections.abc import Hashable
 from typing import Any, Callable, Optional, Union
 
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from pandas._typing import FilePath
 
-import snowflake.snowpark.modin.pandas as pd
 from snowflake.snowpark.session import Session
 
 PANDAS_KWARGS = {"names", "index_col", "usecols", "dtype"}

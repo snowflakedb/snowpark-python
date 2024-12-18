@@ -33,7 +33,7 @@ class LabelIdentifierPair(NamedTuple):
     snowflake_quoted_identifier: str
 
 
-JoinTypeLit = Literal["left", "right", "inner", "outer", "cross"]
+JoinTypeLit = Literal["left", "right", "inner", "outer", "cross", "asof"]
 AlignTypeLit = Literal[
     # If align column values matches exactly, merge frames line by line (this is
     # equivalent to joining on row position) otherwise perform LEFT OUTER JOIN on
@@ -44,11 +44,26 @@ AlignTypeLit = Literal[
     # align columns.
     "outer",
     # If align column values matches exactly, merge frames line by line (this is
+    # equivalent to joining on row position) otherwise perform INNER JOIN on
+    # align columns
+    "inner",
+    # If align column values matches exactly, merge frames line by line (this is
     # equivalent to joining on row position) otherwise
     # - perform LEFT OUTER JOIN if left frame is non-empty
     # - perform RIGHT OUTER JOIN if left frame is empty
     "coalesce",
 ]  # right and inner can also be supported if needed
+
+AlignSortLit = [
+    # Align operator provides a default sorting capability, which sort the
+    # align key lexicographically when the align type is outer, and the original
+    # dataframe is not aligned. No sort will happen for other align types.
+    "default_sort",
+    # Always sort the align key lexicographically regardless of align type.
+    "sort",
+    # Do not sort the align key regardless of the align type.
+    "no_sort",
+]
 
 SnowflakeSupportedFileTypeLit = Union[
     Literal["csv"], Literal["json"], Literal["parquet"]

@@ -10,7 +10,7 @@ from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
     generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=0)

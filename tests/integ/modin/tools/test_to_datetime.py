@@ -15,20 +15,24 @@ import pandas as native_pd
 import pandas._testing as tm
 import pytest
 import pytz
-from modin.pandas import DatetimeIndex, NaT, Series, Timestamp, to_datetime
+from modin.pandas import NaT, Series, Timestamp, to_datetime
+from pandas import DatetimeIndex
 from pandas.core.arrays import DatetimeArray
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import (
     SnowparkFetchDataException,
     SnowparkSQLException,
 )
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
+    assert_index_equal,
     assert_series_equal,
     assert_snowpark_pandas_equal_to_pandas,
+    create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.fixture(params=[True])
@@ -57,10 +61,10 @@ class TestTimeConversionFormats:
         if readonly:
             arr.setflags(write=False)
         result = to_datetime(arr)
-        expected = Series([], dtype=object)
-        assert_series_equal(result, expected)
+        expected = pd.DatetimeIndex([])
+        assert_index_equal(result, expected)
 
-    @pytest.mark.parametrize("box", [Series, native_pd.Index])
+    @pytest.mark.parametrize("box", [Series, pd.Index])
     @pytest.mark.parametrize(
         "format, expected",
         [
@@ -78,11 +82,18 @@ class TestTimeConversionFormats:
     def test_to_datetime_format(self, cache, box, format, expected):
         values = box(["1/1/2000", "1/2/2000", "1/3/2000"])
         result = to_datetime(values, format=format, cache=cache)
-        expected = Series(expected)
-        assert_series_equal(result, expected)
+        expected = box(expected)
+        if box is Series:
+            assert_series_equal(result, expected)
+        else:
+            assert_index_equal(result, expected)
+
         # cache values is ignored at Snowpark pandas so only test here to make sure it works as well
         result = to_datetime(values, format=format, cache=False)
-        assert_series_equal(result, expected)
+        if box is Series:
+            assert_series_equal(result, expected)
+        else:
+            assert_index_equal(result, expected)
 
     @pytest.mark.parametrize(
         "arg, expected, format",
@@ -95,7 +106,7 @@ class TestTimeConversionFormats:
             ["1/3/2000", "20000103", "%m/%d/%Y"],
         ],
     )
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=0)
     def test_to_datetime_format_scalar(self, cache, arg, expected, format):
         result = to_datetime(arg, format=format, cache=cache)
         expected = Timestamp(expected)
@@ -111,7 +122,7 @@ class TestTimeConversionFormats:
     def test_to_datetime_format_unimplemented(self, cache, arg, format):
         with pytest.raises(NotImplementedError):
             assert to_datetime(
-                arg, format=format, cache=cache
+                pd.Index([arg]), format=format, cache=cache
             ) == native_pd.to_datetime(arg, format=format, cache=cache)
 
     @pytest.mark.parametrize(
@@ -126,7 +137,7 @@ class TestTimeConversionFormats:
             SnowparkSQLException,
             match=f"Can't parse '{arg}' as timestamp with format 'DD/MM/YYYY'",
         ):
-            to_datetime(arg, format=format, cache=cache)
+            to_datetime(pd.Index([arg]), format=format, cache=cache).to_pandas()
 
     @sql_count_checker(query_count=2, udf_count=0)
     def test_to_datetime_format_YYYYMMDD(self, cache):
@@ -234,9 +245,9 @@ class TestTimeConversionFormats:
         # GH 30011
         # format='yyyymmdd'
         # with None
-        expected = Series([Timestamp("19801222"), Timestamp("20010112"), NaT])
-        result = Series(to_datetime(input_s, format="%Y%m%d"))
-        assert_series_equal(result, expected)
+        expected = pd.DatetimeIndex([Timestamp("19801222"), Timestamp("20010112"), NaT])
+        result = to_datetime(input_s, format="%Y%m%d")
+        assert_index_equal(result, expected)
 
     @pytest.mark.parametrize(
         "input, expected",
@@ -293,8 +304,8 @@ class TestTimeConversionFormats:
     @sql_count_checker(query_count=2)
     def test_to_datetime_with_NA(self, data, format, expected):
         # GH#42957
-        result = to_datetime(data, format=format)
-        assert_series_equal(result, Series(expected))
+        result = to_datetime(pd.Index(data), format=format)
+        assert_index_equal(result, pd.DatetimeIndex(expected))
 
     @sql_count_checker(query_count=1, udf_count=0)
     def test_to_datetime_format_integer_year_only(self, cache):
@@ -319,7 +330,7 @@ class TestTimeConversionFormats:
         result = to_datetime(ser, format="%Y%m", cache=cache)
         assert_series_equal(result, expected, check_index_type=False)
 
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=0)
     def test_to_datetime_format_microsecond(self, cache):
         month_abbr = calendar.month_abbr[4]
         val = f"01-{month_abbr}-2011 00:00:01.978"
@@ -375,7 +386,9 @@ class TestTimeConversionFormats:
     )
     @sql_count_checker(query_count=1)
     def test_to_datetime_format_time(self, cache, value, format, dt):
-        assert to_datetime(value, format=format, cache=cache) == dt
+        assert (
+            to_datetime(pd.Index([value]), format=format, cache=cache).to_pandas() == dt
+        )
 
     @sql_count_checker(query_count=0)
     def test_to_datetime_with_non_exact_unimplemented(self, cache):
@@ -398,9 +411,9 @@ class TestTimeConversionFormats:
             "2012-01-01 09:00:00.001000000",
         ],
     )
-    @sql_count_checker(query_count=2)
+    @sql_count_checker(query_count=1, join_count=1)
     def test_parse_nanoseconds_with_formula(self, cache, arg):
-
+        arg = pd.Index([arg])
         # GH8989
         # truncating the nanoseconds when a format was provided
         expected = to_datetime(arg, cache=cache)
@@ -417,7 +430,10 @@ class TestTimeConversionFormats:
     @sql_count_checker(query_count=0)
     def test_to_datetime_format_weeks(self, value, fmt, expected, cache):
         with pytest.raises(NotImplementedError):
-            assert to_datetime(value, format=fmt, cache=cache) == expected
+            assert (
+                to_datetime(pd.Index([value]), format=fmt, cache=cache).to_pandas()[0]
+                == expected
+            )
 
     @pytest.mark.parametrize(
         "fmt,dates,expected_dates",
@@ -488,7 +504,7 @@ class TestTimeConversionFormats:
     ):
         # GH 13486
         with pytest.raises(NotImplementedError):
-            to_datetime(dates, format=fmt).to_list()
+            to_datetime(pd.Index(dates), format=fmt).to_list()
 
     @sql_count_checker(query_count=4)
     def test_to_datetime_parse_tzname_or_tzoffset_different_tz_to_utc(self):
@@ -508,10 +524,10 @@ class TestTimeConversionFormats:
         fmt = "%Y-%m-%d %H:%M:%S %z"
 
         result = to_datetime(dates, format=fmt, utc=True)
-        expected = Series(expected_dates)
-        assert_series_equal(result, expected)
+        expected = pd.DatetimeIndex(expected_dates)
+        assert_index_equal(result, expected)
         result2 = to_datetime(dates, utc=True)
-        assert_series_equal(result2, expected)
+        assert_index_equal(result2, expected)
 
     @pytest.mark.parametrize(
         "offset", ["+0", "-1foo", "UTCbar", ":10", "+01:000:01", ""]
@@ -526,10 +542,9 @@ class TestTimeConversionFormats:
             SnowparkSQLException,
             match="Can't parse|as timestamp with format 'YYYY-MM-DD HH24:MI:SS TZHTZM'",
         ):
-            to_datetime([date], format=fmt).to_pandas()
+            to_datetime(pd.Index([date]), format=fmt).to_pandas()
 
-    # 2 extra queries to convert index to series
-    @sql_count_checker(query_count=2)
+    @sql_count_checker(query_count=0)
     def test_to_datetime_parse_timezone_keeps_name(self):
         # GH 21697
         fmt = "%Y-%m-%d %H:%M:%S %z"
@@ -543,17 +558,17 @@ class TestToDatetime:
     def test_to_datetime_mixed_datetime_and_string(self):
         d1 = datetime(2020, 1, 1, 17, tzinfo=timezone(-timedelta(hours=1)))
         d2 = datetime(2020, 1, 1, 18, tzinfo=timezone(-timedelta(hours=1)))
-        res = to_datetime(["2020-01-01 17:00:00 -0100", d2])
+        res = to_datetime(pd.Index(["2020-01-01 17:00:00 -0100", d2]))
         # The input will become a series with variant type and the timezone is unaware by the Snowflake engine, so the
         # result ignores the timezone by default
-        expected = native_pd.Series(
+        expected = native_pd.DatetimeIndex(
             [datetime(2020, 1, 1, 17), datetime(2020, 1, 1, 18)]
         )
-        assert_series_equal(res, expected, check_dtype=False, check_index_type=False)
+        assert_index_equal(res, expected)
         # Set utc=True to make sure timezone aware in to_datetime
-        res = to_datetime(["2020-01-01 17:00:00 -0100", d2], utc=True)
-        expected = pd.Series([d1, d2])
-        assert_series_equal(res, expected, check_dtype=False, check_index_type=False)
+        res = to_datetime(pd.Index(["2020-01-01 17:00:00 -0100", d2]), utc=True)
+        expected = pd.DatetimeIndex([d1, d2], tz="UTC")
+        assert_index_equal(res, expected)
 
     @pytest.mark.parametrize(
         "tz",
@@ -567,15 +582,16 @@ class TestToDatetime:
         # DatetimeArray
         dti = native_pd.date_range("1965-04-03", periods=19, freq="2W", tz=tz)
         arr = DatetimeArray(dti)
+        # Use assert_series_equal to ignore timezone difference in dtype.
         assert_series_equal(
-            to_datetime(arr),
+            Series(to_datetime(arr)),
             Series(arr),
             check_dtype=False,
         )
 
     @sql_count_checker(query_count=1)
     def test_to_datetime_pydatetime(self):
-        actual = to_datetime(datetime(2008, 1, 15))
+        actual = to_datetime(pd.Index([datetime(2008, 1, 15)]))
         assert actual == np.datetime64(datetime(2008, 1, 15))
 
     @pytest.mark.parametrize(
@@ -583,7 +599,7 @@ class TestToDatetime:
     )
     @sql_count_checker(query_count=1)
     def test_to_datetime_dt64s(self, cache, dt):
-        assert to_datetime(dt, cache=cache) == Timestamp(dt)
+        assert to_datetime(pd.Index([dt]), cache=cache)[0] == Timestamp(dt)
 
     @pytest.mark.parametrize(
         "sample",
@@ -822,11 +838,11 @@ class TestToDatetime:
             {"arg": 1490195805433502912, "unit": "ns"},
         ],
     )
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=1, join_count=0)
     def test_to_datetime_unit(self, sample):
-        assert pd.to_datetime(
-            sample["arg"], unit=sample["unit"]
-        ) == native_pd.to_datetime(sample["arg"], unit=sample["unit"])
+        assert pd.to_datetime(pd.Index([sample["arg"]]), unit=sample["unit"])[
+            0
+        ] == native_pd.to_datetime(sample["arg"], unit=sample["unit"])
 
     @sql_count_checker(query_count=0)
     def test_to_datetime_unit_negative(self):
@@ -848,17 +864,23 @@ class TestToDatetime:
         assert pd.to_datetime(None) == native_pd.to_datetime(None)
 
     @sql_count_checker(query_count=0)
-    def test_bool(self):
+    @pytest.mark.parametrize(
+        "input_data,dtype_description_in_error",
+        [
+            param([True, False], "bool", id="bool"),
+            param(pd.Timedelta(1), "timedelta64[ns]", id="timedelta"),
+        ],
+    )
+    def test_invalid_input_type(self, input_data, dtype_description_in_error):
         eval_snowpark_pandas_result(
-            pd.Series([True, False]),
-            native_pd.Series([True, False]),
+            *create_test_series(input_data),
             lambda df: pd.to_datetime(df)
             if isinstance(df, pd.Series)
             else native_pd.to_datetime(df),
             expect_exception=True,
             expect_exception_type=TypeError,
             expect_exception_match=re.escape(
-                "dtype bool cannot be converted to datetime64[ns]"
+                f"dtype {dtype_description_in_error} cannot be converted to datetime64[ns]"
             ),
         )
 
@@ -909,3 +931,15 @@ class TestToDatetime:
             if isinstance(df, pd.Series)
             else native_pd.to_datetime(df, format="%Y%m%d", errors="ignore"),
         )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize("samples", [["0101", "20000101"], ["20100101", "20000101"]])
+def test_errors_ignore(samples):
+    eval_snowpark_pandas_result(
+        pd.Series(samples),
+        native_pd.Series(samples),
+        lambda df: pd.to_datetime(df, format="%Y%m%d", errors="ignore")
+        if isinstance(df, pd.Series)
+        else native_pd.to_datetime(df, format="%Y%m%d", errors="ignore"),
+    )

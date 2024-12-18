@@ -5,13 +5,14 @@
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.sql_counter import sql_count_checker
 from tests.integ.modin.utils import (
     assert_index_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @pytest.fixture(params=[True, False])
@@ -21,8 +22,18 @@ def ignore_index(request):
 
 @pytest.mark.parametrize("n", [None, 0, 1, 8, 10])
 @sql_count_checker(query_count=4)
-def test_series_sample_n(n, ignore_index):
-    s = pd.Series(range(100, 110)).sample(n=n, ignore_index=ignore_index)
+@pytest.mark.parametrize(
+    "data",
+    [
+        param(range(100, 110), id="int_range"),
+        param(
+            native_pd.timedelta_range(100, 110, freq="ns", closed="left"),
+            id="timedelta_range",
+        ),
+    ],
+)
+def test_series_sample_n(data, n, ignore_index):
+    s = pd.Series(data).sample(n=n, ignore_index=ignore_index)
     assert len(s) == (n if n is not None else 1)
     assert_index_equal(s.index, s.index)
 

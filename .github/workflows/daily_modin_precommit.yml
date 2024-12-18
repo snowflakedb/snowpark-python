@@ -28,6 +28,9 @@ jobs:
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Install tox
         run: python -m pip install tox
       - name: Run fix_lint
@@ -44,6 +47,9 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip wheel
       - name: Generate wheel
@@ -52,6 +58,7 @@ jobs:
         run: ls -lh dist
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: wheel
           path: dist/
 
@@ -66,6 +73,9 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.8
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install tox
@@ -90,6 +100,9 @@ jobs:
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: "aws"
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install tox
@@ -128,6 +141,13 @@ jobs:
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Add protoc to Windows path
+        if: runner.os == 'Windows'
+        run: |
+          echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Download wheel(s)
         uses: actions/download-artifact@v4
         with:
@@ -166,10 +186,76 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
           path: |
             .tox/.coverage
             .tox/coverage.xml
+
+  test-pandas-patch-versions:
+    name: Test Snowpark pandas with pandas ${{ matrix.pandas-version }}
+    needs: build
+    runs-on: ${{ matrix.os.image_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - image_name: ubuntu-latest-64-cores
+            download_name: linux
+        pandas-version: ["2.2.1", "2.2.2"]
+        python-version: ["3.9"]
+        cloud-provider: [aws]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Download wheel(s)
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - name: Show wheels downloaded
+        run: ls -lh dist
+        shell: bash
+      - name: Upgrade setuptools, pip and wheel
+        run: python -m pip install -U setuptools pip wheel
+      - name: Install tox
+        run: python -m pip install tox
+      - if: ${{ contains('macos', matrix.os.download_name) }}
+        name: Run Snowpark pandas API doctests
+        run: python -m tox -e "modin_pandas_version-py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
+        env:
+          MODIN_PANDAS_PATCH_VERSION: ${{ matrix.pandas-version }}
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.11 with no server-side support
+          # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
+        shell: bash
+      - name: Run Snowpark pandas API tests (excluding doctests)
+        run: python -m tox -e "modin_pandas_version-py${PYTHON_VERSION/\./}-snowparkpandasdailynotdoctest-modin-ci"
+        env:
+          MODIN_PANDAS_PATCH_VERSION: ${{ matrix.pandas-version }}
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
 
   test-disable-sql-simplifier: # Will be removed after sql simplifier is stable and no option to opt out.
     name: Test Disable SQL Simplifier modin-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
@@ -198,6 +284,9 @@ jobs:
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Download wheel(s)
         uses: actions/download-artifact@v4
         with:
@@ -234,13 +323,14 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-sql-simplifier
           path: |
             .tox/.coverage
             .tox/coverage.xml
 
-  test-enable-cte-optimization:
-    name: Test Enable CTE Optimization modin-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+  test-disable-cte-optimization:
+    name: Test Disable CTE Optimization modin-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os.image_name }}
     strategy:
@@ -266,6 +356,9 @@ jobs:
         env:
           PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
           CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Download wheel(s)
         uses: actions/download-artifact@v4
         with:
@@ -284,7 +377,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable_cte_optimization
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run Snowpark pandas API tests (excluding doctests)
@@ -292,7 +385,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --enable_cte_optimization --skip_sql_count_check --ignore=tests/integ/modin/test_sql_counter.py
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization --skip_sql_count_check --ignore=tests/integ/modin/test_sql_counter.py
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
@@ -302,7 +395,8 @@ jobs:
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-enable-cte-optimization
+          include-hidden-files: true
+          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-cte-optimization
           path: |
             .tox/.coverage
             .tox/coverage.xml
@@ -326,6 +420,9 @@ jobs:
           python-version: '3.9'
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
       - name: Install tox
@@ -348,11 +445,13 @@ jobs:
       - name: Publish html coverage
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: overall_cov_html
           path: .tox/htmlcov
       - name: Publish xml coverage
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: overall_cov_xml
           path: .tox/coverage.xml
       - uses: codecov/codecov-action@v1
@@ -372,18 +471,16 @@ jobs:
           python-version: '3.9'
       - name: Upgrade setuptools and pip
         run: python -m pip install -U setuptools pip
-      - name: Install Snowpark
-        run: python -m pip install ".[modin-development]"
-      - name: Install Sphinx
-        run: python -m pip install sphinx
+      - name: Install tox
+        run: python -m pip install tox
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
       - name: Build document
-        working-directory: docs
-        # treat warning as failure but complete the entire process
-        run: |
-          make clean
-          make html SPHINXOPTS="-W --keep-going"
+        run: python -m tox -e docs
       - name: Upload html files
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: docs
-          path: docs/build/html
+          path: .tox/docs_out

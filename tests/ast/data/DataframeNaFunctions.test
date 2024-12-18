@@ -1,0 +1,724 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+drop1 = df.na.drop()
+
+drop2 = df.na.drop(how="all")
+
+drop3 = df.na.drop(how="any", thresh=42)
+
+drop4 = df.na.drop(subset="STR")
+
+drop5 = df.na.drop(how="all", subset=["NUM", "STR"])
+
+drop6 = df.na.drop(how="any", thresh=42, subset=["NUM"])
+
+fill1 = df.na.fill(42)
+
+fill2 = df.na.fill({"NUM": 42, "STR": "abc"})
+
+fill3 = df.na.fill(42, subset="NUM")
+
+fill4 = df.na.fill("def", subset=["STR"])
+
+replace1 = df.na.replace({1: 10, "three": "trzy"})
+
+replace2 = df.na.replace([1, 2], [10, 20])
+
+replace3 = df.na.replace(1, 10, subset=["NUM"])
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+drop1 = df.na.drop("any")
+
+drop2 = df.na.drop("all")
+
+drop3 = df.na.drop("any", 42)
+
+drop4 = df.na.drop("any", ["STR"])
+
+drop5 = df.na.drop("all", ["NUM", "STR"])
+
+drop6 = df.na.drop("any", 42, ["NUM"])
+
+fill1 = df.na.fill(42)
+
+fill2 = df.na.fill({"NUM": 42, "STR": "abc"})
+
+fill3 = df.na.fill(42, ["NUM"])
+
+fill4 = df.na.fill("def", ["STR"])
+
+replace1 = df.na.replace({1: 10, "three": "trzy"}, None)
+
+replace2 = df.na.replace([1, 2], [10, 20])
+
+replace3 = df.na.replace(1, 10, ["NUM"])
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_drop__python {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        how: "any"
+        src {
+          end_column: 28
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "drop1"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_drop__python {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        how: "all"
+        src {
+          end_column: 37
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "drop2"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_drop__python {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        how: "any"
+        src {
+          end_column: 48
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 31
+        }
+        thresh {
+          value: 42
+        }
+      }
+    }
+    symbol {
+      value: "drop3"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_drop__python {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        how: "any"
+        src {
+          end_column: 40
+          end_line: 33
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 33
+        }
+        subset {
+          list: "STR"
+        }
+      }
+    }
+    symbol {
+      value: "drop4"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_drop__python {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        how: "all"
+        src {
+          end_column: 60
+          end_line: 35
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 35
+        }
+        subset {
+          list: "NUM"
+          list: "STR"
+        }
+      }
+    }
+    symbol {
+      value: "drop5"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_drop__python {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        how: "any"
+        src {
+          end_column: 64
+          end_line: 37
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 37
+        }
+        subset {
+          list: "NUM"
+        }
+        thresh {
+          value: 42
+        }
+      }
+    }
+    symbol {
+      value: "drop6"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_fill {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 30
+          end_line: 39
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 39
+        }
+        value {
+          int64_val {
+            src {
+              end_column: 30
+              end_line: 39
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 16
+              start_line: 39
+            }
+            v: 42
+          }
+        }
+      }
+    }
+    symbol {
+      value: "fill1"
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_fill {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 53
+          end_line: 41
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 41
+        }
+        value_map {
+          list {
+            _1: "NUM"
+            _2 {
+              int64_val {
+                src {
+                  end_column: 53
+                  end_line: 41
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 16
+                  start_line: 41
+                }
+                v: 42
+              }
+            }
+          }
+          list {
+            _1: "STR"
+            _2 {
+              string_val {
+                src {
+                  end_column: 53
+                  end_line: 41
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 16
+                  start_line: 41
+                }
+                v: "abc"
+              }
+            }
+          }
+        }
+      }
+    }
+    symbol {
+      value: "fill2"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_fill {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 44
+          end_line: 43
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 43
+        }
+        subset {
+          list: "NUM"
+        }
+        value {
+          int64_val {
+            src {
+              end_column: 44
+              end_line: 43
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 16
+              start_line: 43
+            }
+            v: 42
+          }
+        }
+      }
+    }
+    symbol {
+      value: "fill3"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_fill {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 49
+          end_line: 45
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 16
+          start_line: 45
+        }
+        subset {
+          list: "STR"
+        }
+        value {
+          string_val {
+            src {
+              end_column: 49
+              end_line: 45
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 16
+              start_line: 45
+            }
+            v: "def"
+          }
+        }
+      }
+    }
+    symbol {
+      value: "fill4"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_replace {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        replacement_map {
+          list {
+            _1 {
+              int64_val {
+                src {
+                  end_column: 58
+                  end_line: 47
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 19
+                  start_line: 47
+                }
+                v: 1
+              }
+            }
+            _2 {
+              int64_val {
+                src {
+                  end_column: 58
+                  end_line: 47
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 19
+                  start_line: 47
+                }
+                v: 10
+              }
+            }
+          }
+          list {
+            _1 {
+              string_val {
+                src {
+                  end_column: 58
+                  end_line: 47
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 19
+                  start_line: 47
+                }
+                v: "three"
+              }
+            }
+            _2 {
+              string_val {
+                src {
+                  end_column: 58
+                  end_line: 47
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 19
+                  start_line: 47
+                }
+                v: "trzy"
+              }
+            }
+          }
+        }
+        src {
+          end_column: 58
+          end_line: 47
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 19
+          start_line: 47
+        }
+        value {
+          null_val {
+            src {
+              end_column: 58
+              end_line: 47
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 19
+              start_line: 47
+            }
+          }
+        }
+      }
+    }
+    symbol {
+      value: "replace1"
+    }
+    uid: 12
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_replace {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 50
+          end_line: 49
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 19
+          start_line: 49
+        }
+        to_replace_list {
+          list {
+            int64_val {
+              src {
+                end_column: 50
+                end_line: 49
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 19
+                start_line: 49
+              }
+              v: 1
+            }
+          }
+          list {
+            int64_val {
+              src {
+                end_column: 50
+                end_line: 49
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 19
+                start_line: 49
+              }
+              v: 2
+            }
+          }
+        }
+        values {
+          list {
+            int64_val {
+              src {
+                end_column: 50
+                end_line: 49
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 19
+                start_line: 49
+              }
+              v: 10
+            }
+          }
+          list {
+            int64_val {
+              src {
+                end_column: 50
+                end_line: 49
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 19
+                start_line: 49
+              }
+              v: 20
+            }
+          }
+        }
+      }
+    }
+    symbol {
+      value: "replace2"
+    }
+    uid: 13
+    var_id {
+      bitfield1: 13
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_na_replace {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 55
+          end_line: 51
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 19
+          start_line: 51
+        }
+        subset {
+          list: "NUM"
+        }
+        to_replace_value {
+          int64_val {
+            src {
+              end_column: 55
+              end_line: 51
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 19
+              start_line: 51
+            }
+            v: 1
+          }
+        }
+        value {
+          int64_val {
+            src {
+              end_column: 55
+              end_line: 51
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 19
+              start_line: 51
+            }
+            v: 10
+          }
+        }
+      }
+    }
+    symbol {
+      value: "replace3"
+    }
+    uid: 14
+    var_id {
+      bitfield1: 14
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

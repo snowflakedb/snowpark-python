@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+import decimal
 import os
 import sys
 import typing
@@ -38,6 +39,8 @@ from snowflake.snowpark._internal.type_utils import (
     infer_type,
     merge_type,
     python_type_to_snow_type,
+    python_value_str_to_object,
+    retrieve_func_defaults_from_source,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
 )
@@ -237,7 +240,7 @@ def test_sf_datatype_hashes():
     assert hash(DateType()) == hash("DateType()")
     assert hash(StringType()) == hash("StringType()")
     assert hash(StringType(12)) == hash("StringType(12)")
-    assert hash(StringType()) == hash(StringType(StringType._MAX_LENGTH))
+    assert hash(StringType()) == hash(StringType(is_max_size=True))
     assert hash(_NumericType()) == hash("_NumericType()")
     assert hash(_IntegralType()) == hash("_IntegralType()")
     assert hash(_FractionalType()) == hash("_FractionalType()")
@@ -584,6 +587,178 @@ def test_decimal_regular_expression(decimal_word):
     assert get_number_precision_scale(f"  {decimal_word}  (  2  ,  1  )  ") == (2, 1)
 
 
+@pytest.mark.parametrize("test_from_class", [True, False])
+@pytest.mark.parametrize("test_from_file", [True, False])
+@pytest.mark.parametrize("add_type_hint", [True, False])
+@pytest.mark.parametrize(
+    "datatype,annotated_value,extracted_value",
+    [
+        ("int", "None", None),
+        ("int", "1", "1"),
+        ("bool", "True", "True"),
+        ("float", "1.0", "1.0"),
+        ("decimal.Decimal", "decimal.Decimal('3.14')", "decimal.Decimal('3.14')"),
+        ("decimal.Decimal", "decimal.Decimal(1.0)", "decimal.Decimal(1.0)"),
+        ("str", "one", "one"),
+        ("str", "None", None),
+        ("bytes", "b'one'", "b'one'"),
+        ("bytearray", "bytearray('one', 'utf-8')", "bytearray('one', 'utf-8')"),
+        ("datetime.date", "datetime.date(2024, 4, 1)", "datetime.date(2024, 4, 1)"),
+        (
+            "datetime.time",
+            "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)",
+            "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)",
+        ),
+        (
+            "datetime.datetime",
+            "datetime.datetime(2024, 4, 1, 12, 0, 20)",
+            "datetime.datetime(2024, 4, 1, 12, 0, 20)",
+        ),
+        ("List[int]", "[1, 2, 3]", "['1', '2', '3']"),
+        ("List[str]", "['a', 'b', 'c']", "['a', 'b', 'c']"),
+        (
+            "List[List[int]]",
+            "[[1, 2, 3], [4, 5, 6]]",
+            "[\"['1', '2', '3']\", \"['4', '5', '6']\"]",
+        ),
+        ("Map[int, str]", "{1: 'a'}", "{'1': 'a'}"),
+        ("Map[int, List[str]]", "{1: ['a', 'b']}", "{'1': \"['a', 'b']\"}"),
+        ("Variant", "{'key': 'val'}", "{'key': 'val'}"),
+        ("Geography", "'POINT(-122.35 37.55)'", "POINT(-122.35 37.55)"),
+        ("Geometry", "'POINT(-122.35 37.55)'", "POINT(-122.35 37.55)"),
+    ],
+)
+def test_retrieve_func_defaults_from_source(
+    datatype,
+    annotated_value,
+    extracted_value,
+    add_type_hint,
+    test_from_file,
+    test_from_class,
+    tmpdir,
+):
+    func_name = "foo"
+    class_name = "Foo"
+
+    if test_from_class:
+        source = f"""
+class {class_name}:
+    def {func_name}() -> None:
+        return None
+"""
+    else:
+        source = f"""
+def {func_name}(self) -> None:
+    return None
+"""
+    if test_from_file:
+        file = tmpdir.join("test_udf.py")
+        file.write(source)
+        assert retrieve_func_defaults_from_source(file, func_name) == []
+    else:
+        assert retrieve_func_defaults_from_source("", func_name, _source=source) == []
+
+    datatype_str = f": {datatype}" if add_type_hint else ""
+    if test_from_class:
+        source = f"""
+class {class_name}:
+    def {func_name}(self, x, y {datatype_str} = {annotated_value}) -> None:
+        return None
+"""
+    else:
+        source = f"""
+def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
+    return None
+"""
+    if test_from_file:
+        file = tmpdir.join("test_udf.py")
+        file.write(source)
+        assert retrieve_func_defaults_from_source(file, func_name) == [extracted_value]
+    else:
+        assert retrieve_func_defaults_from_source("", func_name, _source=source) == [
+            extracted_value
+        ]
+
+
+@pytest.mark.parametrize(
+    "value_str,datatype,expected_value",
+    [
+        ("1", IntegerType(), 1),
+        ("True", BooleanType(), True),
+        ("1.0", FloatType(), 1.0),
+        ("decimal.Decimal('3.14')", DecimalType(), decimal.Decimal("3.14")),
+        ("decimal.Decimal(1.0)", DecimalType(), decimal.Decimal(1.0)),
+        ("one", StringType(), "one"),
+        (None, StringType(), None),
+        ("None", StringType(), "None"),
+        ("POINT(-122.35 37.55)", GeographyType(), "POINT(-122.35 37.55)"),
+        ("POINT(-122.35 37.55)", GeometryType(), "POINT(-122.35 37.55)"),
+        ('{"key": "val"}', VariantType(), '{"key": "val"}'),
+        ("b'one'", BinaryType(), b"one"),
+        ("bytearray('one', 'utf-8')", BinaryType(), bytearray("one", "utf-8")),
+        ("datetime.date(2024, 4, 1)", DateType(), date(2024, 4, 1)),
+        (
+            "datetime.time(12, 0, second=20, tzinfo=datetime.timezone.utc)",
+            TimeType(),
+            time(12, 0, second=20, tzinfo=timezone.utc),
+        ),
+        (
+            "datetime.datetime(2024, 4, 1, 12, 0, 20)",
+            TimestampType(),
+            datetime(2024, 4, 1, 12, 0, 20),
+        ),
+        ("['1', '2', '3']", ArrayType(IntegerType()), [1, 2, 3]),
+        ("['a', 'b', 'c']", ArrayType(StringType()), ["a", "b", "c"]),
+        ("['a', 'b', 'c']", ArrayType(), ["a", "b", "c"]),
+        (
+            "[\"['1', '2', '3']\", \"['4', '5', '6']\"]",
+            ArrayType(ArrayType(IntegerType())),
+            [[1, 2, 3], [4, 5, 6]],
+        ),
+        ("{'1': 'a'}", MapType(), {"1": "a"}),
+        ("{'1': 'a'}", MapType(IntegerType(), StringType()), {1: "a"}),
+        (
+            "{'1': \"['a', 'b']\"}",
+            MapType(IntegerType(), ArrayType(StringType())),
+            {1: ["a", "b"]},
+        ),
+    ],
+)
+def test_python_value_str_to_object(value_str, datatype, expected_value):
+    assert python_value_str_to_object(value_str, datatype) == expected_value
+
+
+@pytest.mark.parametrize(
+    "datatype",
+    [
+        IntegerType(),
+        BooleanType(),
+        FloatType(),
+        DecimalType(),
+        BinaryType(),
+        DateType(),
+        TimeType(),
+        TimestampType(),
+        ArrayType(),
+        MapType(),
+        VariantType(),
+        GeographyType(),
+        GeometryType(),
+    ],
+)
+def test_python_value_str_to_object_for_none(datatype):
+    "StringType() is excluded here and tested in test_python_value_str_to_object"
+    assert python_value_str_to_object("None", datatype) is None
+
+
+def test_python_value_str_to_object_negative():
+    with pytest.raises(
+        TypeError,
+        match="Unsupported data type: invalid type, value thanksgiving by python_value_str_to_object()",
+    ):
+        python_value_str_to_object("thanksgiving", "invalid type")
+
+
 def test_retrieve_func_type_hints_from_source():
     func_name = "foo"
 
@@ -676,35 +851,35 @@ def {func_name}() -> 1:
 
 
 def test_convert_sf_to_sp_type_basic():
-    assert isinstance(convert_sf_to_sp_type("ARRAY", 0, 0, 0), ArrayType)
-    assert isinstance(convert_sf_to_sp_type("VARIANT", 0, 0, 0), VariantType)
-    assert isinstance(convert_sf_to_sp_type("OBJECT", 0, 0, 0), MapType)
-    assert isinstance(convert_sf_to_sp_type("GEOGRAPHY", 0, 0, 0), GeographyType)
-    assert isinstance(convert_sf_to_sp_type("GEOMETRY", 0, 0, 0), GeometryType)
-    assert isinstance(convert_sf_to_sp_type("BOOLEAN", 0, 0, 0), BooleanType)
-    assert isinstance(convert_sf_to_sp_type("BINARY", 0, 0, 0), BinaryType)
-    assert isinstance(convert_sf_to_sp_type("TEXT", 0, 0, 0), StringType)
-    assert isinstance(convert_sf_to_sp_type("TIME", 0, 0, 0), TimeType)
-    assert isinstance(convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0), TimestampType)
-    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0), TimestampType)
-    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0), TimestampType)
-    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0), TimestampType)
-    assert isinstance(convert_sf_to_sp_type("DATE", 0, 0, 0), DateType)
-    assert isinstance(convert_sf_to_sp_type("REAL", 0, 0, 0), DoubleType)
+    assert isinstance(convert_sf_to_sp_type("ARRAY", 0, 0, 0, 0), ArrayType)
+    assert isinstance(convert_sf_to_sp_type("VARIANT", 0, 0, 0, 0), VariantType)
+    assert isinstance(convert_sf_to_sp_type("OBJECT", 0, 0, 0, 0), MapType)
+    assert isinstance(convert_sf_to_sp_type("GEOGRAPHY", 0, 0, 0, 0), GeographyType)
+    assert isinstance(convert_sf_to_sp_type("GEOMETRY", 0, 0, 0, 0), GeometryType)
+    assert isinstance(convert_sf_to_sp_type("BOOLEAN", 0, 0, 0, 0), BooleanType)
+    assert isinstance(convert_sf_to_sp_type("BINARY", 0, 0, 0, 0), BinaryType)
+    assert isinstance(convert_sf_to_sp_type("TEXT", 0, 0, 0, 0), StringType)
+    assert isinstance(convert_sf_to_sp_type("TIME", 0, 0, 0, 0), TimeType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("DATE", 0, 0, 0, 0), DateType)
+    assert isinstance(convert_sf_to_sp_type("REAL", 0, 0, 0, 0), DoubleType)
 
     with pytest.raises(NotImplementedError, match="Unsupported type"):
-        convert_sf_to_sp_type("FAKE", 0, 0, 0)
+        convert_sf_to_sp_type("FAKE", 0, 0, 0, 0)
 
 
 def test_convert_sp_to_sf_type_tz():
-    assert convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0) == TimestampType()
-    assert convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0) == TimestampType(
+    assert convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0, 0) == TimestampType()
+    assert convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0, 0) == TimestampType(
         timezone=TimestampTimeZone.NTZ
     )
-    assert convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0) == TimestampType(
+    assert convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0, 0) == TimestampType(
         timezone=TimestampTimeZone.LTZ
     )
-    assert convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0) == TimestampType(
+    assert convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0, 0) == TimestampType(
         timezone=TimestampTimeZone.TZ
     )
 
@@ -712,14 +887,14 @@ def test_convert_sp_to_sf_type_tz():
 def test_convert_sf_to_sp_type_precision_scale():
     def assert_type_with_precision(type_name):
         sp_type = convert_sf_to_sp_type(
-            type_name, DecimalType._MAX_PRECISION + 1, 20, 0
+            type_name, DecimalType._MAX_PRECISION + 1, 20, 0, 0
         )
         assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION
         assert sp_type.scale == 21
 
         sp_type = convert_sf_to_sp_type(
-            type_name, DecimalType._MAX_PRECISION - 1, 20, 0
+            type_name, DecimalType._MAX_PRECISION - 1, 20, 0, 0
         )
         assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION - 1
@@ -729,25 +904,30 @@ def test_convert_sf_to_sp_type_precision_scale():
     assert_type_with_precision("FIXED")
     assert_type_with_precision("NUMBER")
 
-    snowpark_type = convert_sf_to_sp_type("DECIMAL", 0, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("DECIMAL", 0, 0, 0, 0)
     assert isinstance(snowpark_type, DecimalType)
     assert snowpark_type.precision == 38
     assert snowpark_type.scale == 18
 
 
 def test_convert_sf_to_sp_type_internal_size():
-    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0, 16777216)
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length is None
 
-    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 31)
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 31, 16777216)
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length == 31
+
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 16777216, 16777216)
+    assert isinstance(snowpark_type, StringType)
+    assert snowpark_type.length == 16777216
+    assert snowpark_type._is_max_size
 
     with pytest.raises(
         ValueError, match="Negative value is not a valid input for StringType"
     ):
-        snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, -1)
+        snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, -1, 16777216)
 
 
 def test_convert_sp_to_sf_type():
@@ -807,7 +987,7 @@ def test_infer_schema_exceptions():
 def test_string_type_eq():
     st0 = StringType()
     st1 = StringType(1)
-    st2 = StringType(StringType._MAX_LENGTH)
+    st2 = StringType(is_max_size=True)
 
     assert st0 != IntegerType()
 
@@ -868,3 +1048,394 @@ def test_snow_type_to_dtype_str():
 
     with pytest.raises(TypeError, match="invalid DataType"):
         snow_type_to_dtype_str(None)
+
+
+@pytest.mark.parametrize(
+    "tpe, simple_string, json, type_name, json_value",
+    [
+        (DataType(), "data", '"data"', "data", "data"),
+        (BinaryType(), "binary", '"binary"', "binary", "binary"),
+        (BooleanType(), "boolean", '"boolean"', "boolean", "boolean"),
+        (ByteType(), "tinyint", '"byte"', "byte", "byte"),
+        (DateType(), "date", '"date"', "date", "date"),
+        (
+            DecimalType(20, 10),
+            "decimal(20,10)",
+            '"decimal(20,10)"',
+            "decimal",
+            "decimal(20,10)",
+        ),
+        (DoubleType(), "double", '"double"', "double", "double"),
+        (FloatType(), "float", '"float"', "float", "float"),
+        (IntegerType(), "int", '"integer"', "integer", "integer"),
+        (LongType(), "bigint", '"long"', "long", "long"),
+        (ShortType(), "smallint", '"short"', "short", "short"),
+        (StringType(), "string", '"string"', "string", "string"),
+        (
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+            "struct<A:string,B:int>",
+            '{"fields":[{"name":"A","nullable":true,"type":"string"},{"name":"B","nullable":true,"type":"integer"}],"type":"struct"}',
+            "struct",
+            {
+                "type": "struct",
+                "fields": [
+                    {"name": "A", "type": "string", "nullable": True},
+                    {"name": "B", "type": "integer", "nullable": True},
+                ],
+            },
+        ),
+        (
+            StructField("AA", StringType()),
+            "AA:string",
+            '{"name":"AA","nullable":true,"type":"string"}',
+            "",
+            {
+                "name": "AA",
+                "type": "string",
+                "nullable": True,
+            },
+        ),
+        (TimestampType(), "timestamp", '"timestamp"', "timestamp", "timestamp"),
+        (
+            TimestampType(TimestampTimeZone.TZ),
+            "timestamp_tz",
+            '"timestamp_tz"',
+            "timestamp",
+            "timestamp_tz",
+        ),
+        (
+            TimestampType(TimestampTimeZone.LTZ),
+            "timestamp_ltz",
+            '"timestamp_ltz"',
+            "timestamp",
+            "timestamp_ltz",
+        ),
+        (
+            TimestampType(TimestampTimeZone.NTZ),
+            "timestamp_ntz",
+            '"timestamp_ntz"',
+            "timestamp",
+            "timestamp_ntz",
+        ),
+        (TimeType(), "time", '"time"', "time", "time"),
+        (
+            ArrayType(IntegerType()),
+            "array<int>",
+            '{"element_type":"integer","type":"array"}',
+            "array",
+            {
+                "element_type": "integer",
+                "type": "array",
+            },
+        ),
+        (
+            ArrayType(ArrayType(IntegerType())),
+            "array<array<int>>",
+            '{"element_type":{"element_type":"integer","type":"array"},"type":"array"}',
+            "array",
+            {
+                "element_type": {"element_type": "integer", "type": "array"},
+                "type": "array",
+            },
+        ),
+        (
+            MapType(IntegerType(), StringType()),
+            "map<int,string>",
+            '{"key_type":"integer","type":"map","value_type":"string"}',
+            "map",
+            {
+                "key_type": "integer",
+                "type": "map",
+                "value_type": "string",
+            },
+        ),
+        (
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+            "map<string,map<int,string>>",
+            '{"key_type":"string","type":"map","value_type":{"key_type":"integer","type":"map","value_type":"string"}}',
+            "map",
+            {
+                "type": "map",
+                "key_type": "string",
+                "value_type": {
+                    "type": "map",
+                    "key_type": "integer",
+                    "value_type": "string",
+                },
+            },
+        ),
+        (
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+            "struct<NESTED:struct<A:int,B:string>>",
+            '{"fields":[{"name":"NESTED","nullable":true,"type":{"fields":[{"name":"A","nullable":true,"type":"integer"},{"name":"B","nullable":true,"type":"string"}],"type":"struct"}}],"type":"struct"}',
+            "struct",
+            {
+                "type": "struct",
+                "fields": [
+                    {
+                        "name": "NESTED",
+                        "type": {
+                            "type": "struct",
+                            "fields": [
+                                {
+                                    "name": "A",
+                                    "type": "integer",
+                                    "nullable": True,
+                                },
+                                {
+                                    "name": "B",
+                                    "type": "string",
+                                    "nullable": True,
+                                },
+                            ],
+                        },
+                        "nullable": True,
+                    }
+                ],
+            },
+        ),
+        (
+            VectorType(int, 8),
+            "vector(int,8)",
+            '"vector(int,8)"',
+            "vector",
+            "vector(int,8)",
+        ),
+        (
+            VectorType(float, 8),
+            "vector(float,8)",
+            '"vector(float,8)"',
+            "vector",
+            "vector(float,8)",
+        ),
+        (
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+            "pandas<string,int,float>",
+            '{"fields":[{"name":"id","type":"string"},{"name":"col1","type":"integer"},{"name":"col2","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {"name": "id", "type": "string"},
+                    {"name": "col1", "type": "integer"},
+                    {"name": "col2", "type": "float"},
+                ],
+            },
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+        (
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+            "pandas<array<array<int>>,int,float>",
+            '{"fields":[{"name":"","type":{"element_type":{"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandas_dataframe"}',
+            "pandas_dataframe",
+            {
+                "type": "pandas_dataframe",
+                "fields": [
+                    {
+                        "name": "",
+                        "type": {
+                            "type": "array",
+                            "element_type": {
+                                "type": "array",
+                                "element_type": "integer",
+                            },
+                        },
+                    },
+                    {"name": "", "type": "integer"},
+                    {"name": "", "type": "float"},
+                ],
+            },
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+        (
+            PandasSeriesType(IntegerType()),
+            "pandas_series<int>",
+            '{"element_type":"integer","type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": "integer"},
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+        (
+            PandasSeriesType(None),
+            "pandas_series<>",
+            '{"element_type":null,"type":"pandas_series"}',
+            "pandas_series",
+            {"type": "pandas_series", "element_type": None},
+        )
+        if is_pandas_available
+        else (None, None, None, None, None),
+    ],
+)
+def test_datatype(tpe, simple_string, json, type_name, json_value):
+    if tpe is None:
+        pytest.skip("skip because pandas is not available")
+    assert tpe.simple_string() == simple_string
+    assert tpe.json_value() == json_value
+    assert tpe.json() == json
+    if isinstance(tpe, StructField):
+        with pytest.raises(
+            TypeError,
+            match="StructField does not have typeName. Use typeName on its type explicitly instead",
+        ):
+            tpe.type_name()
+    else:
+        assert tpe.type_name() == type_name
+
+    # test alias
+    assert tpe.simpleString() == simple_string
+    assert tpe.jsonValue() == json_value
+    if isinstance(tpe, StructField):
+        with pytest.raises(
+            TypeError,
+            match="StructField does not have typeName. Use typeName on its type explicitly instead",
+        ):
+            tpe.typeName()
+    else:
+        assert tpe.typeName() == type_name
+
+
+@pytest.mark.parametrize(
+    "datatype, tpe",
+    [
+        (
+            MapType,
+            MapType(IntegerType(), StringType()),
+        ),
+        (
+            MapType,
+            MapType(StringType(), MapType(IntegerType(), StringType())),
+        ),
+        (
+            ArrayType,
+            ArrayType(IntegerType()),
+        ),
+        (
+            ArrayType,
+            ArrayType(ArrayType(IntegerType())),
+        ),
+        (
+            StructType,
+            StructType(
+                [
+                    StructField(
+                        "nested",
+                        StructType(
+                            [
+                                StructField("A", IntegerType()),
+                                StructField("B", StringType()),
+                            ]
+                        ),
+                    )
+                ]
+            ),
+        ),
+        (
+            StructField,
+            StructField("AA", StringType()),
+        ),
+        (
+            StructType,
+            StructType(
+                [StructField("a", StringType()), StructField("b", IntegerType())]
+            ),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType()),
+        ),
+        (
+            StructField,
+            StructField("AA", DecimalType(20, 10)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(int, 1)),
+        ),
+        (
+            StructField,
+            StructField("AA", VectorType(float, 8)),
+        ),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
+            ),
+        )
+        if is_pandas_available
+        else (None, None),
+        (
+            PandasDataFrameType,
+            PandasDataFrameType(
+                [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
+            ),
+        )
+        if is_pandas_available
+        else (None, None),
+        (PandasSeriesType, PandasSeriesType(IntegerType()))
+        if is_pandas_available
+        else (None, None),
+        (PandasSeriesType, PandasSeriesType(None))
+        if is_pandas_available
+        else (None, None),
+    ],
+)
+def test_structtype_from_json(datatype, tpe):
+    if datatype is None:
+        pytest.skip("skip because pandas is not available")
+    json_dict = tpe.json_value()
+    new_obj = datatype.from_json(json_dict)
+    assert new_obj == tpe
+
+
+def test_from_json_wrong_data_type():
+    wrong_json = {
+        "name": "AA",
+        "type": "wrong_type",
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Cannot parse data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+    wrong_json = {
+        "name": "AA",
+        "type": {
+            "type": "wrong_type",
+            "key_type": "integer",
+            "value_type": "string",
+        },
+        "nullable": True,
+    }
+    with pytest.raises(ValueError, match="Unsupported data type: wrong_type"):
+        StructField.from_json(wrong_json)
+
+
+def test_maptype_alias():
+    expected_key = StringType()
+    expected_value = IntegerType()
+    tpe = MapType(expected_key, expected_value)
+    assert tpe.valueType == expected_value
+    assert tpe.keyType == expected_key
+
+    assert tpe.valueType == tpe.value_type
+    assert tpe.keyType == tpe.key_type

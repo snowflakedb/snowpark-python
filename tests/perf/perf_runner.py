@@ -164,7 +164,7 @@ if __name__ == "__main__":
         print("SQL execution time elapsed: ", t2 - t1)
         print("Total execution time elapsed: ", t2 - t0)
         if args.cte:
-            _ = dataframe._plan.replace_repeated_subquery_with_cte()
+            _ = dataframe.queries
             t3 = time.time()
             print("CTE optimization client time elapsed: ", t3 - t2)
     finally:

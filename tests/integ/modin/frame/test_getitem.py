@@ -12,14 +12,14 @@ import pytest
 from pandas import isna
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.pandas.utils import try_convert_index_to_native
-from tests.integ.modin.sql_counter import SqlCounter, sql_count_checker
+from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.utils import (
     assert_frame_equal,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
 @pytest.mark.parametrize(
@@ -36,31 +36,28 @@ from tests.integ.modin.utils import (
         np.array([], dtype=bool),
     ],
 )
+@sql_count_checker(query_count=1, join_count=1)
 def test_df_getitem_with_boolean_list_like(
     key, default_index_snowpark_pandas_df, default_index_native_df
 ):
-    # one added query to convert to native pandas and 2 added queries for series initialization
-    with SqlCounter(
-        query_count=4 if isinstance(key, native_pd.Index) else 1, join_count=1
-    ):
-        # df[boolean list-like key] is the same as df.loc[:, boolean list-like key]
-        if isinstance(key, native_pd.Index):
-            key = pd.Index(key)
+    # df[boolean list-like key] is the same as df.loc[:, boolean list-like key]
 
-        def get_helper(df):
-            if isinstance(df, pd.DataFrame):
-                return df[key]
-            # If pandas df, adjust the length of the df and key since boolean keys need to be the same length as the axis.
-            _key = try_convert_index_to_native(key)
-            _df = df.iloc[: len(key)]
-            _key = _key[: _df.shape[1]]
-            return _df[_key]
+    def get_helper(df, key):
+        if isinstance(df, pd.DataFrame):
+            if isinstance(key, native_pd.Index):
+                key = pd.Index(key)
+            return df[key]
+        # If pandas df, adjust the length of the df and key since boolean keys need to be the same length as the axis.
+        _key = try_convert_index_to_native(key)
+        _df = df.iloc[: len(key)]
+        _key = _key[: _df.shape[1]]
+        return _df[_key]
 
-        eval_snowpark_pandas_result(
-            default_index_snowpark_pandas_df,
-            default_index_native_df,
-            get_helper,
-        )
+    eval_snowpark_pandas_result(
+        default_index_snowpark_pandas_df,
+        default_index_native_df,
+        lambda df: get_helper(df, key),
+    )
 
 
 @pytest.mark.parametrize(
