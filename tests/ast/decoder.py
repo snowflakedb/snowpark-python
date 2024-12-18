@@ -73,7 +73,7 @@ class Decoder:
         """
         return assign_expr.symbol.value
 
-    def decode_col_exprs(self, expr: proto.Expr) -> List[Column]:
+    def decode_col_exprs(self, expr: proto.Expr, is_variadic: bool) -> List[Column]:
         """
         Decode a protobuf object to a list of column expressions.
 
@@ -81,6 +81,8 @@ class Decoder:
         ----------
         expr : proto.Expr
             The protobuf object to decode.
+        is_variadic : bool
+            Whether the expression is variadic.
 
         Returns
         -------
@@ -91,7 +93,7 @@ class Decoder:
             # Prevent nesting the list in a list if there is only one expression.
             # This usually happens when the expression is a list_val.
             col_list = self.decode_expr(expr[0])
-            if not isinstance(col_list, list):
+            if not isinstance(col_list, list) and not is_variadic:
                 col_list = [col_list]
         else:
             col_list = [self.decode_expr(arg) for arg in expr]
@@ -819,7 +821,7 @@ class Decoder:
                 return df[col_name]
 
             case "sp_dataframe_collect":
-                df = self.symbol_table[expr.sp_dataframe_collect.id.bitfield1][1]
+                df = self.decode_expr(expr.sp_dataframe_first.df)
                 d = MessageToDict(expr.sp_dataframe_collect)
                 statement_params = self.get_statement_params(d)
                 log_on_exception = d.get("logOnException", False)
@@ -841,7 +843,7 @@ class Decoder:
                     )
 
             case "sp_dataframe_count":
-                df = self.symbol_table[expr.sp_dataframe_count.id.bitfield1][1]
+                df = self.decode_expr(expr.sp_dataframe_first.df)
                 d = MessageToDict(expr.sp_dataframe_count)
                 statement_params = self.get_statement_params(d)
                 block = d["block"]
@@ -850,13 +852,46 @@ class Decoder:
                     block=block,
                 )
 
+            case "sp_dataframe_drop":
+                df = self.decode_expr(expr.sp_dataframe_drop.df)
+                cols = self.decode_col_exprs(
+                    expr.sp_dataframe_drop.cols.args,
+                    expr.sp_dataframe_drop.cols.variadic,
+                )
+                if expr.sp_dataframe_group_by.cols.variadic:
+                    return df.drop(*cols)
+                else:
+                    return df.drop(cols)
+
+            case "sp_dataframe_except":
+                df = self.decode_expr(expr.sp_dataframe_except.df)
+                other = self.decode_expr(expr.sp_dataframe_except.other)
+                return df.except_(other)
+
+            case "sp_dataframe_first":
+                df = self.decode_expr(expr.sp_dataframe_first.df)
+                block = expr.sp_dataframe_first.block
+                num = expr.sp_dataframe_first.num
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_first)
+                )
+                return df.first(n=num, statement_params=statement_params, block=block)
+
             case "sp_dataframe_group_by":
                 df = self.decode_expr(expr.sp_dataframe_group_by.df)
-                cols = self.decode_col_exprs(expr.sp_dataframe_group_by.cols.args)
+                cols = self.decode_col_exprs(
+                    expr.sp_dataframe_group_by.cols.args,
+                    expr.sp_dataframe_group_by.cols.variadic,
+                )
                 if expr.sp_dataframe_group_by.cols.variadic:
                     return df.group_by(*cols)
                 else:
                     return df.group_by(cols)
+
+            case "sp_dataframe_intersect":
+                df = self.decode_expr(expr.sp_dataframe_intersect.df)
+                other = self.decode_expr(expr.sp_dataframe_intersect.other)
+                return df.intersect(other)
 
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
@@ -864,7 +899,10 @@ class Decoder:
             case "sp_dataframe_select__columns":
                 df = self.decode_expr(expr.sp_dataframe_select__columns.df)
                 # The columns can be a list of Expr or a single Expr.
-                cols = self.decode_col_exprs(expr.sp_dataframe_select__columns.cols)
+                cols = self.decode_col_exprs(
+                    expr.sp_dataframe_select__columns.cols,
+                    expr.sp_dataframe_select__columns.cols.variadic,
+                )
                 if hasattr(expr.sp_dataframe_select__columns, "variadic"):
                     val = df.select(*cols)
                 else:
@@ -884,7 +922,9 @@ class Decoder:
 
             case "sp_dataframe_sort":
                 df = self.decode_expr(expr.sp_dataframe_sort.df)
-                cols = self.decode_col_exprs(expr.sp_dataframe_sort.cols)
+                cols = self.decode_col_exprs(
+                    expr.sp_dataframe_sort.cols, expr.sp_dataframe_sort.cols.variadic
+                )
                 ascending = self.decode_expr(expr.sp_dataframe_sort.ascending)
                 if expr.sp_dataframe_sort.cols_variadic:
                     return df.sort(*cols, ascending)
@@ -896,7 +936,8 @@ class Decoder:
                     expr.sp_relational_grouped_dataframe_agg.grouped_df
                 )
                 exprs = self.decode_col_exprs(
-                    expr.sp_relational_grouped_dataframe_agg.exprs.args
+                    expr.sp_relational_grouped_dataframe_agg.exprs.args,
+                    expr.sp_relational_grouped_dataframe_agg.cols.variadic,
                 )
                 if expr.sp_relational_grouped_dataframe_agg.exprs.variadic is True:
                     return grouped_df.agg(*exprs)
@@ -918,7 +959,8 @@ class Decoder:
                     expr.sp_relational_grouped_dataframe_builtin.grouped_df
                 )
                 cols = self.decode_col_exprs(
-                    expr.sp_relational_grouped_dataframe_builtin.cols.args
+                    expr.sp_relational_grouped_dataframe_builtin.cols.args,
+                    expr.sp_relational_grouped_dataframe_builtin.cols.variadic,
                 )
                 agg_name = expr.sp_relational_grouped_dataframe_builtin.agg_name
                 if (
