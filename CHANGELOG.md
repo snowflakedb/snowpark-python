@@ -11,6 +11,10 @@
   - `nullifzero`
   - `snowflake_cortex_sentiment`
 
+#### Improvements
+
+- Updated README.md to include instructions on how to verify package signatures using `cosign`.
+
 ### Snowpark pandas API Updates
 
 #### New Features
