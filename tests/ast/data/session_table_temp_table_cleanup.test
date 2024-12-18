@@ -1,0 +1,9 @@
+## TEST CASE
+
+df1 = session.table(f"mock_schema.{tables.table1}", is_temp_table_for_cleanup=True)
+df2 = session.table(f"mock_schema.{tables.table1}", is_temp_table_for_cleanup=False)
+df = df1.union_all(df2)
+
+## EXPECTED UNPARSER OUTPUT
+
+## EXPECTED ENCODED AST

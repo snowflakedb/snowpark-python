@@ -2253,7 +2253,7 @@ class Session:
                 )
 
     @publicapi
-    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
+    def table(self, name: Union[str, Iterable[str]], is_temp_table_for_cleanup: bool = False, _emit_ast: bool = True) -> Table:
         """
         Returns a Table that points the specified table.
 
@@ -2287,13 +2287,14 @@ class Session:
             elif isinstance(name, Iterable):
                 ast.name.sp_table_name_structured.name.extend(name)
             ast.variant.sp_session_table = True
+            ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
         else:
             stmt = None
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, session=self, _ast_stmt=stmt, _emit_ast=_emit_ast)
+        t = Table(name, session=self, is_temp_table_for_cleanup=is_temp_table_for_cleanup, _ast_stmt=stmt, _emit_ast=_emit_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
