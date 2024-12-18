@@ -4,7 +4,7 @@
 
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -42,6 +42,7 @@ from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import StructType, VariantType
+from pyodbc import Connection
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -980,3 +981,30 @@ class DataFrameReader:
         df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
+
+    def dbapi(
+        self,
+        create_connection: Callable[[], "Connection"],
+        table: str,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        predicates: Optional[List[str]] = None,
+        *,
+        snowflake_table_type: str = "temporary",
+        snowflake_table_name: Optional[str] = None,
+        use_stored_procedure: bool = False,
+    ) -> DataFrame:
+        connection = create_connection()
+        select_query = f"SELECT * FROM {table} ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY"
+
+        result_cursor = connection.cursor().execute(select_query)
+        schema = result_cursor.description
+        columns = [col[0] for col in schema]
+        result = result_cursor.fetchall()
+        print(columns)  # noqa: T201: we need to print here.
+        print(result)  # noqa: T201: we need to print here.
+
+        # df = pd.DataFrame.from_records(result, columns=columns)
+        # print(df)
