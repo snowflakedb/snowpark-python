@@ -169,13 +169,11 @@ To ensure the authenticity and integrity of the Python package, follow the steps
   - This example is using golang installation: [installing-cosign-with-go](https://edu.chainguard.dev/open-source/sigstore/cosign/how-to-install-cosign/#installing-cosign-with-go)
 - Download the file from the repository like pypi:
   - https://pypi.org/project/snowflake-snowpark-python/#files
-- Download the signature files from the release tag:
+- Download the signature files from the release tag, replace the version number with the version you are verifying:
   - https://github.com/snowflakedb/snowpark-python/releases/tag/v1.22.1
-- Verify signature on projects signed using GitHub Action:
-  - For this you need to have:
-    - The Yaml file name for the Github Action. For example python-publish.yml
-    - The release tag name, for example v1.22.1
+- Verify signature:
   ````bash
+  # replace the version number with the version you are verifying
   ./cosign verify-blob snowflake_snowpark_python-1.22.1-py3-none-any.whl  \
   --certificate snowflake_snowpark_python-1.22.1-py3-none-any.whl.crt \
   --certificate-identity https://github.com/snowflakedb/snowpark-python/.github/workflows/python-publish.yml@refs/tags/v1.22.1 \
