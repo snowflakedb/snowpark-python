@@ -3015,7 +3015,7 @@ class Session:
                 str(ci_output)
             )
 
-    def _create_temp_table_for_given_schema(
+    def _initialize_temp_table_with_schema(
         self, temp_table_name: str, schema: StructType
     ) -> bool:
         """Creates a temp table for specified schema.
@@ -3147,7 +3147,7 @@ class Session:
                 # the temp table. If we fail, go back to old method using infer schema.
                 if isinstance(
                     schema, StructType
-                ) and self._create_temp_table_for_given_schema(temp_table_name, schema):
+                ) and self._initialize_temp_table_with_schema(temp_table_name, schema):
                     try:
                         table = self.write_pandas(
                             data,
@@ -3206,7 +3206,7 @@ class Session:
                 and all([field.datatype.is_primitive() for field in schema.fields])
             ):
                 temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-                if self._create_temp_table_for_given_schema(temp_table_name, schema):
+                if self._initialize_temp_table_with_schema(temp_table_name, schema):
                     schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
         else:
             if not data:
