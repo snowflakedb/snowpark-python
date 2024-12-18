@@ -633,13 +633,16 @@ class Decoder:
                 col = self.decode_expr(expr.sp_column_alias.col)
                 alias = expr.sp_column_alias.name
                 # Column.as if True; Column.alias if False, Column.name if None.
-                variant = expr.sp_column_alias.variant_is_as.value
-                if variant is True:
-                    return col.as_(alias)
-                elif variant is False:
-                    return col.alias(alias)
-                else:
-                    return col.name(alias)
+
+                match expr.sp_column_alias.fn.WhichOneof("variant"):
+                    case "sp_column_alias_fn_alias":
+                        return col.alias(alias)
+
+                    case "sp_column_alias_fn_as":
+                        return col.as_(alias)
+
+                    case _:
+                        return col.name(alias)
 
             case "sp_column_apply__int":
                 col = self.decode_expr(expr.sp_column_apply__int.col)
