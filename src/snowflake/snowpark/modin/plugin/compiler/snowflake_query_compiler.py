@@ -8783,17 +8783,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
-        # Check if the function is a known numpy function that can be translated to Snowflake function.
+        # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
+        # Check if the function is a known numpy function that can be translated to
+        # Snowflake function.
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
-        if sf_func is not None:
-            # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
-            return self._apply_snowpark_python_function_to_columns(
-                sf_func, kwargs
-            )  # pragma: no cover
+        if sf_func is not None:  # pragma: no cover
+            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
 
-        if func in (np.sum, np.min, np.max):
+        if func in (np.sum, np.min, np.max):  # pragma: no cover
             # Aggregate functions applied element-wise to columns are no-op.
-            return self  # pragma: no cover
+            return self
 
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.

@@ -291,7 +291,11 @@ numpy_to_pandas_universal_func_map = {
 }
 
 
-# Map numpy universal (element-wise) function to Snowflake function
+# Map from numpy universal (element-wise) function to Snowflake function.
+# This is used to map numpy functions to builtin sql functions when numpy function is
+# passed in apply and map methods. For example: df.apply(np.<func>)
+# Using native SQL functions instead of creating UDF/UDTF provides significant
+# better performance.
 NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION = {
     # Math operations
     np.absolute: sp_func.abs,
