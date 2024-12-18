@@ -248,7 +248,11 @@ def test_to_sql_system_function():
         to_sql_no_cast("POINT(-122.35 37.55)", GeographyType())
         == "TO_GEOGRAPHY('POINT(-122.35 37.55)')"
     )
-    assert to_sql_no_cast("1", VariantType()) == "'1'"
+    assert (
+        to_sql_no_cast("POINT(-122.35 37.55)", GeometryType())
+        == "TO_GEOMETRY('POINT(-122.35 37.55)')"
+    )
+    assert to_sql_no_cast("1", VariantType()) == "PARSE_JSON('\"1\"')"
     assert (
         to_sql_no_cast([1, 2, 3.5, 4.1234567, -3.8], VectorType("float", 5))
         == "[1, 2, 3.5, 4.1234567, -3.8]"

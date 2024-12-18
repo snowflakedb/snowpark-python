@@ -69,6 +69,9 @@ def to_sql_no_cast(
 ) -> str:
     if value is None:
         return "NULL"
+    if isinstance(datatype, VariantType):
+        # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
     if isinstance(value, str):
         if isinstance(datatype, GeographyType):
             return f"TO_GEOGRAPHY({str_to_sql(value)})"
@@ -83,9 +86,6 @@ def to_sql_no_cast(
     if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
         return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
     if isinstance(value, dict) and isinstance(datatype, MapType):
-        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
-    if isinstance(datatype, VariantType):
-        # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
         return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
     if isinstance(datatype, DateType):
         if isinstance(value, int):
