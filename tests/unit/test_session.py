@@ -630,7 +630,12 @@ def test_session_builder_app_name_existing_invalid_json_query_tag():
     ],
 )
 @pytest.mark.parametrize(
-    "parameter_name", ["_auto_clean_up_temp_table_enabled", "_cte_optimization_enabled"]
+    "parameter_name",
+    [
+        "_auto_clean_up_temp_table_enabled",
+        "_cte_optimization_enabled",
+        "_large_query_breakdown_enabled",
+    ],
 )
 def test_parameter_version(version_value, expected_parameter_value, parameter_name):
     fake_server_connection = mock.create_autospec(ServerConnection)

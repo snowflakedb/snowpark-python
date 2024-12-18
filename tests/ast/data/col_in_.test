@@ -52,7 +52,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_in__seq {
+          sp_column_in {
             col {
               apply_expr {
                 fn {
@@ -136,7 +136,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_in__seq {
+          sp_column_in {
             col {
               apply_expr {
                 fn {
@@ -200,7 +200,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_in__seq {
+          sp_column_in {
             col {
               apply_expr {
                 fn {
@@ -282,5 +282,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

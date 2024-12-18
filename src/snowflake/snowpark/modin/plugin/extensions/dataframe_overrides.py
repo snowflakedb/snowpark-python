@@ -31,6 +31,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
+from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeDataframe
 from modin.pandas.api.extensions import register_dataframe_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
@@ -136,9 +137,15 @@ def register_dataframe_not_implemented():
 
 # Avoid overwriting builtin `map` by accident
 @register_dataframe_accessor("map")
-@dataframe_not_implemented()
-def _map(self, func, na_action: str | None = None, **kwargs) -> DataFrame:
-    pass  # pragma: no cover
+def _map(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
+    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+    if not callable(func):
+        raise TypeError(f"{func} is not callable")  # pragma: no cover
+    return self.__constructor__(
+        query_compiler=self._query_compiler.applymap(
+            func, na_action=na_action, **kwargs
+        )
+    )
 
 
 @register_dataframe_not_implemented()
@@ -405,17 +412,27 @@ def __rdivmod__(self, other):
 # The from_dict and from_records accessors are class methods and cannot be overridden via the
 # extensions module, as they need to be foisted onto the namespace directly because they are not
 # routed through getattr. To this end, we manually set DataFrame.from_dict to our new method.
-@dataframe_not_implemented()
+@classmethod
 def from_dict(
     cls, data, orient="columns", dtype=None, columns=None
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    """
+    Construct ``DataFrame`` from dict of array-like or dicts.
+    """
+    return DataFrame(
+        native_pd.DataFrame.from_dict(
+            data=data,
+            orient=orient,
+            dtype=dtype,
+            columns=columns,
+        )
+    )
 
 
 DataFrame.from_dict = from_dict
 
 
-@dataframe_not_implemented()
+@classmethod
 def from_records(
     cls,
     data,
@@ -425,7 +442,23 @@ def from_records(
     coerce_float=False,
     nrows=None,
 ):  # pragma: no cover # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    """
+    Convert structured or record ndarray to ``DataFrame``.
+    """
+    if isinstance(data, DataFrame):
+        ErrorMessage.not_implemented(
+            "Snowpark pandas 'DataFrame.from_records' method does not yet support 'data' parameter of type 'DataFrame'"
+        )
+    return DataFrame(
+        native_pd.DataFrame.from_records(
+            data=data,
+            index=index,
+            exclude=exclude,
+            columns=columns,
+            coerce_float=coerce_float,
+            nrows=nrows,
+        )
+    )
 
 
 DataFrame.from_records = from_records
@@ -729,40 +762,9 @@ def _df_init_list_data_with_snowpark_pandas_values(
 
 
 @register_dataframe_accessor("__dataframe__")
-def __dataframe__(self, nan_as_null: bool = False, allow_copy: bool = True):
-    """
-    Get a Modin DataFrame that implements the dataframe exchange protocol.
-
-    See more about the protocol in https://data-apis.org/dataframe-protocol/latest/index.html.
-
-    Parameters
-    ----------
-    nan_as_null : bool, default: False
-        A keyword intended for the consumer to tell the producer
-        to overwrite null values in the data with ``NaN`` (or ``NaT``).
-        This currently has no effect; once support for nullable extension
-        dtypes is added, this value should be propagated to columns.
-    allow_copy : bool, default: True
-        A keyword that defines whether or not the library is allowed
-        to make a copy of the data. For example, copying data would be necessary
-        if a library supports strided buffers, given that this protocol
-        specifies contiguous buffers. Currently, if the flag is set to ``False``
-        and a copy is needed, a ``RuntimeError`` will be raised.
-
-    Returns
-    -------
-    ProtocolDataframe
-        A dataframe object following the dataframe protocol specification.
-    """
-    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    ErrorMessage.not_implemented(
-        "Snowpark pandas does not support the DataFrame interchange "
-        + "protocol method `__dataframe__`. To use Snowpark pandas "
-        + "DataFrames with third-party libraries that try to call the "
-        + "`__dataframe__` method, please convert this Snowpark pandas "
-        + "DataFrame to pandas with `to_pandas()`."
-    )
-
+def __dataframe__(
+    self, nan_as_null: bool = False, allow_copy: bool = True
+) -> InterchangeDataframe:
     return self._query_compiler.to_dataframe(
         nan_as_null=nan_as_null, allow_copy=allow_copy
     )
@@ -834,14 +836,12 @@ def apply(
 # Snowpark pandas uses a separate QC method, while modin directly calls map.
 @register_dataframe_accessor("applymap")
 def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
-    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
-    if not callable(func):
-        raise TypeError(f"{func} is not callable")
-    return self.__constructor__(
-        query_compiler=self._query_compiler.applymap(
-            func, na_action=na_action, **kwargs
-        )
+    warnings.warn(
+        "DataFrame.applymap has been deprecated. Use DataFrame.map instead.",
+        FutureWarning,
+        stacklevel=2,
     )
+    return self.map(func, na_action=na_action, **kwargs)
 
 
 # We need to override _get_columns to satisfy
