@@ -373,7 +373,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
-    NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION,
+    NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION,
 )
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -8435,6 +8435,30 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
+        # TODO SNOW-1739034: remove 'no cover' when apply tests are enabled in CI
+        sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(
+            func
+        )  # pragma: no cover
+        if sf_func is not None:  # pragma: no cover
+            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+
+        if get_snowflake_agg_func(func, {}, axis) is not None:  # pragma: no cover
+            # np.std and np.var 'ddof' parameter defaults to 0 but
+            # df.std and df.var 'ddof' parameter defaults to 1.
+            # Set it here explicitly to 0 if not provided.
+            if func in (np.std, np.var) and "ddof" not in kwargs:
+                kwargs["ddof"] = 0
+            # np.median return NaN if any value is NaN while df.median skips NaN values.
+            # Set 'skipna' to false to match behavior.
+            if func == np.median:
+                kwargs["skipna"] = False
+            qc = self.agg(func, axis, None, kwargs)
+            if axis == 1:
+                # agg method populates series name with aggregation function name but
+                # in apply we need unnamed series.
+                qc = qc.set_columns([MODIN_UNNAMED_SERIES_LABEL])
+            return qc
+
         if axis == 0:
             frame = self._modin_frame
 
@@ -8759,13 +8783,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
-        # Check if the function is a known numpy function that can be translated to Snowflake function.
-        sf_func = NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
-        if sf_func is not None:
-            # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
-            return self._apply_snowpark_python_function_to_columns(
-                sf_func, kwargs
-            )  # pragma: no cover
+        # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
+        # Check if the function is a known numpy function that can be translated to
+        # Snowflake function.
+        sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
+        if sf_func is not None:  # pragma: no cover
+            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+
+        if func in (np.sum, np.min, np.max):  # pragma: no cover
+            # Aggregate functions applied element-wise to columns are no-op.
+            return self
 
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
