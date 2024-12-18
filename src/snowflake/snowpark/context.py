@@ -24,15 +24,12 @@ _should_continue_registration: Optional[Callable[..., bool]] = None
 
 # Internal-only global flag that determines if structured type semantics should be used
 _use_structured_type_semantics = False
-_use_structured_type_semantics_lock = None
+_use_structured_type_semantics_lock = threading.RLock()
 
 
 def _should_use_structured_type_semantics():
     global _use_structured_type_semantics
     global _use_structured_type_semantics_lock
-    if _use_structured_type_semantics_lock is None:
-        _use_structured_type_semantics_lock = threading.RLock()
-
     with _use_structured_type_semantics_lock:
         return _use_structured_type_semantics
 
