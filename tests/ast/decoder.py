@@ -13,7 +13,7 @@ from google.protobuf.json_format import MessageToDict
 
 from snowflake.snowpark import Session, Column
 import snowflake.snowpark.functions
-from snowflake.snowpark.functions import udf
+from snowflake.snowpark.functions import udf, when
 from snowflake.snowpark.types import (
     DataType,
     ArrayType,
@@ -656,16 +656,64 @@ class Decoder:
                 field = expr.sp_column_apply__string.field
                 return col[field]
 
+            case "sp_column_asc":
+                col = self.decode_expr(expr.sp_column_asc.col)
+                match expr.sp_column_asc.null_order.WhichOneof("variant"):
+                    case "sp_null_order_default":
+                        return col.asc()
+                    case "sp_null_order_nulls_first":
+                        return col.asc_nulls_first()
+                    case "sp_null_order_nulls_last":
+                        return col.asc_nulls_last()
+                    case _:
+                        raise ValueError(
+                            "Unknown null order for sp_column_asc: %s"
+                            % expr.sp_column_asc.null_order.WhichOneof("variant")
+                        )
+
             case "sp_column_between":
                 col = self.decode_expr(expr.sp_column_between.col)
                 lower = self.decode_expr(expr.sp_column_between.lower_bound)
                 upper = self.decode_expr(expr.sp_column_between.upper_bound)
                 return col.between(lower, upper)
 
+            case "sp_column_case_when":
+                # The cases can be chained as when(...).when(...).otherwise(...) or
+                # when(...).otherwise(...).when(...).otherwise(...).
+                ret_val = None
+                for case in expr.sp_column_case_when.cases:
+                    # If the condition field is empty, it is a call to `otherwise`, else it is a call to `when`.
+                    value = self.decode_expr(case.value)
+                    if hasattr(case, "condition") and str(case.condition).strip() != "":
+                        condition = self.decode_expr(case.condition)
+                        ret_val = (
+                            when(condition, value)
+                            if ret_val is None
+                            else ret_val.when(condition, value)
+                        )
+                    else:
+                        ret_val = ret_val.otherwise(value)
+                return ret_val
+
             case "sp_column_cast":
                 col = self.decode_expr(expr.sp_column_cast.col)
                 to_dtype = self.decode_data_type_expr(expr.sp_column_cast.to)
                 return col.cast(to_dtype)
+
+            case "sp_column_desc":
+                col = self.decode_expr(expr.sp_column_desc.col)
+                match expr.sp_column_desc.null_order.WhichOneof("variant"):
+                    case "sp_null_order_default":
+                        return col.desc()
+                    case "sp_null_order_nulls_first":
+                        return col.desc_nulls_first()
+                    case "sp_null_order_nulls_last":
+                        return col.desc_nulls_last()
+                    case _:
+                        raise ValueError(
+                            "Unknown null order for sp_column_desc: %s"
+                            % expr.sp_column_desc.null_order.WhichOneof("variant")
+                        )
 
             case "sp_column_equal_nan":
                 col = self.decode_expr(expr.sp_column_equal_nan.col)
@@ -700,31 +748,42 @@ class Decoder:
 
             case "sp_column_string_like":
                 col = self.decode_expr(expr.sp_column_string_like.col)
-                return col
+                pattern = self.decode_expr(expr.sp_column_string_like.pattern)
+                return col.like(pattern)
 
             case "sp_column_string_regexp":
                 col = self.decode_expr(expr.sp_column_string_regexp.col)
-                return col
+                pattern = self.decode_expr(expr.sp_column_string_regexp.pattern)
+                parameters = self.decode_expr(expr.sp_column_string_regexp.parameters)
+                return col.regexp(pattern, parameters)
 
             case "sp_column_string_starts_with":
                 col = self.decode_expr(expr.sp_column_string_starts_with.col)
-                return col
+                prefix = self.decode_expr(expr.sp_column_string_starts_with.prefix)
+                return col.starts_with(prefix)
 
             case "sp_column_string_substr":
                 col = self.decode_expr(expr.sp_column_string_substr.col)
-                return col
+                len = self.decode_expr(expr.sp_column_string_substr.len)
+                pos = self.decode_expr(expr.sp_column_string_substr.pos)
+                return col.substr(pos, len)
 
             case "sp_column_string_ends_with":
                 col = self.decode_expr(expr.sp_column_string_ends_with.col)
-                return col
+                suffix = self.decode_expr(expr.sp_column_string_ends_with.suffix)
+                return col.ends_with(suffix)
 
             case "sp_column_string_collate":
                 col = self.decode_expr(expr.sp_column_string_collate.col)
-                return col
+                collation_spec = self.decode_expr(
+                    expr.sp_column_string_collate.collation_spec
+                )
+                return col.collate(collation_spec)
 
             case "sp_column_string_contains":
                 col = self.decode_expr(expr.sp_column_string_contains.col)
-                return col
+                pattern = self.decode_expr(expr.sp_column_string_contains.pattern)
+                return col.contains(pattern)
 
             case "sp_column_try_cast":
                 col = self.decode_expr(expr.sp_column_try_cast.col)
@@ -904,7 +963,7 @@ class Decoder:
                 # The columns can be a list of Expr or a single Expr.
                 cols = self.decode_col_exprs(
                     expr.sp_dataframe_select__columns.cols,
-                    expr.sp_dataframe_select__columns.cols.variadic,
+                    not hasattr(expr.sp_dataframe_select__columns, "variadic"),
                 )
                 if hasattr(expr.sp_dataframe_select__columns, "variadic"):
                     val = df.select(*cols)
