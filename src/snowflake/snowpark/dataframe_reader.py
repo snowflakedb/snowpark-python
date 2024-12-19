@@ -1,7 +1,9 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import datetime
+import decimal
+from dateutil import parser
 import sys
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
@@ -33,7 +35,6 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     parse_positional_args_to_list_variadic,
     publicapi,
-    random_name_for_temp_object,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -41,8 +42,19 @@ from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
-from snowflake.snowpark.types import StructType, VariantType
+from snowflake.snowpark.types import (
+    StructType,
+    VariantType,
+    StructField,
+    IntegerType,
+    FloatType,
+    DecimalType,
+    StringType,
+    DateType,
+    BooleanType,
+)
 from pyodbc import Connection
+from snowflake.snowpark._internal.utils import random_name_for_temp_object
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -996,15 +1008,132 @@ class DataFrameReader:
         snowflake_table_name: Optional[str] = None,
         use_stored_procedure: bool = False,
     ) -> DataFrame:
-        connection = create_connection()
-        select_query = f"SELECT * FROM {table} ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY"
 
-        result_cursor = connection.cursor().execute(select_query)
-        schema = result_cursor.description
-        columns = [col[0] for col in schema]
-        result = result_cursor.fetchall()
-        print(columns)  # noqa: T201: we need to print here.
-        print(result)  # noqa: T201: we need to print here.
+        if column is not None:
+            assert (
+                lower_bound is not None
+            ), "lower_bound can not be None when ``column`` is specified"
+            assert (
+                upper_bound is not None
+            ), "upper_bound can not be None when ``column`` is specified"
+            assert (
+                num_partitions is not None
+            ), "num_partitions can not be None when ``column`` is specified"
+        else:
+            self._single_thread_ingestion(
+                create_connection,
+                table,
+                snowflake_table_type=snowflake_table_type,
+                snowflake_table_name=snowflake_table_name,
+                use_stored_procedure=use_stored_procedure,
+            )
 
+    def _generate_partition(
+        self,
+        table: str,
+        schema: Tuple[tuple],
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        predicates: Optional[List[str]] = None,
+    ) -> List[str]:
+        select_query = f"SELECT * FROM {table}"
+        column_type = None
+        for col in schema:
+            if col[0] == column:
+                column_type = col[1]
+        if column_type is None:
+            raise ValueError("Column does not exist")
+
+        if column_type not in [int, float, decimal.Decimal, datetime.datetime]:
+            raise ValueError("unsupported type")
+
+        if column_type == datetime.datetime:
+            processed_lower_bound = parser.parse(lower_bound)
+            processed_upper_bound = parser.parse(upper_bound)
+        else:
+            processed_lower_bound = column_type(lower_bound)
+            processed_upper_bound = column_type(upper_bound)
+
+        partition_size = (
+            processed_upper_bound - processed_lower_bound
+        ) / num_partitions
+
+        partition_queries = []
+        for i in range(num_partitions):
+            left = (
+                processed_lower_bound + i * partition_size
+                if column_type != int
+                else int(processed_lower_bound + i * partition_size)
+            )
+            right = (
+                min(left + partition_size, processed_upper_bound)
+                if column_type != int
+                else int(min(left + partition_size, processed_upper_bound))
+            )
+            partition_queries.append(
+                select_query
+                + f" WHERE {column} >= {left} and {column} {'<=' if right == processed_upper_bound else '<'} {right}"
+            )
+
+        return partition_queries
+
+    def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
+        fields = []
+        for column in schema:
+            if column[1] == int:
+                field = StructField(column[0], IntegerType(), column[6])
+            elif column[1] == float:
+                field = StructField(column[0], FloatType(), column[6])
+            elif column[1] == decimal.Decimal:
+                field = StructField(
+                    column[0], DecimalType(column[4], column[5]), column[6]
+                )
+            elif column[1] == str:
+                field = StructField(column[0], StringType(), column[6])
+            elif column[1] == datetime.datetime:
+                field = StructField(column[0], DateType(), column[6])
+            elif column[1] == bool:
+                field = StructField(column[0], BooleanType(), column[6])
+            else:
+                raise ValueError("unsupported type")
+
+            fields.append(field)
+        return StructType(fields)
+
+    def _single_thread_ingestion(
+        self,
+        create_connection: Callable[[], "Connection"],
+        table: str,
+        *,
+        snowflake_table_type: str = "temporary",
+        snowflake_table_name: Optional[str] = None,
+        use_stored_procedure: bool = False,
+    ) -> DataFrame:
+        pass
+        # connection = create_connection()
+        # select_query = f"SELECT * FROM {table} ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY"
+        # result_cursor = connection.cursor().execute(select_query)
+        # schema = result_cursor.description
+        #
+        # columns = [col[0] for col in schema]
+        # result = result_cursor.fetchall()
         # df = pd.DataFrame.from_records(result, columns=columns)
-        # print(df)
+        # path = f"{random_name_for_temp_object(TempObjectType.FILE_FORMAT)}.parquet"
+
+    def parallel_ingestion(
+        self,
+        create_connection: Callable[[], "Connection"],
+        table: str,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        predicates: Optional[List[str]] = None,
+        *,
+        snowflake_table_type: str = "temporary",
+        snowflake_table_name: Optional[str] = None,
+        use_stored_procedure: bool = False,
+    ) -> DataFrame:
+        pass
