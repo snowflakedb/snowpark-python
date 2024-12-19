@@ -37,12 +37,12 @@ paramList = [False, True]
 
 @pytest.fixture(params=paramList, autouse=True)
 def setup(request, session):
-    is_simplifier_enabled = session._sql_simplifier_enabled
+    is_simplifier_enabled = session.sql_simplifier_enabled
     large_query_breakdown_enabled = session.large_query_breakdown_enabled
     session.large_query_breakdown_enabled = request.param
-    session._sql_simplifier_enabled = True
+    session.sql_simplifier_enabled = True
     yield
-    session._sql_simplifier_enabled = is_simplifier_enabled
+    session.sql_simplifier_enabled = is_simplifier_enabled
     session.large_query_breakdown_enabled = large_query_breakdown_enabled
 
 

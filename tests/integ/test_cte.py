@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
-import logging
 import re
 
 import pytest
@@ -15,6 +14,7 @@ from snowflake.snowpark._internal.utils import (
     TEMP_OBJECT_NAME_PREFIX,
     TempObjectType,
     random_name_for_temp_object,
+    warning_dict,
 )
 from snowflake.snowpark.functions import avg, col, lit, seq1, uniform, when_matched
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
@@ -45,12 +45,12 @@ WITH = "WITH"
 
 @pytest.fixture(autouse=True)
 def setup(request, session):
-    is_cte_optimization_enabled = session._cte_optimization_enabled
+    is_cte_optimization_enabled = session.cte_optimization_enabled
     is_query_compilation_enabled = session._query_compilation_stage_enabled
     session._query_compilation_stage_enabled = True
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     yield
-    session._cte_optimization_enabled = is_cte_optimization_enabled
+    session.cte_optimization_enabled = is_cte_optimization_enabled
     session._query_compilation_stage_enabled = is_query_compilation_enabled
 
 
@@ -68,7 +68,7 @@ def check_result(
     high_query_count_reason=None,
 ):
     df = df.sort(df.columns)
-    session._cte_optimization_enabled = False
+    session.cte_optimization_enabled = False
     with SqlCounter(
         query_count=query_count,
         describe_count=describe_count,
@@ -89,7 +89,7 @@ def check_result(
         result_count = df.count()
     result_pandas = df.to_pandas() if installed_pandas else None
 
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     if cte_union_count is None:
         cte_union_count = union_count
     if cte_join_count is None:
@@ -236,10 +236,10 @@ def test_join_with_alias_dataframe(session):
         .select(col("L", "col1"), col("R", "col2"))
     )
 
-    session._cte_optimization_enabled = False
+    session.cte_optimization_enabled = False
     result = df_res.collect()
 
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     cte_result = df_res.collect()
 
     Utils.check_answer(cte_result, result)
@@ -416,7 +416,7 @@ def test_number_of_ctes(session, type, action):
         # if SQL simplifier is enabled, filter and select will be one query,
         # so there are only 2 CTEs
         assert count_number_of_ctes(root.queries["queries"][-1]) == (
-            2 if session._sql_simplifier_enabled else 3
+            2 if session.sql_simplifier_enabled else 3
         )
 
 
@@ -601,7 +601,7 @@ def test_explain(session):
 
 
 def test_sql_simplifier(session):
-    if not session._sql_simplifier_enabled:
+    if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier is not enabled")
 
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -1034,7 +1034,6 @@ def test_table_select_cte(session):
     IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
 )
 @sql_count_checker(query_count=0)
-def test_cte_optimization_enabled_parameter(session, caplog):
-    with caplog.at_level(logging.WARNING):
-        session.cte_optimization_enabled = True
-    assert "cte_optimization_enabled is experimental" in caplog.text
+def test_cte_optimization_enabled_parameter(session):
+    session.cte_optimization_enabled = True
+    assert warning_dict["cte_optimization_enabled"].count >= 1
