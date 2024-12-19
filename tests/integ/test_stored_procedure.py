@@ -4,6 +4,7 @@
 #
 
 import datetime
+import decimal  # noqa: F401
 import logging
 import os
 import re
