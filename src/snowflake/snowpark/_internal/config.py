@@ -20,9 +20,18 @@ when all configuration needs to be accessible from a single object.
 
 import pkg_resources
 
-from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import TypeVar, Any, Callable, TYPE_CHECKING, Optional, Union, List, Dict
+from typing import (
+    TypeVar,
+    Any,
+    Callable,
+    TYPE_CHECKING,
+    Optional,
+    Union,
+    List,
+    Dict,
+    Iterable,
+)
 from snowflake.snowpark._internal.utils import warning
 
 from snowflake.snowpark._internal.utils import (
