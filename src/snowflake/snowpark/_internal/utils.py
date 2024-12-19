@@ -210,7 +210,7 @@ def _pandas_importer():  # noqa: E302
         # since we enable relative imports without dots this import gives us an issues when ran from test directory
         from pandas import DataFrame  # NOQA
     except ImportError as e:
-        _logger.error(f"pandas is not installed {e}")
+        pass
     return pandas
 
 
