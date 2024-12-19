@@ -787,13 +787,17 @@ class Session:
         #     )
         # except Exception:
         #     pass
+        warn_session_config_update_in_multithreaded_mode(
+            "ast_enabled", self._conn._thread_safe_session_enabled
+        )
+
         self._ast_enabled = value
 
         # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
         # This feature should get moved server-side anyways.
         if self._ast_enabled:
+            # TODO SNOW-1770278: Ensure auto temp table cleaner works with AST.
             _logger.warning(
-                "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
             self.auto_clean_up_temp_table_enabled = False
