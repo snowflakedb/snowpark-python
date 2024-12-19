@@ -7,7 +7,11 @@
 #### New Features
 
 - Added support for the following functions in `functions.py`
+  - `array_reverse`
   - `divnull`
+  - `map_cat`
+  - `map_contains_key`
+  - `map_keys`
   - `nullifzero`
   - `snowflake_cortex_sentiment`
 
@@ -38,11 +42,6 @@
   - %j: Day of the year as a zero-padded decimal number.
   - %X: Locale’s appropriate time representation.
   - %%: A literal '%' character.
-- Added support for the follow functions:
-  - `array_reverse`
-  - `map_cat`
-  - `map_contains_key`
-  - `map_keys`
 - Added support for `Series.between`.
 
 #### Bug Fixes
