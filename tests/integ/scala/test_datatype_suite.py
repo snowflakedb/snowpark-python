@@ -561,6 +561,10 @@ def test_structured_dtypes_negative(structured_type_session, structured_type_sup
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
+@pytest.mark.skipif(
+    "config.getoption('enable_ast', default=False)",
+    reason="SNOW-1862700: AST does not support new structured type semantics yet.",
+)
 def test_udaf_structured_map_downcast(
     structured_type_session, structured_type_support, caplog
 ):
