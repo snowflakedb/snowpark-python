@@ -3,6 +3,9 @@
 #
 import datetime
 import decimal
+import os
+from concurrent.futures import ProcessPoolExecutor, wait, ALL_COMPLETED
+
 from dateutil import parser
 import sys
 from logging import getLogger
@@ -52,8 +55,11 @@ from snowflake.snowpark.types import (
     StringType,
     DateType,
     BooleanType,
+    DataType,
+    _NumericType,
 )
 from pyodbc import Connection
+import pandas as pd
 from snowflake.snowpark._internal.utils import random_name_for_temp_object
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1008,30 +1014,64 @@ class DataFrameReader:
         snowflake_table_name: Optional[str] = None,
         use_stored_procedure: bool = False,
     ) -> DataFrame:
-
-        if column is not None:
-            assert (
+        conn = create_connection()
+        struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
+        if column is None:
+            if (
                 lower_bound is not None
-            ), "lower_bound can not be None when ``column`` is specified"
-            assert (
-                upper_bound is not None
-            ), "upper_bound can not be None when ``column`` is specified"
-            assert (
-                num_partitions is not None
-            ), "num_partitions can not be None when ``column`` is specified"
+                or upper_bound is not None
+                or num_partitions is not None
+            ):
+                raise ValueError(
+                    "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
+                )
+            partitioned_queries = [f"SELECT * FROM {table}"]
         else:
-            self._single_thread_ingestion(
-                create_connection,
+            if lower_bound is None or upper_bound is None or num_partitions is None:
+                raise ValueError(
+                    "when column is specified, lower_bound, upper_bound, num_partitions must be specified"
+                )
+
+            column_type = None
+            for field in struct_schema.fields:
+                if field.name == column:
+                    column_type = field.datatype
+            if column_type is None:
+                raise ValueError("Column does not exist")
+
+            if not isinstance(column_type, _NumericType) and not isinstance(
+                column_type, DateType
+            ):
+                raise ValueError(f"unsupported type {column_type}")
+            partitioned_queries = self._generate_partition(
                 table,
-                snowflake_table_type=snowflake_table_type,
-                snowflake_table_name=snowflake_table_name,
-                use_stored_procedure=use_stored_procedure,
+                column_type,
+                column,
+                lower_bound,
+                upper_bound,
+                num_partitions,
+                predicates,
             )
+        with ProcessPoolExecutor(max_workers=len(partitioned_queries)) as executor:
+            futures = [
+                executor.submit(
+                    task_fetch_from_data_source, create_connection, query, raw_schema, i
+                )
+                for i, query in enumerate(partitioned_queries)
+            ]
+
+            _ = wait(futures, return_when=ALL_COMPLETED)
+
+    def _infer_data_source_schema(
+        self, conn: Connection, table: str
+    ) -> tuple[StructType, tuple[tuple[str, Any, int, int, int, int, bool]]]:
+        raw_schema = conn.execute(f"SELECT * FROM {table} WHERE 1 = 0").description
+        return self._to_snowpark_type(raw_schema), raw_schema
 
     def _generate_partition(
         self,
         table: str,
-        schema: Tuple[tuple],
+        column_type: DataType,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
@@ -1039,45 +1079,60 @@ class DataFrameReader:
         predicates: Optional[List[str]] = None,
     ) -> List[str]:
         select_query = f"SELECT * FROM {table}"
-        column_type = None
-        for col in schema:
-            if col[0] == column:
-                column_type = col[1]
-        if column_type is None:
-            raise ValueError("Column does not exist")
 
-        if column_type not in [int, float, decimal.Decimal, datetime.datetime]:
-            raise ValueError("unsupported type")
+        processed_lower_bound = self._to_internal_value(lower_bound, column_type)
+        processed_upper_bound = self._to_internal_value(upper_bound, column_type)
+        if processed_lower_bound > processed_upper_bound:
+            raise ValueError("lower_bound cannot be greater than upper_bound")
 
-        if column_type == datetime.datetime:
-            processed_lower_bound = parser.parse(lower_bound)
-            processed_upper_bound = parser.parse(upper_bound)
-        else:
-            processed_lower_bound = column_type(lower_bound)
-            processed_upper_bound = column_type(upper_bound)
+        if processed_lower_bound == processed_upper_bound or num_partitions <= 1:
+            return [select_query]
 
-        partition_size = (
+        if (processed_upper_bound - processed_lower_bound) >= num_partitions or (
             processed_upper_bound - processed_lower_bound
-        ) / num_partitions
+        ) < 0:
+            actual_num_partitions = num_partitions
+        else:
+            actual_num_partitions = processed_upper_bound - processed_lower_bound
+            logger.warning(
+                "The number of partitions is reduced because the specified number of partitions is less than the difference between upper bound and lower bound."
+            )
+
+        # decide stride length
+        upper_stride = processed_upper_bound / actual_num_partitions
+        lower_stride = processed_lower_bound / actual_num_partitions
+        stride = upper_stride - lower_stride
 
         partition_queries = []
-        for i in range(num_partitions):
+        for i in range(actual_num_partitions):
             left = (
-                processed_lower_bound + i * partition_size
+                processed_lower_bound + i * stride
                 if column_type != int
-                else int(processed_lower_bound + i * partition_size)
+                else int(processed_lower_bound + i * stride)
             )
             right = (
-                min(left + partition_size, processed_upper_bound)
+                min(left + stride, processed_upper_bound)
                 if column_type != int
-                else int(min(left + partition_size, processed_upper_bound))
+                else int(min(left + stride, processed_upper_bound))
             )
             partition_queries.append(
                 select_query
-                + f" WHERE {column} >= {left} and {column} {'<=' if right == processed_upper_bound else '<'} {right}"
+                + f" WHERE {column} >= {self._to_external_value(left, column_type)} and {column} {'<=' if right == processed_upper_bound else '<'} {self._to_external_value(right, column_type)}"
             )
 
         return partition_queries
+
+    def _to_internal_value(self, value, column_type):
+        if isinstance(column_type, _NumericType):
+            return int(value)
+        else:
+            return int(parser.parse(value).timestamp())
+
+    def _to_external_value(self, value, column_type):
+        if isinstance(column_type, _NumericType):
+            return value
+        else:
+            return datetime.datetime.fromtimestamp(value)
 
     def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
         fields = []
@@ -1137,3 +1192,19 @@ class DataFrameReader:
         use_stored_procedure: bool = False,
     ) -> DataFrame:
         pass
+
+
+def task_fetch_from_data_source(
+    create_connection: Callable[[], "Connection"],
+    query: str,
+    schema: tuple[tuple[str, Any, int, int, int, int, bool]],
+    i: int,
+) -> None:
+    conn = create_connection()
+    result = conn.cursor().execute(query).fetchall()
+    columns = [col[0] for col in schema]
+    df = pd.DataFrame.from_records(result, columns=columns)
+    if not os.path.exists("test_res"):
+        os.mkdir("test_res")
+    path = f"test_res/data_{i}.parquet"
+    df.to_parquet(path)
