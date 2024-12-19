@@ -81,6 +81,7 @@ DataFrame
     DataFrame.subtract
     DataFrame.take
     DataFrame.toDF
+    DataFrame.toJSON
     DataFrame.toLocalIterator
     DataFrame.toPandas
     DataFrame.to_df
