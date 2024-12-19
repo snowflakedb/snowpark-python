@@ -18162,7 +18162,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-    def dt_strftime(self, date_format: str) -> None:
+    def dt_strftime(self, date_format: str) -> "SnowflakeQueryCompiler":
         """
         Format underlying date-time data using specified format.
 
@@ -18172,8 +18172,102 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             New QueryCompiler containing formatted date-time values.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.strftime'"
+
+        def strftime_func(column: SnowparkColumn) -> SnowparkColumn:
+            directive_to_function_map: dict[str, Callable] = {
+                "d": (
+                    # Day of the month as a zero-padded decimal number
+                    lambda column: lpad(
+                        dayofmonth(column), pandas_lit(2), pandas_lit("0")
+                    )
+                ),
+                "m": (
+                    # Month as a zero-padded decimal number
+                    lambda column: lpad(month(column), pandas_lit(2), pandas_lit("0"))
+                ),
+                "Y": (
+                    # Year with century as a decimal number
+                    lambda column: lpad(year(column), pandas_lit(4), pandas_lit("0"))
+                ),
+                "H": (
+                    # Hour (24-hour clock) as a zero-padded decimal number
+                    lambda column: lpad(hour(column), pandas_lit(2), pandas_lit("0"))
+                ),
+                "M": (
+                    # Minute as a zero-padded decimal number
+                    lambda column: lpad(minute(column), pandas_lit(2), pandas_lit("0"))
+                ),
+                "S": (
+                    # Second as a zero-padded decimal number
+                    lambda column: lpad(second(column), pandas_lit(2), pandas_lit("0"))
+                ),
+                "f": (
+                    # Microsecond as a decimal number, zero-padded to 6 digits
+                    lambda column: lpad(
+                        floor(date_part("ns", column) / 1000),
+                        pandas_lit(6),
+                        pandas_lit("0"),
+                    )
+                ),
+                "j": (
+                    # Day of the year as a zero-padded decimal number
+                    lambda column: lpad(
+                        dayofyear(column), pandas_lit(3), pandas_lit("0")
+                    )
+                ),
+                "X": (
+                    # Locale’s appropriate time representation
+                    lambda column: trunc(to_time(column), pandas_lit("second"))
+                ),
+                "%": (
+                    # A literal '%' character
+                    lambda column: pandas_lit("%")
+                ),
+            }
+
+            parts = re.split("%.", date_format)
+            directive_first = False
+            if parts[0] == "":
+                parts = parts[1:]
+                directive_first = True
+            if parts[-1] == "":
+                parts = parts[:-1]
+            directives = re.findall("%.", date_format)
+            cols = []
+            for i in range(min(len(parts), len(directives))):
+                directive_function = directive_to_function_map.get(directives[i][1:])
+                if not directive_function:
+                    raise ErrorMessage.not_implemented(
+                        f"Snowpark pandas 'Series.dt.strftime' method does not yet support the directive '%{directives[i][1:]}'"
+                    )
+
+                if directive_first:
+                    cols.append(directive_function(column))
+                    cols.append(pandas_lit(parts[i]))
+                else:
+                    cols.append(pandas_lit(parts[i]))
+                    cols.append(directive_function(column))
+
+            if len(parts) > len(directives):
+                cols.append(pandas_lit(parts[-1]))
+            if len(parts) < len(directives):
+                directive_function = directive_to_function_map.get(directives[-1][1:])
+                if not directive_function:
+                    raise ErrorMessage.not_implemented(
+                        f"Snowpark pandas 'Series.dt.strftime' method does not yet support the directive '%{directives[-1][1:]}'"
+                    )
+                cols.append(directive_function(column))
+
+            if len(cols) == 1:
+                return iff(column.is_null(), pandas_lit(None), cols[0])
+            else:
+                return iff(column.is_null(), pandas_lit(None), concat(*cols))
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                strftime_func,
+                include_index=False,
+            )
         )
 
     def topn(
