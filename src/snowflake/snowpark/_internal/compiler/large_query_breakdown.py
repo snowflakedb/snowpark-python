@@ -477,6 +477,14 @@ class LargeQueryBreakdown:
         if isinstance(node, SelectStatement):
             return True
 
+        if isinstance(node, SnowflakePlan):
+            return node.source_plan is not None and self._is_relaxed_pipeline_breaker(
+                node.source_plan
+            )
+
+        if isinstance(node, SelectSnowflakePlan):
+            return self._is_relaxed_pipeline_breaker(node.snowflake_plan)
+
         return False
 
     def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
