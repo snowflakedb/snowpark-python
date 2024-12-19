@@ -133,7 +133,6 @@ def test_unsupported_df(df_method, kwargs):
         ["asof", {"where": ""}],
         ["at_time", {"time": ""}],
         ["autocorr", {}],
-        ["between", {"left": "", "right": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
         ["bool", {}],
         ["clip", {}],
