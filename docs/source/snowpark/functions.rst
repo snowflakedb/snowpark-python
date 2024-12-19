@@ -35,21 +35,26 @@ Functions
     array_construct_compact
     array_contains
     array_distinct
+    array_except
     array_flatten
     array_generate_range
     array_insert
     array_intersection
+    array_join
     array_max
     array_min
     array_position
     array_prepend
     array_remove
+    array_reverse
     array_size
     array_slice
     array_sort
     array_to_string
+    array_union
     array_unique_agg
     arrays_overlap
+    arrays_zip
     as_array
     as_binary
     as_char
@@ -205,6 +210,10 @@ Functions
     lpad
     ltrim
     make_interval
+    map_cat
+    map_concat
+    map_contains_key
+    map_keys
     max
     md5
     mean
