@@ -433,7 +433,13 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         sql_size = len(sql_text)
         ref_ctes = None
         if isinstance(node, (SnowflakePlan, Selectable)):
-            ref_ctes = list(map(lambda node, cnt: f"{node.name[18:]}:{cnt}", node.referenced_ctes.keys(), node.referenced_ctes.values()))
+            ref_ctes = list(
+                map(
+                    lambda node, cnt: f"{node.name[18:]}:{cnt}",
+                    node.referenced_ctes.keys(),
+                    node.referenced_ctes.values(),
+                )
+            )
             for with_query_block in node.referenced_ctes:
                 sql_size += len(get_sql_text(with_query_block.children[0]))
         sql_preview = sql_text[:50]
@@ -460,7 +466,13 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             node_id = hex(id(node))
             color = "lightblue" if node._is_valid_for_replacement else "red"
             fillcolor = "lightgrey" if is_with_query_block(node) else "white"
-            g.node(node_id, get_stat(node), color=color, style="filled", fillcolor=fillcolor)
+            g.node(
+                node_id,
+                get_stat(node),
+                color=color,
+                style="filled",
+                fillcolor=fillcolor,
+            )
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
             else:
