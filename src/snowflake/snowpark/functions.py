@@ -5635,19 +5635,8 @@ def window(
     )
     time = _to_col_if_str(time_column, "window")
 
-    # Build AST here to prevent `window_duration`, `slide_duration`, and `start_time` from being recorded as a
-    # literal instead of str/None.
-    ast = (
-        build_function_expr(
-            "window",
-            [time_column, window_duration, slide_duration, start_time],
-            ignore_null_args=True,
-        )
-        if _emit_ast
-        else None
-    )
     window_duration, window_unit = parse_duration_string(window_duration)
-    window_duration = lit(window_duration, _ast=ast, _emit_ast=False)
+    window_duration = lit(window_duration, _emit_ast=False)
     window_unit = f"{window_unit}s"
 
     base = epoch
