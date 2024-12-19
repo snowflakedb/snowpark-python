@@ -71,8 +71,6 @@ def test_unsupported_general(general_method, kwargs):
         ["combine", {"other": "", "func": ""}],
         ["combine_first", {"other": ""}],
         ["filter", {}],
-        ["from_dict", {"data": ""}],
-        ["from_records", {"data": ""}],
         ["hist", {}],
         ["infer_objects", {}],
         ["interpolate", {}],

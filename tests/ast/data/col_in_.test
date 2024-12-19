@@ -55,7 +55,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_in__seq {
+          sp_column_in {
             col {
               apply_expr {
                 fn {
@@ -157,7 +157,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_in__seq {
+          sp_column_in {
             col {
               apply_expr {
                 fn {
@@ -230,7 +230,7 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_in__seq {
+          sp_column_in {
             col {
               apply_expr {
                 fn {

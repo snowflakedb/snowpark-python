@@ -169,7 +169,7 @@ def create_func_with_return_type_hint(func: Callable, return_type: str) -> Calla
     return d["f"]
 
 
-TEST_NUMPY_FUNCS = [np.min, np.sqrt, np.tan, np.sum, np.median]
+TEST_NUMPY_FUNCS = [np.min, np.sqrt, np.tan, np.sum, np.square, np.log1p, np.exp2]
 
 
 @pytest.mark.parametrize("method", ["apply", "map"])
@@ -412,7 +412,7 @@ class TestApplyOrMapCallable:
         )
 
     @pytest.mark.parametrize("func", TEST_NUMPY_FUNCS)
-    @sql_count_checker(query_count=4, udf_count=1)
+    @sql_count_checker(query_count=1)
     def test_apply_and_map_numpy(self, method, func):
         data = [1.0, 2.0, 3.0]
         native_series = native_pd.Series(data)

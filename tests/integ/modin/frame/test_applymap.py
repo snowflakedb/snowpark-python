@@ -28,25 +28,33 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(params=["applymap", "map"])
+def method(request):
+    """
+    method name to test.
+    """
+    return request.param
+
+
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
 @sql_count_checker(query_count=7, udf_count=1)
-def test_applymap_basic_without_type_hints(data, func, return_type):
+def test_applymap_basic_without_type_hints(data, func, return_type, method):
     frame_data = {0: data, 1: data}
     native_df = native_pd.DataFrame(frame_data)
     snow_df = pd.DataFrame(frame_data)
-    eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.applymap(func))
+    eval_snowpark_pandas_result(snow_df, native_df, lambda x: getattr(x, method)(func))
 
 
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
 @sql_count_checker(query_count=7, udf_count=1)
-def test_applymap_basic_with_type_hints(data, func, return_type):
+def test_applymap_basic_with_type_hints(data, func, return_type, method):
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
 
     frame_data = {0: data, 1: data}
     native_df = native_pd.DataFrame(frame_data)
     snow_df = pd.DataFrame(frame_data)
     eval_snowpark_pandas_result(
-        snow_df, native_df, lambda x: x.applymap(func_with_type_hint)
+        snow_df, native_df, lambda x: getattr(x, method)(func_with_type_hint)
     )
 
 
@@ -107,32 +115,32 @@ def test_applymap_numpy(func):
     native_df = native_pd.DataFrame(data)
     snow_df = pd.DataFrame(data)
 
-    with SqlCounter(query_count=7, udf_count=1):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.applymap(func))
 
 
 @sql_count_checker(query_count=0)
-def test_applymap_na_action_ignore():
+def test_applymap_na_action_ignore(method):
     snow_df = pd.DataFrame([1, 1.1, "NaN", None], dtype="Float64")
     msg = "Snowpark pandas applymap API doesn't yet support na_action == 'ignore'"
     with pytest.raises(NotImplementedError, match=msg):
-        snow_df.applymap(lambda x: x is None, na_action="ignore")
+        getattr(snow_df, method)(lambda x: x is None, na_action="ignore")
 
     data = ["cat", "dog", np.nan, "rabbit"]
     snow_df = pd.DataFrame(data)
     with pytest.raises(NotImplementedError, match=msg):
-        snow_df.applymap("I am a {}".format, na_action="ignore")
+        getattr(snow_df, method)("I am a {}".format, na_action="ignore")
 
 
 @pytest.mark.parametrize("invalid_input", ["min", [np.min], {"a": np.max}])
 @sql_count_checker(query_count=0)
-def test_applymap_invalid_input(invalid_input):
+def test_applymap_invalid_input(invalid_input, method):
     snow_df = pd.DataFrame([1])
     native_df = native_pd.DataFrame([1])
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda x: x.applymap(invalid_input),
+        lambda x: getattr(x, method)(invalid_input),
         expect_exception=True,
         expect_exception_match="is not callable",
         assert_exception_equal=False,
