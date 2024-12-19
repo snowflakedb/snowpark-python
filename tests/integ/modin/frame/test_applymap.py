@@ -172,6 +172,12 @@ def test_preserve_order():
         eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(lambda y: -y))
 
 
+@sql_count_checker(
+    query_count=10,
+    udf_count=1,
+    high_count_expected=True,
+    high_count_reason="udf creation",
+)
 def test_applymap_variant_json_null():
     def f(x):
         if native_pd.isna(x):
@@ -188,11 +194,5 @@ def test_applymap_variant_json_null():
     # the last column is a variant column [None, pd.NA], where both None and pd.NA
     # are mapped to SQL null by Python UDF in the input
     df = pd.DataFrame([[1, 2, None], [3, 4, pd.NA]])
-    with SqlCounter(query_count=9):
-        df = df.applymap(f)
-
-    with SqlCounter(query_count=1, udf_count=1):
-        assert df.isna().to_numpy().tolist() == [
-            [False, True, True],
-            [True, False, True],
-        ]
+    native_df = native_pd.DataFrame([[1, 2, None], [3, 4, pd.NA]])
+    eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(f).isna())
