@@ -170,12 +170,10 @@ def examples(structured_type_support):
 def structured_type_session(session, structured_type_support):
     if structured_type_support:
         with structured_types_enabled_session(session) as sess:
-            semantics_enabled = context._should_use_structured_type_semantics()
-            context._use_structured_type_semantics_lock.acquire()
-            context._use_structured_type_semantics = True
-            yield sess
-            context._use_structured_type_semantics = semantics_enabled
-            context._use_structured_type_semantics_lock.release()
+            with mock.patch(
+                "snowflake.snowpark.context._use_structured_type_semantics", True
+            ):
+                yield sess
     else:
         yield session
 
