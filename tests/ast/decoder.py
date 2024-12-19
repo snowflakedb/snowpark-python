@@ -700,31 +700,46 @@ class Decoder:
 
             case "sp_column_string_like":
                 col = self.decode_expr(expr.sp_column_string_like.col)
-                return col
+                pattern = expr.sp_column_string_like.pattern.string_val.v
+                return col.like(pattern=pattern)
 
             case "sp_column_string_regexp":
                 col = self.decode_expr(expr.sp_column_string_regexp.col)
-                return col
+                pattern = expr.sp_column_string_regexp.pattern.string_val.v
+                parameters = None
+                if len(str(expr.sp_column_string_regexp.parameters)) > 0:
+                    parameters = self.decode_expr(
+                        expr.sp_column_string_regexp.parameters
+                    )
+                return col.regexp(pattern=pattern, parameters=parameters)
 
             case "sp_column_string_starts_with":
                 col = self.decode_expr(expr.sp_column_string_starts_with.col)
-                return col
+                startswith = self.decode_expr(expr.sp_column_string_starts_with.prefix)
+                return col.startswith(startswith)
 
             case "sp_column_string_substr":
                 col = self.decode_expr(expr.sp_column_string_substr.col)
-                return col
+                start_pos = self.decode_expr(expr.sp_column_string_substr.pos)
+                string_len = self.decode_expr(expr.sp_column_string_substr.len)
+                return col.substr(start_pos=start_pos, length=string_len)
 
             case "sp_column_string_ends_with":
                 col = self.decode_expr(expr.sp_column_string_ends_with.col)
-                return col
+                endswith = self.decode_expr(expr.sp_column_string_ends_with.suffix)
+                return col.endswith(endswith)
 
             case "sp_column_string_collate":
                 col = self.decode_expr(expr.sp_column_string_collate.col)
-                return col
+                collation_spec = self.decode_expr(
+                    expr.sp_column_string_collate.collation_spec
+                )
+                return col.collate(collation_spec=collation_spec)
 
             case "sp_column_string_contains":
                 col = self.decode_expr(expr.sp_column_string_contains.col)
-                return col
+                pattern = self.decode_expr(expr.sp_column_string_contains.pattern)
+                return col.contains(string=pattern)
 
             case "sp_column_try_cast":
                 col = self.decode_expr(expr.sp_column_try_cast.col)
