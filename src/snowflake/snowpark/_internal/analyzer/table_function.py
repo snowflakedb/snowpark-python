@@ -88,7 +88,7 @@ class FlattenFunction(TableFunctionExpression):
         self.path = path
         self.outer = outer
         self.recursive = recursive
-        self.mode = mode
+        self.mode = mode.upper()
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

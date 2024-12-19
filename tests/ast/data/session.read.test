@@ -1,0 +1,555 @@
+## TEST CASE
+
+df1 = session.read.csv("@resources/iris.csv")
+
+df2 = session.read.json("@resources/testJson.json")
+
+df3 = session.read.avro("@resources/test.avro")
+
+df4 = session.read.parquet("@resources/test.parquet")
+
+df5 = session.read.xml("@resources/test.xml")
+
+df6 = session.read.orc("@resources/test.orc")
+
+df7 = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv("@testCSVheader.csv")
+
+df8 = session.read.options({"INFER_SCHEMA": True, "PARSE_HEADER": True}).csv("@testCSVheader.csv")
+
+user_schema = StructType([StructField("a", IntegerType()), StructField("b", StringType()), StructField("c", FloatType())])
+
+df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(user_schema).csv("@testCSVheader.csv")
+
+## EXPECTED UNPARSER OUTPUT
+
+df1 = session.read.csv("@resources/iris.csv")
+
+df2 = session.read.json("@resources/testJson.json")
+
+df3 = session.read.avro("@resources/test.avro")
+
+df4 = session.read.parquet("@resources/test.parquet")
+
+df5 = session.read.xml("@resources/test.xml")
+
+df6 = session.read.orc("@resources/test.orc")
+
+df7 = session.read.option("INFER_SCHEMA", True).option("PARSE_HEADER", True).csv("@testCSVheader.csv")
+
+df8 = session.read.options({"INFER_SCHEMA": True, "PARSE_HEADER": True}).csv("@testCSVheader.csv")
+
+df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE_LAST_MODIFIED").schema(StructType([StructField("a", IntegerType(), nullable=True), StructField("b", StringType(), nullable=True), StructField("c", FloatType(), nullable=True)], structured=False)).csv("@testCSVheader.csv")
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_read_csv {
+        path: "@resources/iris.csv"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              end_column: 26
+              end_line: 25
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 25
+            }
+          }
+        }
+        src {
+          end_column: 53
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 25
+        }
+      }
+    }
+    symbol {
+      value: "df1"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_json {
+        path: "@resources/testJson.json"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              end_column: 26
+              end_line: 27
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 27
+            }
+          }
+        }
+        src {
+          end_column: 59
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_avro {
+        path: "@resources/test.avro"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              end_column: 26
+              end_line: 29
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 29
+            }
+          }
+        }
+        src {
+          end_column: 55
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_parquet {
+        path: "@resources/test.parquet"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              end_column: 26
+              end_line: 31
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 31
+            }
+          }
+        }
+        src {
+          end_column: 61
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_xml {
+        path: "@resources/test.xml"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              end_column: 26
+              end_line: 33
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 33
+            }
+          }
+        }
+        src {
+          end_column: 53
+          end_line: 33
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+      value: "df5"
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_orc {
+        path: "@resources/test.orc"
+        reader {
+          sp_dataframe_reader_init {
+            src {
+              end_column: 26
+              end_line: 35
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 35
+            }
+          }
+        }
+        src {
+          end_column: 53
+          end_line: 35
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+      value: "df6"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_csv {
+        path: "@testCSVheader.csv"
+        reader {
+          sp_dataframe_reader_option {
+            key: "PARSE_HEADER"
+            reader {
+              sp_dataframe_reader_option {
+                key: "INFER_SCHEMA"
+                reader {
+                  sp_dataframe_reader_init {
+                    src {
+                      end_column: 26
+                      end_line: 37
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 14
+                      start_line: 37
+                    }
+                  }
+                }
+                src {
+                  end_column: 55
+                  end_line: 37
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 14
+                  start_line: 37
+                }
+                value {
+                  bool_val {
+                    src {
+                      end_column: 55
+                      end_line: 37
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 14
+                      start_line: 37
+                    }
+                    v: true
+                  }
+                }
+              }
+            }
+            src {
+              end_column: 84
+              end_line: 37
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 37
+            }
+            value {
+              bool_val {
+                src {
+                  end_column: 84
+                  end_line: 37
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 14
+                  start_line: 37
+                }
+                v: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 110
+          end_line: 37
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 37
+        }
+      }
+    }
+    symbol {
+      value: "df7"
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_csv {
+        path: "@testCSVheader.csv"
+        reader {
+          sp_dataframe_reader_options {
+            configs {
+              _1: "INFER_SCHEMA"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 80
+                    end_line: 39
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_column: 14
+                    start_line: 39
+                  }
+                  v: true
+                }
+              }
+            }
+            configs {
+              _1: "PARSE_HEADER"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 80
+                    end_line: 39
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_column: 14
+                    start_line: 39
+                  }
+                  v: true
+                }
+              }
+            }
+            reader {
+              sp_dataframe_reader_init {
+                src {
+                  end_column: 26
+                  end_line: 39
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 14
+                  start_line: 39
+                }
+              }
+            }
+            src {
+              end_column: 80
+              end_line: 39
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 39
+            }
+          }
+        }
+        src {
+          end_column: 106
+          end_line: 39
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+      value: "df8"
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_read_csv {
+        path: "@testCSVheader.csv"
+        reader {
+          sp_dataframe_reader_schema {
+            reader {
+              sp_dataframe_reader_with_metadata {
+                metadata_columns {
+                  args {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            fn_name_flat {
+                              name: "col"
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            end_column: 72
+                            end_line: 43
+                            file: "SRC_POSITION_TEST_MODE"
+                            start_column: 41
+                            start_line: 43
+                          }
+                          v: "METADATA$FILE_ROW_NUMBER"
+                        }
+                      }
+                      src {
+                        end_column: 72
+                        end_line: 43
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_column: 41
+                        start_line: 43
+                      }
+                    }
+                  }
+                  args {
+                    string_val {
+                      src {
+                        end_column: 104
+                        end_line: 43
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_column: 14
+                        start_line: 43
+                      }
+                      v: "METADATA$FILE_LAST_MODIFIED"
+                    }
+                  }
+                  variadic: true
+                }
+                reader {
+                  sp_dataframe_reader_init {
+                    src {
+                      end_column: 26
+                      end_line: 43
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 14
+                      start_line: 43
+                    }
+                  }
+                }
+                src {
+                  end_column: 104
+                  end_line: 43
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 14
+                  start_line: 43
+                }
+              }
+            }
+            schema {
+              fields {
+                column_identifier {
+                  name: "a"
+                }
+                data_type {
+                  sp_integer_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  name: "b"
+                }
+                data_type {
+                  sp_string_type {
+                    length {
+                    }
+                  }
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  name: "c"
+                }
+                data_type {
+                  sp_float_type: true
+                }
+                nullable: true
+              }
+            }
+            src {
+              end_column: 124
+              end_line: 43
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 43
+            }
+          }
+        }
+        src {
+          end_column: 150
+          end_line: 43
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+      value: "df9"
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

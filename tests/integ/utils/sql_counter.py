@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Union
 
 import pytest
 
-from snowflake.snowpark.query_history import QueryRecord
+from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.session import Session
 from tests.utils import IS_IN_STORED_PROC
 
@@ -94,8 +94,10 @@ FILTER_OUT_QUERIES = [
 # define global at module-level
 sql_count_records = {}
 
+sql_counter_state = threading.local()
 
-class SqlCounter:
+
+class SqlCounter(QueryListener):
     """
     SqlCounter is an object that counts metrics related to snowpark queries.  This includes things like query counts
     and join counts.  It can be extended to cover other counts as well.
@@ -162,6 +164,8 @@ class SqlCounter:
             self.session = None
         else:
             self.session = Session.SessionBuilder().getOrCreate()
+
+        if self.session:
             # Add SqlCounter as a snowpark query listener.
             self.session._conn.add_query_listener(self)
 
@@ -196,8 +200,9 @@ class SqlCounter:
             self.session._conn.remove_query_listener(self)
         self._mark_as_dead()
 
-    def _add_query(self, query_record: QueryRecord):
-        self._queries.append(query_record)
+    def _notify(self, query_record: QueryRecord, **kwargs: dict):
+        if not is_suppress_sql_counter_listener():
+            self._queries.append(query_record)
 
     def expects(self, **kwargs):
         """
@@ -229,7 +234,7 @@ class SqlCounter:
         for key in kwargs.keys():
             if key in BOOL_PARAMETERS:
                 continue
-            actual_count = actual_counts[key]
+            actual_count = actual_counts[key] if key in actual_counts else 0
             expected_count = kwargs[key]
             if expected_count is None:
                 expected_count = 0
@@ -659,3 +664,18 @@ def is_sql_counter_called():
     if SQL_COUNTER_CALLED in threading.current_thread().__dict__:
         return threading.current_thread().__dict__.get(SQL_COUNTER_CALLED)
     return False
+
+
+def enable_sql_counting():
+    sql_counter_state.suppress_sql_counter_listener = False
+
+
+def suppress_sql_counting():
+    sql_counter_state.suppress_sql_counter_listener = True
+
+
+def is_suppress_sql_counter_listener():
+    return (
+        hasattr(sql_counter_state, "suppress_sql_counter_listener")
+        and sql_counter_state.suppress_sql_counter_listener
+    )

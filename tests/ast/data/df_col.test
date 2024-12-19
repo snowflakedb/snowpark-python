@@ -1,0 +1,147 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+df = df.select(df.col("STR"), df.STR, df["STR"])
+
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df = df.select(df["STR"], df["STR"], df["STR"])
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_dataframe_col {
+            col_name: "STR"
+            df {
+              sp_dataframe_ref {
+                id {
+                  bitfield1: 1
+                }
+              }
+            }
+            src {
+              end_column: 36
+              end_line: 27
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 23
+              start_line: 27
+            }
+          }
+        }
+        cols {
+          sp_dataframe_col {
+            col_name: "STR"
+            df {
+              sp_dataframe_ref {
+                id {
+                  bitfield1: 1
+                }
+              }
+            }
+            src {
+              end_column: 44
+              end_line: 27
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 38
+              start_line: 27
+            }
+          }
+        }
+        cols {
+          sp_dataframe_col {
+            col_name: "STR"
+            df {
+              sp_dataframe_ref {
+                id {
+                  bitfield1: 1
+                }
+              }
+            }
+            src {
+              end_column: 55
+              end_line: 27
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 46
+              start_line: 27
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 56
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 27
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

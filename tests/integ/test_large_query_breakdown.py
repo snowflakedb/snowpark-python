@@ -18,6 +18,9 @@ from snowflake.snowpark.session import (
     DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
     Session,
 )
+from tests.integ.test_deepcopy import (
+    create_df_with_deep_nested_with_column_dependencies,
+)
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, Utils
 
@@ -604,6 +607,31 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
         Utils.drop_table(session, source_table)
 
 
+def test_large_query_breakdown_with_nested_select(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip(
+            "the nested select optimization is only enabled with sql simplifier"
+        )
+
+    temp_table_name = Utils.random_table_name()
+    final_df = create_df_with_deep_nested_with_column_dependencies(
+        session, temp_table_name, 8
+    )
+
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = final_df.queries
+    assert len(queries["queries"]) == 3
+    assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+    assert queries["queries"][1].startswith("CREATE  SCOPED TEMPORARY  TABLE")
+
+    assert len(queries["post_actions"]) == 2
+    assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
+    assert queries["post_actions"][1].startswith("DROP  TABLE  If  EXISTS")
+
+    with SqlCounter(query_count=7, describe_count=0):
+        check_result_with_and_without_breakdown(session, final_df)
+
+
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="cannot create a new session in stored procedure"
 )
@@ -675,6 +703,35 @@ def test_add_parent_plan_uuid_to_statement_params(session, large_query_df):
             else:
                 assert "_statement_params" in call.kwargs
                 assert call.kwargs["_statement_params"]["_PLAN_UUID"] == plan.uuid
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
+)
+@pytest.mark.parametrize("error_type", [AssertionError, ValueError, RuntimeError])
+@patch("snowflake.snowpark._internal.compiler.plan_compiler.LargeQueryBreakdown.apply")
+def test_optimization_skipped_with_exceptions(
+    mock_lqb_apply, session, large_query_df, caplog, error_type
+):
+    """Test large query breakdown is skipped when there are exceptions"""
+    caplog.clear()
+    mock_lqb_apply.side_effect = error_type("test exception")
+    with caplog.at_level(logging.DEBUG):
+        with patch.object(
+            session._conn._telemetry_client,
+            "send_query_compilation_stage_failed_telemetry",
+        ) as patch_send:
+            queries = large_query_df.queries
+
+    assert "Skipping optimization due to error:" in caplog.text
+    assert len(queries["queries"]) == 1
+    assert len(queries["post_actions"]) == 0
+
+    patch_send.assert_called_once()
+    _, kwargs = patch_send.call_args
+    print(kwargs)
+    assert kwargs["error_message"] == "test exception"
+    assert kwargs["error_type"] == error_type.__name__
 
 
 def test_complexity_bounds_affect_num_partitions(session, large_query_df):

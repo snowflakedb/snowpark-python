@@ -56,6 +56,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
     FunctionExpression,
     InExpression,
+    Interval,
     Like,
     ListAgg,
     Literal,
@@ -556,6 +557,9 @@ class MockAnalyzer:
                 expr.ignore_nulls,
             )
 
+        if isinstance(expr, Interval):
+            return str(expr)
+
         raise SnowparkClientExceptionMessages.PLAN_INVALID_TYPE(
             str(expr)
         )  # pragma: no cover
@@ -787,6 +791,10 @@ class MockAnalyzer:
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
         )
+        assert hasattr(res, "df_aliased_col_name_to_real_col_name"), (
+            f"The resolved plan {res!r} should have the attribute "
+            "df_aliased_col_name_to_real_col_name"
+        )
         res.df_aliased_col_name_to_real_col_name.update(
             df_aliased_col_name_to_real_col_name
         )
@@ -801,22 +809,10 @@ class MockAnalyzer:
         if isinstance(logical_plan, MockExecutionPlan):
             return logical_plan
 
-        if isinstance(logical_plan, Rename):
+        if isinstance(logical_plan, (Rename, TableFunctionJoin, TableFunctionRelation)):
             return MockExecutionPlan(
                 logical_plan,
                 self.session,
-            )
-
-        if isinstance(logical_plan, TableFunctionJoin):
-            self._conn.log_not_supported_error(
-                external_feature_name="table_function.TableFunctionJoin",
-                raise_error=NotImplementedError,
-            )
-
-        if isinstance(logical_plan, TableFunctionRelation):
-            self._conn.log_not_supported_error(
-                external_feature_name="table_function.TableFunctionRelation",
-                raise_error=NotImplementedError,
             )
 
         if isinstance(logical_plan, Lateral):
@@ -832,10 +828,10 @@ class MockAnalyzer:
             )
 
         if isinstance(logical_plan, Project):
-            return logical_plan
+            return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Filter):
-            return logical_plan
+            return MockExecutionPlan(logical_plan, self.session)
 
         # Add a sample stop to the plan being built
         if isinstance(logical_plan, Sample):
@@ -897,6 +893,9 @@ class MockAnalyzer:
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, SnowflakeCreateTable):
+            return MockExecutionPlan(logical_plan, self.session)
+
+        if isinstance(logical_plan, SnowflakePlan):
             return MockExecutionPlan(logical_plan, self.session)
 
         if isinstance(logical_plan, Limit):

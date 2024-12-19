@@ -49,7 +49,7 @@ def test_range_api(session):
     assert res12.agg(sum_(col("id")).as_("sumid")).collect() == [Row(30)]
 
     n = 9 * 1000 * 1000 * 1000 * 1000 * 1000 * 1000
-    res13 = session.range(-n, n, n / 9).select("id")
+    res13 = session.range(-n, n, n // 9).select("id")
     assert res13.count() == 18
 
     res14 = session.range(0, 100, 2).to_df(["id"]).filter(col("id") >= 50)

@@ -1,0 +1,197 @@
+## TEST CASE
+
+# This test creates a Pandas dataframe literal and gets the count.
+import pandas as pd
+
+df = session.create_dataframe(pd.DataFrame([["one", 1], ["two", 2], ["three", 3]], columns=["A", "B"]))
+
+df.count()
+
+df.count(block=False)
+
+df.count(block=False, statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.create_dataframe(pandas.DataFrame(<not shown>)), schema=StructType([StructField("\"A\"", StringType(16777216), nullable=True), StructField("\"B\"", LongType(), nullable=True)], structured=False))
+
+df.count()
+
+df.count(block=False)
+
+df.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__pandas {
+            v {
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  name: "\"A\""
+                }
+                data_type {
+                  sp_string_type {
+                    length {
+                      value: 16777216
+                    }
+                  }
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  name: "\"B\""
+                }
+                data_type {
+                  sp_long_type: true
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 111
+          end_line: 28
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 28
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_count {
+        block: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          end_column: 18
+          end_line: 30
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 30
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  eval {
+    uid: 3
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_count {
+        id {
+          bitfield1: 1
+        }
+        src {
+          end_column: 29
+          end_line: 32
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 32
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  eval {
+    uid: 5
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_count {
+        id {
+          bitfield1: 1
+        }
+        src {
+          end_column: 78
+          end_line: 34
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 34
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  eval {
+    uid: 7
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}
