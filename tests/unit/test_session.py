@@ -272,9 +272,7 @@ def test_resolve_packages_side_effect(mock_server_connection):
     assert (
         len(resolved_packages) == 2
     ), resolved_packages  # random_package_name and cloudpickle
-    assert (
-        len(existing_packages) == 1
-    ), existing_packages  # {"random_package_name": "random_package_name"}
+    assert len(existing_packages) == 1, existing_packages
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
@@ -543,6 +541,8 @@ def test_session_builder_app_name_no_existing_query_tag(
         builder, "_create_internal", return_value=mocked_session
     ) as m:
         assert builder.app_name(app_name, format_json=format_json) is builder
+        # test alias
+        assert builder.appName(app_name, format_json=format_json) is builder
         created_session = builder.getOrCreate()
         m.assert_called_once()
         assert created_session.query_tag == expected_query_tag
@@ -629,7 +629,14 @@ def test_session_builder_app_name_existing_invalid_json_query_tag():
         (".".join([str(d + 5) for d in snowpark_version if d is not None]), False),
     ],
 )
-@pytest.mark.parametrize("parameter_name", ["_auto_clean_up_temp_table_enabled"])
+@pytest.mark.parametrize(
+    "parameter_name",
+    [
+        "_auto_clean_up_temp_table_enabled",
+        "_cte_optimization_enabled",
+        "_large_query_breakdown_enabled",
+    ],
+)
 def test_parameter_version(version_value, expected_parameter_value, parameter_name):
     fake_server_connection = mock.create_autospec(ServerConnection)
     fake_server_connection._thread_safe_session_enabled = True

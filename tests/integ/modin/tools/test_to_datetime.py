@@ -838,7 +838,7 @@ class TestToDatetime:
             {"arg": 1490195805433502912, "unit": "ns"},
         ],
     )
-    @sql_count_checker(query_count=1)
+    @sql_count_checker(query_count=1, join_count=0)
     def test_to_datetime_unit(self, sample):
         assert pd.to_datetime(pd.Index([sample["arg"]]), unit=sample["unit"])[
             0

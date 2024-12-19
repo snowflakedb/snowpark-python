@@ -44,6 +44,8 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+_logger = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class OrderingColumn:
@@ -653,7 +655,7 @@ class OrderedDataFrame:
             dataframe_ref.cached_snowflake_quoted_identifiers_tuple = tuple(
                 new_column_identifiers
             )
-            logging.debug(
+            _logger.debug(
                 f"The Snowpark DataFrame in DataFrameReference with id={dataframe_ref._id} is updated"
             )
 
@@ -906,6 +908,7 @@ class OrderedDataFrame:
                     value_column=value_column,
                     name_column=name_column,
                     column_list=unpivot_column_list,
+                    include_nulls=True,
                 ),
                 snowflake_quoted_identifiers=result_column_quoted_identifiers,
             ),

@@ -4,7 +4,11 @@
 from typing import Dict, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
+from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+    SnowflakePlan,
+    SnowflakePlanBuilder,
+)
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import LogicalPlan
 from snowflake.snowpark._internal.utils import is_single_quoted
 from snowflake.snowpark.mock._plan import MockExecutionPlan, MockFileOperation
 from snowflake.snowpark.mock._stage_registry import SUPPORT_READ_OPTIONS
@@ -71,3 +75,14 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
             ),
             session=self.session,
         )
+
+    def join_table_function(
+        self,
+        func: str,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        left_cols: List[str],
+        right_cols: List[str],
+        use_constant_subquery_alias: bool,
+    ) -> MockExecutionPlan:
+        return MockExecutionPlan(source_plan=source_plan, session=self.session)

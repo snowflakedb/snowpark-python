@@ -2005,6 +2005,51 @@ class DataFrameGroupBy:
         -------
         Generator
             A generator yielding a sequence of (name, subsetted object) for each group.
+
+        Examples
+        --------
+
+        For SeriesGroupBy:
+
+        >>> lst = ['a', 'a', 'b']
+        >>> ser = pd.Series([1, 2, 3], index=lst)
+        >>> ser
+        a    1
+        a    2
+        b    3
+        dtype: int64
+        >>> for x, y in ser.groupby(level=0):
+        ...     print(f'{x}\\n{y}\\n')
+        a
+        a    1
+        a    2
+        dtype: int64
+        <BLANKLINE>
+        b
+        b    3
+        dtype: int64
+        <BLANKLINE>
+
+        For DataFrameGroupBy:
+
+        >>> data = [[1, 2, 3], [1, 5, 6], [7, 8, 9]]
+        >>> df = pd.DataFrame(data, columns=["a", "b", "c"])
+        >>> df
+           a  b  c
+        0  1  2  3
+        1  1  5  6
+        2  7  8  9
+        >>> for x, y in df.groupby(by=["a"]):
+        ...     print(f'{x}\\n{y}\\n')
+        (1,)
+           a  b  c
+        0  1  2  3
+        1  1  5  6
+        <BLANKLINE>
+        (7,)
+           a  b  c
+        2  7  8  9
+        <BLANKLINE>
         """
 
     def cov():
@@ -2519,6 +2564,45 @@ class SeriesGroupBy:
         pass
 
     def unique():
+        """
+        Return unique values for each group.
+
+        Return unique values for each of the grouped values. Returned in
+        order of appearance. Hash table-based unique, therefore does NOT sort.
+
+        Returns
+        -------
+        Series
+            Unique values for each of the grouped values.
+
+        See Also
+        --------
+        Series.unique : Return unique values of Series object.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([('Chihuahua', 'dog', 6.1),
+        ...                    ('Beagle', 'dog', 15.2),
+        ...                    ('Chihuahua', 'dog', 6.9),
+        ...                    ('Persian', 'cat', 9.2),
+        ...                    ('Chihuahua', 'dog', 7),
+        ...                    ('Persian', 'cat', 8.8)],
+        ...                   columns=['breed', 'animal', 'height_in'])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+               breed     animal   height_in
+        0  Chihuahua        dog         6.1
+        1     Beagle        dog        15.2
+        2  Chihuahua        dog         6.9
+        3    Persian        cat         9.2
+        4  Chihuahua        dog         7.0
+        5    Persian        cat         8.8
+        >>> ser = df.groupby('animal')['breed'].unique()
+        >>> ser
+        animal
+        cat              [Persian]
+        dog    [Chihuahua, Beagle]
+        Name: breed, dtype: object
+        """
         pass
 
     def apply():

@@ -1,0 +1,175 @@
+## TEST CASE
+
+df = Table(tables.table1, session)
+
+df2 = df.sample(n=3, seed=100)
+
+df3 = df.sample(frac=0.5, seed=123, sampling_method='BERNOULLI')
+
+df4 = df.sample(frac=0.5, sampling_method='SYSTEM')
+
+## EXPECTED UNPARSER OUTPUT
+
+df = Table("table1", session)
+
+df2 = df.sample(None, 3, seed=100)
+
+df3 = df.sample(0.5, None, seed=123, sampling_method="BERNOULLI")
+
+df4 = df.sample(0.5, None, sampling_method="SYSTEM")
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          sp_table_init: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table_sample {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        num {
+          value: 3
+        }
+        seed {
+          value: 100
+        }
+        src {
+          end_column: 38
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table_sample {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        probability_fraction {
+          value: 0.5
+        }
+        sampling_method {
+          value: "BERNOULLI"
+        }
+        seed {
+          value: 123
+        }
+        src {
+          end_column: 72
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table_sample {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        probability_fraction {
+          value: 0.5
+        }
+        sampling_method {
+          value: "SYSTEM"
+        }
+        src {
+          end_column: 59
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+      value: "df4"
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}
