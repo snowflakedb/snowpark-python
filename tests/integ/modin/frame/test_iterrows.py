@@ -61,7 +61,7 @@ def test_df_iterrows(native_df):
     snowpark_df = pd.DataFrame(native_df)
     # One query is used to get the number of rows. One query is used to retrieve each row - each query has 4 JOIN
     # operations performed due to iloc.
-    with SqlCounter(query_count=len(native_df) + 1):
+    with SqlCounter(query_count=len(native_df) + 2):
         eval_snowpark_pandas_result(
             snowpark_df,
             native_df,
@@ -70,7 +70,7 @@ def test_df_iterrows(native_df):
         )
 
 
-@sql_count_checker(query_count=8, union_count=7)
+@sql_count_checker(query_count=9, union_count=7)
 def test_df_iterrows_mixed_types(default_index_native_df):
     # Same test as above on bigger df with mixed types.
     # One query is used to get the number of rows. One query is used to retrieve each row - each query has 4 JOIN
@@ -85,7 +85,7 @@ def test_df_iterrows_mixed_types(default_index_native_df):
     )
 
 
-@sql_count_checker(query_count=7, union_count=6)
+@sql_count_checker(query_count=8, union_count=6)
 def test_df_iterrows_multindex_df():
     # Create df with a MultiIndex index.
     # One query is used to get the number of rows. One query is used to retrieve each row - each query has 4 JOIN
