@@ -359,7 +359,7 @@ def test_df_to_pandas_df(session):
                 StructField("n", TimestampType()),
                 StructField("o", TimeType()),
                 StructField("p", VariantType()),
-                StructField("q", MapType(StringType(), StringType())),
+                StructField("q", MapType()),
             ]
         ),
     )
