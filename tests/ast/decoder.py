@@ -883,7 +883,7 @@ class Decoder:
                 return df[col_name]
 
             case "sp_dataframe_collect":
-                df = self.decode_expr(expr.sp_dataframe_first.df)
+                df = self.symbol_table[expr.sp_dataframe_collect.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_collect)
                 statement_params = self.get_statement_params(d)
                 log_on_exception = d.get("logOnException", False)
