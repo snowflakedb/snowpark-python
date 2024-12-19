@@ -8,12 +8,14 @@ from typing import Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark.write_stream_to_table import write_stream_to_table
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     CopyIntoLocationNode,
     SaveMode,
     SnowflakeCreateTable,
     TableCreationSource,
 )
+from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     debug_check_missing_ast,
@@ -40,8 +42,9 @@ from snowflake.snowpark._internal.utils import (
     warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
+from snowflake.snowpark.types import StringType
 from snowflake.snowpark.column import Column, _to_col_if_str
-from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.functions import sql_expr, udf, lit, col
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
 
@@ -630,7 +633,7 @@ class DataFrameWriter:
 
     @_format.setter
     def _format(self, value: str) -> None:
-        allowed_formats = ["csv", "json", "parquet"]
+        allowed_formats = ["csv", "json", "parquet", "snowflake"]
         canon_file_format_name = value.strip().lower()
         if canon_file_format_name not in allowed_formats:
             raise ValueError(
@@ -916,3 +919,67 @@ class DataFrameWriter:
         )
 
     saveAsTable = save_as_table
+
+
+class DataStreamWriter(DataFrameWriter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._output_mode = None
+        self._processing_time = None
+
+    def toTable(self, table_name: str) -> AsyncJob:
+        if self._dataframe._stream_source is None:
+            raise NotImplementedError("Could not track streaming source of this dataframe")
+        elif self._dataframe._stream_source == "kafka":
+            self._dataframe.session.custom_package_usage_config['force_push'] = True
+            self._dataframe.session.custom_package_usage_config['enabled'] = True             
+            self._dataframe.session.add_import(snowflake.snowpark.write_stream_to_table.__file__, import_path="snowflake.snowpark.write_stream_to_table")   
+            self._dataframe.session.sql("create or replace  stage mystage").collect()
+
+
+            write_stream_udf = udf(
+                write_stream_to_table,
+                input_types=
+                [
+                    StringType(), 
+                    *(f.datatype for f in self._dataframe.schema.fields)
+                ],
+                is_permanent=True,
+                replace=True,
+                name='write_stream_udf',
+                stage_location="@mystage"            
+            )
+
+            return self._dataframe.select(write_stream_udf(
+                lit(table_name),
+                *(
+                    col(f.name)
+                    for f in self._dataframe.schema.fields
+                )
+            )).collect_nowait()
+        elif self._dataframe._stream_source == "table":
+            if self._output_mode == "append":
+                refresh_mode = "incremental"
+            elif self._output_mode == "complete":
+                refresh_mode = "full"
+            else:
+                raise NotImplementedError(f"unsupported output mode {self._output_mode}")
+            self._dataframe.create_or_replace_dynamic_table(
+                table_name,
+                warehouse=self._dataframe.session.connection.warehouse,
+                lag=self._processing_time,
+                refresh_mode=refresh_mode
+            )
+        else:
+            raise NotImplementedError(f"Cannot write dataframe with source {self._dataframe._stream_source}")
+    
+    def outputMode(self, output_mode: str) -> "DataStreamWriter":
+        self._output_mode = output_mode
+        return self
+    
+    def trigger(self, **kwargs) -> "DataStreamWriter":
+        if list(kwargs.keys()) != ["processingTime"]:
+            raise NotImplementedError("can only handle trigger with processingTime=")
+        self._processing_time = kwargs["processingTime"]
+        return self
+    

@@ -123,7 +123,7 @@ class UserDefinedTableFunction:
             build_udtf_apply(udtf_expr, self._ast_id, *arguments, **named_arguments)
 
         table_function_call = TableFunctionCall(
-            self.name, *arguments, **named_arguments, _ast=udtf_expr
+            self.name, *arguments, **named_arguments, _ast=udtf_expr, output_schema=self._output_schema
         )
         table_function_call._set_api_call_source("UserDefinedTableFunction.__call__")
 
