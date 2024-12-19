@@ -3430,7 +3430,7 @@ def charindex(
     s = _to_col_if_str(source_expr, "charindex")
     # Build AST here to prevent `position` from being recorded as a literal instead of int/None.
     ast = (
-        build_function_expr("char_index", [t, s, position], ignore_null_args=True)
+        build_function_expr("charindex", [t, s, position], ignore_null_args=True)
         if _emit_ast
         else None
     )
