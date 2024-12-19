@@ -4,7 +4,6 @@
 #
 
 import datetime
-import decimal  # noqa: F401
 import logging
 import os
 import re
@@ -830,6 +829,9 @@ def return_datetime(_: Session) -> datetime.datetime:
 )
 @pytest.mark.parametrize("register_from_file", [True, False])
 def test_register_sp_with_optional_args(session: Session, tmpdir, register_from_file):
+    import decimal  # noqa: F401
+    from snowflake.snowpark.types import Variant, Geometry, Geography  # noqa: F401
+
     import_body = """
 import datetime
 import decimal
