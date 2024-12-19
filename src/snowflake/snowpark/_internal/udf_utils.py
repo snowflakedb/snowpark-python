@@ -1481,9 +1481,8 @@ def generate_call_python_sp_sql(
     for arg in args:
         if isinstance(arg, snowflake.snowpark.Column):
             sql_args.append(session._analyzer.analyze(arg._expression, {}))
+        elif "system$" in sproc_name.lower():
+            sql_args.append(to_sql_no_cast(arg, infer_type(arg)))
         else:
-            if "system$" in sproc_name.lower():
-                sql_args.append(to_sql_no_cast(arg, infer_type(arg)))
-            else:
-                sql_args.append(to_sql(arg, infer_type(arg)))
+            sql_args.append(to_sql(arg, infer_type(arg)))
     return f"CALL {sproc_name}({', '.join(sql_args)})"

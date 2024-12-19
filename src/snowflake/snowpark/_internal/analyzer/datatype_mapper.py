@@ -110,7 +110,6 @@ def to_sql(
     value: Any,
     datatype: DataType,
     from_values_statement: bool = False,
-    is_system_function: bool = False,
 ) -> str:
     """Convert a value with DataType to a snowflake compatible sql"""
     # Handle null values
