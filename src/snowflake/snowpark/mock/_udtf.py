@@ -78,7 +78,7 @@ class MockUDTFRegistration(UDTFRegistration):
                 ast = with_src_position(stmt.expr.udtf, stmt)
                 ast_id = stmt.var_id.bitfield1
 
-            object_name = kwargs["_registrated_object_name"]
+            object_name = kwargs["_registered_object_name"]
             udtf = MockUserDefinedTableFunction(
                 handler,
                 output_schema,
