@@ -63,9 +63,55 @@ def float_nan_inf_to_sql(value: float) -> str:
     return f"{cast_value} :: FLOAT"
 
 
-def to_sql(value: Any, datatype: DataType, from_values_statement: bool = False) -> str:
-    """Convert a value with DataType to a snowflake compatible sql"""
+def to_sql_no_cast(
+    value: Any,
+    datatype: DataType,
+) -> str:
+    if value is None:
+        return "NULL"
+    if isinstance(datatype, VariantType):
+        # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
+    if isinstance(value, str):
+        if isinstance(datatype, GeographyType):
+            return f"TO_GEOGRAPHY({str_to_sql(value)})"
+        if isinstance(datatype, GeometryType):
+            return f"TO_GEOMETRY({str_to_sql(value)})"
+        return str_to_sql(value)
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        cast_value = float_nan_inf_to_sql(value)
+        return cast_value[:-9]
+    if isinstance(value, (list, bytes, bytearray)) and isinstance(datatype, BinaryType):
+        return str(bytes(value))
+    if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
+    if isinstance(value, dict) and isinstance(datatype, MapType):
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))})"
+    if isinstance(datatype, DateType):
+        if isinstance(value, int):
+            # add value as number of days to 1970-01-01
+            target_date = date(1970, 1, 1) + timedelta(days=value)
+            return f"'{target_date.isoformat()}'"
+        elif isinstance(value, date):
+            return f"'{value.isoformat()}'"
 
+    if isinstance(datatype, TimestampType):
+        if isinstance(value, (int, datetime)):
+            if isinstance(value, int):
+                # add value as microseconds to 1970-01-01 00:00:00.00.
+                value = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(
+                    microseconds=value
+                )
+            return f"'{value}'"
+    return f"{value}"
+
+
+def to_sql(
+    value: Any,
+    datatype: DataType,
+    from_values_statement: bool = False,
+) -> str:
+    """Convert a value with DataType to a snowflake compatible sql"""
     # Handle null values
     if isinstance(
         datatype,
@@ -183,9 +229,9 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             return "TRY_TO_GEOGRAPHY(NULL)"
         if isinstance(data_type, GeometryType):
             return "TRY_TO_GEOMETRY(NULL)"
-        if isinstance(data_type, ArrayType):
+        if isinstance(data_type, ArrayType) and not data_type.structured:
             return "PARSE_JSON('NULL') :: ARRAY"
-        if isinstance(data_type, MapType):
+        if isinstance(data_type, MapType) and not data_type.structured:
             return "PARSE_JSON('NULL') :: OBJECT"
         if isinstance(data_type, VariantType):
             return "PARSE_JSON('NULL') :: VARIANT"
@@ -213,9 +259,27 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
         else:
             return "to_timestamp('2020-09-16 06:30:00')"
     if isinstance(data_type, ArrayType):
+        if data_type.structured:
+            element = schema_expression(data_type.element_type, is_nullable)
+            return f"to_array({element}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_array(0)"
     if isinstance(data_type, MapType):
+        if data_type.structured:
+            key = schema_expression(data_type.key_type, is_nullable)
+            value = schema_expression(data_type.value_type, is_nullable)
+            return f"object_construct_keep_null({key}, {value}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_object(parse_json('0'))"
+    if isinstance(data_type, StructType):
+        if data_type.structured:
+            schema_strings = []
+            for field in data_type.fields:
+                # Even if nulls are allowed the cast will fail due to schema mismatch when passed a null field.
+                schema_strings += [
+                    f"'{field.name}'",
+                    schema_expression(field.datatype, is_nullable=False),
+                ]
+            return f"object_construct_keep_null({', '.join(schema_strings)}) :: {convert_sp_to_sf_type(data_type)}"
+        return "to_object(parse_json('{}'))"
     if isinstance(data_type, VariantType):
         return "to_variant(0)"
     if isinstance(data_type, GeographyType):

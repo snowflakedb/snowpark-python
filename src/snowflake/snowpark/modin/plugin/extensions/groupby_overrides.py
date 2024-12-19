@@ -94,6 +94,7 @@ _DEFAULT_BEHAVIOUR = {
 )
 class DataFrameGroupBy(metaclass=TelemetryMeta):
     _pandas_class = pandas.core.groupby.DataFrameGroupBy
+    _return_tuple_when_iterating = False
 
     def __init__(
         self,
@@ -115,6 +116,12 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
         self._query_compiler = self._df._query_compiler
         self._columns = self._query_compiler.columns
         self._by = by
+        # When providing a list of columns of length one to DataFrame.groupby(),
+        # the keys that are returned by iterating over the resulting DataFrameGroupBy
+        # object will now be tuples of length one
+        self._return_tuple_when_iterating = kwargs.pop(
+            "return_tuple_when_iterating", False
+        )
         self._level = level
         self._kwargs = {
             "level": level,
@@ -1245,7 +1252,23 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
             Generator expression of GroupBy object broken down into tuples for iteration.
         """
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="_iter", class_="GroupBy")
+        indices = self.indices
+        group_ids = indices.keys()
+
+        assert self._axis == 0, (
+            "GroupBy does not yet support axis=1. "
+            "A NotImplementedError should have already been raised."
+        )
+
+        return (
+            (
+                (k,) if self._return_tuple_when_iterating else k,
+                pd.DataFrame(
+                    query_compiler=self._query_compiler.getitem_row_array(indices[k])
+                ),
+            )
+            for k in (sorted(group_ids) if self._sort else group_ids)
+        )
 
     def _wrap_aggregation(
         self,
@@ -1391,7 +1414,23 @@ class SeriesGroupBy(DataFrameGroupBy):
             Generator expression of GroupBy object broken down into tuples for iteration.
         """
         # TODO: SNOW-1063350: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="_iter", class_="GroupBy")
+        indices = self.indices
+        group_ids = indices.keys()
+
+        assert self._axis == 0, (
+            "GroupBy does not yet support axis=1. "
+            "A NotImplementedError should have already been raised."
+        )
+
+        return (
+            (
+                k,
+                pd.Series(
+                    query_compiler=self._query_compiler.getitem_row_array(indices[k])
+                ),
+            )
+            for k in (sorted(group_ids) if self._sort else group_ids)
+        )
 
     ###########################################################################
     # Indexing, iteration
@@ -1475,8 +1514,10 @@ class SeriesGroupBy(DataFrameGroupBy):
         ErrorMessage.method_not_implemented_error(name="nsmallest", class_="GroupBy")
 
     def unique(self):
-        # TODO: SNOW-1063350: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
-        ErrorMessage.method_not_implemented_error(name="unique", class_="GroupBy")
+        return self._wrap_aggregation(
+            type(self._query_compiler).groupby_unique,
+            numeric_only=False,
+        )
 
     def size(self):
         # TODO: Remove this once SNOW-1478924 is fixed

@@ -1,0 +1,783 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col, udf
+
+from snowflake.snowpark.types import IntegerType, FloatType
+
+add_one = udf(lambda x: x + 1, return_type=IntegerType(), input_types=[IntegerType()])
+
+df = session.create_dataframe([1, 2, 3], schema=["a"])
+
+df.select(add_one(col("a")).as_("ans")).collect()
+
+# call_udf should be encoded as builtin applexpr. It only works for named (& permanently) registered udfs.
+
+add_two = udf(lambda x: x + 2, return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True)
+
+df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
+
+param_udf = udf(lambda x, y: str(y + x**2), return_type=VariantType(), input_types=[IntegerType(), FloatType()],
+                name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"],
+                replace=True, if_not_exists=False, parallel=8, max_batch_size=2, source_code_display=False,
+                strict=True, secure=True, external_access_integrations=["s3"], secrets={'a':'b', 'c':'d'},
+                immutable=True, comment="some udf", force_inline_code=True)
+
+# Another test udf because if_not_exists and replace need to be xor.
+param_udf2 = udf(lambda x, y: str(y + x**2), return_type=VariantType(), input_types=[IntegerType(), FloatType()],
+                 name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"],
+                 replace=False, if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False,
+                 strict=True, secure=True, external_access_integrations=["s3"], secrets={'a':'b', 'c':'d'},
+                 immutable=True, comment="some udf", force_inline_code=True)
+
+df.select(param_udf(col("A"), col("A")))
+
+## EXPECTED UNPARSER OUTPUT
+
+add_one = udf("<lambda>", return_type=IntegerType(), input_types=[IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\"")
+
+df = session.create_dataframe([1, 2, 3], schema=["a"])
+
+df.select(add_one(col("a")).as_("ans")).collect()
+
+add_two = udf("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], name="add_two", replace=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\"")
+
+df.select(call_udf("add_two", col("A")).as_("a_Ans")).collect()
+
+param_udf = udf("<lambda [2]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], replace=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", force_inline_code=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\"")
+
+param_udf2 = udf("<lambda [3]>", return_type=VariantType(), input_types=[IntegerType(), FloatType()], name="param_udf2", is_permanent=True, stage_location="@", imports=["numpy"], packages=["bla"], if_not_exists=True, parallel=8, max_batch_size=2, source_code_display=False, strict=True, secure=True, external_access_integrations=["s3"], secrets={"a": "b", "c": "d"}, immutable=True, comment="some udf", force_inline_code=True, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\"")
+
+res5 = df.select(param_udf(col("A"), col("A")))
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      udf {
+        func {
+          name: "<lambda>"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\""
+            }
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+        }
+        parallel: 4
+        return_type {
+          sp_integer_type: true
+        }
+        source_code_display: true
+        src {
+          end_column: 94
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 18
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "add_one"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 1
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 2
+              }
+            }
+            vs {
+              int64_val {
+                src {
+                  end_column: 62
+                  end_line: 31
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 13
+                  start_line: 31
+                }
+                v: 3
+              }
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__list {
+            vs: "a"
+          }
+        }
+        src {
+          end_column: 62
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_alias {
+            col {
+              apply_expr {
+                fn {
+                  sp_fn_ref {
+                    id {
+                      bitfield1: 1
+                    }
+                  }
+                }
+                pos_args {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          fn_name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          end_column: 34
+                          end_line: 33
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_column: 26
+                          start_line: 33
+                        }
+                        v: "a"
+                      }
+                    }
+                    src {
+                      end_column: 34
+                      end_line: 33
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 26
+                      start_line: 33
+                    }
+                  }
+                }
+                src {
+                  end_column: 35
+                  end_line: 33
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 18
+                  start_line: 33
+                }
+              }
+            }
+            fn {
+              sp_column_alias_fn_as: true
+            }
+            name: "ans"
+            src {
+              end_column: 46
+              end_line: 33
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 18
+              start_line: 33
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          end_column: 47
+          end_line: 33
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 33
+        }
+        variadic: true
+      }
+    }
+    symbol {
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 3
+        }
+        src {
+          end_column: 57
+          end_line: 33
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  eval {
+    uid: 5
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      udf {
+        func {
+          id: 1
+          name: "<lambda [1]>"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\""
+            }
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+        }
+        name {
+          fn_name_flat {
+            name: "add_two"
+          }
+        }
+        parallel: 4
+        replace: true
+        return_type {
+          sp_integer_type: true
+        }
+        source_code_display: true
+        src {
+          end_column: 124
+          end_line: 37
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 18
+          start_line: 37
+        }
+      }
+    }
+    symbol {
+      value: "add_two"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_alias {
+            col {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "call_udf"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 47
+                      end_line: 39
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 18
+                      start_line: 39
+                    }
+                    v: "add_two"
+                  }
+                }
+                pos_args {
+                  apply_expr {
+                    fn {
+                      builtin_fn {
+                        name {
+                          fn_name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                    pos_args {
+                      string_val {
+                        src {
+                          end_column: 46
+                          end_line: 39
+                          file: "SRC_POSITION_TEST_MODE"
+                          start_column: 38
+                          start_line: 39
+                        }
+                        v: "A"
+                      }
+                    }
+                    src {
+                      end_column: 46
+                      end_line: 39
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 38
+                      start_line: 39
+                    }
+                  }
+                }
+                src {
+                  end_column: 47
+                  end_line: 39
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 18
+                  start_line: 39
+                }
+              }
+            }
+            fn {
+              sp_column_alias_fn_as: true
+            }
+            name: "a_Ans"
+            src {
+              end_column: 60
+              end_line: 39
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 18
+              start_line: 39
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          end_column: 61
+          end_line: 39
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 39
+        }
+        variadic: true
+      }
+    }
+    symbol {
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 7
+        }
+        src {
+          end_column: 71
+          end_line: 39
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  eval {
+    uid: 9
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      udf {
+        comment {
+          value: "some udf"
+        }
+        external_access_integrations: "s3"
+        func {
+          id: 2
+          name: "<lambda [2]>"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\""
+            }
+          }
+        }
+        immutable: true
+        imports {
+          sp_table_name_flat {
+            name: "numpy"
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_float_type: true
+          }
+        }
+        is_permanent: true
+        kwargs {
+          _1: "force_inline_code"
+          _2 {
+            bool_val {
+              src {
+                end_column: 83
+                end_line: 45
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 20
+                start_line: 41
+              }
+              v: true
+            }
+          }
+        }
+        max_batch_size {
+          value: 2
+        }
+        name {
+          fn_name_flat {
+            name: "param_udf"
+          }
+        }
+        packages: "bla"
+        parallel: 8
+        replace: true
+        return_type {
+          sp_variant_type: true
+        }
+        secrets {
+          _1: "a"
+          _2: "b"
+        }
+        secrets {
+          _1: "c"
+          _2: "d"
+        }
+        secure: true
+        src {
+          end_column: 83
+          end_line: 45
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 20
+          start_line: 41
+        }
+        stage_location: "@"
+        strict: true
+      }
+    }
+    symbol {
+      value: "param_udf"
+    }
+    uid: 10
+    var_id {
+      bitfield1: 10
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      udf {
+        comment {
+          value: "some udf"
+        }
+        external_access_integrations: "s3"
+        func {
+          id: 3
+          name: "<lambda [3]>"
+          object_name {
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\""
+            }
+          }
+        }
+        if_not_exists: true
+        immutable: true
+        imports {
+          sp_table_name_flat {
+            name: "numpy"
+          }
+        }
+        input_types {
+          list {
+            sp_integer_type: true
+          }
+          list {
+            sp_float_type: true
+          }
+        }
+        is_permanent: true
+        kwargs {
+          _1: "force_inline_code"
+          _2 {
+            bool_val {
+              src {
+                end_column: 84
+                end_line: 52
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 21
+                start_line: 48
+              }
+              v: true
+            }
+          }
+        }
+        max_batch_size {
+          value: 2
+        }
+        name {
+          fn_name_flat {
+            name: "param_udf2"
+          }
+        }
+        packages: "bla"
+        parallel: 8
+        return_type {
+          sp_variant_type: true
+        }
+        secrets {
+          _1: "a"
+          _2: "b"
+        }
+        secrets {
+          _1: "c"
+          _2: "d"
+        }
+        secure: true
+        src {
+          end_column: 84
+          end_line: 52
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 21
+          start_line: 48
+        }
+        stage_location: "@"
+        strict: true
+      }
+    }
+    symbol {
+      value: "param_udf2"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              sp_fn_ref {
+                id {
+                  bitfield1: 10
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 36
+                      end_line: 54
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 28
+                      start_line: 54
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  end_column: 36
+                  end_line: 54
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 28
+                  start_line: 54
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 46
+                      end_line: 54
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 38
+                      start_line: 54
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  end_column: 46
+                  end_line: 54
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 38
+                  start_line: 54
+                }
+              }
+            }
+            src {
+              end_column: 47
+              end_line: 54
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 18
+              start_line: 54
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          end_column: 48
+          end_line: 54
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 54
+        }
+        variadic: true
+      }
+    }
+    symbol {
+    }
+    uid: 12
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

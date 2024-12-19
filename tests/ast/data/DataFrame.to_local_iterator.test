@@ -1,0 +1,406 @@
+## TEST CASE
+
+df = session.table(tables.table1)
+
+rows = [row for row in df.to_local_iterator()]
+
+rows = [row for row in df.to_local_iterator(block=False)]
+
+rows = [row for row in df.select("*").to_local_iterator()]
+
+rows = [row for row in df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"})]
+
+rows = [row for row in df.filter(df["num"] > 1).to_local_iterator(block=False)]
+
+rows = [row for row in df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensitive=False)]
+
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df.to_local_iterator()
+
+df.to_local_iterator(block=False)
+
+rows = df.select("*")
+
+rows.to_local_iterator()
+
+df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+rows = df.filter(df["num"] > 1)
+
+rows.to_local_iterator(block=False)
+
+df.to_local_iterator(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, case_sensitive=False)
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_local_iterator {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          end_column: 53
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  eval {
+    uid: 3
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_local_iterator {
+        case_sensitive: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          end_column: 64
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 4
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  eval {
+    uid: 5
+    var_id {
+      bitfield1: 4
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_column_sql_expr {
+            sql: "*"
+            src {
+              end_column: 45
+              end_line: 31
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 31
+              start_line: 31
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 45
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 31
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "rows"
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_local_iterator {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 6
+        }
+        src {
+          end_column: 65
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 7
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  eval {
+    uid: 8
+    var_id {
+      bitfield1: 7
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_local_iterator {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          end_column: 100
+          end_line: 33
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 33
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  eval {
+    uid: 10
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_filter {
+        condition {
+          gt {
+            lhs {
+              sp_dataframe_col {
+                col_name: "num"
+                df {
+                  sp_dataframe_ref {
+                    id {
+                      bitfield1: 1
+                    }
+                  }
+                }
+                src {
+                  end_column: 50
+                  end_line: 35
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 41
+                  start_line: 35
+                }
+              }
+            }
+            rhs {
+              int64_val {
+                src {
+                  end_column: 54
+                  end_line: 35
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 41
+                  start_line: 35
+                }
+                v: 1
+              }
+            }
+            src {
+              end_column: 54
+              end_line: 35
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 41
+              start_line: 35
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 55
+          end_line: 35
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+      value: "rows"
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_local_iterator {
+        case_sensitive: true
+        id {
+          bitfield1: 11
+        }
+        src {
+          end_column: 86
+          end_line: 35
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 12
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+body {
+  eval {
+    uid: 13
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_to_local_iterator {
+        block: true
+        id {
+          bitfield1: 1
+        }
+        src {
+          end_column: 122
+          end_line: 37
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 37
+        }
+        statement_params {
+          _1: "SF_PARTNER"
+          _2: "FAKE_PARTNER"
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 14
+    var_id {
+      bitfield1: 14
+    }
+  }
+}
+body {
+  eval {
+    uid: 15
+    var_id {
+      bitfield1: 14
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

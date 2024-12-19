@@ -26,19 +26,7 @@ from snowflake.snowpark.modin.plugin._internal.type_utils import (
     pandas_lit,
     is_compatible_snowpark_types,
 )
-from snowflake.snowpark.functions import (
-    builtin,
-    col,
-    dense_rank,
-    ln,
-    log,
-    sin,
-    snowflake_cortex_summarize,
-    udf,
-    to_variant,
-    when,
-    udtf,
-)
+from snowflake.snowpark import functions as sp_func
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderedDataFrame,
@@ -83,10 +71,23 @@ DEFAULT_UDTF_PARTITION_SIZE = 1000
 cloudpickle.register_pickle_by_value(sys.modules[__name__])
 
 SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
-    ln,
-    log,
-    sin,
-    snowflake_cortex_summarize,
+    sp_func.exp,
+    sp_func.ln,
+    sp_func.log,
+    sp_func._log2,
+    sp_func._log10,
+    sp_func.sin,
+    sp_func.cos,
+    sp_func.tan,
+    sp_func.sinh,
+    sp_func.cosh,
+    sp_func.tanh,
+    sp_func.ceil,
+    sp_func.floor,
+    sp_func.trunc,
+    sp_func.sqrt,
+    sp_func.snowflake_cortex_summarize,
+    sp_func.snowflake_cortex_sentiment,
 }
 
 
@@ -261,7 +262,7 @@ def create_udtf_for_apply_axis_1(
     ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
 
     packages = list(session.get_packages().values()) + udf_packages
-    func_udtf = udtf(
+    func_udtf = sp_func.udtf(
         ApplyFunc,
         output_schema=PandasDataFrameType(
             [LongType(), StringType(), VariantType()],
@@ -683,7 +684,7 @@ def create_udtf_for_groupby_apply(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
-    return udtf(
+    return sp_func.udtf(
         ApplyFunc,
         output_schema=PandasDataFrameType(
             [StringType(), IntegerType(), VariantType(), IntegerType(), IntegerType()],
@@ -757,7 +758,7 @@ def create_udf_for_series_apply(
         def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
             return x.apply(func, args=args, **kwargs)
 
-    func_udf = udf(
+    func_udf = sp_func.udf(
         apply_func,
         return_type=PandasSeriesType(return_type),
         input_types=[PandasSeriesType(input_type)],
@@ -1161,12 +1162,12 @@ def groupby_apply_pivot_result_to_final_ordered_dataframe(
             #       in GROUP_KEY_APPEARANCE_ORDER) and assign the
             #       label i to all rows that came from func(group_i).
             [
-                col(original_row_position_snowflake_quoted_identifier).as_(
+                sp_func.col(original_row_position_snowflake_quoted_identifier).as_(
                     new_index_identifier
                 )
                 if sort_method is GroupbyApplySortMethod.ORIGINAL_ROW_ORDER
                 else (
-                    dense_rank().over(
+                    sp_func.dense_rank().over(
                         Window.order_by(
                             *(
                                 SnowparkColumn(col).asc_nulls_last()
@@ -1187,9 +1188,11 @@ def groupby_apply_pivot_result_to_final_ordered_dataframe(
         ),
         *[
             (
-                col(old_quoted_identifier).as_(quoted_identifier)
+                sp_func.col(old_quoted_identifier).as_(quoted_identifier)
                 if return_variant
-                else col(old_quoted_identifier).cast(return_type).as_(quoted_identifier)
+                else sp_func.col(old_quoted_identifier)
+                .cast(return_type)
+                .as_(quoted_identifier)
             )
             for old_quoted_identifier, quoted_identifier in zip(
                 data_column_snowflake_quoted_identifiers
@@ -1374,7 +1377,7 @@ def groupby_apply_sort_method(
     # Need to wrap column name in IDENTIFIER, or else bool agg function
     # will treat the name as a string literal
     is_transform: bool = not ordered_dataframe_before_sort.agg(
-        builtin("boolor_agg")(
+        sp_func.builtin("boolor_agg")(
             SnowparkColumn(original_row_position_quoted_identifier) == -1
         ).as_("is_transform")
     ).collect()[0][0]
@@ -1449,7 +1452,7 @@ def make_series_map_snowpark_function(
             # Cast one of the values in the comparison to variant so that we
             # we can compare types that are otherwise not comparable in
             # Snowflake, like timestamp and int.
-            return col.equal_null(to_variant(pandas_lit(key)))
+            return col.equal_null(sp_func.to_variant(pandas_lit(key)))
 
         # If any of the values we are mapping to have types that are
         # incompatible with the current column's type, we have to cast the new
@@ -1472,7 +1475,7 @@ def make_series_map_snowpark_function(
         def make_result(value: Any) -> SnowparkColumn:
             value_expression = pandas_lit(value)
             return (
-                to_variant(value_expression)
+                sp_func.to_variant(value_expression)
                 if should_cast_result_to_variant
                 else value_expression
             )
@@ -1484,7 +1487,7 @@ def make_series_map_snowpark_function(
                 make_condition(key_and_value[0]), make_result(key_and_value[1])
             ),
             itertools.islice(map_items, 1, None),
-            when(make_condition(first_key), make_result(first_value)),
+            sp_func.when(make_condition(first_key), make_result(first_value)),
         )
         if isinstance(mapping, defaultdict):
             case_expression = case_expression.otherwise(

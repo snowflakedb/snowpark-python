@@ -12,9 +12,9 @@ import string
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
-from typing import List, NamedTuple, Optional, Union
+from typing import Dict, List, NamedTuple, Optional, Union
 
 import pytest
 import pytz
@@ -369,9 +369,19 @@ class Utils:
         actual: Union[Row, List[Row], DataFrame],
         expected: Union[Row, List[Row], DataFrame],
         sort=True,
-        statement_params=None,
+        statement_params: Optional[Dict[str, str]] = None,
         float_equality_threshold=0.0,
     ) -> None:
+
+        # Check that statement_params are passed as Dict[str, str].
+        assert statement_params is None or (
+            isinstance(statement_params, dict)
+            and all(
+                isinstance(k, str) and isinstance(v, str)
+                for k, v in statement_params.items()
+            )
+        )
+
         def get_rows(input_data: Union[Row, List[Row], DataFrame]):
             if isinstance(input_data, list):
                 rows = input_data
@@ -1561,3 +1571,30 @@ def check_tracing_span_answers(results: list, expected_answer: tuple):
             if check_tracing_span_single_answer(result[1], expected_answer[1]):
                 return True
     return False
+
+
+def local_to_utc_offset_in_hours():
+    """In tests on CI UTC is assumed. However, when comparing dates these are returned in local timezone format.
+    Adjust expectations with this localization function.
+    Returns difference between UTC and current, local timezone."""
+    offset = datetime.now(timezone.utc).astimezone().tzinfo.utcoffset(datetime.now())
+    if offset.days < 0:
+        return -(24 - offset.seconds / 3600)
+    else:
+        return offset.seconds / 3600
+
+
+def add_to_time(t: datetime.time, delta: timedelta) -> time:
+    """datetime.time does not support +, implement this here."""
+    now = datetime.now()
+    dt = datetime(
+        now.year,
+        now.month,
+        now.day,
+        hour=t.hour,
+        minute=t.minute,
+        second=t.second,
+        microsecond=t.microsecond,
+    )
+    ans = dt + delta
+    return time(ans.hour, ans.minute, ans.second, ans.microsecond)

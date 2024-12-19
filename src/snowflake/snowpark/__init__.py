@@ -35,6 +35,7 @@ __all__ = [
     "WhenNotMatchedClause",
     "QueryRecord",
     "QueryHistory",
+    "QueryListener",
     "AsyncJob",
 ]
 
@@ -56,7 +57,7 @@ from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.file_operation import FileOperation, GetResult, PutResult
-from snowflake.snowpark.query_history import QueryHistory, QueryRecord
+from snowflake.snowpark.query_history import QueryHistory, QueryListener, QueryRecord
 from snowflake.snowpark.relational_grouped_dataframe import (
     GroupingSets,
     RelationalGroupedDataFrame,
