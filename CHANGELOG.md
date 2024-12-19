@@ -43,6 +43,7 @@
   - `map_cat`
   - `map_contains_key`
   - `map_keys`
+- Added support for `Series.between`.
 
 #### Bug Fixes
 
