@@ -441,6 +441,9 @@ def test_days_in_month(property):
         "%d-%m-%Y-%H-%M-%S-%f-%j-%X-%%b",
         "a%d-%m-%Y-%H-%M-%S-%f-%j-%X-%%",
         "%d-%m-%Y-%H-%M-%S-%f-%j-%X-%%",
+        "%%%M",
+        "%%M",
+        "abc%",
     ],
 )
 def test_strftime(date_format):

@@ -18232,9 +18232,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 cols.append(directive_function(column))
 
             if len(cols) == 1:
-                return cols[0]
+                return iff(column.is_null(), pandas_lit(None), cols[0])
             else:
-                return concat(*cols)
+                return iff(column.is_null(), pandas_lit(None), concat(*cols))
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(
