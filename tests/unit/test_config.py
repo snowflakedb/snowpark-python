@@ -144,6 +144,7 @@ def test_session_parameter(caplog):
 def test_versioned_session_param():
     mock_session = mock.Mock()
     mock_session.version = "1.0.0"
+    mock_session._lock = threading.Lock()
 
     # When parameter is missing return false
     param1 = VersionedSessionParameter(
