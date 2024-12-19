@@ -10,6 +10,7 @@
   - `divnull`
   - `nullifzero`
   - `snowflake_cortex_sentiment`
+- Allow setting and reading custom properties in `session.conf`.
 
 #### Improvements
 
