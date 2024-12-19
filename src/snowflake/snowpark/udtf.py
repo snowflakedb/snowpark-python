@@ -969,6 +969,10 @@ class UDTFRegistration:
             output_schema=output_schema,
         )
 
+        # Structured Struct is interpreted as Object by function registration
+        # Force unstructured to ensure Table return type.
+        output_schema.structured = False
+
         # Capture original parameters.
         if _emit_ast:
             stmt = self._session._ast_batch.assign()
