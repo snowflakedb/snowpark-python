@@ -209,7 +209,7 @@ def _pandas_importer():  # noqa: E302
         pandas = importlib.import_module("pandas")
         # since we enable relative imports without dots this import gives us an issues when ran from test directory
         from pandas import DataFrame  # NOQA
-    except ImportError as e:
+    except ImportError:
         pass
     return pandas
 
