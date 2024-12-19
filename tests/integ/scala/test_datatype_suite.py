@@ -663,16 +663,16 @@ def test_struct_dtype_iceberg_lqb(
     is_query_compilation_stage_enabled = (
         structured_type_session._query_compilation_stage_enabled
     )
-    is_cte_optimization_enabled = structured_type_session._cte_optimization_enabled
+    is_cte_optimization_enabled = structured_type_session.cte_optimization_enabled
     is_large_query_breakdown_enabled = (
-        structured_type_session._large_query_breakdown_enabled
+        structured_type_session.large_query_breakdown_enabled
     )
-    original_bounds = structured_type_session._large_query_breakdown_complexity_bounds
+    original_bounds = structured_type_session.large_query_breakdown_complexity_bounds
     try:
         structured_type_session._query_compilation_stage_enabled = True
-        structured_type_session._cte_optimization_enabled = cte_enabled
-        structured_type_session._large_query_breakdown_enabled = True
-        structured_type_session._large_query_breakdown_complexity_bounds = (300, 600)
+        structured_type_session.cte_optimization_enabled = cte_enabled
+        structured_type_session.large_query_breakdown_enabled = True
+        structured_type_session.large_query_breakdown_complexity_bounds = (300, 600)
 
         create_df = structured_type_session.create_dataframe([], schema=expected_schema)
         create_df.write.save_as_table(read_table, iceberg_config=ICEBERG_CONFIG)
@@ -731,11 +731,11 @@ def test_struct_dtype_iceberg_lqb(
         structured_type_session._query_compilation_stage_enabled = (
             is_query_compilation_stage_enabled
         )
-        structured_type_session._cte_optimization_enabled = is_cte_optimization_enabled
-        structured_type_session._large_query_breakdown_enabled = (
+        structured_type_session.cte_optimization_enabled = is_cte_optimization_enabled
+        structured_type_session.large_query_breakdown_enabled = (
             is_large_query_breakdown_enabled
         )
-        structured_type_session._large_query_breakdown_complexity_bounds = (
+        structured_type_session.large_query_breakdown_complexity_bounds = (
             original_bounds
         )
         Utils.drop_table(structured_type_session, read_table)
