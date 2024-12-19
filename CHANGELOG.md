@@ -28,6 +28,10 @@
 - Added support for mixed case field names in struct type columns.
 - Added support for `SeriesGroupBy.unique`
 
+#### Bug Fixes
+
+- Fixed a bug that system function called through `session.call` have incorrect type conversion.
+
 #### Improvements
 - Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
 - Updated integration testing for `session.lineage.trace` to exclude deleted objects
