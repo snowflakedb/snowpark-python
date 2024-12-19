@@ -14,7 +14,7 @@ import sys
 import tempfile
 import warnings
 from array import array
-from functools import reduce
+from functools import partial, reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
@@ -2255,12 +2255,7 @@ class Session:
                 )
 
     @publicapi
-    def table(
-        self,
-        name: Union[str, Iterable[str]],
-        is_temp_table_for_cleanup: bool = False,
-        _emit_ast: bool = True,
-    ) -> Table:
+    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
         """
         Returns a Table that points the specified table.
 
@@ -2300,13 +2295,7 @@ class Session:
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(
-            name,
-            session=self,
-            is_temp_table_for_cleanup=is_temp_table_for_cleanup,
-            _ast_stmt=stmt,
-            _emit_ast=_emit_ast,
-        )
+        t = Table(name, session=self, _ast_stmt=stmt, _emit_ast=_emit_ast)
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
@@ -2973,9 +2962,7 @@ class Session:
                 raise pe
 
         if success:
-            table = self.table(
-                location, is_temp_table_for_cleanup=True, _emit_ast=False
-            )
+            table = self.table(location, _emit_ast=False)
             set_api_call_source(table, "Session.write_pandas")
 
             # AST.
@@ -3147,9 +3134,8 @@ class Session:
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
             if isinstance(self._conn, MockServerConnection):
-                if not isinstance(schema, StructType):
-                    schema, data = _extract_schema_and_data_from_pandas_df(data)
-                    # we do not return here as live connection and keep using the data frame logic and compose table
+                schema, data = _extract_schema_and_data_from_pandas_df(data)
+                # we do not return here as live connection and keep using the data frame logic and compose table
             else:
                 sf_database = self._conn._get_current_parameter(
                     "database", quoted=False
@@ -3159,34 +3145,32 @@ class Session:
                 # If the user specifies schema for their dataframe, we try out best to match
                 # it by create a temp table with the specified schema, and load the data into
                 # the temp table. If we fail, go back to old method using infer schema.
+                write_pandas_partial = partial(
+                    self.write_pandas,
+                    data,
+                    temp_table_name,
+                    database=sf_database,
+                    schema=sf_schema,
+                    quote_identifiers=True,
+                    use_logical_type=self._use_logical_type_for_create_df,
+                )
                 if isinstance(
                     schema, StructType
                 ) and self._initialize_temp_table_with_schema(temp_table_name, schema):
                     try:
-                        table = self.write_pandas(
-                            data,
-                            temp_table_name,
-                            database=sf_database,
-                            schema=sf_schema,
-                            quote_identifiers=True,
-                            use_logical_type=self._use_logical_type_for_create_df,
-                        )
+                        table = write_pandas_partial()
                     except ProgrammingError as e:
                         self._run_query(f"drop table if exists {temp_table_name}")
                         _logger.warning(
                             f"Cannot create dataframe using specified schema for database."
                             f"Falling back to inferring schema from pandas dataframe. Exception: {e}"
                         )
+                        table = write_pandas_partial(
+                            auto_create_table=True, table_type="temporary"
+                        )
                 else:
-                    table = self.write_pandas(
-                        data,
-                        temp_table_name,
-                        database=sf_database,
-                        schema=sf_schema,
-                        quote_identifiers=True,
-                        auto_create_table=True,
-                        table_type="temporary",
-                        use_logical_type=self._use_logical_type_for_create_df,
+                    table = write_pandas_partial(
+                        auto_create_table=True, table_type="temporary"
                     )
                 set_api_call_source(table, "Session.create_dataframe[pandas]")
 

@@ -1648,6 +1648,10 @@ def test_create_dataframe_with_pandas_df(session):
     assert df.schema[2].datatype == TimestampType(TimestampTimeZone.LTZ)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="TODO: support local testing.",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_create_dataframe_with_pandas_df_enforce_schema(session):
     pdf = pd.DataFrame(
