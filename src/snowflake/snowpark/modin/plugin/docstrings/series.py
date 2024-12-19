@@ -768,8 +768,11 @@ class Series(BasePandasDataset):
         1    False
         2     True
         3    False
-        4    False
-        dtype: bool
+        4     None
+        dtype: object
+
+        Note that to for consistency with Snowflake SQL rules, comparisons with `None`/`np.nan`
+        will return `None`. Call `astype(bool)` on the result to coerce `None` to `False`.
 
         With `inclusive` set to ``"neither"`` boundary values are excluded:
 
@@ -778,8 +781,8 @@ class Series(BasePandasDataset):
         1    False
         2    False
         3    False
-        4    False
-        dtype: bool
+        4     None
+        dtype: object
 
         `left` and `right` can be any scalar value:
 
