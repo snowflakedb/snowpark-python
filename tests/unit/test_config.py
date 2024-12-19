@@ -78,6 +78,7 @@ def test_session_parameter(caplog):
     mock_session = mock.Mock()
     mock_session._conn._thread_safe_session_enabled = True
     mock_session._session_id = "mock_id"
+    mock_session._lock = threading.Lock()
     mock_telemetry = mock.Mock()
 
     # Omitting required parameters fails
