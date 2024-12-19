@@ -12,7 +12,6 @@ import re
 import sys
 import tempfile
 import time
-from base64 import b64decode
 from dataclasses import dataclass
 
 import dateutil

@@ -378,6 +378,33 @@ def build_sp_table_name(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # 
         raise ValueError(f"Invalid name type {type(name)} for SpTableName entity.")
 
 
+def build_function_expr(
+    builtin_name: str,
+    args: List[Any],
+    ignore_null_args: bool = False,
+) -> proto.Expr:
+    """
+    Creates AST encoding for the methods in function.py.
+    Args:
+        builtin_name: Name of the builtin function to call.
+        args: Positional arguments to pass to function, in the form of a list.
+        ignore_null_args: If True, null arguments will be ignored.
+    Returns:
+        The AST encoding of the function.
+    """
+    ast = proto.Expr()
+    args_list = [arg for arg in args if arg is not None] if ignore_null_args else args
+    build_builtin_fn_apply(
+        ast,
+        builtin_name,
+        *tuple(
+            snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+            for arg in args_list
+        ),
+    )
+    return ast
+
+
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_builtin_fn_apply(
     ast: proto.Expr,
@@ -393,7 +420,6 @@ def build_builtin_fn_apply(
         builtin_name: Name of the builtin function to call.
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
-
     """
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
     _set_fn_name(builtin_name, expr.fn.builtin_fn)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
