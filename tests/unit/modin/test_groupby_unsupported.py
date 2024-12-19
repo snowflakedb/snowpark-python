@@ -7,7 +7,6 @@ import pytest
 @pytest.mark.parametrize(
     "func, func_name",
     [
-        (lambda se: se.groupby("A").__iter__(), "_iter"),
         (lambda se: se.groupby("A").__len__(), "__len__"),
         (lambda se: se.groupby("A").__bytes__(), "__bytes__"),
         (lambda se: se.groupby("A").corrwith, "corrwith"),
@@ -25,7 +24,6 @@ import pytest
         (lambda se: se.groupby("A").nlargest(4), "nlargest"),
         (lambda se: se.groupby("A").nsmallest(4), "nsmallest"),
         (lambda se: se.groupby("A").nth(5), "nth"),
-        (lambda se: se.groupby("A").unique(), "unique"),
         (lambda se: se.groupby("A").ohlc(), "ohlc"),
         (lambda se: se.groupby("A").prod(), "prod"),
         (lambda se: se.groupby("A").resample("3T"), "resample"),
@@ -51,7 +49,6 @@ def test_series_groupby_unsupported_methods_raises(
 @pytest.mark.parametrize(
     "func, func_name",
     [
-        (lambda df: df.groupby("A").__iter__(), "_iter"),
         (lambda df: df.groupby("A").__len__(), "__len__"),
         (lambda df: df.groupby("A").__bytes__(), "__bytes__"),
         (lambda df: df.groupby("A").corrwith, "corrwith"),

@@ -153,7 +153,9 @@ def test_negative_test_for_missing_required_parameter_schema(
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="client is regression test specific")
 def test_select_current_client(session):
-    current_client = session.sql("select current_client()")._show_string(10)
+    current_client = session.sql("select current_client()")._show_string(
+        10, _emit_ast=session.ast_enabled
+    )
     assert get_application_name() in current_client
     assert get_version() in current_client
 

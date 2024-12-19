@@ -11,17 +11,20 @@ import functools
 import hashlib
 import importlib
 import io
+import itertools
 import logging
 import os
 import platform
 import random
 import re
 import string
+import sys
 import threading
 import traceback
 import zipfile
 from enum import Enum
 from functools import lru_cache
+from itertools import count
 from json import JSONEncoder
 from random import choice
 from typing import (
@@ -44,11 +47,7 @@ from typing import (
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
-from snowflake.connector.options import (
-    MissingOptionalDependency,
-    ModuleLikeObject,
-    pandas,
-)
+from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
@@ -59,6 +58,8 @@ if TYPE_CHECKING:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
         ResultMetadataV2 = ResultMetadata
+
+_logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
@@ -197,6 +198,24 @@ TEMPORARY_STRING = "TEMPORARY"
 SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
+
+# TODO: merge fixed pandas importer changes to connector.
+def _pandas_importer():  # noqa: E302
+    """Helper function to lazily import pandas and return MissingPandas if not installed."""
+    from snowflake.connector.options import MissingPandas
+
+    pandas = MissingPandas()
+    try:
+        pandas = importlib.import_module("pandas")
+        # since we enable relative imports without dots this import gives us an issues when ran from test directory
+        from pandas import DataFrame  # NOQA
+    except ImportError as e:
+        _logger.error(f"pandas is not installed {e}")
+    return pandas
+
+
+pandas = _pandas_importer()
+installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
 class TempObjectType(Enum):
@@ -364,7 +383,7 @@ def warn_session_config_update_in_multithreaded_mode(
         return
 
     if threading.active_count() > 1:
-        logger.warning(
+        _logger.warning(
             "You might have more than one threads sharing the Session object trying to update "
             f"{config}. Updating this while other tasks are running can potentially cause "
             "unexpected behavior. Please update the session configuration before starting the threads."
@@ -733,9 +752,6 @@ class PythonObjJSONEncoder(JSONEncoder):
             return super().default(value)
 
 
-logger = logging.getLogger("snowflake.snowpark")
-
-
 class WarningHelper:
     def __init__(self, warning_times: int) -> None:
         self.warning_times = warning_times
@@ -743,7 +759,7 @@ class WarningHelper:
 
     def warning(self, text: str) -> None:
         if self.count < self.warning_times:
-            logger.warning(text)
+            _logger.warning(text)
         self.count += 1
 
 
@@ -826,7 +842,7 @@ def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:  # pragma: n
                 pass
     finally:
         if session is None:
-            logging.debug(
+            _logger.debug(
                 f"Could not retrieve default session "
                 f"for function {func.__qualname__}, capturing AST by default."
             )
@@ -935,7 +951,7 @@ def publicapi(func) -> Callable:
                 args[0],
                 snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
             ):
-                kwargs["_emit_ast"] = args[0]._df._session.ast_enabled
+                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
             else:
                 kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(func)
 
@@ -1052,6 +1068,55 @@ def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
         )
 
 
+def check_imports_type(
+    imports: Optional[List[Union[str, Tuple[str, str]]]], name: str = ""
+) -> None:
+    """Check that import parameter adheres to type hint given, if not raises TypeError."""
+    if not (
+        imports is None
+        or (
+            isinstance(imports, list)
+            and all(
+                isinstance(imp, str)
+                or (
+                    isinstance(imp, tuple)
+                    and len(imp) == 2
+                    and isinstance(imp[0], str)
+                    and isinstance(imp[1], str)
+                )
+                for imp in imports
+            )
+        )
+    ):
+        raise TypeError(
+            f"{name} import can only be a file path (str) or a tuple of the file path (str) and the import path (str)"
+        )
+
+
+def check_output_schema_type(  # noqa: F821
+    output_schema: Union[  # noqa: F821
+        "StructType", Iterable[str], "PandasDataFrameType"  # noqa: F821
+    ]  # noqa: F821
+) -> None:
+    """Helper function to ensure output_schema adheres to type hint."""
+
+    from snowflake.snowpark.types import StructType
+
+    if installed_pandas:
+        from snowflake.snowpark.types import PandasDataFrameType
+    else:
+        PandasDataFrameType = int  # dummy type.
+
+    if not (
+        isinstance(output_schema, StructType)
+        or (installed_pandas and isinstance(output_schema, PandasDataFrameType))
+        or isinstance(output_schema, Iterable)
+    ):
+        raise ValueError(
+            f"'output_schema' must be a list of column names or StructType or PandasDataFrameType instance to create a UDTF. Got {type(output_schema)}."
+        )
+
+
 def _get_options(
     options: Dict[str, Any], allowed_options: Set[str]
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -1097,7 +1162,7 @@ def get_aliased_option_name(
     upper_key = key.strip().upper()
     aliased_key = alias_map.get(upper_key, upper_key)
     if aliased_key != upper_key:
-        logger.warning(
+        _logger.warning(
             f"Option '{key}' is aliased to '{aliased_key}'. You may see unexpected behavior."
             " Please refer to format specific options for more information"
         )
@@ -1264,6 +1329,62 @@ def check_flatten_mode(mode: str) -> None:
         raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
 
+def check_create_map_parameter(*cols: Any) -> None:
+    """Helper function to check parameter cols for create_map function."""
+
+    error_message = "The 'create_map' function requires an even number of parameters but the actual number is {}"
+
+    # TODO SNOW-1790918: Keep error messages for now identical to current state, make more distinct by replacing text in blocks.
+    if len(cols) == 1:
+        cols = cols[0]
+        if not isinstance(cols, (tuple, list)):
+            raise ValueError(error_message.format(len(cols)))
+
+    if not len(cols) % 2 == 0:
+        raise ValueError(error_message.format(len(cols)))
+
+
+def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
+    from snowflake.snowpark import Column
+
+    return len(e) == 2 and isinstance(e[0], (Column, str)) and isinstance(e[1], str)
+
+
+def check_agg_exprs(
+    exprs: Union[
+        "snowflake.snowpark.Column",
+        Tuple["snowflake.snowpark.ColumnOrName", str],
+        Dict[str, str],
+    ]
+):
+    """Helper function to raise exceptions when invalid exprs have been passed."""
+    from snowflake.snowpark import Column
+
+    exprs, _ = parse_positional_args_to_list_variadic(*exprs)
+
+    # special case for single list or tuple
+    if is_valid_tuple_for_agg(exprs):
+        exprs = [exprs]
+
+    if len(exprs) > 0 and isinstance(exprs[0], dict):
+        for k, v in exprs[0].items():
+            if not (isinstance(k, str) and isinstance(v, str)):
+                raise TypeError(
+                    "Dictionary passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() "
+                    f"should contain only strings: got key-value pair with types {type(k), type(v)}"
+                )
+    else:
+        for e in exprs:
+            if not (
+                isinstance(e, Column)
+                or (isinstance(e, (list, tuple)) and is_valid_tuple_for_agg(e))
+            ):
+                raise TypeError(
+                    "List passed to DataFrame.agg() or RelationalGroupedDataFrame.agg() should "
+                    "contain only Column objects, or pairs of Column object (or column name) and strings."
+                )
+
+
 class MissingModin(MissingOptionalDependency):
     """The class is specifically for modin optional dependency."""
 
@@ -1280,3 +1401,24 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         return modin, True
     except ImportError:
         return MissingModin(), False
+
+
+# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
+COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
+
+
+class GlobalCounter:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._counter: count[int] = itertools.count()
+
+    def reset(self):
+        with self._lock:
+            self._counter = itertools.count()
+
+    def next(self) -> int:
+        with self._lock:
+            return next(self._counter)
+
+
+global_counter: GlobalCounter = GlobalCounter()

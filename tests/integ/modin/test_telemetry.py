@@ -2,7 +2,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import contextlib
 import json
 import sys
 from typing import Any, Optional
@@ -420,37 +419,35 @@ def test_telemetry_getitem_setitem():
 
 
 @pytest.mark.parametrize(
-    "name, expected_func_name, method, expected_query_count, method_implemented",
+    "name, expected_func_name, method, expected_query_count",
     [
         # __repr__ is an extension method, so the class name is shown only once.
-        ["__repr__", "DataFrame.__repr__", lambda df: df.__repr__(), 1, True],
+        ["__repr__", "DataFrame.__repr__", lambda df: df.__repr__(), 1],
         # __iter__ was defined on the DataFrame class, so it is shown twice.
-        ["__iter__", "DataFrame.DataFrame.__iter__", lambda df: df.__iter__(), 0, True],
+        ["__iter__", "DataFrame.DataFrame.__iter__", lambda df: df.__iter__(), 0],
         [
             "__dataframe__",
             "DataFrame.__dataframe__",
             lambda df: df.__dataframe__(),
-            0,
-            False,
+            # The interchange protocol method will trigger a query to convert
+            # the Snowpark pandas dataframe to native pandas.
+            1,
         ],
     ],
 )
 def test_telemetry_private_method(
-    name, expected_func_name, method, expected_query_count, method_implemented
+    name,
+    expected_func_name,
+    method,
+    expected_query_count,
 ):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
     df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
-
-    with SqlCounter(query_count=expected_query_count), (
-        contextlib.nullcontext()
-        if method_implemented
-        else pytest.raises(NotImplementedError)
-    ):
+    with SqlCounter(query_count=expected_query_count):
         method(df)
     # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
     # the telemetry log from the connector to validate
-
     data = _extract_snowpark_pandas_telemetry_log_data(
         expected_func_name=expected_func_name,
         session=df._query_compiler._modin_frame.ordered_dataframe.session,

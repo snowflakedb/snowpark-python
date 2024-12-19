@@ -1033,7 +1033,9 @@ class _LocIndexer(_LocationIndexerBase):
             else row_loc
         )
         columns = (
-            col_loc._query_compiler
+            (col_loc,)
+            if is_scalar(col_loc)
+            else col_loc._query_compiler
             if isinstance(col_loc, BasePandasDataset)
             else col_loc
         )

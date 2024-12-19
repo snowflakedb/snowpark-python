@@ -1,0 +1,1153 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col
+
+df = session.table(tables.table1)
+
+df.write.save_as_table("saved_table")
+
+df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
+
+df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary", mode="ignore")
+
+df.write.mode("truncate").save_as_table("test_destination", column_order="name", create_temp_table=False, table_type="transient", clustering_keys=['STR', col('num1')], comment="test", block=True, statement_params={"k":"v"})
+
+stage_created_result = session.sql("create temp stage if not exists test_stage").collect()
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe")
+
+remote_file_path = "@test_stage/copied_from_dataframe"
+
+df.write.copy_into_location(remote_file_path, file_format_type="parquet", header=True, overwrite=True, single=True)
+
+df.write.copy_into_location(remote_file_path, file_format_name="csv", format_type_options={"compression":"bzip2"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
+
+df.write.copy_into_location(remote_file_path, file_format_name="csv", format_type_options={"compression":"bzip2", "binary_format":"base64"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
+
+remote_file_path = "@test_stage/test.csv"
+
+df.write.csv(remote_file_path, header=True, format_type_options={"compression":"bzip2"}, overwrite=True, single=True)
+
+remote_file_path = "@test_stage/test.json"
+
+df.write.json(remote_file_path, overwrite=True, single=True, format_type_options={"compression":"bzip2"},)
+
+remote_file_path = "@test_stage/test.parquet"
+
+df.write.parquet(remote_file_path, format_type_options={"compression":"bzip2"}, header=False, overwrite=True, single=True)
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df.write.save_as_table("saved_table")
+
+df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
+
+df.write.mode("overwrite").save_as_table("saved_table", mode="ignore", table_type="temporary")
+
+df.write.mode("truncate").save_as_table("test_destination", column_order="name", table_type="transient", clustering_keys=["STR", col("num1")], statement_params={"k": "v"}, comment="test")
+
+stage_created_result = session.sql("create temp stage if not exists test_stage")
+
+stage_created_result.collect()
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe")
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe", file_format_type="parquet", header=True, overwrite=True, single=True)
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe", file_format_name="csv", format_type_options={"compression": "bzip2"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
+
+df.write.copy_into_location("@test_stage/copied_from_dataframe", file_format_name="csv", format_type_options={"compression": "bzip2", "binary_format": "base64"}, block=False, INCLUDE_QUERY_ID=True, DETAILED_OUTPUT=False)
+
+df.write.csv("@test_stage/test.csv", format_type_options={"compression": "bzip2"}, header=True, overwrite=True, single=True)
+
+df.write.json("@test_stage/test.json", format_type_options={"compression": "bzip2"}, overwrite=True, single=True)
+
+df.write.parquet("@test_stage/test.parquet", format_type_options={"compression": "bzip2"}, overwrite=True, single=True)
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          sp_table_name_flat {
+            name: "table1"
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 27
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 16
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_table {
+        block: true
+        column_order: "index"
+        id {
+          bitfield1: 2
+        }
+        src {
+          end_column: 45
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 29
+        }
+        table_name {
+          sp_table_name_flat {
+            name: "saved_table"
+          }
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  eval {
+    uid: 4
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        save_mode {
+          sp_save_mode_overwrite: true
+        }
+        src {
+          end_column: 16
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 31
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 5
+    var_id {
+      bitfield1: 5
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_table {
+        block: true
+        column_order: "index"
+        id {
+          bitfield1: 5
+        }
+        src {
+          end_column: 87
+          end_line: 31
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 31
+        }
+        table_name {
+          sp_table_name_flat {
+            name: "saved_table"
+          }
+        }
+        table_type: "temporary"
+      }
+    }
+    symbol {
+    }
+    uid: 6
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  eval {
+    uid: 7
+    var_id {
+      bitfield1: 6
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        save_mode {
+          sp_save_mode_overwrite: true
+        }
+        src {
+          end_column: 16
+          end_line: 33
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 33
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 8
+    var_id {
+      bitfield1: 8
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_table {
+        block: true
+        column_order: "index"
+        id {
+          bitfield1: 8
+        }
+        mode {
+          sp_save_mode_ignore: true
+        }
+        src {
+          end_column: 102
+          end_line: 33
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 33
+        }
+        table_name {
+          sp_table_name_flat {
+            name: "saved_table"
+          }
+        }
+        table_type: "temporary"
+      }
+    }
+    symbol {
+    }
+    uid: 9
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  eval {
+    uid: 10
+    var_id {
+      bitfield1: 9
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        save_mode {
+          sp_save_mode_truncate: true
+        }
+        src {
+          end_column: 16
+          end_line: 35
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 35
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 11
+    var_id {
+      bitfield1: 11
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_table {
+        block: true
+        clustering_keys {
+          list {
+            string_val {
+              src {
+                end_column: 231
+                end_line: 35
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 35
+              }
+              v: "STR"
+            }
+          }
+          list {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    fn_name_flat {
+                      name: "col"
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 173
+                    end_line: 35
+                    file: "SRC_POSITION_TEST_MODE"
+                    start_column: 162
+                    start_line: 35
+                  }
+                  v: "num1"
+                }
+              }
+              src {
+                end_column: 173
+                end_line: 35
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 162
+                start_line: 35
+              }
+            }
+          }
+        }
+        column_order: "name"
+        comment {
+          value: "test"
+        }
+        id {
+          bitfield1: 11
+        }
+        src {
+          end_column: 231
+          end_line: 35
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 35
+        }
+        statement_params {
+          _1: "k"
+          _2: "v"
+        }
+        table_name {
+          sp_table_name_flat {
+            name: "test_destination"
+          }
+        }
+        table_type: "transient"
+      }
+    }
+    symbol {
+    }
+    uid: 12
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+body {
+  eval {
+    uid: 13
+    var_id {
+      bitfield1: 12
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "create temp stage if not exists test_stage"
+        src {
+          end_column: 88
+          end_line: 37
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 37
+        }
+      }
+    }
+    symbol {
+      value: "stage_created_result"
+    }
+    uid: 14
+    var_id {
+      bitfield1: 14
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 14
+        }
+        src {
+          end_column: 98
+          end_line: 37
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 31
+          start_line: 37
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 15
+    var_id {
+      bitfield1: 15
+    }
+  }
+}
+body {
+  eval {
+    uid: 16
+    var_id {
+      bitfield1: 15
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 16
+          end_line: 39
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 17
+    var_id {
+      bitfield1: 17
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_copy_into_location {
+        block: true
+        id {
+          bitfield1: 17
+        }
+        location: "@test_stage/copied_from_dataframe"
+        src {
+          end_column: 72
+          end_line: 39
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 18
+    var_id {
+      bitfield1: 18
+    }
+  }
+}
+body {
+  eval {
+    uid: 19
+    var_id {
+      bitfield1: 18
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 16
+          end_line: 43
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 20
+    var_id {
+      bitfield1: 20
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_copy_into_location {
+        block: true
+        copy_options {
+          _1: "overwrite"
+          _2 {
+            bool_val {
+              src {
+                end_column: 123
+                end_line: 43
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 43
+              }
+              v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "single"
+          _2 {
+            bool_val {
+              src {
+                end_column: 123
+                end_line: 43
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 43
+              }
+              v: true
+            }
+          }
+        }
+        file_format_type {
+          value: "parquet"
+        }
+        header: true
+        id {
+          bitfield1: 20
+        }
+        location: "@test_stage/copied_from_dataframe"
+        src {
+          end_column: 123
+          end_line: 43
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 21
+    var_id {
+      bitfield1: 21
+    }
+  }
+}
+body {
+  eval {
+    uid: 22
+    var_id {
+      bitfield1: 21
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 16
+          end_line: 45
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 45
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 23
+    var_id {
+      bitfield1: 23
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_copy_into_location {
+        copy_options {
+          _1: "INCLUDE_QUERY_ID"
+          _2 {
+            bool_val {
+              src {
+                end_column: 181
+                end_line: 45
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 45
+              }
+              v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "DETAILED_OUTPUT"
+          _2 {
+            bool_val {
+              src {
+                end_column: 181
+                end_line: 45
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 45
+              }
+            }
+          }
+        }
+        file_format_name {
+          value: "csv"
+        }
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        id {
+          bitfield1: 23
+        }
+        location: "@test_stage/copied_from_dataframe"
+        src {
+          end_column: 181
+          end_line: 45
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 45
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 24
+    var_id {
+      bitfield1: 24
+    }
+  }
+}
+body {
+  eval {
+    uid: 25
+    var_id {
+      bitfield1: 24
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 16
+          end_line: 47
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 47
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 26
+    var_id {
+      bitfield1: 26
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_copy_into_location {
+        copy_options {
+          _1: "INCLUDE_QUERY_ID"
+          _2 {
+            bool_val {
+              src {
+                end_column: 207
+                end_line: 47
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 47
+              }
+              v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "DETAILED_OUTPUT"
+          _2 {
+            bool_val {
+              src {
+                end_column: 207
+                end_line: 47
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 47
+              }
+            }
+          }
+        }
+        file_format_name {
+          value: "csv"
+        }
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        format_type_options {
+          _1: "binary_format"
+          _2: "base64"
+        }
+        id {
+          bitfield1: 26
+        }
+        location: "@test_stage/copied_from_dataframe"
+        src {
+          end_column: 207
+          end_line: 47
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 47
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 27
+    var_id {
+      bitfield1: 27
+    }
+  }
+}
+body {
+  eval {
+    uid: 28
+    var_id {
+      bitfield1: 27
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 16
+          end_line: 51
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 51
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 29
+    var_id {
+      bitfield1: 29
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_csv {
+        block: true
+        copy_options {
+          _1: "overwrite"
+          _2 {
+            bool_val {
+              src {
+                end_column: 125
+                end_line: 51
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 51
+              }
+              v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "single"
+          _2 {
+            bool_val {
+              src {
+                end_column: 125
+                end_line: 51
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 51
+              }
+              v: true
+            }
+          }
+        }
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        header: true
+        id {
+          bitfield1: 29
+        }
+        location: "@test_stage/test.csv"
+        src {
+          end_column: 125
+          end_line: 51
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 51
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 30
+    var_id {
+      bitfield1: 30
+    }
+  }
+}
+body {
+  eval {
+    uid: 31
+    var_id {
+      bitfield1: 30
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 16
+          end_line: 55
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 55
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 32
+    var_id {
+      bitfield1: 32
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_json {
+        block: true
+        copy_options {
+          _1: "overwrite"
+          _2 {
+            bool_val {
+              src {
+                end_column: 114
+                end_line: 55
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 55
+              }
+              v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "single"
+          _2 {
+            bool_val {
+              src {
+                end_column: 114
+                end_line: 55
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 55
+              }
+              v: true
+            }
+          }
+        }
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        id {
+          bitfield1: 32
+        }
+        location: "@test_stage/test.json"
+        src {
+          end_column: 114
+          end_line: 55
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 55
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 33
+    var_id {
+      bitfield1: 33
+    }
+  }
+}
+body {
+  eval {
+    uid: 34
+    var_id {
+      bitfield1: 33
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 16
+          end_line: 59
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 59
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 35
+    var_id {
+      bitfield1: 35
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_write_parquet {
+        block: true
+        copy_options {
+          _1: "overwrite"
+          _2 {
+            bool_val {
+              src {
+                end_column: 130
+                end_line: 59
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 59
+              }
+              v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "single"
+          _2 {
+            bool_val {
+              src {
+                end_column: 130
+                end_line: 59
+                file: "SRC_POSITION_TEST_MODE"
+                start_column: 8
+                start_line: 59
+              }
+              v: true
+            }
+          }
+        }
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        id {
+          bitfield1: 35
+        }
+        location: "@test_stage/test.parquet"
+        src {
+          end_column: 130
+          end_line: 59
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
+          start_line: 59
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 36
+    var_id {
+      bitfield1: 36
+    }
+  }
+}
+body {
+  eval {
+    uid: 37
+    var_id {
+      bitfield1: 36
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}

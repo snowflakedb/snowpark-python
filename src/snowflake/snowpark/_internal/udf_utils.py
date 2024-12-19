@@ -29,7 +29,7 @@ import cloudpickle
 import snowflake.snowpark
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal import code_generation, type_utils
-from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql
+from snowflake.snowpark._internal.analyzer.datatype_mapper import to_sql, to_sql_no_cast
 from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import (
     NoneType,
@@ -98,6 +98,9 @@ REGISTER_KWARGS_ALLOWLIST = {
     "anonymous",
     "force_inline_code",
     "_from_pandas_udf_function",
+    "input_names",  # for pandas_udtf
+    "max_batch_size",  # for pandas_udtf
+    "_registered_object_name",  # object name within Snowflake (post registration)
 }
 
 
@@ -408,10 +411,13 @@ def get_opt_arg_defaults(
                 for value, tp in zip(default_values, input_types_for_default_args)
             ]
 
-        default_values_to_sql_str = [
-            to_sql(value, datatype)
-            for value, datatype in zip(default_values, input_types_for_default_args)
-        ]
+        if num_optional_args != 0:
+            default_values_to_sql_str = [
+                to_sql(value, datatype)
+                for value, datatype in zip(default_values, input_types_for_default_args)
+            ]
+        else:
+            default_values_to_sql_str = []
         return [None] * num_positional_args + default_values_to_sql_str
 
     def get_opt_arg_defaults_from_callable():
@@ -1391,7 +1397,7 @@ def generate_anonymous_python_sp_sql(
     external_access_integrations: Optional[List[str]] = None,
     secrets: Optional[Dict[str, str]] = None,
     native_app_params: Optional[Dict[str, Any]] = None,
-):
+) -> str:
     runtime_version = (
         f"{sys.version_info[0]}.{sys.version_info[1]}"
         if not runtime_version
@@ -1475,6 +1481,8 @@ def generate_call_python_sp_sql(
     for arg in args:
         if isinstance(arg, snowflake.snowpark.Column):
             sql_args.append(session._analyzer.analyze(arg._expression, {}))
+        elif "system$" in sproc_name.lower():
+            sql_args.append(to_sql_no_cast(arg, infer_type(arg)))
         else:
             sql_args.append(to_sql(arg, infer_type(arg)))
     return f"CALL {sproc_name}({', '.join(sql_args)})"

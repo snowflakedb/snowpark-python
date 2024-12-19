@@ -1,0 +1,150 @@
+## TEST CASE
+
+df = session.sql("select 42")
+
+df2 = session.sql("select * from values (?, ?), (?, ?)", params=[1, "a", 2, "b"])
+
+df3 = session.sql("select 42", [])
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.sql("select 42")
+
+df2 = session.sql("select * from values (?, ?), (?, ?)", [1, "a", 2, "b"])
+
+df3 = session.sql("select 42")
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "select 42"
+        src {
+          end_column: 37
+          end_line: 25
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
+          start_line: 25
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        params {
+          int64_val {
+            src {
+              end_column: 89
+              end_line: 27
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 27
+            }
+            v: 1
+          }
+        }
+        params {
+          string_val {
+            src {
+              end_column: 89
+              end_line: 27
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 27
+            }
+            v: "a"
+          }
+        }
+        params {
+          int64_val {
+            src {
+              end_column: 89
+              end_line: 27
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 27
+            }
+            v: 2
+          }
+        }
+        params {
+          string_val {
+            src {
+              end_column: 89
+              end_line: 27
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 14
+              start_line: 27
+            }
+            v: "b"
+          }
+        }
+        query: "select * from values (?, ?), (?, ?)"
+        src {
+          end_column: 89
+          end_line: 27
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_sql {
+        query: "select 42"
+        src {
+          end_column: 42
+          end_line: 29
+          file: "SRC_POSITION_TEST_MODE"
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}
