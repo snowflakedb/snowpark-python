@@ -14,6 +14,7 @@ import pytest
 import snowflake.snowpark.context as context
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Row
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     any_value,
@@ -26,6 +27,7 @@ from snowflake.snowpark.functions import (
     udaf,
     udf,
 )
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -51,6 +53,8 @@ from snowflake.snowpark.types import (
     VectorType,
 )
 from tests.utils import (
+    TempObjectType,
+    TestFiles,
     Utils,
     iceberg_supported,
     structured_types_enabled_session,
@@ -649,7 +653,7 @@ def test_iceberg_nested_fields(
                 nullable=True,
             )
         ],
-        structured=False,
+        structured=True,
     )
 
     try:
@@ -1199,3 +1203,78 @@ def test_structured_type_schema_expression(
         Utils.drop_table(structured_type_session, table_name)
         Utils.drop_table(structured_type_session, non_null_table_name)
         Utils.drop_table(structured_type_session, nested_table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
+def test_stored_procedure_with_structured_returns(
+    structured_type_session, structured_type_support, local_testing_mode, resources_path
+):
+    if not structured_type_support:
+        pytest.skip("Structured types not enabled in this account.")
+
+    test_files = TestFiles(resources_path)
+    tmp_stage_name = Utils.random_stage_name()
+    if not local_testing_mode:
+        Utils.create_stage(structured_type_session, tmp_stage_name, is_temporary=True)
+        structured_type_session.add_packages("snowflake-snowpark-python")
+    Utils.upload_to_stage(
+        structured_type_session,
+        tmp_stage_name,
+        test_files.test_sp_py_file,
+        compress=False,
+    )
+
+    expected_dtypes = [
+        ("VEC", "vector<int,5>"),
+        ("MAP", "map<string(16777216),bigint>"),
+        ("OBJ", "struct<string(16777216),double>"),
+        ("ARR", "array<double>"),
+    ]
+    expected_schema = StructType(
+        [
+            StructField("VEC", VectorType(int, 5), nullable=True),
+            StructField(
+                "MAP",
+                MapType(StringType(16777216), LongType(), structured=True),
+                nullable=True,
+            ),
+            StructField(
+                "OBJ",
+                StructType(
+                    [
+                        StructField("a", StringType(16777216), nullable=True),
+                        StructField("b", DoubleType(), nullable=True),
+                    ],
+                    structured=True,
+                ),
+                nullable=True,
+            ),
+            StructField("ARR", ArrayType(DoubleType(), structured=True), nullable=True),
+        ]
+    )
+
+    sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
+    def test_sproc(_session: Session) -> DataFrame:
+        return _session.sql(
+            """
+        select
+          [1,2,3,4,5] :: vector(int, 5) as vec,
+          object_construct('k1', 1) :: map(varchar, int) as map,
+          object_construct('a', 'foo', 'b', 0.05) :: object(a varchar, b float) as obj,
+          [1.0, 3.1, 4.5] :: array(float) as arr
+         ;
+        """
+        )
+
+    structured_type_session.sproc.register(
+        test_sproc,
+        name=sproc_name,
+        replace=True,
+    )
+    df = structured_type_session.call(sproc_name)
+    assert df.schema == expected_schema
+    assert df.dtypes == expected_dtypes

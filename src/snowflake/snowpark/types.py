@@ -683,7 +683,7 @@ class StructType(DataType):
     def __init__(
         self,
         fields: Optional[List["StructField"]] = None,
-        structured: Optional[bool] = False,
+        structured: Optional[bool] = None,
     ) -> None:
         if context._should_use_structured_type_semantics():
             self.structured = (
