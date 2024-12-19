@@ -22,7 +22,7 @@ import pkg_resources
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import TypeVar, Any, Callable, TYPE_CHECKING, Optional, Union
+from typing import TypeVar, Any, Callable, TYPE_CHECKING, Optional, Union, List, Dict
 from snowflake.snowpark._internal.utils import warning
 
 from snowflake.snowpark._internal.utils import (
@@ -104,7 +104,7 @@ class SettingGroup(Setting):
         settings: (list[Setting]): Settings that are grouped up in this Setting.
     """
 
-    settings: list[Setting] = field(default_factory=list)
+    settings: List[Setting] = field(default_factory=list)
 
     def __post_init__(self):
         super().__post_init__()
@@ -253,7 +253,7 @@ class SettingStore:
             return value
         return default
 
-    def update(self, options: dict[str, Any]):
+    def update(self, options: Dict[str, Any]):
         """
         Updates the value of multiples settings at once.
 
