@@ -345,6 +345,17 @@ def build_proto_from_struct_type(
         ast_field.nullable = field.nullable
 
 
+def build_sp_obj_name(name: Union[str, Iterable[str]], expr: proto.SpObjName) -> None:
+    if isinstance(name, str):
+        expr.name.sp_obj_name_flat.name = name
+    elif isinstance(name, Iterable):
+        expr.name.sp_obj_name_structured.name.extend(name)
+    else:
+        raise ValueError(
+            f"Invalid object name: {name}. The object name must be a string or an iterable of strings."
+        )
+
+
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def _set_fn_name(
     name: Union[str, Iterable[str]], fn: proto.FnNameRefExpr
@@ -358,26 +369,27 @@ def _set_fn_name(
     Raises:
         ValueError: Raised if the function name is not a string or an iterable of strings.
     """
-    if isinstance(name, str):
-        fn.name.fn_name_flat.name = name  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "FnNameRefExpr" has no attribute "name"
-    elif isinstance(name, Iterable):
-        fn.name.fn_name_structured.name.extend(name)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "FnNameRefExpr" has no attribute "name"
-    else:
-        raise ValueError(
-            f"Invalid function name: {name}. The function name must be a string or an iterable of strings."
-        )
+    try:
+        build_sp_obj_name(name, fn)
+    except ValueError as e:
+        raise ValueError("Invalid function name") from e
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def build_sp_table_name(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
+def build_sp_table_name(
     expr_builder: proto.SpTableName, name: Union[str, Iterable[str]]
-):  # pragma: no cover
-    if isinstance(name, str):
-        expr_builder.sp_table_name_flat.name = name
-    elif isinstance(name, Iterable):
-        expr_builder.sp_table_name_structured.name.extend(name)
-    else:
-        raise ValueError(f"Invalid name type {type(name)} for SpTableName entity.")
+) -> None:  # pragma: no cover
+    try:
+        build_sp_obj_name(name, expr_builder)
+    except ValueError as e:
+        raise ValueError("Invalid table name") from e
+
+
+def build_sp_view_name(expr: proto.SpViewName, name: Union[str, Iterable[str]]) -> None:
+    try:
+        build_sp_obj_name(name, expr)
+    except ValueError as e:
+        raise ValueError("Invalid view name") from e
 
 
 def build_function_expr(

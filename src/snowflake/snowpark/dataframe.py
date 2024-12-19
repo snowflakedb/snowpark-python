@@ -112,6 +112,7 @@ from snowflake.snowpark._internal.ast.utils import (
     fill_sp_save_mode,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
+    build_sp_view_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -4511,10 +4512,7 @@ class DataFrame:
             )
             expr.is_temp = False
             self._set_ast_ref(expr.df)
-            if isinstance(name, str):
-                expr.name.append(name)
-            else:
-                expr.name.extend(name)
+            build_sp_view_name(expr.name, name)
             if comment is not None:
                 expr.comment.value = comment
             if statement_params is not None:
