@@ -11,6 +11,10 @@
   - `nullifzero`
   - `snowflake_cortex_sentiment`
 
+#### Improvements
+
+- Updated README.md to include instructions on how to verify package signatures using `cosign`.
+
 ### Snowpark pandas API Updates
 
 #### New Features
@@ -22,6 +26,7 @@
 - Added support for `DataFrame.map`.
 - Added support for `DataFrame.from_dict` and `DataFrame.from_records`.
 - Added support for mixed case field names in struct type columns.
+- Added support for `SeriesGroupBy.unique`
 - Added support for `Series.dt.strftime` with the following directives:
   - %d: Day of the month as a zero-padded decimal number.
   - %m: Month as a zero-padded decimal number.
@@ -34,10 +39,15 @@
   - %X: Locale’s appropriate time representation.
   - %%: A literal '%' character.
 
+#### Bug Fixes
+
+- Fixed a bug that system function called through `session.call` have incorrect type conversion.
+
 #### Improvements
 - Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
 - Updated integration testing for `session.lineage.trace` to exclude deleted objects
 - Added documentation for `DataFrame.map`.
+- Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
 
 ## 1.26.0 (2024-12-05)
 
