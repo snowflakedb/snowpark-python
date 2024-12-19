@@ -48,11 +48,7 @@ df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"
 
 df3 = df.cache_result()
 
-df3 = df.write
-
 df4 = df.cache_result(statement_params={"foo": "bar"})
-
-df4 = df.write
 
 res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite"])
 
@@ -68,10 +64,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -106,10 +99,7 @@ body {
         name: "test_schema"
         name: "test_view"
         src {
-          end_column: 89
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 27
         }
       }
@@ -135,10 +125,7 @@ body {
         }
         name: "test_view"
         src {
-          end_column: 79
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 29
         }
         statement_params {
@@ -174,10 +161,7 @@ body {
         name: "test_schema"
         name: "test_view"
         src {
-          end_column: 94
-          end_line: 31
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 31
         }
       }
@@ -204,10 +188,7 @@ body {
         is_temp: true
         name: "test_view"
         src {
-          end_column: 84
-          end_line: 33
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 33
         }
         statement_params {
@@ -233,10 +214,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 9
-                end_line: 49
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 8
                 start_line: 39
               }
               v: true
@@ -257,10 +235,7 @@ body {
           _2 {
             string_val {
               src {
-                end_column: 9
-                end_line: 49
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 8
                 start_line: 39
               }
               v: "GZIP"
@@ -272,10 +247,7 @@ body {
           _2 {
             string_val {
               src {
-                end_column: 9
-                end_line: 49
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 8
                 start_line: 39
               }
               v: "|"
@@ -286,10 +258,7 @@ body {
           value: "[A-Z]+"
         }
         src {
-          end_column: 9
-          end_line: 49
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 39
         }
         statement_params {
@@ -317,20 +286,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 37
-                      end_line: 45
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 29
                       start_line: 45
                     }
                     v: "n"
                   }
                 }
                 src {
-                  end_column: 37
-                  end_line: 45
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 29
                   start_line: 45
                 }
               }
@@ -338,20 +301,14 @@ body {
             rhs {
               int64_val {
                 src {
-                  end_column: 42
-                  end_line: 45
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 29
                   start_line: 45
                 }
                 v: 10
               }
             }
             src {
-              end_column: 42
-              end_line: 45
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 29
               start_line: 45
             }
           }
@@ -370,20 +327,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 54
-                  end_line: 45
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 44
                   start_line: 45
                 }
                 v: "str"
               }
             }
             src {
-              end_column: 54
-              end_line: 45
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 44
               start_line: 45
             }
           }
@@ -421,10 +372,7 @@ body {
           }
         }
         src {
-          end_column: 31
-          end_line: 51
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 51
         }
       }
@@ -441,35 +389,6 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        src {
-          end_column: 31
-          end_line: 51
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 51
-        }
-      }
-    }
-    symbol {
-      value: "df3"
-    }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
-  }
-}
-body {
-  assign {
-    expr {
       sp_dataframe_cache_result {
         df {
           sp_dataframe_ref {
@@ -479,10 +398,7 @@ body {
           }
         }
         src {
-          end_column: 62
-          end_line: 53
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 53
         }
         statement_params {
@@ -494,38 +410,9 @@ body {
     symbol {
       value: "df4"
     }
-    uid: 10
+    uid: 9
     var_id {
-      bitfield1: 10
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_dataframe_write {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        src {
-          end_column: 62
-          end_line: 53
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
-          start_line: 53
-        }
-      }
-    }
-    symbol {
-      value: "df4"
-    }
-    uid: 11
-    var_id {
-      bitfield1: 11
+      bitfield1: 9
     }
   }
 }
@@ -549,10 +436,7 @@ body {
         }
         name: "test_dyn_table"
         src {
-          end_column: 110
-          end_line: 55
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 55
         }
         warehouse: "test_wh"
@@ -560,9 +444,9 @@ body {
     }
     symbol {
     }
-    uid: 12
+    uid: 10
     var_id {
-      bitfield1: 12
+      bitfield1: 10
     }
   }
 }
