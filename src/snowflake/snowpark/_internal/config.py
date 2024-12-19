@@ -249,7 +249,7 @@ class SettingStore:
         Retrieves the value for the given setting or returns a default value if the setting does not exist.
         """
         value = self._get(setting_name)
-        if value:
+        if value is not None:
             return value
         return default
 
