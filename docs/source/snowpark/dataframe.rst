@@ -82,10 +82,12 @@ DataFrame
     DataFrame.subtract
     DataFrame.take
     DataFrame.toDF
+    DataFrame.toJSON
     DataFrame.toLocalIterator
     DataFrame.toPandas
     DataFrame.to_df
     DataFrame.to_local_iterator
+    DataFrame.to_json
     DataFrame.to_pandas
     DataFrame.to_pandas_batches
     DataFrame.to_snowpark_pandas
