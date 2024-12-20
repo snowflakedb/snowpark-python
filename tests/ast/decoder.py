@@ -877,6 +877,11 @@ class Decoder:
                 else:
                     return df.agg(exprs)
 
+            case "sp_dataframe_alias":
+                df = self.decode_expr(expr.sp_dataframe_alias.df)
+                name = expr.sp_dataframe_alias.name
+                return df.alias(name)
+
             case "sp_dataframe_col":
                 col_name = expr.sp_dataframe_col.col_name
                 df = self.decode_expr(expr.sp_dataframe_col.df)
@@ -958,6 +963,14 @@ class Decoder:
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
 
+            case "sp_dataframe_rename":
+                df = self.decode_expr(expr.sp_dataframe_rename.df)
+                col_or_mapper = self.decode_expr(expr.sp_dataframe_rename.col_or_mapper)
+                new_column = MessageToDict(expr.sp_dataframe_rename).get(
+                    "newColumn", None
+                )
+                return df.rename(col_or_mapper, new_column)
+
             case "sp_dataframe_select__columns":
                 df = self.decode_expr(expr.sp_dataframe_select__columns.df)
                 # The columns can be a list of Expr or a single Expr.
@@ -992,6 +1005,36 @@ class Decoder:
                     return df.sort(*cols, ascending)
                 else:
                     return df.sort(cols, ascending)
+
+            case "sp_dataframe_unpivot":
+                df = self.decode_expr(expr.sp_dataframe_unpivot.df)
+                column_list = [
+                    self.decode_expr(e) for e in expr.sp_dataframe_unpivot.column_list
+                ]
+                name_column = expr.sp_dataframe_unpivot.name_column
+                value_column = expr.sp_dataframe_unpivot.value_column
+                # TODO SNOW-1866100: add logic for `include_nulls`.
+                return df.unpivot(value_column, name_column, column_list)
+
+            case "sp_dataframe_with_column":
+                df = self.decode_expr(expr.sp_dataframe_with_column.df)
+                col_name = expr.sp_dataframe_with_column.col_name
+                col = self.decode_expr(expr.sp_dataframe_with_column.col)
+                return df.with_column(col_name, col)
+
+            case "sp_dataframe_with_column_renamed":
+                df = self.decode_expr(expr.sp_dataframe_with_column_renamed.df)
+                existing = self.decode_expr(expr.sp_dataframe_with_column_renamed.col)
+                new = expr.sp_dataframe_with_column_renamed.new_name
+                return df.with_column_renamed(existing, new)
+
+            case "sp_dataframe_with_columns":
+                df = self.decode_expr(expr.sp_dataframe_with_columns.df)
+                col_names = list(expr.sp_dataframe_with_columns.col_names)
+                values = [
+                    self.decode_expr(e) for e in expr.sp_dataframe_with_columns.values
+                ]
+                return df.with_columns(col_names, values)
 
             case "sp_relational_grouped_dataframe_agg":
                 grouped_df = self.decode_expr(

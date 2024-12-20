@@ -5130,7 +5130,6 @@ class DataFrame:
         """
         # AST.
         _ast_stmt = None
-        expr = None
         if _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(_ast_stmt.expr.sp_dataframe_rename, _ast_stmt)
