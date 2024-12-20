@@ -58,7 +58,10 @@ To test interoperability with a particular scikit-learn method:
    data)
 3) Write a test case checking that replacing the pandas input with Snowpark
    pandas produces results of the same type and, in the case of array-like
-   outputs, of the same dimensions.
+   outputs, of the same dimensions. `assert_numpy_results_valid` can validate
+   numpy results. Avoid checking that the values in the result are the same
+   values we would get if we use pandas, because many scikit-learn methods
+   are non-deterministic.
 4) Wrap the test with an empty sql_count_checker() decorator to see how many
    queries and joins it requires. If it it requires a very large number of
    queries, see if you can simplify the test case so that it causes fewer
