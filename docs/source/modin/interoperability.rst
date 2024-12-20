@@ -138,7 +138,7 @@ Model selection
 +--------------------------------------------+---------------------------------------------+-----------------------------------------------+
 | Choosing parameters for a                  | Y                                           | ``RandomizedSearchCV`` causes Snowpark pandas |
 | ``LogisticRegression`` model with          |                                             | to issue many queries. We strongly recommend  |
-| ``RandomizedSearchCV.fit()``               |                                             | converting Snowpark pandas inputs to pandas   |
+| ``RandomizedSearchCV.fit()``.              |                                             | converting Snowpark pandas inputs to pandas   |
 |                                            |                                             | before using ``RandomizedSearchCV``           |
 +--------------------------------------------+---------------------------------------------+-----------------------------------------------+
 
