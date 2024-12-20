@@ -602,6 +602,47 @@ def test_udaf_structured_map_downcast(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
+def test_structured_type_infer(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    struct = Row(f1="v1", f2=2)
+    df = structured_type_session.create_dataframe(
+        [
+            ({"key": "value"}, [1, 2, 3], struct),
+        ],
+        schema=["map", "array", "obj"],
+    )
+
+    assert df.schema == StructType(
+        [
+            StructField(
+                "MAP",
+                MapType(StringType(), StringType(), structured=True),
+                nullable=True,
+            ),
+            StructField("ARRAY", ArrayType(LongType(), structured=True), nullable=True),
+            StructField(
+                "OBJ",
+                StructType(
+                    [
+                        StructField("f1", StringType(), nullable=True),
+                        StructField("f2", LongType(), nullable=True),
+                    ],
+                    structured=True,
+                ),
+                nullable=True,
+            ),
+        ],
+        structured=True,
+    )
+    df.collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
 def test_iceberg_nested_fields(
     structured_type_session, local_testing_mode, structured_type_support
 ):
