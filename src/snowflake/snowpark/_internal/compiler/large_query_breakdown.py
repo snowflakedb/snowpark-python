@@ -3,7 +3,7 @@
 #
 
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Dict, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -565,19 +565,14 @@ class LargeQueryBreakdown:
         temp_table_selectable.post_actions = [drop_table_query]
 
         parents = self._parent_map[child]
-        updated_nodes = set()
+
         for parent in parents:
             replace_child(parent, child, temp_table_selectable, self._query_generator)
 
-        nodes_to_reset = list(parents)
+        nodes_to_reset = deque(parents)
         while nodes_to_reset:
-            node = nodes_to_reset.pop()
-            if node in updated_nodes:
-                # Skip if the node is already updated.
-                continue
-
+            node = nodes_to_reset.popleft()
             update_resolvable_node(node, self._query_generator)
-            updated_nodes.add(node)
 
             parents = self._parent_map[node]
             nodes_to_reset.extend(parents)
