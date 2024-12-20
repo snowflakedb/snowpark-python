@@ -5623,7 +5623,7 @@ Query List:
             >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
             >>> df.to_json().show()
             -------------------
-            |"TO_JSON"         |
+            |"TO_JSON"        |
             -------------------
             |{"A":1,"B":"a"}  |
             |{"A":2,"B":"b"}  |
