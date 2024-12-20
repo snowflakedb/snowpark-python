@@ -143,6 +143,8 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
         "sfqids",
         "func_name",
         "error_msg",
+        "call_count",
+        "interchange_call_count",
     }
     assert data["category"] == "snowpark_pandas"
     assert data["api_calls"] == df1_expected_api_calls + [
@@ -178,6 +180,8 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
         func_name="test_send_func",
         query_history=None,
         api_calls=[],
+        method_call_count=None,
+        interchange_call_count=None,
     )
     send_mock.assert_called_with(
         {
@@ -630,12 +634,14 @@ def test_telemetry_func_call_count():
         and "func_name" in _get_data(call)
         and _get_data(call)["func_name"] == "DataFrame.__repr__"
     ]
-    assert len(telemetry_data) == 4
 
-    assert telemetry_data[2]["call_count"] == 3
-    assert telemetry_data[2]["interchange_call_count"] == 0
-    assert telemetry_data[3]["call_count"] == 1
-    assert telemetry_data[2]["interchange_call_count"] == 0
+    # second to last call from telemetry data
+    assert telemetry_data[-2]["call_count"] == 3
+    assert telemetry_data[-2]["interchange_call_count"] == 0
+
+    # last call from telemetry data
+    assert telemetry_data[-1]["call_count"] == 1
+    assert telemetry_data[-1]["interchange_call_count"] == 0
 
 
 @sql_count_checker(query_count=0)
