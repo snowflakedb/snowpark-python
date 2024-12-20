@@ -22,13 +22,17 @@ Catalog module for Snowpark.
     Catalog.drop_view
     Catalog.getCurrentDatabase
     Catalog.getCurrentSchema
+    Catalog.getDatabase
     Catalog.getProcedure
+    Catalog.getSchema
     Catalog.getTable
     Catalog.getUserDefinedFunction
     Catalog.getView
     Catalog.get_current_database
     Catalog.get_current_schema
+    Catalog.get_database
     Catalog.get_procedure
+    Catalog.get_schema
     Catalog.get_table
     Catalog.get_user_defined_function
     Catalog.get_view
