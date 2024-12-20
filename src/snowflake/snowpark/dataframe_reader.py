@@ -4,7 +4,12 @@
 import datetime
 import decimal
 import os
-from concurrent.futures import ProcessPoolExecutor, wait, ALL_COMPLETED
+from concurrent.futures import (
+    ProcessPoolExecutor,
+    wait,
+    ALL_COMPLETED,
+    ThreadPoolExecutor,
+)
 
 from dateutil import parser
 import sys
@@ -1012,6 +1017,7 @@ class DataFrameReader:
         *,
         snowflake_table_type: str = "temporary",
         snowflake_table_name: Optional[str] = None,
+        snowflake_stage_name: str = None,  # for test purpose should use temp stage in production code
         use_stored_procedure: bool = False,
     ) -> DataFrame:
         conn = create_connection()
@@ -1052,12 +1058,28 @@ class DataFrameReader:
                 num_partitions,
                 predicates,
             )
-        with ProcessPoolExecutor(max_workers=len(partitioned_queries)) as executor:
+        with ProcessPoolExecutor(
+            max_workers=min(len(partitioned_queries), 10)
+        ) as executor:
             futures = [
                 executor.submit(
                     task_fetch_from_data_source, create_connection, query, raw_schema, i
                 )
                 for i, query in enumerate(partitioned_queries)
+            ]
+
+            completed_futures = wait(futures, return_when=ALL_COMPLETED)
+        files = [f.result() for f in completed_futures.done]
+        with ThreadPoolExecutor(max_workers=min(len(files), 10)) as thread_executor:
+            futures = [
+                thread_executor.submit(
+                    self.upload_and_copy_into_table,
+                    f,
+                    snowflake_stage_name,
+                    "temp",
+                    snowflake_table_name,
+                )
+                for f in files
             ]
 
             _ = wait(futures, return_when=ALL_COMPLETED)
@@ -1157,26 +1179,6 @@ class DataFrameReader:
             fields.append(field)
         return StructType(fields)
 
-    def _single_thread_ingestion(
-        self,
-        create_connection: Callable[[], "Connection"],
-        table: str,
-        *,
-        snowflake_table_type: str = "temporary",
-        snowflake_table_name: Optional[str] = None,
-        use_stored_procedure: bool = False,
-    ) -> DataFrame:
-        pass
-        # connection = create_connection()
-        # select_query = f"SELECT * FROM {table} ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY"
-        # result_cursor = connection.cursor().execute(select_query)
-        # schema = result_cursor.description
-        #
-        # columns = [col[0] for col in schema]
-        # result = result_cursor.fetchall()
-        # df = pd.DataFrame.from_records(result, columns=columns)
-        # path = f"{random_name_for_temp_object(TempObjectType.FILE_FORMAT)}.parquet"
-
     def parallel_ingestion(
         self,
         create_connection: Callable[[], "Connection"],
@@ -1193,13 +1195,26 @@ class DataFrameReader:
     ) -> DataFrame:
         pass
 
+    def upload_and_copy_into_table(
+        self,
+        local_file: str,
+        snowflake_stage: str,
+        snowflake_table_type: str = "temporary",
+        snowflake_table_name: Optional[str] = None,
+    ):
+        file_name = os.path.basename(local_file)
+        put_query = f"put file:///Users/yuwang/Desktop/working_repo/snowpark-python/{local_file} @TEST_STAGE/ OVERWRITE=TRUE"
+        copy_into_table_query = f"copy into {snowflake_table_name} from @{snowflake_stage}/{file_name} file_format=(type=parquet) MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE"
+        self._session.sql(put_query).collect()
+        self._session.sql(copy_into_table_query).collect()
+
 
 def task_fetch_from_data_source(
     create_connection: Callable[[], "Connection"],
     query: str,
     schema: tuple[tuple[str, Any, int, int, int, int, bool]],
     i: int,
-) -> None:
+) -> str:
     conn = create_connection()
     result = conn.cursor().execute(query).fetchall()
     columns = [col[0] for col in schema]
@@ -1208,3 +1223,4 @@ def task_fetch_from_data_source(
         os.mkdir("test_res")
     path = f"test_res/data_{i}.parquet"
     df.to_parquet(path)
+    return path
