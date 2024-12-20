@@ -23,7 +23,7 @@
 
 from __future__ import annotations
 
-from snowflake.snowpark.modin.plugin.extensions.index import Index
+from .index import Index
 
 
 class DatetimeIndex(Index):

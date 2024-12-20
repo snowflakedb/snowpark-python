@@ -50,6 +50,10 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     datetime_index_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.utils import (
+    _inherit_docstrings,
+    doc_replace_dataframe_with_link,
+)
 
 _CONSTRUCTOR_DEFAULTS = {
     "freq": lib.no_default,
@@ -65,6 +69,9 @@ _CONSTRUCTOR_DEFAULTS = {
 }
 
 
+@_inherit_docstrings(
+    native_pd.DatetimeIndex, modify_doc=doc_replace_dataframe_with_link
+)
 class DatetimeIndex(Index):
 
     # Equivalent index type in native pandas
