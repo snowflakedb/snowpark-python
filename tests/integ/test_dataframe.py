@@ -4412,7 +4412,6 @@ def test_map_chained(session):
 
     # chained calls with repeated column names
     new_df = df.map(
-        df,
         lambda x: Row(x.B * x.B, f"_{x.C}_"),
         output_types=[IntegerType(), StringType()],
         output_column_names=["A", "B"],
