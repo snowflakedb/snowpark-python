@@ -126,7 +126,7 @@ Dimensionality reduction
 | Operation                                  | Interoperable with Snowpark pandas? (Y/N)   | Notes for current implementation|
 +--------------------------------------------+---------------------------------------------+---------------------------------+
 | Getting the principal components of a      | Y                                           |                                 |
-| numerical dataset with ``PCA.fit()``       |                                             |                                 |
+| numerical dataset with ``PCA.fit()``.      |                                             |                                 |
 +--------------------------------------------+---------------------------------------------+---------------------------------+
 
 
