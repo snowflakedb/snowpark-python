@@ -49,7 +49,12 @@ class Catalog:
         if isinstance(database, Database):
             return database.name
         if database is None:
-            return self._session.get_current_database()
+            current_database = self._session.get_current_database()
+            if current_database is None:
+                raise ValueError(
+                    "No database detected. Please provide database to proceed."
+                )
+            return current_database
         raise ValueError(
             f"Unexpected type. Expected str or Database, got '{type(database)}'"
         )
@@ -71,7 +76,12 @@ class Catalog:
         if isinstance(schema, Schema):
             return schema.name
         if schema is None:
-            return self._session.get_current_schema()
+            current_schema = self._session.get_current_schema()
+            if current_schema is None:
+                raise ValueError(
+                    "No schema detected. Please provide schema to proceed."
+                )
+            return current_schema
         raise ValueError(
             f"Unexpected type. Expected str or Schema, got '{type(schema)}'"
         )
@@ -109,10 +119,10 @@ class Catalog:
         *,
         object_name: str,
         object_class,
-        database: Optional[Union[str, Database]],
-        schema: Optional[Union[str, Schema]],
-        pattern: Optional[str],
-        like: Optional[str],
+        database: Optional[Union[str, Database]] = None,
+        schema: Optional[Union[str, Schema]] = None,
+        pattern: Optional[str] = None,
+        like: Optional[str] = None,
     ):
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
@@ -304,18 +314,24 @@ class Catalog:
         )
 
     # get methods
-    def get_current_database(self) -> Database:
+    def get_current_database(self) -> Optional[str]:
         """Get the current database."""
-        current_db_name = self._session.get_current_database()
-        return self._root.databases[current_db_name].fetch()
+        return self._session.get_current_database()
 
-    def get_current_schema(self) -> Schema:
+    def get_current_schema(self) -> Optional[str]:
         """Get the current schema."""
-        current_db_name = self._session.get_current_database()
-        current_schema_name = self._session.get_current_schema()
-        return (
-            self._root.databases[current_db_name].schemas[current_schema_name].fetch()
-        )
+        return self._session.get_current_schema()
+
+    def get_database(self, database: str) -> Database:
+        """Name of the database to get"""
+        return self._root.databases[database].fetch()
+
+    def get_schema(
+        self, schema: str, *, database: Optional[Union[str, Database]] = None
+    ) -> Schema:
+        """Name of the schema to get."""
+        db_name = self._parse_database(database)
+        return self._root.databases[db_name].schemas[schema].fetch()
 
     def get_table(
         self,
@@ -661,6 +677,8 @@ class Catalog:
 
     getCurrentDatabase = get_current_database
     getCurrentSchema = get_current_schema
+    getDatabase = get_database
+    getSchema = get_schema
     getTable = get_table
     getView = get_view
     getProcedure = get_procedure

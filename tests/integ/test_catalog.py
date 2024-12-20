@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
+from unittest.mock import patch
 import uuid
 import pytest
 
@@ -330,8 +331,8 @@ def test_get_db_schema(session):
     catalog: Catalog = session.catalog
     current_db = session.get_current_database()
     current_schema = session.get_current_schema()
-    assert catalog.get_current_database().name == unquote_if_quoted(current_db)
-    assert catalog.get_current_schema().name == unquote_if_quoted(current_schema)
+    assert catalog.get_database(current_db).name == unquote_if_quoted(current_db)
+    assert catalog.get_schema(current_schema).name == unquote_if_quoted(current_schema)
 
 
 def test_get_table_view(session, temp_db1, temp_schema1, temp_table1, temp_view1):
@@ -511,3 +512,16 @@ def test_parse_names_negative(session):
         match="arg_types must be provided when function/procedure is a string",
     ):
         catalog.procedure_exists("proc")
+
+    with patch.object(session, "get_current_database", return_value=None):
+        with pytest.raises(
+            ValueError,
+            match="No database detected. Please provide database to proceed.",
+        ):
+            catalog._parse_database(database=None)
+
+    with patch.object(session, "get_current_schema", return_value=None):
+        with pytest.raises(
+            ValueError, match="No schema detected. Please provide schema to proceed."
+        ):
+            catalog._parse_schema(schema=None)
