@@ -196,8 +196,10 @@ body {
         func {
           name: "my_copy"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\""
+            name {
+              sp_obj_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\""
+              }
             }
           }
         }
@@ -219,7 +221,7 @@ body {
           }
         }
         name {
-          fn_name_flat {
+          sp_obj_name_flat {
             name: "my_copy_sp"
           }
         }
@@ -233,10 +235,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 114
-          end_line: 42
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 21
           start_line: 42
         }
       }
@@ -256,10 +255,7 @@ body {
       sp_sql {
         query: "create or replace temp table test_from(test_str varchar) as select randstr(20, random()) from table (generator(rowCount => 100))"
         src {
-          end_column: 155
-          end_line: 43
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 43
         }
       }
@@ -283,10 +279,7 @@ body {
           bitfield1: 2
         }
         src {
-          end_column: 165
-          end_line: 43
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 43
         }
       }
@@ -316,10 +309,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 67
-                  end_line: 46
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 18
                   start_line: 46
                 }
                 v: 1
@@ -328,10 +318,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 67
-                  end_line: 46
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 18
                   start_line: 46
                 }
                 v: 2
@@ -340,10 +327,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 67
-                  end_line: 46
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 18
                   start_line: 46
                 }
                 v: 3
@@ -357,10 +341,7 @@ body {
           }
         }
         src {
-          end_column: 67
-          end_line: 46
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 18
           start_line: 46
         }
       }
@@ -386,10 +367,7 @@ body {
           }
         }
         src {
-          end_column: 21
-          end_line: 47
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 47
         }
       }
@@ -415,15 +393,14 @@ body {
           sp_save_mode_overwrite: true
         }
         src {
-          end_column: 90
-          end_line: 47
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 47
         }
         table_name {
-          sp_table_name_flat {
-            name: "test_from"
+          name {
+            sp_obj_name_flat {
+              name: "test_from"
+            }
           }
         }
         table_type: "temporary"
@@ -454,10 +431,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 64
-                  end_line: 48
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 16
                   start_line: 48
                 }
                 v: -1
@@ -466,10 +440,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 64
-                  end_line: 48
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 16
                   start_line: 48
                 }
                 v: -2
@@ -483,10 +454,7 @@ body {
           }
         }
         src {
-          end_column: 64
-          end_line: 48
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 16
           start_line: 48
         }
       }
@@ -512,10 +480,7 @@ body {
           }
         }
         src {
-          end_column: 19
-          end_line: 49
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 49
         }
       }
@@ -541,15 +506,14 @@ body {
           sp_save_mode_overwrite: true
         }
         src {
-          end_column: 86
-          end_line: 49
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 49
         }
         table_name {
-          sp_table_name_flat {
-            name: "test_to"
+          name {
+            sp_obj_name_flat {
+              name: "test_to"
+            }
           }
         }
         table_type: "temporary"
@@ -577,10 +541,7 @@ body {
       sp_sql {
         query: "call my_copy_sp(\'test_from\', \'test_to\', 10)"
         src {
-          end_column: 66
-          end_line: 50
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 50
         }
       }
@@ -603,10 +564,7 @@ body {
           bitfield1: 13
         }
         src {
-          end_column: 76
-          end_line: 50
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 50
         }
       }
@@ -632,15 +590,14 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_to"
+          name {
+            sp_obj_name_flat {
+              name: "test_to"
+            }
           }
         }
         src {
-          end_column: 32
-          end_line: 51
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 51
         }
         variant {
@@ -665,10 +622,7 @@ body {
           bitfield1: 16
         }
         src {
-          end_column: 40
-          end_line: 51
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 51
         }
       }
@@ -695,10 +649,7 @@ body {
       sp_sql {
         query: "drop table if exists test_to"
         src {
-          end_column: 55
-          end_line: 54
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 54
         }
       }
@@ -722,10 +673,7 @@ body {
           bitfield1: 19
         }
         src {
-          end_column: 65
-          end_line: 54
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 54
         }
       }
@@ -755,7 +703,7 @@ body {
             log_on_exception {
             }
             name {
-              fn_name_flat {
+              sp_obj_name_flat {
                 name: "my_copy_sp"
               }
             }
@@ -764,10 +712,7 @@ body {
         pos_args {
           string_val {
             src {
-              end_column: 62
-              end_line: 55
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 55
             }
             v: "test_from"
@@ -776,10 +721,7 @@ body {
         pos_args {
           string_val {
             src {
-              end_column: 62
-              end_line: 55
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 55
             }
             v: "test_to"
@@ -788,20 +730,14 @@ body {
         pos_args {
           int64_val {
             src {
-              end_column: 62
-              end_line: 55
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 55
             }
             v: 10
           }
         }
         src {
-          end_column: 62
-          end_line: 55
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 55
         }
       }
@@ -828,10 +764,7 @@ body {
         pos_args {
           string_val {
             src {
-              end_column: 62
-              end_line: 55
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 55
             }
             v: "test_from"
@@ -840,10 +773,7 @@ body {
         pos_args {
           string_val {
             src {
-              end_column: 62
-              end_line: 55
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 55
             }
             v: "test_to"
@@ -852,20 +782,14 @@ body {
         pos_args {
           int64_val {
             src {
-              end_column: 62
-              end_line: 55
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 55
             }
             v: 10
           }
         }
         src {
-          end_column: 62
-          end_line: 55
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 55
         }
       }
@@ -883,15 +807,14 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_from"
+          name {
+            sp_obj_name_flat {
+              name: "test_from"
+            }
           }
         }
         src {
-          end_column: 37
-          end_line: 39
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 39
         }
         variant {
@@ -920,10 +843,7 @@ body {
         }
         n: 10
         src {
-          end_column: 50
-          end_line: 39
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 39
         }
       }
@@ -948,10 +868,7 @@ body {
           }
         }
         src {
-          end_column: 56
-          end_line: 39
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 39
         }
       }
@@ -977,15 +894,14 @@ body {
           sp_save_mode_overwrite: true
         }
         src {
-          end_column: 122
-          end_line: 39
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 39
         }
         table_name {
-          sp_table_name_flat {
-            name: "test_to"
+          name {
+            sp_obj_name_flat {
+              name: "test_to"
+            }
           }
         }
         table_type: "temporary"
@@ -1020,15 +936,14 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_to"
+          name {
+            sp_obj_name_flat {
+              name: "test_to"
+            }
           }
         }
         src {
-          end_column: 32
-          end_line: 56
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 56
         }
         variant {
@@ -1053,10 +968,7 @@ body {
           bitfield1: 30
         }
         src {
-          end_column: 40
-          end_line: 56
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 56
         }
       }
@@ -1086,8 +998,10 @@ body {
           id: 1
           name: "<lambda [1]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_obj_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -1102,10 +1016,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 9
-          end_line: 65
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 21
           start_line: 59
         }
       }
@@ -1133,20 +1044,14 @@ body {
         pos_args {
           int64_val {
             src {
-              end_column: 21
-              end_line: 66
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 66
             }
             v: 1
           }
         }
         src {
-          end_column: 21
-          end_line: 66
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 66
         }
       }
@@ -1165,10 +1070,7 @@ body {
       sp_sql {
         query: "select 1 + 1"
         src {
-          end_column: 63
-          end_line: 60
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 32
           start_line: 60
         }
       }
@@ -1191,10 +1093,7 @@ body {
           bitfield1: 35
         }
         src {
-          end_column: 73
-          end_line: 60
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 32
           start_line: 60
         }
       }
@@ -1229,10 +1128,7 @@ body {
       sp_sql {
         query: "select 1 + 2"
         src {
-          end_column: 52
-          end_line: 70
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 19
           start_line: 70
         }
       }
@@ -1255,10 +1151,7 @@ body {
           bitfield1: 39
         }
         src {
-          end_column: 62
-          end_line: 70
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 19
           start_line: 70
         }
       }
@@ -1285,10 +1178,7 @@ body {
       sp_sql {
         query: "create or replace temp stage mystage"
         src {
-          end_column: 63
-          end_line: 74
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 74
         }
       }
@@ -1312,10 +1202,7 @@ body {
           bitfield1: 42
         }
         src {
-          end_column: 73
-          end_line: 74
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 74
         }
       }
@@ -1345,8 +1232,10 @@ body {
           id: 2
           name: "<lambda [2]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+            name {
+              sp_obj_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+              }
             }
           }
         }
@@ -1360,7 +1249,7 @@ body {
         }
         is_permanent: true
         name {
-          fn_name_flat {
+          sp_obj_name_flat {
             name: "mul_sp"
           }
         }
@@ -1371,10 +1260,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 9
-          end_line: 83
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 75
         }
         stage_location: "@mystage"
@@ -1395,10 +1281,7 @@ body {
       sp_sql {
         query: "call mul_sp(5, 6)"
         src {
-          end_column: 40
-          end_line: 84
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 84
         }
       }
@@ -1421,10 +1304,7 @@ body {
           bitfield1: 46
         }
         src {
-          end_column: 50
-          end_line: 84
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 84
         }
       }
@@ -1454,8 +1334,10 @@ body {
           id: 3
           name: "<lambda [3]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+            name {
+              sp_obj_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+              }
             }
           }
         }
@@ -1470,7 +1352,7 @@ body {
         }
         is_permanent: true
         name {
-          fn_name_flat {
+          sp_obj_name_flat {
             name: "mul_sp"
           }
         }
@@ -1480,10 +1362,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 9
-          end_line: 95
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 87
         }
         stage_location: "@mystage"
@@ -1504,10 +1383,7 @@ body {
       sp_sql {
         query: "call mul_sp(5, 6)"
         src {
-          end_column: 40
-          end_line: 96
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 96
         }
       }
@@ -1530,10 +1406,7 @@ body {
           bitfield1: 50
         }
         src {
-          end_column: 50
-          end_line: 96
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 96
         }
       }
@@ -1564,8 +1437,10 @@ body {
           id: 4
           name: "<lambda [4]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+            name {
+              sp_obj_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+              }
             }
           }
         }
@@ -1579,7 +1454,7 @@ body {
         }
         is_permanent: true
         name {
-          fn_name_flat {
+          sp_obj_name_flat {
             name: "mul_sp"
           }
         }
@@ -1598,10 +1473,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 9
-          end_line: 110
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
           start_line: 99
         }
         stage_location: "@mystage"
@@ -1623,10 +1495,7 @@ body {
       sp_sql {
         query: "call mul_sp(5, 6)"
         src {
-          end_column: 40
-          end_line: 111
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 111
         }
       }
@@ -1649,10 +1518,7 @@ body {
           bitfield1: 54
         }
         src {
-          end_column: 50
-          end_line: 111
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 111
         }
       }
@@ -1682,8 +1548,10 @@ body {
           id: 5
           name: "sin_sp"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_obj_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -1700,11 +1568,8 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 112
-          end_line: 114
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 9
-          start_line: 114
+          start_line: 115
         }
         statement_params {
           _1: "SF_PARTNER"
@@ -1734,20 +1599,14 @@ body {
         pos_args {
           float64_val {
             src {
-              end_column: 29
-              end_line: 117
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 117
             }
             v: 1.5707963267948966
           }
         }
         src {
-          end_column: 29
-          end_line: 117
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 117
         }
       }
@@ -1777,8 +1636,10 @@ body {
           id: 6
           name: "select_sp"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_obj_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -1815,11 +1676,8 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 150
-          end_line: 120
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 9
-          start_line: 120
+          start_line: 121
         }
       }
     }
@@ -1845,10 +1703,7 @@ body {
         pos_args {
           int64_val {
             src {
-              end_column: 23
-              end_line: 123
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 123
             }
             v: 1
@@ -1857,20 +1712,14 @@ body {
         pos_args {
           int64_val {
             src {
-              end_column: 23
-              end_line: 123
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 123
             }
             v: 2
           }
         }
         src {
-          end_column: 23
-          end_line: 123
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 123
         }
       }
@@ -1889,10 +1738,7 @@ body {
       sp_sql {
         query: "SELECT 1 as A, 2 as B"
         src {
-          end_column: 61
-          end_line: 122
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 19
           start_line: 122
         }
       }
@@ -1939,8 +1785,10 @@ body {
           id: 7
           name: "select_sp"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_obj_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -1958,11 +1806,8 @@ body {
           }
         }
         src {
-          end_column: 123
-          end_line: 126
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 9
-          start_line: 126
+          start_line: 127
         }
       }
     }
@@ -1988,10 +1833,7 @@ body {
         pos_args {
           int64_val {
             src {
-              end_column: 23
-              end_line: 129
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 129
             }
             v: 1
@@ -2000,20 +1842,14 @@ body {
         pos_args {
           int64_val {
             src {
-              end_column: 23
-              end_line: 129
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 129
             }
             v: 2
           }
         }
         src {
-          end_column: 23
-          end_line: 129
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 129
         }
       }
@@ -2032,10 +1868,7 @@ body {
       sp_sql {
         query: "SELECT 1 as A, 2 as B"
         src {
-          end_column: 61
-          end_line: 128
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 19
           start_line: 128
         }
       }
@@ -2082,8 +1915,10 @@ body {
           id: 8
           name: "select_sp"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_obj_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -2102,11 +1937,8 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 14
-          end_line: 132
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 9
-          start_line: 132
+          start_line: 133
         }
       }
     }
@@ -2132,10 +1964,7 @@ body {
         pos_args {
           int64_val {
             src {
-              end_column: 23
-              end_line: 135
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 135
             }
             v: 1
@@ -2144,20 +1973,14 @@ body {
         pos_args {
           int64_val {
             src {
-              end_column: 23
-              end_line: 135
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 8
               start_line: 135
             }
             v: 2
           }
         }
         src {
-          end_column: 23
-          end_line: 135
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 135
         }
       }
@@ -2176,10 +1999,7 @@ body {
       sp_sql {
         query: "SELECT 1 as A, 2 as B"
         src {
-          end_column: 61
-          end_line: 134
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 19
           start_line: 134
         }
       }

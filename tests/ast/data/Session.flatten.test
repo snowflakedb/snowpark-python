@@ -21,7 +21,7 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
+                  sp_obj_name_flat {
                     name: "parse_json"
                   }
                 }
@@ -32,7 +32,7 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
+                      sp_obj_name_flat {
                         name: "lit"
                       }
                     }
@@ -41,29 +41,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 60
-                      end_line: 25
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 41
                       start_line: 25
                     }
                     v: "{\"a\": [1,2]}"
                   }
                 }
                 src {
-                  end_column: 60
-                  end_line: 25
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 41
                   start_line: 25
                 }
               }
             }
             src {
-              end_column: 61
-              end_line: 25
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 30
               start_line: 25
             }
           }
@@ -75,10 +66,7 @@ body {
           value: "a"
         }
         src {
-          end_column: 89
-          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 25
         }
       }
@@ -101,7 +89,7 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
+                  sp_obj_name_flat {
                     name: "col"
                   }
                 }
@@ -110,20 +98,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 40
-                  end_line: 27
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 30
                   start_line: 27
                 }
                 v: "NUM"
               }
             }
             src {
-              end_column: 40
-              end_line: 27
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 30
               start_line: 27
             }
           }
@@ -133,10 +115,7 @@ body {
         }
         recursive: true
         src {
-          end_column: 71
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 27
         }
       }

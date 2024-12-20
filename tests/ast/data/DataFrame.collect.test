@@ -41,15 +41,14 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_obj_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -76,10 +75,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 20
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 27
         }
       }
@@ -109,10 +105,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 31
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 29
         }
       }
@@ -143,10 +136,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 67
-          end_line: 31
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 31
         }
         statement_params {
@@ -180,10 +170,7 @@ body {
         }
         log_on_exception: true
         src {
-          end_column: 125
-          end_line: 33
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 33
         }
         statement_params {
@@ -218,10 +205,7 @@ body {
         }
         no_wait: true
         src {
-          end_column: 27
-          end_line: 35
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 35
         }
       }
@@ -252,10 +236,7 @@ body {
         }
         no_wait: true
         src {
-          end_column: 74
-          end_line: 37
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 37
         }
         statement_params {
@@ -290,10 +271,7 @@ body {
         log_on_exception: true
         no_wait: true
         src {
-          end_column: 119
-          end_line: 39
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 39
         }
         statement_params {
