@@ -396,7 +396,14 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
                 return "EMPTY_SOURCE_PLAN"  # pragma: no cover
             addr = hex(id(node))
             name = str(type(node)).split(".")[-1].split("'")[0]
-            return f"{name}({addr})"
+            suffix = ""
+            if isinstance(node, SnowflakeCreateTable):
+                table_name = node.table_name[-1].split(".")[-1]
+                suffix = f" :: {table_name}"
+            if isinstance(node, WithQueryBlock):
+                suffix = f" :: {node.name[18:]}"
+
+            return f"{name}({addr}){suffix}"
 
         name = get_name(node)
         if isinstance(node, SnowflakePlan):
@@ -419,7 +426,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
                 properties.append("Offset")  # pragma: no cover
             name = f"{name} :: ({'| '.join(properties)})"
         elif isinstance(node, SelectableEntity):
-            name = f"{name} :: ({node.entity.name})"
+            name = f"{name} :: ({node.entity.name.split('.')[-1]})"
 
         def get_sql_text(node: LogicalPlan) -> str:
             if isinstance(node, Selectable):
