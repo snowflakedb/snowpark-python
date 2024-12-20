@@ -47,6 +47,7 @@ class TableFunctionCall:
         *func_arguments: ColumnOrName,
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
+        output_schema = None,
         **func_named_arguments: ColumnOrName,
     ) -> None:
         if func_arguments and func_named_arguments:
@@ -65,6 +66,7 @@ class TableFunctionCall:
         self._aliases: Optional[Iterable[str]] = None
         self._api_call_source = None
         self._ast = _ast
+        self._output_schema = output_schema
 
     def _set_api_call_source(self, api_call_source):
         self._api_call_source = api_call_source
@@ -235,6 +237,7 @@ def _create_table_function_expression(
     order_by = None
     aliases = None
     api_call_source = None
+    output_schema = None
     if args and named_args:
         raise ValueError("A table function shouldn't have both args and named args.")
     if isinstance(func, str):
@@ -256,6 +259,7 @@ def _create_table_function_expression(
         order_by = func._order_by
         aliases = func._aliases
         api_call_source = func._api_call_source
+        output_schema = func._output_schema
     else:
         raise TypeError(
             "'func' should be a function name in str, a list of strs that have all or a part of the fully qualified name, or a TableFunctionCall instance."
@@ -280,6 +284,7 @@ def _create_table_function_expression(
     )
     table_function_expression.aliases = aliases
     table_function_expression.api_call_source = api_call_source
+    table_function_expression.output_schema = output_schema
     return table_function_expression
 
 
