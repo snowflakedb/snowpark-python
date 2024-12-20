@@ -18,6 +18,7 @@ from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.modin.plugin._internal.utils import (
     is_snowpark_pandas_dataframe_or_series_type,
 )
+from collections import Counter
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.session import Session
 
@@ -36,6 +37,8 @@ class SnowparkPandasTelemetryField(Enum):
     ARGS = "argument"
     # fallback flag
     IS_FALLBACK = "is_fallback"
+    CALL_COUNT = "call_count"
+    INTERCHANGE_CALL_COUNT = "interchange_call_count"
 
 
 # Argument truncating size after converted to str. Size amount can be later specified after analysis and needs.
@@ -58,6 +61,8 @@ def _send_snowpark_pandas_telemetry_helper(
     func_name: str,
     query_history: Optional[QueryHistory],
     api_calls: Union[str, list[dict[str, Any]]],
+    method_call_count: Counter[str],
+    interchange_call_count: Counter[str],
 ) -> None:
     """
     A helper function that sends Snowpark pandas API telemetry data.
@@ -71,14 +76,30 @@ def _send_snowpark_pandas_telemetry_helper(
         query_history: The query history context manager to record queries that are pushed down to the Snowflake
         database in the session.
         api_calls: Optional list of Snowpark pandas API calls made during the function execution.
+        method_call_count: Number of times a method has been called.
+        interchange_call_count: Number of times __dataframe__ has been called.
 
     Returns:
         None
     """
-    data: dict[str, Union[str, list[dict[str, Any]], list[str], Optional[str]]] = {
+    data: dict[
+        str, Union[str, list[dict[str, Any]], list[str], Optional[str], Counter[str]]
+    ] = {
         TelemetryField.KEY_FUNC_NAME.value: func_name,
         TelemetryField.KEY_CATEGORY.value: SnowparkPandasTelemetryField.FUNC_CATEGORY_SNOWPARK_PANDAS.value,
         TelemetryField.KEY_ERROR_MSG.value: error_msg,
+        **(
+            {SnowparkPandasTelemetryField.CALL_COUNT.value: method_call_count}
+            if method_call_count is not None
+            else {}
+        ),
+        **(
+            {
+                SnowparkPandasTelemetryField.INTERCHANGE_CALL_COUNT.value: interchange_call_count
+            }
+            if interchange_call_count is not None
+            else {}
+        ),
     }
     if len(api_calls) > 0:
         data[TelemetryField.KEY_API_CALLS.value] = api_calls
@@ -274,6 +295,8 @@ def _telemetry_helper(
     # Moving existing api call out first can avoid to generate duplicates.
     existing_api_calls = []
     need_to_restore_args0_api_calls = False
+    method_call_count = None
+    interchange_call_count = None
 
     # If the decorated func is a class method or a standalone function, we need to get an active session:
     if is_standalone_function or (len(args) > 0 and isinstance(args[0], type)):
@@ -295,6 +318,13 @@ def _telemetry_helper(
             need_to_restore_args0_api_calls = True
             session = args[0]._query_compiler._modin_frame.ordered_dataframe.session
             class_prefix = args[0].__class__.__name__
+            args[0]._query_compiler._method_call_counts[func.__name__] += 1
+            method_call_count = args[0]._query_compiler._method_call_counts[
+                func.__name__
+            ]
+            interchange_call_count = args[0]._query_compiler._method_call_counts[
+                "__dataframe__"
+            ]
         except (TypeError, IndexError, AttributeError):
             # TypeError: args might not support indexing; IndexError: args is empty; AttributeError: args[0] might not
             # have _query_compiler attribute.
@@ -337,6 +367,8 @@ def _telemetry_helper(
             func_name=func_name,
             query_history=query_history,
             api_calls=existing_api_calls + [curr_api_call],
+            method_call_count=method_call_count,
+            interchange_call_count=interchange_call_count,
         )
         raise e
 
@@ -371,6 +403,8 @@ def _telemetry_helper(
             func_name=func_name,
             query_history=query_history,
             api_calls=existing_api_calls + [curr_api_call],
+            method_call_count=method_call_count,
+            interchange_call_count=interchange_call_count,
         )
         if need_to_restore_args0_api_calls:
             args[0]._query_compiler.snowpark_pandas_api_calls = existing_api_calls
