@@ -10,6 +10,7 @@ import itertools
 import json
 import logging
 import re
+from collections import Counter
 import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
@@ -533,6 +534,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
         self._attrs: dict[Any, Any] = {}
+        self._method_call_counts: Counter[str] = Counter[str]()
 
     def _raise_not_implemented_error_for_timedelta(
         self, frame: InternalFrame = None
