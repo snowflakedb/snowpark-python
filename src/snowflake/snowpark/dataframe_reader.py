@@ -1,10 +1,20 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
+import decimal
+import os
+from concurrent.futures import (
+    ProcessPoolExecutor,
+    wait,
+    ALL_COMPLETED,
+    ThreadPoolExecutor,
+)
 
+from dateutil import parser
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -37,7 +47,6 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     parse_positional_args_to_list_variadic,
     publicapi,
-    random_name_for_temp_object,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -45,7 +54,22 @@ from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
-from snowflake.snowpark.types import StructType, VariantType
+from snowflake.snowpark.types import (
+    StructType,
+    VariantType,
+    StructField,
+    IntegerType,
+    FloatType,
+    DecimalType,
+    StringType,
+    DateType,
+    BooleanType,
+    DataType,
+    _NumericType,
+)
+from pyodbc import Connection
+import pandas as pd
+from snowflake.snowpark._internal.utils import random_name_for_temp_object
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -1023,3 +1047,223 @@ class DataFrameReader:
         df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
+
+    def dbapi(
+        self,
+        create_connection: Callable[[], "Connection"],
+        table: str,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        predicates: Optional[List[str]] = None,
+        *,
+        snowflake_table_type: str = "temporary",
+        snowflake_table_name: Optional[str] = None,
+        snowflake_stage_name: str = None,  # for test purpose should use temp stage in production code
+        use_stored_procedure: bool = False,
+    ) -> DataFrame:
+        conn = create_connection()
+        struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
+        if column is None:
+            if (
+                lower_bound is not None
+                or upper_bound is not None
+                or num_partitions is not None
+            ):
+                raise ValueError(
+                    "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
+                )
+            partitioned_queries = [f"SELECT * FROM {table}"]
+        else:
+            if lower_bound is None or upper_bound is None or num_partitions is None:
+                raise ValueError(
+                    "when column is specified, lower_bound, upper_bound, num_partitions must be specified"
+                )
+
+            column_type = None
+            for field in struct_schema.fields:
+                if field.name == column:
+                    column_type = field.datatype
+            if column_type is None:
+                raise ValueError("Column does not exist")
+
+            if not isinstance(column_type, _NumericType) and not isinstance(
+                column_type, DateType
+            ):
+                raise ValueError(f"unsupported type {column_type}")
+            partitioned_queries = self._generate_partition(
+                table,
+                column_type,
+                column,
+                lower_bound,
+                upper_bound,
+                num_partitions,
+                predicates,
+            )
+        with ProcessPoolExecutor(
+            max_workers=min(len(partitioned_queries), 10)
+        ) as executor:
+            futures = [
+                executor.submit(
+                    task_fetch_from_data_source, create_connection, query, raw_schema, i
+                )
+                for i, query in enumerate(partitioned_queries)
+            ]
+
+            completed_futures = wait(futures, return_when=ALL_COMPLETED)
+        files = [f.result() for f in completed_futures.done]
+        with ThreadPoolExecutor(max_workers=min(len(files), 10)) as thread_executor:
+            futures = [
+                thread_executor.submit(
+                    self.upload_and_copy_into_table,
+                    f,
+                    snowflake_stage_name,
+                    "temp",
+                    snowflake_table_name,
+                )
+                for f in files
+            ]
+
+            _ = wait(futures, return_when=ALL_COMPLETED)
+
+    def _infer_data_source_schema(
+        self, conn: Connection, table: str
+    ) -> tuple[StructType, tuple[tuple[str, Any, int, int, int, int, bool]]]:
+        raw_schema = conn.execute(f"SELECT * FROM {table} WHERE 1 = 0").description
+        return self._to_snowpark_type(raw_schema), raw_schema
+
+    def _generate_partition(
+        self,
+        table: str,
+        column_type: DataType,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        predicates: Optional[List[str]] = None,
+    ) -> List[str]:
+        select_query = f"SELECT * FROM {table}"
+
+        processed_lower_bound = self._to_internal_value(lower_bound, column_type)
+        processed_upper_bound = self._to_internal_value(upper_bound, column_type)
+        if processed_lower_bound > processed_upper_bound:
+            raise ValueError("lower_bound cannot be greater than upper_bound")
+
+        if processed_lower_bound == processed_upper_bound or num_partitions <= 1:
+            return [select_query]
+
+        if (processed_upper_bound - processed_lower_bound) >= num_partitions or (
+            processed_upper_bound - processed_lower_bound
+        ) < 0:
+            actual_num_partitions = num_partitions
+        else:
+            actual_num_partitions = processed_upper_bound - processed_lower_bound
+            logger.warning(
+                "The number of partitions is reduced because the specified number of partitions is less than the difference between upper bound and lower bound."
+            )
+
+        # decide stride length
+        upper_stride = processed_upper_bound / actual_num_partitions
+        lower_stride = processed_lower_bound / actual_num_partitions
+        stride = upper_stride - lower_stride
+
+        partition_queries = []
+        for i in range(actual_num_partitions):
+            left = (
+                processed_lower_bound + i * stride
+                if column_type != int
+                else int(processed_lower_bound + i * stride)
+            )
+            right = (
+                min(left + stride, processed_upper_bound)
+                if column_type != int
+                else int(min(left + stride, processed_upper_bound))
+            )
+            partition_queries.append(
+                select_query
+                + f" WHERE {column} >= {self._to_external_value(left, column_type)} and {column} {'<=' if right == processed_upper_bound else '<'} {self._to_external_value(right, column_type)}"
+            )
+
+        return partition_queries
+
+    def _to_internal_value(self, value, column_type):
+        if isinstance(column_type, _NumericType):
+            return int(value)
+        else:
+            return int(parser.parse(value).timestamp())
+
+    def _to_external_value(self, value, column_type):
+        if isinstance(column_type, _NumericType):
+            return value
+        else:
+            return datetime.datetime.fromtimestamp(value)
+
+    def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
+        fields = []
+        for column in schema:
+            if column[1] == int:
+                field = StructField(column[0], IntegerType(), column[6])
+            elif column[1] == float:
+                field = StructField(column[0], FloatType(), column[6])
+            elif column[1] == decimal.Decimal:
+                field = StructField(
+                    column[0], DecimalType(column[4], column[5]), column[6]
+                )
+            elif column[1] == str:
+                field = StructField(column[0], StringType(), column[6])
+            elif column[1] == datetime.datetime:
+                field = StructField(column[0], DateType(), column[6])
+            elif column[1] == bool:
+                field = StructField(column[0], BooleanType(), column[6])
+            else:
+                raise ValueError("unsupported type")
+
+            fields.append(field)
+        return StructType(fields)
+
+    def parallel_ingestion(
+        self,
+        create_connection: Callable[[], "Connection"],
+        table: str,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        predicates: Optional[List[str]] = None,
+        *,
+        snowflake_table_type: str = "temporary",
+        snowflake_table_name: Optional[str] = None,
+        use_stored_procedure: bool = False,
+    ) -> DataFrame:
+        pass
+
+    def upload_and_copy_into_table(
+        self,
+        local_file: str,
+        snowflake_stage: str,
+        snowflake_table_type: str = "temporary",
+        snowflake_table_name: Optional[str] = None,
+    ):
+        file_name = os.path.basename(local_file)
+        put_query = f"put file:///Users/yuwang/Desktop/working_repo/snowpark-python/{local_file} @TEST_STAGE/ OVERWRITE=TRUE"
+        copy_into_table_query = f"copy into {snowflake_table_name} from @{snowflake_stage}/{file_name} file_format=(type=parquet) MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE"
+        self._session.sql(put_query).collect()
+        self._session.sql(copy_into_table_query).collect()
+
+
+def task_fetch_from_data_source(
+    create_connection: Callable[[], "Connection"],
+    query: str,
+    schema: tuple[tuple[str, Any, int, int, int, int, bool]],
+    i: int,
+) -> str:
+    conn = create_connection()
+    result = conn.cursor().execute(query).fetchall()
+    columns = [col[0] for col in schema]
+    df = pd.DataFrame.from_records(result, columns=columns)
+    if not os.path.exists("test_res"):
+        os.mkdir("test_res")
+    path = f"test_res/data_{i}.parquet"
+    df.to_parquet(path)
+    return path
