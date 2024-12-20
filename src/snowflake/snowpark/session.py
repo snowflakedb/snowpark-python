@@ -14,7 +14,7 @@ import sys
 import tempfile
 import warnings
 from array import array
-from functools import reduce
+from functools import partial, reduce
 from logging import getLogger
 from threading import RLock
 from types import ModuleType
@@ -39,9 +39,11 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
-from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
-from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    attribute_to_schema_string,
+    result_scan_statement,
+)
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -3028,6 +3030,31 @@ class Session:
                 str(ci_output)
             )
 
+    def _initialize_temp_table_with_schema(
+        self, temp_table_name: str, schema: StructType
+    ) -> bool:
+        """Creates a temp table for specified schema.
+
+        Args:
+            temp_table_name: table name
+            schema: user provided StructType schema
+
+        Returns:
+            True table was created successfully, else False
+        """
+        try:
+            schema_string = attribute_to_schema_string(schema._to_attributes())
+            self._run_query(
+                f"CREATE SCOPED TEMP TABLE {temp_table_name} ({schema_string})"
+            )
+        except ProgrammingError as e:
+            _logger.debug(
+                f"Cannot create temp table for specified schema, fall back to inferring "
+                f"schema string from select query. Exception: {str(e)}"
+            )
+            return False
+        return True
+
     @publicapi
     def create_dataframe(
         self,
@@ -3130,16 +3157,36 @@ class Session:
                 )
                 sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
-                table = self.write_pandas(
+                # If the user specifies schema for their dataframe, we try out best to match
+                # it by create a temp table with the specified schema, and load the data into
+                # the temp table. If we fail, go back to old method using infer schema.
+                write_pandas_partial = partial(
+                    self.write_pandas,
                     data,
                     temp_table_name,
                     database=sf_database,
                     schema=sf_schema,
                     quote_identifiers=True,
-                    auto_create_table=True,
-                    table_type="temporary",
                     use_logical_type=self._use_logical_type_for_create_df,
                 )
+                if isinstance(
+                    schema, StructType
+                ) and self._initialize_temp_table_with_schema(temp_table_name, schema):
+                    try:
+                        table = write_pandas_partial()
+                    except ProgrammingError as e:
+                        self._run_query(f"drop table if exists {temp_table_name}")
+                        _logger.warning(
+                            f"Cannot create dataframe using specified schema for database."
+                            f"Falling back to inferring schema from pandas dataframe. Exception: {e}"
+                        )
+                        table = write_pandas_partial(
+                            auto_create_table=True, table_type="temporary"
+                        )
+                else:
+                    table = write_pandas_partial(
+                        auto_create_table=True, table_type="temporary"
+                    )
                 set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
@@ -3172,19 +3219,8 @@ class Session:
                 and all([field.datatype.is_primitive() for field in schema.fields])
             ):
                 temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-                schema_string = analyzer_utils.attribute_to_schema_string(
-                    schema._to_attributes()
-                )
-                try:
-                    self._run_query(
-                        f"CREATE SCOPED TEMP TABLE {temp_table_name} ({schema_string})"
-                    )
+                if self._initialize_temp_table_with_schema(temp_table_name, schema):
                     schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
-                except ProgrammingError as e:
-                    _logger.debug(
-                        f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
-                        f"string from select query. Exception: {str(e)}"
-                    )
         else:
             if not data:
                 raise ValueError("Cannot infer schema from empty data")
