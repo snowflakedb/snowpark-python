@@ -559,6 +559,85 @@ def test_telemetry_repr():
     ]
 
 
+@sql_count_checker(query_count=6, join_count=4)
+def test_telemetry_interchange_call_count():
+    s = pd.DataFrame([1, 2, 3, 4])
+    t = pd.DataFrame([5])
+    s.__dataframe__()
+    s.__dataframe__()
+    t.__dataframe__()
+
+    s.iloc[0, 0] = 7
+    s.__dataframe__()
+    s.__dataframe__()
+    t.__dataframe__()
+
+    def _get_data(call):
+        try:
+            return call.to_dict()["message"][TelemetryField.KEY_DATA.value]
+        except Exception:
+            return None
+
+    telemetry_data = [
+        _get_data(call)
+        for call in pd.session._conn._telemetry_client.telemetry._log_batch
+        if _get_data(call) is not None
+        and "func_name" in _get_data(call)
+        and _get_data(call)["func_name"] == "DataFrame.__dataframe__"
+    ]
+    assert len(telemetry_data) == 6
+    # s calls __dataframe__() for the first time.
+    assert telemetry_data[0]["call_count"] == 1
+    assert telemetry_data[0]["interchange_call_count"] == 1
+    # s calls __dataframe__() for the second time.
+    assert telemetry_data[1]["call_count"] == 2
+    assert telemetry_data[1]["interchange_call_count"] == 2
+    # t calls __dataframe__() for the first time.
+    assert telemetry_data[2]["call_count"] == 1
+    assert telemetry_data[2]["interchange_call_count"] == 1
+    # the new version of s calls __dataframe__() for the first time.
+    assert telemetry_data[3]["call_count"] == 1
+    assert telemetry_data[3]["interchange_call_count"] == 1
+    # the new version of s calls __dataframe__() for the second time.
+    assert telemetry_data[4]["call_count"] == 2
+    assert telemetry_data[4]["interchange_call_count"] == 2
+    # t calls __dataframe__() for the second time.
+    assert telemetry_data[5]["call_count"] == 2
+    assert telemetry_data[5]["interchange_call_count"] == 2
+
+
+@sql_count_checker(query_count=4)
+def test_telemetry_func_call_count():
+    s = pd.DataFrame([1, 2, np.nan, 4])
+    t = pd.DataFrame([5])
+
+    s.__repr__()
+    s.__repr__()
+    s.__repr__()
+
+    t.__repr__()
+
+    def _get_data(call):
+        try:
+            return call.to_dict()["message"][TelemetryField.KEY_DATA.value]
+        except Exception:
+            return None
+
+    telemetry_data = [
+        _get_data(call)
+        for call in pd.session._conn._telemetry_client.telemetry._log_batch
+        if _get_data(call) is not None
+        and "func_name" in _get_data(call)
+        and _get_data(call)["func_name"] == "DataFrame.__repr__"
+    ]
+    assert len(telemetry_data) == 4
+
+    assert telemetry_data[2]["call_count"] == 3
+    assert telemetry_data[2]["interchange_call_count"] == 0
+    assert telemetry_data[3]["call_count"] == 1
+    assert telemetry_data[2]["interchange_call_count"] == 0
+
+
 @sql_count_checker(query_count=0)
 def test_telemetry_copy():
     # copy() is defined in upstream Modin's BasePandasDataset class, and not overridden by any
