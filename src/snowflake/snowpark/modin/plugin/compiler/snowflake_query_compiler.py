@@ -374,7 +374,7 @@ from snowflake.snowpark.modin.plugin.utils.error_message import ErrorMessage
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
-    NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION,
+    NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION,
 )
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -8437,6 +8437,30 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
+        # TODO SNOW-1739034: remove 'no cover' when apply tests are enabled in CI
+        sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(
+            func
+        )  # pragma: no cover
+        if sf_func is not None:  # pragma: no cover
+            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+
+        if get_snowflake_agg_func(func, {}, axis) is not None:  # pragma: no cover
+            # np.std and np.var 'ddof' parameter defaults to 0 but
+            # df.std and df.var 'ddof' parameter defaults to 1.
+            # Set it here explicitly to 0 if not provided.
+            if func in (np.std, np.var) and "ddof" not in kwargs:
+                kwargs["ddof"] = 0
+            # np.median return NaN if any value is NaN while df.median skips NaN values.
+            # Set 'skipna' to false to match behavior.
+            if func == np.median:
+                kwargs["skipna"] = False
+            qc = self.agg(func, axis, None, kwargs)
+            if axis == 1:
+                # agg method populates series name with aggregation function name but
+                # in apply we need unnamed series.
+                qc = qc.set_columns([MODIN_UNNAMED_SERIES_LABEL])
+            return qc
+
         if axis == 0:
             frame = self._modin_frame
 
@@ -8761,13 +8785,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
-        # Check if the function is a known numpy function that can be translated to Snowflake function.
-        sf_func = NUMPY_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
-        if sf_func is not None:
-            # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
-            return self._apply_snowpark_python_function_to_columns(
-                sf_func, kwargs
-            )  # pragma: no cover
+        # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
+        # Check if the function is a known numpy function that can be translated to
+        # Snowflake function.
+        sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
+        if sf_func is not None:  # pragma: no cover
+            return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
+
+        if func in (np.sum, np.min, np.max):  # pragma: no cover
+            # Aggregate functions applied element-wise to columns are no-op.
+            return self
 
         # Currently, NULL values are always passed into the udtf even if strict=True,
         # which is a bug on the server side SNOW-880105.
@@ -18137,7 +18164,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-    def dt_strftime(self, date_format: str) -> None:
+    def dt_strftime(self, date_format: str) -> "SnowflakeQueryCompiler":
         """
         Format underlying date-time data using specified format.
 
@@ -18147,8 +18174,102 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             New QueryCompiler containing formatted date-time values.
         """
-        ErrorMessage.not_implemented(
-            "Snowpark pandas doesn't yet support the method 'Series.dt.strftime'"
+
+        def strftime_func(column: SnowparkColumn) -> SnowparkColumn:
+            directive_to_function_map: dict[str, Callable] = {
+                "d": (
+                    # Day of the month as a zero-padded decimal number
+                    lambda column: lpad(
+                        dayofmonth(column), pandas_lit(2), pandas_lit("0")
+                    )
+                ),
+                "m": (
+                    # Month as a zero-padded decimal number
+                    lambda column: lpad(month(column), pandas_lit(2), pandas_lit("0"))
+                ),
+                "Y": (
+                    # Year with century as a decimal number
+                    lambda column: lpad(year(column), pandas_lit(4), pandas_lit("0"))
+                ),
+                "H": (
+                    # Hour (24-hour clock) as a zero-padded decimal number
+                    lambda column: lpad(hour(column), pandas_lit(2), pandas_lit("0"))
+                ),
+                "M": (
+                    # Minute as a zero-padded decimal number
+                    lambda column: lpad(minute(column), pandas_lit(2), pandas_lit("0"))
+                ),
+                "S": (
+                    # Second as a zero-padded decimal number
+                    lambda column: lpad(second(column), pandas_lit(2), pandas_lit("0"))
+                ),
+                "f": (
+                    # Microsecond as a decimal number, zero-padded to 6 digits
+                    lambda column: lpad(
+                        floor(date_part("ns", column) / 1000),
+                        pandas_lit(6),
+                        pandas_lit("0"),
+                    )
+                ),
+                "j": (
+                    # Day of the year as a zero-padded decimal number
+                    lambda column: lpad(
+                        dayofyear(column), pandas_lit(3), pandas_lit("0")
+                    )
+                ),
+                "X": (
+                    # Locale’s appropriate time representation
+                    lambda column: trunc(to_time(column), pandas_lit("second"))
+                ),
+                "%": (
+                    # A literal '%' character
+                    lambda column: pandas_lit("%")
+                ),
+            }
+
+            parts = re.split("%.", date_format)
+            directive_first = False
+            if parts[0] == "":
+                parts = parts[1:]
+                directive_first = True
+            if parts[-1] == "":
+                parts = parts[:-1]
+            directives = re.findall("%.", date_format)
+            cols = []
+            for i in range(min(len(parts), len(directives))):
+                directive_function = directive_to_function_map.get(directives[i][1:])
+                if not directive_function:
+                    raise ErrorMessage.not_implemented(
+                        f"Snowpark pandas 'Series.dt.strftime' method does not yet support the directive '%{directives[i][1:]}'"
+                    )
+
+                if directive_first:
+                    cols.append(directive_function(column))
+                    cols.append(pandas_lit(parts[i]))
+                else:
+                    cols.append(pandas_lit(parts[i]))
+                    cols.append(directive_function(column))
+
+            if len(parts) > len(directives):
+                cols.append(pandas_lit(parts[-1]))
+            if len(parts) < len(directives):
+                directive_function = directive_to_function_map.get(directives[-1][1:])
+                if not directive_function:
+                    raise ErrorMessage.not_implemented(
+                        f"Snowpark pandas 'Series.dt.strftime' method does not yet support the directive '%{directives[-1][1:]}'"
+                    )
+                cols.append(directive_function(column))
+
+            if len(cols) == 1:
+                return iff(column.is_null(), pandas_lit(None), cols[0])
+            else:
+                return iff(column.is_null(), pandas_lit(None), concat(*cols))
+
+        return SnowflakeQueryCompiler(
+            self._modin_frame.apply_snowpark_function_to_columns(
+                strftime_func,
+                include_index=False,
+            )
         )
 
     def topn(
@@ -19418,5 +19539,148 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._modin_frame.apply_snowpark_function_to_columns(
                 func,
                 include_index=include_index,
+            )
+        )
+
+    def groupby_unique(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict,
+        agg_args: Sequence,
+        agg_kwargs: dict,
+        numeric_only: bool,
+        is_series_groupby: bool,
+        drop: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Aggregate unique values for each group into a list.
+
+
+        Parameters
+        ----------
+        by : Any
+            Index level name(s) or column label(s) to group by.
+        axis: int
+            The axis along which to group data. This parameter must be 0, but
+            we keep it to match the interface of Modin's BaseQueryCompiler.
+        groupby_kwargs: dict
+            The keyword arguments to groupby().
+        agg_args: Sequence
+            Positional arguments to the unique() aggregation function. This
+            parameter must be empty because unique() does not take positional
+            arguments, but we keep the parameter to match the interface of
+            Modin's BaseQueryCompiler.
+        agg_kwargs: dict
+            Keyword arguments to the unique() aggregation function. This
+            parameter must be empty because unique() does not take keyword
+            arguments, but we keep the parameter to match the interface of
+            Modin's BaseQueryCompiler.
+        numeric_only: bool
+            This parameter is meaningless as unique() does not take a
+            numeric_only parameter, but we keep the parameter to match the
+            interface of Modin's BaseQueryCompiler.
+        is_series_groupby: bool
+            Whether this method is called via SeriesGroupBy as opposed to
+            DataFrameGroupBy. This parameter should always be true, but we keep
+            it to match the interface of Modin's BaseQueryCompiler.
+        drop: bool, default False
+            Whether the `by` columns are internal this dataframe.
+
+        Returns
+        -------
+        A new SnowflakeQueryCompiler with the unique values of the singular
+        data column for each group.
+        """
+        assert axis == 0, "Internal error. SeriesGroupBy.unique() axis should be 0."
+        assert len(agg_args) == 0, (
+            "Internal error. SeriesGroupBy.unique() does not take "
+            + "aggregation arguments."
+        )
+        assert len(agg_kwargs) == 0, (
+            "Internal error. SeriesGroupBy.unique() does not take "
+            + "aggregation arguments."
+        )
+        assert (
+            is_series_groupby is True
+        ), "Internal error. Only SeriesGroupBy has a unique() method."
+
+        compiler = SnowflakeQueryCompiler(
+            self._modin_frame.ensure_row_position_column()
+        )
+        by_list = extract_groupby_column_pandas_labels(
+            compiler, by, groupby_kwargs.get("level", None)
+        )
+        by_snowflake_quoted_identifiers_list = []
+        for (
+            entry
+        ) in compiler._modin_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
+            by_list
+        ):
+            assert len(entry) == 1, (
+                "Internal error. Each grouping label should correspond to a "
+                + "single Snowpark column."
+            )
+            by_snowflake_quoted_identifiers_list.append(entry[0])
+
+        # There is no built-in snowflake function to aggregation unique values
+        # of a column into array while preserving a certain order. We implement
+        # the aggregation in the following steps:
+        # 1) Project a new column representing the row position of each row
+        #    within each combination of group + data column value.
+        # 2) Filter the result to the rows where the new column is equal to 1,
+        #    i.e. get the row where each data column value appears for the first
+        #    time within each group.
+        # 3) Project away the extra rank column.
+        # 4) Group according to `groupby_kwargs` and for each group, aggregate
+        #    the (singular) remaining data column into a list ordered by the
+        #    original row order.
+        frame_with_rank = compiler._modin_frame.append_column(
+            "_rank_column",
+            rank().over(
+                Window.partition_by(
+                    *by_snowflake_quoted_identifiers_list,
+                    *(
+                        identifier
+                        for identifier in (
+                            compiler._modin_frame.data_column_snowflake_quoted_identifiers
+                        )
+                        if identifier not in by_snowflake_quoted_identifiers_list
+                    ),
+                ).order_by(
+                    compiler._modin_frame.row_position_snowflake_quoted_identifier
+                )
+            ),
+        )
+        return (
+            SnowflakeQueryCompiler(
+                frame_with_rank.filter(
+                    col(frame_with_rank.data_column_snowflake_quoted_identifiers[-1])
+                    == 1
+                )
+            )
+            .take_2d_positional(
+                index=slice(None),
+                columns=(
+                    list(
+                        range(
+                            len(
+                                frame_with_rank.data_column_snowflake_quoted_identifiers
+                            )
+                            - 1
+                        )
+                    )
+                ),
+            )
+            .groupby_agg(
+                by=by,
+                agg_func="array_agg",
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                agg_args=agg_args,
+                agg_kwargs=agg_kwargs,
+                numeric_only=numeric_only,
+                is_series_groupby=is_series_groupby,
+                drop=drop,
             )
         )
