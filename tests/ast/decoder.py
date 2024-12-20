@@ -913,6 +913,11 @@ class Decoder:
                 else:
                     return df.agg(exprs)
 
+            case "sp_dataframe_alias":
+                df = self.decode_expr(expr.sp_dataframe_alias.df)
+                name = expr.sp_dataframe_alias.name
+                return df.alias(name)
+
             case "sp_dataframe_col":
                 col_name = expr.sp_dataframe_col.col_name
                 df = self.decode_expr(expr.sp_dataframe_col.df)
@@ -1037,8 +1042,82 @@ class Decoder:
                 )
                 return lhs.natural_join(right=rhs, how=join_type)
 
+            case "sp_dataframe_na_drop__python":
+                df = self.decode_expr(expr.sp_dataframe_na_drop__python.df)
+                how = expr.sp_dataframe_na_drop__python.how
+                d = MessageToDict(expr.sp_dataframe_na_drop__python)
+                thresh = d.get("thresh", None)
+                thresh = int(thresh) if thresh is not None else thresh
+                subset = d.get("subset", None)
+                subset = (
+                    list(expr.sp_dataframe_na_drop__python.subset.list)
+                    if subset is not None
+                    else subset
+                )
+                return df.na.drop(how, thresh, subset)
+
+            case "sp_dataframe_na_fill":
+                df = self.decode_expr(expr.sp_dataframe_na_fill.df)
+                # Either value or value_map contains the `value` to fill.
+                d = MessageToDict(expr.sp_dataframe_na_fill)
+                if "value" in d:
+                    value = self.decode_expr(expr.sp_dataframe_na_fill.value)
+                else:
+                    value = self.decode_dsl_map_expr(
+                        expr.sp_dataframe_na_fill.value_map.list
+                    )
+                subset = d.get("subset", None)
+                subset = (
+                    list(expr.sp_dataframe_na_fill.subset.list)
+                    if subset is not None
+                    else subset
+                )
+                return df.na.fill(value, subset)
+
+            case "sp_dataframe_na_replace":
+                df = self.decode_expr(expr.sp_dataframe_na_replace.df)
+                d = MessageToDict(expr.sp_dataframe_na_replace)
+                # Either value or values contains the `value` to fill.
+                if "value" in d:
+                    value = self.decode_expr(expr.sp_dataframe_na_replace.value)
+                else:
+                    value = [
+                        self.decode_expr(e)
+                        for e in expr.sp_dataframe_na_replace.values.list
+                    ]
+                # The parameter `replace` can be populated by to_replace_value (single value), to_replace_list,
+                # or replacement_map.
+                if "toReplaceValue" in d:
+                    to_replace = self.decode_expr(
+                        expr.sp_dataframe_na_replace.to_replace_value
+                    )
+                elif "toReplaceList" in d:
+                    to_replace = [
+                        self.decode_expr(e)
+                        for e in expr.sp_dataframe_na_replace.to_replace_list.list
+                    ]
+                else:
+                    to_replace = self.decode_dsl_map_expr(
+                        expr.sp_dataframe_na_replace.replacement_map.list
+                    )
+                subset = d.get("subset", None)
+                subset = (
+                    list(expr.sp_dataframe_na_replace.subset.list)
+                    if subset is not None
+                    else subset
+                )
+                return df.na.replace(to_replace, value, subset)
+
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
+
+            case "sp_dataframe_rename":
+                df = self.decode_expr(expr.sp_dataframe_rename.df)
+                col_or_mapper = self.decode_expr(expr.sp_dataframe_rename.col_or_mapper)
+                new_column = MessageToDict(expr.sp_dataframe_rename).get(
+                    "newColumn", None
+                )
+                return df.rename(col_or_mapper, new_column)
 
             case "sp_dataframe_select__columns":
                 df = self.decode_expr(expr.sp_dataframe_select__columns.df)
@@ -1077,6 +1156,36 @@ class Decoder:
                     return df.sort(*cols, ascending=ascending)
                 else:
                     return df.sort(cols, ascending=ascending)
+
+            case "sp_dataframe_unpivot":
+                df = self.decode_expr(expr.sp_dataframe_unpivot.df)
+                column_list = [
+                    self.decode_expr(e) for e in expr.sp_dataframe_unpivot.column_list
+                ]
+                name_column = expr.sp_dataframe_unpivot.name_column
+                value_column = expr.sp_dataframe_unpivot.value_column
+                # TODO SNOW-1866100: add logic for `include_nulls`.
+                return df.unpivot(value_column, name_column, column_list)
+
+            case "sp_dataframe_with_column":
+                df = self.decode_expr(expr.sp_dataframe_with_column.df)
+                col_name = expr.sp_dataframe_with_column.col_name
+                col = self.decode_expr(expr.sp_dataframe_with_column.col)
+                return df.with_column(col_name, col)
+
+            case "sp_dataframe_with_column_renamed":
+                df = self.decode_expr(expr.sp_dataframe_with_column_renamed.df)
+                existing = self.decode_expr(expr.sp_dataframe_with_column_renamed.col)
+                new = expr.sp_dataframe_with_column_renamed.new_name
+                return df.with_column_renamed(existing, new)
+
+            case "sp_dataframe_with_columns":
+                df = self.decode_expr(expr.sp_dataframe_with_columns.df)
+                col_names = list(expr.sp_dataframe_with_columns.col_names)
+                values = [
+                    self.decode_expr(e) for e in expr.sp_dataframe_with_columns.values
+                ]
+                return df.with_columns(col_names, values)
 
             case "sp_relational_grouped_dataframe_agg":
                 grouped_df = self.decode_expr(
