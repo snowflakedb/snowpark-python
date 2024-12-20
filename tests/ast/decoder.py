@@ -955,6 +955,72 @@ class Decoder:
                 other = self.decode_expr(expr.sp_dataframe_intersect.other)
                 return df.intersect(other)
 
+            case "sp_dataframe_na_drop__python":
+                df = self.decode_expr(expr.sp_dataframe_na_drop__python.df)
+                how = expr.sp_dataframe_na_drop__python.how
+                d = MessageToDict(expr.sp_dataframe_na_drop__python)
+                thresh = d.get("thresh", None)
+                thresh = int(thresh) if thresh is not None else thresh
+                subset = d.get("subset", None)
+                subset = (
+                    list(expr.sp_dataframe_na_drop__python.subset.list)
+                    if subset is not None
+                    else subset
+                )
+                return df.na.drop(how, thresh, subset)
+
+            case "sp_dataframe_na_fill":
+                df = self.decode_expr(expr.sp_dataframe_na_fill.df)
+                # Either value or value_map contains the `value` to fill.
+                d = MessageToDict(expr.sp_dataframe_na_fill)
+                if "value" in d:
+                    value = self.decode_expr(expr.sp_dataframe_na_fill.value)
+                else:
+                    value = self.decode_dsl_map_expr(
+                        expr.sp_dataframe_na_fill.value_map.list
+                    )
+                subset = d.get("subset", None)
+                subset = (
+                    list(expr.sp_dataframe_na_fill.subset.list)
+                    if subset is not None
+                    else subset
+                )
+                return df.na.fill(value, subset)
+
+            case "sp_dataframe_na_replace":
+                df = self.decode_expr(expr.sp_dataframe_na_replace.df)
+                d = MessageToDict(expr.sp_dataframe_na_replace)
+                # Either value or values contains the `value` to fill.
+                if "value" in d:
+                    value = self.decode_expr(expr.sp_dataframe_na_replace.value)
+                else:
+                    value = [
+                        self.decode_expr(e)
+                        for e in expr.sp_dataframe_na_replace.values.list
+                    ]
+                # The parameter `replace` can be populated by to_replace_value (single value), to_replace_list,
+                # or replacement_map.
+                if "toReplaceValue" in d:
+                    to_replace = self.decode_expr(
+                        expr.sp_dataframe_na_replace.to_replace_value
+                    )
+                elif "toReplaceList" in d:
+                    to_replace = [
+                        self.decode_expr(e)
+                        for e in expr.sp_dataframe_na_replace.to_replace_list.list
+                    ]
+                else:
+                    to_replace = self.decode_dsl_map_expr(
+                        expr.sp_dataframe_na_replace.replacement_map.list
+                    )
+                subset = d.get("subset", None)
+                subset = (
+                    list(expr.sp_dataframe_na_replace.subset.list)
+                    if subset is not None
+                    else subset
+                )
+                return df.na.replace(to_replace, value, subset)
+
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
 
