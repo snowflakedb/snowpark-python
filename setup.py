@@ -29,6 +29,7 @@ INSTALL_REQ_LIST = [
     "protobuf>=3.20, <6",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
+    *PANDAS_REQUIREMENTS,
 ]
 REQUIRED_PYTHON_VERSION = ">=3.12, <3.13"
 
