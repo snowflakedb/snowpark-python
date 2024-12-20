@@ -178,6 +178,8 @@ from snowflake.snowpark.functions import (
     sql_expr,
     stddev,
     to_char,
+    to_json,
+    object_construct_keep_null,
 )
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
@@ -5613,6 +5615,23 @@ Query List:
         ]
         return dtypes
 
+    def to_json(self) -> "DataFrame":
+        """
+        Converts each row of the DataFrame into a JSON string.
+
+        Example:
+            >>> df = session.create_dataframe([(1, "a"), (2, "b")], schema=["a", "b"])
+            >>> df.to_json().show()
+            -------------------
+            |"TO_JSON"        |
+            -------------------
+            |{"A":1,"B":"a"}  |
+            |{"A":2,"B":"b"}  |
+            -------------------
+            <BLANKLINE>
+        """
+        return self.select(to_json(object_construct_keep_null("*")).alias("TO_JSON"))
+
     def _with_plan(self, plan, _ast_stmt=None) -> "DataFrame":
         """
         :param proto.Assign ast_stmt: The AST statement protobuf corresponding to this value.
@@ -5790,6 +5809,7 @@ Query List:
     order_by = sort
     orderBy = order_by
     printSchema = print_schema
+    toJSON = to_json
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets

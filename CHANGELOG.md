@@ -77,6 +77,7 @@
   - `collect_list` an alias of `array_agg`.
   - `substring` makes `len` argument optional.
 - Added parameter `ast_enabled` to session for internal usage (default: `False`).
+- Added support for `Dataframe.toJSON`
 
 #### Improvements
 
