@@ -7,7 +7,11 @@
 #### New Features
 
 - Added support for the following functions in `functions.py`
+  - `array_reverse`
   - `divnull`
+  - `map_cat`
+  - `map_contains_key`
+  - `map_keys`
   - `nullifzero`
   - `snowflake_cortex_sentiment`
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
