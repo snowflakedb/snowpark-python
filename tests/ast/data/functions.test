@@ -656,9 +656,9 @@ df27 = df.select(bitshiftright(col("A"), col("B")), bitshiftright(col("A"), -10)
 
 df28 = df.select(bround("A", 10), bround("A", 2), bround(col("A"), col("B")))
 
-df29 = df.select(convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("A"), col("B")))
+df29 = df.select(convert_timezone("A", col("B")), convert_timezone(col("A"), "B"), convert_timezone("A", "B"), convert_timezone(col("A"), col("B")), convert_timezone("A", "B"), convert_timezone("A", "B", "A"))
 
-df30 = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("Asia/Shanghai"), lit("UTC"), col("b")))
+df30 = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
 
 df31 = df.select(approx_count_distinct(col("A")), approx_count_distinct(col("A")))
 
@@ -906,9 +906,9 @@ df152 = df111.select(last_day(col("A")), last_day(col("A")), last_day(col("A"), 
 
 df153 = df111.select(minute(col("A")))
 
-df154 = df111.select(next_day(col("A"), "fr"), next_day(col("A"), "\"B\""))
+df154 = df111.select(next_day("A", "fr"), next_day(col("A"), col("B")))
 
-df155 = df111.select(previous_day(col("A"), "fr"), previous_day(col("A"), "\"B\""))
+df155 = df111.select(previous_day("A", "fr"), previous_day(col("A"), col("B")))
 
 df156 = df111.select(second(col("A")))
 
@@ -3942,28 +3942,7 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 56
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 25
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 56
                   end_line: 85
@@ -3971,6 +3950,7 @@ body {
                   start_column: 25
                   start_line: 85
                 }
+                v: "A"
               }
             }
             pos_args {
@@ -4058,28 +4038,7 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 89
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 58
-                      start_line: 85
-                    }
-                    v: "B"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 89
                   end_line: 85
@@ -4087,6 +4046,7 @@ body {
                   start_column: 58
                   start_line: 85
                 }
+                v: "B"
               }
             }
             src {
@@ -4110,28 +4070,7 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 117
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 91
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 117
                   end_line: 85
@@ -4139,31 +4078,11 @@ body {
                   start_column: 91
                   start_line: 85
                 }
+                v: "A"
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 117
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 91
-                      start_line: 85
-                    }
-                    v: "B"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 117
                   end_line: 85
@@ -4171,6 +4090,7 @@ body {
                   start_column: 91
                   start_line: 85
                 }
+                v: "B"
               }
             }
             src {
@@ -4278,28 +4198,7 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 187
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 157
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 187
                   end_line: 85
@@ -4307,31 +4206,11 @@ body {
                   start_column: 157
                   start_line: 85
                 }
+                v: "A"
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 187
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 157
-                      start_line: 85
-                    }
-                    v: "B"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 187
                   end_line: 85
@@ -4339,6 +4218,7 @@ body {
                   start_column: 157
                   start_line: 85
                 }
+                v: "B"
               }
             }
             src {
@@ -4362,28 +4242,7 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 220
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 189
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 220
                   end_line: 85
@@ -4391,31 +4250,11 @@ body {
                   start_column: 189
                   start_line: 85
                 }
+                v: "A"
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 220
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 189
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 220
                   end_line: 85
@@ -4423,31 +4262,11 @@ body {
                   start_column: 189
                   start_line: 85
                 }
+                v: "B"
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 220
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 189
-                      start_line: 85
-                    }
-                    v: "B"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 220
                   end_line: 85
@@ -4455,6 +4274,7 @@ body {
                   start_column: 189
                   start_line: 85
                 }
+                v: "A"
               }
             }
             src {
@@ -4605,38 +4425,6 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 124
-                      end_line: 87
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 104
-                      start_line: 87
-                    }
-                    v: "Asia/Shanghai"
-                  }
-                }
-                src {
-                  end_column: 124
-                  end_line: 87
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_column: 104
-                  start_line: 87
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "lit"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
                       end_column: 92
                       end_line: 87
                       file: "SRC_POSITION_TEST_MODE"
@@ -4683,6 +4471,38 @@ body {
                   end_line: 87
                   file: "SRC_POSITION_TEST_MODE"
                   start_column: 94
+                  start_line: 87
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "lit"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 124
+                      end_line: 87
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 104
+                      start_line: 87
+                    }
+                    v: "Asia/Shanghai"
+                  }
+                }
+                src {
+                  end_column: 124
+                  end_line: 87
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 104
                   start_line: 87
                 }
               }
@@ -22372,28 +22192,7 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 45
-                      end_line: 335
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 26
-                      start_line: 335
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 45
                   end_line: 335
@@ -22401,6 +22200,7 @@ body {
                   start_column: 26
                   start_line: 335
                 }
+                v: "A"
               }
             }
             pos_args {
@@ -22468,13 +22268,33 @@ body {
               }
             }
             pos_args {
-              sp_column_sql_expr {
-                sql: "\"B\""
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 74
+                      end_line: 335
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 66
+                      start_line: 335
+                    }
+                    v: "B"
+                  }
+                }
                 src {
-                  end_column: 75
+                  end_column: 74
                   end_line: 335
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 47
+                  start_column: 66
                   start_line: 335
                 }
               }
@@ -22530,28 +22350,7 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      fn_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 49
-                      end_line: 337
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 26
-                      start_line: 337
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   end_column: 49
                   end_line: 337
@@ -22559,6 +22358,7 @@ body {
                   start_column: 26
                   start_line: 337
                 }
+                v: "A"
               }
             }
             pos_args {
@@ -22626,13 +22426,33 @@ body {
               }
             }
             pos_args {
-              sp_column_sql_expr {
-                sql: "\"B\""
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      fn_name_flat {
+                        name: "col"
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 82
+                      end_line: 337
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 74
+                      start_line: 337
+                    }
+                    v: "B"
+                  }
+                }
                 src {
-                  end_column: 83
+                  end_column: 82
                   end_line: 337
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 51
+                  start_column: 74
                   start_line: 337
                 }
               }
