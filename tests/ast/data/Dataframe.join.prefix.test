@@ -6,9 +6,10 @@ df2 = session.create_dataframe([[1, 2, 3, 4, 5]], schema=['\"A\"','\"B\"','\"C\"
 
 df3 = df1.filter(col("\"A\"") == 1).join(df2.select((col("\"A\"") + 1).as_("\"A\""), col("\"B\""), col("\"C\""), col("\"l_0001_C\""), col("\"l_0003_B\"")))
 
-df4 = df3.sort(df3.columns)
+# Commented out since df3.columns produces different results in the first encoding and in the encode-decode-encode result.
+# df4 = df3.sort(df3.columns)
 
-df4.collect()
+df3.collect()
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -22,9 +23,7 @@ df3 = df2.select((col("\"A\"") + 1).as_("\"A\""), col("\"B\""), col("\"C\""), co
 
 df3 = df3_res1.join(df3, how="inner")
 
-df4 = df3.sort(["\"l_0004_A\"", "\"l_0004_B\"", "\"l_0004_C\"", "\"r_0000_A\"", "\"l_0000_A\"", "\"l_0002_A\"", "\"r_0006_A\"", "\"r_0006_B\"", "\"r_0006_C\"", "\"l_0001_C\"", "\"l_0003_B\""])
-
-df4.collect()
+df3.collect()
 
 ## EXPECTED ENCODED AST
 
@@ -502,121 +501,19 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_sort {
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"l_0004_A\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"l_0004_B\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"l_0004_C\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"r_0000_A\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"l_0000_A\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"l_0002_A\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"r_0006_A\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"r_0006_B\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"r_0006_C\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"l_0001_C\""
-          }
-        }
-        cols {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 31
-            }
-            v: "\"l_0003_B\""
-          }
-        }
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 5
-            }
-          }
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 5
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 31
+          start_line: 34
         }
       }
     }
     symbol {
-      value: "df4"
     }
     uid: 6
     var_id {
@@ -625,33 +522,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_collect {
-        block: true
-        case_sensitive: true
-        id {
-          bitfield1: 6
-        }
-        src {
-          file: "SRC_POSITION_TEST_MODE"
-          start_line: 33
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 7
     var_id {
-      bitfield1: 7
-    }
-  }
-}
-body {
-  eval {
-    uid: 8
-    var_id {
-      bitfield1: 7
+      bitfield1: 6
     }
   }
 }

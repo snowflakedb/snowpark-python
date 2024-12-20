@@ -458,6 +458,42 @@ class Decoder:
                     "Unknown data type: %s" % data_type_expr.WhichOneof("variant")
                 )
 
+    def decode_join_type(self, join_type: proto.SpJoinType) -> str:
+        """
+        Decode a join type expression to get the join type.
+
+        Parameters
+        ----------
+        join_type : proto.SpJoinType
+            The expression to decode.
+
+        Returns
+        -------
+        str
+            The decoded join type.
+        """
+        match join_type.WhichOneof("variant"):
+            case "sp_join_type__asof":
+                return "asof"
+            case "sp_join_type__cross":
+                return "cross"
+            case "sp_join_type__full_outer":
+                return "full"
+            case "sp_join_type__inner":
+                return "inner"
+            case "sp_join_type__left_anti":
+                return "anti"
+            case "sp_join_type__left_outer":
+                return "left"
+            case "sp_join_type__left_semi":
+                return "semi"
+            case "sp_join_type__right_outer":
+                return "right"
+            case _:
+                raise ValueError(
+                    "Unknown join type: %s" % join_type.WhichOneof("variant")
+                )
+
     def decode_timezone_expr(self, tz_expr: proto.PythonTimeZone) -> Any:
         """
         Decode a Python timezone expression to get the timezone.
@@ -930,6 +966,11 @@ class Decoder:
                 other = self.decode_expr(expr.sp_dataframe_except.other)
                 return df.except_(other)
 
+            case "sp_dataframe_filter":
+                df = self.decode_expr(expr.sp_dataframe_filter.df)
+                condition = self.decode_expr(expr.sp_dataframe_filter.condition)
+                return df.filter(condition)
+
             case "sp_dataframe_first":
                 df = self.decode_expr(expr.sp_dataframe_first.df)
                 block = expr.sp_dataframe_first.block
@@ -954,6 +995,47 @@ class Decoder:
                 df = self.decode_expr(expr.sp_dataframe_intersect.df)
                 other = self.decode_expr(expr.sp_dataframe_intersect.other)
                 return df.intersect(other)
+
+            case "sp_dataframe_join":
+                d = MessageToDict(expr.sp_dataframe_join)
+                join_expr = d.get("joinExpr", None)
+                join_expr = (
+                    self.decode_expr(expr.sp_dataframe_join.join_expr)
+                    if join_expr
+                    else None
+                )
+                join_type = d.get("joinType", None)
+                join_type = (
+                    self.decode_join_type(expr.sp_dataframe_join.join_type)
+                    if join_type
+                    else None
+                )
+                lhs = self.decode_expr(expr.sp_dataframe_join.lhs)
+                rhs = self.decode_expr(expr.sp_dataframe_join.rhs)
+                lsuffix = d.get("lsuffix", "")
+                rsuffix = d.get("rsuffix", "")
+                match_condition = d.get("matchCondition", None)
+                match_condition = (
+                    self.decode_expr(expr.sp_dataframe_join.match_condition)
+                    if match_condition
+                    else None
+                )
+                return lhs.join(
+                    right=rhs,
+                    on=join_expr,
+                    how=join_type,
+                    lsuffix=lsuffix,
+                    rsuffix=rsuffix,
+                    match_condition=match_condition,
+                )
+
+            case "sp_dataframe_natural_join":
+                lhs = self.decode_expr(expr.sp_dataframe_natural_join.lhs)
+                rhs = self.decode_expr(expr.sp_dataframe_natural_join.rhs)
+                join_type = self.decode_join_type(
+                    expr.sp_dataframe_natural_join.join_type
+                )
+                return lhs.natural_join(right=rhs, how=join_type)
 
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
@@ -984,14 +1066,17 @@ class Decoder:
 
             case "sp_dataframe_sort":
                 df = self.decode_expr(expr.sp_dataframe_sort.df)
-                cols = self.decode_col_exprs(
-                    expr.sp_dataframe_sort.cols, expr.sp_dataframe_sort.cols.variadic
+                is_variadic = (
+                    expr.sp_dataframe_sort.cols_variadic
+                    if hasattr(expr.sp_dataframe_sort, "cols_variadic")
+                    else False
                 )
+                cols = self.decode_col_exprs(expr.sp_dataframe_sort.cols, is_variadic)
                 ascending = self.decode_expr(expr.sp_dataframe_sort.ascending)
-                if expr.sp_dataframe_sort.cols_variadic:
-                    return df.sort(*cols, ascending)
+                if is_variadic:
+                    return df.sort(*cols, ascending=ascending)
                 else:
-                    return df.sort(cols, ascending)
+                    return df.sort(cols, ascending=ascending)
 
             case "sp_relational_grouped_dataframe_agg":
                 grouped_df = self.decode_expr(
