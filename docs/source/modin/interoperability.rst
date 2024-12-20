@@ -149,5 +149,5 @@ Preprocessing
 | Operation                                  | Interoperable with Snowpark pandas? (Y/N)   | Notes for current implementation              |
 +--------------------------------------------+---------------------------------------------+-----------------------------------------------+
 | Scaling training data with                 | Y                                           |                                               |
-| ``MaxAbsScaler.fit_transform()``           |                                             |                                               |
+| ``MaxAbsScaler.fit_transform()``.          |                                             |                                               |
 +--------------------------------------------+---------------------------------------------+-----------------------------------------------+
