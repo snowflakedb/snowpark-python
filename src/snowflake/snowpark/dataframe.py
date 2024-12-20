@@ -2447,6 +2447,7 @@ class DataFrame:
             self._set_ast_ref(ast.df)
             ast.value_column = value_column
             ast.name_column = name_column
+            ast.include_nulls = include_nulls
             for c in column_list:
                 build_expr_from_snowpark_column_or_col_name(ast.column_list.add(), c)
 
