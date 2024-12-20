@@ -53,7 +53,7 @@ def native_df():
         ),
     ],
 )
-@sql_count_checker(query_count=5, join_count=3)
+@sql_count_checker(query_count=6, join_count=3)
 def test_insert_snowpark_pandas_objects(native_df, native_value):
     snow_df = pd.DataFrame(native_df)
     value = pd.DataFrame(native_value)
@@ -98,7 +98,7 @@ def test_insert_snowpark_pandas_objects(native_df, native_value):
         ),
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_insert_one_to_many(native_df, native_value):
     snow_df = pd.DataFrame(native_df)
     value = pd.DataFrame(native_value)
@@ -127,11 +127,11 @@ def test_insert_one_to_many(native_df, native_value):
 @pytest.mark.parametrize(
     "value, expected_query_count, expected_join_count",
     [
-        (np.array(["a", "b", "c"]), 2, 1),  # numpy array of shape (N,)
-        (np.array([["a"], ["b"], ["c"]]), 2, 1),  # numpy array of shape (N, 1)
-        (["a", "b", "c"], 2, 1),  # python list
+        (np.array(["a", "b", "c"]), 3, 1),  # numpy array of shape (N,)
+        (np.array([["a"], ["b"], ["c"]]), 3, 1),  # numpy array of shape (N, 1)
+        (["a", "b", "c"], 3, 1),  # python list
         ({0: 1, 1: 2, 4: 3}, 1, 1),  # python dict
-        (("a", "b", "c"), 2, 1),  # python tuple
+        (("a", "b", "c"), 3, 1),  # python tuple
     ],
 )
 def test_insert_array_like(native_df, value, expected_query_count, expected_join_count):
@@ -186,7 +186,7 @@ def test_insert_pandas_types_negative(snow_df):
         snow_df.insert(0, "col3", value)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=3)
 def test_insert_dataframe_shape_negative(native_df):
     # DataFrame with more than one column
     snow_df = pd.DataFrame(native_df)
@@ -208,10 +208,10 @@ def test_insert_dataframe_shape_negative(native_df):
     [
         # NOTE: Accepted numpy array shapes are (N,) or (N, 1) where N = number of rows = 3
         (np.ones((3, 2)), 0),
-        (np.ones((6, 1)), 1),
-        (np.ones((1, 1)), 1),
-        ([1, 2], 1),  # len < number of rows
-        ((6, 7, 8, 9), 1),  # len > number of rows
+        (np.ones((6, 1)), 2),
+        (np.ones((1, 1)), 2),
+        ([1, 2], 2),  # len < number of rows
+        ((6, 7, 8, 9), 2),  # len > number of rows
         ({"a", "b", "c"}, 0),  # python set
     ],
 )
@@ -226,7 +226,7 @@ def test_insert_value_negative(native_df, value, expected_query_count):
         )
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_insert_duplicate_label(native_df):
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
@@ -249,7 +249,7 @@ def test_insert_duplicate_label_negative(native_df):
 
 
 @pytest.mark.parametrize("loc", [0, 1, 2])
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_insert_loc(native_df, loc):
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
@@ -261,7 +261,7 @@ def test_insert_loc(native_df, loc):
 
 
 @pytest.mark.parametrize(
-    "loc, expected_query_count", [(-99, 1), (-1, 1), (99, 1), ("1", 0)]
+    "loc, expected_query_count", [(-99, 2), (-1, 2), (99, 2), ("1", 0)]
 )
 def test_insert_loc_negative(native_df, loc, expected_query_count):
     with SqlCounter(query_count=expected_query_count):
@@ -277,10 +277,10 @@ def test_insert_loc_negative(native_df, loc, expected_query_count):
 @pytest.mark.parametrize(
     "value, expected_query_count, expected_join_count",
     [
-        (np.array(["a", "b", "c", "d"]), 2, 1),  # numpy array of shape (N,)
-        (np.array([["a"], ["b"], ["c"], ["d"]]), 2, 1),  # numpy array of shape (N, 1)
-        (["a", "b", "c", "d"], 2, 1),  # python list
-        (("a", "b", "c", "d"), 2, 1),  # python tuple
+        (np.array(["a", "b", "c", "d"]), 3, 1),  # numpy array of shape (N,)
+        (np.array([["a"], ["b"], ["c"], ["d"]]), 3, 1),  # numpy array of shape (N, 1)
+        (["a", "b", "c", "d"], 3, 1),  # python list
+        (("a", "b", "c", "d"), 3, 1),  # python tuple
         ({(3, 1): 1}, 1, 1),  # python dict
         ("abc", 1, 0),  # sting scalar
         (1, 1, 0),  # int scalar
@@ -310,7 +310,7 @@ def test_insert_multiindex_array_like_and_scalar(
         ("a", "b", "c", "d"),  # python tuple
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_insert_empty_multiindex_frame(value):
     mi = pd.MultiIndex.from_arrays([np.array([], dtype=int), np.array([], dtype=int)])
     snow_df = pd.DataFrame([], index=mi)
@@ -351,7 +351,7 @@ def test_insert_multiindex_dict_negative():
         ([1.0, 2.5, 3.0], [1, 2, 3]),  # Long and Double can be joined
     ],
 )
-@sql_count_checker(query_count=4, join_count=1)
+@sql_count_checker(query_count=5, join_count=1)
 def test_insert_compatible_index(df_index, value_index):
     snow_df = pd.DataFrame({"col1": ["p", "q", "r"]}, index=native_pd.Index(df_index))
     value = pd.DataFrame({"col2": ["x", "y", "z"]}, index=native_pd.Index(value_index))
@@ -382,7 +382,7 @@ def test_insert_compatible_index(df_index, value_index):
         ),  # length and type mismatch
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_insert_index_num_levels_mismatch_negative(df_index, value_index):
     snow_df = pd.DataFrame({"col1": ["p", "q", "r"]}, index=native_pd.Index(df_index))
     value = pd.DataFrame({"col2": ["w", "x", "y"]}, index=native_pd.Index(value_index))
@@ -407,7 +407,7 @@ def test_insert_index_num_levels_mismatch_negative(df_index, value_index):
         ),  # type mismatch boolean != long
     ],
 )
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_insert_index_type_mismatch(df_index, value_index, expected_index):
     # Note: This is different behavior than native pandas. In native pandas when
     # index datatype mismatch new columns in inserted will all NULL values.
@@ -466,7 +466,7 @@ def test_insert_multiple_null():
     "index, value, expected_query_count, expected_join_count",
     [
         ([1, 2], native_pd.Series([1, 2], index=[2, 3]), 1, 1),
-        ([1, 2], [3, 4], 2, 1),
+        ([1, 2], [3, 4], 3, 1),
     ],
 )
 def test_insert_into_empty_dataframe_with_index(
@@ -527,6 +527,8 @@ def test_insert_into_empty_dataframe(
         expected_join_count = 0
     if isinstance(value, list) or isinstance(value, np.ndarray):
         expected_query_count = 2
+    if isinstance(value, (list, np.ndarray)):
+        expected_query_count += 1
     snow_df = pd.DataFrame(data=data, columns=columns)
     native_df = native_pd.DataFrame(data=data, columns=columns)
 
@@ -573,7 +575,7 @@ def test_insert_into_empty_dataframe_index_dtype_mismatch():
         snow_df.to_pandas()
 
 
-@sql_count_checker(query_count=2, join_count=1)
+@sql_count_checker(query_count=3, join_count=1)
 def test_insert_empty_list_into_empty_dataframe():
     snow_df = pd.DataFrame()
     native_df = native_pd.DataFrame()
@@ -595,7 +597,7 @@ def test_insert_empty_list_into_empty_dataframe():
         ([], ["A", "B", "C"]),
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_insert_into_empty_dataframe_negative(loc, data, columns):
     snow_df = pd.DataFrame(data=data, columns=columns)
     native_df = native_pd.DataFrame(data=data, columns=columns)
@@ -770,7 +772,7 @@ def test_insert_with_unique_and_duplicate_index_values(
         assert_frame_equal(snow_res, expected_res, check_dtype=False)
 
 
-@sql_count_checker(query_count=4, join_count=6)
+@sql_count_checker(query_count=5, join_count=6)
 def test_insert_timedelta():
     native_df = native_pd.DataFrame({"col1": [1, 2], "col2": [3, 4]})
     snow_df = pd.DataFrame(native_df)
