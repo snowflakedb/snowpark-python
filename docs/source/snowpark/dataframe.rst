@@ -58,6 +58,7 @@ DataFrame
     DataFrame.join
     DataFrame.join_table_function
     DataFrame.limit
+    DataFrame.map
     DataFrame.minus
     DataFrame.natural_join
     DataFrame.orderBy
@@ -117,7 +118,6 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lag
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
-    dataframe.map
 
 
 
