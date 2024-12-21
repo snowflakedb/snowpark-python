@@ -3854,7 +3854,7 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             expr = with_src_position(stmt.expr.apply_expr, stmt)
-            expr.fn.stored_procedure.name.sp_obj_name_flat.name = sproc_name
+            expr.fn.stored_procedure.name.name.sp_name_flat.name = sproc_name
             for arg in args:
                 build_expr_from_python_val(expr.pos_args.add(), arg)
             if statement_params is not None:

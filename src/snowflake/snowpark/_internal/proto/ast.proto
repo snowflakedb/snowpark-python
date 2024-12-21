@@ -34,10 +34,6 @@ message Map_String_Expr {
   repeated Tuple_String_Expr list = 1;
 }
 
-message Map_String_String {
-  repeated Tuple_String_String list = 1;
-}
-
 message Tuple_Expr_Expr {
   Expr _1 = 1;
   Expr _2 = 2;
@@ -93,11 +89,11 @@ message PythonTimeZone {
   int64 offset_seconds = 2;
 }
 
-// sp-type.ir:89
+// sp-type.ir:70
 message SpCallable {
   int64 id = 1;
   string name = 2;
-  SpTableName object_name = 3;
+  SpNameRef object_name = 3;
 }
 
 // sp-col-expr.ir:39
@@ -204,7 +200,7 @@ message SpPandasDataFrameType {
   repeated SpDataType col_types = 2;
 }
 
-// sp-type.ir:78
+// sp-type.ir:59
 message SpDataframeData {
   oneof sealed_value {
     SpDataframeData_List sp_dataframe_data__list = 1;
@@ -213,22 +209,22 @@ message SpDataframeData {
   }
 }
 
-// sp-type.ir:79
+// sp-type.ir:60
 message SpDataframeData_List {
   repeated Expr vs = 1;
 }
 
-// sp-type.ir:80
+// sp-type.ir:61
 message SpDataframeData_Tuple {
   repeated Expr vs = 1;
 }
 
-// sp-type.ir:81
+// sp-type.ir:62
 message SpDataframeData_Pandas {
   StagedPandasDataframe v = 1;
 }
 
-// sp-type.ir:84
+// sp-type.ir:65
 message SpDataframeSchema {
   oneof sealed_value {
     SpDataframeSchema_List sp_dataframe_schema__list = 1;
@@ -236,12 +232,12 @@ message SpDataframeSchema {
   }
 }
 
-// sp-type.ir:85
+// sp-type.ir:66
 message SpDataframeSchema_List {
   repeated string vs = 1;
 }
 
-// sp-type.ir:86
+// sp-type.ir:67
 message SpDataframeSchema_Struct {
   SpStructType v = 1;
 }
@@ -269,6 +265,24 @@ message SpJoinType {
   }
 }
 
+// sp-name.ir:1
+message SpName {
+  oneof sealed_value {
+    SpNameFlat sp_name_flat = 1;
+    SpNameStructured sp_name_structured = 2;
+  }
+}
+
+// sp-name.ir:2
+message SpNameFlat {
+  string name = 1;
+}
+
+// sp-name.ir:3
+message SpNameStructured {
+  repeated string name = 1;
+}
+
 // sp-col-expr.ir:70
 message SpNullOrder {
   oneof variant {
@@ -278,25 +292,7 @@ message SpNullOrder {
   }
 }
 
-// sp-obj-name.ir:1
-message SpObjName {
-  oneof sealed_value {
-    SpObjNameFlat sp_obj_name_flat = 1;
-    SpObjNameStructured sp_obj_name_structured = 2;
-  }
-}
-
-// sp-obj-name.ir:2
-message SpObjNameFlat {
-  string name = 1;
-}
-
-// sp-obj-name.ir:3
-message SpObjNameStructured {
-  repeated string name = 1;
-}
-
-// sp-type.ir:101
+// sp-type.ir:82
 message SpPivotValue {
   oneof sealed_value {
     SpPivotValue_Dataframe sp_pivot_value__dataframe = 1;
@@ -304,12 +300,12 @@ message SpPivotValue {
   }
 }
 
-// sp-type.ir:102
+// sp-type.ir:83
 message SpPivotValue_Expr {
   Expr v = 1;
 }
 
-// sp-type.ir:103
+// sp-type.ir:84
 message SpPivotValue_Dataframe {
   SpDataframeRef v = 1;
 }
@@ -343,90 +339,6 @@ message SpTimestampTimeZone {
   }
 }
 
-// sp-type.ir:56
-message SpVariant {
-  oneof sealed_value {
-    SpVariant_BigDecimal sp_variant__big_decimal = 1;
-    SpVariant_BigInt sp_variant__big_int = 2;
-    SpVariant_Bool sp_variant__bool = 3;
-    SpVariant_Bytes sp_variant__bytes = 4;
-    SpVariant_Date sp_variant__date = 5;
-    SpVariant_Double sp_variant__double = 6;
-    SpVariant_Float sp_variant__float = 7;
-    SpVariant_Int sp_variant__int = 8;
-    SpVariant_List sp_variant__list = 9;
-    SpVariant_Object sp_variant__object = 10;
-    SpVariant_String sp_variant__string = 11;
-    SpVariant_Time sp_variant__time = 12;
-    SpVariant_Timestamp sp_variant__timestamp = 13;
-  }
-}
-
-// sp-type.ir:57
-message SpVariant_Object {
-  repeated Tuple_String_String v = 1;
-}
-
-// sp-type.ir:58
-message SpVariant_List {
-  repeated Map_String_String v = 1;
-}
-
-// sp-type.ir:59
-message SpVariant_Timestamp {
-  uint64 v = 1;
-}
-
-// sp-type.ir:60
-message SpVariant_Date {
-  uint64 v = 1;
-}
-
-// sp-type.ir:61
-message SpVariant_Time {
-  uint64 v = 1;
-}
-
-// sp-type.ir:62
-message SpVariant_Bytes {
-  bytes v = 1;
-}
-
-// sp-type.ir:63
-message SpVariant_String {
-  string v = 1;
-}
-
-// sp-type.ir:64
-message SpVariant_Bool {
-  bool v = 1;
-}
-
-// sp-type.ir:65
-message SpVariant_BigInt {
-  bytes v = 1;
-}
-
-// sp-type.ir:66
-message SpVariant_BigDecimal {
-  bytes v = 1;
-}
-
-// sp-type.ir:67
-message SpVariant_Int {
-  int64 v = 1;
-}
-
-// sp-type.ir:68
-message SpVariant_Float {
-  uint64 v = 1;
-}
-
-// sp-type.ir:69
-message SpVariant_Double {
-  uint64 v = 1;
-}
-
 // expr-window.ir:6
 message SpWindowRelativePosition {
   oneof variant {
@@ -451,12 +363,12 @@ message SrcPosition {
   int64 start_line = 5;
 }
 
-// sp-type.ir:74
+// sp-type.ir:55
 message StagedPandasDataframe {
-  SpTableName temp_table = 1;
+  SpNameRef temp_table = 1;
 }
 
-// expr-fn.ir:82
+// expr-fn.ir:81
 message UdtfSchema {
   oneof sealed_value {
     UdtfSchema_Names udtf_schema__names = 1;
@@ -464,12 +376,12 @@ message UdtfSchema {
   }
 }
 
-// expr-fn.ir:83
+// expr-fn.ir:82
 message UdtfSchema_Type {
   SpDataType return_type = 1;
 }
 
-// expr-fn.ir:84
+// expr-fn.ir:83
 message UdtfSchema_Names {
   repeated string schema = 1;
 }
@@ -586,15 +498,15 @@ message BoolVal {
   bool v = 2;
 }
 
-// expr-fn.ir:30
+// expr-fn.ir:29
 message BuiltinFn {
-  SpObjName name = 1;
+  SpNameRef name = 1;
   SrcPosition src = 2;
 }
 
-// expr-fn.ir:141
+// expr-fn.ir:140
 message CallTableFunctionExpr {
-  SpObjName name = 1;
+  SpNameRef name = 1;
   SrcPosition src = 2;
 }
 
@@ -1177,15 +1089,15 @@ message HasSrcPosition {
   }
 }
 
-// expr-fn.ir:137
+// expr-fn.ir:136
 message IndirectTableFnIdRef {
   VarId id = 1;
   SrcPosition src = 2;
 }
 
-// expr-fn.ir:132
+// expr-fn.ir:131
 message IndirectTableFnNameRef {
-  SpObjName name = 1;
+  SpNameRef name = 1;
   SrcPosition src = 2;
 }
 
@@ -1673,7 +1585,7 @@ message SpDataframeApply {
   SrcPosition src = 3;
 }
 
-// sp-df-io.ir:187
+// sp-df-io.ir:185
 message SpDataframeCacheResult {
   SpDataframeExpr df = 1;
   SrcPosition src = 2;
@@ -1698,7 +1610,7 @@ message SpDataframeCollect {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// sp-df-io.ir:169
+// sp-df-io.ir:167
 message SpDataframeCopyIntoTable {
   repeated Tuple_String_Expr copy_options = 1;
   SpDataframeExpr df = 2;
@@ -1708,7 +1620,7 @@ message SpDataframeCopyIntoTable {
   google.protobuf.StringValue pattern = 6;
   SrcPosition src = 7;
   repeated Tuple_String_String statement_params = 8;
-  SpTableName table_name = 9;
+  SpNameRef table_name = 9;
   repeated string target_columns = 10;
   repeated Expr transformations = 11;
   google.protobuf.StringValue validation_mode = 12;
@@ -1722,7 +1634,7 @@ message SpDataframeCount {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// sp-df-io.ir:153
+// sp-df-io.ir:151
 message SpDataframeCreateOrReplaceDynamicTable {
   List_Expr clustering_keys = 1;
   google.protobuf.StringValue comment = 2;
@@ -1733,19 +1645,19 @@ message SpDataframeCreateOrReplaceDynamicTable {
   string lag = 7;
   google.protobuf.Int64Value max_data_extension_time = 8;
   SpSaveMode mode = 9;
-  SpTableName name = 10;
+  SpNameRef name = 10;
   google.protobuf.StringValue refresh_mode = 11;
   SrcPosition src = 12;
   repeated Tuple_String_String statement_params = 13;
   string warehouse = 14;
 }
 
-// sp-df-io.ir:145
+// sp-df-io.ir:143
 message SpDataframeCreateOrReplaceView {
   google.protobuf.StringValue comment = 1;
   SpDataframeExpr df = 2;
   bool is_temp = 3;
-  SpViewName name = 4;
+  SpNameRef name = 4;
   SrcPosition src = 5;
   repeated Tuple_String_String statement_params = 6;
 }
@@ -2367,7 +2279,7 @@ message SpFlatten {
   SrcPosition src = 6;
 }
 
-// expr-fn.ir:26
+// expr-fn.ir:25
 message SpFnRef {
   VarId id = 1;
   SrcPosition src = 2;
@@ -2423,19 +2335,9 @@ message SpMergeUpdateWhenMatchedClause {
   Map_Expr_Expr update_assignments = 3;
 }
 
-message SpObjNameRef {
-  oneof variant {
-    FnNameRefExpr trait_fn_name_ref_expr = 1;
-    BuiltinFn builtin_fn = 2;
-    CallTableFunctionExpr call_table_function_expr = 3;
-    IndirectTableFnNameRef indirect_table_fn_name_ref = 4;
-    SpTableName sp_table_name = 5;
-    SpViewName sp_view_name = 6;
-    StoredProcedure stored_procedure = 7;
-    Udaf udaf = 8;
-    Udf udf = 9;
-    Udtf udtf = 10;
-  }
+// sp-name.ir:6
+message SpNameRef {
+  SpName name = 1;
 }
 
 // sp-df-expr.ir:83
@@ -2483,7 +2385,7 @@ message SpReadParquet {
 
 // sp-df-io.ir:33
 message SpReadTable {
-  SpTableName name = 1;
+  SpNameRef name = 1;
   SpDataframeReader reader = 2;
   SrcPosition src = 3;
 }
@@ -2572,7 +2474,7 @@ message SpSql {
 // sp-df-expr.ir:96
 message SpTable {
   bool is_temp_table_for_cleanup = 1;
-  SpTableName name = 2;
+  SpNameRef name = 2;
   SrcPosition src = 3;
   SpTableVariant variant = 4;
 }
@@ -2593,14 +2495,14 @@ message SpTableDropTable {
   SrcPosition src = 2;
 }
 
-// expr-fn.ir:157
+// expr-fn.ir:156
 message SpTableFnCallAlias {
   ExprArgList aliases = 1;
   Expr lhs = 2;
   SrcPosition src = 3;
 }
 
-// expr-fn.ir:151
+// expr-fn.ir:150
 message SpTableFnCallOver {
   Expr lhs = 1;
   repeated Expr order_by = 2;
@@ -2617,11 +2519,6 @@ message SpTableMerge {
   SpDataframeExpr source = 5;
   SrcPosition src = 6;
   repeated Tuple_String_String statement_params = 7;
-}
-
-// sp-type.ir:72
-message SpTableName {
-  SpObjName name = 1;
 }
 
 // sp-df-expr.ir:537
@@ -2660,11 +2557,6 @@ message SpType {
     SpGroupedDataframeType sp_grouped_dataframe_type = 3;
     SpWindowType sp_window_type = 4;
   }
-}
-
-// sp-df-io.ir:143
-message SpViewName {
-  SpObjName name = 1;
 }
 
 // expr-window.ir:18
@@ -2780,7 +2672,7 @@ message SpWritePandas {
   int64 parallel = 9;
   bool quote_identifiers = 10;
   SrcPosition src = 11;
-  SpTableName table_name = 12;
+  SpNameRef table_name = 12;
   string table_type = 13;
 }
 
@@ -2814,7 +2706,7 @@ message SpWriteTable {
   SpSaveMode mode = 13;
   SrcPosition src = 14;
   repeated Tuple_String_String statement_params = 15;
-  SpTableName table_name = 16;
+  SpNameRef table_name = 16;
   string table_type = 17;
 }
 
@@ -2825,19 +2717,19 @@ message Stmt {
   }
 }
 
-// expr-fn.ir:33
+// expr-fn.ir:32
 message StoredProcedure {
   google.protobuf.StringValue comment = 1;
   string execute_as = 2;
   repeated string external_access_integrations = 3;
   SpCallable func = 4;
   bool if_not_exists = 5;
-  repeated SpTableName imports = 6;
+  repeated SpNameRef imports = 6;
   List_SpDataType input_types = 7;
   bool is_permanent = 8;
   repeated Tuple_String_Expr kwargs = 9;
   google.protobuf.BoolValue log_on_exception = 10;
-  SpObjName name = 11;
+  SpNameRef name = 11;
   repeated string packages = 12;
   int64 parallel = 13;
   bool replace = 14;
@@ -2881,18 +2773,18 @@ message TupleVal {
   repeated Expr vs = 2;
 }
 
-// expr-fn.ir:111
+// expr-fn.ir:110
 message Udaf {
   google.protobuf.StringValue comment = 1;
   repeated string external_access_integrations = 2;
   SpCallable handler = 3;
   bool if_not_exists = 4;
   bool immutable = 5;
-  repeated SpTableName imports = 6;
+  repeated SpNameRef imports = 6;
   List_SpDataType input_types = 7;
   bool is_permanent = 8;
   repeated Tuple_String_Expr kwargs = 9;
-  SpObjName name = 10;
+  SpNameRef name = 10;
   repeated string packages = 11;
   int64 parallel = 12;
   bool replace = 13;
@@ -2903,19 +2795,19 @@ message Udaf {
   repeated Tuple_String_String statement_params = 18;
 }
 
-// expr-fn.ir:57
+// expr-fn.ir:56
 message Udf {
   google.protobuf.StringValue comment = 1;
   repeated string external_access_integrations = 2;
   SpCallable func = 3;
   bool if_not_exists = 4;
   bool immutable = 5;
-  repeated SpTableName imports = 6;
+  repeated SpNameRef imports = 6;
   List_SpDataType input_types = 7;
   bool is_permanent = 8;
   repeated Tuple_String_Expr kwargs = 9;
   google.protobuf.Int64Value max_batch_size = 10;
-  SpObjName name = 11;
+  SpNameRef name = 11;
   repeated string packages = 12;
   int64 parallel = 13;
   bool replace = 14;
@@ -2929,18 +2821,18 @@ message Udf {
   bool strict = 22;
 }
 
-// expr-fn.ir:88
+// expr-fn.ir:87
 message Udtf {
   google.protobuf.StringValue comment = 1;
   repeated string external_access_integrations = 2;
   SpCallable handler = 3;
   bool if_not_exists = 4;
   bool immutable = 5;
-  repeated SpTableName imports = 6;
+  repeated SpNameRef imports = 6;
   List_SpDataType input_types = 7;
   bool is_permanent = 8;
   repeated Tuple_String_Expr kwargs = 9;
-  SpObjName name = 10;
+  SpNameRef name = 10;
   UdtfSchema output_schema = 11;
   repeated string packages = 12;
   int64 parallel = 13;
