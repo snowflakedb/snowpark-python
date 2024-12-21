@@ -291,6 +291,7 @@ def test_ast(session, tables, test_case):
                 decoder = Decoder(session)
                 session._ast_batch.reset_id_gen()  # Reset the entity ID generator.
                 session._ast_batch.flush()  # Clear the AST.
+                global_counter.reset()
 
                 # Turn base64 input into protobuf objects. ParseFromString can retrieve multiple statements.
                 protobuf_request = base64_lines_to_request(stripped_base64_str)
