@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.ast.utils import (
     fill_sp_write_file,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
+    build_sp_table_name,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -318,10 +319,7 @@ class DataFrameWriter:
             # copy_grants: bool = False,
             # iceberg_config: Optional[dict] = None,
 
-            if isinstance(table_name, str):
-                expr.table_name.sp_table_name_flat.name = table_name
-            elif isinstance(table_name, Iterable):
-                expr.table_name.sp_table_name_structured.name.extend(table_name)
+            build_sp_table_name(expr.table_name, table_name)
 
             if mode is not None:
                 fill_sp_save_mode(expr.mode, mode)
