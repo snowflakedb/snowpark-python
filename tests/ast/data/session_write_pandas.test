@@ -26,7 +26,7 @@ body {
             v {
               temp_table {
                 name {
-                  sp_obj_name_flat {
+                  sp_name_flat {
                     name: "\"table1\""
                   }
                 }
@@ -43,7 +43,7 @@ body {
         }
         table_name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "table1"
             }
           }
@@ -74,7 +74,7 @@ body {
             v {
               temp_table {
                 name {
-                  sp_obj_name_flat {
+                  sp_name_flat {
                     name: "b.a.test"
                   }
                 }
@@ -103,7 +103,7 @@ body {
         }
         table_name {
           name {
-            sp_obj_name_structured {
+            sp_name_structured {
               name: "b"
               name: "a"
               name: "test"

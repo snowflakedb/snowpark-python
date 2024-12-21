@@ -139,7 +139,7 @@ body {
           name: "PrimeSieve"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
@@ -210,8 +210,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  sp_obj_name_flat {
-                    name: "lit"
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
                   }
                 }
               }
@@ -318,7 +320,7 @@ body {
           name: "sum_udtf"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
@@ -605,7 +607,7 @@ body {
           name: "GeneratorUDTF"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
@@ -676,8 +678,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  sp_obj_name_flat {
-                    name: "lit"
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
                   }
                 }
               }
@@ -788,7 +792,7 @@ body {
           name: "Foo"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "foo"
               }
             }
@@ -797,14 +801,14 @@ body {
         immutable: true
         imports {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "numpy"
             }
           }
         }
         imports {
           name {
-            sp_obj_name_structured {
+            sp_name_structured {
               name: "seaborn"
               name: "sns"
             }
@@ -843,8 +847,10 @@ body {
           }
         }
         name {
-          sp_obj_name_flat {
-            name: "foo"
+          name {
+            sp_name_flat {
+              name: "foo"
+            }
           }
         }
         output_schema {
@@ -1068,7 +1074,7 @@ body {
           name: "TwoXUDTF"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
@@ -1238,7 +1244,7 @@ body {
           name: "TwoXSixXUDTF"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
               }
             }
@@ -1503,8 +1509,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  sp_obj_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -1544,8 +1552,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  sp_obj_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }

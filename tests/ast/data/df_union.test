@@ -42,7 +42,7 @@ body {
       sp_table {
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "df1"
             }
           }
@@ -71,7 +71,7 @@ body {
       sp_table {
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "df2"
             }
           }
@@ -166,7 +166,7 @@ body {
       sp_table {
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "df3"
             }
           }
@@ -195,7 +195,7 @@ body {
       sp_table {
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "df4"
             }
           }

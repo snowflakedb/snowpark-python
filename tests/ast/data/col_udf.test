@@ -59,7 +59,7 @@ body {
           name: "<lambda>"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\""
               }
             }
@@ -165,8 +165,10 @@ body {
                     fn {
                       builtin_fn {
                         name {
-                          sp_obj_name_flat {
-                            name: "col"
+                          name {
+                            sp_name_flat {
+                              name: "col"
+                            }
                           }
                         }
                       }
@@ -264,7 +266,7 @@ body {
           name: "<lambda [1]>"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\""
               }
             }
@@ -276,8 +278,10 @@ body {
           }
         }
         name {
-          sp_obj_name_flat {
-            name: "add_two"
+          name {
+            sp_name_flat {
+              name: "add_two"
+            }
           }
         }
         parallel: 4
@@ -312,8 +316,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      sp_obj_name_flat {
-                        name: "call_udf"
+                      name {
+                        sp_name_flat {
+                          name: "call_udf"
+                        }
                       }
                     }
                   }
@@ -332,8 +338,10 @@ body {
                     fn {
                       builtin_fn {
                         name {
-                          sp_obj_name_flat {
-                            name: "col"
+                          name {
+                            sp_name_flat {
+                              name: "col"
+                            }
                           }
                         }
                       }
@@ -435,7 +443,7 @@ body {
           name: "<lambda [2]>"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\""
               }
             }
@@ -444,7 +452,7 @@ body {
         immutable: true
         imports {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "numpy"
             }
           }
@@ -474,8 +482,10 @@ body {
           value: 2
         }
         name {
-          sp_obj_name_flat {
-            name: "param_udf"
+          name {
+            sp_name_flat {
+              name: "param_udf"
+            }
           }
         }
         packages: "bla"
@@ -523,7 +533,7 @@ body {
           name: "<lambda [3]>"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\""
               }
             }
@@ -533,7 +543,7 @@ body {
         immutable: true
         imports {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "numpy"
             }
           }
@@ -563,8 +573,10 @@ body {
           value: 2
         }
         name {
-          sp_obj_name_flat {
-            name: "param_udf2"
+          name {
+            sp_name_flat {
+              name: "param_udf2"
+            }
           }
         }
         packages: "bla"
@@ -616,8 +628,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      sp_obj_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -642,8 +656,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      sp_obj_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }

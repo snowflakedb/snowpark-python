@@ -705,8 +705,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  sp_obj_name_flat {
-                    name: "to_timestamp"
+                  name {
+                    sp_name_flat {
+                      name: "to_timestamp"
+                    }
                   }
                 }
               }

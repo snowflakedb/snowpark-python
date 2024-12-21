@@ -146,8 +146,10 @@ body {
               fn {
                 builtin_fn {
                   name {
-                    sp_obj_name_flat {
-                      name: "stddev"
+                    name {
+                      sp_name_flat {
+                        name: "stddev"
+                      }
                     }
                   }
                 }
@@ -157,8 +159,10 @@ body {
                   fn {
                     builtin_fn {
                       name {
-                        sp_obj_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
@@ -189,8 +193,10 @@ body {
               fn {
                 builtin_fn {
                   name {
-                    sp_obj_name_flat {
-                      name: "stddev_pop"
+                    name {
+                      sp_name_flat {
+                        name: "stddev_pop"
+                      }
                     }
                   }
                 }
@@ -200,8 +206,10 @@ body {
                   fn {
                     builtin_fn {
                       name {
-                        sp_obj_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }

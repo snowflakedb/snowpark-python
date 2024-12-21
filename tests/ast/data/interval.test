@@ -216,8 +216,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      sp_obj_name_flat {
-                        name: "make_interval"
+                      name {
+                        sp_name_flat {
+                          name: "make_interval"
+                        }
                       }
                     }
                   }
@@ -404,8 +406,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      sp_obj_name_flat {
-                        name: "make_interval"
+                      name {
+                        sp_name_flat {
+                          name: "make_interval"
+                        }
                       }
                     }
                   }
@@ -484,8 +488,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      sp_obj_name_flat {
-                        name: "make_interval"
+                      name {
+                        sp_name_flat {
+                          name: "make_interval"
+                        }
                       }
                     }
                   }
@@ -636,8 +642,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      sp_obj_name_flat {
-                        name: "make_interval"
+                      name {
+                        sp_name_flat {
+                          name: "make_interval"
+                        }
                       }
                     }
                   }
@@ -824,8 +832,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      sp_obj_name_flat {
-                        name: "make_interval"
+                      name {
+                        sp_name_flat {
+                          name: "make_interval"
+                        }
                       }
                     }
                   }

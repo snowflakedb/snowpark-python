@@ -349,8 +349,10 @@ body {
                       fn {
                         builtin_fn {
                           name {
-                            sp_obj_name_flat {
-                              name: "col"
+                            name {
+                              sp_name_flat {
+                                name: "col"
+                              }
                             }
                           }
                         }

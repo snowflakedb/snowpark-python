@@ -197,7 +197,7 @@ body {
           name: "my_copy"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\""
               }
             }
@@ -221,8 +221,10 @@ body {
           }
         }
         name {
-          sp_obj_name_flat {
-            name: "my_copy_sp"
+          name {
+            sp_name_flat {
+              name: "my_copy_sp"
+            }
           }
         }
         parallel: 4
@@ -398,7 +400,7 @@ body {
         }
         table_name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "test_from"
             }
           }
@@ -511,7 +513,7 @@ body {
         }
         table_name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "test_to"
             }
           }
@@ -591,7 +593,7 @@ body {
       sp_table {
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "test_to"
             }
           }
@@ -703,8 +705,10 @@ body {
             log_on_exception {
             }
             name {
-              sp_obj_name_flat {
-                name: "my_copy_sp"
+              name {
+                sp_name_flat {
+                  name: "my_copy_sp"
+                }
               }
             }
           }
@@ -808,7 +812,7 @@ body {
       sp_table {
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "test_from"
             }
           }
@@ -899,7 +903,7 @@ body {
         }
         table_name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "test_to"
             }
           }
@@ -937,7 +941,7 @@ body {
       sp_table {
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "test_to"
             }
           }
@@ -999,7 +1003,7 @@ body {
           name: "<lambda [1]>"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
@@ -1233,7 +1237,7 @@ body {
           name: "<lambda [2]>"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
               }
             }
@@ -1249,8 +1253,10 @@ body {
         }
         is_permanent: true
         name {
-          sp_obj_name_flat {
-            name: "mul_sp"
+          name {
+            sp_name_flat {
+              name: "mul_sp"
+            }
           }
         }
         parallel: 4
@@ -1335,7 +1341,7 @@ body {
           name: "<lambda [3]>"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
               }
             }
@@ -1352,8 +1358,10 @@ body {
         }
         is_permanent: true
         name {
-          sp_obj_name_flat {
-            name: "mul_sp"
+          name {
+            sp_name_flat {
+              name: "mul_sp"
+            }
           }
         }
         parallel: 4
@@ -1438,7 +1446,7 @@ body {
           name: "<lambda [4]>"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
               }
             }
@@ -1454,8 +1462,10 @@ body {
         }
         is_permanent: true
         name {
-          sp_obj_name_flat {
-            name: "mul_sp"
+          name {
+            sp_name_flat {
+              name: "mul_sp"
+            }
           }
         }
         parallel: 4
@@ -1549,7 +1559,7 @@ body {
           name: "sin_sp"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
@@ -1637,7 +1647,7 @@ body {
           name: "select_sp"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
@@ -1786,7 +1796,7 @@ body {
           name: "select_sp"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }
@@ -1916,7 +1926,7 @@ body {
           name: "select_sp"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
               }
             }

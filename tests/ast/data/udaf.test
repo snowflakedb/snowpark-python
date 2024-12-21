@@ -111,7 +111,7 @@ body {
           name: "PythonSumUDAF"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "sum_int"
               }
             }
@@ -134,8 +134,10 @@ body {
           }
         }
         name {
-          sp_obj_name_flat {
-            name: "sum_int"
+          name {
+            sp_name_flat {
+              name: "sum_int"
+            }
           }
         }
         parallel: 4
@@ -410,7 +412,7 @@ body {
           name: "PythonTopK"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "top_k"
               }
             }
@@ -419,7 +421,7 @@ body {
         immutable: true
         imports {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "numpy"
             }
           }
@@ -454,8 +456,10 @@ body {
           }
         }
         name {
-          sp_obj_name_flat {
-            name: "top_k"
+          name {
+            sp_name_flat {
+              name: "top_k"
+            }
           }
         }
         packages: "numpy"

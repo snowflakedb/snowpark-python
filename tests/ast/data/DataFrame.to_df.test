@@ -23,7 +23,7 @@ body {
       sp_table {
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "table1"
             }
           }

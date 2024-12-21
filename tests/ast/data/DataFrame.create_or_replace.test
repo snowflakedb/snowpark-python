@@ -64,7 +64,7 @@ body {
       sp_table {
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "table1"
             }
           }
@@ -103,7 +103,7 @@ body {
         }
         name {
           name {
-            sp_obj_name_structured {
+            sp_name_structured {
               name: "test_db"
               name: "test_schema"
               name: "test_view"
@@ -137,7 +137,7 @@ body {
         }
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "test_view"
             }
           }
@@ -177,7 +177,7 @@ body {
         is_temp: true
         name {
           name {
-            sp_obj_name_structured {
+            sp_name_structured {
               name: "test_db"
               name: "test_schema"
               name: "test_view"
@@ -212,7 +212,7 @@ body {
         is_temp: true
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "test_view"
             }
           }
@@ -297,7 +297,7 @@ body {
         }
         table_name {
           name {
-            sp_obj_name_structured {
+            sp_name_structured {
               name: "test_db"
               name: "test_schema"
               name: "table2"
@@ -313,8 +313,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      sp_obj_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -354,8 +356,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  sp_obj_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -524,7 +528,7 @@ body {
         }
         name {
           name {
-            sp_obj_name_flat {
+            sp_name_flat {
               name: "test_dyn_table"
             }
           }

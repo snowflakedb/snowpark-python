@@ -37,7 +37,7 @@ body {
           name: "my_sproc"
           object_name {
             name {
-              sp_obj_name_flat {
+              sp_name_flat {
                 name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_SPROC\""
               }
             }
@@ -74,8 +74,10 @@ body {
           }
         }
         name {
-          sp_obj_name_flat {
-            name: "my_sproc"
+          name {
+            sp_name_flat {
+              name: "my_sproc"
+            }
           }
         }
         parallel: 4
@@ -111,8 +113,10 @@ body {
             log_on_exception {
             }
             name {
-              sp_obj_name_flat {
-                name: "my_sproc"
+              name {
+                sp_name_flat {
+                  name: "my_sproc"
+                }
               }
             }
           }
@@ -324,8 +328,10 @@ body {
             log_on_exception {
             }
             name {
-              sp_obj_name_flat {
-                name: "my_sproc"
+              name {
+                sp_name_flat {
+                  name: "my_sproc"
+                }
               }
             }
           }
