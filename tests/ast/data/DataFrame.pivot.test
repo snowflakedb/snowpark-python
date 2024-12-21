@@ -25,13 +25,13 @@ df1 = df.pivot("mo", values=["JAN", "FEB"], default_on_null=None)
 
 df1 = df1.sum("t")
 
-df1 = df1.sort("k")
+df1 = df1.sort("k", ascending=None)
 
 df2 = df.pivot("mo", values=["JAN", "FEB"], default_on_null="Nothing")
 
 df2 = df2.sum("t")
 
-df2 = df2.sort("k")
+df2 = df2.sort("k", ascending=None)
 
 ## EXPECTED ENCODED AST
 
@@ -426,6 +426,14 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 38
+            }
+          }
+        }
         cols {
           string_val {
             src {
@@ -575,6 +583,14 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 40
+            }
+          }
+        }
         cols {
           string_val {
             src {
