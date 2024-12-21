@@ -12,6 +12,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from google.protobuf.json_format import MessageToDict
 
+from build.lib.snowflake.snowpark.relational_grouped_dataframe import GroupingSets
 from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
 import snowflake.snowpark.functions
 from snowflake.snowpark.functions import udf, when
@@ -884,6 +885,10 @@ class Decoder:
                 col = self.decode_expr(col_expr)
                 return ~col
 
+            case "object_get_item":
+                args = [self.decode_expr(arg) for arg in expr.object_get_item.args][0]
+                return self.symbol_table[expr.object_get_item.obj.bitfield1][1][args]
+
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
                 data = self.decode_dataframe_data_expr(expr.sp_create_dataframe.data)
@@ -1114,10 +1119,32 @@ class Decoder:
                 else:
                     return df.group_by(cols)
 
+            case "sp_dataframe_group_by_grouping_sets":
+                df = self.decode_expr(expr.sp_dataframe_group_by_grouping_sets.df)
+                grouping_sets = []
+                for set in expr.sp_dataframe_group_by_grouping_sets.grouping_sets:
+                    grouping_set = self.decode_col_exprs(set.sets.args)
+                    if MessageToDict(set.sets).get("variadic", False):
+                        grouping_sets.append(GroupingSets(*grouping_set))
+                    else:
+                        grouping_sets.append(GroupingSets(grouping_set))
+                if MessageToDict(expr.sp_dataframe_group_by_grouping_sets).get(
+                    "variadic", False
+                ):
+                    return df.group_by_grouping_sets(*grouping_sets)
+                else:
+                    return df.group_by_grouping_sets(grouping_sets)
+
             case "sp_dataframe_intersect":
                 df = self.decode_expr(expr.sp_dataframe_intersect.df)
                 other = self.decode_expr(expr.sp_dataframe_intersect.other)
                 return df.intersect(other)
+
+            case "sp_dataframe_limit":
+                df = self.decode_expr(expr.sp_dataframe_limit.df)
+                n = expr.sp_dataframe_limit.n
+                offset = expr.sp_dataframe_limit.offset
+                return df.limit(n, offset)
 
             case "sp_dataframe_na_drop__python":
                 df = self.decode_expr(expr.sp_dataframe_na_drop__python.df)
@@ -1185,6 +1212,15 @@ class Decoder:
                 )
                 return df.na.replace(to_replace, value, subset)
 
+            case "sp_dataframe_random_split":
+                df = self.decode_expr(expr.sp_dataframe_random_split.df)
+                weights = list(expr.sp_dataframe_random_split.weights)
+                seed = expr.sp_dataframe_random_split.seed.value
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_random_split)
+                )
+                return df.random_split(weights, seed, statement_params=statement_params)
+
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
 
@@ -1195,6 +1231,14 @@ class Decoder:
                     "newColumn", None
                 )
                 return df.rename(col_or_mapper, new_column)
+
+            case "sp_dataframe_sample":
+                df = self.decode_expr(expr.sp_dataframe_sample.df)
+                probability_fraction = (
+                    expr.sp_dataframe_sample.probability_fraction.value
+                )
+                num = expr.sp_dataframe_sample.num.value
+                return df.sample(frac=probability_fraction, n=num)
 
             case "sp_dataframe_select__columns":
                 df = self.decode_expr(expr.sp_dataframe_select__columns.df)
