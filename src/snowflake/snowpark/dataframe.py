@@ -2875,7 +2875,7 @@ class DataFrame:
         additional operations.
 
         Example::
-            >>> data = [ ("A", 100),("B", -50),("C", 150),("D", 0)]
+            >>> data = [("A", 100), ("B", -50), ("C", 150), ("D", 0)]
             >>> df = session.createDataFrame(data, ["product_id", "amount"])
             >>> def filter_positive(df: DataFrame) -> DataFrame:
             ...     return df.filter(df["amount"] > 0)
@@ -2885,6 +2885,7 @@ class DataFrame:
             ...     df.transform(filter_positive)
             ...       .transform(add_discount)
             ...       .select("product_id", "discounted_price")
+            ...       .sort("product_id")
             ... )
             >>> transformed_df.show()
             -------------------------------------
@@ -2893,6 +2894,7 @@ class DataFrame:
             |A             |90.0                |
             |C             |135.0               |
             -------------------------------------
+            <BLANKLINE>
 
         Args:
             func: A callable that takes a DataFrame as input and returns a transformed DataFrame.
@@ -2906,7 +2908,7 @@ class DataFrame:
         result = func(self, *args, **kwargs)
         assert isinstance(
             result, DataFrame
-        ), f"Expected return value to be an instance of class DataFrame, got '{type(result)}' instead."
+        ), f"Expected return value to be an instance of class DataFrame, got {type(result)} instead."
         return result
 
     @df_api_usage
