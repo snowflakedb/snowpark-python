@@ -1540,7 +1540,7 @@ message SpDataframeAlias {
   SrcPosition src = 3;
 }
 
-// sp-df-expr.ir:470
+// sp-df-expr.ir:471
 message SpDataframeAnalyticsComputeLag {
   repeated Expr cols = 1;
   SpDataframeExpr df = 2;
@@ -1551,7 +1551,7 @@ message SpDataframeAnalyticsComputeLag {
   SrcPosition src = 7;
 }
 
-// sp-df-expr.ir:479
+// sp-df-expr.ir:480
 message SpDataframeAnalyticsComputeLead {
   repeated Expr cols = 1;
   SpDataframeExpr df = 2;
@@ -1562,7 +1562,7 @@ message SpDataframeAnalyticsComputeLead {
   SrcPosition src = 7;
 }
 
-// sp-df-expr.ir:461
+// sp-df-expr.ir:462
 message SpDataframeAnalyticsCumulativeAgg {
   repeated Tuple_String_List_String aggs = 1;
   SpDataframeExpr df = 2;
@@ -1573,7 +1573,7 @@ message SpDataframeAnalyticsCumulativeAgg {
   SrcPosition src = 7;
 }
 
-// sp-df-expr.ir:452
+// sp-df-expr.ir:453
 message SpDataframeAnalyticsMovingAgg {
   repeated Tuple_String_List_String aggs = 1;
   SpDataframeExpr df = 2;
@@ -1584,7 +1584,7 @@ message SpDataframeAnalyticsMovingAgg {
   repeated int64 window_sizes = 7;
 }
 
-// sp-df-expr.ir:488
+// sp-df-expr.ir:489
 message SpDataframeAnalyticsTimeSeriesAgg {
   repeated Tuple_String_List_String aggs = 1;
   SpDataframeExpr df = 2;
@@ -1850,7 +1850,7 @@ message SpDataframeGroupBy {
   SrcPosition src = 3;
 }
 
-// sp-df-expr.ir:428
+// sp-df-expr.ir:429
 message SpDataframeGroupByGroupingSets {
   SpDataframeExpr df = 1;
   repeated SpGroupingSets grouping_sets = 2;
@@ -1982,7 +1982,7 @@ message SpDataframePivot {
   SpPivotValue values = 5;
 }
 
-// sp-df-expr.ir:330
+// sp-df-expr.ir:331
 message SpDataframeRandomSplit {
   SpDataframeExpr df = 1;
   google.protobuf.Int64Value seed = 2;
@@ -2041,7 +2041,7 @@ message SpDataframeRef {
   SrcPosition src = 2;
 }
 
-// sp-df-expr.ir:337
+// sp-df-expr.ir:338
 message SpDataframeRename {
   Expr col_or_mapper = 1;
   SpDataframeExpr df = 2;
@@ -2049,14 +2049,14 @@ message SpDataframeRename {
   SrcPosition src = 4;
 }
 
-// sp-df-expr.ir:355
+// sp-df-expr.ir:356
 message SpDataframeRollup {
   ExprArgList cols = 1;
   SpDataframeExpr df = 2;
   SrcPosition src = 3;
 }
 
-// sp-df-expr.ir:343
+// sp-df-expr.ir:344
 message SpDataframeRollup_Columns {
   repeated SpColumnExpr cols = 1;
   SpDataframeExpr df = 2;
@@ -2064,7 +2064,7 @@ message SpDataframeRollup_Columns {
   bool variadic = 4;
 }
 
-// sp-df-expr.ir:349
+// sp-df-expr.ir:350
 message SpDataframeRollup_Strings {
   repeated string cols = 1;
   SpDataframeExpr df = 2;
@@ -2072,7 +2072,7 @@ message SpDataframeRollup_Strings {
   bool variadic = 4;
 }
 
-// sp-df-expr.ir:360
+// sp-df-expr.ir:361
 message SpDataframeSample {
   SpDataframeExpr df = 1;
   google.protobuf.Int64Value num = 2;
@@ -2080,7 +2080,7 @@ message SpDataframeSample {
   SrcPosition src = 4;
 }
 
-// sp-df-expr.ir:366
+// sp-df-expr.ir:367
 message SpDataframeSelect_Columns {
   repeated Expr cols = 1;
   SpDataframeExpr df = 2;
@@ -2088,7 +2088,7 @@ message SpDataframeSelect_Columns {
   bool variadic = 4;
 }
 
-// sp-df-expr.ir:372
+// sp-df-expr.ir:373
 message SpDataframeSelect_Exprs {
   SpDataframeExpr df = 1;
   repeated string exprs = 2;
@@ -2102,7 +2102,7 @@ message SpDataframeShow {
   SrcPosition src = 2;
 }
 
-// sp-df-expr.ir:378
+// sp-df-expr.ir:379
 message SpDataframeSort {
   Expr ascending = 1;
   repeated Expr cols = 2;
@@ -2194,28 +2194,28 @@ message SpDataframeType {
   repeated SpType tys = 2;
 }
 
-// sp-df-expr.ir:385
+// sp-df-expr.ir:386
 message SpDataframeUnion {
   SpDataframeExpr df = 1;
   SpDataframeExpr other = 2;
   SrcPosition src = 3;
 }
 
-// sp-df-expr.ir:390
+// sp-df-expr.ir:391
 message SpDataframeUnionAll {
   SpDataframeExpr df = 1;
   SpDataframeExpr other = 2;
   SrcPosition src = 3;
 }
 
-// sp-df-expr.ir:395
+// sp-df-expr.ir:396
 message SpDataframeUnionAllByName {
   SpDataframeExpr df = 1;
   SpDataframeExpr other = 2;
   SrcPosition src = 3;
 }
 
-// sp-df-expr.ir:400
+// sp-df-expr.ir:401
 message SpDataframeUnionByName {
   SpDataframeExpr df = 1;
   SpDataframeExpr other = 2;
@@ -2226,19 +2226,20 @@ message SpDataframeUnionByName {
 message SpDataframeUnpivot {
   repeated Expr column_list = 1;
   SpDataframeExpr df = 2;
-  string name_column = 3;
-  SrcPosition src = 4;
-  string value_column = 5;
+  bool include_nulls = 3;
+  string name_column = 4;
+  SrcPosition src = 5;
+  string value_column = 6;
 }
 
-// sp-df-expr.ir:405
+// sp-df-expr.ir:406
 message SpDataframeWhere {
   SpColumnExpr condition = 1;
   SpDataframeExpr df = 2;
   SrcPosition src = 3;
 }
 
-// sp-df-expr.ir:410
+// sp-df-expr.ir:411
 message SpDataframeWithColumn {
   Expr col = 1;
   string col_name = 2;
@@ -2246,7 +2247,7 @@ message SpDataframeWithColumn {
   SrcPosition src = 4;
 }
 
-// sp-df-expr.ir:416
+// sp-df-expr.ir:417
 message SpDataframeWithColumnRenamed {
   Expr col = 1;
   SpDataframeExpr df = 2;
@@ -2254,7 +2255,7 @@ message SpDataframeWithColumnRenamed {
   SrcPosition src = 4;
 }
 
-// sp-df-expr.ir:422
+// sp-df-expr.ir:423
 message SpDataframeWithColumns {
   repeated string col_names = 1;
   SpDataframeExpr df = 2;
@@ -2317,7 +2318,7 @@ message SpGroupedDataframeType {
   repeated string outer_columns = 2;
 }
 
-// sp-df-expr.ir:434
+// sp-df-expr.ir:435
 message SpGroupingSets {
   ExprArgList sets = 1;
   SrcPosition src = 2;
@@ -2331,13 +2332,13 @@ message SpMatchedClause {
   }
 }
 
-// sp-df-expr.ir:505
+// sp-df-expr.ir:506
 message SpMergeDeleteWhenMatchedClause {
   Expr condition = 1;
   SrcPosition src = 2;
 }
 
-// sp-df-expr.ir:509
+// sp-df-expr.ir:510
 message SpMergeInsertWhenNotMatchedClause {
   Expr condition = 1;
   List_Expr insert_keys = 2;
@@ -2345,7 +2346,7 @@ message SpMergeInsertWhenNotMatchedClause {
   SrcPosition src = 4;
 }
 
-// sp-df-expr.ir:500
+// sp-df-expr.ir:501
 message SpMergeUpdateWhenMatchedClause {
   Expr condition = 1;
   SrcPosition src = 2;
@@ -2491,7 +2492,7 @@ message SpTable {
   SpTableVariant variant = 4;
 }
 
-// sp-df-expr.ir:515
+// sp-df-expr.ir:516
 message SpTableDelete {
   bool block = 1;
   Expr condition = 2;
@@ -2501,7 +2502,7 @@ message SpTableDelete {
   repeated Tuple_String_String statement_params = 6;
 }
 
-// sp-df-expr.ir:523
+// sp-df-expr.ir:524
 message SpTableDropTable {
   VarId id = 1;
   SrcPosition src = 2;
@@ -2522,7 +2523,7 @@ message SpTableFnCallOver {
   SrcPosition src = 4;
 }
 
-// sp-df-expr.ir:527
+// sp-df-expr.ir:528
 message SpTableMerge {
   bool block = 1;
   repeated SpMatchedClause clauses = 2;
@@ -2533,7 +2534,7 @@ message SpTableMerge {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// sp-df-expr.ir:536
+// sp-df-expr.ir:537
 message SpTableSample {
   SpDataframeExpr df = 1;
   google.protobuf.Int64Value num = 2;
@@ -2543,7 +2544,7 @@ message SpTableSample {
   SrcPosition src = 6;
 }
 
-// sp-df-expr.ir:544
+// sp-df-expr.ir:545
 message SpTableUpdate {
   repeated Tuple_String_Expr assignments = 1;
   bool block = 2;
@@ -2554,7 +2555,7 @@ message SpTableUpdate {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// sp-df-expr.ir:438
+// sp-df-expr.ir:439
 message SpToSnowparkPandas {
   List_String columns = 1;
   SpDataframeExpr df = 2;

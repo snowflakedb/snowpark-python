@@ -4786,6 +4786,32 @@ def array_flatten(array: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def array_reverse(col: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Returns an array with the elements of the input array in reverse order.
+
+    Args:
+        col: The source array.
+
+    Example::
+        >>> df = session.sql("select [1, 2, 3, 4] :: ARRAY(INT) as A")
+        >>> df.select(array_reverse("A")).show()
+        --------------------------
+        |"ARRAY_REVERSE(""A"")"  |
+        --------------------------
+        |[                       |
+        |  4,                    |
+        |  3,                    |
+        |  2,                    |
+        |  1                     |
+        |]                       |
+        --------------------------
+        <BLANKLINE>
+    """
+    array = _to_col_if_str(col, "array_reverse")
+    return builtin("array_reverse", _emit_ast=_emit_ast)(array)
+
+
+@publicapi
 def array_sort(
     array: ColumnOrName,
     sort_ascending: Optional[bool] = True,
@@ -6931,6 +6957,88 @@ def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(col, "array_unique_agg")
     return _call_function("array_unique_agg", True, c, _emit_ast=_emit_ast)
+
+
+@publicapi
+def map_cat(col1: ColumnOrName, col2: ColumnOrName, _emit_ast: bool = True):
+    """Returns the concatenatation of two MAPs.
+
+    Args:
+        col1: The source map
+        col2: The map to be appended to col1
+
+    Example::
+        >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B")
+        >>> df.select(map_cat("A", "B")).show()
+        ---------------------------
+        |"MAP_CAT(""A"", ""B"")"  |
+        ---------------------------
+        |{                        |
+        |  "k1": "v1",            |
+        |  "k2": "v2"             |
+        |}                        |
+        ---------------------------
+        <BLANKLINE>
+    """
+    m1 = _to_col_if_str(col1, "map_cat")
+    m2 = _to_col_if_str(col2, "map_cat")
+    return builtin("map_cat", _emit_ast=_emit_ast)(m1, m2)
+
+
+@publicapi
+def map_contains_key(value: ColumnOrLiteral, col: ColumnOrName, _emit_ast: bool = True):
+    """Determines whether the specified MAP contains the specified key.
+
+    Args:
+        value: The key to find.
+        col: The map to be searched.
+
+    Example 1::
+        >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as M, 'k1' as V")
+        >>> df.select(map_contains_key(col("V"), "M")).show()
+        ------------------------------------
+        |"MAP_CONTAINS_KEY(""V"", ""M"")"  |
+        ------------------------------------
+        |True                              |
+        ------------------------------------
+        <BLANKLINE>
+
+    Example 2::
+        >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as M")
+        >>> df.select(map_contains_key("k1", "M")).show()
+        -----------------------------------
+        |"MAP_CONTAINS_KEY('K1', ""M"")"  |
+        -----------------------------------
+        |True                             |
+        -----------------------------------
+        <BLANKLINE>
+    """
+    m = _to_col_if_str(col, "map_contains")
+    return builtin("map_contains_key", _emit_ast=_emit_ast)(value, m)
+
+
+@publicapi
+def map_keys(col: ColumnOrName, _emit_ast: bool = True):
+    """Returns the keys in a MAP.
+
+    Args:
+        col: The input map.
+
+    Example 1::
+        >>> df = session.sql("select {'k1': 'v1', 'k2': 'v2'} :: MAP(STRING,STRING) as M")
+        >>> df.select(map_keys("M")).show()
+        ---------------------
+        |"MAP_KEYS(""M"")"  |
+        ---------------------
+        |[                  |
+        |  "k1",            |
+        |  "k2"             |
+        |]                  |
+        ---------------------
+        <BLANKLINE>
+    """
+    m = _to_col_if_str(col, "map_keys")
+    return builtin("map_keys", _emit_ast=_emit_ast)(m)
 
 
 @publicapi
@@ -10142,6 +10250,9 @@ from_unixtime = to_timestamp
 sort_array = array_sort
 map_from_arrays = arrays_to_object
 signum = sign
+array_join = array_to_string
+array_union = array_cat
+map_concat = map_cat
 
 
 @publicapi
