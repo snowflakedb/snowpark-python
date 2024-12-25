@@ -7,9 +7,14 @@
 #### New Features
 
 - Added support for the following functions in `functions.py`
+  - `array_reverse`
   - `divnull`
+  - `map_cat`
+  - `map_contains_key`
+  - `map_keys`
   - `nullifzero`
   - `snowflake_cortex_sentiment`
+- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
 
 #### Improvements
 
@@ -38,6 +43,7 @@
   - %j: Day of the year as a zero-padded decimal number.
   - %X: Locale’s appropriate time representation.
   - %%: A literal '%' character.
+- Added support for `Series.between`.
 
 #### Bug Fixes
 
@@ -48,6 +54,7 @@
 - Updated integration testing for `session.lineage.trace` to exclude deleted objects
 - Added documentation for `DataFrame.map`.
 - Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
+- Added documentation on the extent of Snowpark pandas interoperability with scikit-learn
 
 ## 1.26.0 (2024-12-05)
 
