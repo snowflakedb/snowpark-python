@@ -20,6 +20,7 @@ from typing import (
     List,
     Optional,
     Tuple,
+    Type,
     Union,
     overload,
 )
@@ -199,6 +200,7 @@ from snowflake.snowpark.types import (
     StructType,
     _NumericType,
 )
+from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -5778,6 +5780,137 @@ Query List:
         """
         print(self._format_schema(level))  # noqa: T201: we need to print here.
 
+    def _parse_and_register_udtf_for_map(
+        self,
+        func: Callable,
+        output_types: List[StructType],
+        output_column_names: Optional[List[str]],
+        imports: Optional[List[Union[str, Tuple[str, str]]]],
+        packages: Optional[List[Union[str, ModuleType]]],
+        immutable: bool,
+        vectorized: bool,
+        max_batch_size: Optional[int],
+        df_columns: List[str],
+        is_flat_map: bool,
+    ) -> Tuple[UserDefinedTableFunction, List[Column]]:
+        if len(output_types) == 0:
+            raise ValueError("output_types cannot be empty.")
+
+        if output_column_names is None:
+            output_column_names = [f"C_{i+1}" for i in range(len(output_types))]
+        elif len(output_column_names) != len(output_types):
+            raise ValueError(
+                "'output_column_names' and 'output_types' must be of the same size."
+            )
+        output_columns = [
+            col(f"${i + len(df_columns) + 1}").alias(
+                col_name
+            )  # this is done to avoid collision with original table columns
+            for i, col_name in enumerate(output_column_names)
+        ]
+
+        packages = packages or list(self._session.get_packages().values())
+        packages = add_package_to_existing_packages(
+            packages, "snowflake-snowpark-python"
+        )
+
+        input_types = [field.datatype for field in self.schema.fields]
+        udtf_output_cols = [f"c{i}" for i in range(len(output_types))]
+        output_schema = StructType(
+            [
+                StructField(col, type_)
+                for col, type_ in zip(udtf_output_cols, output_types)
+            ]
+        )
+
+        if vectorized:
+            # If the map is vectorized, we need to add pandas to packages if not
+            # already added. Also update the input_types and output_schema to
+            # be PandasDataFrameType.
+            packages = add_package_to_existing_packages(packages, pandas)
+            input_types = [PandasDataFrameType(input_types)]
+            output_schema = PandasDataFrameType(output_types, udtf_output_cols)
+
+        if is_flat_map:
+            _MapFunc = self._get_udtf_class_for_flat_map(func, vectorized, df_columns)
+        else:
+            _MapFunc = self._get_udtf_class_for_map(func, vectorized, df_columns)
+
+        map_udtf = self._session.udtf.register(
+            _MapFunc,
+            output_schema=output_schema,
+            input_types=input_types,
+            input_names=df_columns,
+            imports=imports,
+            packages=packages,
+            immutable=immutable,
+            max_batch_size=max_batch_size,
+        )
+        return map_udtf, output_columns
+
+    def _get_udtf_class_for_map(
+        self, func: Callable, vectorized: bool, df_columns: List[str]
+    ) -> Type:
+        if vectorized:
+
+            def wrap_result(result):
+                if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
+                    return result
+                return (result,)
+
+            class _MapFunc:
+                def process(self, pdf):
+                    return wrap_result(func(pdf))
+
+        else:
+
+            def wrap_result(result):
+                if isinstance(result, Row):
+                    return tuple(result)
+                elif isinstance(result, tuple):
+                    return result
+                else:
+                    return (result,)
+
+            class _MapFunc:
+                def process(self, *argv):
+                    input_args_to_row = Row(*df_columns)
+                    yield wrap_result(func(input_args_to_row(*argv)))
+
+        return _MapFunc
+
+    def _get_udtf_class_for_flat_map(
+        self, func: Callable, vectorized: bool, df_columns: List[str]
+    ) -> Type:
+        if vectorized:
+
+            def wrap_result(result):
+                if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
+                    return result
+                return (result,)
+
+            class _FlatMapFunc:
+                def end_partition(self, pdf):
+                    return wrap_result(func(pdf))
+
+        else:
+
+            def wrap_result(result):
+                if isinstance(result, Row):
+                    return tuple(result)
+                elif isinstance(result, tuple):
+                    return result
+                else:
+                    return (result,)
+
+            class _FlatMapFunc:
+                def process(self, *argv):
+                    input_args_to_row = Row(*df_columns)
+                    for row in func(input_args_to_row(*argv)):
+                        yield wrap_result(row)
+
+        return _FlatMapFunc
+
     def map(
         self,
         func: Callable,
@@ -5907,90 +6040,202 @@ Query List:
             <BLANKLINE>
 
         Note:
-            1. The result of the `func` function must be either a scalar value or
+            1. The result of the ``func`` function must be either a scalar value or
             a tuple containing the same number of elements as specified in the
-            `output_types` argument.
+            ``output_types`` argument.
 
-            2. When using the `vectorized` option, the `func` function must accept
+            2. When using the ``vectorized`` option, the ``func`` function must accept
             a pandas DataFrame as input and return either a pandas DataFrame, or a
             tuple of pandas Series/arrays.
         """
-        if len(output_types) == 0:
-            raise ValueError("output_types cannot be empty.")
-
-        if output_column_names is None:
-            output_column_names = [f"c_{i+1}" for i in range(len(output_types))]
-        elif len(output_column_names) != len(output_types):
-            raise ValueError(
-                "'output_column_names' and 'output_types' must be of the same size."
-            )
-
         df_columns = self.columns
-        packages = packages or list(self._session.get_packages().values())
-        packages = add_package_to_existing_packages(
-            packages, "snowflake-snowpark-python"
-        )
-
-        input_types = [field.datatype for field in self.schema.fields]
-        udtf_output_cols = [f"c{i}" for i in range(len(output_types))]
-        output_schema = StructType(
-            [
-                StructField(col, type_)
-                for col, type_ in zip(udtf_output_cols, output_types)
-            ]
-        )
-
-        if vectorized:
-            # If the map is vectorized, we need to add pandas to packages if not
-            # already added. Also update the input_types and output_schema to
-            # be PandasDataFrameType.
-            packages = add_package_to_existing_packages(packages, pandas)
-            input_types = [PandasDataFrameType(input_types)]
-            output_schema = PandasDataFrameType(output_types, udtf_output_cols)
-
-        output_columns = [
-            col(f"${i + len(df_columns) + 1}").alias(
-                col_name
-            )  # this is done to avoid collision with original table columns
-            for i, col_name in enumerate(output_column_names)
-        ]
-
-        if vectorized:
-
-            def wrap_result(result):
-                if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
-                    return result
-                return (result,)
-
-            class _MapFunc:
-                def process(self, pdf):
-                    return wrap_result(func(pdf))
-
-        else:
-
-            def wrap_result(result):
-                if isinstance(result, Row):
-                    return tuple(result)
-                elif isinstance(result, tuple):
-                    return result
-                else:
-                    return (result,)
-
-            class _MapFunc:
-                def process(self, *argv):
-                    input_args_to_row = Row(*df_columns)
-                    yield wrap_result(func(input_args_to_row(*argv)))
-
-        map_udtf = self._session.udtf.register(
-            _MapFunc,
-            output_schema=output_schema,
-            input_types=input_types,
-            input_names=df_columns,
+        map_udtf, output_columns = self._parse_and_register_udtf_for_map(
+            func=func,
+            output_types=output_types,
+            output_column_names=output_column_names,
             imports=imports,
             packages=packages,
             immutable=immutable,
+            vectorized=vectorized,
             max_batch_size=max_batch_size,
+            df_columns=df_columns,
+            is_flat_map=False,
         )
+
+        return self.join_table_function(
+            map_udtf(*df_columns).over(partition_by=partition_by)
+        ).select(*output_columns)
+
+    def flat_map(
+        self,
+        func: Callable,
+        output_types: List[StructType],
+        *,
+        output_column_names: Optional[List[str]] = None,
+        imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+        packages: Optional[List[Union[str, ModuleType]]] = None,
+        immutable: bool = False,
+        partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
+        vectorized: bool = False,
+        max_batch_size: Optional[int] = None,
+    ):
+        """Returns a new DataFrame with the result of applying `func` to each of the
+        rows of the specified DataFrame.
+
+        This function registers a temporary `UDTF
+        <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ and
+        returns a new DataFrame with the result of applying the `func` function to each row of the
+        given DataFrame.
+
+        Args:
+            dataframe: The DataFrame instance.
+            func: A function to be applied to every row of the DataFrame.
+            output_types: A list of types for values generated by the ``func``
+            output_column_names: A list of names to be assigned to the resulting columns.
+            imports: A list of imports that are required to run the function. This argument is passed
+                on when registering the UDTF.
+            packages: A list of packages that are required to run the function. This argument is passed
+                on when registering the UDTF.
+            immutable: A flag to specify if the result of the func is deterministic for the same input.
+            partition_by: Specify the partitioning column(s) for the UDTF. Default partition by is 1 when
+                vectorized is ``True`` and all data is processed in single partition.
+            vectorized: When true, the UDTF is registered using vectorized ``end_partition``, see
+                `vectorized UDTFs <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-vectorized#udtfs-with-a-vectorized-process-method>`_.
+                Otherwise, data is processed row-by-row using and registered UDTF using ``process`` method.
+            max_batch_size: The maximum number of rows per input pandas DataFrame when using vectorized option.
+
+        Example 1::
+
+            >>> from snowflake.snowpark.types import IntegerType
+            >>> import pandas as pd
+            >>> df = session.create_dataframe([[10, "a", 22], [20, "b", 22]], schema=["col1", "col2", "col3"])
+            >>> new_df = df.flat_map(lambda row: (row[0] * row[0], row[0] + row[0]), output_types=[IntegerType()])
+            >>> new_df.order_by("c_1").show()
+            ---------
+            |"C_1"  |
+            ---------
+            |20     |
+            |40     |
+            |100    |
+            |400    |
+            ---------
+            <BLANKLINE>
+
+        Example 2::
+
+            >>> new_df = df.flat_map(
+            ...     lambda row: [(row[1], row[0]), (row[1], row[0] * 2), (row[1], row[0] * 3)],
+            ...     output_types=[StringType(), IntegerType()]
+            ... )
+            >>> new_df.order_by("c_1", "c_2").show()
+            -----------------
+            |"C_1"  |"C_2"  |
+            -----------------
+            |a      |10     |
+            |a      |20     |
+            |a      |30     |
+            |b      |20     |
+            |b      |40     |
+            |b      |60     |
+            -----------------
+            <BLANKLINE>
+
+        Example 3::
+
+            >>> new_df = df.flat_map(
+            ...     lambda row: [(row[1], row[0]), (row[1], row[0] * 2), (row[1], row[0] * 3)],
+            ...     output_types=[StringType(), IntegerType()],
+            ...     output_column_names=["col1", "col2"]
+            ... )
+            >>> new_df.order_by("col1", "col2").show()
+            -------------------
+            |"COL1"  |"COL2"  |
+            -------------------
+            |a       |10      |
+            |a       |20      |
+            |a       |30      |
+            |b       |20      |
+            |b       |40      |
+            |b       |60      |
+            -------------------
+            <BLANKLINE>
+
+        Example 4::
+
+            >>> data = [
+            ...     [['A', 'B', 'C'], 'Guard', 7],
+            ...     [['D', 'E'], 'Forward', 14],
+            ...     [['F', 'G', 'H', 'I', 'J'], 'Center', 19],
+            ... ]
+            >>> df = session.create_dataframe(data, schema=["team", "position", "points"])
+            >>> df.flat_map(
+            ...     lambda pdf: pdf.explode('TEAM'),
+            ...     output_types=[StringType(), StringType(), IntegerType()],
+            ...     output_column_names=["team", "position", "points"],
+            ...     vectorized=True,
+            ...     packages=["pandas"]
+            ... ).order_by("team").show()
+            ----------------------------------
+            |"TEAM"  |"POSITION"  |"POINTS"  |
+            ----------------------------------
+            |A       |Guard       |7         |
+            |B       |Guard       |7         |
+            |C       |Guard       |7         |
+            |D       |Forward     |14        |
+            |E       |Forward     |14        |
+            |F       |Center      |19        |
+            |G       |Center      |19        |
+            |H       |Center      |19        |
+            |I       |Center      |19        |
+            |J       |Center      |19        |
+            ----------------------------------
+            <BLANKLINE>
+
+        Example 5::
+
+            >>> df.flat_map(
+            ...     lambda pdf: ((len(pdf.iloc[0]["TEAM"]),), (pdf.iloc[0]["POSITION"],)),
+            ...     output_types=[IntegerType(), StringType()],
+            ...     output_column_names=["size", "position"],
+            ...     vectorized=True,
+            ...     partition_by=["position"],
+            ...     packages=["pandas"]
+            ... ).order_by("size").show()
+            -----------------------
+            |"SIZE"  |"POSITION"  |
+            -----------------------
+            |2       |Forward     |
+            |3       |Guard       |
+            |5       |Center      |
+            -----------------------
+            <BLANKLINE>
+
+        Note:
+            1. The result of the ``func`` function must be an iterable. Each element of the
+            iterable must either be a scalar value, or a tuple containing the same number of
+            elements and types as specified in the ``output_types`` argument.
+
+            2. When using ``vectorized`` option, the ``func`` function must accept a pandas
+            Dataframe as input and
+
+            3. Specifying ``partition_by`` is highly recommended ``vectorized`` option is set
+            for optimal load balancing.
+        """
+        df_columns = self.columns
+        map_udtf, output_columns = self._parse_and_register_udtf_for_map(
+            func=func,
+            output_types=output_types,
+            output_column_names=output_column_names,
+            imports=imports,
+            packages=packages,
+            immutable=immutable,
+            vectorized=vectorized,
+            max_batch_size=max_batch_size,
+            df_columns=df_columns,
+            is_flat_map=True,
+        )
+
+        partition_by = lit(1) if (partition_by is None and vectorized) else partition_by
 
         return self.join_table_function(
             map_udtf(*df_columns).over(partition_by=partition_by)
