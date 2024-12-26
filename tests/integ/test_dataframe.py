@@ -4352,6 +4352,64 @@ def test_map_basic(
     "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
+@pytest.mark.udf
+@pytest.mark.parametrize("overlapping_columns", [True, False])
+@pytest.mark.parametrize(
+    "func,output_types,output_column_names,expected",
+    [
+        (
+            lambda row: (row[1] + 1, row[1] + 2),
+            [IntegerType()],
+            ["A"],
+            [(i + 1,) for i in range(5)] + [(i + 2,) for i in range(5)],
+        ),
+        (
+            lambda row: [(row.B * 2, row.C)],
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [
+                (
+                    i * 2,
+                    f"w{i}",
+                )
+                for i in range(5)
+            ],
+        ),
+        (
+            lambda row: [
+                Row(row.B * row.B, f"-{row.C}"),
+                Row(row.B + row.B, f"+{row.C}"),
+            ],
+            [IntegerType(), StringType()],
+            ["B", "C"],
+            [(i * i, f"-w{i}") for i in range(5)]
+            + [(i + i, f"+w{i}") for i in range(5)],
+        ),
+    ],
+)
+def test_flat_map_basic(
+    session, func, output_types, output_column_names, expected, overlapping_columns
+):
+    df = session.create_dataframe(
+        [(True, i, f"w{i}") for i in range(5)], schema=["a", "b", "c"]
+    )
+    if overlapping_columns:
+        row = Row(*output_column_names)
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(
+            df.flat_map(func, output_types, output_column_names=output_column_names),
+            expected,
+        )
+    else:
+        row = Row(*[f"C_{i+1}" for i in range(len(output_types))])
+        expected = [row(*e) for e in expected]
+        Utils.check_answer(df.flat_map(func, output_types), expected)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
 @pytest.mark.udf
 @pytest.mark.parametrize(
@@ -4393,6 +4451,74 @@ def test_map_vectorized(session, func, output_types, expected):
     "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
+@pytest.mark.udf
+@pytest.mark.parametrize(
+    "func,data,output_types,partition_by,expected_lambda",
+    [
+        (lambda df: df, [["a"], ["b"], ["c"]], [StringType()], None, lambda row: [row]),
+        (
+            lambda df: df.explode("_1"),
+            [
+                [["A", "B", "C"], "Guard", 7],
+                [["D"], "Forward", 15],
+                [["E", "F"], "Center", 20],
+            ],
+            [StringType(), StringType(), IntegerType()],
+            None,
+            lambda row: [(row[0][i], row[1], row[2]) for i in range(len(row[0]))],
+        ),
+        (
+            lambda df: df.explode("_1"),
+            [
+                [["A", "B", "C"], "Guard", 7],
+                [["D"], "Forward", 15],
+                [["E", "F"], "Center", 20],
+            ],
+            [StringType(), StringType(), IntegerType()],
+            "_2",
+            lambda row: [(row[0][i], row[1], row[2]) for i in range(len(row[0]))],
+        ),
+        (
+            lambda df: ((len(df.iloc[0]["_1"]),), (df.iloc[0]["_2"],)),
+            [
+                [["A", "B", "C"], "Guard", 7],
+                [["D"], "Forward", 15],
+                [["E", "F"], "Center", 20],
+            ],
+            [
+                IntegerType(),
+                StringType(),
+            ],
+            "_2",
+            lambda row: [(len(row[0]), row[1])],
+        ),
+    ],
+)
+def test_flat_map_vectorized(
+    session, func, data, output_types, partition_by, expected_lambda
+):
+    df = session.create_dataframe(data=data)
+    expected = []
+    for row in data:
+        expected.extend(expected_lambda(row))
+    print(expected)
+    Utils.check_answer(
+        df.flat_map(
+            func,
+            output_types,
+            vectorized=True,
+            partition_by=partition_by,
+            packages=["pandas"],
+        ),
+        expected,
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
 @pytest.mark.udf
 def test_map_chained(session):
     df = session.create_dataframe(
@@ -4424,20 +4550,61 @@ def test_map_chained(session):
     Utils.check_answer(new_df, expected)
 
 
-def test_map_negative(session):
+@pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
+@pytest.mark.udf
+def test_flat_map_chained(session):
+    # explode, partitiiton by _2 and apply len
+    data = [
+        [["A", "B", "C"], "Guard", 7],
+        [["D"], "Forward", 15],
+        [["E", "F"], "Center", 20],
+    ]
+    schema = ["Team", "Position", "Points"]
+    df = session.create_dataframe(data, schema=schema)
+    new_df = df.flat_map(
+        lambda pdf: pdf.explode("TEAM"),
+        output_types=[StringType(), StringType(), IntegerType()],
+        output_column_names=schema,
+        vectorized=True,
+        packages=["pandas"],
+    ).flat_map(
+        lambda pdf: (
+            (len(pdf),),
+            (pdf.iloc[0]["POSITION"],),
+        ),
+        output_types=[IntegerType(), StringType()],
+        output_column_names=["SIZE", "POSITION"],
+        vectorized=True,
+        partition_by="POSITION",
+    )
+    Utils.check_answer(new_df, [(3, "Guard"), (1, "Forward"), (2, "Center")])
+
+
+@pytest.mark.parametrize("test_flat_map", [True, False])
+def test_map_negative(session, test_flat_map):
     df1 = session.create_dataframe(
         [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
     )
 
     with pytest.raises(ValueError, match="output_types cannot be empty."):
-        df1.map(lambda row: [row.B, row.C], output_types=[])
+        if test_flat_map:
+            df1.flat_map(lambda row: [row.B, row.C], output_types=[])
+        else:
+            df1.map(lambda row: [row.B, row.C], output_types=[])
 
     with pytest.raises(
         ValueError,
         match="'output_column_names' and 'output_types' must be of the same size.",
     ):
-        df1.map(
-            lambda row: [row.B, row.C],
-            output_types=[IntegerType(), StringType()],
-            output_column_names=["a", "b", "c"],
-        )
+        if test_flat_map:
+            df1.flat_map(
+                lambda row: [row.B, row.C],
+                output_types=[IntegerType(), StringType()],
+                output_column_names=["a", "b", "c"],
+            )
+        else:
+            df1.map(
+                lambda row: [row.B, row.C],
+                output_types=[IntegerType(), StringType()],
+                output_column_names=["a", "b", "c"],
+            )

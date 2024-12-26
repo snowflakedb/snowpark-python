@@ -6275,6 +6275,7 @@ Query List:
     printSchema = print_schema
     foreach = map
     toJSON = to_json
+    flatMap = flat_map
 
     # These methods are not needed for code migration. So no aliases for them.
     # groupByGrouping_sets = group_by_grouping_sets
