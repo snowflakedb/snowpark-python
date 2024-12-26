@@ -3611,7 +3611,7 @@ class Session:
         References: `Snowflake command USE SECONDARY ROLES <https://docs.snowflake.com/en/sql-reference/sql/use-secondary-roles.html>`_.
 
         Args:
-            roles: list of specific roles or "all" or "none". ``None`` means "none".
+            roles: 'all' or list of specific roles or 'none'. ``None`` means 'none'.
 
         Example 1
             Use specific roles as secondary roles:
@@ -3629,16 +3629,16 @@ class Session:
 
             >>> session.use_secondary_roles('none')
         """
-        def format_roles(value):
+        def format_roles():
             if not roles:
                 return 'none'
-            if isinstance(value, List):
+            if isinstance(roles, List):
                 # format the list according to syntax: <role_name> [ , <role_name> ... ]
                 return ', '.join(roles)
-            return value.lower()
+            return roles.lower()
 
         self._run_query(
-            f"use secondary roles {format_roles(roles)}"
+            f"use secondary roles {format_roles()}"
         )
 
     def _use_object(self, object_name: str, object_type: str) -> None:
