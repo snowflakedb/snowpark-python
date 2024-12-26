@@ -47,6 +47,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
     WithinGroup,
+    UnresolvedColumnRegex,
 )
 from snowflake.snowpark._internal.analyzer.grouping_set import (
     Cube,
@@ -229,6 +230,12 @@ def test_star():
     b = Star([])
     assert b.dependent_column_names() == COLUMN_DEPENDENCY_ALL
     assert b.dependent_column_names_with_duplication() == []
+
+
+def test_unresolved_column_regex():
+    a = UnresolvedColumnRegex([Attribute(x, IntegerType()) for x in "abcd"])
+    assert a.dependent_column_names() == set("abcd")
+    assert a.dependent_column_names_with_duplication() == list("abcd")
 
 
 def test_subfield_string():

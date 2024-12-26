@@ -63,6 +63,9 @@
 #### New Features
 
 - Added support for property `version` and class method `get_active_session` for `Session` class.
+- Added new methods in class `DataFrame`:
+  - `col_regex`: Select columns that match with provided regex.
+- Added support for property `version` and class method `get_active_session` for `Session` class.
 - Added new methods and variables to enhance data type handling and JSON serialization/deserialization:
   - To `DataType`, its derived classes, and `StructField`:
     - `type_name`: Returns the type name of the data.
@@ -81,6 +84,7 @@
   - `collect_list` an alias of `array_agg`.
   - `substring` makes `len` argument optional.
 - Added parameter `ast_enabled` to session for internal usage (default: `False`).
+- Added support for `Dataframe.toJSON`
 
 #### Improvements
 
