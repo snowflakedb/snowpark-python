@@ -719,14 +719,9 @@ def test_struct_dtype_iceberg_lqb(
         )
 
         queries = union_df.queries
-        if cte_enabled:
-            # when CTE is enabled, WithQueryBlock makes pipeline breaker nodes ineligible
-            assert len(queries["queries"]) == 1
-            assert len(queries["post_actions"]) == 0
-        else:
-            # assert that the queries are broken down into 2 queries and 1 post action
-            assert len(queries["queries"]) == 2, queries["queries"]
-            assert len(queries["post_actions"]) == 1
+        # assert that the queries are broken down into 2 queries and 1 post action
+        assert len(queries["queries"]) == 2, queries["queries"]
+        assert len(queries["post_actions"]) == 1
         final_df = structured_type_session.table(write_table)
 
         # assert that
