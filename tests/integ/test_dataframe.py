@@ -4550,6 +4550,10 @@ def test_map_chained(session):
     Utils.check_answer(new_df, expected)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Table function is not supported in Local Testing",
+)
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required for this test")
 @pytest.mark.udf
 def test_flat_map_chained(session):
