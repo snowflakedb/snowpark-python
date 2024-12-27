@@ -5853,18 +5853,18 @@ Query List:
     ) -> Type:
         if vectorized:
 
-            def wrap_result(result):
+            def wrap_result(result):  # pragma: no cover
                 if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
                     return result
                 return (result,)
 
             class _MapFunc:
-                def process(self, pdf):
+                def process(self, pdf):  # pragma: no cover
                     return wrap_result(func(pdf))
 
         else:
 
-            def wrap_result(result):
+            def wrap_result(result):  # pragma: no cover
                 if isinstance(result, Row):
                     return tuple(result)
                 elif isinstance(result, tuple):
@@ -5873,7 +5873,7 @@ Query List:
                     return (result,)
 
             class _MapFunc:
-                def process(self, *argv):
+                def process(self, *argv):  # pragma: no cover
                     input_args_to_row = Row(*df_columns)
                     yield wrap_result(func(input_args_to_row(*argv)))
 
@@ -5884,18 +5884,18 @@ Query List:
     ) -> Type:
         if vectorized:
 
-            def wrap_result(result):
+            def wrap_result(result):  # pragma: no cover
                 if isinstance(result, pandas.DataFrame) or isinstance(result, tuple):
                     return result
                 return (result,)
 
             class _FlatMapFunc:
-                def end_partition(self, pdf):
+                def end_partition(self, pdf):  # pragma: no cover
                     return wrap_result(func(pdf))
 
         else:
 
-            def wrap_result(result):
+            def wrap_result(result):  # pragma: no cover
                 if isinstance(result, Row):
                     return tuple(result)
                 elif isinstance(result, tuple):
@@ -5904,7 +5904,7 @@ Query List:
                     return (result,)
 
             class _FlatMapFunc:
-                def process(self, *argv):
+                def process(self, *argv):  # pragma: no cover
                     input_args_to_row = Row(*df_columns)
                     for row in func(input_args_to_row(*argv)):
                         yield wrap_result(row)
