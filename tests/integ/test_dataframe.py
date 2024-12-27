@@ -1682,7 +1682,7 @@ def test_dataframe_transform_negative(session):
     def ret_int_fn(input_df):
         return 2
 
-    df = session.sql("select 1 as A")
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
 
     with pytest.raises(
         AssertionError,
