@@ -472,14 +472,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         for node in curr_level:
             node_id = hex(id(node))
             color = "lightblue" if node._is_valid_for_replacement else "red"
-            fillcolor = "lightgrey" if is_with_query_block(node) else "white"
-            g.node(
-                node_id,
-                get_stat(node),
-                color=color,
-                style="filled",
-                fillcolor=fillcolor,
-            )
+            g.node(node_id, get_stat(node), color=color)
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
             else:
