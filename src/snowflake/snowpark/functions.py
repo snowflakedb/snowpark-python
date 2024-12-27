@@ -194,6 +194,7 @@ from snowflake.snowpark._internal.ast.utils import (
     set_builtin_fn_alias,
     snowpark_expression_to_ast,
     with_src_position,
+    build_function_expr,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
@@ -1309,7 +1310,13 @@ def approx_percentile(
         <BLANKLINE>
     """
     c = _to_col_if_str(col, "approx_percentile")
-    return builtin("approx_percentile", _emit_ast=_emit_ast)(c, lit(percentile))
+    # Build AST here to prevent `percentile` from being recorded as a literal instead of float.
+    ast = (
+        build_function_expr("approx_percentile", [c, percentile]) if _emit_ast else None
+    )
+    return builtin("approx_percentile", _ast=ast, _emit_ast=False)(
+        c, lit(percentile, _emit_ast=False)
+    )
 
 
 @publicapi
@@ -1366,8 +1373,14 @@ def approx_percentile_estimate(
         <BLANKLINE>
     """
     c = _to_col_if_str(state, "approx_percentile_estimate")
-    return builtin("approx_percentile_estimate", _emit_ast=_emit_ast)(
-        c, lit(percentile)
+    # Build AST here to prevent `percentile` from being recorded as a literal instead of float.
+    ast = (
+        build_function_expr("approx_percentile_estimate", [c, percentile])
+        if _emit_ast
+        else None
+    )
+    return builtin("approx_percentile_estimate", _ast=ast, _emit_ast=False)(
+        c, lit(percentile, _emit_ast=False)
     )
 
 
@@ -1948,7 +1961,13 @@ def to_decimal(
         [Row(ANS=Decimal('12.00')), Row(ANS=Decimal('11.30')), Row(ANS=Decimal('-90.12'))]
     """
     c = _to_col_if_str(e, "to_decimal")
-    return builtin("to_decimal", _emit_ast=_emit_ast)(c, lit(precision), lit(scale))
+    # Build AST here to prevent `precision` and `scale` from being recorded as a literal instead of int.
+    ast = (
+        build_function_expr("to_decimal", [c, precision, scale]) if _emit_ast else None
+    )
+    return builtin("to_decimal", _ast=ast, _emit_ast=False)(
+        c, lit(precision, _emit_ast=False), lit(scale, _emit_ast=False)
+    )
 
 
 @publicapi
@@ -2001,17 +2020,19 @@ def div0(
         >>> df.select(div0(df["a"], 1).alias("divided_by_one"), div0(df["a"], 0).alias("divided_by_zero")).collect()
         [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=Decimal('0.000000'))]
     """
+    # Build AST here to prevent `dividend` and `divisor` from being recorded as a literal instead of int/float.
+    ast = build_function_expr("div0", [dividend, divisor]) if _emit_ast else None
     dividend_col = (
-        lit(dividend)
+        lit(dividend, _emit_ast=False)
         if isinstance(dividend, (int, float))
         else _to_col_if_str(dividend, "div0")
     )
     divisor_col = (
-        lit(divisor)
+        lit(divisor, _emit_ast=False)
         if isinstance(divisor, (int, float))
         else _to_col_if_str(divisor, "div0")
     )
-    return builtin("div0", _emit_ast=_emit_ast)(dividend_col, divisor_col)
+    return builtin("div0", _ast=ast, _emit_ast=False)(dividend_col, divisor_col)
 
 
 @publicapi
@@ -2029,6 +2050,7 @@ def divnull(
         >>> df.select(divnull(df["a"], 1).alias("divided_by_one"), divnull(df["a"], 0).alias("divided_by_zero")).collect()
         [Row(DIVIDED_BY_ONE=Decimal('1.000000'), DIVIDED_BY_ZERO=None)]
     """
+    # TODO SNOW-1864578: find a way to encode divnull.
     dividend_col = (
         lit(dividend, _emit_ast=False)
         if isinstance(dividend, (int, float))
@@ -2581,7 +2603,9 @@ def lpad(
     """
     c = _to_col_if_str(e, "lpad")
     p = _to_col_if_str(pad, "lpad")
-    return builtin("lpad", _emit_ast=_emit_ast)(
+    # Build AST here to prevent `len` from being recorded as a literal instead of int.
+    ast = build_function_expr("lpad", [c, len, p]) if _emit_ast else None
+    return builtin("lpad", _ast=ast, _emit_ast=False)(
         c, len if isinstance(len, Column) else lit(len), p
     )
 
@@ -2640,7 +2664,9 @@ def rpad(
     """
     c = _to_col_if_str(e, "rpad")
     p = _to_col_if_str(pad, "rpad")
-    return builtin("rpad", _emit_ast=_emit_ast)(
+    # Build AST here to prevent `len` from being recorded as a literal instead of int.
+    ast = build_function_expr("rpad", [c, len, p]) if _emit_ast else None
+    return builtin("rpad", _ast=ast, _emit_ast=False)(
         c, len if isinstance(len, Column) else lit(len), p
     )
 
@@ -2692,7 +2718,9 @@ def repeat(s: ColumnOrName, n: Union[Column, int], _emit_ast: bool = True) -> Co
         <BLANKLINE>
     """
     c = _to_col_if_str(s, "repeat")
-    return builtin("repeat", _emit_ast=_emit_ast)(
+    # Build AST here to prevent `n` from being recorded as a literal instead of int.
+    ast = build_function_expr("repeat", [c, n]) if _emit_ast else None
+    return builtin("repeat", _ast=ast, _emit_ast=False)(
         c, n if isinstance(n, Column) else lit(n)
     )
 
@@ -2858,7 +2886,7 @@ def struct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
             name = c._expression.name
             name = name[1:] if name.startswith('"') else name
             name = name[:-1] if name.endswith('"') else name
-            new_cols.append(lit(name))
+            new_cols.append(lit(name, _emit_ast=False))
         # next insert field value
         c = _to_col_if_str(c, "struct")
         if isinstance(c, Column) and isinstance(c._expression, Alias):
@@ -2887,17 +2915,19 @@ def log(
         >>> df.select(log(10, df["a"]).cast(IntegerType()).alias("log")).collect()
         [Row(LOG=0), Row(LOG=1)]
     """
+    # Build AST here to prevent `base` and `x` from being recorded as a literal instead of int/float.
+    ast = build_function_expr("log", [base, x]) if _emit_ast else None
     b = (
-        lit(base, _emit_ast=_emit_ast)
+        lit(base, _emit_ast=False)
         if isinstance(base, (int, float))
         else _to_col_if_str(base, "log")
     )
     arg = (
-        lit(x, _emit_ast=_emit_ast)
+        lit(x, _emit_ast=False)
         if isinstance(x, (int, float))
         else _to_col_if_str(x, "log")
     )
-    return builtin("log", _emit_ast=_emit_ast)(b, arg)
+    return builtin("log", _ast=ast, _emit_ast=False)(b, arg)
 
 
 # Create base 2 and base 10 wrappers for use with the Modin log2 and log10 functions
@@ -2928,17 +2958,19 @@ def pow(
         ------------
         <BLANKLINE>
     """
+    # Build AST here to prevent `left` and `right` from being recorded as a literal instead of int/float.
+    ast = build_function_expr("pow", [left, right]) if _emit_ast else None
     number = (
-        lit(left, _emit_ast=_emit_ast)
+        lit(left, _emit_ast=False)
         if isinstance(left, (int, float))
         else _to_col_if_str(left, "pow")
     )
     power = (
-        lit(right, _emit_ast=_emit_ast)
+        lit(right, _emit_ast=False)
         if isinstance(right, (int, float))
         else _to_col_if_str(right, "pow")
     )
-    return builtin("pow", _emit_ast=_emit_ast)(number, power)
+    return builtin("pow", _ast=ast, _emit_ast=False)(number, power)
 
 
 @publicapi
@@ -2961,6 +2993,8 @@ def round(
         <BLANKLINE>
     """
     c = _to_col_if_str(e, "round")
+    # Build AST here to prevent `scale` from being recorded as a literal instead of int/float.
+    ast = build_function_expr("round", [c, scale]) if _emit_ast else None
     scale_col = (
         lit(scale, _emit_ast=False)
         if isinstance(scale, (int, float))
@@ -2972,7 +3006,7 @@ def round(
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "round", e, scale)
 
-    col = builtin("round", _emit_ast=False)(c, scale_col)
+    col = builtin("round", _ast=ast, _emit_ast=False)(c, scale_col)
     col._ast = ast
     return col
 
@@ -3088,11 +3122,17 @@ def substring(
         [Row(SUBSTRING("S", 2)='bc'), Row(SUBSTRING("S", 2)='ef')]
     """
     s = _to_col_if_str(str, "substring")
-    p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=_emit_ast)
+    # Build AST here to prevent `pos` and `len` from being recorded as a literal instead of int/None.
+    ast = (
+        build_function_expr("substring", [s, pos, len], ignore_null_args=True)
+        if _emit_ast
+        else None
+    )
+    p = pos if isinstance(pos, Column) else lit(pos, _emit_ast=False)
     if len is None:
-        return builtin("substring", _emit_ast=_emit_ast)(s, p)
-    length = len if isinstance(len, Column) else lit(len, _emit_ast=_emit_ast)
-    return builtin("substring", _emit_ast=_emit_ast)(s, p, length)
+        return builtin("substring", _emit_ast=False)(s, p)
+    length = len if isinstance(len, Column) else lit(len, _emit_ast=False)
+    return builtin("substring", _ast=ast, _emit_ast=False)(s, p, length)
 
 
 @publicapi
@@ -3183,11 +3223,19 @@ def regexp_count(
     """
     sql_func_name = "regexp_count"
     sub = _to_col_if_str(subject, sql_func_name)
-    pat = pattern if isinstance(pattern, Column) else lit(pattern)
-    pos = position if isinstance(position, Column) else lit(position)
 
-    params = [lit(p) for p in parameters]
-    return builtin(sql_func_name, _emit_ast=_emit_ast)(sub, pat, pos, *params)
+    # Build AST here to prevent `pattern` and `position` from being recorded as a literal instead of int/str.
+    ast = (
+        build_function_expr(sql_func_name, [sub, pattern, position] + list(parameters))
+        if _emit_ast
+        else None
+    )
+
+    pat = pattern if isinstance(pattern, Column) else lit(pattern, _emit_ast=False)
+    pos = position if isinstance(position, Column) else lit(position, _emit_ast=False)
+
+    params = [lit(p, _emit_ast=False) for p in parameters]
+    return builtin(sql_func_name, _ast=ast, _emit_ast=False)(sub, pat, pos, *params)
 
 
 @publicapi
@@ -3272,13 +3320,36 @@ def regexp_replace(
     """
     sql_func_name = "regexp_replace"
     sub = _to_col_if_str(subject, sql_func_name)
-    pat = pattern if isinstance(pattern, Column) else lit(pattern)
-    rep = replacement if isinstance(replacement, Column) else lit(replacement)
-    pos = position if isinstance(position, Column) else lit(position)
-    occ = occurrences if isinstance(occurrences, Column) else lit(occurrences)
+    # Build AST here to prevent `pattern`, `replacement`, `position`, `occurrences` from being recorded as a literal
+    # instead of int/str.
+    ast = (
+        build_function_expr(
+            sql_func_name,
+            [sub, pattern, replacement, position, occurrences] + list(parameters),
+        )
+        if _emit_ast
+        else None
+    )
 
-    params = [p if isinstance(p, Column) else lit(p) for p in parameters]
-    return builtin(sql_func_name, _emit_ast=_emit_ast)(sub, pat, rep, pos, occ, *params)
+    pat = pattern if isinstance(pattern, Column) else lit(pattern, _emit_ast=False)
+    rep = (
+        replacement
+        if isinstance(replacement, Column)
+        else lit(replacement, _emit_ast=False)
+    )
+    pos = position if isinstance(position, Column) else lit(position, _emit_ast=False)
+    occ = (
+        occurrences
+        if isinstance(occurrences, Column)
+        else lit(occurrences, _emit_ast=False)
+    )
+
+    params = [
+        p if isinstance(p, Column) else lit(p, _emit_ast=False) for p in parameters
+    ]
+    return builtin(sql_func_name, _ast=ast, _emit_ast=False)(
+        sub, pat, rep, pos, occ, *params
+    )
 
 
 @publicapi
@@ -3306,9 +3377,15 @@ def replace(
     """
     sql_func_name = "replace"
     sub = _to_col_if_str(subject, sql_func_name)
+    # Build AST here to prevent `pattern` and `replacement` from being recorded as a literal instead of str.
+    ast = (
+        build_function_expr(sql_func_name, [sub, pattern, replacement])
+        if _emit_ast
+        else None
+    )
     pat = lit(pattern, _emit_ast=_emit_ast)
     rep = lit(replacement, _emit_ast=_emit_ast)
-    return builtin(sql_func_name, _emit_ast=_emit_ast)(sub, pat, rep)
+    return builtin(sql_func_name, _ast=ast, _emit_ast=False)(sub, pat, rep)
 
 
 @publicapi
@@ -3346,12 +3423,22 @@ def charindex(
     """
     t = _to_col_if_str(target_expr, "charindex")
     s = _to_col_if_str(source_expr, "charindex")
+    # Build AST here to prevent `position` from being recorded as a literal instead of int/None.
+    ast = (
+        build_function_expr("char_index", [t, s, position], ignore_null_args=True)
+        if _emit_ast
+        else None
+    )
     return (
-        builtin("charindex", _emit_ast=_emit_ast)(
-            t, s, position if isinstance(position, Column) else lit(position)
+        builtin("charindex", _ast=ast, _emit_ast=False)(
+            t,
+            s,
+            position
+            if isinstance(position, Column)
+            else lit(position, _emit_ast=False),
         )
         if position is not None
-        else builtin("charindex", _emit_ast=_emit_ast)(t, s)
+        else builtin("charindex", _emit_ast=False)(t, s)
     )
 
 
@@ -3595,10 +3682,12 @@ def insert(
     """
     b = _to_col_if_str(base_expr, "insert")
     i = _to_col_if_str(insert_expr, "insert")
-    return builtin("insert", _emit_ast=_emit_ast)(
+    # Build AST here to prevent `position` and `length` from being recorded as a literal instead of int.
+    ast = build_function_expr("insert", [b, position, length, i]) if _emit_ast else None
+    return builtin("insert", _ast=ast, _emit_ast=False)(
         b,
-        position if isinstance(position, Column) else lit(position),
-        length if isinstance(length, Column) else lit(length),
+        position if isinstance(position, Column) else lit(position, _emit_ast=False),
+        length if isinstance(length, Column) else lit(length, _emit_ast=False),
         i,
     )
 
@@ -3622,8 +3711,10 @@ def left(
         <BLANKLINE>
     """
     s = _to_col_if_str(str_expr, "left")
-    return builtin("left", _emit_ast=_emit_ast)(
-        s, length if isinstance(length, Column) else lit(length)
+    # Build AST here to prevent `length` from being recorded as a literal instead of int.
+    ast = build_function_expr("left", [s, length]) if _emit_ast else None
+    return builtin("left", _ast=ast, _emit_ast=False)(
+        s, length if isinstance(length, Column) else lit(length, _emit_ast=False)
     )
 
 
@@ -3646,8 +3737,10 @@ def right(
         <BLANKLINE>
     """
     s = _to_col_if_str(str_expr, "right")
-    return builtin("right", _emit_ast=_emit_ast)(
-        s, length if isinstance(length, Column) else lit(length)
+    # Build AST here to prevent `length` from being recorded as a literal instead of int.
+    ast = build_function_expr("right", [s, length]) if _emit_ast else None
+    return builtin("right", _ast=ast, _emit_ast=False)(
+        s, length if isinstance(length, Column) else lit(length, _emit_ast=False)
     )
 
 
@@ -3696,12 +3789,14 @@ def to_char(
 
     """
     c = _to_col_if_str(c, "to_char")
+    # Build AST here to prevent `format` from being recorded as a literal instead of str/None.
+    ast = build_function_expr("to_char", [c, format]) if _emit_ast else None
     return (
-        builtin("to_char", _emit_ast=_emit_ast)(
-            c, format if isinstance(format, Column) else lit(format)
+        builtin("to_char", _ast=ast, _emit_ast=False)(
+            c, format if isinstance(format, Column) else lit(format, _emit_ast=False)
         )
         if format is not None
-        else builtin("to_char", _emit_ast=_emit_ast)(c)
+        else builtin("to_char", _emit_ast=False)(c)
     )
 
 
@@ -4468,7 +4563,7 @@ def array_intersection(
 def array_except(
     source_array: ColumnOrName,
     array_of_elements_to_exclude: ColumnOrName,
-    allow_duplicates=True,
+    allow_duplicates: bool = True,
     _emit_ast: bool = True,
 ) -> Column:
     """Returns a new ARRAY that contains the elements from one input ARRAY that are not in another input ARRAY.
@@ -4588,7 +4683,11 @@ def array_except(
     if _emit_ast:
         ast = proto.Expr()
         build_builtin_fn_apply(
-            ast, "array_except", source_array, array_of_elements_to_exclude
+            ast,
+            "array_except",
+            source_array,
+            array_of_elements_to_exclude,
+            allow_duplicates,
         )
 
     array1 = _to_col_if_str(source_array, "array_except")
@@ -4687,6 +4786,32 @@ def array_flatten(array: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def array_reverse(col: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Returns an array with the elements of the input array in reverse order.
+
+    Args:
+        col: The source array.
+
+    Example::
+        >>> df = session.sql("select [1, 2, 3, 4] :: ARRAY(INT) as A")
+        >>> df.select(array_reverse("A")).show()
+        --------------------------
+        |"ARRAY_REVERSE(""A"")"  |
+        --------------------------
+        |[                       |
+        |  4,                    |
+        |  3,                    |
+        |  2,                    |
+        |  1                     |
+        |]                       |
+        --------------------------
+        <BLANKLINE>
+    """
+    array = _to_col_if_str(col, "array_reverse")
+    return builtin("array_reverse", _emit_ast=_emit_ast)(array)
+
+
+@publicapi
 def array_sort(
     array: ColumnOrName,
     sort_ascending: Optional[bool] = True,
@@ -4774,10 +4899,16 @@ def array_sort(
         - :func:`~snowflake.snowpark.functions.sort_array` which is an alias of :meth:`~snowflake.snowpark.functions.array_sort`.
     """
     array = _to_col_if_str(array, "array_sort")
-    return builtin("array_sort", _emit_ast=_emit_ast)(
+    # Build AST here to prevent `sort_ascending` and `nulls_first` from being recorded as a literal instead of bool.
+    ast = (
+        build_function_expr("array_sort", [array, sort_ascending, nulls_first])
+        if _emit_ast
+        else None
+    )
+    return builtin("array_sort", _ast=ast, _emit_ast=False)(
         array,
-        lit(sort_ascending, _emit_ast=_emit_ast),
-        lit(nulls_first, _emit_ast=_emit_ast),
+        lit(sort_ascending, _emit_ast=False),
+        lit(nulls_first, _emit_ast=False),
     )
 
 
@@ -5046,7 +5177,7 @@ def date_add(
     # Convert the input to a column if it is a string
     col = _to_col_if_str(col, "date_add")
     num_of_days = (
-        lit(num_of_days)
+        lit(num_of_days, _emit_ast=False)
         if isinstance(num_of_days, int)
         else _to_col_if_str(num_of_days, "date_add")
     )
@@ -5089,12 +5220,12 @@ def date_sub(
     # Convert the input parameters to the appropriate type
     col = _to_col_if_str(col, "date_sub")
     num_of_days = (
-        lit(num_of_days)
+        lit(num_of_days, _emit_ast=False)
         if isinstance(num_of_days, int)
         else _to_col_if_str(num_of_days, "date_sub")
     )
     # Return the date column with the number of days subtracted
-    ans = dateadd("day", -1 * num_of_days, col)
+    ans = dateadd("day", -1 * num_of_days, col, _emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -5430,11 +5561,13 @@ def dayofyear(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin("dayofyear", _emit_ast=_emit_ast)(c)
 
 
+@publicapi
 def window(
     time_column: ColumnOrName,
     window_duration: str,
     slide_duration: Optional[str] = None,
     start_time: Optional[str] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Converts a time column into a window object with start and end times. Window start times are
@@ -5523,13 +5656,13 @@ def window(
             "snowflake.snowpark.functions.window does not support slide_duration parameter yet."
         )
 
-    epoch = lit("1970-01-01 00:00:00").cast(
+    epoch = lit("1970-01-01 00:00:00", _emit_ast=False).cast(
         TimestampType(timezone=TimestampTimeZone.NTZ)
     )
     time = _to_col_if_str(time_column, "window")
 
     window_duration, window_unit = parse_duration_string(window_duration)
-    window_duration = lit(window_duration)
+    window_duration = lit(window_duration, _emit_ast=False)
     window_unit = f"{window_unit}s"
 
     base = epoch
@@ -5537,14 +5670,14 @@ def window(
         start_duration, start_unit = parse_duration_string(start_time)
         base += make_interval(**{f"{start_unit}s": start_duration})
 
-    window = floor(datediff(window_unit, base, time) / window_duration)
-    window_start = dateadd(window_unit, window * window_duration, base)
+    window = floor(datediff(window_unit, base, time, _emit_ast=False) / window_duration)
+    window_start = dateadd(window_unit, window * window_duration, base, _emit_ast=False)
     return object_construct_keep_null(
-        lit("start"),
+        lit("start", _emit_ast=False),
         window_start,
-        lit("end"),
-        dateadd(window_unit, window_duration, window_start),
-    ).alias("window")
+        lit("end", _emit_ast=False),
+        dateadd(window_unit, window_duration, window_start, _emit_ast=False),
+    ).alias("window", _emit_ast=False)
 
 
 @publicapi
@@ -5844,7 +5977,7 @@ def _timestamp_from_parts_internal(
             return y, m, d, h, min_, s, ns
         elif tz is not None:
             # We need to fill in nanoseconds as 0 to make the sql function work
-            return y, m, d, h, min_, s, lit(0), tz
+            return y, m, d, h, min_, s, lit(0, _emit_ast=False), tz
         else:
             return y, m, d, h, min_, s
     else:
@@ -6130,7 +6263,9 @@ def timestamp_tz_from_parts(
     elif nanoseconds is not None:
         ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s, ns)
     elif timezone is not None:
-        ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s, lit(0), tz)
+        ans = builtin(func_name, _emit_ast=False)(
+            y, m, d, h, min_, s, lit(0, _emit_ast=False), tz
+        )
     else:
         ans = builtin(func_name, _emit_ast=False)(y, m, d, h, min_, s)
 
@@ -6448,7 +6583,11 @@ def array_remove(
         build_builtin_fn_apply(ast, "array_remove", array, element)
 
     a = _to_col_if_str(array, "array_remove")
-    e = lit(element).cast("VARIANT") if isinstance(element, str) else element
+    e = (
+        lit(element, _emit_ast=False).cast("VARIANT", _emit_ast=False)
+        if isinstance(element, str)
+        else element
+    )
     ans = builtin("array_remove", _emit_ast=False)(a, e)
     ans._ast = ast
     return ans
@@ -6818,6 +6957,88 @@ def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(col, "array_unique_agg")
     return _call_function("array_unique_agg", True, c, _emit_ast=_emit_ast)
+
+
+@publicapi
+def map_cat(col1: ColumnOrName, col2: ColumnOrName, _emit_ast: bool = True):
+    """Returns the concatenatation of two MAPs.
+
+    Args:
+        col1: The source map
+        col2: The map to be appended to col1
+
+    Example::
+        >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B")
+        >>> df.select(map_cat("A", "B")).show()
+        ---------------------------
+        |"MAP_CAT(""A"", ""B"")"  |
+        ---------------------------
+        |{                        |
+        |  "k1": "v1",            |
+        |  "k2": "v2"             |
+        |}                        |
+        ---------------------------
+        <BLANKLINE>
+    """
+    m1 = _to_col_if_str(col1, "map_cat")
+    m2 = _to_col_if_str(col2, "map_cat")
+    return builtin("map_cat", _emit_ast=_emit_ast)(m1, m2)
+
+
+@publicapi
+def map_contains_key(value: ColumnOrLiteral, col: ColumnOrName, _emit_ast: bool = True):
+    """Determines whether the specified MAP contains the specified key.
+
+    Args:
+        value: The key to find.
+        col: The map to be searched.
+
+    Example 1::
+        >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as M, 'k1' as V")
+        >>> df.select(map_contains_key(col("V"), "M")).show()
+        ------------------------------------
+        |"MAP_CONTAINS_KEY(""V"", ""M"")"  |
+        ------------------------------------
+        |True                              |
+        ------------------------------------
+        <BLANKLINE>
+
+    Example 2::
+        >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as M")
+        >>> df.select(map_contains_key("k1", "M")).show()
+        -----------------------------------
+        |"MAP_CONTAINS_KEY('K1', ""M"")"  |
+        -----------------------------------
+        |True                             |
+        -----------------------------------
+        <BLANKLINE>
+    """
+    m = _to_col_if_str(col, "map_contains")
+    return builtin("map_contains_key", _emit_ast=_emit_ast)(value, m)
+
+
+@publicapi
+def map_keys(col: ColumnOrName, _emit_ast: bool = True):
+    """Returns the keys in a MAP.
+
+    Args:
+        col: The input map.
+
+    Example 1::
+        >>> df = session.sql("select {'k1': 'v1', 'k2': 'v2'} :: MAP(STRING,STRING) as M")
+        >>> df.select(map_keys("M")).show()
+        ---------------------
+        |"MAP_KEYS(""M"")"  |
+        ---------------------
+        |[                  |
+        |  "k1",            |
+        |  "k2"             |
+        |]                  |
+        ---------------------
+        <BLANKLINE>
+    """
+    m = _to_col_if_str(col, "map_keys")
+    return builtin("map_keys", _emit_ast=_emit_ast)(m)
 
 
 @publicapi
@@ -7195,7 +7416,7 @@ def asc(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         build_builtin_fn_apply(ast, "asc", c)
 
     c = _to_col_if_str(c, "asc")
-    ans = c.asc()
+    ans = c.asc(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7218,7 +7439,7 @@ def asc_nulls_first(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         build_builtin_fn_apply(ast, "asc_nulls_first", c)
 
     c = _to_col_if_str(c, "asc_nulls_first")
-    ans = c.asc_nulls_first()
+    ans = c.asc_nulls_first(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7264,7 +7485,7 @@ def desc(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         build_builtin_fn_apply(ast, "desc", c)
 
     c = _to_col_if_str(c, "desc")
-    ans = c.desc()
+    ans = c.desc(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7288,7 +7509,7 @@ def desc_nulls_first(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         build_builtin_fn_apply(ast, "desc_nulls_first", c)
 
     c = _to_col_if_str(c, "desc_nulls_first")
-    ans = c.desc_nulls_first()
+    ans = c.desc_nulls_first(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7310,7 +7531,7 @@ def desc_nulls_last(c: ColumnOrName, _emit_ast: bool = True) -> Column:
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "desc_nulls_last", c)
     c = _to_col_if_str(c, "desc_nulls_last")
-    ans = c.desc_nulls_last()
+    ans = c.desc_nulls_last(_emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7435,7 +7656,7 @@ def cast(
         build_builtin_fn_apply(ast, "cast", column, to)
 
     c = _to_col_if_str(column, "cast")
-    ans = c.cast(to)
+    ans = c.cast(to, _emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7471,7 +7692,7 @@ def try_cast(
         build_builtin_fn_apply(ast, "try_cast", column, to)
 
     c = _to_col_if_str(column, "try_cast")
-    ans = c.try_cast(to)
+    ans = c.try_cast(to, _emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -7487,9 +7708,11 @@ def _as_decimal_or_number(
     if scale and not precision:
         raise ValueError("Cannot define scale without precision")
     if precision and scale:
-        return builtin(cast_type, _emit_ast=False)(c, lit(precision), lit(scale))
+        return builtin(cast_type, _emit_ast=False)(
+            c, lit(precision, _emit_ast=False), lit(scale, _emit_ast=False)
+        )
     elif precision:
-        return builtin(cast_type, _emit_ast=False)(c, lit(precision))
+        return builtin(cast_type, _emit_ast=False)(c, lit(precision, _emit_ast=False))
     else:
         return builtin(cast_type, _emit_ast=False)(c)
 
@@ -9688,7 +9911,10 @@ def table_function(function_name: str, _emit_ast: bool = True) -> Callable:
 
 @publicapi
 def call_function(
-    function_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True
+    function_name: str,
+    *args: ColumnOrLiteral,
+    _ast: proto.Expr = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
     and arguments.
@@ -9711,11 +9937,13 @@ def call_function(
         <BLANKLINE>
 
     """
-    return _call_function(function_name, False, *args, _emit_ast=_emit_ast)
+    return _call_function(function_name, False, *args, _ast=_ast, _emit_ast=_emit_ast)
 
 
 @publicapi
-def function(function_name: str, _emit_ast: bool = True) -> Callable:
+def function(
+    function_name: str, _ast: proto.Expr = None, _emit_ast: bool = True
+) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
     any built-in functions not explicitly listed in this object.
@@ -9744,7 +9972,9 @@ def function(function_name: str, _emit_ast: bool = True) -> Callable:
         ----------------
         <BLANKLINE>
     """
-    return lambda *args: call_function(function_name, *args, _emit_ast=_emit_ast)
+    return lambda *args: call_function(
+        function_name, *args, _ast=_ast, _emit_ast=_emit_ast
+    )
 
 
 def _call_function(
@@ -10020,6 +10250,9 @@ from_unixtime = to_timestamp
 sort_array = array_sort
 map_from_arrays = arrays_to_object
 signum = sign
+array_join = array_to_string
+array_union = array_cat
+map_concat = map_cat
 
 
 @publicapi

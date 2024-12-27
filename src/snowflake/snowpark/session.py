@@ -134,6 +134,7 @@ from snowflake.snowpark._internal.utils import (
     zip_file_or_directory_to_stream,
 )
 from snowflake.snowpark.async_job import AsyncJob
+from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -656,6 +657,7 @@ class Session:
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._catalog = None
 
         self._ast_batch = AstBatch(self)
 
@@ -734,6 +736,19 @@ class Session:
             raise ex
 
     getActiveSession = get_active_session
+
+    @property
+    @experimental(version="1.27.0")
+    def catalog(self) -> Catalog:
+        """Returns the catalog object."""
+        if self._catalog is None:
+            if isinstance(self._conn, MockServerConnection):
+                self._conn.log_not_supported_error(
+                    external_feature_name="Session.catalog",
+                    raise_error=NotImplementedError,
+                )
+            self._catalog = Catalog(self)
+        return self._catalog
 
     def close(self) -> None:
         """Close this session."""
@@ -2253,7 +2268,12 @@ class Session:
                 )
 
     @publicapi
-    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
+    def table(
+        self,
+        name: Union[str, Iterable[str]],
+        is_temp_table_for_cleanup: bool = False,
+        _emit_ast: bool = True,
+    ) -> Table:
         """
         Returns a Table that points the specified table.
 
@@ -2287,13 +2307,20 @@ class Session:
             elif isinstance(name, Iterable):
                 ast.name.sp_table_name_structured.name.extend(name)
             ast.variant.sp_session_table = True
+            ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
         else:
             stmt = None
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, session=self, _ast_stmt=stmt, _emit_ast=_emit_ast)
+        t = Table(
+            name,
+            session=self,
+            is_temp_table_for_cleanup=is_temp_table_for_cleanup,
+            _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
+        )
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t

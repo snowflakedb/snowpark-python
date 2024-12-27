@@ -88,11 +88,12 @@ def test_axis_0_basic_types_without_type_hints(data, func, return_type):
     # this test processes functions without type hints and invokes the UDTF solution.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
     snow_df = pd.DataFrame(data, columns=["A", "b"])
+    # np.min is mapped to builtin function so no UDTF is required.
     with SqlCounter(
-        query_count=11,
-        join_count=2,
-        udtf_count=2,
-        high_count_expected=True,
+        query_count=1 if func == np.min else 11,
+        join_count=0 if func == np.min else 2,
+        udtf_count=0 if func == np.min else 2,
+        high_count_expected=func != np.min,
         high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func, axis=0))
