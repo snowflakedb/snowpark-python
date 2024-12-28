@@ -630,10 +630,10 @@ class Analyzer:
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
-                assert self.alias_maps_to_use is not None
-                for k, v in self.alias_maps_to_use.items():
-                    if v == expr.child.name:
-                        self.generated_alias_maps[k] = quoted_name
+                # assert self.alias_maps_to_use is not None
+                # for k, v in self.alias_maps_to_use.items():
+                #     if v == expr.child.name:
+                #         self.generated_alias_maps[k] = quoted_name
 
                 for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
                     for k, v in df_alias_dict.items():
