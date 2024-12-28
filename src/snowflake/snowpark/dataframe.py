@@ -24,6 +24,7 @@ from typing import (
     overload,
 )
 
+
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas
@@ -207,6 +208,7 @@ else:
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
+    import pyarrow
     from table import Table  # pragma: no cover
 
 _logger = getLogger(__name__)
@@ -1283,6 +1285,75 @@ class DataFrame:
             )
 
         return snowpandas_df
+
+    @publicapi
+    def to_arrow(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> Union["pyarrow.Table", AsyncJob]:
+        """
+        Executes the query representing this DataFrame and returns the result as a
+        `pandas DataFrame <https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.html>`_.
+
+        When the data is too large to fit into memory, you can use :meth:`to_pandas_batches`.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+
+        Note:
+            1. This method is only available if pandas is installed and available.
+
+            2. If you use :func:`Session.sql` with this method, the input query of
+            :func:`Session.sql` can only be a SELECT statement.
+
+            3. For TIMESTAMP columns:
+            - TIMESTAMP_LTZ and TIMESTAMP_TZ are both converted to `datetime64[ns, tz]` in pandas,
+            as pandas cannot distinguish between the two.
+            - TIMESTAMP_NTZ is converted to `datetime64[ns]` (without timezone).
+        """
+
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            ast = with_src_position(stmt.expr.sp_dataframe_to_pandas, stmt)
+            debug_check_missing_ast(self._ast_id, self)
+            ast.id.bitfield1 = self._ast_id
+            if statement_params is not None:
+                build_expr_from_dict_str_str(ast.statement_params, statement_params)
+            ast.block = block
+            self._session._ast_batch.eval(stmt)
+
+            # Flush the AST and encode it as part of the query.
+            _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()
+
+        with open_telemetry_context_manager(self.to_pandas, self):
+            result = self._session._conn.execute(
+                self._plan,
+                to_arrow=True,
+                block=block,
+                data_type=_AsyncResultType.ARROW,
+                _statement_params=create_or_update_statement_params_with_query_tag(
+                    statement_params or self._statement_params,
+                    self._session.query_tag,
+                    SKIP_LEVELS_TWO,
+                ),
+                **kwargs,
+            )
+
+        # TODO: need the following for arrow?
+        # # if the returned result is not a pandas dataframe, raise Exception
+        # # this might happen when calling this method with non-select commands
+        # # e.g., session.sql("create ...").to_pandas()
+        # if block:
+        #     check_is_pandas_dataframe_in_to_pandas(result)
+
+        return result
 
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
 

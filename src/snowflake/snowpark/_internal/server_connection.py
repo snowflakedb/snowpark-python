@@ -489,6 +489,8 @@ class ServerConnection:
         num_statements: Optional[int] = None,
         ignore_results: bool = False,
         async_post_actions: Optional[List[Query]] = None,
+        *,
+        to_arrow: bool = False,
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
@@ -524,7 +526,10 @@ class ServerConnection:
             if ignore_results:
                 return {"data": None, "sfqid": results_cursor.sfqid}
             return self._to_data_or_iter(
-                results_cursor=results_cursor, to_pandas=to_pandas, to_iter=to_iter
+                results_cursor=results_cursor,
+                to_pandas=to_pandas,
+                to_iter=to_iter,
+                to_arrow=to_arrow,
             )
         else:
             return AsyncJob(
@@ -544,6 +549,8 @@ class ServerConnection:
         results_cursor: SnowflakeCursor,
         to_pandas: bool = False,
         to_iter: bool = False,
+        *,
+        to_arrow: bool = False,
     ) -> Dict[str, Any]:
         qid = results_cursor.sfqid
         if to_iter:
@@ -576,6 +583,8 @@ class ServerConnection:
                 raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
                     str(ex)
                 )
+        elif to_arrow:
+            data_or_iter = results_cursor.fetch_arrow_all()
         else:
             data_or_iter = (
                 iter(results_cursor) if to_iter else results_cursor.fetchall()
@@ -592,6 +601,8 @@ class ServerConnection:
         data_type: _AsyncResultType = _AsyncResultType.ROW,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
+        *,
+        to_arrow: bool = False,
         **kwargs,
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
@@ -615,10 +626,11 @@ class ServerConnection:
             data_type=data_type,
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
+            to_arrow=to_arrow,
         )
         if not block:
             return result_set
-        elif to_pandas:
+        elif to_pandas or to_arrow:
             return result_set["data"]
         else:
             if to_iter:
@@ -641,6 +653,8 @@ class ServerConnection:
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         ignore_results: bool = False,
+        *,
+        to_arrow: bool = False,
         **kwargs,
     ) -> Tuple[
         Dict[
@@ -698,6 +712,7 @@ class ServerConnection:
                     params=params,
                     ignore_results=ignore_results,
                     async_post_actions=post_actions,
+                    to_arrow=to_arrow,
                     **kwargs,
                 )
 
@@ -737,6 +752,7 @@ class ServerConnection:
                             params=query.params,
                             ignore_results=ignore_results,
                             async_post_actions=post_actions,
+                            to_arrow=to_arrow,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
