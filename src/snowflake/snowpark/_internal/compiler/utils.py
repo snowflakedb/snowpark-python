@@ -359,9 +359,7 @@ def is_active_transaction(session):
 def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     """A helper function to plot the query plan tree using graphviz useful for debugging.
     It plots the plan if the environment variable ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING
-    is set to true. Optionally, the environment variable SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD
-    can be set to a positive integer to plot only the plans with complexity score greater than
-    the threshold.
+    is set to true.
 
     The plots are saved in the temp directory of the system which is obtained using
     https://docs.python.org/3/library/tempfile.html#tempfile.gettempdir. Setting env variable
@@ -371,7 +369,6 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
 
         $ export ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING=true
         $ export TMPDIR="/tmp"
-        $ export SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD=50
         $ ls /tmp/snowpark_query_plan_plots/  # to see the plots
 
     Args:
@@ -401,11 +398,9 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             name = str(type(node)).split(".")[-1].split("'")[0]
             suffix = ""
             if isinstance(node, SnowflakeCreateTable):
-                # Table names are fully qualified, we only show name
                 table_name = node.table_name[-1].split(".")[-1]
                 suffix = f" :: {table_name}"
             if isinstance(node, WithQueryBlock):
-                # CTE names are too long, we only show the last part
                 suffix = f" :: {node.name[18:]}"
 
             return f"{name}({addr}){suffix}"
@@ -431,7 +426,6 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
                 properties.append("Offset")  # pragma: no cover
             name = f"{name} :: ({'| '.join(properties)})"
         elif isinstance(node, SelectableEntity):
-            # Show the name instead of the fully qualified name
             name = f"{name} :: ({node.entity.name.split('.')[-1]})"
 
         def get_sql_text(node: LogicalPlan) -> str:
@@ -478,7 +472,14 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         for node in curr_level:
             node_id = hex(id(node))
             color = "lightblue" if node._is_valid_for_replacement else "red"
-            g.node(node_id, get_stat(node), color=color)
+            fillcolor = "lightgray" if is_with_query_block(node) else "white"
+            g.node(
+                node_id,
+                get_stat(node),
+                color=color,
+                style="filled",
+                fillcolor=fillcolor,
+            )
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
             else:
