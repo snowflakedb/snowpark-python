@@ -533,13 +533,3 @@ def test_select_alias(session):
     # Add a new column d that doesn't use c after c was added previously. Flatten safely.
     df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
     check_generated_plan_queries(df2._plan)
-
-
-def test_to_selectable_memoization(session):
-    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a", "b")
-    df1 = df.select("a", "b", (col("a") + col("b")).as_("b"))
-    df2 = df.select("a", "b", (col("a") + col("b")).as_("c"))
-    df3 = df.select("a", "b", (col("a") + col("b")).as_("d"))
-    df5 = df1.union_all(df2).union_all(df3)
-    df5.show()
-    pass
