@@ -15,7 +15,6 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SelectStatement,
     SelectTableFunction,
-    SelectableEntity,
     SetStatement,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -29,7 +28,6 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
     SnowflakeCreateTable,
     TableCreationSource,
-    WithQueryBlock,
 )
 from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     TableDelete,
@@ -383,11 +381,6 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     ):
         return
 
-    if int(
-        os.environ.get("SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD", 0)
-    ) > get_complexity_score(root):
-        return
-
     import graphviz  # pyright: ignore[reportMissingImports]
 
     def get_stat(node: LogicalPlan):
@@ -396,14 +389,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
                 return "EMPTY_SOURCE_PLAN"  # pragma: no cover
             addr = hex(id(node))
             name = str(type(node)).split(".")[-1].split("'")[0]
-            suffix = ""
-            if isinstance(node, SnowflakeCreateTable):
-                table_name = node.table_name[-1].split(".")[-1]
-                suffix = f" :: {table_name}"
-            if isinstance(node, WithQueryBlock):
-                suffix = f" :: {node.name[18:]}"
-
-            return f"{name}({addr}){suffix}"
+            return f"{name}({addr})"
 
         name = get_name(node)
         if isinstance(node, SnowflakePlan):
@@ -425,43 +411,20 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             if node.offset:
                 properties.append("Offset")  # pragma: no cover
             name = f"{name} :: ({'| '.join(properties)})"
-        elif isinstance(node, SelectableEntity):
-            name = f"{name} :: ({node.entity.name.split('.')[-1]})"
-
-        def get_sql_text(node: LogicalPlan) -> str:
-            if isinstance(node, Selectable):
-                return node.sql_query
-            if isinstance(node, SnowflakePlan):
-                return node.queries[-1].sql
-            return ""
 
         score = get_complexity_score(node)
-        sql_text = get_sql_text(node)
-        sql_size = len(sql_text)
-        ref_ctes = None
+        num_ref_ctes = "nil"
         if isinstance(node, (SnowflakePlan, Selectable)):
-            ref_ctes = list(
-                map(
-                    lambda node, cnt: f"{node.name[18:]}:{cnt}",
-                    node.referenced_ctes.keys(),
-                    node.referenced_ctes.values(),
-                )
-            )
-            for with_query_block in node.referenced_ctes:
-                sql_size += len(get_sql_text(with_query_block.children[0]))
+            num_ref_ctes = len(node.referenced_ctes)
+        sql_text = ""
+        if isinstance(node, Selectable):
+            sql_text = node.sql_query
+        elif isinstance(node, SnowflakePlan):
+            sql_text = node.queries[-1].sql
+        sql_size = len(sql_text)
         sql_preview = sql_text[:50]
 
-        return f"{name=}\n{score=}, {ref_ctes=}, {sql_size=}\n{sql_preview=}"
-
-    def is_with_query_block(node: LogicalPlan) -> bool:
-        if isinstance(node, WithQueryBlock):
-            return True
-        if isinstance(node, SnowflakePlan):
-            return is_with_query_block(node.source_plan)
-        if isinstance(node, SelectSnowflakePlan):
-            return is_with_query_block(node.snowflake_plan)
-
-        return False
+        return f"{name=}\n{score=}, {num_ref_ctes=}, {sql_size=}\n{sql_preview=}"
 
     g = graphviz.Graph(format="png")
 
@@ -472,14 +435,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         for node in curr_level:
             node_id = hex(id(node))
             color = "lightblue" if node._is_valid_for_replacement else "red"
-            fillcolor = "lightgray" if is_with_query_block(node) else "white"
-            g.node(
-                node_id,
-                get_stat(node),
-                color=color,
-                style="filled",
-                fillcolor=fillcolor,
-            )
+            g.node(node_id, get_stat(node), color=color)
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
             else:
