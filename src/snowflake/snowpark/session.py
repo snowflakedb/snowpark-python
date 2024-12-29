@@ -3629,15 +3629,15 @@ class Session:
             roles: 'all' or list of specific roles or 'none'. ``None`` means 'none'.
 
         Example 1
+            Use all roles that have been granted in addition to the current active primary role:
+
+            >>> session.use_secondary_roles('all')
+                
+        Example 2
             Use specific roles as secondary roles:
 
             >>> secondary_roles = ['READER_ROLE_A', 'READER_ROLE_B']
             >>> session.use_secondary_roles(secondary_roles)
-
-        Example 2
-            Use all roles that have been granted in addition to the current active primary role:
-
-            >>> session.use_secondary_roles('all')
 
         Example 3
             Use no secondary roles. Disables secondary roles in the current session:
