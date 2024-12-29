@@ -68,16 +68,29 @@ class QueryGenerator(Analyzer):
         # order of when the with query block is visited. The order is important to make sure the dependency
         # between the CTE definition is satisfied.
         self.resolved_with_query_block: Dict[str, Query] = {}
+        # This is a memoization dict for storing the selectable for a SnowflakePlan when to_selectable
+        # method is called with the same SnowflakePlan. This is used to de-duplicate nodes created during
+        # compilation process
+        self._to_selectable_memo_dict = {}
 
     def to_selectable(self, plan: LogicalPlan) -> Selectable:
         """Given a LogicalPlan, convert it to a Selectable."""
         if isinstance(plan, Selectable):
             return plan
 
-        snowflake_plan = self.resolve(plan)
-        selectable = SelectSnowflakePlan(snowflake_plan, analyzer=self)
-        selectable._is_valid_for_replacement = snowflake_plan._is_valid_for_replacement
-        return selectable
+        with self.session._lock:
+            if (
+                isinstance(plan, SnowflakePlan)
+                and plan._uuid in self._to_selectable_memo_dict
+            ):
+                return self._to_selectable_memo_dict[plan._uuid]
+            snowflake_plan = self.resolve(plan)
+            selectable = SelectSnowflakePlan(snowflake_plan, analyzer=self)
+            selectable._is_valid_for_replacement = (
+                snowflake_plan._is_valid_for_replacement
+            )
+            self._to_selectable_memo_dict[snowflake_plan._uuid] = selectable
+            return selectable
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]
