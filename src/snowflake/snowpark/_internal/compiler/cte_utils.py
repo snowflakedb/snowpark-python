@@ -10,7 +10,10 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    SnowflakeValues,
+    WithQueryBlock,
+)
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 if TYPE_CHECKING:
@@ -81,6 +84,16 @@ def find_duplicate_subtrees(
 
         return False
 
+    def is_snowflake_values_statement(node: "TreeNode") -> bool:
+        if isinstance(node, SnowflakeValues):
+            return True
+        if isinstance(node, SnowflakePlan):
+            return is_snowflake_values_statement(node.source_plan)
+        if isinstance(node, SelectSnowflakePlan):
+            return is_snowflake_values_statement(node.snowflake_plan)
+
+        return False
+
     def traverse(root: "TreeNode") -> None:
         """
         This function uses an iterative approach to avoid hitting Python's maximum recursion depth limit.
@@ -97,13 +110,23 @@ def find_duplicate_subtrees(
                     next_level.append(child)
             current_level = next_level
 
-    def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
+    def is_valid_candidate(encoded_node_id_with_query: str) -> bool:
         # when a sql query is a select statement, its encoded_node_id_with_query
         # contains _, which is used to separate the query id and node type name.
-        is_valid_candidate = "_" in encoded_node_id_with_query
-        if not is_valid_candidate or is_simple_select_entity(
-            id_node_map[encoded_node_id_with_query][0]
-        ):
+        if not ("_" in encoded_node_id_with_query):
+            return False
+
+        node = id_node_map[encoded_node_id_with_query][0]
+        if is_simple_select_entity(node):
+            return False
+
+        if is_snowflake_values_statement(node):
+            return False
+
+        return True
+
+    def is_duplicate_subtree(encoded_node_id_with_query: str) -> bool:
+        if not is_valid_candidate(encoded_node_id_with_query):
             return False
 
         is_duplicate_node = len(id_node_map[encoded_node_id_with_query]) > 1
