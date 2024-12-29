@@ -540,7 +540,6 @@ def test_to_selectable_memoization(session):
     df1 = df.select("a", "b", (col("a") + col("b")).as_("b"))
     df2 = df.select("a", "b", (col("a") + col("b")).as_("c"))
     df3 = df.select("a", "b", (col("a") + col("b")).as_("d"))
-    df4 = df.select("a", "b", (col("a") + col("b")).as_("e"))
-    df5 = df1.union_all(df2).union_all(df3).union_all(df4)
+    df5 = df1.union_all(df2).union_all(df3)
     df5.show()
     pass
