@@ -391,14 +391,14 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     import graphviz  # pyright: ignore[reportMissingImports]
 
     def get_stat(node: LogicalPlan):
-        def get_name(node: Optional[LogicalPlan]) -> str:
+        def get_name(node: Optional[LogicalPlan]) -> str:  # pragma: no cover
             if node is None:
                 return "EMPTY_SOURCE_PLAN"  # pragma: no cover
             addr = hex(id(node))
             name = str(type(node)).split(".")[-1].split("'")[0]
             suffix = ""
             if isinstance(node, SnowflakeCreateTable):
-                table_name = node.table_name[-1].split(".")[-1]
+                table_name = node.table_name[-1].split(".")[-1]  # pyright: ignore
                 suffix = f" :: {table_name}"
             if isinstance(node, WithQueryBlock):
                 suffix = f" :: {node.name[18:]}"
@@ -428,7 +428,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         elif isinstance(node, SelectableEntity):
             name = f"{name} :: ({node.entity.name.split('.')[-1]})"
 
-        def get_sql_text(node: LogicalPlan) -> str:
+        def get_sql_text(node: LogicalPlan) -> str:  # pragma: no cover
             if isinstance(node, Selectable):
                 return node.sql_query
             if isinstance(node, SnowflakePlan):
@@ -447,13 +447,13 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
                     node.referenced_ctes.values(),
                 )
             )
-            for with_query_block in node.referenced_ctes:
+            for with_query_block in node.referenced_ctes:  # pragma: no cover
                 sql_size += len(get_sql_text(with_query_block.children[0]))
         sql_preview = sql_text[:50]
 
         return f"{name=}\n{score=}, {ref_ctes=}, {sql_size=}\n{sql_preview=}"
 
-    def is_with_query_block(node: LogicalPlan) -> bool:
+    def is_with_query_block(node: Optional[LogicalPlan]) -> bool:  # pragma: no cover
         if isinstance(node, WithQueryBlock):
             return True
         if isinstance(node, SnowflakePlan):
@@ -483,7 +483,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
             else:
-                children = node.children
+                children = node.children  # pragma: no cover
             for child in children:
                 child_id = hex(id(child))
                 edges.add((node_id, child_id))
