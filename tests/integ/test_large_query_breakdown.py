@@ -5,6 +5,7 @@
 
 import logging
 import os
+import re
 import tempfile
 from unittest.mock import patch
 
@@ -732,6 +733,48 @@ def test_optimization_skipped_with_exceptions(
     print(kwargs)
     assert kwargs["error_message"] == "test exception"
     assert kwargs["error_type"] == error_type.__name__
+
+
+def test_large_query_breakdown_with_nested_cte(session):
+    session.cte_optimization_enabled = True
+    set_bounds(session, 15, 20)
+
+    temp_table = Utils.random_table_name()
+    session.create_dataframe([(1, 2), (3, 4)], ["A", "B"]).write.save_as_table(
+        temp_table, table_type="temp"
+    )
+    base_select = session.table(temp_table)
+    for i in range(2):
+        base_select = base_select.with_column("A", col("A") + lit(i))
+
+    base_df = base_select.union_all(base_select)
+
+    df1 = base_df.with_column("A", col("A") + 1)
+    df2 = base_df.with_column("B", col("B") + 1)
+    for i in range(2):
+        df1 = df1.with_column("A", col("A") + i)
+
+    df1 = df1.group_by("A").agg(sum_distinct(col("B")).alias("B"))
+    df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
+    mid_final_df = df1.union_all(df2)
+
+    mid1 = mid_final_df.filter(col("A") > 10)
+    mid2 = mid_final_df.filter(col("B") > 3)
+    final_df = mid1.union_all(mid2)
+
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = final_df.queries
+        # TODO: update when to_selectable memoization is merged
+        assert len(queries["queries"]) == 3
+        assert len(queries["post_actions"]) == 2
+        match = re.search(r"SNOWPARK_TEMP_CTE_[\w]+", queries["queries"][0])
+        assert match is not None
+        cte_name_for_first_partition = match.group()
+        # assert that query for upper cte node is re-written and does not
+        # contain the cte name for the first partition
+        assert cte_name_for_first_partition not in queries["queries"][2]
+
+    check_result_with_and_without_breakdown(session, final_df)
 
 
 def test_complexity_bounds_affect_num_partitions(session, large_query_df):
