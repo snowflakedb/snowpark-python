@@ -150,11 +150,6 @@ def autocorr(self, lag=1):  # noqa: PR01, RT01, D200
 
 
 @register_series_not_implemented()
-def between(self, left, right, inclusive: str = "both"):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_series_not_implemented()
 def corr(self, other, method="pearson", min_periods=None):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
