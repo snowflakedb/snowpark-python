@@ -330,6 +330,15 @@ def _disambiguate(
         ],
         _emit_ast=False,
     )
+    new_map = {}
+    for k, v in lhs_remapped._plan.expr_to_alias_v2.items():
+        new_map[(k[0], lhs._plan.uuid)] = v
+        lhs_remapped._plan.expr_to_alias_v2 = new_map.copy()
+
+    new_map = {}
+    for k, v in rhs_remapped._plan.expr_to_alias_v2.items():
+        new_map[(k[0], rhs._plan.uuid)] = v
+        rhs_remapped._plan.expr_to_alias_v2 = new_map.copy()
     return lhs_remapped, rhs_remapped
 
 
@@ -593,6 +602,7 @@ class DataFrame:
         if isinstance(plan, (SelectStatement, MockSelectStatement)):
             self._select_statement = plan
             plan.expr_to_alias.update(self._plan.expr_to_alias)
+            plan.expr_to_alias_v2.update(self._plan.expr_to_alias_v2)
             plan.df_aliased_col_name_to_real_col_name.update(
                 self._plan.df_aliased_col_name_to_real_col_name
             )
@@ -624,8 +634,8 @@ class DataFrame:
         Given a field builder expression of the AST type SpDataframeExpr, points the builder to reference this dataframe.
         """
         # TODO SNOW-1762262: remove once we generate the correct AST.
-        debug_check_missing_ast(self._ast_id, self)
-        sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
+        # debug_check_missing_ast(self._ast_id, self)
+        # sp_dataframe_expr_builder.sp_dataframe_ref.id.bitfield1 = self._ast_id
 
     @property
     def stat(self) -> DataFrameStatFunctions:
@@ -1339,8 +1349,8 @@ class DataFrame:
         else:
             return Column(self._resolve(col_name), _ast=expr)
 
-    @df_api_usage
-    @publicapi
+    # @df_api_usage
+    # @publicapi
     def select(
         self,
         *cols: Union[
@@ -5557,7 +5567,9 @@ Query List:
         )
 
         if len(cols) == 1:
-            return cols[0].with_name(normalized_col_name)
+            return cols[0].with_name(
+                normalized_col_name, snowflake_plan_uuid=self._plan.uuid
+            )
         else:
             raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
                 col_name

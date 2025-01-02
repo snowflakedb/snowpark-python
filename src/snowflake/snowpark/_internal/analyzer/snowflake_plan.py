@@ -121,6 +121,14 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+iiid = 0
+
+
+def get_next_id():
+    global iiid
+    iiid += 1
+    return str(iiid)
+
 
 class SnowflakePlan(LogicalPlan):
     class Decorator:
@@ -226,12 +234,14 @@ class SnowflakePlan(LogicalPlan):
         referenced_ctes: Optional[Dict[WithQueryBlock, int]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
+        expr_to_alias_v2: Optional[Dict] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
         self.schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
         self.expr_to_alias = expr_to_alias if expr_to_alias else {}
+        self.expr_to_alias_v2 = expr_to_alias_v2 if expr_to_alias_v2 else {}
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
@@ -258,7 +268,8 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
         # to UUID track queries that are generated from the same plan.
-        self._uuid = str(uuid.uuid4())
+        self._uuid = get_next_id()
+        # self._uuid = str(uuid.uuid4())
         # Metadata for the plan
         self._metadata: PlanMetadata = infer_metadata(
             self.source_plan,
@@ -361,11 +372,16 @@ class SnowflakePlan(LogicalPlan):
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
             self.schema_query = schema_value_statement(attributes)
+        for attr in attributes:
+            attr.plan_uuid = self.uuid
         return attributes
 
     @cached_property
     def output(self) -> List[Attribute]:
-        return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
+        return [
+            Attribute(a.name, a.datatype, a.nullable, snowflake_plan_uuid=self.uuid)
+            for a in self.attributes
+        ]
 
     @property
     def output_dict(self) -> Dict[str, Any]:
@@ -509,6 +525,21 @@ class SnowflakePlan(LogicalPlan):
     def add_aliases(self, to_add: Dict) -> None:
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
+    def add_aliases_v2(self, to_add: Dict) -> None:
+        conflicted = False
+        for key in self.expr_to_alias_v2.keys() & to_add.keys():  # Find common keys
+            if self.expr_to_alias_v2[key] != to_add[key]:
+                conflicted = True
+                print(
+                    f"need to overwrite, Conflict for key '{key}': {self.expr_to_alias_v2[key]} != {to_add[key]}"
+                )
+                self.expr_to_alias_v2[key] = to_add[key]
+        for key in to_add.keys() - self.expr_to_alias_v2.keys():  # Find new keys
+            self.expr_to_alias_v2[key] = to_add[key]
+        if conflicted:
+            print("new mapping:", self.expr_to_alias_v2)
+        # self.expr_to_alias_v2 = {**to_add, **self.expr_to_alias_v2}
+
 
 class SnowflakePlanBuilder:
     def __init__(
@@ -592,6 +623,21 @@ class SnowflakePlanBuilder:
             }.items()
             if k not in common_columns
         }
+
+        from snowflake.snowpark._internal.utils import (
+            merge_multiple_dicts_with_assertion,
+        )
+
+        new_expr_to_alias_v2 = merge_multiple_dicts_with_assertion(
+            select_left.expr_to_alias_v2, select_right.expr_to_alias_v2
+        )
+        # new_expr_to_alias_v2 = {
+        #     k: v
+        #     for k, v in {
+        #         **select_left.expr_to_alias_v2,
+        #         **select_right.expr_to_alias_v2,
+        #     }.items()
+        # }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
         # Need to do a deduplication to avoid repeated query.
@@ -639,6 +685,7 @@ class SnowflakePlanBuilder:
             api_calls=api_calls,
             session=self.session,
             referenced_ctes=referenced_ctes,
+            expr_to_alias_v2=new_expr_to_alias_v2,
         )
 
     def query(

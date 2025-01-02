@@ -236,6 +236,7 @@ class Selectable(LogicalPlan, ABC):
         self._column_states: Optional[ColumnStateDict] = None
         self._snowflake_plan: Optional[SnowflakePlan] = None
         self.expr_to_alias = {}
+        self.expr_to_alias_v2 = {}
         self.df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
@@ -315,6 +316,7 @@ class Selectable(LogicalPlan, ABC):
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
                 referenced_ctes=self.referenced_ctes,
+                expr_to_alias_v2=self.expr_to_alias_v2,
             )
             # set api_calls to self._snowflake_plan outside of the above constructor
             # because the constructor copy api_calls.
@@ -588,6 +590,7 @@ class SelectSnowflakePlan(Selectable):
             else analyzer.resolve(snowflake_plan)
         )
         self.expr_to_alias.update(self._snowflake_plan.expr_to_alias)
+        self.expr_to_alias_v2.update(self._snowflake_plan.expr_to_alias_v2)
         self.df_aliased_col_name_to_real_col_name.update(
             self._snowflake_plan.df_aliased_col_name_to_real_col_name
         )
@@ -680,6 +683,7 @@ class SelectStatement(Selectable):
         self._projection_in_str = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
+        self.expr_to_alias_v2.update(self.from_.expr_to_alias_v2)
         self.df_aliased_col_name_to_real_col_name.update(
             self.from_.df_aliased_col_name_to_real_col_name
         )
