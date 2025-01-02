@@ -45,11 +45,13 @@ from typing import (
 )
 
 import snowflake.snowpark
+from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
@@ -698,12 +700,32 @@ def column_to_bool(col_):
     return bool(col_)
 
 
+def _parse_result_meta(
+    result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]]
+) -> Tuple[Optional[List[str]], Optional[List[Callable]]]:
+    if not result_meta:
+        return None, None
+    col_names = []
+    wrappers = []
+    for col in result_meta:
+        col_names.append(col.name)
+        if (
+            _should_use_structured_type_semantics()
+            and FIELD_ID_TO_NAME[col.type_code] == "OBJECT"
+            and col.fields is not None
+        ):
+            wrappers.append(lambda x: Row(**x))
+        else:
+            wrappers.append(None)
+    return col_names, wrappers
+
+
 def result_set_to_rows(
     result_set: List[Any],
     result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]] = None,
     case_sensitive: bool = True,
 ) -> List[Row]:
-    col_names = [col.name for col in result_meta] if result_meta else None
+    col_names, wrappers = _parse_result_meta(result_meta)
     rows = []
     row_struct = Row
     if col_names:
@@ -711,6 +733,9 @@ def result_set_to_rows(
             Row._builder.build(*col_names).set_case_sensitive(case_sensitive).to_row()
         )
     for data in result_set:
+        if wrappers:
+            data = [wrap(d) if wrap else d for wrap, d in zip(wrappers, data)]
+
         if data is None:
             raise ValueError("Result returned from Python connector is None")
         row = row_struct(*data)
@@ -723,7 +748,7 @@ def result_set_to_iter(
     result_meta: Optional[List[ResultMetadata]] = None,
     case_sensitive: bool = True,
 ) -> Iterator[Row]:
-    col_names = [col.name for col in result_meta] if result_meta else None
+    col_names, wrappers = _parse_result_meta(result_meta)
     row_struct = Row
     if col_names:
         row_struct = (
@@ -732,6 +757,8 @@ def result_set_to_iter(
     for data in result_set:
         if data is None:
             raise ValueError("Result returned from Python connector is None")
+        if wrappers:
+            data = [wrap(d) if wrap else d for wrap, d in zip(wrappers, data)]
         row = row_struct(*data)
         yield row
 
