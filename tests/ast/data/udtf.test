@@ -529,6 +529,10 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+          }
+        }
         cols {
           sp_dataframe_col {
             col_name: "a"

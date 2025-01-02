@@ -276,7 +276,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 return_type,
                 input_types,
                 object_name,
-                Set(),
+                set(),
                 execute_as=execute_as,
                 strict=strict,
                 _ast=ast,

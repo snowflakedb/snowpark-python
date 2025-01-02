@@ -23,7 +23,7 @@ from snowflake.snowpark._internal.ast.utils import (
     ClearTempTables,
     base64_lines_to_textproto,
     textproto_to_request,
-    clear_symbols_and_udfs,
+    clear_symbols_and_functions,
     base64_lines_to_request,
     clear_line_no_in_request,
 )
@@ -194,7 +194,7 @@ def run_test(session, tables):
 def compare_base64_results(
     actual_message: proto.Request,
     expected_message: proto.Request,
-    exclude_symbols_udfs_and_src: bool = False,
+    exclude_symbols_functions_and_src: bool = False,
 ):
     """
     Serialize and deterministically compare two protobuf results.
@@ -223,13 +223,13 @@ def compare_base64_results(
     ClearTempTables(expected_message)
 
     # For decoder testing, clear the symbols and src information.
-    if exclude_symbols_udfs_and_src:
-        clear_symbols_and_udfs(actual_message)
-        clear_symbols_and_udfs(expected_message)
+    if exclude_symbols_functions_and_src:
+        clear_symbols_and_functions(actual_message)
+        clear_symbols_and_functions(expected_message)
 
     # If this is not python 3.11+, then for the purposes of the expectation tests we will ignore the line_no
     # information since it can be different based on various python bug fixes.
-    if sys.version_info.minor <= 10 or exclude_symbols_udfs_and_src:
+    if sys.version_info.minor <= 10 or exclude_symbols_functions_and_src:
         clear_line_no_in_request(actual_message)
         clear_line_no_in_request(expected_message)
         from google.protobuf.text_format import MessageToString
@@ -312,7 +312,7 @@ def test_ast(session, tables, test_case):
                 actual = base64_lines_to_request(("\n".join(decoder_result)).strip())
                 expected = base64_lines_to_request(stripped_base64_str)
                 compare_base64_results(
-                    actual, expected, exclude_symbols_udfs_and_src=True
+                    actual, expected, exclude_symbols_functions_and_src=True
                 )
 
         except AssertionError as e:
