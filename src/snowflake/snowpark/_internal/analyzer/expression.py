@@ -223,20 +223,38 @@ class InExpression(Expression):
 
 
 class Attribute(Expression, NamedExpression):
-    def __init__(self, name: str, datatype: DataType, nullable: bool = True) -> None:
+    def __init__(
+        self,
+        name: str,
+        datatype: DataType,
+        nullable: bool = True,
+        *,
+        snowflake_plan_uuid: str = None,
+    ) -> None:
         super().__init__()
         self.name = name
         self.datatype: DataType = datatype
         self.nullable = nullable
+        # non-breaking way to add snowflake_plan_uuid
+        self.snowflake_plan_uuid = snowflake_plan_uuid
 
-    def with_name(self, new_name: str) -> "Attribute":
+    def with_name(
+        self, new_name: str, *, snowflake_plan_uuid: str = None
+    ) -> "Attribute":
         if self.name == new_name:
+            # lazy update snowflake_plan_uuid
+            if not self.snowflake_plan_uuid:
+                self.snowflake_plan_uuid = snowflake_plan_uuid
+            else:
+                # one attribute can only belong to one snowflake plan
+                assert self.snowflake_plan_uuid == snowflake_plan_uuid
             return self
         else:
             return Attribute(
                 snowflake.snowpark._internal.utils.quote_name(new_name),
                 self.datatype,
                 self.nullable,
+                snowflake_plan_uuid=snowflake_plan_uuid,
             )
 
     @property
