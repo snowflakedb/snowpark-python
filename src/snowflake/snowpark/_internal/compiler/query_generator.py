@@ -218,7 +218,7 @@ class QueryGenerator(Analyzer):
 
         elif isinstance(logical_plan, WithQueryBlock):
             resolved_child = resolved_children[logical_plan.children[0]]
-            # record the CTE definition of the current block and update the query when
+            # record the CTE definition of the current block or update the query when
             # the child is re-resolved during optimization stage.
             self.resolved_with_query_block[logical_plan.name] = resolved_child.queries[
                 -1
