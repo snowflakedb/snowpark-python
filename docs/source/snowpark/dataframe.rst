@@ -91,6 +91,7 @@ DataFrame
     DataFrame.to_pandas
     DataFrame.to_pandas_batches
     DataFrame.to_snowpark_pandas
+    DataFrame.transform
     DataFrame.union
     DataFrame.unionAll
     DataFrame.unionAllByName
