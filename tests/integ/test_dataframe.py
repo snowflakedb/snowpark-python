@@ -15,7 +15,6 @@ from itertools import product
 from typing import Tuple
 from unittest import mock
 
-from snowflake.snowpark.dataframe import map
 from snowflake.snowpark.session import Session
 from tests.conftest import local_testing_mode
 
@@ -1720,6 +1719,19 @@ def test_create_dataframe_with_dict(session):
             Row(None, None, None, 4, 5),
         ],
     )
+
+
+def test_dataframe_transform_negative(session):
+    def ret_int_fn(input_df):
+        return 2
+
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+
+    with pytest.raises(
+        AssertionError,
+        match="Expected return value to be an instance of class DataFrame, got <class 'int'> instead.",
+    ):
+        df.transform(ret_int_fn)
 
 
 def test_create_dataframe_with_dict_given_schema(session):
@@ -4384,12 +4396,12 @@ def test_map_basic(
         row = Row(*output_col_names)
         expected = [row(*e) for e in expected]
         Utils.check_answer(
-            map(df, func, output_types, output_column_names=output_col_names), expected
+            df.map(func, output_types, output_column_names=output_col_names), expected
         )
     else:
         row = Row(*[f"c_{i+1}" for i in range(len(output_types))])
         expected = [row(*e) for e in expected]
-        Utils.check_answer(map(df, func, output_types), expected)
+        Utils.check_answer(df.map(func, output_types), expected)
 
 
 @pytest.mark.skipif(
@@ -4429,7 +4441,7 @@ def test_map_vectorized(session, func, output_types, expected):
     )
 
     Utils.check_answer(
-        map(df, func, output_types, vectorized=True, packages=["pandas"]), expected
+        df.map(func, output_types, vectorized=True, packages=["pandas"]), expected
     )
 
 
@@ -4443,12 +4455,10 @@ def test_map_chained(session):
         [[True, i, f"w{i}"] for i in range(5)], schema=["A", "B", "C"]
     )
 
-    new_df = map(
-        map(
-            df,
-            lambda x: (x.B * x.B, f"_{x.C}_"),
-            output_types=[IntegerType(), StringType()],
-        ),
+    new_df = df.map(
+        lambda x: (x.B * x.B, f"_{x.C}_"),
+        output_types=[IntegerType(), StringType()],
+    ).map(
         lambda x: len(x[1]) + x[0],
         output_types=[IntegerType()],
     )
@@ -4457,13 +4467,11 @@ def test_map_chained(session):
     Utils.check_answer(new_df, expected)
 
     # chained calls with repeated column names
-    new_df = map(
-        map(
-            df,
-            lambda x: Row(x.B * x.B, f"_{x.C}_"),
-            output_types=[IntegerType(), StringType()],
-            output_column_names=["A", "B"],
-        ),
+    new_df = df.map(
+        lambda x: Row(x.B * x.B, f"_{x.C}_"),
+        output_types=[IntegerType(), StringType()],
+        output_column_names=["A", "B"],
+    ).map(
         lambda x: Row(len(x.B) + x.A),
         output_types=[IntegerType()],
         output_column_names=["A"],
@@ -4478,14 +4486,13 @@ def test_map_negative(session):
     )
 
     with pytest.raises(ValueError, match="output_types cannot be empty."):
-        map(df1, lambda row: [row.B, row.C], output_types=[])
+        df1.map(lambda row: [row.B, row.C], output_types=[])
 
     with pytest.raises(
         ValueError,
         match="'output_column_names' and 'output_types' must be of the same size.",
     ):
-        map(
-            df1,
+        df1.map(
             lambda row: [row.B, row.C],
             output_types=[IntegerType(), StringType()],
             output_column_names=["a", "b", "c"],

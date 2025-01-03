@@ -29,6 +29,7 @@ INSTALL_REQ_LIST = [
     "protobuf>=3.20, <6",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
+    "snowflake.core>=1.0.0, <2",  # Catalog
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
 
@@ -199,7 +200,7 @@ setup(
             *DEVELOPMENT_REQUIREMENTS,
             "scipy",  # Snowpark pandas 3rd party library testing
             "statsmodels",  # Snowpark pandas 3rd party library testing
-            "scikit-learn==1.5.2",  # Snowpark pandas scikit-learn tests
+            "scikit-learn",  # Snowpark pandas 3rd party library testing
             # plotly version restricted due to foreseen change in query counts in version 6.0.0+
             "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
         ],

@@ -160,6 +160,28 @@ pandas_df = df.to_pandas()
 
 Note that the above Snowpark pandas commands will work if Snowpark is installed with the `[modin]` option, the additional `[pandas]` installation is not required.
 
+## Verifying Package Signatures
+
+To ensure the authenticity and integrity of the Python package, follow the steps below to verify the package signature using `cosign`.
+
+**Steps to verify the signature:**
+- Install cosign:
+  - This example is using golang installation: [installing-cosign-with-go](https://edu.chainguard.dev/open-source/sigstore/cosign/how-to-install-cosign/#installing-cosign-with-go)
+- Download the file from the repository like pypi:
+  - https://pypi.org/project/snowflake-snowpark-python/#files
+- Download the signature files from the release tag, replace the version number with the version you are verifying:
+  - https://github.com/snowflakedb/snowpark-python/releases/tag/v1.22.1
+- Verify signature:
+  ````bash
+  # replace the version number with the version you are verifying
+  ./cosign verify-blob snowflake_snowpark_python-1.22.1-py3-none-any.whl  \
+  --certificate snowflake_snowpark_python-1.22.1-py3-none-any.whl.crt \
+  --certificate-identity https://github.com/snowflakedb/snowpark-python/.github/workflows/python-publish.yml@refs/tags/v1.22.1 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --signature snowflake_snowpark_python-1.22.1-py3-none-any.whl.sig
+  Verified OK
+  ````
+
 ## Contributing
 Please refer to [CONTRIBUTING.md][contributing].
 
