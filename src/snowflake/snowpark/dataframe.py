@@ -5924,8 +5924,10 @@ Query List:
         vectorized: bool = False,
         max_batch_size: Optional[int] = None,
     ):
-        """Returns a new DataFrame with the result of applying `func` to each of the
-        rows of the specified DataFrame.
+        """Returns a new DataFrame with the result of applying ``func`` to each of the
+        rows of the specified DataFrame. The function must return either a scalar value
+        or a tuple containing the same number of elements as specified in the
+        ``output_types`` argument. This method is used for one-to-one row transformations.
 
         This function registers a temporary `UDTF
         <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ and
@@ -6079,8 +6081,10 @@ Query List:
         vectorized: bool = False,
         max_batch_size: Optional[int] = None,
     ):
-        """Returns a new DataFrame with the result of applying `func` to each of the
-        rows of the specified DataFrame.
+        """Returns a new DataFrame with the result of applying ``func`` to each of the
+        rows of the specified DataFrame. This function is similar to :meth:`Dataframe.map`,
+        but it expects the `func` function to return an iterable of values for each row and
+        is used for one to many transformations.
 
         This function registers a temporary `UDTF
         <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_ and
