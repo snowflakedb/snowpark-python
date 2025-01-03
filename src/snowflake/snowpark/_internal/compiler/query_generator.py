@@ -79,8 +79,9 @@ class QueryGenerator(Analyzer):
             return plan
 
         plan_id = hex(id(plan))
-        if isinstance(plan, SnowflakePlan) and plan_id in self._to_selectable_memo_dict:
+        if plan_id in self._to_selectable_memo_dict:
             return self._to_selectable_memo_dict[plan_id]
+
         snowflake_plan = self.resolve(plan)
         selectable = SelectSnowflakePlan(snowflake_plan, analyzer=self)
         selectable._is_valid_for_replacement = True
