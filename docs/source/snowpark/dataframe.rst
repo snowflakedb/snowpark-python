@@ -50,6 +50,8 @@ DataFrame
     DataFrame.fillna
     DataFrame.filter
     DataFrame.first
+    DataFrame.flat_map
+    DataFrame.flatMap
     DataFrame.flatten
     DataFrame.groupBy
     DataFrame.group_by
