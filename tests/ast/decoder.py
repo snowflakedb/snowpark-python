@@ -1604,6 +1604,20 @@ class Decoder:
                 df = self.decode_expr(expr.sp_dataframe_write.df)
                 return df.write
 
+            case "sp_dataframe_to_local_iterator":
+                df = self.symbol_table[
+                    expr.sp_dataframe_to_local_iterator.id.bitfield1
+                ][1]
+                d = MessageToDict(expr.sp_dataframe_to_local_iterator)
+                statement_params = self.get_statement_params(d)
+                block = d.get("block", True)
+                case_sensitive = d.get("caseSensitive", True)
+                return df.to_local_iterator(
+                    block=block,
+                    statement_params=statement_params,
+                    case_sensitive=case_sensitive,
+                )
+
             case _:
                 raise NotImplementedError(
                     "Expression type not implemented yet: %s"

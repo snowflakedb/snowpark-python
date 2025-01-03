@@ -99,6 +99,7 @@ body {
   assign {
     expr {
       sp_dataframe_to_local_iterator {
+        block: true
         case_sensitive: true
         id {
           bitfield1: 1
@@ -321,6 +322,7 @@ body {
     expr {
       sp_dataframe_to_local_iterator {
         block: true
+        case_sensitive: true
         id {
           bitfield1: 1
         }
