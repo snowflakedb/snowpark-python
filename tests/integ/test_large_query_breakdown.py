@@ -779,6 +779,26 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
         assert len(queries["post_actions"]) == 0
 
 
+def test_to_selectable_memoization(session):
+    session.cte_optimization_enabled = True
+    sql_simplifier_enabled = session.sql_simplifier_enabled
+    if sql_simplifier_enabled:
+        set_bounds(session, 300, 520)
+    else:
+        set_bounds(session, 40, 55)
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a", "b")
+    for i in range(7):
+        df = df.with_column("a", col("a") + i + col("a"))
+    df1 = df.select("a", "b", (col("a") + col("b")).as_("b"))
+    df2 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    df3 = df.select("a", "b", (col("a") + col("b")).as_("d"))
+    df5 = df1.union_all(df2).union_all(df3)
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = df5.queries
+        assert len(queries["queries"]) == 2
+        assert len(queries["post_actions"]) == 1
+
+
 @sql_count_checker(query_count=0)
 def test_large_query_breakdown_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
