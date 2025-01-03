@@ -701,8 +701,16 @@ def column_to_bool(col_):
 
 
 def _parse_result_meta(
-    result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]]
+    result_meta: Union[List[ResultMetadata], List["ResultMetadataV2"]]
 ) -> Tuple[Optional[List[str]], Optional[List[Callable]]]:
+    """
+    Takes a list of result metadata objects and returns a list containing the names of all fields as
+    well as a list of functions that wrap specific columns.
+
+    A column type may need to be wrapped if the connector is unable to provide the columns data in
+    an expected format. For example StructType columns are returned as dict objects, but are better
+    represented as Row objects.
+    """
     if not result_meta:
         return None, None
     col_names = []
@@ -725,7 +733,7 @@ def result_set_to_rows(
     result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]] = None,
     case_sensitive: bool = True,
 ) -> List[Row]:
-    col_names, wrappers = _parse_result_meta(result_meta)
+    col_names, wrappers = _parse_result_meta(result_meta or [])
     rows = []
     row_struct = Row
     if col_names:
