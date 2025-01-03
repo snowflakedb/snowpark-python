@@ -764,15 +764,14 @@ def test_large_query_breakdown_with_nested_cte(session):
 
     with SqlCounter(query_count=1, describe_count=0):
         queries = final_df.queries
-        # TODO: update when to_selectable memoization is merged
-        assert len(queries["queries"]) == 3
-        assert len(queries["post_actions"]) == 2
+        assert len(queries["queries"]) == 2
+        assert len(queries["post_actions"]) == 1
         match = re.search(r"SNOWPARK_TEMP_CTE_[\w]+", queries["queries"][0])
         assert match is not None
         cte_name_for_first_partition = match.group()
         # assert that query for upper cte node is re-written and does not
         # contain the cte name for the first partition
-        assert cte_name_for_first_partition not in queries["queries"][2]
+        assert cte_name_for_first_partition not in queries["queries"][1]
 
     check_result_with_and_without_breakdown(session, final_df)
 
