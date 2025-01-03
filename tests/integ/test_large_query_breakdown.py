@@ -792,11 +792,11 @@ def test_large_query_breakdown_enabled_parameter(session, caplog):
 def test_plotter(large_query_df, enabled, plotting_score_threshold):
     original_plotter_enabled = os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING")
     original_score_threshold = os.environ.get(
-        "SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD"
+        "SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"
     )
     try:
         os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"] = str(enabled)
-        os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD"] = str(
+        os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"] = str(
             plotting_score_threshold
         )
         tmp_dir = tempfile.gettempdir()
@@ -829,7 +829,7 @@ def test_plotter(large_query_df, enabled, plotting_score_threshold):
             del os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"]
         if original_score_threshold is not None:
             os.environ[
-                "SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD"
+                "SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"
             ] = original_score_threshold
         else:
-            del os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD"]
+            del os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"]

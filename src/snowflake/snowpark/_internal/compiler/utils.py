@@ -384,7 +384,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         return
 
     if int(
-        os.environ.get("SNOWPARK_LOGICAL_PLAN_PLOTTING_THRESHOLD", 0)
+        os.environ.get("SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD", 0)
     ) > get_complexity_score(root):
         return
 
@@ -398,9 +398,11 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             name = str(type(node)).split(".")[-1].split("'")[0]
             suffix = ""
             if isinstance(node, SnowflakeCreateTable):
+                # get the table name from the full qualified name
                 table_name = node.table_name[-1].split(".")[-1]  # pyright: ignore
                 suffix = f" :: {table_name}"
             if isinstance(node, WithQueryBlock):
+                # get the CTE identifier excluding SNOWPARK_TEMP_CTE_
                 suffix = f" :: {node.name[18:]}"
 
             return f"{name}({addr}){suffix}"
@@ -426,6 +428,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
                 properties.append("Offset")  # pragma: no cover
             name = f"{name} :: ({'| '.join(properties)})"
         elif isinstance(node, SelectableEntity):
+            # get the table name from the full qualified name
             name = f"{name} :: ({node.entity.name.split('.')[-1]})"
 
         def get_sql_text(node: LogicalPlan) -> str:  # pragma: no cover
