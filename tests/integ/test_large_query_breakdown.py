@@ -822,6 +822,26 @@ def test_complexity_bounds_affect_num_partitions(session, large_query_df):
         assert len(queries["post_actions"]) == 0
 
 
+def test_to_selectable_memoization(session):
+    session.cte_optimization_enabled = True
+    sql_simplifier_enabled = session.sql_simplifier_enabled
+    if sql_simplifier_enabled:
+        set_bounds(session, 300, 520)
+    else:
+        set_bounds(session, 40, 55)
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).select("a", "b")
+    for i in range(7):
+        df = df.with_column("a", col("a") + i + col("a"))
+    df1 = df.select("a", "b", (col("a") + col("b")).as_("b"))
+    df2 = df.select("a", "b", (col("a") + col("b")).as_("c"))
+    df3 = df.select("a", "b", (col("a") + col("b")).as_("d"))
+    df5 = df1.union_all(df2).union_all(df3)
+    with SqlCounter(query_count=1, describe_count=0):
+        queries = df5.queries
+        assert len(queries["queries"]) == 2
+        assert len(queries["post_actions"]) == 1
+
+
 @sql_count_checker(query_count=0)
 def test_large_query_breakdown_enabled_parameter(session, caplog):
     with caplog.at_level(logging.WARNING):
@@ -831,16 +851,24 @@ def test_large_query_breakdown_enabled_parameter(session, caplog):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="requires graphviz")
 @pytest.mark.parametrize("enabled", [False, True])
-def test_plotter(session, large_query_df, enabled):
+@pytest.mark.parametrize("plotting_score_threshold", [0, 10_000_000])
+def test_plotter(large_query_df, enabled, plotting_score_threshold):
     original_plotter_enabled = os.environ.get("ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING")
+    original_score_threshold = os.environ.get(
+        "SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"
+    )
     try:
         os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"] = str(enabled)
+        os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"] = str(
+            plotting_score_threshold
+        )
         tmp_dir = tempfile.gettempdir()
 
         with patch("graphviz.Graph.render") as mock_render:
             large_query_df.collect()
-            assert mock_render.called == enabled
-            if not enabled:
+            should_plot = enabled and (plotting_score_threshold == 0)
+            assert mock_render.called == should_plot
+            if not should_plot:
                 return
 
             assert mock_render.call_count == 5
@@ -862,3 +890,9 @@ def test_plotter(session, large_query_df, enabled):
             ] = original_plotter_enabled
         else:
             del os.environ["ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING"]
+        if original_score_threshold is not None:
+            os.environ[
+                "SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"
+            ] = original_score_threshold
+        else:
+            del os.environ["SNOWPARK_LOGICAL_PLAN_PLOTTING_COMPLEXITY_THRESHOLD"]
