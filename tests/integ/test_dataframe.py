@@ -1678,6 +1678,19 @@ def test_create_dataframe_with_dict(session):
     )
 
 
+def test_dataframe_transform_negative(session):
+    def ret_int_fn(input_df):
+        return 2
+
+    df = session.create_dataframe([[1, 2]], schema=["a", "b"])
+
+    with pytest.raises(
+        AssertionError,
+        match="Expected return value to be an instance of class DataFrame, got <class 'int'> instead.",
+    ):
+        df.transform(ret_int_fn)
+
+
 def test_create_dataframe_with_dict_given_schema(session):
     schema = StructType(
         [
