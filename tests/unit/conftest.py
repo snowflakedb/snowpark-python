@@ -79,7 +79,6 @@ def mock_session(mock_analyzer) -> Session:
     fake_session = mock.create_autospec(Session)
     fake_session._cte_optimization_enabled = False
     fake_session._analyzer = mock_analyzer
-    fake_session._lock = mock.MagicMock()
     fake_session._plan_lock = mock.MagicMock()
     mock_analyzer.session = fake_session
     return fake_session

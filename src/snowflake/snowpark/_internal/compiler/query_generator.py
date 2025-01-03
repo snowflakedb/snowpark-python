@@ -78,19 +78,14 @@ class QueryGenerator(Analyzer):
         if isinstance(plan, Selectable):
             return plan
 
-        with self.session._lock:
-            if (
-                isinstance(plan, SnowflakePlan)
-                and plan._uuid in self._to_selectable_memo_dict
-            ):
-                return self._to_selectable_memo_dict[plan._uuid]
-            snowflake_plan = self.resolve(plan)
-            selectable = SelectSnowflakePlan(snowflake_plan, analyzer=self)
-            selectable._is_valid_for_replacement = (
-                snowflake_plan._is_valid_for_replacement
-            )
-            self._to_selectable_memo_dict[snowflake_plan._uuid] = selectable
-            return selectable
+        plan_id = hex(id(plan))
+        if isinstance(plan, SnowflakePlan) and plan_id in self._to_selectable_memo_dict:
+            return self._to_selectable_memo_dict[plan_id]
+        snowflake_plan = self.resolve(plan)
+        selectable = SelectSnowflakePlan(snowflake_plan, analyzer=self)
+        selectable._is_valid_for_replacement = True
+        self._to_selectable_memo_dict[plan_id] = selectable
+        return selectable
 
     def generate_queries(
         self, logical_plans: List[LogicalPlan]

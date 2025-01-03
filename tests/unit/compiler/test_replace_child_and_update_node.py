@@ -69,7 +69,6 @@ def mock_snowflake_plan() -> SnowflakePlan:
     fake_snowflake_plan.referenced_ctes = {with_query_block: 1}
     fake_snowflake_plan._cumulative_node_complexity = {}
     fake_snowflake_plan._is_valid_for_replacement = True
-    fake_snowflake_plan._uuid = "dummy uuid"
     return fake_snowflake_plan
 
 
