@@ -216,3 +216,85 @@ def test_column_with_builtins_that_shadow_functions(session):
     with pytest.raises(TypeError) as ex_info:
         TestData.double1(session).select(sum(col("a"))).collect()
     assert iter_error_msg_text in str(ex_info)
+
+
+def test_column_regex(session, local_testing_mode):
+    if not session.sql_simplifier_enabled and local_testing_mode:
+        pytest.skip("disable sql simplifier is not supported in local testing mode")
+    df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
+        ["COL1", "col2_a", "col2_b", "Col3"]
+    )
+    Utils.check_answer(df.select(df.col_regex("col2_.*")), [Row(COL2_A=2, COL2_B=3)])
+    Utils.check_answer(df.select(df.col_regex("COL2_.*")), [Row(COL2_A=2, COL2_B=3)])
+    Utils.check_answer(df.select(df.col_regex("Col2_.*")), [Row(COL2_A=2, COL2_B=3)])
+
+    Utils.check_answer(df.select(df.col_regex("COL1")), [Row(COL1=1)])
+    Utils.check_answer(df.select(df.col_regex("col1")), [Row(COL1=1)])
+    Utils.check_answer(df.select(df.col_regex("Col1")), [Row(COL1=1)])
+
+    Utils.check_answer(df.select(df.col_regex("COL3")), [Row(COL3=4)])
+    Utils.check_answer(df.select(df.col_regex("col3")), [Row(COL3=4)])
+    Utils.check_answer(df.select(df.col_regex("Col3")), [Row(COL3=4)])
+
+    with pytest.raises(
+        ValueError, match="No columns matched for the provided regex:no_match"
+    ):
+        df.select(df.col_regex("no_match"))
+
+    with pytest.raises(
+        ValueError, match='No columns matched for the provided regex:Col2_.*"'
+    ):
+        df.select(df.col_regex('Col2_.*"'))
+
+    case_sensitive_df = session.create_dataframe([[1, 2, 3, 4]]).to_df(
+        ['"COL1"', '"Col2_a"', '"Col2_b"', '"col3"']
+    )
+    with pytest.raises(
+        ValueError, match="No columns matched for the provided regex:Col2_.*"
+    ):
+        case_sensitive_df.select(
+            case_sensitive_df.col_regex("Col2_.*", case_sensitive=True)
+        )
+
+    Utils.check_answer(
+        case_sensitive_df.select(
+            case_sensitive_df.col_regex('"Col2_.*"', case_sensitive=True)
+        ).collect(),
+        [Row(Col2_a=2, Col2_b=3)],
+    )
+    with pytest.raises(
+        ValueError, match="No columns matched for the provided regex:col2_.*"
+    ):
+        case_sensitive_df.select(
+            case_sensitive_df.col_regex("col2_.*", case_sensitive=True)
+        )
+
+    with pytest.raises(
+        ValueError, match="No columns matched for the provided regex:COL2.*"
+    ):
+        case_sensitive_df.select(
+            case_sensitive_df.col_regex("COL2_.*", case_sensitive=True)
+        )
+
+    # fail because it requires to start without double quote and end with double quote, which is an illegal regex
+    with pytest.raises(
+        ValueError, match='No columns matched for the provided regex:Col2_.*"'
+    ):
+        case_sensitive_df.select(
+            case_sensitive_df.col_regex('Col2_.*"', case_sensitive=True)
+        )
+
+    Utils.check_answer(
+        case_sensitive_df.select(
+            case_sensitive_df.col_regex('^"Col2_.*', case_sensitive=True)
+        ).collect(),
+        [Row(Col2_a=2, Col2_b=3)],
+    )
+
+    # succeed because it only requires matching last double quote
+    Utils.check_answer(
+        case_sensitive_df.select(
+            case_sensitive_df.col_regex('.*Col2_.*"', case_sensitive=True)
+        ).collect(),
+        [Row(Col2_a=2, Col2_b=3)],
+    )

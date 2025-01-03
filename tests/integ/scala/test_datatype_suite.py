@@ -401,7 +401,7 @@ def test_structured_dtypes_select(
     df = _create_test_dataframe(structured_type_session, structured_type_support)
     nested_field_name = "b" if context._should_use_structured_type_semantics else "B"
     flattened_df = df.select(
-        df.map["k1"].alias("value1"),
+        df["map"]["k1"].alias("value1"),
         df.obj["A"].alias("a"),
         col("obj")[nested_field_name].alias("b"),
         df.arr[0].alias("value2"),
@@ -909,9 +909,9 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
 
     cast_df = df.select(
         df.arr.cast(ArrayType(IntegerType(), structured=True)).alias("arr"),
-        df.map.cast(MapType(StringType(100), IntegerType(), structured=True)).alias(
-            "map"
-        ),
+        df["map"]
+        .cast(MapType(StringType(100), IntegerType(), structured=True))
+        .alias("map"),
         df.obj.cast(
             StructType(
                 [StructField("A", FloatType()), StructField("B", StringType(100))],
