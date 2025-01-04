@@ -10,6 +10,7 @@ import pytest
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     convert_numpy_int_result_to_int,
     deduce_return_type_from_function,
+    infer_return_type_using_dummy_data,
     handle_missing_value_in_variant,
 )
 from snowflake.snowpark.types import (
@@ -18,6 +19,7 @@ from snowflake.snowpark.types import (
     LongType,
     MapType,
     StringType,
+    TimestampType,
     VariantType,
 )
 
@@ -74,6 +76,33 @@ def test_deduce_return_type_from_function(func, datatype):
     else:
         # type could not be deduced
         assert deduce_return_type_from_function(func) is None
+
+
+@pytest.mark.parametrize(
+    "func, input_type, return_type",
+    [
+        (lambda x: x + 1, LongType(), LongType()),
+        (lambda x: x + 1.8, LongType(), FloatType()),
+        (lambda x: str(x), LongType(), StringType()),
+        (lambda x: x.year, TimestampType(), LongType()),
+        (lambda x: [x, x + 1], LongType(), ArrayType(LongType())),
+        (lambda x: {x: x}, StringType(), MapType()),
+        (lambda x: 1 if x < 0 else "abc", LongType(), VariantType()),
+        (lambda x: None, StringType(), None),  # failed to infer return type
+    ],
+    ids=[
+        "long_to_long",
+        "long_to_float",
+        "long_to_str",
+        "timestamp_to_long",
+        "long_to_array",
+        "str_to_map",
+        "long_to_variant",
+        "str_to_none",
+    ],
+)
+def test_infer_return_type_from_function(func, input_type, return_type):
+    assert infer_return_type_using_dummy_data(func, input_type) == return_type
 
 
 @pytest.mark.parametrize(

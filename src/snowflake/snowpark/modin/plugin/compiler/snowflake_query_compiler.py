@@ -8802,15 +8802,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas applymap API doesn't yet support na_action == 'ignore'"
             )
-        return_type = deduce_return_type_from_function(func)
-        if not return_type:
-            return_type = VariantType()
 
         # create and apply udfs on all data columns
         replace_mapping = {}
         for f in self._modin_frame.ordered_dataframe.schema.fields:
             identifier = f.column_identifier.quoted_name
             if identifier in self._modin_frame.data_column_snowflake_quoted_identifiers:
+                return_type = deduce_return_type_from_function(func, f.datatype)
+                if not return_type:
+                    return_type = VariantType()
                 func_udf = create_udf_for_series_apply(
                     func,
                     return_type,
