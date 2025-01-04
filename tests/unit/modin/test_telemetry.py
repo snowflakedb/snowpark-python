@@ -171,8 +171,6 @@ def test_snowpark_pandas_telemetry_method_error(error):
         error_msg="test"
         if isinstance(error, (AssertionError, NotImplementedError))
         else None,
-        method_call_count=0,
-        interchange_call_count=0,
     )
 
 
