@@ -441,9 +441,9 @@ def test_multiple_plan_query_generation(session):
     ],
 )
 def test_referenced_cte_propagation(session, plan_lambda):
-    cte_optimization_enabled = session._cte_optimization_enabled
+    cte_optimization_enabled = session.cte_optimization_enabled
     try:
-        session._cte_optimization_enabled = True
+        session.cte_optimization_enabled = True
         df0 = session.create_dataframe([[1], [2], [5]], schema=["a"])
         df = session.create_dataframe(
             [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]],
@@ -465,7 +465,7 @@ def test_referenced_cte_propagation(session, plan_lambda):
         assert len(optimized_logical_plans) == 1
         assert len(optimized_logical_plans[0].referenced_ctes) == 1
     finally:
-        session._cte_optimization_enabled = cte_optimization_enabled
+        session.cte_optimization_enabled = cte_optimization_enabled
 
 
 def test_in_with_subquery(session):
