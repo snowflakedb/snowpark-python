@@ -318,9 +318,9 @@ def _telemetry_helper(
             need_to_restore_args0_api_calls = True
             session = args[0]._query_compiler._modin_frame.ordered_dataframe.session
             class_prefix = args[0].__class__.__name__
-            args[0]._query_compiler._method_call_counts[func.__name__] += 1
+            args[0]._query_compiler._method_call_counts[func.__qualname__] += 1
             method_call_count = args[0]._query_compiler._method_call_counts[
-                func.__name__
+                func.__qualname__
             ]
             interchange_call_count = args[0]._query_compiler._method_call_counts[
                 "__dataframe__"
