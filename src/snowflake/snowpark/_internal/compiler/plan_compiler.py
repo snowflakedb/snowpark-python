@@ -204,35 +204,31 @@ class PlanCompiler:
         To prevent this, we generate queries with temp object name placeholders and replace them with actual temp object
         here.
         """
-        session = self._plan.session
-        if session._conn._thread_safe_session_enabled:
-            # This dictionary will store the mapping between placeholder name and actual temp object name.
-            placeholders = {}
-            # Final execution queries
-            execution_queries = {}
-            for query_type, query_list in queries.items():
-                execution_queries[query_type] = []
-                for query in query_list:
-                    # If the query contains a temp object name placeholder, we generate a random
-                    # name for the temp object and add it to the placeholders dictionary.
-                    if query.temp_obj_name_placeholder:
-                        (
-                            placeholder_name,
-                            temp_obj_type,
-                        ) = query.temp_obj_name_placeholder
-                        placeholders[placeholder_name] = random_name_for_temp_object(
-                            temp_obj_type
-                        )
+        # This dictionary will store the mapping between placeholder name and actual temp object name.
+        placeholders = {}
+        # Final execution queries
+        execution_queries = {}
+        for query_type, query_list in queries.items():
+            execution_queries[query_type] = []
+            for query in query_list:
+                # If the query contains a temp object name placeholder, we generate a random
+                # name for the temp object and add it to the placeholders dictionary.
+                if query.temp_obj_name_placeholder:
+                    (
+                        placeholder_name,
+                        temp_obj_type,
+                    ) = query.temp_obj_name_placeholder
+                    placeholders[placeholder_name] = random_name_for_temp_object(
+                        temp_obj_type
+                    )
 
-                    copied_query = copy.copy(query)
-                    for placeholder_name, target_temp_name in placeholders.items():
-                        # Copy the original query and replace all the placeholder names with the
-                        # actual temp object names.
-                        copied_query.sql = copied_query.sql.replace(
-                            placeholder_name, target_temp_name
-                        )
+                copied_query = copy.copy(query)
+                for placeholder_name, target_temp_name in placeholders.items():
+                    # Copy the original query and replace all the placeholder names with the
+                    # actual temp object names.
+                    copied_query.sql = copied_query.sql.replace(
+                        placeholder_name, target_temp_name
+                    )
 
-                    execution_queries[query_type].append(copied_query)
-            return execution_queries
-
-        return queries
+                execution_queries[query_type].append(copied_query)
+        return execution_queries
