@@ -5655,7 +5655,10 @@ Query List:
         return exprs
 
     def _format_schema(
-        self, level: Optional[int] = None, translate_columns: Optional[dict] = None
+        self,
+        level: Optional[int] = None,
+        translate_columns: Optional[dict] = None,
+        translate_types: Optional[dict] = None,
     ) -> str:
         def _format_datatype(name, dtype, nullable=None, depth=0):
             if level is not None and depth >= level:
@@ -5668,6 +5671,10 @@ Query List:
             )
             extra_lines = []
             type_str = dtype.__class__.__name__
+
+            translated = None
+            if translate_types:
+                translated = translate_types.get(type_str, type_str)
 
             # Structured Type format their parameters on multiple lines.
             if isinstance(dtype, ArrayType):
@@ -5695,7 +5702,7 @@ Query List:
 
             return "\n".join(
                 [
-                    f"{prefix} |-- {name}: {type_str}{nullable_str}",
+                    f"{prefix} |-- {name}: {translated or type_str}{nullable_str}",
                 ]
                 + [f"{line}" for line in extra_lines if line]
             )
