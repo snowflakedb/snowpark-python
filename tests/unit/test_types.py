@@ -683,6 +683,7 @@ def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
 @pytest.mark.parametrize(
     "value_str,datatype,expected_value",
     [
+        (None, None, None),
         ("1", IntegerType(), 1),
         ("True", BooleanType(), True),
         ("1.0", FloatType(), 1.0),
