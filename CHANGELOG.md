@@ -20,6 +20,10 @@
 
 - Updated README.md to include instructions on how to verify package signatures using `cosign`.
 
+#### Bug Fixes
+
+- Fixed a bug in StructField.from_json that prevented TimestampTypes with tzinfo from being parsed correctly.
+
 ### Snowpark pandas API Updates
 
 #### New Features
