@@ -2302,10 +2302,7 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_table, stmt)
-            if isinstance(name, str):
-                ast.name.sp_table_name_flat.name = name
-            elif isinstance(name, Iterable):
-                ast.name.sp_table_name_structured.name.extend(name)
+            build_sp_table_name(ast.name, name)
             ast.variant.sp_session_table = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
         else:
@@ -3002,8 +2999,8 @@ class Session:
                 ast.compression = compression
                 ast.create_temp_table = create_temp_table
                 if isinstance(df, pandas.DataFrame):
-                    ast.df.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
-                        table.table_name
+                    build_sp_table_name(
+                        ast.df.sp_dataframe_data__pandas.v.temp_table, table.table_name
                     )
                 else:
                     raise NotImplementedError(
@@ -3157,12 +3154,10 @@ class Session:
                 if _emit_ast:
                     stmt = self._ast_batch.assign()
                     ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
-
                     # Save temp table and schema of it in AST (dataframe).
-                    ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
-                        temp_table_name
+                    build_sp_table_name(
+                        ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
                     )
-
                     build_proto_from_struct_type(
                         table.schema, ast.schema.sp_dataframe_schema__struct.v
                     )
@@ -3405,10 +3400,9 @@ class Session:
                 ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
 
                 # Save temp table and schema of it in AST (dataframe).
-                ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
-                    temp_table_name
+                build_sp_table_name(
+                    ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
                 )
-
                 build_proto_from_struct_type(
                     table.schema, ast.schema.sp_dataframe_schema__struct.v
                 )
@@ -3872,7 +3866,7 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             expr = with_src_position(stmt.expr.apply_expr, stmt)
-            expr.fn.stored_procedure.name.fn_name_flat.name = sproc_name
+            expr.fn.stored_procedure.name.name.sp_name_flat.name = sproc_name
             for arg in args:
                 build_expr_from_python_val(expr.pos_args.add(), arg)
             if statement_params is not None:
