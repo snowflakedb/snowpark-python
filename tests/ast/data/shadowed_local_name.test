@@ -27,15 +27,14 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -62,8 +61,10 @@ body {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
@@ -71,20 +72,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 57
-                    end_line: 25
                     file: "SRC_POSITION_TEST_MODE"
-                    start_column: 47
                     start_line: 25
                   }
                   v: "NUM"
                 }
               }
               src {
-                end_column: 57
-                end_line: 25
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 47
                 start_line: 25
               }
             }
@@ -99,10 +94,7 @@ body {
           }
         }
         src {
-          end_column: 58
-          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 25
         }
       }
@@ -128,10 +120,7 @@ body {
           }
         }
         src {
-          end_column: 27
-          end_line: 28
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 15
           start_line: 28
         }
       }
@@ -159,10 +148,7 @@ body {
         input {
           string_val {
             src {
-              end_column: 52
-              end_line: 33
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
               start_line: 33
             }
             v: "STR"
@@ -176,10 +162,7 @@ body {
           value: "path"
         }
         src {
-          end_column: 52
-          end_line: 33
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 33
         }
       }
