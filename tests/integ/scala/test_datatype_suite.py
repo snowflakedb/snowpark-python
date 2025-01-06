@@ -6,12 +6,15 @@ import uuid
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
+from unittest import mock
 
+import logging
 import pytest
 
 import snowflake.snowpark.context as context
 from snowflake.connector.options import installed_pandas
 from snowflake.snowpark import Row
+from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     any_value,
@@ -21,8 +24,10 @@ from snowflake.snowpark.functions import (
     lit,
     object_construct,
     sum_distinct,
+    udaf,
     udf,
 )
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
     BinaryType,
@@ -48,6 +53,8 @@ from snowflake.snowpark.types import (
     VectorType,
 )
 from tests.utils import (
+    TempObjectType,
+    TestFiles,
     Utils,
     iceberg_supported,
     structured_types_enabled_session,
@@ -167,10 +174,10 @@ def examples(structured_type_support):
 def structured_type_session(session, structured_type_support):
     if structured_type_support:
         with structured_types_enabled_session(session) as sess:
-            semantics_enabled = context._should_use_structured_type_semantics
-            context._should_use_structured_type_semantics = True
-            yield sess
-            context._should_use_structured_type_semantics = semantics_enabled
+            with mock.patch(
+                "snowflake.snowpark.context._use_structured_type_semantics", True
+            ):
+                yield sess
     else:
         yield session
 
@@ -399,7 +406,7 @@ def test_structured_dtypes_select(
 ):
     query, expected_dtypes, expected_schema = examples
     df = _create_test_dataframe(structured_type_session, structured_type_support)
-    nested_field_name = "b" if context._should_use_structured_type_semantics else "B"
+    nested_field_name = "b" if context._should_use_structured_type_semantics() else "B"
     flattened_df = df.select(
         df.map["k1"].alias("value1"),
         df.obj["A"].alias("a"),
@@ -525,6 +532,76 @@ def test_structured_dtypes_iceberg(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
+def test_structured_dtypes_negative(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    # SNOW-1862700: Array Type and Map Type missing element or value fails to generate AST
+    with pytest.raises(
+        NotImplementedError, match="AST does not support empty element_type."
+    ):
+        x = ArrayType()
+        x._fill_ast(mock.Mock())
+
+    with pytest.raises(
+        NotImplementedError, match="AST does not support empty key or value type."
+    ):
+        x = MapType()
+        x._fill_ast(mock.Mock())
+
+    # Maptype requires both key and value type be set if either is set
+    with pytest.raises(
+        ValueError,
+        match="Must either set both key_type and value_type or leave both unset.",
+    ):
+        MapType(StringType())
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+@pytest.mark.skipif(
+    "config.getoption('enable_ast', default=False)",
+    reason="SNOW-1862700: AST does not support new structured type semantics yet.",
+)
+def test_udaf_structured_map_downcast(
+    structured_type_session, structured_type_support, caplog
+):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    with caplog.at_level(logging.WARNING):
+
+        @udaf(return_type=MapType(StringType(), StringType(), structured=True))
+        class MapCollector:
+            def __init__(self) -> None:
+                self._agg_state = dict()
+
+            @property
+            def aggregate_state(self) -> dict:
+                return self._agg_state
+
+            def accumulate(self, int_: int) -> None:
+                self._agg_state[int_] = self._agg_state.get(int_, 0) + 1
+
+            def merge(self, other_state: int) -> None:
+                self._agg_state = {**self._agg_state, **other_state}
+
+            def finish(self) -> dict:
+                return self._agg_state
+
+        assert (
+            "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object."
+            in caplog.text
+        )
+        assert MapCollector._return_type == MapType()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
 def test_iceberg_nested_fields(
     structured_type_session, local_testing_mode, structured_type_support
 ):
@@ -580,7 +657,7 @@ def test_iceberg_nested_fields(
                 nullable=True,
             )
         ],
-        structured=False,
+        structured=True,
     )
 
     try:
@@ -857,14 +934,18 @@ def test_dtypes_vector(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
+@pytest.mark.skipif(
+    "config.getoption('enable_ast', default=False)",
+    reason="SNOW-1862700: AST does not support new structured type semantics yet.",
+)
 def test_structured_dtypes_cast(structured_type_session, structured_type_support):
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
     expected_semi_schema = StructType(
         [
-            StructField("ARR", ArrayType(StringType()), nullable=True),
-            StructField("MAP", MapType(StringType(), StringType()), nullable=True),
-            StructField("OBJ", MapType(StringType(), StringType()), nullable=True),
+            StructField("ARR", ArrayType(), nullable=True),
+            StructField("MAP", MapType(), nullable=True),
+            StructField("OBJ", MapType(), nullable=True),
         ]
     )
     expected_structured_schema = StructType(
@@ -994,6 +1075,19 @@ def test_structured_type_print_schema(
     assert (
         df._format_schema(1, translate_columns={'"MAP"': '"map"'})
         == 'root\n |-- "map": MapType (nullable = True)'
+    )
+
+    # Check that column types can be translated
+    assert (
+        df._format_schema(
+            2,
+            translate_types={
+                "MapType": "dict",
+                "StringType": "str",
+                "ArrayType": "list",
+            },
+        )
+        == 'root\n |-- "MAP": dict (nullable = True)\n |   |-- key: str\n |   |-- value: list'
     )
 
 
@@ -1126,3 +1220,78 @@ def test_structured_type_schema_expression(
         Utils.drop_table(structured_type_session, table_name)
         Utils.drop_table(structured_type_session, non_null_table_name)
         Utils.drop_table(structured_type_session, nested_table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
+def test_stored_procedure_with_structured_returns(
+    structured_type_session, structured_type_support, local_testing_mode, resources_path
+):
+    if not structured_type_support:
+        pytest.skip("Structured types not enabled in this account.")
+
+    test_files = TestFiles(resources_path)
+    tmp_stage_name = Utils.random_stage_name()
+    if not local_testing_mode:
+        Utils.create_stage(structured_type_session, tmp_stage_name, is_temporary=True)
+        structured_type_session.add_packages("snowflake-snowpark-python")
+    Utils.upload_to_stage(
+        structured_type_session,
+        tmp_stage_name,
+        test_files.test_sp_py_file,
+        compress=False,
+    )
+
+    expected_dtypes = [
+        ("VEC", "vector<int,5>"),
+        ("MAP", "map<string(16777216),bigint>"),
+        ("OBJ", "struct<string(16777216),double>"),
+        ("ARR", "array<double>"),
+    ]
+    expected_schema = StructType(
+        [
+            StructField("VEC", VectorType(int, 5), nullable=True),
+            StructField(
+                "MAP",
+                MapType(StringType(16777216), LongType(), structured=True),
+                nullable=True,
+            ),
+            StructField(
+                "OBJ",
+                StructType(
+                    [
+                        StructField("a", StringType(16777216), nullable=True),
+                        StructField("b", DoubleType(), nullable=True),
+                    ],
+                    structured=True,
+                ),
+                nullable=True,
+            ),
+            StructField("ARR", ArrayType(DoubleType(), structured=True), nullable=True),
+        ]
+    )
+
+    sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
+    def test_sproc(_session: Session) -> DataFrame:
+        return _session.sql(
+            """
+        select
+          [1,2,3,4,5] :: vector(int, 5) as vec,
+          object_construct('k1', 1) :: map(varchar, int) as map,
+          object_construct('a', 'foo', 'b', 0.05) :: object(a varchar, b float) as obj,
+          [1.0, 3.1, 4.5] :: array(float) as arr
+         ;
+        """
+        )
+
+    structured_type_session.sproc.register(
+        test_sproc,
+        name=sproc_name,
+        replace=True,
+    )
+    df = structured_type_session.call(sproc_name)
+    assert df.schema == expected_schema
+    assert df.dtypes == expected_dtypes

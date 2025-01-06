@@ -202,10 +202,16 @@ def to_sql(
         return f"'{binascii.hexlify(bytes(value)).decode()}' :: BINARY"
 
     if isinstance(value, (list, tuple, array)) and isinstance(datatype, ArrayType):
-        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: ARRAY"
+        type_str = "ARRAY"
+        if datatype.structured:
+            type_str = convert_sp_to_sf_type(datatype)
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: {type_str}"
 
     if isinstance(value, dict) and isinstance(datatype, MapType):
-        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: OBJECT"
+        type_str = "OBJECT"
+        if datatype.structured:
+            type_str = convert_sp_to_sf_type(datatype)
+        return f"PARSE_JSON({str_to_sql(json.dumps(value, cls=PythonObjJSONEncoder))}) :: {type_str}"
 
     if isinstance(datatype, VariantType):
         # PARSE_JSON returns VARIANT, so no need to append :: VARIANT here explicitly.
@@ -260,11 +266,14 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             return "to_timestamp('2020-09-16 06:30:00')"
     if isinstance(data_type, ArrayType):
         if data_type.structured:
+            assert isinstance(data_type.element_type, DataType)
             element = schema_expression(data_type.element_type, is_nullable)
             return f"to_array({element}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_array(0)"
     if isinstance(data_type, MapType):
         if data_type.structured:
+            assert isinstance(data_type.key_type, DataType)
+            assert isinstance(data_type.value_type, DataType)
             key = schema_expression(data_type.key_type, is_nullable)
             value = schema_expression(data_type.value_type, is_nullable)
             return f"object_construct_keep_null({key}, {value}) :: {convert_sp_to_sf_type(data_type)}"
