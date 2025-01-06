@@ -144,7 +144,6 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
         "func_name",
         "error_msg",
         "call_count",
-        "interchange_call_count",
     }
     assert data["category"] == "snowpark_pandas"
     assert data["api_calls"] == df1_expected_api_calls + [
@@ -181,7 +180,6 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
         query_history=None,
         api_calls=[],
         method_call_count=None,
-        interchange_call_count=None,
     )
     send_mock.assert_called_with(
         {
@@ -592,22 +590,16 @@ def test_telemetry_interchange_call_count():
     assert len(telemetry_data) == 6
     # s calls __dataframe__() for the first time.
     assert telemetry_data[0]["call_count"] == 1
-    assert telemetry_data[0]["interchange_call_count"] == 1
     # s calls __dataframe__() for the second time.
     assert telemetry_data[1]["call_count"] == 2
-    assert telemetry_data[1]["interchange_call_count"] == 2
     # t calls __dataframe__() for the first time.
     assert telemetry_data[2]["call_count"] == 1
-    assert telemetry_data[2]["interchange_call_count"] == 1
     # the new version of s calls __dataframe__() for the first time.
     assert telemetry_data[3]["call_count"] == 1
-    assert telemetry_data[3]["interchange_call_count"] == 1
     # the new version of s calls __dataframe__() for the second time.
     assert telemetry_data[4]["call_count"] == 2
-    assert telemetry_data[4]["interchange_call_count"] == 2
     # t calls __dataframe__() for the second time.
     assert telemetry_data[5]["call_count"] == 2
-    assert telemetry_data[5]["interchange_call_count"] == 2
 
 
 @sql_count_checker(query_count=4)
@@ -636,12 +628,12 @@ def test_telemetry_func_call_count():
     ]
 
     # second to last call from telemetry data
+    # s called __repr__() 3 times.
     assert telemetry_data[-2]["call_count"] == 3
-    assert telemetry_data[-2]["interchange_call_count"] == 0
 
     # last call from telemetry data
+    # t called __repr__() 1 time.
     assert telemetry_data[-1]["call_count"] == 1
-    assert telemetry_data[-1]["interchange_call_count"] == 0
 
 
 @sql_count_checker(query_count=0)
