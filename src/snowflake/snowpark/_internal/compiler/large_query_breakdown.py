@@ -268,6 +268,10 @@ class LargeQueryBreakdown:
                     f"Skipping with root {complexity_score=} {final_partition_breakdown_summary=}"
                 )
                 break
+            # TODO: report the validity statistics in every time.
+            # If valid nodes > 0, pipeline breaker found
+            # If valid nodes == 0, valid relaxed > 0, relaxed pipeline breaker found
+            # otherwise, no valid nodes found.
 
             partition = self._get_partitioned_plan(root, child)
             plans.append(partition)
