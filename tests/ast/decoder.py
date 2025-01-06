@@ -1804,6 +1804,17 @@ class Decoder:
                 df = self.decode_expr(expr.sp_dataframe_write.df)
                 return df.write
 
+            case "sp_dataframe_to_pandas_batches":
+                df = self.symbol_table[
+                    expr.sp_dataframe_to_pandas_batches.id.bitfield1
+                ][1]
+                d = MessageToDict(expr.sp_dataframe_to_pandas_batches)
+                statement_params = self.get_statement_params(d)
+                block = d.get("block", True)
+                return df.to_pandas_batches(
+                    statement_params=statement_params, block=block
+                )
+
             case _:
                 raise NotImplementedError(
                     "Expression type not implemented yet: %s"
