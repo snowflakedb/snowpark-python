@@ -531,7 +531,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ), "frame is None or not a InternalFrame"
         self._modin_frame = frame
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
-        # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
+        # Copying and modifying self.snowpark_pandas_api_calls and self._method_call_counts
+        # is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
         self._attrs: dict[Any, Any] = {}
         self._method_call_counts: Counter[str] = Counter[str]()

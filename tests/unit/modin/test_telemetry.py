@@ -55,7 +55,6 @@ def snowpark_pandas_error_test_helper(
         telemetry_type=telemetry_type,
         error_msg=error_msg,
         method_call_count=ANY,
-        interchange_call_count=ANY,
     )
 
 
@@ -118,7 +117,6 @@ def test_snowpark_pandas_telemetry_method_decorator(
         telemetry_type="snowpark_pandas_type_error",
         error_msg=None,
         method_call_count=ANY,
-        interchange_call_count=ANY,
     )
     assert len(mock_arg2._query_compiler.snowpark_pandas_api_calls) == 0
 
@@ -138,7 +136,6 @@ def test_snowpark_pandas_telemetry_method_decorator(
         telemetry_type="snowpark_pandas_type_error",
         error_msg=None,
         method_call_count=ANY,
-        interchange_call_count=ANY,
     )
 
 
