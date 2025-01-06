@@ -1077,6 +1077,19 @@ def test_structured_type_print_schema(
         == 'root\n |-- "map": MapType (nullable = True)'
     )
 
+    # Check that column types can be translated
+    assert (
+        df._format_schema(
+            2,
+            translate_types={
+                "MapType": "dict",
+                "StringType": "str",
+                "ArrayType": "list",
+            },
+        )
+        == 'root\n |-- "MAP": dict (nullable = True)\n |   |-- key: str\n |   |-- value: list'
+    )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
