@@ -11,7 +11,6 @@ from packaging import version
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
 from tests.integ.utils.sql_counter import sql_count_checker
-from tests.utils import multithreaded_run
 
 pytestmark = pytest.mark.skipif(
     version.parse(native_pd.__version__) != version.parse("2.2.1"),
