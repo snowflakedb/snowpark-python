@@ -976,7 +976,7 @@ MAP_RE = re.compile(r"(?i)^\s*map\s*<")
 # support type string format like starting with "map<..."
 
 STRUCT_RE = re.compile(r"(?i)^\s*struct\s*<")
-# support type string format like starting with "array<..." starting with "struct<..."
+# support type string format like starting with "struct<..."
 
 
 def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
