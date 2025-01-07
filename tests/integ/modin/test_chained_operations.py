@@ -25,10 +25,8 @@ def test_chained_op1():
     )
 
 
-# actual counts are 1, 2 but multithreaded_run() runs the test 5 times
-# so we increase the counts to 5, 10
-@sql_count_checker(query_count=5, join_count=10)
 @multithreaded_run()
+@sql_count_checker(query_count=1, join_count=2)
 def test_mul_after_add():
     # bug fix SNOW-1632454
     native_df1 = native_pd.DataFrame({"X": [1, 2, 3]})

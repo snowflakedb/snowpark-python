@@ -11,6 +11,7 @@ from packaging import version
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
 from tests.integ.utils.sql_counter import sql_count_checker
+from tests.utils import multithreaded_run
 
 pytestmark = pytest.mark.skipif(
     version.parse(native_pd.__version__) != version.parse("2.2.1"),
@@ -150,6 +151,7 @@ def test_sproc_binary_ops(session):
     assert plus() == "0    3\n1    4\n2    5\ndtype: int64"
 
 
+@multithreaded_run()
 @sql_count_checker(query_count=8, sproc_count=2)
 def test_sproc_agg(session):
     @sproc(packages=PACKAGE_LIST)
