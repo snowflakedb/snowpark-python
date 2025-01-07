@@ -636,7 +636,7 @@ class DataFrame(BasePandasDataset):
         0  1.000  2.120
         1  3.356  4.567
 
-        >>> df.applymap(lambda x: len(str(x)))  # doctest: +SKIP
+        >>> df.applymap(lambda x: len(str(x)))
            0  1
         0  3  4
         1  5  5
@@ -646,7 +646,7 @@ class DataFrame(BasePandasDataset):
         more efficiently by utilizing alternative dataframe operations instead of applymap.
         For example, You could square each number elementwise.
 
-        >>> df.applymap(lambda x: x**2)  # doctest: +SKIP
+        >>> df.applymap(lambda x: x**2)
                    0          1
         0   1.000000   4.494400
         1  11.262736  20.857489
@@ -823,7 +823,7 @@ class DataFrame(BasePandasDataset):
 
         Using a reducing function on ``axis=1``:
 
-        >>> df.apply(np.sum, axis=1)  # doctest: +SKIP
+        >>> df.apply(np.sum, axis=1)
         0     2
         1    10
         2    13
@@ -831,7 +831,7 @@ class DataFrame(BasePandasDataset):
 
         Returning a list-like object will result in a Series:
 
-        >>> df.apply(lambda x: [1, 2], axis=1)  # doctest: +SKIP
+        >>> df.apply(lambda x: [1, 2], axis=1)
         0    [1, 2]
         1    [1, 2]
         2    [1, 2]
@@ -842,7 +842,7 @@ class DataFrame(BasePandasDataset):
         >>> import scipy.stats
         >>> pd.session.custom_package_usage_config['enabled'] = True
         >>> pd.session.add_packages(['numpy', scipy])
-        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)  # doctest: +SKIP
+        >>> df.apply(lambda x: np.dot(x * scipy.stats.norm.cdf(0), x * scipy.stats.norm.cdf(0)), axis=1)
         0     1.00
         1    14.50
         2    24.25
@@ -1057,7 +1057,7 @@ class DataFrame(BasePandasDataset):
         0     1     3
         1     2     4
         2     3     5
-        >>> df.transform(lambda x: x + 1, axis=1)  # doctest: +SKIP
+        >>> df.transform(lambda x: x + 1, axis=1)
            col1  col2
         0     2     4
         1     3     5
@@ -1065,11 +1065,11 @@ class DataFrame(BasePandasDataset):
 
         Apply a numpy ufunc to every value in the DataFrame.
 
-        >>> df.transform(np.square, axis=1)  # doctest: +SKIP
+        >>> df.transform(np.square, axis=1)
            col1  col2
-        0     1     9
-        1     4    16
-        2     9    25
+        0   1.0   9.0
+        1   4.0  16.0
+        2   9.0  25.0
         """
 
     def transpose():

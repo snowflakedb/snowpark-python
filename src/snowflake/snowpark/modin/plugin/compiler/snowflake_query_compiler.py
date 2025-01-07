@@ -8780,6 +8780,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
+        # Check if the function is a known numpy function that can be translated
+        # to Snowflake function.
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
         if sf_func is not None:
             return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
