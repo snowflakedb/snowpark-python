@@ -824,6 +824,9 @@ class TestMapOnly:
     @sql_count_checker(query_count=3)
     def test_incorrect_inferred_type(self):
         s = pd.Series([1, 2, 17])
+        # The return type of the lambda is inferred as int, but the return type is
+        # mix of int and string.
+        # Attempt to convert "abc" to int will raise an exception.
         with pytest.raises(SnowparkSQLException):
             s.map(lambda x: "abc" if x == 17 else x).to_pandas()
 

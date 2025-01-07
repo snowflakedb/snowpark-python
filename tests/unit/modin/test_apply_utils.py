@@ -86,7 +86,7 @@ def test_deduce_return_type_from_function(func, datatype):
         (lambda x: x.decode("ascii"), BinaryType(), StringType()),
         (lambda x: x + 1, BooleanType(), LongType()),
         (lambda x: [x, x + 1], LongType(), ArrayType(LongType())),
-        (lambda x: x.to_bytes(2), LongType(), BinaryType()),
+        (lambda x: str(x).encode("utf-8"), LongType(), BinaryType()),
         (lambda x: x > 0, LongType(), BooleanType()),
         (lambda x: x + 1.8, LongType(), FloatType()),
         (lambda x: x + 1, LongType(), LongType()),
