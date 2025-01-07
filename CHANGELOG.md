@@ -55,7 +55,7 @@
 - Added documentation for `DataFrame.map`.
 - Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
 - Added documentation on the extent of Snowpark pandas interoperability with scikit-learn.
-- Added `method_call_count` to telemetry.
+- Added `call_count` to telemetry that counts method calls including interchange protocol calls.
 
 ## 1.26.0 (2024-12-05)
 
