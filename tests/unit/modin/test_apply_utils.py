@@ -95,6 +95,12 @@ def test_deduce_return_type_from_function(func, datatype):
         (lambda x: {x: x}, StringType(), MapType()),
         (lambda x: None, StringType(), None),  # failed to infer return type
         (lambda x: x.year, TimestampType(), LongType()),
+        (lambda x: {x: str(x)}, LongType(), MapType(LongType(), StringType())),
+        (
+            lambda x: {x: x if x < 3 else str(x)},
+            LongType(),
+            MapType(LongType(), VariantType()),  # mixed return type in map values
+        ),
     ],
     ids=[
         "binary_to_str",
@@ -109,6 +115,8 @@ def test_deduce_return_type_from_function(func, datatype):
         "str_to_map",
         "str_to_none",
         "timestamp_to_long",
+        "long_to_map[long,str]",
+        "long_to_map[long,variant]",
     ],
 )
 def test_infer_return_type_from_function(func, input_type, return_type):

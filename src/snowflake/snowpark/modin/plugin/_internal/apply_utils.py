@@ -766,6 +766,8 @@ def create_udf_for_series_apply(
     else:
 
         def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
+            # TODO SNOW-1874779: Add verification here to ensure inferred type matches
+            #  actual type.
             return x.apply(func, args=args, **kwargs)
 
     func_udf = sp_func.udf(
