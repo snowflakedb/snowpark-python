@@ -8435,14 +8435,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
-        # TODO SNOW-1739034: remove 'no cover' when apply tests are enabled in CI
-        sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(
-            func
-        )  # pragma: no cover
-        if sf_func is not None:  # pragma: no cover
+        sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
+        if sf_func is not None:
             return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
 
-        if get_snowflake_agg_func(func, {}, axis) is not None:  # pragma: no cover
+        if get_snowflake_agg_func(func, {}, axis) is not None:
             # np.std and np.var 'ddof' parameter defaults to 0 but
             # df.std and df.var 'ddof' parameter defaults to 1.
             # Set it here explicitly to 0 if not provided.
@@ -8470,7 +8467,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # If raw, then pass numpy ndarray rather than pandas Series as input to the apply function.
             if raw:
 
-                def wrapped_func(*args, **kwargs):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
+                def wrapped_func(*args, **kwargs):  # type: ignore[no-untyped-def] # pragma: no cover: skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
                     raw_input_obj = args[0].to_numpy()
                     args = (raw_input_obj,) + args[1:]
                     return func(*args, **kwargs)
@@ -8783,14 +8780,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
-        # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
-        # Check if the function is a known numpy function that can be translated to
-        # Snowflake function.
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
-        if sf_func is not None:  # pragma: no cover
+        if sf_func is not None:
             return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
 
-        if func in (np.sum, np.min, np.max):  # pragma: no cover
+        if func in (np.sum, np.min, np.max):
             # Aggregate functions applied element-wise to columns are no-op.
             return self
 

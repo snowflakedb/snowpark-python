@@ -715,7 +715,6 @@ class DataFrame(BasePandasDataset):
 
     def apply():
         # TODO SNOW-1818207 unskip tests once package resolution is fixed
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Apply a function along an axis of the DataFrame.
 
@@ -1025,7 +1024,6 @@ class DataFrame(BasePandasDataset):
         """
 
     def transform():
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Call ``func`` on self producing a Snowpark pandas DataFrame with the same axis shape as self.
 

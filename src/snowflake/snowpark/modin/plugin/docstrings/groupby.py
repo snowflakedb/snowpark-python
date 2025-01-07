@@ -1057,7 +1057,6 @@ class DataFrameGroupBy:
         """
 
     def apply():
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Apply function ``func`` group-wise and combine the results together.
 
@@ -2056,7 +2055,6 @@ class DataFrameGroupBy:
         pass
 
     def transform():
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Call function producing a same-indexed DataFrame on each group.
 
