@@ -4479,3 +4479,155 @@ def test_SNOW_1879403_replace_with_lit(session):
     ).collect()
 
     Utils.check_answer(ans, [Row("orange"), Row("orange pie"), Row("orange juice")])
+
+
+def test_create_dataframe_with_implicit_struct_simple(session):
+    """
+    Test an implicit struct string with two integer columns.
+    """
+    data = [
+        [1, 2],
+        [3, 4],
+    ]
+    # The new feature: implicit struct string "col1: int, col2: int"
+    schema_str = "col1: int, col2: int"
+
+    # Create the dataframe
+    df = session.create_dataframe(data, schema=schema_str)
+    # Check schema
+    # We expect the schema to be a StructType with 2 fields
+    assert isinstance(df.schema, StructType)
+    assert len(df.schema.fields) == 2
+    expected_fields = [
+        StructField("COL1", LongType(), nullable=True),
+        StructField("COL2", LongType(), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Collect rows
+    result = df.collect()
+    expected_rows = [
+        Row(COL1=1, COL2=2),
+        Row(COL1=3, COL2=4),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_with_implicit_struct_nested(session):
+    """
+    Test an implicit struct string with nested array and decimal columns.
+    """
+    data = [
+        [["1", "2"], Decimal("3.14")],
+        [["5", "6"], Decimal("2.72")],
+    ]
+    # Nested schema: first column is array<int>, second is decimal(10,2)
+    schema_str = "arr: array<int>, val: decimal(10,2)"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 2
+    expected_fields = [
+        StructField("ARR", ArrayType(StringType()), nullable=True),
+        StructField("VAL", DecimalType(10, 2), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(ARR='[\n  "1",\n  "2"\n]', VAL=Decimal("3.14")),
+        Row(ARR='[\n  "5",\n  "6"\n]', VAL=Decimal("2.72")),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_with_explicit_struct_string(session):
+    """
+    Test an explicit struct string "struct<colA: string, colB: double>"
+    to confirm it also works (even though it's not strictly 'implicit').
+    """
+    data = [
+        ["hello", 3.14],
+        ["world", 2.72],
+    ]
+    schema_str = "struct<colA: string, colB: double>"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 2
+    expected_fields = [
+        StructField("COLA", StringType(), nullable=True),
+        StructField("COLB", DoubleType(), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(COLA="hello", COLB=3.14),
+        Row(COLA="world", COLB=2.72),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_with_implicit_struct_malformed(session):
+    """
+    Test malformed implicit struct string, which should raise an error.
+    """
+    data = [[1, 2]]
+    # Missing type for second column
+    schema_str = "col1: int, col2"
+
+    with pytest.raises(ValueError) as ex_info:
+        session.create_dataframe(data, schema=schema_str)
+    # Check that the error message mentions the problem
+    assert (
+        "col2" in str(ex_info.value).lower()
+    ), f"Unexpected error message: {ex_info.value}"
+
+
+def test_create_dataframe_with_implicit_struct_datetime(session):
+    """
+    Another example mixing basic data with boolean and dates, ensuring
+    the implicit struct string handles them properly.
+    """
+    data = [
+        [True, datetime.date(2020, 1, 1)],
+        [False, datetime.date(2021, 12, 31)],
+    ]
+    schema_str = "flag: boolean, d: date"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Check schema
+    assert len(df.schema.fields) == 2
+    expected_fields = [
+        StructField("FLAG", BooleanType(), nullable=True),
+        StructField("D", DateType(), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Check rows
+    result = df.collect()
+    expected_rows = [
+        Row(FLAG=True, D=datetime.date(2020, 1, 1)),
+        Row(FLAG=False, D=datetime.date(2021, 12, 31)),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_invalid_schema_string_not_struct(session):
+    """
+    Verifies that a non-struct schema string (e.g. "int") raises ValueError
+    because the resulting type is not an instance of StructType.
+    """
+    data = [1, 2, 3]
+    # "int" does not represent a struct, so we expect a ValueError
+    with pytest.raises(ValueError) as ex_info:
+        session.create_dataframe(data, schema="int")
+
+    # Check that the error message mentions "Invalid schema string" or "struct type"
+    err_msg = str(ex_info.value).lower()
+    assert (
+        "invalid schema string" in err_msg and "struct type" in err_msg
+    ), f"Expected error message about invalid schema string or struct type. Got: {ex_info.value}"
