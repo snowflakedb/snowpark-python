@@ -1431,6 +1431,23 @@ def test_from_json_wrong_data_type():
         StructField.from_json(wrong_json)
 
 
+def test_timestamp_json_round_trip():
+    timestamp_types = [
+        "timestamp",
+        "timestamp_tz",
+        "timestamp_ntz",
+        "timestamp_ltz",
+    ]
+
+    for ts in timestamp_types:
+        assert (
+            StructField.from_json(
+                {"name": "TS", "type": ts, "nullable": True}
+            ).json_value()["type"]
+            == ts
+        )
+
+
 def test_maptype_alias():
     expected_key = StringType()
     expected_value = IntegerType()
