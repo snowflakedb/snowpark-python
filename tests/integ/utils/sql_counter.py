@@ -135,7 +135,7 @@ class SqlCounter(QueryListener):
         self._queries: list[QueryRecord] = []
 
         # Track the thread id to ensure we only count queries from the current thread.
-        self._track_thread_id = threading.get_ident()
+        self._current_thread_id = threading.get_ident()
 
         # Bypassing sql counter since
         #   1. it is an unnecessary metric for tests running in stored procedures
@@ -209,7 +209,7 @@ class SqlCounter(QueryListener):
 
     def _notify(self, query_record: QueryRecord, **kwargs: dict):
         if not is_suppress_sql_counter_listener():
-            if query_record.thread_id == self._track_thread_id:
+            if query_record.thread_id == self._current_thread_id:
                 self._queries.append(query_record)
 
     def expects(self, **kwargs):
