@@ -72,12 +72,8 @@ def test_to_snowpark_pandas_basic(session, tmp_table_basic, index_col, columns) 
                 assert snowpark_pandas_df.columns.tolist() == expected_data_cols
 
 
-# actual count is 3 but multithreaded_run() runs the test 5 times
-# so we increase the count to 15
-@sql_count_checker(
-    query_count=15, high_count_expected=True, high_count_reason="multithreaded_run"
-)
 @multithreaded_run()
+@sql_count_checker(query_count=15)
 def test_to_snowpark_pandas_from_views(session, tmp_table_basic) -> None:
     snowpark_df = session.sql(
         f"SELECT ID, SHOE_MODEL FROM {tmp_table_basic} WHERE ID > 1"
