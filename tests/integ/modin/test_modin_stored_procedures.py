@@ -151,7 +151,6 @@ def test_sproc_binary_ops(session):
     assert plus() == "0    3\n1    4\n2    5\ndtype: int64"
 
 
-@multithreaded_run()
 @sql_count_checker(query_count=8, sproc_count=2)
 def test_sproc_agg(session):
     @sproc(packages=PACKAGE_LIST)
