@@ -39,8 +39,10 @@ def test_strip_duplicates(input, expected):
     assert_frame_equal(result, pd.DataFrame(expected))
 
 
+# actual counts are 2, 1 but multithreaded_run() runs the test 5 times
+# so we increase the counts to 10, 5
+@sql_count_checker(query_count=10, join_count=5, high_count_expected=True, high_count_reason="multithreaded_run")
 @multithreaded_run()
-@sql_count_checker(query_count=2, join_count=1)
 def test_strip_duplicates_after_sort():
     df = pd.DataFrame({"A": [0, 1, 0, 1, 2], "B": [1, 2, 3, 4, 5]})
     df = df.sort_values(by="B", ascending=False)
