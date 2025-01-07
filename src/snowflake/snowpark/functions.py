@@ -10447,6 +10447,7 @@ def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
 
     Example::
 
+        >>> import pytest
         >>> if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
         ...     pytest.skip()
         >>> content = "A very very bad review!"
