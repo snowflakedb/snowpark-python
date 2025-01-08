@@ -36,7 +36,7 @@ class SnowparkPandasTelemetryField(Enum):
     ARGS = "argument"
     # fallback flag
     IS_FALLBACK = "is_fallback"
-    # number of times a method has been called on the same QC
+    # number of times a method has been called on the same query compiler
     CALL_COUNT = "call_count"
 
 
