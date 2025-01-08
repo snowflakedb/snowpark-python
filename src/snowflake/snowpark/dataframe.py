@@ -3841,7 +3841,7 @@ class DataFrame:
                     names = col_names[i : i + offset + 1]
                     new_cols.append(col.as_(*names))
 
-        # Build the AST, if requested
+        # AST
         if _ast_stmt is None and _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(
