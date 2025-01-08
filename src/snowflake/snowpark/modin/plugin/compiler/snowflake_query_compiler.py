@@ -8671,8 +8671,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             # Extract return type from annotations (or lookup for known pandas functions) for func object,
-            # if not return type could be extracted the variable will hold None.
-            return_type = deduce_return_type_from_function(func)
+            # if no return type could be extracted the variable will hold None.
+            return_type = deduce_return_type_from_function(func, None)
 
             # Check whether return_type has been extracted. If return type is not
             # a Series, tuple or list object, compute df.apply using a vUDF. In this case no column expansion needs to
@@ -8765,7 +8765,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Function to apply to each element of the QueryCompiler.
         na_action: If 'ignore', propagate NULL values
         *args : iterable
+            Positional arguments passed to func after the input data.
         **kwargs : dict
+            Additional keyword arguments to pass as keywords arguments to func.
         """
         self._raise_not_implemented_error_for_timedelta()
 
@@ -8798,15 +8800,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas applymap API doesn't yet support na_action == 'ignore'"
             )
-        return_type = deduce_return_type_from_function(func)
-        if not return_type:
-            return_type = VariantType()
 
         # create and apply udfs on all data columns
         replace_mapping = {}
         for f in self._modin_frame.ordered_dataframe.schema.fields:
             identifier = f.column_identifier.quoted_name
             if identifier in self._modin_frame.data_column_snowflake_quoted_identifiers:
+                return_type = deduce_return_type_from_function(
+                    func, f.datatype, **kwargs
+                )
+                if not return_type:
+                    return_type = VariantType()
                 func_udf = create_udf_for_series_apply(
                     func,
                     return_type,
