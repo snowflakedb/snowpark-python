@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added support for `DataFrame.summary()` to compute desired statistics of a DataFrame.
 - Added support for the following functions in `functions.py`
   - `array_reverse`
   - `divnull`
