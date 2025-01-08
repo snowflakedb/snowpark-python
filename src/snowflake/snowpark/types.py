@@ -11,6 +11,7 @@ import sys
 from enum import Enum
 from typing import Generic, List, Optional, Type, TypeVar, Union, Dict, Any
 
+import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
@@ -333,13 +334,27 @@ class ArrayType(DataType):
     def __init__(
         self,
         element_type: Optional[DataType] = None,
-        structured: bool = False,
+        structured: Optional[bool] = None,
     ) -> None:
-        self.structured = structured
-        self.element_type = element_type if element_type else StringType()
+        if context._should_use_structured_type_semantics():
+            self.structured = (
+                structured if structured is not None else element_type is not None
+            )
+            self.element_type = element_type
+        else:
+            self.structured = structured or False
+            self.element_type = element_type if element_type else StringType()
 
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
+
+    def _as_nested(self) -> "ArrayType":
+        if not context._should_use_structured_type_semantics():
+            return self
+        element_type = self.element_type
+        if isinstance(element_type, (ArrayType, MapType, StructType)):
+            element_type = element_type._as_nested()
+        return ArrayType(element_type, self.structured)
 
     def is_primitive(self):
         return False
@@ -369,6 +384,10 @@ class ArrayType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_array_type.structured = self.structured
+        if self.element_type is None:
+            raise NotImplementedError(
+                "SNOW-1862700: AST does not support empty element_type."
+            )
         self.element_type._fill_ast(ast.sp_array_type.ty)
 
 
@@ -379,17 +398,41 @@ class MapType(DataType):
         self,
         key_type: Optional[DataType] = None,
         value_type: Optional[DataType] = None,
-        structured: bool = False,
+        structured: Optional[bool] = None,
     ) -> None:
-        self.structured = structured
-        self.key_type = key_type if key_type else StringType()
-        self.value_type = value_type if value_type else StringType()
+        if context._should_use_structured_type_semantics():
+            if (key_type is None and value_type is not None) or (
+                key_type is not None and value_type is None
+            ):
+                raise ValueError(
+                    "Must either set both key_type and value_type or leave both unset."
+                )
+            self.structured = (
+                structured if structured is not None else key_type is not None
+            )
+            self.key_type = key_type
+            self.value_type = value_type
+        else:
+            self.structured = structured or False
+            self.key_type = key_type if key_type else StringType()
+            self.value_type = value_type if value_type else StringType()
 
     def __repr__(self) -> str:
-        return f"MapType({repr(self.key_type) if self.key_type else ''}, {repr(self.value_type) if self.value_type else ''})"
+        type_str = ""
+        if self.key_type and self.value_type:
+            type_str = f"{repr(self.key_type)}, {repr(self.value_type)}"
+        return f"MapType({type_str})"
 
     def is_primitive(self):
         return False
+
+    def _as_nested(self) -> "MapType":
+        if not context._should_use_structured_type_semantics():
+            return self
+        value_type = self.value_type
+        if isinstance(value_type, (ArrayType, MapType, StructType)):
+            value_type = value_type._as_nested()
+        return MapType(self.key_type, value_type, self.structured)
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "MapType":
@@ -430,6 +473,10 @@ class MapType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_map_type.structured = self.structured
+        if self.key_type is None or self.value_type is None:
+            raise NotImplementedError(
+                "SNOW-1862700: AST does not support empty key or value type."
+            )
         self.key_type._fill_ast(ast.sp_map_type.key_ty)
         self.value_type._fill_ast(ast.sp_map_type.value_ty)
 
@@ -552,29 +599,46 @@ class StructField:
         column_identifier: Union[ColumnIdentifier, str],
         datatype: DataType,
         nullable: bool = True,
+        _is_column: bool = True,
     ) -> None:
-        self.column_identifier = (
-            ColumnIdentifier(column_identifier)
-            if isinstance(column_identifier, str)
-            else column_identifier
-        )
+        self.name = column_identifier
+        self._is_column = _is_column
         self.datatype = datatype
         self.nullable = nullable
 
     @property
     def name(self) -> str:
-        """Returns the column name."""
-        return self.column_identifier.name
+        if self._is_column or not context._should_use_structured_type_semantics():
+            return self.column_identifier.name
+        else:
+            return self._name
 
     @name.setter
-    def name(self, n: str) -> None:
-        self.column_identifier = ColumnIdentifier(n)
+    def name(self, n: Union[ColumnIdentifier, str]) -> None:
+        if isinstance(n, ColumnIdentifier):
+            self._name = n.name
+            self.column_identifier = n
+        else:
+            self._name = n
+            self.column_identifier = ColumnIdentifier(n)
+
+    def _as_nested(self) -> "StructField":
+        if not context._should_use_structured_type_semantics():
+            return self
+        datatype = self.datatype
+        if isinstance(datatype, (ArrayType, MapType, StructType)):
+            datatype = datatype._as_nested()
+        # Nested StructFields do not follow column naming conventions
+        return StructField(self._name, datatype, self.nullable, _is_column=False)
 
     def __repr__(self) -> str:
         return f"StructField({self.name!r}, {repr(self.datatype)}, nullable={self.nullable})"
 
     def __eq__(self, other):
-        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+        return isinstance(other, self.__class__) and (
+            (self.name, self._is_column, self.datatype, self.nullable)
+            == (other.name, other._is_column, other.datatype, other.nullable)
+        )
 
     @classmethod
     def from_json(cls, json_dict: Dict[str, Any]) -> "StructField":
@@ -617,12 +681,20 @@ class StructType(DataType):
     """Represents a table schema or structured column. Contains :class:`StructField` for each field."""
 
     def __init__(
-        self, fields: Optional[List["StructField"]] = None, structured=False
+        self,
+        fields: Optional[List["StructField"]] = None,
+        structured: Optional[bool] = None,
     ) -> None:
-        self.structured = structured
-        if fields is None:
-            fields = []
-        self.fields = fields
+        if context._should_use_structured_type_semantics():
+            self.structured = (
+                structured if structured is not None else fields is not None
+            )
+        else:
+            self.structured = structured or False
+
+        self.fields = []
+        for field in fields or []:
+            self.add(field)
 
     def add(
         self,
@@ -630,19 +702,30 @@ class StructType(DataType):
         datatype: Optional[DataType] = None,
         nullable: Optional[bool] = True,
     ) -> "StructType":
-        if isinstance(field, StructField):
-            self.fields.append(field)
-        elif isinstance(field, (str, ColumnIdentifier)):
+        if isinstance(field, (str, ColumnIdentifier)):
             if datatype is None:
                 raise ValueError(
                     "When field argument is str or ColumnIdentifier, datatype must not be None."
                 )
-            self.fields.append(StructField(field, datatype, nullable))
-        else:
+            field = StructField(field, datatype, nullable)
+        elif not isinstance(field, StructField):
             raise ValueError(
                 f"field argument must be one of str, ColumnIdentifier or StructField. Got: '{type(field)}'"
             )
+
+        # Nested data does not follow the same schema conventions as top level fields.
+        if isinstance(field.datatype, (ArrayType, MapType, StructType)):
+            field.datatype = field.datatype._as_nested()
+
+        self.fields.append(field)
         return self
+
+    def _as_nested(self) -> "StructType":
+        if not context._should_use_structured_type_semantics():
+            return self
+        return StructType(
+            [field._as_nested() for field in self.fields], self.structured
+        )
 
     @classmethod
     def _from_attributes(cls, attributes: list) -> "StructType":
@@ -860,10 +943,20 @@ _atomic_types: List[Type[DataType]] = [
     IntegerType,
     LongType,
     DateType,
-    TimestampType,
     NullType,
 ]
+
+_timestamp_types: List[DataType] = [
+    TimestampType(),
+    TimestampType(timezone=TimestampTimeZone.NTZ),
+    TimestampType(timezone=TimestampTimeZone.LTZ),
+    TimestampType(timezone=TimestampTimeZone.TZ),
+]
+
 _all_atomic_types: Dict[str, Type[DataType]] = {t.typeName(): t for t in _atomic_types}
+_all_timestamp_types: Dict[str, DataType] = {
+    t.json_value(): t for t in _timestamp_types
+}
 
 _complex_types: List[Type[Union[ArrayType, MapType, StructType]]] = [
     ArrayType,
@@ -881,8 +974,10 @@ _FIXED_DECIMAL_PATTERN = re.compile(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)")
 
 def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
     if not isinstance(json_value, dict):
-        if json_value in _all_atomic_types.keys():
+        if json_value in _all_atomic_types:
             return _all_atomic_types[json_value]()
+        if json_value in _all_timestamp_types:
+            return TimestampType(timezone=_all_timestamp_types[json_value].tz)
         elif json_value == "decimal":
             return DecimalType()
         elif _FIXED_DECIMAL_PATTERN.match(json_value):

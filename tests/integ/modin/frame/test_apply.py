@@ -25,18 +25,12 @@ from tests.integ.modin.series.test_apply_and_map import (
     create_func_with_return_type_hint,
 )
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-pytestmark = pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
 
 # TODO SNOW-891796: replace native_pd with pd after allowing using snowpandas module/function in UDF
 
@@ -96,7 +90,8 @@ def test_axis_1_basic_types_without_type_hints(data, func, return_type):
     # this test processes functions without type hints and invokes the UDTF solution.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
     snow_df = pd.DataFrame(data, columns=["A", "b"])
-    with SqlCounter(query_count=5):
+    # np.min is mapped to sql builtin function.
+    with SqlCounter(query_count=1 if func == np.min else 5):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func, axis=1))
 
 
@@ -612,14 +607,14 @@ def test_apply_bug_1650918(data, apply_func):
 
 TRANSFORM_TEST_MAP = [
     [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1, 16],
-    [[[0, 1, 2], [1, 2, 3]], np.exp, 16],
+    [[[0, 1, 2], [1, 2, 3]], np.exp, 1],
     [[[0, 1, 2], [1, 2, 3]], "exp", None],
     [[["Leonhard", "Jianzhun"]], lambda x: x + " is awesome!!", 11],
-    [[[1.3, 2.5]], np.sqrt, 11],
+    [[[1.3, 2.5]], np.sqrt, 1],
     [[[1.3, 2.5]], "sqrt", None],
-    [[[1.3, 2.5]], np.log, 11],
+    [[[1.3, 2.5]], np.log, 1],
     [[[1.3, 2.5]], "log", None],
-    [[[1.3, 2.5]], np.square, 11],
+    [[[1.3, 2.5]], np.square, 1],
     [[[1.3, 2.5]], "square", None],
     [[[1.5, float("nan")]], lambda x: np.sqrt(x), 11],
 ]
@@ -961,3 +956,27 @@ def test_apply_axis1_with_dynamic_pivot_and_with_3rd_party_libraries_and_decorat
         native_ans = native_df.apply(func.func, axis=1)
 
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_ans, native_ans)
+
+
+@pytest.mark.parametrize(
+    "func", [np.sum, np.min, np.max, np.mean, np.median, np.std, np.var]
+)
+@sql_count_checker(query_count=1)
+def test_apply_numpy_aggregate_functions(func):
+    native_df = native_pd.DataFrame(
+        {"A": [1, 2, 3, 4, 5], "B": [7, -20, 4.0, 7.0, None]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
+
+
+@pytest.mark.parametrize(
+    "func", [np.square, np.sin, np.sinh, np.sqrt, np.exp, np.log, np.log1p, np.absolute]
+)
+@sql_count_checker(query_count=1)
+def test_apply_numpy_universal_functions(func):
+    native_df = native_pd.DataFrame(
+        {"A": [1, 2, 3, 4, 5], "B": [7, 20, 4.0, 7.0, None]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
