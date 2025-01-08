@@ -49,6 +49,7 @@
   - %X: Locale’s appropriate time representation.
   - %%: A literal '%' character.
 - Added support for `Series.between`.
+- Added support for `DataFrame.pop` and `Series.pop`.
 
 #### Bug Fixes
 
