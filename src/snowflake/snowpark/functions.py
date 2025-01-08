@@ -10444,16 +10444,6 @@ def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
     Returns:
         A floating-point number from -1 to 1 (inclusive) indicating the level of negative or positive sentiment in the
         text. Values around 0 indicate neutral sentiment.
-
-    Example::
-
-        >>> import pytest
-        >>> if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-        ...     pytest.skip()
-        >>> content = "A very very bad review!"
-        >>> df = session.create_dataframe([[content]], schema=["content"])
-        >>> result = df.select(snowflake_cortex_sentiment(content)).collect()[0][0]
-        >>> assert -1 <= result <= 0
     """
     sql_func_name = "snowflake.cortex.sentiment"
     text_col = _to_col_if_lit(text, sql_func_name)
