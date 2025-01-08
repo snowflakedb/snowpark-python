@@ -42,6 +42,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_str
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
@@ -913,4 +914,45 @@ class DataFrameWriter:
             **copy_options,
         )
 
+    @publicapi
+    def insert_into(
+        self, table_name: Union[str, Iterable[str]], overwrite: bool = False
+    ) -> None:
+        """
+        Inserts the content of the DataFrame to the specified table.
+        It requires that the schema of the DataFrame is the same as the schema of the table.
+
+        Args:
+            table_name: A string or list of strings representing table name.
+                If input is a string, it represents the table name; if input is of type iterable of strings,
+                it represents the fully-qualified object identifier (database name, schema name, and table name).
+            overwrite: If True, the content of table will be overwritten.
+                If False, the data will be appended to the table. Default is False.
+
+        Example::
+
+            >>> # save this dataframe to a json file on the session stage
+            >>> df = session.create_dataframe([["John", "Berry"]], schema = ["FIRST_NAME", "LAST_NAME"])
+            >>> df.save_as_table("my_table", table_type="temporary")
+            >>> df2 = session.create_dataframe([["Rick", "Berry"]], schema = ["FIRST_NAME", "LAST_NAME"])
+            >>> df2.write.write("my_table")
+            >>> session.table("my_table").collect()
+            [Row(FIRST_NAME='John', LAST_NAME='Berry'), Row(FIRST_NAME='Rick', LAST_NAME='Berry')]
+        """
+        full_table_name = (
+            table_name if isinstance(table_name, str) else ".".join(table_name)
+        )
+        validate_object_name(full_table_name)
+        qualified_table_name = (
+            parse_table_name(table_name) if isinstance(table_name, str) else table_name
+        )
+
+        target_table = self._dataframe._session.table(qualified_table_name)
+        if target_table.schema != self._dataframe.schema:
+            raise SnowparkClientException(
+                f"Schema of the DataFrame: {self._dataframe.schema} does not match the schema of the table {full_table_name}: {target_table.schema}."
+            )
+        self.save_as_table(table_name, mode="truncate" if overwrite else "append")
+
+    insertInto = insert_into
     saveAsTable = save_as_table
