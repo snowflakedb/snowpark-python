@@ -95,6 +95,7 @@ FILTER_OUT_QUERIES = [
 sql_count_records = {}
 
 sql_counter_state = threading.local()
+sql_counter_lock = threading.RLock()
 
 
 class SqlCounter(QueryListener):
@@ -661,16 +662,19 @@ def generate_sql_count_report(request, counter):
 
 
 def mark_sql_counter_called():
-    threading.current_thread().__dict__[SQL_COUNTER_CALLED] = True
+    with sql_counter_lock:
+        threading.main_thread().__dict__[SQL_COUNTER_CALLED] = True
 
 
 def clear_sql_counter_called():
-    threading.current_thread().__dict__[SQL_COUNTER_CALLED] = False
+    with sql_counter_lock:
+        threading.main_thread().__dict__[SQL_COUNTER_CALLED] = False
 
 
 def is_sql_counter_called():
-    if SQL_COUNTER_CALLED in threading.current_thread().__dict__:
-        return threading.current_thread().__dict__.get(SQL_COUNTER_CALLED)
+    with sql_counter_lock:
+        if SQL_COUNTER_CALLED in threading.main_thread().__dict__:
+            return threading.main_thread().__dict__.get(SQL_COUNTER_CALLED)
     return False
 
 
