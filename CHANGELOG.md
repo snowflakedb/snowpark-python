@@ -2,6 +2,29 @@
 
 ## 1.27.0 (TBD)
 
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following functions in `functions.py`
+  - `array_reverse`
+  - `divnull`
+  - `map_cat`
+  - `map_contains_key`
+  - `map_keys`
+  - `nullifzero`
+  - `snowflake_cortex_sentiment`
+- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+
+#### Improvements
+
+- Updated README.md to include instructions on how to verify package signatures using `cosign`.
+
+#### Bug Fixes
+
+- Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
+- Fixed a bug in StructField.from_json that prevented TimestampTypes with tzinfo from being parsed correctly.
+
 ### Snowpark pandas API Updates
 
 #### New Features
@@ -9,7 +32,35 @@
 - Added support for `Series.str.ljust` and `Series.str.rjust`.
 - Added support for `Series.str.center`.
 - Added support for `Series.str.pad`.
+- Added support for applying Snowpark Python function `snowflake_cortex_sentiment`.
+- Added support for `DataFrame.map`.
+- Added support for `DataFrame.from_dict` and `DataFrame.from_records`.
+- Added support for mixed case field names in struct type columns.
+- Added support for `SeriesGroupBy.unique`
+- Added support for `Series.dt.strftime` with the following directives:
+  - %d: Day of the month as a zero-padded decimal number.
+  - %m: Month as a zero-padded decimal number.
+  - %Y: Year with century as a decimal number.
+  - %H: Hour (24-hour clock) as a zero-padded decimal number.
+  - %M: Minute as a zero-padded decimal number.
+  - %S: Second as a zero-padded decimal number.
+  - %f: Microsecond as a decimal number, zero-padded to 6 digits.
+  - %j: Day of the year as a zero-padded decimal number.
+  - %X: Locale’s appropriate time representation.
+  - %%: A literal '%' character.
+- Added support for `Series.between`.
 
+#### Bug Fixes
+
+- Fixed a bug that system function called through `session.call` have incorrect type conversion.
+
+#### Improvements
+- Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
+- Updated integration testing for `session.lineage.trace` to exclude deleted objects
+- Added documentation for `DataFrame.map`.
+- Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
+- Added documentation on the extent of Snowpark pandas interoperability with scikit-learn
+- Infer return type of functions in `Series.map`, `Series.apply` and `DataFrame.map` if type-hint is not provided.
 
 ## 1.26.0 (2024-12-05)
 

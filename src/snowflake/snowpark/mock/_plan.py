@@ -135,6 +135,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateViewCommand,
     Pivot,
     Sample,
+    Project,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import (
@@ -1289,6 +1290,8 @@ def execute_mock_plan(
             dtype=object,
         )
         return result_df
+    if isinstance(source_plan, Project):
+        return TableEmulator(ColumnEmulator(col) for col in source_plan.project_list)
     if isinstance(source_plan, Join):
         L_expr_to_alias = {}
         R_expr_to_alias = {}
@@ -1450,6 +1453,19 @@ def execute_mock_plan(
 
         obj_name_tuple = parse_table_name(entity_name)
         obj_name = obj_name_tuple[-1]
+
+        # Logic to create a read-only temp table for AST testing purposes.
+        # Functions like to_snowpark_pandas create a clone of an existing table as a read-only table that is referenced
+        # during testing.
+        if "SNOWPARK_TEMP_TABLE" in obj_name and "READONLY" in obj_name:
+            # Create the read-only temp table.
+            entity_registry.write_table(
+                obj_name,
+                TableEmulator({"A": [1], "B": [1], "C": [1]}),
+                SaveMode.IGNORE,
+            )
+            return entity_registry.read_table_if_exists(obj_name)
+
         obj_schema = (
             obj_name_tuple[-2]
             if len(obj_name_tuple) > 1
@@ -1865,9 +1881,9 @@ def execute_mock_plan(
         # This requires us to wrap the aggregation function with extract logic to handle this special case.
         def agg_function(column):
             return (
-                agg_functions[agg_function_name](column.dropna())
-                if column.any()
-                else sentinel
+                sentinel
+                if column.isnull().all()
+                else agg_functions[agg_function_name](column.dropna())
             )
 
         default = (

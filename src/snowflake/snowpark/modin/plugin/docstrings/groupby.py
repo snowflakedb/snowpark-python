@@ -1057,7 +1057,6 @@ class DataFrameGroupBy:
         """
 
     def apply():
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Apply function ``func`` group-wise and combine the results together.
 
@@ -1119,7 +1118,7 @@ class DataFrameGroupBy:
         its argument and returns a DataFrame. `apply` combines the result for
         each group together into a new DataFrame:
 
-        >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +SKIP
+        >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum())
                     B    C
         0.0  0.333333  0.4
         1.0  0.666667  0.6
@@ -1128,8 +1127,8 @@ class DataFrameGroupBy:
         In the above, the groups are not part of the index. We can have them included
         by using ``g2`` where ``group_keys=True``:
 
-        >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +SKIP
-                    B    C
+        >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
+                      B    C
         A
         a 0.0  0.333333  0.4
           1.0  0.666667  0.6
@@ -2056,7 +2055,6 @@ class DataFrameGroupBy:
         pass
 
     def transform():
-        # TODO SNOW-1739034 unskip UDF tests when pandas 2.2.3 is available in anaconda
         """
         Call function producing a same-indexed DataFrame on each group.
 
@@ -2126,7 +2124,7 @@ class DataFrameGroupBy:
         i     X     9    90    -9
         j     Y    10    10   -10
 
-        >>> df.groupby("col1", dropna=True).transform(lambda df, n: df.head(n), n=2)  # doctest: +SKIP
+        >>> df.groupby("col1", dropna=True).transform(lambda df, n: df.head(n), n=2)
            col2  col3  col4
         a   1.0  40.0  -1.0
         b   NaN   NaN   NaN
@@ -2139,7 +2137,7 @@ class DataFrameGroupBy:
         i   NaN   NaN   NaN
         j  10.0  10.0 -10.0
 
-        >>> df.groupby("col1", dropna=False).transform("mean")  # doctest: +SKIP
+        >>> df.groupby("col1", dropna=False).transform("mean")
            col2  col3  col4
         a  2.50  25.0 -2.50
         b  5.00  65.0 -5.00
@@ -2564,6 +2562,45 @@ class SeriesGroupBy:
         pass
 
     def unique():
+        """
+        Return unique values for each group.
+
+        Return unique values for each of the grouped values. Returned in
+        order of appearance. Hash table-based unique, therefore does NOT sort.
+
+        Returns
+        -------
+        Series
+            Unique values for each of the grouped values.
+
+        See Also
+        --------
+        Series.unique : Return unique values of Series object.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame([('Chihuahua', 'dog', 6.1),
+        ...                    ('Beagle', 'dog', 15.2),
+        ...                    ('Chihuahua', 'dog', 6.9),
+        ...                    ('Persian', 'cat', 9.2),
+        ...                    ('Chihuahua', 'dog', 7),
+        ...                    ('Persian', 'cat', 8.8)],
+        ...                   columns=['breed', 'animal', 'height_in'])
+        >>> df  # doctest: +NORMALIZE_WHITESPACE
+               breed     animal   height_in
+        0  Chihuahua        dog         6.1
+        1     Beagle        dog        15.2
+        2  Chihuahua        dog         6.9
+        3    Persian        cat         9.2
+        4  Chihuahua        dog         7.0
+        5    Persian        cat         8.8
+        >>> ser = df.groupby('animal')['breed'].unique()
+        >>> ser
+        animal
+        cat              [Persian]
+        dog    [Chihuahua, Beagle]
+        Name: breed, dtype: object
+        """
         pass
 
     def apply():

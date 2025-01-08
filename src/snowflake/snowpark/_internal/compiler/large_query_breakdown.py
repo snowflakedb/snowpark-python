@@ -477,6 +477,14 @@ class LargeQueryBreakdown:
         if isinstance(node, SelectStatement):
             return True
 
+        if isinstance(node, SnowflakePlan):
+            return node.source_plan is not None and self._is_relaxed_pipeline_breaker(
+                node.source_plan
+            )
+
+        if isinstance(node, SelectSnowflakePlan):
+            return self._is_relaxed_pipeline_breaker(node.snowflake_plan)
+
         return False
 
     def _is_node_pipeline_breaker(self, node: LogicalPlan) -> bool:
@@ -557,19 +565,14 @@ class LargeQueryBreakdown:
         temp_table_selectable.post_actions = [drop_table_query]
 
         parents = self._parent_map[child]
-        updated_nodes = set()
         for parent in parents:
             replace_child(parent, child, temp_table_selectable, self._query_generator)
 
         nodes_to_reset = list(parents)
         while nodes_to_reset:
             node = nodes_to_reset.pop()
-            if node in updated_nodes:
-                # Skip if the node is already updated.
-                continue
 
             update_resolvable_node(node, self._query_generator)
-            updated_nodes.add(node)
 
             parents = self._parent_map[node]
             nodes_to_reset.extend(parents)
