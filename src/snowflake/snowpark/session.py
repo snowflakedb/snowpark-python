@@ -36,6 +36,7 @@ import cloudpickle
 import pkg_resources
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
@@ -3301,6 +3302,14 @@ class Session:
                     data_type, (MapType, StructType)
                 ):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
+                elif (
+                    isinstance(value, Row)
+                    and isinstance(data_type, StructType)
+                    and context._should_use_structured_type_semantics()
+                ):
+                    converted_row.append(
+                        json.dumps(value.as_dict(), cls=PythonObjJSONEncoder)
+                    )
                 elif isinstance(data_type, VariantType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, GeographyType):
