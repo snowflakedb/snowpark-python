@@ -82,6 +82,7 @@ DataFrame
     DataFrame.show
     DataFrame.sort
     DataFrame.subtract
+    DataFrame.summary
     DataFrame.take
     DataFrame.toDF
     DataFrame.toJSON

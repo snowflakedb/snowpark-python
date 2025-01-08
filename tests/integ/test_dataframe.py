@@ -2610,6 +2610,172 @@ def test_describe(session):
     assert "invalid identifier" in str(ex_info)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.describe is not supported in Local Testing",
+)
+def test_summary(session):
+    assert TestData.test_data2(session).summary().columns == [
+        "SUMMARY",
+        "A",
+        "B",
+    ]
+    Utils.check_answer(
+        TestData.test_data2(session).summary().collect(),
+        [
+            Row("count", 6, 6),
+            Row("mean", 2.0, 1.5),
+            Row("stddev", 0.8944271909999159, 0.5477225575051661),
+            Row("min", 1, 1),
+            Row("25%", 1.25, 1),
+            Row("50%", 2, 1.5),
+            Row("75%", 2.75, 2),
+            Row("max", 3, 2),
+        ],
+    )
+    Utils.check_answer(
+        TestData.test_data2(session).summary("mean", "5%", "61.8%").collect(),
+        [Row("5%", 1.0, 1.0), Row("61.8%", 2.09, 2.0), Row("mean", 2.0, 1.5)],
+    )
+    Utils.check_answer(
+        TestData.test_data3(session).summary().collect(),
+        [
+            Row("count", 2, 1),
+            Row("mean", 1.5, 2.0),
+            Row("stddev", 0.7071067811865476, None),
+            Row("min", 1, 2),
+            Row("25%", 1.25, 2),
+            Row("50%", 1.5, 2),
+            Row("75%", 1.75, 2),
+            Row("max", 2, 2),
+        ],
+    )
+    Utils.check_answer(
+        TestData.test_data3(session).summary("MAX", "0%", "100%").collect(),
+        [Row("0%", 1.0, 2.0), Row("100%", 2.0, 2.0), Row("MAX", 2.0, 2.0)],
+    )
+
+    Utils.check_answer(
+        session.create_dataframe(["a", "a", "c", "z", "b", "a"]).summary(),
+        [
+            Row("count", "6"),
+            Row("mean", None),
+            Row("stddev", None),
+            Row("min", "a"),
+            Row("25%", None),
+            Row("50%", None),
+            Row("75%", None),
+            Row("max", "z"),
+        ],
+    )
+
+    # summary() will ignore all non-numeric and non-string columns
+    data = [
+        1,
+        "one",
+        1.0,
+        Decimal(0.5),
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        True,
+        bytearray("a", "utf-8"),
+    ]
+    assert session.create_dataframe([data]).summary().columns == [
+        "SUMMARY",
+        "_1",
+        "_2",
+        "_3",
+        "_4",
+    ]
+
+    # summary() will still work when there are more than two string columns
+    # ambiguity will be eliminated
+    Utils.check_answer(
+        TestData.string1(session).summary(),
+        [
+            Row("count", "3", "3"),
+            Row("mean", None, None),
+            Row("stddev", None, None),
+            Row("min", "test1", "a"),
+            Row("25%", None, None),
+            Row("50%", None, None),
+            Row("75%", None, None),
+            Row("max", "test3", "c"),
+        ],
+    )
+
+    # return an "empty" dataframe if no numeric or string column is present
+    Utils.check_answer(
+        TestData.timestamp1(session).summary(),
+        [
+            Row("count"),
+            Row("mean"),
+            Row("stddev"),
+            Row("min"),
+            Row("25%"),
+            Row("50%"),
+            Row("75%"),
+            Row("max"),
+        ],
+    )
+
+    mixed_identifiers_dataframe = session.create_dataframe(
+        data=[
+            [1, Decimal("1.0"), "a", 1, 1, "aa"],
+            [2, Decimal("2.0"), "b", None, 2, "bb"],
+        ],
+        schema=["ほげ", "ふが", "a_ほげ", "ふが_1", "a", "b"],
+    )
+
+    assert mixed_identifiers_dataframe.summary().columns == [
+        "SUMMARY",
+        '"ほげ"',
+        '"ふが"',
+        '"a_ほげ"',
+        '"ふが_1"',
+        "A",
+        "B",
+    ]
+
+    Utils.check_answer(
+        mixed_identifiers_dataframe.summary(),
+        [
+            Row("count", 2.0, 2.0, "2", 1.0, 2.0, "2"),
+            Row("mean", 1.5, 1.5, None, 1.0, 1.5, None),
+            Row(
+                "stddev",
+                0.7071067811865476,
+                0.7071067811865476,
+                None,
+                None,
+                0.7071067811865476,
+                None,
+            ),
+            Row("min", 1.0, 1.0, "a", 1.0, 1.0, "aa"),
+            Row("25%", 1.25, 1.25, None, 1.0, 1.25, None),
+            Row("50%", 1.5, 1.5, None, 1.0, 1.5, None),
+            Row("75%", 1.75, 1.75, None, 1.0, 1.75, None),
+            Row("max", 2.0, 2.0, "b", 1.0, 2.0, "bb"),
+        ],
+    )
+
+
+def test_summary_negative(session):
+    with pytest.raises(ValueError, match="is not a recognised statistic"):
+        TestData.test_data2(session).summary("40")
+    with pytest.raises(ValueError, match="Unable to parse"):
+        TestData.test_data2(session).summary("40.x%")
+    with pytest.raises(
+        ValueError, match="requirement failed: Percentiles must be in the range"
+    ):
+        TestData.test_data2(session).summary("100.1%")
+    with pytest.raises(
+        ValueError, match="requirement failed: Percentiles must be in the range"
+    ):
+        TestData.test_data2(session).summary("-0.1%")
+
+
 def test_truncate_preserves_schema(session, local_testing_mode):
     tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df1 = session.create_dataframe([(1, 2), (3, 4)], schema=["a", "b"])
