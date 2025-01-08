@@ -9,7 +9,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark import QueryRecord
-from tests.integ.modin.utils import PANDAS_VERSION_PREDICATE, assert_frame_equal
+from tests.integ.modin.utils import assert_frame_equal
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
@@ -127,10 +127,6 @@ def test_sql_counter_with_fallback_count():
     assert len(df) == 3
 
 
-@pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
 @sql_count_checker(query_count=5, join_count=2, udtf_count=1)
 def test_sql_counter_with_df_udtf_count():
     df = pd.DataFrame([[1, 2], [3, 4]]).apply(lambda x: str(type(x)), axis=1, raw=True)
