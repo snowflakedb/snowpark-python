@@ -61,6 +61,7 @@
 - Added documentation for `DataFrame.map`.
 - Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
 - Added documentation on the extent of Snowpark pandas interoperability with scikit-learn
+- Infer return type of functions in `Series.map`, `Series.apply` and `DataFrame.map` if type-hint is not provided.
 
 ## 1.26.0 (2024-12-05)
 
