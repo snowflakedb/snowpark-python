@@ -384,10 +384,6 @@ class ArrayType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_array_type.structured = self.structured
-        if self.element_type is None:
-            raise NotImplementedError(
-                "SNOW-1862700: AST does not support empty element_type."
-            )
         self.element_type._fill_ast(ast.sp_array_type.ty)
 
 
@@ -401,15 +397,9 @@ class MapType(DataType):
         structured: Optional[bool] = None,
     ) -> None:
         if context._should_use_structured_type_semantics():
-            if (key_type is None and value_type is not None) or (
-                key_type is not None and value_type is None
-            ):
-                raise ValueError(
-                    "Must either set both key_type and value_type or leave both unset."
-                )
-            self.structured = (
-                structured if structured is not None else key_type is not None
-            )
+            if key_type is None or value_type is None:
+                raise ValueError("MapType requires both a key and value type be set.")
+            self.structured = True  # Snowflake has no unstructured MapTypes
             self.key_type = key_type
             self.value_type = value_type
         else:
@@ -473,10 +463,6 @@ class MapType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_map_type.structured = self.structured
-        if self.key_type is None or self.value_type is None:
-            raise NotImplementedError(
-                "SNOW-1862700: AST does not support empty key or value type."
-            )
         self.key_type._fill_ast(ast.sp_map_type.key_ty)
         self.value_type._fill_ast(ast.sp_map_type.value_ty)
 
