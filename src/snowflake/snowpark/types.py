@@ -943,10 +943,20 @@ _atomic_types: List[Type[DataType]] = [
     IntegerType,
     LongType,
     DateType,
-    TimestampType,
     NullType,
 ]
+
+_timestamp_types: List[DataType] = [
+    TimestampType(),
+    TimestampType(timezone=TimestampTimeZone.NTZ),
+    TimestampType(timezone=TimestampTimeZone.LTZ),
+    TimestampType(timezone=TimestampTimeZone.TZ),
+]
+
 _all_atomic_types: Dict[str, Type[DataType]] = {t.typeName(): t for t in _atomic_types}
+_all_timestamp_types: Dict[str, DataType] = {
+    t.json_value(): t for t in _timestamp_types
+}
 
 _complex_types: List[Type[Union[ArrayType, MapType, StructType]]] = [
     ArrayType,
@@ -964,8 +974,10 @@ _FIXED_DECIMAL_PATTERN = re.compile(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)")
 
 def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
     if not isinstance(json_value, dict):
-        if json_value in _all_atomic_types.keys():
+        if json_value in _all_atomic_types:
             return _all_atomic_types[json_value]()
+        if json_value in _all_timestamp_types:
+            return TimestampType(timezone=_all_timestamp_types[json_value].tz)
         elif json_value == "decimal":
             return DecimalType()
         elif _FIXED_DECIMAL_PATTERN.match(json_value):
