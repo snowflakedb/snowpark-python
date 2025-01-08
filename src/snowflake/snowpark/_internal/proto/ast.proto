@@ -89,7 +89,7 @@ message PythonTimeZone {
   int64 offset_seconds = 2;
 }
 
-// sp-type.ir:70
+// sp-type.ir:71
 message SpCallable {
   int64 id = 1;
   string name = 2;
@@ -136,71 +136,71 @@ message SpDataType {
   }
 }
 
-// sp-type.ir:27
+// sp-type.ir:28
 message SpArrayType {
   bool structured = 1;
   SpDataType ty = 2;
 }
 
-// sp-type.ir:31
+// sp-type.ir:32
 message SpColumnIdentifier {
   string name = 1;
 }
 
-// sp-type.ir:33
+// sp-type.ir:34
 message SpDecimalType {
   int64 precision = 1;
   int64 scale = 2;
 }
 
-// sp-type.ir:40
+// sp-type.ir:41
 message SpMapType {
   SpDataType key_ty = 1;
   bool structured = 2;
   SpDataType value_ty = 3;
 }
 
-// sp-type.ir:43
+// sp-type.ir:44
 message SpStringType {
   google.protobuf.Int64Value length = 1;
 }
 
-// sp-type.ir:44
+// sp-type.ir:45
 message SpStructField {
   SpColumnIdentifier column_identifier = 1;
   SpDataType data_type = 2;
   bool nullable = 3;
 }
 
-// sp-type.ir:45
+// sp-type.ir:46
 message SpStructType {
   repeated SpStructField fields = 1;
   bool structured = 2;
 }
 
-// sp-type.ir:47
+// sp-type.ir:48
 message SpTimestampType {
   SpTimestampTimeZone time_zone = 1;
 }
 
-// sp-type.ir:49
+// sp-type.ir:50
 message SpVectorType {
   int64 dimension = 1;
   SpDataType ty = 2;
 }
 
-// sp-type.ir:51
+// sp-type.ir:52
 message SpPandasSeriesType {
   SpDataType el_ty = 1;
 }
 
-// sp-type.ir:52
+// sp-type.ir:53
 message SpPandasDataFrameType {
   repeated string col_names = 1;
   repeated SpDataType col_types = 2;
 }
 
-// sp-type.ir:59
+// sp-type.ir:60
 message SpDataframeData {
   oneof sealed_value {
     SpDataframeData_List sp_dataframe_data__list = 1;
@@ -209,22 +209,22 @@ message SpDataframeData {
   }
 }
 
-// sp-type.ir:60
+// sp-type.ir:61
 message SpDataframeData_List {
   repeated Expr vs = 1;
 }
 
-// sp-type.ir:61
+// sp-type.ir:62
 message SpDataframeData_Tuple {
   repeated Expr vs = 1;
 }
 
-// sp-type.ir:62
+// sp-type.ir:63
 message SpDataframeData_Pandas {
   StagedPandasDataframe v = 1;
 }
 
-// sp-type.ir:65
+// sp-type.ir:66
 message SpDataframeSchema {
   oneof sealed_value {
     SpDataframeSchema_List sp_dataframe_schema__list = 1;
@@ -232,12 +232,12 @@ message SpDataframeSchema {
   }
 }
 
-// sp-type.ir:66
+// sp-type.ir:67
 message SpDataframeSchema_List {
   repeated string vs = 1;
 }
 
-// sp-type.ir:67
+// sp-type.ir:68
 message SpDataframeSchema_Struct {
   SpStructType v = 1;
 }
@@ -292,7 +292,7 @@ message SpNullOrder {
   }
 }
 
-// sp-type.ir:82
+// sp-type.ir:83
 message SpPivotValue {
   oneof sealed_value {
     SpPivotValue_Dataframe sp_pivot_value__dataframe = 1;
@@ -300,12 +300,12 @@ message SpPivotValue {
   }
 }
 
-// sp-type.ir:83
+// sp-type.ir:84
 message SpPivotValue_Expr {
   Expr v = 1;
 }
 
-// sp-type.ir:84
+// sp-type.ir:85
 message SpPivotValue_Dataframe {
   SpDataframeRef v = 1;
 }
@@ -363,7 +363,7 @@ message SrcPosition {
   int64 start_line = 5;
 }
 
-// sp-type.ir:55
+// sp-type.ir:56
 message StagedPandasDataframe {
   SpNameRef temp_table = 1;
 }
