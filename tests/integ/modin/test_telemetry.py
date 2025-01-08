@@ -667,8 +667,6 @@ def test_telemetry_multiple_func_call_count():
 
     # last call from telemetry data
     # s called __repr__() 2 times.
-    print(repr_telemetry_data)
-    print(dataframe_telemetry_data)
     assert repr_telemetry_data[-1]["call_count"] == 2
 
     # last call from telemetry data
