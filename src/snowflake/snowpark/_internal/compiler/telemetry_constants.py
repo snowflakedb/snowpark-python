@@ -19,11 +19,11 @@ class CompilationStageTelemetryField(Enum):
     QUERY_PLAN_COMPLEXITY = "query_plan_complexity"
 
     # types
-    TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED = (
-        "snowpark_large_query_breakdown_optimization_skipped"
-    ) # TODO: this is a key not a type anymore
+    TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED = "snowpark_large_query_breakdown_optimization_skipped"  # TODO: this is a key not a type anymore
     TYPE_COMPILATION_STAGE_STATISTICS = "snowpark_compilation_stage_statistics"
-    TYPE_COMPILATION_STAGE_FAILED = "snowpark_compilation_stage_failed" # TODO: remove and use above
+    TYPE_COMPILATION_STAGE_FAILED = (
+        "snowpark_compilation_stage_failed"  # TODO: remove and use above
+    )
     TYPE_LARGE_QUERY_BREAKDOWN_UPDATE_COMPLEXITY_BOUNDS = (
         "snowpark_large_query_breakdown_update_complexity_bounds"
     )
