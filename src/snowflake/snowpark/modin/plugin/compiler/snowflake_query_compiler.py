@@ -4003,7 +4003,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             series_groupby:
                 Whether we are performing a SeriesGroupBy.apply() instead of a DataFrameGroupBy.apply()
             include_groups:
-                When True, will apply func to the groupings in the case that
+                When True, will include grouping keys when calling func in the case that
                 they are columns of the DataFrame.
             force_single_group:
                 Force single group (empty set of group by labels) useful for DataFrame.apply() with axis=0
