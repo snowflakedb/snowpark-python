@@ -3690,6 +3690,7 @@ class DataFrame:
         col: Union[Column, TableFunctionCall],
         ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
@@ -3738,7 +3739,9 @@ class DataFrame:
             build_expr_from_snowpark_column_or_table_fn(expr.col, col)
             self._set_ast_ref(expr.df)
 
-        df = self.with_columns([col_name], [col], _ast_stmt=ast_stmt, _emit_ast=False)
+        df = self.with_columns(
+            [col_name], [col], _ast_stmt=ast_stmt, _emit_ast=False, **kwargs
+        )
 
         if _emit_ast:
             df._ast_id = ast_stmt.var_id.bitfield1
@@ -3753,6 +3756,7 @@ class DataFrame:
         values: List[Union[Column, TableFunctionCall]],
         _ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -3837,14 +3841,7 @@ class DataFrame:
                     names = col_names[i : i + offset + 1]
                     new_cols.append(col.as_(*names))
 
-        # Get a list of existing column names that are not being replaced
-        old_cols = [
-            Column(field)
-            for field in self._output
-            if field.name not in new_column_names
-        ]
-
-        # AST.
+        # Build the AST, if requested
         if _ast_stmt is None and _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(
@@ -3856,8 +3853,42 @@ class DataFrame:
                 build_expr_from_snowpark_column_or_table_fn(expr.values.add(), value)
             self._set_ast_ref(expr.df)
 
-        # Put it all together
-        df = self.select([*old_cols, *new_cols], _ast_stmt=_ast_stmt, _emit_ast=False)
+        # If there's a table function call or keep_order=False,
+        # we do the original "remove old columns and append new ones" logic.
+        keep_order = kwargs.get("keep_order", False)
+        if num_table_func_calls > 0 or not keep_order:
+            old_cols = [
+                Column(field)
+                for field in self._output
+                if field.name not in new_column_names
+            ]
+            final_cols = [*old_cols, *new_cols]
+        else:
+            # keep_order=True and no table function calls
+            # Re-insert replaced columns in their original positions if they exist
+            replaced_map = {
+                name: new_col for name, new_col in zip(qualified_names, new_cols)
+            }
+            final_cols = []
+            used = set()  # track which new cols we've inserted
+
+            for field in self._output:
+                field_quoted = quote_name(field.name)
+                # If this old column name is being replaced, insert the new col at the same position
+                if field_quoted in replaced_map:
+                    final_cols.append(replaced_map[field_quoted])
+                    used.add(field_quoted)
+                else:
+                    # keep the original col
+                    final_cols.append(Column(field))
+
+            # For any new columns that didn't exist in the old schema, append them at the end
+            for name, c in replaced_map.items():
+                if name not in used:
+                    final_cols.append(c)
+
+        # Construct the final DataFrame
+        df = self.select(final_cols, _ast_stmt=_ast_stmt, _emit_ast=False)
 
         if _emit_ast:
             df._ast_id = _ast_stmt.var_id.bitfield1
