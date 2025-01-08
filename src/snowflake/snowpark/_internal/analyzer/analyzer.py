@@ -325,7 +325,7 @@ class Analyzer:
         if isinstance(expr, WindowSpecDefinition):
             return window_spec_expression(
                 [
-                    self.analyze(
+                    self.to_sql_try_avoid_cast(
                         x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.partition_spec
@@ -456,7 +456,7 @@ class Analyzer:
             return table_function_partition_spec(
                 expr.over,
                 [
-                    self.analyze(
+                    self.to_sql_try_avoid_cast(
                         x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.partition_spec
@@ -623,7 +623,9 @@ class Analyzer:
                 "NamedArgumentsTableFunction, GeneratorTableFunction, or FlattenFunction."
             )
         partition_spec_sql = (
-            self.analyze(expr.partition_spec, df_aliased_col_name_to_real_col_name)
+            self.to_sql_try_avoid_cast(
+                expr.partition_spec, df_aliased_col_name_to_real_col_name
+            )
             if expr.partition_spec
             else ""
         )
