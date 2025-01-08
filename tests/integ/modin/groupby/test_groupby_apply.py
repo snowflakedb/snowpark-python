@@ -1302,6 +1302,11 @@ class TestCallableWithMixedReturnTypes:
         )
 
 
+@sql_count_checker(
+    query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+    join_count=JOIN_COUNT,
+    udtf_count=UDTF_COUNT,
+)
 def test_include_groups_default_value(grouping_dfs_with_multiindexes):
     """
     Test that the default value behavior include_groups matches pandas.
