@@ -933,9 +933,9 @@ class DataFrameWriter:
 
             >>> # save this dataframe to a json file on the session stage
             >>> df = session.create_dataframe([["John", "Berry"]], schema = ["FIRST_NAME", "LAST_NAME"])
-            >>> df.save_as_table("my_table", table_type="temporary")
+            >>> df.write.save_as_table("my_table", table_type="temporary")
             >>> df2 = session.create_dataframe([["Rick", "Berry"]], schema = ["FIRST_NAME", "LAST_NAME"])
-            >>> df2.write.write("my_table")
+            >>> df2.write.insert_into("my_table")
             >>> session.table("my_table").collect()
             [Row(FIRST_NAME='John', LAST_NAME='Berry'), Row(FIRST_NAME='Rick', LAST_NAME='Berry')]
         """
