@@ -15,7 +15,7 @@
   - `nullifzero`
   - `snowflake_cortex_sentiment`
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
-- Added support for `DataFrameWriter.insert_into/insertInto`.
+- Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
 
 #### Improvements
 
