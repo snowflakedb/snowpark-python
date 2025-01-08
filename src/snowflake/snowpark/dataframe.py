@@ -4,6 +4,7 @@
 #
 
 import copy
+import functools
 import itertools
 import re
 import sys
@@ -170,6 +171,7 @@ from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
 from snowflake.snowpark.functions import (
     abs as abs_,
+    approx_percentile,
     col,
     count,
     lit,
@@ -5046,6 +5048,61 @@ class DataFrame:
         """
         return self._session
 
+    def _calculate_statistics(
+        self,
+        cols: List[str],
+        stat_func_dict: Dict[str, Callable],
+    ) -> "DataFrame":
+        """
+        Calculates the statistics for the specified columns.
+        This method is used for the implementation of the `describe` and `summary` method.
+        """
+        df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
+
+        # ignore non-numeric and non-string columns
+        numerical_string_col_type_dict = {
+            field.name: field.datatype
+            for field in df.schema.fields
+            if isinstance(field.datatype, (StringType, _NumericType))
+        }
+
+        # if no columns should be selected, just return stat names
+        if len(numerical_string_col_type_dict) == 0:
+            df = self._session.create_dataframe(
+                list(stat_func_dict.keys()), schema=["summary"], _emit_ast=False
+            )
+
+            return df
+
+        # otherwise, calculate stats
+        res_df = None
+        for name, func in stat_func_dict.items():
+            agg_cols = []
+            for c, t in numerical_string_col_type_dict.items():
+                # for string columns, we need to convert all stats to string
+                # such that they can be fitted into one column
+                if isinstance(t, StringType):
+                    if name.lower() in ["mean", "stddev"] or name.endswith("%"):
+                        agg_cols.append(to_char(func(lit(None))).as_(c))
+                    else:
+                        agg_cols.append(to_char(func(c)))
+                else:
+                    agg_cols.append(func(c))
+            agg_stat_df = (
+                self.agg(agg_cols, _emit_ast=False)
+                .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
+                .select(
+                    lit(name).as_("summary"),
+                    *numerical_string_col_type_dict.keys(),
+                    _emit_ast=False,
+                )
+            )
+            res_df = (
+                res_df.union(agg_stat_df, _emit_ast=False) if res_df else agg_stat_df
+            )
+
+        return res_df
+
     @publicapi
     def describe(
         self, *cols: Union[str, List[str]], _emit_ast: bool = True
@@ -5083,16 +5140,6 @@ class DataFrame:
             for c in col_list:
                 build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
 
-        cols = parse_positional_args_to_list(*cols)
-        df = self.select(cols, _emit_ast=False) if len(cols) > 0 else self
-
-        # ignore non-numeric and non-string columns
-        numerical_string_col_type_dict = {
-            field.name: field.datatype
-            for field in df.schema.fields
-            if isinstance(field.datatype, (StringType, _NumericType))
-        }
-
         stat_func_dict = {
             "count": count,
             "mean": mean,
@@ -5100,52 +5147,8 @@ class DataFrame:
             "min": min_,
             "max": max_,
         }
-
-        # if no columns should be selected, just return stat names
-        if len(numerical_string_col_type_dict) == 0:
-            df = self._session.create_dataframe(
-                list(stat_func_dict.keys()), schema=["summary"], _emit_ast=False
-            )
-            # We need to set the API calls for this to same API calls for describe
-            # Also add the new API calls for creating this DataFrame to the describe subcalls
-            adjust_api_subcalls(
-                df,
-                "DataFrame.describe",
-                precalls=self._plan.api_calls,
-                subcalls=df._plan.api_calls,
-            )
-
-            if _emit_ast:
-                df._ast_id = stmt.var_id.bitfield1
-
-            return df
-
-        # otherwise, calculate stats
-        res_df = None
-        for name, func in stat_func_dict.items():
-            agg_cols = []
-            for c, t in numerical_string_col_type_dict.items():
-                # for string columns, we need to convert all stats to string
-                # such that they can be fitted into one column
-                if isinstance(t, StringType):
-                    if name in ["mean", "stddev"]:
-                        agg_cols.append(to_char(func(lit(None))).as_(c))
-                    else:
-                        agg_cols.append(to_char(func(c)))
-                else:
-                    agg_cols.append(func(c))
-            agg_stat_df = (
-                self.agg(agg_cols, _emit_ast=False)
-                .to_df(list(numerical_string_col_type_dict.keys()), _emit_ast=False)
-                .select(
-                    lit(name).as_("summary"),
-                    *numerical_string_col_type_dict.keys(),
-                    _emit_ast=False,
-                )
-            )
-            res_df = (
-                res_df.union(agg_stat_df, _emit_ast=False) if res_df else agg_stat_df
-            )
+        cols = parse_positional_args_to_list(*cols)
+        res_df = self._calculate_statistics(cols, stat_func_dict)
 
         adjust_api_subcalls(
             res_df,
@@ -5156,6 +5159,94 @@ class DataFrame:
 
         if _emit_ast:
             res_df._ast_id = stmt.var_id.bitfield1
+
+        return res_df
+
+    @publicapi
+    def summary(self, *statistics: str, _emit_ast: bool = True) -> "DataFrame":
+        """
+        Computes specified statistics for all numeric and string columns.
+        Non-numeric and non-string columns will be ignored when calling this method.
+
+        Available statistics are: ``count``, ``mean``, ``stddev``, ``min``, ``max`` and
+        arbitrary approximate percentiles specified as a percentage (e.g., 75%).
+
+        If no statistics are given, this function computes ``count``, ``mean``, ``stddev``, ``min``,
+        approximate quartiles (percentiles at 25%, 50%, and 75%), and ``max``.
+
+        If no columns are provided, this function computes statistics for all numerical or
+        string columns.
+
+        Example::
+            >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+            >>> desc_result = df.summary().sort("SUMMARY").show()
+            -------------------------------------------------------
+            |"SUMMARY"  |"A"                 |"B"                 |
+            -------------------------------------------------------
+            |25%        |1.5                 |2.5                 |
+            |50%        |2.0                 |3.0                 |
+            |75%        |2.5                 |3.5                 |
+            |count      |2.0                 |2.0                 |
+            |max        |3.0                 |4.0                 |
+            |mean       |2.0                 |3.0                 |
+            |min        |1.0                 |2.0                 |
+            |stddev     |1.4142135623730951  |1.4142135623730951  |
+            -------------------------------------------------------
+            <BLANKLINE>
+
+        Args:
+            statistics: The names of columns whose basic statistics are computed.
+        """
+        # get stats that we want to calculate
+        stat_func_dict = {}
+        for s in statistics:
+            if s.lower() == "count":
+                stat_func_dict[s] = count
+            elif s.lower() == "mean":
+                stat_func_dict[s] = mean
+            elif s.lower() == "stddev":
+                stat_func_dict[s] = stddev
+            elif s.lower() == "min":
+                stat_func_dict[s] = min_
+            elif s.lower() == "max":
+                stat_func_dict[s] = max_
+            elif s.endswith("%"):
+                try:
+                    number = float(s[:-1])
+                except Exception as ex:
+                    raise ValueError(f"Unable to parse {s} as a percentile: {ex}.")
+                if number < 0 or number > 100:
+                    raise ValueError(
+                        "requirement failed: Percentiles must be in the range [0, 1]."
+                    )
+                stat_func_dict[s] = functools.partial(
+                    approx_percentile, percentile=number / 100
+                )
+            else:
+                raise ValueError(f"{s} is not a recognised statistic.")
+
+        # if stats are not specified, use the following default stats
+        if not stat_func_dict:
+            stat_func_dict = {
+                "count": count,
+                "mean": mean,
+                "stddev": stddev,
+                "min": min_,
+                "25%": lambda c: approx_percentile(c, 0.25),
+                "50%": lambda c: approx_percentile(c, 0.50),
+                "75%": lambda c: approx_percentile(c, 0.75),
+                "max": max_,
+            }
+
+        # calculate stats on all columns
+        res_df = self._calculate_statistics([], stat_func_dict)
+
+        adjust_api_subcalls(
+            res_df,
+            "DataFrame.summary",
+            precalls=self._plan.api_calls,
+            subcalls=res_df._plan.api_calls.copy(),
+        )
 
         return res_df
 
