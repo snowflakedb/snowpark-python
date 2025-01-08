@@ -10460,7 +10460,7 @@ def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
 @publicapi
 def acosh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the inverse hyperbolic cosine of the records in a group.
+    Returns the inverse(arc) hyperbolic cosine of the input value.
 
     Example::
 
@@ -10475,7 +10475,7 @@ def acosh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 @publicapi
 def asinh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the inverse hyperbolic sine of the input value.
+    Returns the inverse(arc) hyperbolic sine of the input value.
 
     Example::
 
@@ -10490,9 +10490,7 @@ def asinh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 @publicapi
 def atanh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the inverse hyperbolic tangent of the given value.
-
-    The inverse hyperbolic tangent is the value whose hyperbolic tangent is the given value.
+    Returns the inverse(arc) hyperbolic tangent of the input value.
 
     Example::
 
@@ -10507,7 +10505,7 @@ def atanh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 @publicapi
 def bit_length(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the length of the string in bits.
+    Returns the length of a string or binary value in bits.
 
     Example::
 
@@ -10527,9 +10525,9 @@ def bitmap_bit_position(numeric_expr: ColumnOrName, _emit_ast: bool = True) -> C
 
     Example::
 
-        >>> df = session.create_dataframe([1, 2, 3, 4, 5], schema=["a"])
-        >>> df.select(bitmap_bit_position("a").alias("result")).collect()
-        [Row(RESULT=0), Row(RESULT=1), Row(RESULT=2), Row(RESULT=3), Row(RESULT=4)]
+        >>> df = session.create_dataframe([1, 2, 3, 32768, 32769], schema=["a"])
+        >>> df.select(bitmap_bit_position("a").alias("bit_position")).collect()
+        [Row(bit_position=0), Row(bit_position=1), Row(bit_position=2), Row(bit_position=32767), Row(bit_position=0)]
     """
     c = _to_col_if_str(numeric_expr, "bitmap_bit_position")
     return builtin("bitmap_bit_position", _emit_ast=_emit_ast)(c)
@@ -10544,9 +10542,9 @@ def bitmap_bucket_number(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     Example::
 
-        >>> df = session.create_dataframe([1, 2, 3], schema=["a"])
+        >>> df = session.create_dataframe([1, 2, 3, 32768, 32769], schema=["a"])
         >>> df.select(bitmap_bucket_number(col("a")).alias("bucket_number")).collect()
-        [Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=1)]
+        [Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=2)]
     """
     c = _to_col_if_str(e, "bitmap_bucket_number")
     return builtin("bitmap_bucket_number", _emit_ast=_emit_ast)(c)
@@ -10587,15 +10585,15 @@ def cbrt(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 @publicapi
 def equal_null(e1: ColumnOrName, e2: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns True if both expressions are NULL or both expressions are not NULL and are equal.
+    Compares whether two expressions are equal. The function is NULL-safe, meaning it treats NULLs as
+    known values for comparing equality. Note that this is different from the EQUAL comparison operator (=),
+    which treats NULLs as unknown values.
 
     Example::
 
-        >>> df = session.create_dataframe([[1], [2], [None]], schema=["a"])
-        >>> df2 = session.create_dataframe([[1], [2], [None]], schema=["b"])
-        >>> joined_df = df.crossJoin(df2)
-        >>> joined_df.select(equal_null(joined_df["a"], joined_df["b"]).alias("equal_null")).collect()
-        [Row(EQUAL_NULL=True), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=True), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=True)]
+        >>> df = session.create_dataframe([[1, 1], [1, None], [None, 2], [None, None]], schema=["a", "b"])
+        >>> df.select(equal_null(df["a"], df["b"]).alias("equal_null")).collect()
+        [Row(EQUAL_NULL=True), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=True)]
     """
     c1 = _to_col_if_str(e1, "equal_null")
     c2 = _to_col_if_str(e2, "equal_null")
@@ -10605,9 +10603,7 @@ def equal_null(e1: ColumnOrName, e2: ColumnOrName, _emit_ast: bool = True) -> Co
 @publicapi
 def ifnull(e1: ColumnOrName, e2: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the first non-NULL value from the two arguments.
-
-    If both arguments are NULL, returns NULL.
+    If expr1 is NULL, returns expr2, otherwise returns expr1.
 
     Example::
 
@@ -10620,47 +10616,31 @@ def ifnull(e1: ColumnOrName, e2: ColumnOrName, _emit_ast: bool = True) -> Column
     return builtin("ifnull", _emit_ast=_emit_ast)(c1, c2)
 
 
+nvl = ifnull
+
+
 @publicapi
 def localtimestamp(fract_sec_precision: int = 9, _emit_ast: bool = True) -> Column:
     """
     Returns the current timestamp at the start of the query with the specified fractional second precision.
-
-    Args:
-        fract_sec_precision (int, optional): The fractional second precision. Defaults to 9.
-
-    Returns:
-        Column: A column containing the current timestamp.
 
     Example::
 
         >>> df = session.create_dataframe([1], schema=["a"])
         >>> df.select(localtimestamp(3)).collect()  # doctest: +SKIP
     """
-    c = Literal(fract_sec_precision)
-    return builtin("localtimestamp", _emit_ast=_emit_ast)(c)
+    return builtin("localtimestamp", _emit_ast=_emit_ast)(lit(fract_sec_precision))
 
 
 @publicapi
 def max_by(
     col_to_return: ColumnOrName,
     col_containing_maximum: ColumnOrName,
-    maximum_number_of_values_to_return: int = None,
+    maximum_number_of_values_to_return: Optional[int] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
-    Returns the maximum values for the records in a group. NULL values are ignored
-    unless all the records are NULL, in which case a NULL value is returned.
-
-    This function returns the top N values from the column specified by col_to_return
-    based on the maximum values in the column specified by col_containing_maximum.
-
-    Args:
-        col_to_return (ColumnOrName): The column to return the maximum values from.
-        col_containing_maximum (ColumnOrName): The column containing the maximum values.
-        maximum_number_of_values_to_return (int, optional): The maximum number of values to return. Defaults to None.
-
-    Returns:
-        Column: A column containing the maximum values.
+    Finds the row(s) containing the maximum value for a column and returns the value of another column in that row.
 
     Example::
 
@@ -10680,7 +10660,7 @@ def max_by(
     c2 = _to_col_if_str(col_containing_maximum, "max_by")
     if maximum_number_of_values_to_return is not None:
         return builtin("max_by", _emit_ast=_emit_ast)(
-            c1, c2, maximum_number_of_values_to_return
+            c1, c2, lit(maximum_number_of_values_to_return)
         )
     else:
         return builtin("max_by", _emit_ast=_emit_ast)(c1, c2)
@@ -10690,15 +10670,11 @@ def max_by(
 def min_by(
     col_to_return: ColumnOrName,
     col_containing_minimum: ColumnOrName,
-    maximum_number_of_values_to_return: int = None,
+    maximum_number_of_values_to_return: Optional[int] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
-    Returns the minimum value for the records in a group. NULL values are ignored
-    unless all the records are NULL, in which case a NULL value is returned.
-
-    This function returns the values from col_to_return that correspond to the minimum values in col_containing_minimum.
-    If maximum_number_of_values_to_return is specified, it returns at most that many values.
+    Finds the row(s) containing the minimum value for a column and returns the value of another column in that row.
 
     Example::
 
@@ -10714,48 +10690,23 @@ def min_by(
         >>> df.select(min_by("employee_id", "salary", 3).alias("min_by")).collect()
         [Row(MIN_BY='[\\n  1030,\\n  2020,\\n  1020\\n]')]
 
-    :param col_to_return: The column to return values from.
-    :param col_containing_minimum: The column to find the minimum values in.
-    :param maximum_number_of_values_to_return: The maximum number of values to return.
-    :param _emit_ast: Whether to emit the abstract syntax tree.
-    :return: A Column object.
     """
     c1 = _to_col_if_str(col_to_return, "min_by")
     c2 = _to_col_if_str(col_containing_minimum, "min_by")
     if maximum_number_of_values_to_return is not None:
         return builtin("min_by", _emit_ast=_emit_ast)(
-            c1, c2, maximum_number_of_values_to_return
+            c1, c2, lit(maximum_number_of_values_to_return)
         )
     else:
         return builtin("min_by", _emit_ast=_emit_ast)(c1, c2)
 
 
 @publicapi
-def nvl(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
-    """
-    Returns expr2 if expr1 is NULL, otherwise returns expr1.
-
-    Example::
-
-        >>> df = session.create_dataframe([
-        ...     ["555-01222", "555-01111"],
-        ...     ["555-01333", "555-01444"],
-        ...     ["NULL", "555-01555"],
-        ...     ["555-01666", "NULL"],
-        ...     ["NULL", "NULL"]
-        ... ], schema=["phone_region_1", "phone_region_2"])
-        >>> df.select(nvl(df["phone_region_1"], df["phone_region_2"]).alias("result")).collect()
-        [Row(RESULT='555-01222'), Row(RESULT='555-01333'), Row(RESULT='NULL'), Row(RESULT='555-01666'), Row(RESULT='NULL')]
-    """
-    c1 = _to_col_if_str(expr1, "nvl")
-    c2 = _to_col_if_str(expr2, "nvl")
-    return builtin("nvl", _emit_ast=_emit_ast)(c1, c2)
-
-
-@publicapi
 def octet_length(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the length of the string in bytes.
+    Returns the length of a string or binary value in bytes.
+    This will be the same as LENGTH for ASCII strings and greater than LENGTH for strings using Unicode code points.
+    For binary, this is always the same as LENGTH.
 
     Example::
 
@@ -10771,36 +10722,29 @@ def octet_length(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 def position(
     expr1: ColumnOrName,
     expr2: ColumnOrName,
-    start_pos: ColumnOrName = 1,
+    start_pos: int = 1,
     _emit_ast: bool = True,
 ) -> Column:
     """
-    Returns the position of the first occurrence of expr2 in expr1, starting from the position specified by start_pos.
-
-    Args:
-        expr1 (ColumnOrName): The string in which to search for expr2.
-        expr2 (ColumnOrName): The string to search for in expr1.
-        start_pos (ColumnOrName, optional): The position in expr1 at which to start the search. Defaults to 1.
-
-    Returns:
-        Column: The position of the first occurrence of expr2 in expr1.
+    Searches for the first occurrence of the first argument in the second argument and, if successful, returns
+    the position (1-based) of the first argument in the second argument.
 
     Example::
 
-        >>> df = session.create_dataframe([['an', 'banana', 1], ['an', 'banana', 3]], schema=["expr1", "expr2", "start_pos"])
-        >>> df.select(position(df["expr1"], df["expr2"], df["start_pos"]).alias("position")).collect()
-        [Row(POSITION=2), Row(POSITION=4)]
+        >>> df = session.create_dataframe([['an', 'banana'], ['nan', 'banana']], schema=["expr1", "expr2"])
+        >>> df.select(position(df["expr1"], df["expr2"], 3).alias("position")).collect()
+        [Row(POSITION=4), Row(POSITION=3)]
     """
     c1 = _to_col_if_str(expr1, "position")
     c2 = _to_col_if_str(expr2, "position")
-    c3 = _to_col_if_str(start_pos, "position")
-    return builtin("position", _emit_ast=_emit_ast)(c1, c2, c3)
+    return builtin("position", _emit_ast=_emit_ast)(c1, c2, lit(start_pos))
 
 
 @publicapi
 def regr_avgx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the average of the independent variable for the non-NULL pairs in a group.
+    Returns the average of the independent variable for non-null pairs in a group, where x is the
+    independent variable and y is the dependent variable.
 
     Example::
 
@@ -10816,31 +10760,15 @@ def regr_avgx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
 @publicapi
 def regr_avgy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the average of the independent variable (y) in a linear regression.
+    Returns the average of the dependent variable for non-null pairs in a group, where x is the
+    independent variable and y is the dependent variable.
 
-    The function calculates the average of the independent variable (y) for each group,
-    ignoring NULL values, unless all the records are NULL, in which case a NULL value is returned.
+    Example::
 
-    Parameters
-    ----------
-    y : ColumnOrName
-        The independent variable.
-    x : ColumnOrName
-        The dependent variable.
-    _emit_ast : bool, optional
-        Whether to emit the abstract syntax tree (default is True).
-
-    Returns
-    -------
-    Column
-        The average of the independent variable (y) for each group.
-
-    Example
-    -------
-    >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-    >>> df = df.group_by("v").agg(regr_avgy(df["v"], df["v2"]).alias("regr_avgy"))
-    >>> df.collect()
-    [Row(V=10, REGR_AVGY=10.0), Row(V=20, REGR_AVGY=20.0), Row(V=25, REGR_AVGY=None), Row(V=30, REGR_AVGY=30.0)]
+        >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
+        >>> df = df.group_by("v").agg(regr_avgy(df["v"], df["v2"]).alias("regr_avgy"))
+        >>> df.collect()
+        [Row(V=10, REGR_AVGY=10.0), Row(V=20, REGR_AVGY=20.0), Row(V=25, REGR_AVGY=None), Row(V=30, REGR_AVGY=30.0)]
     """
     y = _to_col_if_str(y, "regr_avgy")
     x = _to_col_if_str(x, "regr_avgy")
@@ -10850,7 +10778,7 @@ def regr_avgy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
 @publicapi
 def regr_count(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the number of non-NULL number pairs used to fit the linear regression line.
+    Returns the number of non-null number pairs in a group.
 
     Example::
 
@@ -10866,13 +10794,9 @@ def regr_count(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colu
 @publicapi
 def regr_intercept(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the y-intercept of the linear regression line fitted to the input records.
-
-    The linear regression line is calculated as follows:
-
-    y = regr_intercept(y, x) + regr_slope(y, x) * x
-
-    NULL values are ignored unless all the records are NULL, in which case a NULL value is returned.
+    Returns the intercept of the univariate linear regression line for non-null pairs in a group.
+    It is computed for non-null pairs using the following formula: AVG(y)-REGR_SLOPE(y,x)*AVG(x), where x is
+    the independent variable and y is the dependent variable.
 
     Example::
 
@@ -10888,9 +10812,12 @@ def regr_intercept(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> 
 @publicapi
 def regr_r2(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the coefficient of determination for a linear regression model fitted to the input data.
-
-    The coefficient of determination, R-squared, measures how well the model fits the data. It is the proportion of the variance in the dependent variable that is predictable from the independent variable(s).
+    Returns the coefficient of determination for non-null pairs in a group.
+    It is computed for non-null pairs using the following formula:
+        NULL                 if VAR_POP(x) = 0, else
+        1                    if VAR_POP(y) = 0 and VAR_POP(x) <> 0, else
+        POWER(CORR(y,x), 2)
+    Where x is the independent variable and y is the dependent variable.
 
     Example::
 
@@ -10906,7 +10833,9 @@ def regr_r2(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
 @publicapi
 def regr_slope(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the slope of the linear regression line of the independent variable x and the dependent variable y.
+    Returns the slope of the linear regression line for non-null pairs in a group.
+    It is computed for non-null pairs using the following formula: COVAR_POP(x,y) / VAR_POP(x), where x is the
+    independent variable and y is the dependent variable.
 
     Example::
 
@@ -10923,7 +10852,7 @@ def regr_slope(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colu
 @publicapi
 def regr_sxx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the sum of the squared differences between y and the average of y for the records in a group.
+    Returns REGR_COUNT(y, x) * VAR_POP(x) for non-null pairs.
 
     Example::
 
@@ -10939,9 +10868,7 @@ def regr_sxx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
 @publicapi
 def regr_sxy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the sum of the product of x and y values for each group,
-    minus the product of the sum of x and the sum of y,
-    divided by the count of the number of rows in the group.
+    Returns REGR_COUNT(expr1, expr2) * COVAR_POP(expr1, expr2) for non-null pairs.
 
     Example::
 
@@ -10958,7 +10885,7 @@ def regr_sxy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
 @publicapi
 def regr_syy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the sum of the squares of the vertical distances of a set of number pairs from the regression line.
+    Returns REGR_COUNT(y, x) * VAR_POP(y) for non-null pairs.
 
     Example::
 
@@ -10973,18 +10900,12 @@ def regr_syy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
 
 @publicapi
 def try_to_binary(
-    e: ColumnOrName, format: str = None, _emit_ast: bool = True
+    e: ColumnOrName, fmt: Optional[str] = None, _emit_ast: bool = True
 ) -> Column:
     """
-    Attempts to convert a string to a binary value.
-
-    Args:
-        e (ColumnOrName): The column or expression to convert.
-        format (str, optional): The format of the string. Defaults to None.
-        _emit_ast (bool, optional): Whether to emit an abstract syntax tree. Defaults to True.
-
-    Returns:
-        Column: A column containing the binary values.
+    A special version of TO_BINARY that performs the same operation (i.e. converts an input expression to
+    a binary value), but with error handling support (i.e. if the conversion cannot be performed,
+    it returns a NULL value instead of raising an error).
 
     Example::
 
@@ -10993,4 +10914,8 @@ def try_to_binary(
         [Row(B=bytearray(b'\\x01')), Row(B=None), Row(B=None), Row(B=None)]
     """
     c = _to_col_if_str(e, "try_to_binary")
-    return builtin("try_to_binary", _emit_ast=_emit_ast)(c, format)
+    return (
+        builtin("try_to_binary", _emit_ast=_emit_ast)(c, fmt)
+        if fmt
+        else builtin("try_to_binary", _emit_ast=_emit_ast)(c)
+    )
