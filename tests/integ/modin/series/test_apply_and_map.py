@@ -435,16 +435,16 @@ class TestApplyOrMapCallable:
         )
 
     @pytest.mark.parametrize(
-        "input, expected_output",
+        "input",
         [
             # The last element in this numeric column becomes np.nan in Python UDF -> SQL null
-            ([1, 2, 3, 4, None], [False, True, True, False, True]),
+            [1, 2, 3, 4, None],
             # The last element in this string column becomes pd.NA in Python UDF -> SQL null
-            (["s", "t", "null", None], [False, False, False, True]),
+            ["s", "t", "null", None],
         ],
     )
     @sql_count_checker(query_count=4, udf_count=1)
-    def test_variant_json_null(self, method, input, expected_output):
+    def test_variant_json_null(self, method, input):
         def f(x):
             if native_pd.isna(x):
                 return x
@@ -457,7 +457,11 @@ class TestApplyOrMapCallable:
             else:
                 return x
 
-        assert getattr(pd.Series(input), method)(f).isna().tolist() == expected_output
+        snow_series = pd.Series(input)
+        native_series = native_pd.Series(input)
+        eval_snowpark_pandas_result(
+            snow_series, native_series, lambda x: getattr(x, method)(f).isna()
+        )
 
     # This import is related to the test below. Do not remove.
     import scipy  # noqa: E402
@@ -810,6 +814,15 @@ class TestMapOnly:
             assert_exception_equal=False,
             expect_exception_type=TypeError,
         )
+
+    @sql_count_checker(query_count=3)
+    def test_incorrect_inferred_type(self):
+        s = pd.Series([1, 2, 17])
+        # The return type of the lambda is inferred as int, but the return type is
+        # mix of int and string.
+        # Attempt to convert "abc" to int will raise an exception.
+        with pytest.raises(SnowparkSQLException):
+            s.map(lambda x: "abc" if x == 17 else x).to_pandas()
 
 
 # NOTE: Please add test cases to one of TestApplyOrMapCallable, TestApplyOnly,
