@@ -78,7 +78,7 @@ Functions
     asin
     asinh
     atan
-    atang
+    atanh
     atan2
     avg
     bit_length
