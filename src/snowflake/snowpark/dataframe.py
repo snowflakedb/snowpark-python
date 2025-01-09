@@ -4482,12 +4482,18 @@ class DataFrame:
             num_rows + 1, _emit_ast, **kwargs
         )
 
+        # handle empty dataframe
+        if len(meta) == 1 and meta[0].name == '""':
+            meta = []
+            result = []
+            _spark_column_names = []
+
         def cell_to_str(cell: Any) -> str:
             # Special handling for boolean to string in Python.
             # TODO: this operation can be pushed down to Snowflake for execution.
             if isinstance(cell, bool):
                 return "true" if cell else "false"
-            return str(cell)
+            return str(cell).replace("\n", "\\n")
 
         # Escape field names
         header = (
@@ -4568,9 +4574,13 @@ class DataFrame:
             field_name_col_width = max(
                 minimum_col_width, max(string_half_width(name) for name in field_names)
             )
-            data_col_width = max(
-                minimum_col_width,
-                max(string_half_width(cell) for row in data_rows for cell in row),
+            data_col_width = (
+                minimum_col_width
+                if len(data_rows) == 0
+                else max(
+                    minimum_col_width,
+                    max(string_half_width(cell) for row in data_rows for cell in row),
+                )
             )
 
             for i, row in enumerate(data_rows):
