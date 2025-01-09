@@ -9,12 +9,14 @@ import json
 import math
 import re
 from itertools import chain
+from unittest import mock
 
 import pytest
 
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
+    _concat_ws_ignore_nulls,
     abs,
     array_agg,
     array_append,
@@ -175,7 +177,12 @@ from snowflake.snowpark.types import (
     TimestampType,
     VariantType,
 )
-from tests.utils import TestData, Utils, running_on_jenkins
+from tests.utils import (
+    TestData,
+    Utils,
+    running_on_jenkins,
+    structured_types_enabled_session,
+)
 
 
 def test_order(session):
@@ -306,6 +313,35 @@ def test_concat_ws(session, col_a, col_b, col_c):
     df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
     res = df.select(concat_ws(lit(","), col_a, col_b, col_c)).collect()
     assert res[0][0] == "1,2,3"
+
+
+@pytest.mark.parametrize("structured_type_semantics", [True, False])
+def test__concat_ws_ignore_nulls(session, structured_type_semantics):
+    data = [
+        (["a", "b"], ["c"], "d", "e"),  # no nulls column
+        (
+            ["Hello", None, "world"],
+            [None, "!", None],
+            "bye",
+            "world",
+        ),  # some nulls column
+        ([None, None], ["R", "H"], None, "TD"),  # some nulls column
+        (None, [None], None, None),  # all nulls column
+    ]
+    cols = ["arr1", "arr2", "str1", "str2"]
+
+    def check_concat_ws_ignore_nulls_output(session):
+        df = session.create_dataframe(data, schema=cols)
+        df.select(_concat_ws_ignore_nulls(",", *cols))  # single character delimiter
+
+    if structured_type_semantics:
+        with structured_types_enabled_session(session) as session:
+            with mock.patch(
+                "snowflake.snowpark.context._use_structured_type_semantics", True
+            ):
+                check_concat_ws_ignore_nulls_output(session)
+    else:
+        check_concat_ws_ignore_nulls_output(session)
 
 
 def test_concat_edge_cases(session):
