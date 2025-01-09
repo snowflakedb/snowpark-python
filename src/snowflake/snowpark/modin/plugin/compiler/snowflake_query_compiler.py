@@ -173,6 +173,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     get_agg_func_to_col_map,
     get_pandas_aggr_func_name,
     get_snowflake_agg_func,
+    is_first_last_in_agg_funcs,
     repr_aggregate_function,
     using_named_aggregations_for_func,
 )
@@ -3796,9 +3797,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             internal_frame.index_column_snowflake_quoted_identifiers
         )
 
+        # We need to check if `first` or `last` are in the aggregation functions,
+        # as we need to ensure a row position column and pass it in as an agg_kwarg
+        # if it is (for the window function).
+        first_last_present = is_first_last_in_agg_funcs(column_to_agg_func)
+        if first_last_present:
+            internal_frame = internal_frame.ensure_row_position_column()
+            agg_kwargs[
+                "_first_last_row_pos_col"
+            ] = internal_frame.row_position_snowflake_quoted_identifier
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
+        if first_last_present:
+            agg_kwargs.pop("_first_last_row_pos_col")
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
         new_data_column_pandas_labels = []
@@ -6026,7 +6038,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # by snowflake engine.
         # If we are using Named Aggregations, we need to do our supported check slightly differently.
         uses_named_aggs = using_named_aggregations_for_func(func)
-        if not check_is_aggregation_supported_in_snowflake(func, kwargs, axis):
+        if not check_is_aggregation_supported_in_snowflake(
+            func, kwargs, axis, _is_df_agg=True
+        ):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas aggregate does not yet support the aggregation {repr_aggregate_function(func, kwargs)} with the given arguments."
             )
