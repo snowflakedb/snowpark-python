@@ -384,7 +384,8 @@ class ArrayType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_array_type.structured = self.structured
-        self.element_type._fill_ast(ast.sp_array_type.ty)
+        if self.element_type is not None:
+            self.element_type._fill_ast(ast.sp_array_type.ty)
 
 
 class MapType(DataType):
@@ -397,15 +398,11 @@ class MapType(DataType):
         structured: Optional[bool] = None,
     ) -> None:
         if context._should_use_structured_type_semantics():
-            if key_type is None or value_type is None:
-                raise ValueError("MapType requires both a key and value type be set.")
             self.structured = True  # Snowflake has no unstructured MapTypes
-            self.key_type = key_type
-            self.value_type = value_type
         else:
             self.structured = structured or False
-            self.key_type = key_type if key_type else StringType()
-            self.value_type = value_type if value_type else StringType()
+        self.key_type = key_type if key_type else StringType()
+        self.value_type = value_type if value_type else StringType()
 
     def __repr__(self) -> str:
         type_str = ""
@@ -675,10 +672,11 @@ class StructType(DataType):
             self.structured = (
                 structured if structured is not None else fields is not None
             )
+            self.fields = None if fields is None else []
         else:
+            self.fields = []
             self.structured = structured or False
 
-        self.fields = []
         for field in fields or []:
             self.add(field)
 
@@ -710,7 +708,10 @@ class StructType(DataType):
         if not context._should_use_structured_type_semantics():
             return self
         return StructType(
-            [field._as_nested() for field in self.fields], self.structured
+            None
+            if self.fields is None
+            else [field._as_nested() for field in self.fields],
+            self.structured,
         )
 
     @classmethod
@@ -726,7 +727,10 @@ class StructType(DataType):
         ]
 
     def __repr__(self) -> str:
-        return f"StructType([{', '.join(repr(f) for f in self.fields)}])"
+        field_str = ""
+        if self.fields is not None:
+            field_str = f"[{', '.join(repr(f) for f in self.fields)}]"
+        return f"StructType({field_str})"
 
     def __getitem__(self, item: Union[str, int, slice]) -> StructField:
         """Access fields by name, index or slice."""

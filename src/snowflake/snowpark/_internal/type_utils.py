@@ -188,15 +188,18 @@ def convert_sf_to_sp_type(
     max_string_size: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
-    semi_structured_fill = (
-        None if context._should_use_structured_type_semantics() else StringType()
-    )
+    new_semantics = context._should_use_structured_type_semantics()
+    semi_structured_fill = None if new_semantics else StringType()
     if column_type_name == "ARRAY":
         return ArrayType(semi_structured_fill)
     if column_type_name == "VARIANT":
         return VariantType()
-    if column_type_name in {"OBJECT", "MAP"}:
+    if column_type_name == "MAP" or (
+        column_type_name == "OBJECT" and not new_semantics
+    ):
         return MapType(semi_structured_fill, semi_structured_fill)
+    if column_type_name == "OBJECT" and new_semantics:
+        return StructType()
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
     if column_type_name == "GEOMETRY":
