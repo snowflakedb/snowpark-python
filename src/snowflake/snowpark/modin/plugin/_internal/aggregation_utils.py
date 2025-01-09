@@ -860,7 +860,7 @@ def check_is_aggregation_supported_in_snowflake(
         agg_func: the aggregation function to apply
         agg_kwargs: keyword argument passed for the aggregation function, such as ddof, min_count etc.
                     The value can be different for different aggregation function.
-        _is_df_agg: whether or not this is being called by df.agg, since some functions are onlyu supported
+        _is_df_agg: whether or not this is being called by df.agg, since some functions are only supported
                     for groupby_agg.
     Returns:
         bool
