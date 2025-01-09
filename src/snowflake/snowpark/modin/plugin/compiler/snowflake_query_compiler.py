@@ -16895,10 +16895,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Returns the list of columns that the input column will be split into.
             This is only used when expand=True.
             Args:
-                column: input column
-                pat: string to split on
-                n: limit on the number of output splits
-                max_splits: maximum number of achievable splits across all values in the input column
+                column : SnowparkColumn
+                    Input column
+                pat : str
+                    String to split on
+                n : int
+                    Limit on the number of output splits
+                max_splits : int
+                    Maximum number of achievable splits across all values in the input column.
+                    This is needed to be able to pad rows with fewer splits than desired with nulls.
             """
             col = output_col(column, pat, n)
             final_splits = 0
