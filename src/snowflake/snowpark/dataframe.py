@@ -3688,6 +3688,8 @@ class DataFrame:
         self,
         col_name: str,
         col: Union[Column, TableFunctionCall],
+        *,
+        keep_order: bool = False,
         ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
         **kwargs,
@@ -3731,6 +3733,7 @@ class DataFrame:
         Args:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
+            keep_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplcing a column.
         """
         if ast_stmt is None and _emit_ast:
             ast_stmt = self._session._ast_batch.assign()
@@ -3740,7 +3743,11 @@ class DataFrame:
             self._set_ast_ref(expr.df)
 
         df = self.with_columns(
-            [col_name], [col], _ast_stmt=ast_stmt, _emit_ast=False, **kwargs
+            [col_name],
+            [col],
+            keep_order=keep_order,
+            _ast_stmt=ast_stmt,
+            _emit_ast=False,
         )
 
         if _emit_ast:
@@ -3754,9 +3761,10 @@ class DataFrame:
         self,
         col_names: List[str],
         values: List[Union[Column, TableFunctionCall]],
+        *,
+        keep_order: bool = False,
         _ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
-        **kwargs,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -3801,6 +3809,7 @@ class DataFrame:
             col_names: A list of the names of the columns to add or replace.
             values: A list of the :class:`Column` objects or :class:`table_function.TableFunctionCall` object
                     to add or replace.
+            keep_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplcing a column.
         """
         # Get a list of the new columns and their dedupped values
         qualified_names = [quote_name(n) for n in col_names]
@@ -3855,7 +3864,6 @@ class DataFrame:
 
         # If there's a table function call or keep_order=False,
         # we do the original "remove old columns and append new ones" logic.
-        keep_order = kwargs.get("keep_order", False)
         if num_table_func_calls > 0 or not keep_order:
             old_cols = [
                 Column(field)

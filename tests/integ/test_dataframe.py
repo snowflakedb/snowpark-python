@@ -4449,7 +4449,7 @@ def test_map_negative(session):
         )
 
 
-def test_with_column_keep_order_kwargs(session):
+def test_with_column_keep_order(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
     df1 = df.with_column("A", lit(0), keep_order=True)
     assert df1.columns == ["A", "B"]
