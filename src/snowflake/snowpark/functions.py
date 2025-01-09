@@ -10527,7 +10527,7 @@ def bitmap_bit_position(numeric_expr: ColumnOrName, _emit_ast: bool = True) -> C
 
         >>> df = session.create_dataframe([1, 2, 3, 32768, 32769], schema=["a"])
         >>> df.select(bitmap_bit_position("a").alias("bit_position")).collect()
-        [Row(bit_position=0), Row(bit_position=1), Row(bit_position=2), Row(bit_position=32767), Row(bit_position=0)]
+        [Row(BIT_POSITION=0), Row(BIT_POSITION=1), Row(BIT_POSITION=2), Row(BIT_POSITION=32767), Row(BIT_POSITION=0)]
     """
     c = _to_col_if_str(numeric_expr, "bitmap_bit_position")
     return builtin("bitmap_bit_position", _emit_ast=_emit_ast)(c)
@@ -10559,9 +10559,12 @@ def bitmap_construct_agg(
 
     Example::
 
-        >>> df = session.create_dataframe([1, 2, 3, 1, 2, 3], schema=["a"])
-        >>> df.groupBy().agg(bitmap_construct_agg(df["a"])).collect()
-        [Row(BITMAP_CONSTRUCT_AGG(A)=bytearray(b'\\x00\\x03\\x01\\x00\\x02\\x00\\x03\\x00\\x00\\x00'))]
+        >>> df = session.create_dataframe([1, 32769], schema=["a"])
+        >>> df.select(
+        ...    bitmap_bucket_number(df["a"]).alias("bitmap_id"),
+        ...    bitmap_bit_position(df["a"]).alias("bit_position")
+        ...).group_by("bitmap_id").agg(bitmap_construct_agg(col("bit_position")).alias("bitmap")).collect()
+        [Row(BITMAP_ID=1, BITMAP=bytearray(b'\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00')), Row(BITMAP_ID=2, BITMAP=bytearray(b'\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00'))]
     """
     c = _to_col_if_str(relative_position, "bitmap_construct_agg")
     return builtin("bitmap_construct_agg", _emit_ast=_emit_ast)(c)
