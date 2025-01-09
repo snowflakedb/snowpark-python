@@ -538,6 +538,10 @@ jobs:
       - name: Install tox
         run: python -m pip install tox
         # only run doctest for macos on aws
+      - name: Check Resources
+        run: |
+          df -h
+          free
       - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
         name: Run Snowpark pandas API doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
