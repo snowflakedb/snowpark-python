@@ -16835,6 +16835,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if np.isnan(n):
                 # Follow pandas behavior
                 return pandas_lit(np.nan)
+            elif n < -1 and not pandas.isnull(pat) and len(str(pat)) > 1:
+                # Follow pandas behavior, which seems to leave the input column as is
+                # whenever the above condition is satisfied.
+                new_col = iff(
+                    column.is_null(), pandas_lit(None), array_construct(column)
+                )
             elif n <= 0:
                 # If all possible splits are requested, we just use SQL's split function.
                 new_col = builtin("split")(new_col, pandas_lit(new_pat))
@@ -16879,17 +16885,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._replace_non_str(column, new_col)
 
         def output_cols(
-            column: SnowparkColumn, pat: Optional[str], n: int, max_n_cols: int
+            column: SnowparkColumn, pat: Optional[str], n: int, max_splits: int
         ) -> list[SnowparkColumn]:
+            """
+            Returns the list of columns that the input column will be split into.
+            This is only used when expand=True.
+            Args:
+                column: input column
+                pat: string to split on
+                n: limit on the number of output splits
+                max_splits: maximum number of achievable splits across all values in the input column
+            """
             col = output_col(column, pat, n)
-            final_n_cols = 0
+            final_splits = 0
+
             if np.isnan(n):
                 # Follow pandas behavior
-                final_n_cols = 1
+                final_splits = 1
             elif n <= 0:
-                final_n_cols = max_n_cols
+                final_splits = max_splits
             else:
-                final_n_cols = min(n + 1, max_n_cols)
+                final_splits = min(n + 1, max_splits)
+
+            if n < -1 and not pandas.isnull(pat) and len(str(pat)) > 1:
+                # Follow pandas behavior, which seems to leave the input column as is
+                # whenever the above condition is satisfied.
+                final_splits = 1
 
             return [
                 iff(
@@ -16897,10 +16918,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     get(col, pandas_lit(i)),
                     pandas_lit(None),
                 )
-                for i in range(final_n_cols)
+                for i in range(final_splits)
             ]
 
-        def max_n_cols() -> int:
+        def get_max_splits() -> int:
+            """
+            Returns the maximum number of splits achievable
+            across all values stored in the input column.
+            """
             splits_as_list_frame = self.str_split(
                 pat=pat,
                 n=-1,
@@ -16930,10 +16955,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 col(self._modin_frame.data_column_snowflake_quoted_identifiers[0]),
                 pat,
                 n,
-                max_n_cols(),
+                get_max_splits(),
             )
             new_internal_frame = self._modin_frame.project_columns(
-                [f"{i}" for i in range(len(cols))],
+                list(range(len(cols))),
                 cols,
             )
         else:
