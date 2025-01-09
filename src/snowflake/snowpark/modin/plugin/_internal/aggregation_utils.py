@@ -742,8 +742,8 @@ def get_snowflake_agg_func(
         snowpark_aggregation == _column_first_value
         or snowpark_aggregation == _column_last_value
     ):
-        # First and last are not supported for df.agg.
         if _is_df_agg:
+            # First and last are not supported for df.agg.
             return None
         ignore_nulls = agg_kwargs.get("skipna", True)
         row_position_snowflake_quoted_identifier = agg_kwargs.get(
