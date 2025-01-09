@@ -24,6 +24,7 @@ from tests.integ.test_deepcopy import (
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, Utils
+from snowflake.snowpark._internal.utils import warning_dict
 
 pytestmark = [
     pytest.mark.xfail(
@@ -54,21 +55,21 @@ def large_query_df(session):
 @pytest.fixture(autouse=True)
 def setup(session):
     large_query_breakdown_enabled = session.large_query_breakdown_enabled
-    cte_optimization_enabled = session._cte_optimization_enabled
+    cte_optimization_enabled = session.cte_optimization_enabled
     is_query_compilation_stage_enabled = session._query_compilation_stage_enabled
     session._query_compilation_stage_enabled = True
-    session._large_query_breakdown_enabled = True
-    session._cte_optimization_enabled = False
+    session.large_query_breakdown_enabled = True
+    session.cte_optimization_enabled = False
     set_bounds(session, 300, 600)
     yield
     session._query_compilation_stage_enabled = is_query_compilation_stage_enabled
-    session._cte_optimization_enabled = cte_optimization_enabled
-    session._large_query_breakdown_enabled = large_query_breakdown_enabled
+    session.cte_optimization_enabled = cte_optimization_enabled
+    session.large_query_breakdown_enabled = large_query_breakdown_enabled
     reset_bounds(session)
 
 
 def set_bounds(session: Session, lower_bound: int, upper_bound: int):
-    session._large_query_breakdown_complexity_bounds = (lower_bound, upper_bound)
+    session.large_query_breakdown_complexity_bounds = (lower_bound, upper_bound)
 
 
 def reset_bounds(session: Session):
@@ -82,15 +83,15 @@ def reset_bounds(session: Session):
 def check_result_with_and_without_breakdown(session, df):
     large_query_enabled = session.large_query_breakdown_enabled
     try:
-        session._large_query_breakdown_enabled = True
+        session.large_query_breakdown_enabled = True
         enabled_result = df.collect()
 
-        session._large_query_breakdown_enabled = False
+        session.large_query_breakdown_enabled = False
         disabled_result = df.collect()
 
         Utils.check_answer(enabled_result, disabled_result)
     finally:
-        session._large_query_breakdown_enabled = large_query_enabled
+        session.large_query_breakdown_enabled = large_query_enabled
 
 
 def check_summary_breakdown_value(patch_send, expected_summary):
@@ -140,7 +141,7 @@ def test_no_pipeline_breaker_nodes(session):
 
 
 def test_large_query_breakdown_external_cte_ref(session):
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     sql_simplifier_enabled = session.sql_simplifier_enabled
     if not sql_simplifier_enabled:
         set_bounds(session, 50, 90)
@@ -187,7 +188,7 @@ def test_large_query_breakdown_external_cte_ref(session):
 
 
 def test_breakdown_at_with_query_node(session):
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     if not session.sql_simplifier_enabled:
         set_bounds(session, 40, 80)
 
@@ -220,7 +221,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled
         set_bounds(session, 60, 90)
-    session._cte_optimization_enabled = True
+    session.cte_optimization_enabled = True
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
     df1 = df1.join(df0, on=["b"], how="inner")
@@ -312,7 +313,7 @@ def test_update_delete_merge(session, large_query_df):
         pytest.skip(
             "without sql simplifier, the plan is too large and hits max recursion depth"
         )
-    session._large_query_breakdown_enabled = True
+    session.large_query_breakdown_enabled = True
     table_name = Utils.random_table_name()
     # There is one SELECT CURRENT_TRANSACTION() query and one save_as_table query since large
     # query breakdown is not triggered.
@@ -565,6 +566,7 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
     source_table = Utils.random_table_name()
     table_name = Utils.random_table_name()
     view_name = Utils.random_view_name()
+    session.large_query_breakdown_enabled = True
     try:
         session.sql("select 1 as a, 2 as b").write.save_as_table(source_table)
         df = session.table(source_table)
@@ -843,9 +845,8 @@ def test_to_selectable_memoization(session):
 
 @sql_count_checker(query_count=0)
 def test_large_query_breakdown_enabled_parameter(session, caplog):
-    with caplog.at_level(logging.WARNING):
-        session.large_query_breakdown_enabled = True
-    assert "large_query_breakdown_enabled is experimental" in caplog.text
+    session.large_query_breakdown_enabled = True
+    assert warning_dict["large_query_breakdown_enabled"].count >= 1
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="requires graphviz")

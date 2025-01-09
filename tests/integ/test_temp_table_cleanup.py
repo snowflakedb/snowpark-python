@@ -253,9 +253,10 @@ def test_session_close(db_parameters, caplog):
 def test_auto_clean_up_temp_table_enabled_parameter(db_parameters, session, caplog):
     warning_dict.clear()
     with caplog.at_level(logging.WARNING):
-        session.auto_clean_up_temp_table_enabled = False
-    assert session.auto_clean_up_temp_table_enabled is False
+        session.auto_clean_up_temp_table_enabled = True
+    assert session.auto_clean_up_temp_table_enabled is True
     assert "auto_clean_up_temp_table_enabled is experimental" in caplog.text
+    session.auto_clean_up_temp_table_enabled = False
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
     table_name = df.table_name
     table_ids = table_name.split(".")
@@ -271,6 +272,6 @@ def test_auto_clean_up_temp_table_enabled_parameter(db_parameters, session, capl
 
     with pytest.raises(
         ValueError,
-        match="value for auto_clean_up_temp_table_enabled must be True or False!",
+        match="Value for parameter auto_clean_up_temp_table_enabled must be of type bool.",
     ):
         session.auto_clean_up_temp_table_enabled = -1
