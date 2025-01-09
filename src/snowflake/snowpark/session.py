@@ -3174,7 +3174,7 @@ class Session:
                     f"Invalid schema string: {schema}. "
                     f"You should provide a valid schema string representing a struct type."
                 )
-        if isinstance(schema, (StructType, str)):
+        if isinstance(schema, StructType):
             new_schema = schema
             # SELECT query has an undefined behavior for nullability, so if the schema requires non-nullable column and
             # all columns are primitive type columns, we use a temp table to lock in the nullabilities.

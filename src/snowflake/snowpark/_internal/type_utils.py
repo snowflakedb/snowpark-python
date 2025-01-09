@@ -993,8 +993,8 @@ def get_string_length(type_str: str) -> Optional[int]:
 
 def extract_bracket_content(type_str: str, keyword: str) -> str:
     """
-    Given a string that starts with e.g. 'array<', returns the content inside the top-level <...>.
-    e.g., "array<int>" => "int"
+    Given a string that starts with e.g. "array<", returns the content inside the top-level <...>.
+    e.g., "array<int>" => "int". It also parses the nested array like "array<array<...>>".
     Raises ValueError on mismatched or missing bracket.
     """
     prefix_pattern = rf"(?i)^\s*{keyword}\s*<"
