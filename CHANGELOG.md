@@ -14,6 +14,32 @@
   - `map_keys`
   - `nullifzero`
   - `snowflake_cortex_sentiment`
+  - `acosh`
+  - `asinh`
+  - `atanh`
+  - `bit_length`
+  - `bitmap_bit_position`
+  - `bitmap_bucket_number`
+  - `bitmap_construct_agg`
+  - `cbrt`
+  - `equal_null`
+  - `ifnull`
+  - `localtimestamp`
+  - `max_by`
+  - `min_by`
+  - `octet_length`
+  - `position`
+  - `regr_avgx`
+  - `regr_avgy`
+  - `regr_count`
+  - `regr_intercept`
+  - `regr_r2`
+  - `regr_slope`
+  - `regr_sxx`
+  - `regr_sxy`
+  - `regr_syy`
+  - `try_to_binary`
+
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
 
 #### Improvements
