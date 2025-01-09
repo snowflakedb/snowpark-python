@@ -1872,6 +1872,32 @@ def test_create_dataframe_with_variant(session):
     ]
 
 
+def test_show_dataframe_spark(session):
+    data = [
+        1,
+        "one",
+        1.1,
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        True,
+        False,
+        None,
+        bytearray("a", "utf-8"),
+        Decimal(0.5),
+        [1, 2, 3],
+        {"a": "foo"},
+    ]
+    df = session.create_dataframe(
+        [data],
+        schema=StructType(
+            [StructField(f"col_{i + 1}", VariantType()) for i in range(len(data))]
+        ),
+    )
+    df.show()
+    print(df._show_string_spark(vertical=False, _emit_ast=session.ast_enabled))
+
+
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
     expected_names = ["_1"]
