@@ -3689,7 +3689,7 @@ class DataFrame:
         col_name: str,
         col: Union[Column, TableFunctionCall],
         *,
-        keep_order: bool = False,
+        keep_column_order: bool = False,
         ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
@@ -3732,7 +3732,7 @@ class DataFrame:
         Args:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
-            keep_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplcing a column.
+            keep_column_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplcing a column.
         """
         if ast_stmt is None and _emit_ast:
             ast_stmt = self._session._ast_batch.assign()
@@ -3744,7 +3744,7 @@ class DataFrame:
         df = self.with_columns(
             [col_name],
             [col],
-            keep_order=keep_order,
+            keep_column_order=keep_column_order,
             _ast_stmt=ast_stmt,
             _emit_ast=False,
         )
@@ -3761,7 +3761,7 @@ class DataFrame:
         col_names: List[str],
         values: List[Union[Column, TableFunctionCall]],
         *,
-        keep_order: bool = False,
+        keep_column_order: bool = False,
         _ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
@@ -3808,7 +3808,7 @@ class DataFrame:
             col_names: A list of the names of the columns to add or replace.
             values: A list of the :class:`Column` objects or :class:`table_function.TableFunctionCall` object
                     to add or replace.
-            keep_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplcing a column.
+            keep_column_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplcing a column.
         """
         # Get a list of the new columns and their dedupped values
         qualified_names = [quote_name(n) for n in col_names]
@@ -3861,9 +3861,9 @@ class DataFrame:
                 build_expr_from_snowpark_column_or_table_fn(expr.values.add(), value)
             self._set_ast_ref(expr.df)
 
-        # If there's a table function call or keep_order=False,
+        # If there's a table function call or keep_column_order=False,
         # we do the original "remove old columns and append new ones" logic.
-        if num_table_func_calls > 0 or not keep_order:
+        if num_table_func_calls > 0 or not keep_column_order:
             old_cols = [
                 Column(field)
                 for field in self._output
@@ -3871,7 +3871,7 @@ class DataFrame:
             ]
             final_cols = [*old_cols, *new_cols]
         else:
-            # keep_order=True and no table function calls
+            # keep_column_order=True and no table function calls
             # Re-insert replaced columns in their original positions if they exist
             replaced_map = {
                 name: new_col for name, new_col in zip(qualified_names, new_cols)
