@@ -17,7 +17,6 @@ from snowflake.snowpark.session import (
     _remove_session,
 )
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
@@ -216,10 +215,6 @@ def test_snowpark_pandas_session_class_does_not_exist_snow_1022098():
         pd.Session
 
 
-@pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
 @pytest.mark.parametrize(
     "operation",
     [
