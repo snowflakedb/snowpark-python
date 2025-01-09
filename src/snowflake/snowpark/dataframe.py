@@ -3692,7 +3692,6 @@ class DataFrame:
         keep_order: bool = False,
         ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
-        **kwargs,
     ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
