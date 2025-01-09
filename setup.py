@@ -58,8 +58,6 @@ DEVELOPMENT_REQUIREMENTS = [
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
-    "protoc-wheel-0==21.1",  # Protocol buffer compiler, for Snowpark IR
-    "mypy-protobuf",  # used in generating typed Python code from protobuf for Snowpark IR
     "lxml",  # used in read_xml tests
     "tox",  # used for setting up testing environments
 ]
