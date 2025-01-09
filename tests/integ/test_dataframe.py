@@ -2612,7 +2612,7 @@ def test_describe(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="DataFrame.describe is not supported in Local Testing",
+    reason="DataFrame.summary is not supported in Local Testing",
 )
 def test_summary(session):
     assert TestData.test_data2(session).summary().columns == [
