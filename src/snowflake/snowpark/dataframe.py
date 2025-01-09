@@ -5669,7 +5669,7 @@ class DataFrame:
     def _explain_string(self) -> str:
         plan_queries = self._plan.execution_queries[PlanQueryType.QUERIES]
         output_queries = "\n---\n".join(
-            f"{i + 1}.\n{query.sql.strip()}" for i, query in enumerate(plan_queries)
+            f"{i+1}.\n{query.sql.strip()}" for i, query in enumerate(plan_queries)
         )
         msg = f"""---------DATAFRAME EXECUTION PLAN----------
 Query List:
@@ -6058,7 +6058,7 @@ def map(
         raise ValueError("output_types cannot be empty.")
 
     if output_column_names is None:
-        output_column_names = [f"c_{i + 1}" for i in range(len(output_types))]
+        output_column_names = [f"c_{i+1}" for i in range(len(output_types))]
     elif len(output_column_names) != len(output_types):
         raise ValueError(
             "'output_column_names' and 'output_types' must be of the same size."
