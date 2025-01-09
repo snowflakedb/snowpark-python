@@ -24,6 +24,7 @@
   - `cbrt`
   - `equal_null`
   - `ifnull`
+  - `nvl`
   - `localtimestamp`
   - `max_by`
   - `min_by`
