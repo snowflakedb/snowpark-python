@@ -3799,7 +3799,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # We need to check if `first` or `last` are in the aggregation functions,
         # as we need to ensure a row position column and pass it in as an agg_kwarg
-        # if it is (for the window function).
+        # if it is (for the min_by/max_by function).
         first_last_present = is_first_last_in_agg_funcs(column_to_agg_func)
         if first_last_present:
             internal_frame = internal_frame.ensure_row_position_column()
