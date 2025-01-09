@@ -119,7 +119,7 @@ the method in the left column.
 | ``slice_replace``           | N                               |                                                    |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``split``                   | P                               |  ``N`` if `pat` is non-string, `n` is non-numeric, |
-|                             |                                 |  `expand` is set, or `regex` is set.               |
+|                             |                                 |  or `regex` is set.                                |
 +-----------------------------+---------------------------------+----------------------------------------------------+
 | ``startswith``              | P                               |  ``N`` if the `na` parameter is set to a non-bool  |
 |                             |                                 |  value.                                            |
