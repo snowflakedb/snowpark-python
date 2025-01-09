@@ -155,7 +155,7 @@ class DataFrameWriter:
         self._cur_options[aliased_key] = value
         if _emit_ast:
             if self._ast_stmt is not None:
-                t = self._ast_stmt.expr.options.add()
+                t = self._ast_stmt.expr.sp_dataframe_write.options.add()
                 t._1 = aliased_key
                 t._2 = value
         return self
