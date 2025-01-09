@@ -13,7 +13,6 @@ import pytest
 from snowflake.snowpark._internal.utils import TempObjectType
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
-    assert_frame_equal,
     assert_series_equal,
     eval_snowpark_pandas_result,
 )
@@ -371,7 +370,7 @@ def test_str_replace_neg(pat, n, repl, error):
         snow_ser.str.replace(pat=pat, repl=repl, n=n)
 
 
-@pytest.mark.parametrize("pat", [None, "a", "|", "%"])
+@pytest.mark.parametrize("pat", [None, "a", "ab", "non_occurrence_pat", "|", "%"])
 @pytest.mark.parametrize("n", [None, np.nan, 3, 2, 1, 0, -1, -2])
 @sql_count_checker(query_count=1)
 def test_str_split_expand_false(pat, n):
@@ -384,21 +383,17 @@ def test_str_split_expand_false(pat, n):
     )
 
 
-@pytest.mark.parametrize("pat", [None, "a", "|", "%"])
+@pytest.mark.parametrize("pat", [None, "a", "ab", "no_occurrence_pat", "|", "%"])
 @pytest.mark.parametrize("n", [None, np.nan, 3, 2, 1, 0, -1, -2])
 @sql_count_checker(query_count=2)
 def test_str_split_expand_true(pat, n):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
-    native_df = native_ser.str.split(pat=pat, n=n, expand=True, regex=None)
-    snow_df = snow_ser.str.split(pat=pat, n=n, expand=True, regex=None)
-    # Currently Snowpark pandas uses an Index object with string values for columns,
-    # while native pandas uses a RangeIndex.
-    # So we make sure that all corresponding values in the two columns objects are identical
-    # (after casting from string to int).
-    assert all(snow_df.columns.astype(int).values == native_df.columns.values)
-    snow_df.columns = native_df.columns
-    assert_frame_equal(snow_df, native_df, check_dtype=False)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.split(pat=pat, n=n, expand=True, regex=None),
+    )
 
 
 @pytest.mark.parametrize("regex", [None, True])
