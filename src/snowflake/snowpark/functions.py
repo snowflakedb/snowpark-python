@@ -165,6 +165,7 @@ from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
+from snowflake.snowpark import context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -224,6 +225,7 @@ from snowflake.snowpark.stored_procedure import (
     StoredProcedureRegistration,
 )
 from snowflake.snowpark.types import (
+    ArrayType,
     DataType,
     FloatType,
     PandasDataFrameType,
@@ -3561,18 +3563,63 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         |Hello                                              |
         -----------------------------------------------------
         <BLANKLINE>
+
+        >>> df = session.create_dataframe([
+        ...     (['Hello', 'World', None], None, '!'),
+        ...     (['Hi', 'World', "."], "I'm Dad", '.'),
+        ... ], schema=['a', 'b', 'c'])
+        >>> df.select(_concat_ws_ignore_nulls(", ", "a", "b", "c")).show()
+        -----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS(', ', ""A"",""B"",""C"")"  |
+        -----------------------------------------------------
+        |Hello, World, !                                    |
+        |Hi, World, ., I'm Dad, .                           |
+        -----------------------------------------------------
+        <BLANKLINE>
     """
     # TODO: SNOW-1831917 create ast
     columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
     names = ",".join([c.get_name() for c in columns])
 
-    input_column_array = array_construct_compact(*columns, _emit_ast=False)
-    reduced_result = builtin("reduce", _emit_ast=False)(
-        input_column_array,
-        lit("", _emit_ast=False),
-        sql_expr(f"(l, r) -> l || '{sep}' || r"),
+    # The implementation of this function is as follows:
+    # 1. Convert all columns to arrays of strings.
+    # 2. Remove nulls from each array using `remove_nulls_filter`.
+    # 3. Concatenate the non-null array columns using `sep` into
+    #   a single string for each column using `concat_non_nulls_to_string`.
+    # 4. Construct a new array from the concatenated non-null strings
+    #   using `array_construct_compact`.
+    # 5. Concatenate the new array into a single string using
+    #   `concat_non_nulls_to_string`.
+
+    not_null_lambda = (
+        "x -> x IS NOT NULL"
+        if context._use_structured_type_semantics
+        else "x -> NOT IS_NULL_VALUE(x)"
     )
-    return substring(reduced_result, len(sep) + 1, _emit_ast=False).alias(
+
+    def remove_nulls_filter(col: Column) -> Column:
+        return builtin("filter", _emit_ast=False)(
+            col, sql_expr(not_null_lambda, _emit_ast=False)
+        )
+
+    def concat_non_nulls_to_string(col: Column) -> Column:
+        return substring(
+            builtin("reduce", _emit_ast=False)(
+                col, lit(""), sql_expr(f"(l, r) -> l || '{sep}' || r", _emit_ast=False)
+            ),
+            len(sep) + 1,
+            _emit_ast=False,
+        )
+
+    columns = [
+        concat_non_nulls_to_string(
+            remove_nulls_filter(c.cast(ArrayType(StringType()), _emit_ast=False))
+        )
+        for c in columns
+    ]
+    concatenated_non_null_array = array_construct_compact(*columns, _emit_ast=False)
+
+    return concat_non_nulls_to_string(concatenated_non_null_array).alias(
         f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False
     )
 
