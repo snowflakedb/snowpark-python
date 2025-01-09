@@ -383,11 +383,6 @@ def to_xml(
     pass  # pragma: no cover
 
 
-@register_dataframe_not_implemented()
-def __delitem__(self, key):
-    pass  # pragma: no cover
-
-
 @register_dataframe_accessor("style")
 @property
 def style(self):  # noqa: RT01, D200
