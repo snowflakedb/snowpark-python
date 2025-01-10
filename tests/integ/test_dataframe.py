@@ -2734,15 +2734,15 @@ def test_save_as_table_nullable_test(
             StructField("B", data_type, True),
         ]
     )
-    df = session.create_dataframe(
-        [(None, None)] * (5000 if large_data else 1), schema=schema
-    )
 
     try:
         with pytest.raises(
             (IntegrityError, SnowparkSQLException),
             match="NULL result in a non-nullable column",
         ):
+            df = session.create_dataframe(
+                [(None, None)] * (5000 if large_data else 1), schema=schema
+            )
             df.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)

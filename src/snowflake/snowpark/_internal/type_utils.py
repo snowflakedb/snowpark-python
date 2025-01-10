@@ -484,7 +484,7 @@ def infer_schema(
     fields = []
     for k, v in items:
         try:
-            fields.append(StructField(k, infer_type(v), v is None))
+            fields.append(StructField(k, infer_type(v)))
         except TypeError as e:
             raise TypeError(f"Unable to infer the type of the field {k}.") from e
     return StructType(fields)
