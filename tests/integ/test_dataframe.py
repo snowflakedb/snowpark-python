@@ -2769,13 +2769,13 @@ def test_nullable_without_create_temp_table_access(session, save_mode):
                 StructField("B", IntegerType(), True),
             ]
         )
-        df = session.create_dataframe([(None, None)], schema=schema)
 
         try:
             with pytest.raises(
                 (IntegrityError, SnowparkSQLException),
                 match="NULL result in a non-nullable column",
             ):
+                df = session.create_dataframe([(None, None)], schema=schema)
                 df.write.save_as_table(table_name, mode=save_mode)
         finally:
             Utils.drop_table(session, table_name)
