@@ -11,10 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from snowflake.snowpark._internal.utils import COMPATIBLE_WITH_MODIN, warning_dict
+from snowflake.snowpark._internal.utils import warning_dict
 from .ast.conftest import default_unparser_path
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
+
+COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
 
 excluded_frontend_files = [
     "accessor.py",
