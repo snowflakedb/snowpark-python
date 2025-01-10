@@ -609,7 +609,7 @@ def test_add_packages_with_native_dependency_without_force_push(session):
         with pytest.raises(
             RuntimeError, match="Your code depends on packages that contain native code"
         ):
-            session.add_packages(["catboost==1.2"])
+            session.add_packages(["catboost==1.2.3"])
 
 
 @pytest.fixture(scope="function")
@@ -625,7 +625,7 @@ def requirements_file_with_local_path():
 
     # Generate a requirements file
     requirements = f"""
-    pyyaml==6.0
+    pyyaml==6.0.2
     matplotlib
     {new_path}
     """
@@ -657,7 +657,7 @@ def test_add_requirements_with_local_filepath(
     session.add_requirements(requirements_file_with_local_path)
     assert session.get_packages() == {
         "matplotlib": "matplotlib",
-        "pyyaml": "pyyaml==6.0",
+        "pyyaml": "pyyaml==6.0.2",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
