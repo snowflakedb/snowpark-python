@@ -339,6 +339,7 @@ class SnowflakePlan(LogicalPlan):
             new_schema_query,
             post_actions=new_post_actions,
             expr_to_alias=self.expr_to_alias,
+            expr_to_alias_v2=self.expr_to_alias_v2,
             session=self.session,
             source_plan=self.source_plan,
             api_calls=api_calls,
@@ -473,6 +474,9 @@ class SnowflakePlan(LogicalPlan):
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
+                expr_to_alias_v2=dict(self.expr_to_alias_v2)
+                if self.expr_to_alias_v2
+                else None,
             )
         else:
             return SnowflakePlan(
@@ -486,6 +490,9 @@ class SnowflakePlan(LogicalPlan):
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
+                expr_to_alias_v2=dict(self.expr_to_alias_v2)
+                if self.expr_to_alias_v2
+                else None,
             )
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -502,6 +509,9 @@ class SnowflakePlan(LogicalPlan):
             else None,
             expr_to_alias=copy.deepcopy(self.expr_to_alias)
             if self.expr_to_alias
+            else None,
+            expr_to_alias_v2=copy.deepcopy(self.expr_to_alias_v2)
+            if self.expr_to_alias_v2
             else None,
             source_plan=copied_source_plan,
             is_ddl_on_temp_object=self.is_ddl_on_temp_object,

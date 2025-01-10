@@ -1046,6 +1046,7 @@ class SelectStatement(Selectable):
             new.expr_to_alias = copy(
                 self.expr_to_alias
             )  # use copy because we don't want two plans to share the same list. If one mutates, the other ones won't be impacted.
+            new.expr_to_alias_v2 = copy(self.expr_to_alias_v2)
             new.flatten_disabled = self.flatten_disabled
             # no need to flatten the projection complexity since the select projection is already flattened.
             new._merge_projection_complexity_with_subquery = False

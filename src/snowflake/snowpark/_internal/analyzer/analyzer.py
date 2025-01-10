@@ -372,14 +372,13 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Attribute):
-            assert self.alias_maps_to_use is not None
-            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            # assert self.alias_maps_to_use is not None
+            # name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            assert self.alias_maps_to_use_v2 is not None
             name2 = self.alias_maps_to_use_v2.get(
                 (expr.expr_id, expr.snowflake_plan_uuid), expr.name
             )
-            if isinstance(name2, tuple):
-                name2 = name2[0]
-            print(name, name2)
+            # print(name, name2)
             return quote_name(name2)
 
         if isinstance(expr, UnresolvedAttribute):
@@ -647,8 +646,6 @@ class Analyzer:
                     (expr.child.expr_id, expr.child.snowflake_plan_uuid)
                 ] = quoted_name
                 assert self.alias_maps_to_use is not None
-                # TODO:
-                # assert self.alias_maps_to_use_v2 is not None
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
@@ -796,9 +793,10 @@ class Analyzer:
         result = self.do_resolve(logical_plan)
         # result is a snowflake plan
         result.add_aliases(self.generated_alias_maps)
-        for k, v in self.generated_alias_maps_v2.items():
-            new_dict = {k: (v, result.uuid)}
-            result.add_aliases_v2(new_dict)
+        result.add_aliases_v2(self.generated_alias_maps_v2)
+        # for k, v in self.generated_alias_maps_v2.items():
+        #     new_dict = {k: (v, result.uuid)}
+        #     result.add_aliases_v2(new_dict)
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
@@ -852,7 +850,6 @@ class Analyzer:
             )
 
             self.alias_maps_to_use_v2 = use_maps_v2
-            # self.expr_to_alias_v2 = merge_multiple_dicts_with_assertion(*[v.expr_to_alias_v2 for v in resolved_children.values()])
 
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
