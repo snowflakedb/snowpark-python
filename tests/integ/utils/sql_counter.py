@@ -95,6 +95,7 @@ FILTER_OUT_QUERIES = [
 sql_count_records = {}
 
 sql_counter_state = threading.local()
+sql_counter_lock = threading.RLock()
 
 
 class SqlCounter(QueryListener):
@@ -133,6 +134,9 @@ class SqlCounter(QueryListener):
         from tests.conftest import SKIP_SQL_COUNT_CHECK
 
         self._queries: list[QueryRecord] = []
+
+        # Track the thread id to ensure we only count queries from the current thread.
+        self._current_thread_id = threading.get_ident()
 
         # Bypassing sql counter since
         #   1. it is an unnecessary metric for tests running in stored procedures
@@ -174,6 +178,10 @@ class SqlCounter(QueryListener):
     def include_describe(self) -> bool:
         return True
 
+    @property
+    def include_thread_id(self) -> bool:
+        return True
+
     @staticmethod
     def set_record_mode(record_mode):
         """Record mode means the SqlCounter does not assert any results, but rather collects them so they can
@@ -202,7 +210,8 @@ class SqlCounter(QueryListener):
 
     def _notify(self, query_record: QueryRecord, **kwargs: dict):
         if not is_suppress_sql_counter_listener():
-            self._queries.append(query_record)
+            if query_record.thread_id == self._current_thread_id:
+                self._queries.append(query_record)
 
     def expects(self, **kwargs):
         """
@@ -653,16 +662,18 @@ def generate_sql_count_report(request, counter):
 
 
 def mark_sql_counter_called():
-    threading.current_thread().__dict__[SQL_COUNTER_CALLED] = True
+    with sql_counter_lock:
+        threading.main_thread().__dict__[SQL_COUNTER_CALLED] = True
 
 
 def clear_sql_counter_called():
-    threading.current_thread().__dict__[SQL_COUNTER_CALLED] = False
+    with sql_counter_lock:
+        threading.main_thread().__dict__[SQL_COUNTER_CALLED] = False
 
 
 def is_sql_counter_called():
-    if SQL_COUNTER_CALLED in threading.current_thread().__dict__:
-        return threading.current_thread().__dict__.get(SQL_COUNTER_CALLED)
+    with sql_counter_lock:
+        return threading.main_thread().__dict__.get(SQL_COUNTER_CALLED, False)
     return False
 
 
