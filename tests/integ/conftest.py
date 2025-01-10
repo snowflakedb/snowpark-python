@@ -242,6 +242,8 @@ def initialize_base_session(
         full_ast_validation_listener = setup_full_ast_validation_mode(
             session, db_parameters, unparser_jar
         )
+    else:
+        full_ast_validation_listener = None
 
     return session, full_ast_validation_listener
 
