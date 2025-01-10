@@ -1,11 +1,16 @@
 ## TEST CASE
 
-df = session.table(tables.double_quoted_table)
-df = df.select("num")
+df1 = session.table(f"mock_schema.{tables.table1}", is_temp_table_for_cleanup=True)
+df2 = session.table(f"mock_schema.{tables.table1}", is_temp_table_for_cleanup=False)
+df = df1.union_all(df2).select("num")
 
 ## EXPECTED UNPARSER OUTPUT
 
-df = session.table("\"the#qui.ck#bro.wn#\"\"Fox\"\"won't#jump!\"")
+df1 = session.table("mock_schema.table1", is_temp_table_for_cleanup=True)
+
+df2 = session.table("mock_schema.table1")
+
+df = df1.union_all(df2)
 
 df = df.select(col("num"))
 
@@ -15,10 +20,11 @@ body {
   assign {
     expr {
       sp_table {
+        is_temp_table_for_cleanup: true
         name {
           name {
             sp_name_flat {
-              name: "\"the#qui.ck#bro.wn#\"\"Fox\"\"won\'t#jump!\""
+              name: "mock_schema.table1"
             }
           }
         }
@@ -32,11 +38,73 @@ body {
       }
     }
     symbol {
-      value: "df"
+      value: "df1"
     }
     uid: 1
     var_id {
       bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_table {
+        name {
+          name {
+            sp_name_flat {
+              name: "mock_schema.table1"
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 26
+        }
+        variant {
+          sp_session_table: true
+        }
+      }
+    }
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_union_all {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        other {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 2
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 27
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 3
+    var_id {
+      bitfield1: 3
     }
   }
 }
@@ -61,27 +129,27 @@ body {
               string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
-                  start_line: 26
+                  start_line: 27
                 }
                 v: "num"
               }
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 26
+              start_line: 27
             }
           }
         }
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 1
+              bitfield1: 3
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 26
+          start_line: 27
         }
         variadic: true
       }
@@ -89,9 +157,9 @@ body {
     symbol {
       value: "df"
     }
-    uid: 2
+    uid: 4
     var_id {
-      bitfield1: 2
+      bitfield1: 4
     }
   }
 }
