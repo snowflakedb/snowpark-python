@@ -159,6 +159,13 @@ class SnowflakeValues(LeafNode):
         return len(self.data) * len(self.output) >= ARRAY_BIND_THRESHOLD
 
     @property
+    def is_all_column_nullable(self) -> bool:
+        for attribute in self.output:
+            if not attribute.nullable:
+                return False
+        return True
+
+    @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self.is_large_local_data:
             # When the number of literals exceeds the threshold, we generate 3 queries:

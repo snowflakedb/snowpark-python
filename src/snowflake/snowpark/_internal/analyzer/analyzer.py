@@ -974,7 +974,10 @@ class Analyzer:
                 schema_query = schema_query_for_values_statement(logical_plan.output)
 
             if logical_plan.data:
-                if not logical_plan.is_large_local_data:
+                if (
+                    not logical_plan.is_large_local_data
+                    and logical_plan.is_all_column_nullable
+                ):
                     return self.plan_builder.query(
                         values_statement(logical_plan.output, logical_plan.data),
                         logical_plan,
