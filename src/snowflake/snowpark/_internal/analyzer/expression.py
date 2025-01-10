@@ -241,6 +241,7 @@ class Attribute(Expression, NamedExpression):
     def with_name(
         self, new_name: str, *, snowflake_plan_uuid: str = None
     ) -> "Attribute":
+        assert snowflake_plan_uuid
         if self.name == new_name:
             # lazy update snowflake_plan_uuid
             if not self.snowflake_plan_uuid:

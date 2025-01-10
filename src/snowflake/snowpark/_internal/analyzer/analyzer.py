@@ -378,7 +378,6 @@ class Analyzer:
             name2 = self.alias_maps_to_use_v2.get(
                 (expr.expr_id, expr.snowflake_plan_uuid), expr.name
             )
-            # print(name, name2)
             return quote_name(name2)
 
         if isinstance(expr, UnresolvedAttribute):
