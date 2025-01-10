@@ -332,7 +332,13 @@ def test__concat_ws_ignore_nulls(session, structured_type_semantics):
 
     def check_concat_ws_ignore_nulls_output(session):
         df = session.create_dataframe(data, schema=cols)
-        df.select(_concat_ws_ignore_nulls(",", *cols))  # single character delimiter
+
+        # single character delimiter
+        Utils.check_answer(df.select(_concat_ws_ignore_nulls(",", *cols)),
+                           [Row("a,b,c,d,e"),
+                            Row("Hello,world,!,bye,world"),
+                            Row("R,H,TD"),
+                            Row("")])
 
     if structured_type_semantics:
         with structured_types_enabled_session(session) as session:
