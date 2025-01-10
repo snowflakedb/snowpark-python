@@ -18,8 +18,6 @@ logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
 
-assert False, "Erroring out now!"
-
 excluded_frontend_files = [
     "accessor.py",
 ]
