@@ -18,7 +18,6 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     assert_values_equal,
@@ -27,11 +26,6 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-pytestmark = pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
 
 # Use the workaround shown below for applying functions that are attributes
 # of this module.
