@@ -57,7 +57,6 @@ from tests.utils import (
     TestFiles,
     Utils,
     iceberg_supported,
-    structured_types_enabled_session,
     structured_types_supported,
 )
 
@@ -168,18 +167,6 @@ def structured_type_support(session, local_testing_mode):
 @pytest.fixture(scope="module")
 def examples(structured_type_support):
     yield _create_example(structured_type_support)
-
-
-@pytest.fixture(scope="module")
-def structured_type_session(session, structured_type_support):
-    if structured_type_support:
-        with structured_types_enabled_session(session) as sess:
-            with mock.patch(
-                "snowflake.snowpark.context._use_structured_type_semantics", True
-            ):
-                yield sess
-    else:
-        yield session
 
 
 @pytest.mark.skipif(

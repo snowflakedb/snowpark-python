@@ -543,7 +543,7 @@ def test_udaf_negative(session):
 
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-def test_udaf_external_access_integration(session, db_parameters):
+def test_udaf_external_access_integration(external_access_session, db_parameters):
     class PythonExternalUDAFHandler:
         def __init__(self) -> None:
             self._sum = 0
@@ -585,7 +585,9 @@ def test_udaf_external_access_integration(session, db_parameters):
                 "cred": f"{db_parameters['external_access_key1']}",
             },
         )
-        df = session.create_dataframe([[1, 3], [1, 4], [2, 5], [2, 6]]).to_df("a", "b")
+        df = external_access_session.create_dataframe(
+            [[1, 3], [1, 4], [2, 5], [2, 6]]
+        ).to_df("a", "b")
         Utils.check_answer(df.agg(external_access_udaf("a")), [Row(4)])
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")

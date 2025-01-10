@@ -1263,7 +1263,7 @@ def test_register_udtf_from_type_hints_where_process_returns_None(
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
 @pytest.mark.skip("SNOW-1529353: failing on AWS, re-enable it after fix")
-def test_udtf_external_access_integration(session, db_parameters):
+def test_udtf_external_access_integration(external_access_session, db_parameters):
     try:
 
         @udtf(
@@ -1298,7 +1298,7 @@ def test_udtf_external_access_integration(session, db_parameters):
                 else:
                     return [(0,)]
 
-        df = session.table_function(UDTFEcho(lit("1").cast("int")))
+        df = external_access_session.table_function(UDTFEcho(lit("1").cast("int")))
         Utils.check_answer(
             df,
             [Row(1)],
