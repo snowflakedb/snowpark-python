@@ -9,7 +9,6 @@ import json
 import math
 import re
 from itertools import chain
-from unittest import mock
 
 import pytest
 
@@ -366,10 +365,7 @@ def test__concat_ws_ignore_nulls(session, structured_type_semantics):
 
     if structured_type_semantics:
         with structured_types_enabled_session(session) as session:
-            with mock.patch(
-                "snowflake.snowpark.context._use_structured_type_semantics", True
-            ):
-                check_concat_ws_ignore_nulls_output(session)
+            check_concat_ws_ignore_nulls_output(session)
     else:
         check_concat_ws_ignore_nulls_output(session)
 
