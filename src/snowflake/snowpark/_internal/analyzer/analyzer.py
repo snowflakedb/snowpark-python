@@ -151,7 +151,10 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark._internal.utils import (
+    quote_name,
+    merge_multiple_dicts_with_assertion,
+)
 from snowflake.snowpark.types import BooleanType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
@@ -165,8 +168,11 @@ class Analyzer:
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
+        # key: expr_id, snowflake_plan_uuid ) -> value: alias
+        self.generated_alias_maps_v2 = {}
         self.subquery_plans = []
         self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
+        self.alias_maps_to_use_v2: Optional[Dict[uuid.UUID, str]] = None
 
     def analyze(
         self,
@@ -366,9 +372,13 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Attribute):
-            assert self.alias_maps_to_use is not None
-            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
-            return quote_name(name)
+            # assert self.alias_maps_to_use is not None
+            # name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            assert self.alias_maps_to_use_v2 is not None
+            name2 = self.alias_maps_to_use_v2.get(
+                (expr.expr_id, expr.snowflake_plan_uuid), expr.name
+            )
+            return quote_name(name2)
 
         if isinstance(expr, UnresolvedAttribute):
             if expr.df_alias:
@@ -630,6 +640,10 @@ class Analyzer:
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                # assert expr.child.snowflake_plan_uuid is not None
+                self.generated_alias_maps_v2[
+                    (expr.child.expr_id, expr.child.snowflake_plan_uuid)
+                ] = quoted_name
                 assert self.alias_maps_to_use is not None
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
@@ -724,6 +738,7 @@ class Analyzer:
         boundary: Expression,
         df_aliased_col_name_to_real_col_name: DefaultDict[str, Dict[str, str]],
     ) -> str:
+
         # it means interval preceding
         if isinstance(boundary, UnaryMinus) and isinstance(boundary.child, Interval):
             return window_frame_boundary_expression(
@@ -772,10 +787,15 @@ class Analyzer:
     def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         self.subquery_plans = []
         self.generated_alias_maps = {}
+        self.generated_alias_maps_v2 = {}
 
         result = self.do_resolve(logical_plan)
-
+        # result is a snowflake plan
         result.add_aliases(self.generated_alias_maps)
+        result.add_aliases_v2(self.generated_alias_maps_v2)
+        # for k, v in self.generated_alias_maps_v2.items():
+        #     new_dict = {k: (v, result.uuid)}
+        #     result.add_aliases_v2(new_dict)
 
         if self.subquery_plans:
             result = result.with_subqueries(self.subquery_plans)
@@ -803,8 +823,11 @@ class Analyzer:
         if isinstance(logical_plan, Selectable):
             # Selectable doesn't have children. It already has the expr_to_alias dict.
             self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
+            self.alias_maps_to_use_v2 = logical_plan.expr_to_alias_v2.copy()
         else:
+
             use_maps = {}
+            use_maps_v2 = {}
             # get counts of expr_to_alias keys
             counts = Counter()
             for v in resolved_children.values():
@@ -820,6 +843,12 @@ class Analyzer:
                     )
 
             self.alias_maps_to_use = use_maps
+
+            use_maps_v2 = merge_multiple_dicts_with_assertion(
+                *[v.expr_to_alias_v2 for v in resolved_children.values()]
+            )
+
+            self.alias_maps_to_use_v2 = use_maps_v2
 
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
