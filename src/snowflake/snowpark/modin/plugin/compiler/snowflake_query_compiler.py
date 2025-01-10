@@ -4066,7 +4066,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 if series_groupby
                 else (
                     # For DataFrameGroupBy, if include_groups, we apply the
-                    # function to all data columnns. Otherwise, we exclude
+                    # function to all data columns. Otherwise, we exclude
                     # data columns that we are grouping by.
                     include_groups
                     or identifier not in by_snowflake_quoted_identifiers_list
