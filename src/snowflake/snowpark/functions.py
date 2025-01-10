@@ -3582,15 +3582,15 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
 
     # The implementation of this function is as follows with example input of
     # sep = "," and row = [a, NULL], b, NULL, c:
-    # 1. Convert all columns to array.
+    # 1. Cast all columns to array.
     #   [a, NULL], [b], NULL, [c]
-    # 2. Combine all arrays into a array of arrays after removing nulls.
+    # 2. Combine all arrays into a array of arrays after removing nulls (array_construct_compact).
     #   [[a, NULL], [b], [c]]
-    # 3. Flatten the array of arrays into a single array.
+    # 3. Flatten the array of arrays into a single array (array_flatten).
     #   [a, NULL, b, c]
-    # 4. Filter out nulls.
+    # 4. Filter out nulls (array_remove_nulls).
     #   [a, b, c]
-    # 5. Concatenate the non-null values into a single string.
+    # 5. Concatenate the non-null values into a single string (concat_strings_with_sep).
     #   "a,b,c"
 
     def array_remove_nulls(col: Column) -> Column:
