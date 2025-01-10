@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 #
 # Code in this file may constitute partial or total reimplementation, or modification of
 # existing code originally distributed by the pandas project, under the BSD 3-Clause License
