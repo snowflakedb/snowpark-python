@@ -630,6 +630,9 @@ class DataFrame:
         self.replace = self._na.replace
 
         self._alias: Optional[str] = None
+        for attr in self._output:
+            assert not attr.snowflake_plan_uuid
+            attr.snowflake_plan_uuid = self._plan.uuid
 
     def _set_ast_ref(self, sp_dataframe_expr_builder: Any) -> None:
         """
