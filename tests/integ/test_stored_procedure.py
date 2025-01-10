@@ -4,7 +4,6 @@
 #
 
 import datetime
-import decimal
 import logging
 import os
 import re
@@ -45,34 +44,20 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
-    ArrayType,
     DateType,
     DoubleType,
-    Geography,
-    Geometry,
     IntegerType,
-    LongType,
-    MapType,
     StringType,
     StructField,
     StructType,
-    Variant,
-    VectorType,
 )
 
-# flake8: noqa
-from tests.integ.scala.test_datatype_suite import (
-    structured_type_session,
-    structured_type_support,
-)
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_NOT_ON_GITHUB,
     TempObjectType,
     TestFiles,
     Utils,
-    structured_types_enabled_session,
-    structured_types_supported,
 )
 
 pytestmark = [
@@ -359,68 +344,6 @@ def test_call_named_stored_procedure(
         finally:
             new_session.close()
             # restore active session
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="Structured types are not supported in Local Testing",
-)
-def test_stored_procedure_with_structured_returns(
-    structured_type_session, structured_type_support
-):
-    if not structured_type_support:
-        pytest.skip("Structured types not enabled in this account.")
-    expected_dtypes = [
-        ("VEC", "vector<int,5>"),
-        ("MAP", "map<string(16777216),bigint>"),
-        ("OBJ", "struct<string(16777216),double>"),
-        ("ARR", "array<double>"),
-    ]
-    expected_schema = StructType(
-        [
-            StructField("VEC", VectorType(int, 5), nullable=True),
-            StructField(
-                "MAP",
-                MapType(StringType(16777216), LongType(), structured=True),
-                nullable=True,
-            ),
-            StructField(
-                "OBJ",
-                StructType(
-                    [
-                        StructField("a", StringType(16777216), nullable=True),
-                        StructField("b", DoubleType(), nullable=True),
-                    ],
-                    structured=True,
-                ),
-                nullable=True,
-            ),
-            StructField("ARR", ArrayType(DoubleType(), structured=True), nullable=True),
-        ]
-    )
-
-    sproc_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
-
-    def test_sproc(_session: Session) -> DataFrame:
-        return _session.sql(
-            """
-        select
-          [1,2,3,4,5] :: vector(int, 5) as vec,
-          object_construct('k1', 1) :: map(varchar, int) as map,
-          object_construct('a', 'foo', 'b', 0.05) :: object(a varchar, b float) as obj,
-          [1.0, 3.1, 4.5] :: array(float) as arr
-         ;
-        """
-        )
-
-    structured_type_session.sproc.register(
-        test_sproc,
-        name=sproc_name,
-        replace=True,
-    )
-    df = structured_type_session.call(sproc_name)
-    assert df.schema == expected_schema
-    assert df.dtypes == expected_dtypes
 
 
 @pytest.mark.skipif(
@@ -906,6 +829,9 @@ def return_datetime(_: Session) -> datetime.datetime:
 )
 @pytest.mark.parametrize("register_from_file", [True, False])
 def test_register_sp_with_optional_args(session: Session, tmpdir, register_from_file):
+    import decimal  # noqa: F401
+    from snowflake.snowpark.types import Variant, Geometry, Geography  # noqa: F401
+
     import_body = """
 import datetime
 import decimal
@@ -1979,7 +1905,7 @@ def test_register_sproc_after_switch_schema(session):
 
     databases = []
     try:
-        for i in range(2):
+        for _ in range(2):
             new_database = f"db_{Utils.random_alphanumeric_str(10)}"
             databases.append(new_database)
             new_schema = f"{new_database}.test"

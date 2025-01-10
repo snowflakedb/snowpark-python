@@ -2,7 +2,9 @@ name: Request Local Testing approval if necessary
 
 on:
   pull_request:
-    branches: '**'
+    types: [review_requested, review_request_removed, opened, synchronize]
+    branches:
+      - main
 
 jobs:
   request_review:
@@ -16,10 +18,10 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-
-    - name: Request Local Testing review if PR contains local_testing_mode
+    - name: Check for local-testing changes
+      id: check-diff
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         url: ${{ github.event.pull_request.html_url }}
       run: |
-        (gh pr diff "$url" | grep "^+" | grep "local_testing_mode" && gh pr comment "$url" --body "Seems like your changes contain some Local Testing changes, please request review from @snowflakedb/local-testing") || echo "PR does not seem to contain Local Testing changes"
+        if gh pr diff "$url" | grep "^+" | grep "local_testing_mode"; then echo "Seems like your changes contain some Local Testing changes, please request review from @snowflakedb/local-testing"; exit 1; else echo "PR does not seem to contain Local Testing changes"; fi

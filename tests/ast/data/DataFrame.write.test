@@ -73,8 +73,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
@@ -134,8 +136,10 @@ body {
           start_line: 29
         }
         table_name {
-          sp_table_name_flat {
-            name: "saved_table"
+          name {
+            sp_name_flat {
+              name: "saved_table"
+            }
           }
         }
       }
@@ -198,8 +202,10 @@ body {
           start_line: 31
         }
         table_name {
-          sp_table_name_flat {
-            name: "saved_table"
+          name {
+            sp_name_flat {
+              name: "saved_table"
+            }
           }
         }
         table_type: "temporary"
@@ -266,8 +272,10 @@ body {
           start_line: 33
         }
         table_name {
-          sp_table_name_flat {
-            name: "saved_table"
+          name {
+            sp_name_flat {
+              name: "saved_table"
+            }
           }
         }
         table_type: "temporary"
@@ -337,8 +345,10 @@ body {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
@@ -375,8 +385,10 @@ body {
           _2: "v"
         }
         table_name {
-          sp_table_name_flat {
-            name: "test_destination"
+          name {
+            sp_name_flat {
+              name: "test_destination"
+            }
           }
         }
         table_type: "transient"

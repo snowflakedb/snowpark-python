@@ -13,6 +13,7 @@ import pytz
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import create_test_series, eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import IS_WINDOWS
 
 dt_properties = pytest.mark.parametrize(
     "property_name",
@@ -447,6 +448,11 @@ def test_days_in_month(property):
     ],
 )
 def test_strftime(date_format):
+    if IS_WINDOWS and date_format == "abc%":
+        pytest.skip(
+            "Windows test shows that native pandas leaves the input value unchanged when date_format='abc%'"
+        )
+
     datetime_index = native_pd.DatetimeIndex(
         [
             "2014-04-04 23:56:01.000000001",

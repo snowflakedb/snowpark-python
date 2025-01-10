@@ -208,8 +208,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_1"
+          name {
+            sp_name_flat {
+              name: "test_table_1"
+            }
           }
         }
         src {
@@ -379,8 +381,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_1b"
+          name {
+            sp_name_flat {
+              name: "test_table_1b"
+            }
           }
         }
         src {
@@ -561,8 +565,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_2"
+          name {
+            sp_name_flat {
+              name: "test_table_2"
+            }
           }
         }
         src {
@@ -732,8 +738,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_2b"
+          name {
+            sp_name_flat {
+              name: "test_table_2b"
+            }
           }
         }
         src {
@@ -914,8 +922,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_3"
+          name {
+            sp_name_flat {
+              name: "test_table_3"
+            }
           }
         }
         src {
@@ -1022,8 +1032,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_4"
+          name {
+            sp_name_flat {
+              name: "test_table_4"
+            }
           }
         }
         src {
@@ -1203,8 +1215,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_5"
+          name {
+            sp_name_flat {
+              name: "test_table_5"
+            }
           }
         }
         src {

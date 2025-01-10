@@ -219,8 +219,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -290,8 +292,10 @@ body {
                     fn {
                       builtin_fn {
                         name {
-                          fn_name_flat {
-                            name: "col"
+                          name {
+                            sp_name_flat {
+                              name: "col"
+                            }
                           }
                         }
                       }
@@ -341,8 +345,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -367,8 +373,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -393,8 +401,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -419,8 +429,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }

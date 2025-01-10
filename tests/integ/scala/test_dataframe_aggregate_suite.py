@@ -65,6 +65,17 @@ def test_pivot(session):
     )
 
 
+def test_pivot_snow_1869802_repro(session):
+    df = session.create_dataframe(
+        [[1, "A", 10], [1, "B", 0], [2, "A", 11], [2, "B", 12]]
+    )
+    Utils.check_answer(
+        df.pivot(pivot_col="_2", values=["A", "B"]).function("min")("_3"),
+        [Row(1, 10, 0), Row(2, 11, 12)],
+        False,
+    )
+
+
 @pytest.mark.parametrize(
     "func,expected",
     [
