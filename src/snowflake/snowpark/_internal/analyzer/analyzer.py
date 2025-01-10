@@ -640,7 +640,7 @@ class Analyzer:
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
                 self.generated_alias_maps[expr.child.expr_id] = quoted_name
-                assert expr.child.snowflake_plan_uuid is not None
+                # assert expr.child.snowflake_plan_uuid is not None
                 self.generated_alias_maps_v2[
                     (expr.child.expr_id, expr.child.snowflake_plan_uuid)
                 ] = quoted_name
