@@ -327,6 +327,7 @@ def test__concat_ws_ignore_nulls(session, structured_type_semantics):
         ),  # some nulls column
         ([None, None], ["R", "H"], None, "TD"),  # some nulls column
         (None, [None], None, None),  # all nulls column
+        (None, None, None, None),  # all nulls column
     ]
     cols = ["arr1", "arr2", "str1", "str2"]
 
@@ -336,7 +337,25 @@ def test__concat_ws_ignore_nulls(session, structured_type_semantics):
         # single character delimiter
         Utils.check_answer(
             df.select(_concat_ws_ignore_nulls(",", *cols)),
-            [Row("a,b,c,d,e"), Row("Hello,world,!,bye,world"), Row("R,H,TD"), Row("")],
+            [
+                Row("a,b,c,d,e"),
+                Row("Hello,world,!,bye,world"),
+                Row("R,H,TD"),
+                Row(""),
+                Row(""),
+            ],
+        )
+
+        # multi-character delimiter
+        Utils.check_answer(
+            df.select(_concat_ws_ignore_nulls(" : ", *cols)),
+            [
+                Row("a : b : c : d : e"),
+                Row("Hello : world : ! : bye : world"),
+                Row("R : H : TD"),
+                Row(""),
+                Row(""),
+            ],
         )
 
     if structured_type_semantics:

@@ -3583,13 +3583,10 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
 
     # The implementation of this function is as follows:
     # 1. Convert all columns to arrays of strings.
-    # 2. Remove nulls from each array using `remove_nulls_filter`.
-    # 3. Concatenate the non-null array columns using `sep` into
-    #   a single string for each column using `concat_non_nulls_to_string`.
-    # 4. Construct a new array from the concatenated non-null strings
-    #   using `array_construct_compact`.
-    # 5. Concatenate the new array into a single string using
-    #   `concat_non_nulls_to_string`.
+    # 2. Combine all arrays into a array of arrays after removing nulls.
+    # 3. Flatten the array of arrays into a single array.
+    # 4. Filter out nulls.
+    # 5. Concatenate the non-null values into a single string.
 
     not_null_lambda = (
         "x -> x IS NOT NULL"
@@ -3597,12 +3594,17 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         else "x -> NOT IS_NULL_VALUE(x)"
     )
 
-    def remove_nulls_filter(col: Column) -> Column:
+    def array_remove_nulls(col: Column) -> Column:
+        """Expects an array and returns an array with nulls removed."""
         return builtin("filter", _emit_ast=False)(
             col, sql_expr(not_null_lambda, _emit_ast=False)
         )
 
-    def concat_non_nulls_to_string(col: Column) -> Column:
+    def concat_strings_with_sep(col: Column) -> Column:
+        """
+        Expects an array of strings and returns a single string
+        with the values concatenated with the separator.
+        """
         return substring(
             builtin("reduce", _emit_ast=False)(
                 col, lit(""), sql_expr(f"(l, r) -> l || '{sep}' || r", _emit_ast=False)
@@ -3611,17 +3613,17 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
             _emit_ast=False,
         )
 
-    columns = [
-        concat_non_nulls_to_string(
-            remove_nulls_filter(c.cast(ArrayType(StringType()), _emit_ast=False))
+    return concat_strings_with_sep(
+        array_remove_nulls(
+            array_flatten(
+                array_construct_compact(
+                    *[c.cast(ArrayType(), _emit_ast=False) for c in columns],
+                    _emit_ast=False,
+                ),
+                _emit_ast=False,
+            )
         )
-        for c in columns
-    ]
-    concatenated_non_null_array = array_construct_compact(*columns, _emit_ast=False)
-
-    return concat_non_nulls_to_string(concatenated_non_null_array).alias(
-        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False
-    )
+    ).alias(f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False)
 
 
 @publicapi
