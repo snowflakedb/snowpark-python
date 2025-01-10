@@ -355,6 +355,8 @@ def structured_type_session(
                 "snowflake.snowpark.context._use_structured_type_semantics", True
             ):
                 yield sess
+    else:
+        yield session
 
     teardown_base_session(session, full_ast_validation_listener)
 
