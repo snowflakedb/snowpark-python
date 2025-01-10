@@ -1484,6 +1484,11 @@ def repr_aggregate_function(agg_func: AggFuncType, agg_kwargs: Mapping) -> str:
     if using_named_aggregations_for_func(agg_func):
         # New axis labels are sensitive, so replace them with "new_label."
         # Existing axis labels are sensitive, so replace them with "label."
+        # This is checking whether the named aggregations are for a DataFrame,
+        # in which case they are of the format new_col_name = (col_to_operate_on,
+        # function), or for a Series, in which case they are of the format
+        # new_col_name=function, in order to ensure we parse the functions out
+        # from the keyword args correctly.
         if is_list_like(list(agg_kwargs.values())[0]):
             return ", ".join(
                 f"new_label=(label, {repr_aggregate_function(f, agg_kwargs)})"
