@@ -165,7 +165,6 @@ from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
-from snowflake.snowpark import context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -3588,16 +3587,10 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
     # 4. Filter out nulls.
     # 5. Concatenate the non-null values into a single string.
 
-    not_null_lambda = (
-        "x -> x IS NOT NULL"
-        if context._use_structured_type_semantics
-        else "x -> NOT IS_NULL_VALUE(x)"
-    )
-
     def array_remove_nulls(col: Column) -> Column:
         """Expects an array and returns an array with nulls removed."""
         return builtin("filter", _emit_ast=False)(
-            col, sql_expr(not_null_lambda, _emit_ast=False)
+            col, sql_expr("x -> NOT IS_NULL_VALUE(x)", _emit_ast=False)
         )
 
     def concat_strings_with_sep(col: Column) -> Column:
