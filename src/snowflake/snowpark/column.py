@@ -1241,12 +1241,12 @@ class Column:
         """Returns a new renamed Column. Alias of :func:`name`."""
         return self.name(alias, variant="as_", _emit_ast=_emit_ast)
 
-    # @publicapi
+    @publicapi
     def alias(self, alias: str, _emit_ast: bool = True) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
         return self.name(alias, variant="alias", _emit_ast=_emit_ast)
 
-    # @publicapi
+    @publicapi
     def name(
         self,
         alias: str,

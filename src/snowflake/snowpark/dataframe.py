@@ -1354,8 +1354,8 @@ class DataFrame:
         else:
             return Column(self._resolve(col_name), _ast=expr)
 
-    # @df_api_usage
-    # @publicapi
+    @df_api_usage
+    @publicapi
     def select(
         self,
         *cols: Union[
