@@ -1078,6 +1078,9 @@ class DataFrameGroupBy:
             A callable that takes a dataframe or series as its first argument, and
             returns a dataframe, a series or a scalar. In addition the
             callable may take positional and keyword arguments.
+        include_groups : bool, default True
+            When True, will apply ``func`` to the groups in the case that they
+            are columns of the DataFrame.
         args, kwargs : tuple and dict
             Optional positional and keyword arguments to pass to ``func``.
 
