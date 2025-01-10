@@ -74,6 +74,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
     WithinGroup,
+    UnresolvedColumnRegex,
 )
 from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
@@ -324,7 +325,7 @@ class Analyzer:
         if isinstance(expr, WindowSpecDefinition):
             return window_spec_expression(
                 [
-                    self.analyze(
+                    self.to_sql_try_avoid_cast(
                         x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.partition_spec
@@ -417,6 +418,14 @@ class Analyzer:
                     ]
                 )
 
+        if isinstance(expr, UnresolvedColumnRegex):
+            return ",".join(
+                [
+                    self.analyze(e, df_aliased_col_name_to_real_col_name)
+                    for e in expr.expressions
+                ]
+            )
+
         if isinstance(expr, SnowflakeUDF):
             if expr.api_call_source is not None:
                 self.session._conn._telemetry_client.send_function_usage_telemetry(
@@ -447,7 +456,7 @@ class Analyzer:
             return table_function_partition_spec(
                 expr.over,
                 [
-                    self.analyze(
+                    self.to_sql_try_avoid_cast(
                         x, df_aliased_col_name_to_real_col_name, parse_local_name
                     )
                     for x in expr.partition_spec
@@ -614,7 +623,9 @@ class Analyzer:
                 "NamedArgumentsTableFunction, GeneratorTableFunction, or FlattenFunction."
             )
         partition_spec_sql = (
-            self.analyze(expr.partition_spec, df_aliased_col_name_to_real_col_name)
+            self.to_sql_try_avoid_cast(
+                expr.partition_spec, df_aliased_col_name_to_real_col_name
+            )
             if expr.partition_spec
             else ""
         )

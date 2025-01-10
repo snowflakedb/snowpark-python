@@ -15,6 +15,12 @@
   - `nullifzero`
   - `snowflake_cortex_sentiment`
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+- Added new methods in class `DataFrame`:
+  - `col_regex`: Select columns that match with provided regex.
+  - `map` and its alias `foreach`: A method to apply user function on each row with 1-1 mapping.
+  - `flat_map`: A method to apply user function on each row with one to many mapping.
+  - `toJSON` and its alias `to_json`: Convert each row of dataframe into json string.
+  - `transform`: Chain multiple transformations on dataframe.
 
 #### Improvements
 
@@ -68,6 +74,7 @@
 
 #### New Features
 
+- Added support for property `version` and class method `get_active_session` for `Session` class.
 - Added support for property `version` and class method `get_active_session` for `Session` class.
 - Added new methods and variables to enhance data type handling and JSON serialization/deserialization:
   - To `DataType`, its derived classes, and `StructField`:
