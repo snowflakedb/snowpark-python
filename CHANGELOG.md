@@ -24,6 +24,7 @@
 
 - Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
 - Fixed a bug in StructField.from_json that prevented TimestampTypes with tzinfo from being parsed correctly.
+- Fixed a bug in dataframe that null value can be inserted in a non-nullable column.
 
 ### Snowpark pandas API Updates
 
