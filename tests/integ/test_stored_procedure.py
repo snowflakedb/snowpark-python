@@ -1815,7 +1815,7 @@ def test_stored_procedure_call_with_statement_params(session, anonymous):
 
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-def test_sp_external_access_integration(session, db_parameters):
+def test_sp_external_access_integration(external_access_session, db_parameters):
     def return_success(session_):
         import _snowflake
         import requests
@@ -1828,7 +1828,7 @@ def test_sp_external_access_integration(session, db_parameters):
         return "failure"
 
     try:
-        return_success_sp = session.sproc.register(
+        return_success_sp = external_access_session.sproc.register(
             return_success,
             return_type=StringType(),
             packages=["requests", "snowflake-snowpark-python"],

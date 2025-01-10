@@ -11,6 +11,7 @@ import snowflake.snowpark
 from snowflake.snowpark import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from tests.utils import Utils
 
@@ -18,6 +19,24 @@ from tests.utils import Utils
 def multi_thread_helper_function(pro: StoredProcedureProfiler):
     pro.set_active_profiler("LINE")
     pro.disable()
+
+
+@pytest.fixture(scope="function")
+def profiler_session(
+    db_parameters,
+    sql_simplifier_enabled,
+    local_testing_mode,
+    cte_optimization_enabled,
+):
+    session = (
+        Session.builder.configs(db_parameters)
+        .config("local_testing", local_testing_mode)
+        .create()
+    )
+    session.sql_simplifier_enabled = sql_simplifier_enabled
+    session._cte_optimization_enabled = cte_optimization_enabled
+    yield session
+    session.close()
 
 
 @pytest.fixture(scope="function")

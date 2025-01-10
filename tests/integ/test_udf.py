@@ -2743,7 +2743,7 @@ def test_udf_timestamp_type_hint_negative(session):
 
 
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
-def test_udf_external_access_integration(session, db_parameters):
+def test_udf_external_access_integration(external_access_session, db_parameters):
     def return_success():
         import _snowflake
         import requests
@@ -2756,7 +2756,7 @@ def test_udf_external_access_integration(session, db_parameters):
         return "failure"
 
     try:
-        return_success_udf = session.udf.register(
+        return_success_udf = external_access_session.udf.register(
             return_success,
             return_type=StringType(),
             packages=["requests", "snowflake-snowpark-python"],
@@ -2767,7 +2767,7 @@ def test_udf_external_access_integration(session, db_parameters):
                 "cred": f"{db_parameters['external_access_key1']}",
             },
         )
-        df = session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+        df = external_access_session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
         Utils.check_answer(
             df.select(return_success_udf()).collect(), [Row("success"), Row("success")]
         )
