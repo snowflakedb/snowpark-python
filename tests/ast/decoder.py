@@ -160,7 +160,7 @@ class Decoder:
             python_map[key] = value
         return python_map
 
-    def decode_fn_name_expr(self, fn_name: proto.FnName) -> str:
+    def decode_fn_name_expr(self, fn_name: proto.SpName) -> str:
         """
         Decode a function name expression to get the function name.
 
@@ -181,7 +181,7 @@ class Decoder:
         else:
             raise ValueError("Function name not found in proto.FnName")
 
-    def decode_table_name_expr(self, table_name: proto.SpTableName) -> str:
+    def decode_table_name_expr(self, table_name: proto.SpName) -> str:
         """
         Decode a table name expression to get the table name.
 
