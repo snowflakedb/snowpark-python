@@ -536,19 +536,16 @@ class SnowflakePlan(LogicalPlan):
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
     def add_aliases_v2(self, to_add: Dict) -> None:
-        conflicted = False
+        # conflicted = False
         for key in self.expr_to_alias_v2.keys() & to_add.keys():  # Find common keys
             if self.expr_to_alias_v2[key] != to_add[key]:
-                conflicted = True
-                print(
-                    f"need to overwrite, Conflict for key '{key}': {self.expr_to_alias_v2[key]} != {to_add[key]}"
-                )
+                # conflicted = True
+                # print(
+                #     f"need to overwrite, the expr has been realiased for key '{key}', old value {self.expr_to_alias_v2[key]} -> new value {to_add[key]}"
+                # )
                 self.expr_to_alias_v2[key] = to_add[key]
         for key in to_add.keys() - self.expr_to_alias_v2.keys():  # Find new keys
             self.expr_to_alias_v2[key] = to_add[key]
-        if conflicted:
-            print("new mapping:", self.expr_to_alias_v2)
-        # self.expr_to_alias_v2 = {**to_add, **self.expr_to_alias_v2}
 
 
 class SnowflakePlanBuilder:
