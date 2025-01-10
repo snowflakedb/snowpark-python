@@ -315,21 +315,27 @@ def test_concat_ws(session, col_a, col_b, col_c):
     assert res[0][0] == "1,2,3"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="lambda function not supported",
+)
 @pytest.mark.parametrize("structured_type_semantics", [True, False])
 def test__concat_ws_ignore_nulls(session, structured_type_semantics):
     data = [
-        (["a", "b"], ["c"], "d", "e"),  # no nulls column
+        (["a", "b"], ["c"], "d", "e", 1, 2),  # no nulls column
         (
             ["Hello", None, "world"],
             [None, "!", None],
             "bye",
             "world",
+            3,
+            None,
         ),  # some nulls column
-        ([None, None], ["R", "H"], None, "TD"),  # some nulls column
-        (None, [None], None, None),  # all nulls column
-        (None, None, None, None),  # all nulls column
+        ([None, None], ["R", "H"], None, "TD", 4, 5),  # some nulls column
+        (None, [None], None, None, None, None),  # all nulls column
+        (None, None, None, None, None, None),  # all nulls column
     ]
-    cols = ["arr1", "arr2", "str1", "str2"]
+    cols = ["arr1", "arr2", "str1", "str2", "int1", "int2"]
 
     def check_concat_ws_ignore_nulls_output(session):
         df = session.create_dataframe(data, schema=cols)
@@ -338,9 +344,9 @@ def test__concat_ws_ignore_nulls(session, structured_type_semantics):
         Utils.check_answer(
             df.select(_concat_ws_ignore_nulls(",", *cols)),
             [
-                Row("a,b,c,d,e"),
-                Row("Hello,world,!,bye,world"),
-                Row("R,H,TD"),
+                Row("a,b,c,d,e,1,2"),
+                Row("Hello,world,!,bye,world,3"),
+                Row("R,H,TD,4,5"),
                 Row(""),
                 Row(""),
             ],
@@ -350,9 +356,9 @@ def test__concat_ws_ignore_nulls(session, structured_type_semantics):
         Utils.check_answer(
             df.select(_concat_ws_ignore_nulls(" : ", *cols)),
             [
-                Row("a : b : c : d : e"),
-                Row("Hello : world : ! : bye : world"),
-                Row("R : H : TD"),
+                Row("a : b : c : d : e : 1 : 2"),
+                Row("Hello : world : ! : bye : world : 3"),
+                Row("R : H : TD : 4 : 5"),
                 Row(""),
                 Row(""),
             ],
