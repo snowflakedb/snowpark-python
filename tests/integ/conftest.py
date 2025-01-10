@@ -326,7 +326,7 @@ def external_access_session(
         clean_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
-    teardown_base_session(session, full_ast_validation_listener)
+    teardown_base_session(session, validate_ast, full_ast_validation_listener)
 
 
 @pytest.fixture(scope="module")
@@ -360,7 +360,7 @@ def structured_type_session(
     else:
         yield session
 
-    teardown_base_session(session, full_ast_validation_listener)
+    teardown_base_session(session, validate_ast, full_ast_validation_listener)
 
 
 @pytest.fixture(scope="function")
