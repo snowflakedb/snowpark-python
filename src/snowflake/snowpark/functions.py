@@ -3580,12 +3580,18 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
     columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
     names = ",".join([c.get_name() for c in columns])
 
-    # The implementation of this function is as follows:
-    # 1. Convert all columns to arrays of strings.
+    # The implementation of this function is as follows with example input of
+    # sep = "," and row = [a, NULL], b, NULL, c:
+    # 1. Convert all columns to array.
+    #   [a, NULL], [b], NULL, [c]
     # 2. Combine all arrays into a array of arrays after removing nulls.
+    #   [[a, NULL], [b], [c]]
     # 3. Flatten the array of arrays into a single array.
+    #   [a, NULL, b, c]
     # 4. Filter out nulls.
+    #   [a, b, c]
     # 5. Concatenate the non-null values into a single string.
+    #   "a,b,c"
 
     def array_remove_nulls(col: Column) -> Column:
         """Expects an array and returns an array with nulls removed."""
