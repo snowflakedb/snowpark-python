@@ -18,7 +18,6 @@ import platform
 import random
 import re
 import string
-import sys
 import threading
 import traceback
 import zipfile
@@ -1436,10 +1435,6 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         return modin, True
     except ImportError:
         return MissingModin(), False
-
-
-# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
-COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
 
 
 class GlobalCounter:
