@@ -243,12 +243,12 @@ class Attribute(Expression, NamedExpression):
     ) -> "Attribute":
         assert snowflake_plan_uuid
         if self.name == new_name:
-            # lazy update snowflake_plan_uuid
-            if not self.snowflake_plan_uuid:
-                self.snowflake_plan_uuid = snowflake_plan_uuid
-            else:
-                # one attribute can only belong to one snowflake plan
-                assert self.snowflake_plan_uuid == snowflake_plan_uuid
+            # # lazy update snowflake_plan_uuid
+            # if not self.snowflake_plan_uuid:
+            #     self.snowflake_plan_uuid = snowflake_plan_uuid
+            # else:
+            #     # one attribute can only belong to one snowflake plan
+            #     assert self.snowflake_plan_uuid == snowflake_plan_uuid
             return self
         else:
             return Attribute(
