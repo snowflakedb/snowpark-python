@@ -41,8 +41,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "df1"
+          name {
+            sp_name_flat {
+              name: "df1"
+            }
           }
         }
         src {
@@ -68,8 +70,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "df2"
+          name {
+            sp_name_flat {
+              name: "df2"
+            }
           }
         }
         src {
@@ -161,8 +165,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "df3"
+          name {
+            sp_name_flat {
+              name: "df3"
+            }
           }
         }
         src {
@@ -188,8 +194,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "df4"
+          name {
+            sp_name_flat {
+              name: "df4"
+            }
           }
         }
         src {

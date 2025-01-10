@@ -112,6 +112,8 @@ from snowflake.snowpark._internal.ast.utils import (
     fill_sp_save_mode,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
+    build_sp_view_name,
+    build_sp_table_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -4053,10 +4055,7 @@ class DataFrame:
             stmt = self._session._ast_batch.assign()
             expr = with_src_position(stmt.expr.sp_dataframe_copy_into_table, stmt)
 
-            if isinstance(table_name, str):
-                expr.table_name.append(table_name)
-            else:
-                expr.table_name.extend(table_name)
+            build_sp_table_name(expr.table_name, table_name)
             if files is not None:
                 expr.files.extend(files)
             if pattern is not None:
@@ -4515,10 +4514,7 @@ class DataFrame:
             )
             expr.is_temp = False
             self._set_ast_ref(expr.df)
-            if isinstance(name, str):
-                expr.name.append(name)
-            else:
-                expr.name.extend(name)
+            build_sp_view_name(expr.name, name)
             if comment is not None:
                 expr.comment.value = comment
             if statement_params is not None:
@@ -4625,10 +4621,7 @@ class DataFrame:
                 stmt.expr.sp_dataframe_create_or_replace_dynamic_table, stmt
             )
             self._set_ast_ref(expr.df)
-            if isinstance(name, str):
-                expr.name.append(name)
-            else:
-                expr.name.extend(name)
+            build_sp_table_name(expr.name, name)
             expr.warehouse = warehouse
             expr.lag = lag
             if comment is not None:
@@ -4726,10 +4719,7 @@ class DataFrame:
             )
             expr.is_temp = True
             self._set_ast_ref(expr.df)
-            if isinstance(name, str):
-                expr.name.append(name)
-            else:
-                expr.name.extend(name)
+            build_sp_view_name(expr.name, name)
             if comment is not None:
                 expr.comment.value = comment
             if statement_params is not None:
