@@ -1149,6 +1149,38 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
     )
 
 
+@pytest.mark.parametrize("skipna", [True, False])
+@sql_count_checker(query_count=1)
+def test_groupby_agg_first(skipna):
+    native_df = native_pd.DataFrame(
+        {"grp_col": ["A", "A", "B", "B", "A"], "float_col": [np.nan, 2, 3, np.nan, 4]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby(by="grp_col").agg(
+            {"float_col": ["quantile", "first"]}, skipna=skipna
+        ),
+    )
+
+
+@pytest.mark.parametrize("skipna", [True, False])
+@sql_count_checker(query_count=1)
+def test_groupby_agg_last(skipna):
+    native_df = native_pd.DataFrame(
+        {"grp_col": ["A", "A", "B", "B", "A"], "float_col": [np.nan, 2, 3, np.nan, 4]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby(by="grp_col").agg(
+            {"float_col": ["quantile", "last"]}, skipna=skipna
+        ),
+    )
+
+
 class TestTimedelta:
     @sql_count_checker(query_count=1)
     @pytest.mark.parametrize(
