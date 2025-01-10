@@ -36,6 +36,7 @@ from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -441,6 +442,8 @@ def infer_type(obj: Any) -> DataType:
             if key is not None and value is not None:
                 return MapType(infer_type(key), infer_type(value))
         return MapType(NullType(), NullType())
+    elif isinstance(obj, Row) and context._should_use_structured_type_semantics():
+        return infer_schema(obj)
     elif isinstance(obj, (list, tuple)):
         for v in obj:
             if v is not None:

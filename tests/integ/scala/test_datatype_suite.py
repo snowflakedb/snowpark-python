@@ -602,6 +602,47 @@ def test_udaf_structured_map_downcast(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
+def test_structured_type_infer(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    struct = Row(f1="v1", f2=2)
+    df = structured_type_session.create_dataframe(
+        [
+            ({"key": "value"}, [1, 2, 3], struct),
+        ],
+        schema=["map", "array", "obj"],
+    )
+
+    assert df.schema == StructType(
+        [
+            StructField(
+                "MAP",
+                MapType(StringType(), StringType(), structured=True),
+                nullable=True,
+            ),
+            StructField("ARRAY", ArrayType(LongType(), structured=True), nullable=True),
+            StructField(
+                "OBJ",
+                StructType(
+                    [
+                        StructField("f1", StringType(), nullable=True),
+                        StructField("f2", LongType(), nullable=True),
+                    ],
+                    structured=True,
+                ),
+                nullable=True,
+            ),
+        ],
+        structured=True,
+    )
+    df.collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
 def test_iceberg_nested_fields(
     structured_type_session, local_testing_mode, structured_type_support
 ):
@@ -835,8 +876,8 @@ def test_structured_dtypes_iceberg_create_from_values(
     _, __, expected_schema = _create_example(True)
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     data = [
-        ({"x": 1}, {"A": "a", "b": 1}, [1, 1, 1]),
-        ({"x": 2}, {"A": "b", "b": 2}, [2, 2, 2]),
+        ({"x": 1}, Row(A="a", b=1), [1, 1, 1]),
+        ({"x": 2}, Row(A="b", b=2), [2, 2, 2]),
     ]
     try:
         create_df = structured_type_session.create_dataframe(
@@ -1002,7 +1043,7 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
     )
     assert cast_df.schema == expected_structured_schema
     assert cast_df.collect() == [
-        Row([1, 2, 3], {"k1": 1, "k2": 2}, {"A": 1.0, "B": "foobar"})
+        Row([1, 2, 3], {"k1": 1, "k2": 2}, Row(A=1.0, B="foobar"))
     ]
 
 
