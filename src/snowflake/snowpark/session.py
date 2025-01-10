@@ -606,11 +606,12 @@ class Session:
                 _PYTHON_SNOWPARK_AUTO_CLEAN_UP_TEMP_TABLE_ENABLED_VERSION
             )
         )
-        self._reduce_describe_query_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, False
-            )
-        )
+        # self._reduce_describe_query_enabled: bool = (
+        #    self._conn._get_client_side_session_parameter(
+        #        _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED, False
+        #    )
+        # )
+        self._reduce_describe_query_enabled = False
         self._query_compilation_stage_enabled: bool = (
             self._conn._get_client_side_session_parameter(
                 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False

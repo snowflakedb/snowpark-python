@@ -3,7 +3,7 @@
 #
 import time
 import traceback
-from typing import TYPE_CHECKING, List, Union
+from typing import TYPE_CHECKING, List, Union, Any
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -102,6 +102,24 @@ def analyze_attributes(
     )
 
     return attributes
+
+
+def get_attributes_from_sync_job(async_job: "AsyncJob", session: "snowflake.snowpark.session.Session") -> List[Attribute]:
+    new_cursor = async_job._cursor
+    new_cursor.get_results_from_sfqid(async_job.query_id)
+
+    return convert_result_meta_to_attribute(new_cursor.description, session._conn.max_string_size)
+
+
+def describe_attributes_async(sql: str, session: "snowflake.snowpark.session.Session") -> "AsyncJob":
+    # lowercase = sql.strip().lower()
+    results_cursor = session.connection.cursor()._describe_internal_async(sql)
+    from snowflake.snowpark.async_job import AsyncJob
+    return AsyncJob(
+        results_cursor["queryId"],
+        sql,
+        session,
+    )
 
 
 def convert_result_meta_to_attribute(

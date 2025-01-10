@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeValues,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
+from snowflake.snowpark._internal.analyzer.analyzer_utils import schema_value_statement
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
@@ -183,6 +184,8 @@ def infer_metadata(
         # as it can be retrieved later from attributes
         if attributes is not None:
             quoted_identifiers = None
+            if isinstance(source_plan, SelectStatement):
+                source_plan._attributes = attributes
 
     return PlanMetadata(attributes=attributes, quoted_identifiers=quoted_identifiers)
 
@@ -200,6 +203,7 @@ def cache_metadata_if_select_statement(
         and source_plan.analyzer.session.reduce_describe_query_enabled
     ):
         source_plan._attributes = metadata.attributes
+        source_plan._schema_query = schema_value_statement(metadata.attributes)
         # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
         # which means source_plan has the same metadata as its child plan,
         # we should cache it on the child plan too.

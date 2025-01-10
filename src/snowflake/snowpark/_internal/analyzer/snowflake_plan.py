@@ -6,6 +6,8 @@ import copy
 import re
 import sys
 import uuid
+import logging
+import time
 from collections import defaultdict
 from enum import Enum
 from functools import cached_property
@@ -88,7 +90,7 @@ from snowflake.snowpark._internal.analyzer.metadata_utils import (
     cache_metadata_if_select_statement,
     infer_metadata,
 )
-from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
+from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes, describe_attributes_async, get_attributes_from_sync_job
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
     LogicalPlan,
@@ -111,6 +113,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
+from snowflake.connector.cursor import SnowflakeCursor
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -119,6 +122,9 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+
+logger = logging.getLogger(__name__)
 
 
 class SnowflakePlan(LogicalPlan):
@@ -266,6 +272,16 @@ class SnowflakePlan(LogicalPlan):
         )
         self._plan_state: Optional[Dict[PlanState, Any]] = None
 
+        if (self._metadata.attributes is None) and (self.session._analyzer.session.reduce_describe_query_enabled):
+            start = time.time()
+            logger.info(f"getting plan attributes with query {self.schema_query}")
+            attributes = analyze_attributes(self.schema_query, self.session)
+            self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
+            cache_metadata_if_select_statement(self.source_plan, self._metadata)
+            end = time.time()
+            logger.info(f"time spent on getting attributes with query {self.schema_query} is {end - start}")
+
+
     @property
     def uuid(self) -> str:
         return self._uuid
@@ -347,11 +363,18 @@ class SnowflakePlan(LogicalPlan):
 
     @property
     def attributes(self) -> List[Attribute]:
+        import time
+        start = time.time()
         if self._metadata.attributes is not None:
             return self._metadata.attributes
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
+        # if self._async_attribute_cursor is not None:
+        #    logger.info("getting attributes from async cursor")
+        #    attributes = get_attributes_from_sync_job(self._async_attribute_cursor, self.session)
+        # else:
+        logger.info("get attributes from regular schema")
         attributes = analyze_attributes(self.schema_query, self.session)
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
@@ -360,6 +383,8 @@ class SnowflakePlan(LogicalPlan):
         # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
         if not self.schema_query or not self.session.sql_simplifier_enabled:
             self.schema_query = schema_value_statement(attributes)
+        end = time.time()
+        logger.info(f"time spent on getting attribute {end - start}")
         return attributes
 
     @cached_property
@@ -548,7 +573,9 @@ class SnowflakePlanBuilder:
             assert (
                 child.schema_query is not None
             ), "No schema query is available in child SnowflakePlan"
-            new_schema_query = schema_query or sql_generator(child.schema_query)
+            child_schema_query = schema_value_statement(child.attributes)
+            new_schema_query = schema_query or sql_generator(child_schema_query)
+            # new_schema_query = schema_query or sql_generator(child.schema_query)
 
         return SnowflakePlan(
             queries,
@@ -911,6 +938,8 @@ class SnowflakePlanBuilder:
                 column_definition_with_hidden_columns,
             )
 
+        current_time = time.time()
+        print(f"TIMESTAMP FOR START THE CREATION: {current_time}\n")
         def get_create_table_as_select_plan(child: SnowflakePlan, replace, error):
             return self.build(
                 lambda x: create_table_as_select_statement(

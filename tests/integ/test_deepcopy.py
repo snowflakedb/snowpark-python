@@ -411,3 +411,19 @@ def test_deepcopy_no_duplicate(session, generator):
             traverse_plan(child, plan_id_map)
 
     traverse_plan(copied_plan, {})
+
+
+def test_deep_nested_select_create_table(session):
+    temp_table_name = Utils.random_table_name()
+    new_table_name = Utils.random_table_name()
+    try:
+        import time
+        start = time.time()
+        print(f"TIMESTAMP WHEN DF GETS CREATED: {start}\n")
+        df = create_df_with_deep_nested_with_column_dependencies(
+            session, temp_table_name, 4
+        )
+        df.write.save_as_table(new_table_name, table_type="temporary", mode="append")
+    finally:
+        Utils.drop_table(session, temp_table_name)
+        Utils.drop_table(session, new_table_name)
