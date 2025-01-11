@@ -99,6 +99,13 @@ def check_summary_breakdown_value(patch_send, expected_summary):
     assert summary_value["breakdown_summary"] == expected_summary
 
 
+def check_optimization_skipped_reason(patch_send, expected_reason):
+    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+    assert (
+        summary_value["query_breakdown_optimization_skipped_reason"] == expected_reason
+    )
+
+
 def test_no_pipeline_breaker_nodes(session):
     """Test large query breakdown breaks select statement when no pipeline breaker nodes found"""
     if not session.sql_simplifier_enabled:
@@ -255,9 +262,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
 
     assert len(queries["queries"]) == 2
     assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_"), queries[
-        "queries"
-    ]
+    assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
 
     assert len(queries["post_actions"]) == 1
     assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
@@ -554,10 +559,7 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
                 ) as patch_send:
                     large_query_df.collect()
 
-    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-    assert summary_value["query_breakdown_optimization_skipped_reason"] == {
-        "active transaction": 1,
-    }
+    check_optimization_skipped_reason(patch_send, {"active transaction": 1})
 
     assert len(history.queries) == 2, history.queries
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
@@ -589,10 +591,9 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
-        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-        assert summary_value["query_breakdown_optimization_skipped_reason"] == {
-            "view or dynamic table command": 1,
-        }
+        check_optimization_skipped_reason(
+            patch_send, {"view or dynamic table command": 1}
+        )
 
         with caplog.at_level(logging.DEBUG):
             with patch.object(
@@ -605,10 +606,9 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
             in caplog.text
         )
         patch_send.assert_called_once()
-        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-        assert summary_value["query_breakdown_optimization_skipped_reason"] == {
-            "view or dynamic table command": 1,
-        }
+        check_optimization_skipped_reason(
+            patch_send, {"view or dynamic table command": 1}
+        )
     finally:
         Utils.drop_dynamic_table(session, table_name)
         Utils.drop_view(session, view_name)
@@ -663,10 +663,7 @@ def test_optimization_skipped_with_no_active_db_or_schema(
         in caplog.text
     )
     patch_send.assert_called_once()
-    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-    assert summary_value["query_breakdown_optimization_skipped_reason"] == {
-        f"no active {db_or_schema}": 1,
-    }
+    check_optimization_skipped_reason(patch_send, {f"no active {db_or_schema}": 1})
 
 
 def test_async_job_with_large_query_breakdown(large_query_df):
