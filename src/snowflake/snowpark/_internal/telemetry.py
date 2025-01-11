@@ -87,9 +87,6 @@ class TelemetryField(Enum):
     NUM_TEMP_TABLES_CLEANED = "num_temp_tables_cleaned"
     NUM_TEMP_TABLES_CREATED = "num_temp_tables_created"
     TEMP_TABLE_CLEANER_ENABLED = "temp_table_cleaner_enabled"
-    TYPE_TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION = (
-        "snowpark_temp_table_cleanup_abnormal_exception"
-    )
     TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_TABLE_NAME = (
         "temp_table_cleanup_abnormal_exception_table_name"
     )
@@ -487,7 +484,7 @@ class TelemetryClient:
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_FAILED.value
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
@@ -526,7 +523,7 @@ class TelemetryClient:
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                TelemetryField.TYPE_TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION.value
+                TelemetryField.TYPE_TEMP_TABLE_CLEANUP.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
