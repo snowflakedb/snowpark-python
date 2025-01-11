@@ -275,7 +275,7 @@ class LargeQueryBreakdown:
             plans.append(partition)
             complexity_score = get_complexity_score(root)
 
-        self._breakdown_summary.append(dict(self._current_breakdown_summary))
+        self._breakdown_summary.append(self._current_breakdown_summary)
         plans.append(root)
         return plans
 
