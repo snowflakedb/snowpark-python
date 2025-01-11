@@ -4,7 +4,7 @@
 
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_table_if_exists_statement,
@@ -255,7 +255,7 @@ class LargeQueryBreakdown:
             return [root]
 
         plans = []
-        self._current_breakdown_summary = {
+        self._current_breakdown_summary: Dict[str, Any] = {
             CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value: 0,
             CompilationStageTelemetryField.NUM_PIPELINE_BREAKER_USED.value: 0,
             CompilationStageTelemetryField.NUM_RELAXED_BREAKER_USED.value: 0,
