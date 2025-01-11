@@ -46,7 +46,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
 from snowflake.snowpark._internal.compiler.query_generator import QueryGenerator
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
-    InvalidNodesInBreakdownCategory,
+    NodeBreakdownCategory,
     SkipLargeQueryBreakdownCategory,
 )
 from snowflake.snowpark._internal.compiler.utils import (
@@ -255,39 +255,52 @@ class LargeQueryBreakdown:
             return [root]
 
         plans = []
-        final_partition_breakdown_summary = {}
+        self._current_breakdown_summary = {}
         while complexity_score > self.complexity_score_upper_bound:
             child, validity_statistics = self._find_node_to_breakdown(root)
+            self._update_current_breakdown_summary(validity_statistics)
+
             if child is None:
-                final_partition_breakdown_summary = {
-                    k.value: validity_statistics.get(k, 0)
-                    for k in InvalidNodesInBreakdownCategory
-                }
                 _logger.debug(
                     f"Could not find a valid node for partitioning. "
-                    f"Skipping with root {complexity_score=} {final_partition_breakdown_summary=}"
+                    f"Skipping with root {complexity_score=} {self._current_breakdown_summary=}"
                 )
                 break
-            # TODO: report the validity statistics in every time.
-            # If valid nodes > 0, pipeline breaker found
-            # If valid nodes == 0, valid relaxed > 0, relaxed pipeline breaker found
-            # otherwise, no valid nodes found.
 
             partition = self._get_partitioned_plan(root, child)
             plans.append(partition)
             complexity_score = get_complexity_score(root)
 
-        final_partition_breakdown_summary[
-            CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value
-        ] = len(plans)
-        self._breakdown_summary.append(final_partition_breakdown_summary)
-
+        self._breakdown_summary.append(self._current_breakdown_summary)
         plans.append(root)
         return plans
 
+    def _update_current_breakdown_summary(
+        self, validity_statistics: Dict[NodeBreakdownCategory, int]
+    ) -> None:
+        """Method to update the breakdown summary based on the validity statistics of the current root."""
+        if validity_statistics.get(NodeBreakdownCategory, 0) > 0:
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value
+            ] += 1
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.NUM_PIPELINE_BREAKER_USED.value
+            ] += 1
+        elif validity_statistics.get(NodeBreakdownCategory.VALID_NODE_RELAXED, 0) > 0:
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value
+            ] += 1
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.NUM_RELAXED_BREAKER_USED.value
+            ] += 1
+        else:  # no valid nodes found
+            self._current_breakdown_summary[
+                CompilationStageTelemetryField.FAILED_PARTITION_SUMMARY.value
+            ] = {k.value: validity_statistics.get(k, 0) for k in NodeBreakdownCategory}
+
     def _find_node_to_breakdown(
         self, root: TreeNode
-    ) -> Tuple[Optional[TreeNode], Dict[InvalidNodesInBreakdownCategory, int]]:
+    ) -> Tuple[Optional[TreeNode], Dict[NodeBreakdownCategory, int]]:
         """This method traverses the plan tree and partitions the plan based if a valid partition node
         if found. The steps involved are:
 
@@ -311,7 +324,7 @@ class LargeQueryBreakdown:
                     validity_status, score = self._is_node_valid_to_breakdown(
                         child, root
                     )
-                    if validity_status == InvalidNodesInBreakdownCategory.VALID_NODE:
+                    if validity_status == NodeBreakdownCategory.VALID_NODE:
                         # If the score for valid node is higher than the last candidate,
                         # update the candidate node and score.
                         if score > candidate_score:
@@ -321,10 +334,7 @@ class LargeQueryBreakdown:
                         # don't traverse subtrees if parent is a valid candidate
                         next_level.append(child)
 
-                    if (
-                        validity_status
-                        == InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
-                    ):
+                    if validity_status == NodeBreakdownCategory.VALID_NODE_RELAXED:
                         # Update the relaxed candidate node and score.
                         if score > relaxed_candidate_score:
                             relaxed_candidate_score = score
@@ -374,7 +384,7 @@ class LargeQueryBreakdown:
 
     def _is_node_valid_to_breakdown(
         self, node: TreeNode, root: TreeNode
-    ) -> Tuple[InvalidNodesInBreakdownCategory, int]:
+    ) -> Tuple[NodeBreakdownCategory, int]:
         """Method to check if a node is valid to breakdown based on complexity score and node type.
 
         Returns:
@@ -385,29 +395,29 @@ class LargeQueryBreakdown:
         """
         score = get_complexity_score(node)
         is_valid = True
-        validity_status = InvalidNodesInBreakdownCategory.VALID_NODE
+        validity_status = NodeBreakdownCategory.VALID_NODE
 
         # check score bounds
         if score < self.complexity_score_lower_bound:
             is_valid = False
-            validity_status = InvalidNodesInBreakdownCategory.SCORE_BELOW_LOWER_BOUND
+            validity_status = NodeBreakdownCategory.SCORE_BELOW_LOWER_BOUND
 
         if score > self.complexity_score_upper_bound:
             is_valid = False
-            validity_status = InvalidNodesInBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
+            validity_status = NodeBreakdownCategory.SCORE_ABOVE_UPPER_BOUND
 
         # check pipeline breaker condition
         if is_valid and not self._is_node_pipeline_breaker(node):
             if self._is_relaxed_pipeline_breaker(node):
-                validity_status = InvalidNodesInBreakdownCategory.VALID_NODE_RELAXED
+                validity_status = NodeBreakdownCategory.VALID_NODE_RELAXED
             else:
                 is_valid = False
-                validity_status = InvalidNodesInBreakdownCategory.NON_PIPELINE_BREAKER
+                validity_status = NodeBreakdownCategory.NON_PIPELINE_BREAKER
 
         # check external CTE ref condition
         if is_valid and self._contains_external_cte_ref(node, root):
             is_valid = False
-            validity_status = InvalidNodesInBreakdownCategory.EXTERNAL_CTE_REF
+            validity_status = NodeBreakdownCategory.EXTERNAL_CTE_REF
 
         if is_valid:
             _logger.debug(

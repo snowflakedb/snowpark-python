@@ -548,7 +548,7 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
                     large_query_df.collect()
 
     summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+    assert summary_value["query_breakdown_optimization_skipped_reason"] == {
         "active transaction": 1,
     }
 
@@ -583,7 +583,7 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
             in caplog.text
         )
         summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+        assert summary_value["query_breakdown_optimization_skipped_reason"] == {
             "view or dynamic table command": 1,
         }
 
@@ -599,7 +599,7 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
         )
         patch_send.assert_called_once()
         summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+        assert summary_value["query_breakdown_optimization_skipped_reason"] == {
             "view or dynamic table command": 1,
         }
     finally:
@@ -657,7 +657,7 @@ def test_optimization_skipped_with_no_active_db_or_schema(
     )
     patch_send.assert_called_once()
     summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
+    assert summary_value["query_breakdown_optimization_skipped_reason"] == {
         f"no active {db_or_schema}": 1,
     }
 
