@@ -255,7 +255,11 @@ class LargeQueryBreakdown:
             return [root]
 
         plans = []
-        self._current_breakdown_summary = {}
+        self._current_breakdown_summary = {
+            CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value: 0,
+            CompilationStageTelemetryField.NUM_PIPELINE_BREAKER_USED.value: 0,
+            CompilationStageTelemetryField.NUM_RELAXED_BREAKER_USED.value: 0,
+        }
         while complexity_score > self.complexity_score_upper_bound:
             child, validity_statistics = self._find_node_to_breakdown(root)
             self._update_current_breakdown_summary(validity_statistics)
@@ -271,7 +275,7 @@ class LargeQueryBreakdown:
             plans.append(partition)
             complexity_score = get_complexity_score(root)
 
-        self._breakdown_summary.append(self._current_breakdown_summary)
+        self._breakdown_summary.append(dict(self._current_breakdown_summary))
         plans.append(root)
         return plans
 
@@ -279,7 +283,7 @@ class LargeQueryBreakdown:
         self, validity_statistics: Dict[NodeBreakdownCategory, int]
     ) -> None:
         """Method to update the breakdown summary based on the validity statistics of the current root."""
-        if validity_statistics.get(NodeBreakdownCategory, 0) > 0:
+        if validity_statistics.get(NodeBreakdownCategory.VALID_NODE, 0) > 0:
             self._current_breakdown_summary[
                 CompilationStageTelemetryField.NUM_PARTITIONS_MADE.value
             ] += 1

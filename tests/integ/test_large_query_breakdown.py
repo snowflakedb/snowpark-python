@@ -96,7 +96,7 @@ def check_result_with_and_without_breakdown(session, df):
 def check_summary_breakdown_value(patch_send, expected_summary):
     _, kwargs = patch_send.call_args
     summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == expected_summary
+    assert summary_value["breakdown_summary"] == expected_summary
 
 
 def test_no_pipeline_breaker_nodes(session):
@@ -134,6 +134,8 @@ def test_no_pipeline_breaker_nodes(session):
     expected_summary = [
         {
             "num_partitions_made": 1,
+            "num_pipeline_breaker_used": 0,
+            "num_relaxed_breaker_used": 1,
         }
     ]
     check_summary_breakdown_value(patch_send, expected_summary)
@@ -174,13 +176,17 @@ def test_large_query_breakdown_external_cte_ref(session):
     patch_send.assert_called_once()
     expected_summary = [
         {
-            "num_external_cte_ref_nodes": 6 if sql_simplifier_enabled else 2,
-            "num_non_pipeline_breaker_nodes": 0 if sql_simplifier_enabled else 2,
-            "num_nodes_below_lower_bound": 28,
-            "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
-            "num_valid_nodes": 0,
-            "num_valid_nodes_relaxed": 0,
+            "failed_partition_summary": {
+                "num_external_cte_ref_nodes": 6 if sql_simplifier_enabled else 2,
+                "num_non_pipeline_breaker_nodes": 0 if sql_simplifier_enabled else 2,
+                "num_nodes_below_lower_bound": 28,
+                "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
+                "num_valid_nodes": 0,
+                "num_valid_nodes_relaxed": 0,
+            },
             "num_partitions_made": 0,
+            "num_pipeline_breaker_used": 0,
+            "num_relaxed_breaker_used": 0,
         }
     ]
     check_summary_breakdown_value(patch_send, expected_summary)
@@ -213,14 +219,12 @@ def test_breakdown_at_with_query_node(session):
 
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
-    if not session.cte_optimization_enabled:
-        pytest.skip("CTE optimization is not enabled")
+    session._cte_optimization_enabled = True
 
     if not session.sql_simplifier_enabled:
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled
         set_bounds(session, 60, 90)
-    session._cte_optimization_enabled = True
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
     df1 = df1.join(df0, on=["b"], how="inner")
@@ -231,7 +235,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
         df2 = df2.with_column("a", col("a") + i + col("a"))
         df3 = df3.with_column("b", col("b") + i + col("b"))
 
-    df2 = df2.group_by("a").agg(sum_distinct(col("b")).alias("b"))
+    df2 = df2.select("b", "a")
     df3 = df3.group_by("b").agg(sum_distinct(col("a")).alias("a"))
 
     df4 = df2.union_all(df3).filter(col("a") > 2).with_column("a", col("a") + 1)
@@ -251,19 +255,22 @@ def test_large_query_breakdown_with_cte_optimization(session):
 
     assert len(queries["queries"]) == 2
     assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_")
+    assert queries["queries"][1].startswith("WITH SNOWPARK_TEMP_CTE_"), queries[
+        "queries"
+    ]
 
     assert len(queries["post_actions"]) == 1
     assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
-    patch_send.assert_called_once()
-    _, kwargs = patch_send.call_args
-    summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == [
+    expected_summary = [
         {
             "num_partitions_made": 1,
+            "num_pipeline_breaker_used": 1,
+            "num_relaxed_breaker_used": 0,
         }
     ]
+    check_summary_breakdown_value(patch_send, expected_summary)
+    patch_send.assert_called_once()
 
 
 def test_save_as_table(session, large_query_df):
