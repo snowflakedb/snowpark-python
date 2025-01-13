@@ -58,8 +58,10 @@ body {
         func {
           name: "<lambda>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\""
+              }
             }
           }
         }
@@ -163,8 +165,10 @@ body {
                     fn {
                       builtin_fn {
                         name {
-                          fn_name_flat {
-                            name: "col"
+                          name {
+                            sp_name_flat {
+                              name: "col"
+                            }
                           }
                         }
                       }
@@ -261,8 +265,10 @@ body {
           id: 1
           name: "<lambda [1]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\""
+              }
             }
           }
         }
@@ -272,8 +278,10 @@ body {
           }
         }
         name {
-          fn_name_flat {
-            name: "add_two"
+          name {
+            sp_name_flat {
+              name: "add_two"
+            }
           }
         }
         parallel: 4
@@ -308,8 +316,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "call_udf"
+                      name {
+                        sp_name_flat {
+                          name: "call_udf"
+                        }
                       }
                     }
                   }
@@ -328,8 +338,10 @@ body {
                     fn {
                       builtin_fn {
                         name {
-                          fn_name_flat {
-                            name: "col"
+                          name {
+                            sp_name_flat {
+                              name: "col"
+                            }
                           }
                         }
                       }
@@ -430,15 +442,19 @@ body {
           id: 2
           name: "<lambda [2]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\""
+              }
             }
           }
         }
         immutable: true
         imports {
-          sp_table_name_flat {
-            name: "numpy"
+          name {
+            sp_name_flat {
+              name: "numpy"
+            }
           }
         }
         input_types {
@@ -466,8 +482,10 @@ body {
           value: 2
         }
         name {
-          fn_name_flat {
-            name: "param_udf"
+          name {
+            sp_name_flat {
+              name: "param_udf"
+            }
           }
         }
         packages: "bla"
@@ -514,16 +532,20 @@ body {
           id: 3
           name: "<lambda [3]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\""
+              }
             }
           }
         }
         if_not_exists: true
         immutable: true
         imports {
-          sp_table_name_flat {
-            name: "numpy"
+          name {
+            sp_name_flat {
+              name: "numpy"
+            }
           }
         }
         input_types {
@@ -551,8 +573,10 @@ body {
           value: 2
         }
         name {
-          fn_name_flat {
-            name: "param_udf2"
+          name {
+            sp_name_flat {
+              name: "param_udf2"
+            }
           }
         }
         packages: "bla"
@@ -604,8 +628,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -630,8 +656,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
