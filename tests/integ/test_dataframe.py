@@ -4459,4 +4459,4 @@ def test_SNOW_1879403_replace_with_lit(session):
         replace(col("a"), lit("apple"), lit("orange")).alias("result")
     ).collect()
 
-    Utils.check_answer(ans, ["orange", "orange pie", "orange juice"])
+    Utils.check_answer(ans, [Row("orange"), Row("orange pie"), Row("orange juice")])
