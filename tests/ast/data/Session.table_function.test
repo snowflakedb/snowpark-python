@@ -45,8 +45,10 @@ body {
             fn {
               indirect_table_fn_name_ref {
                 name {
-                  fn_name_flat {
-                    name: "my_fn"
+                  name {
+                    sp_name_flat {
+                      name: "my_fn"
+                    }
                   }
                 }
               }
@@ -56,8 +58,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "lit"
+                      name {
+                        sp_name_flat {
+                          name: "lit"
+                        }
                       }
                     }
                   }
@@ -82,8 +86,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "lit"
+                      name {
+                        sp_name_flat {
+                          name: "lit"
+                        }
                       }
                     }
                   }
@@ -133,8 +139,10 @@ body {
             fn {
               indirect_table_fn_name_ref {
                 name {
-                  fn_name_flat {
-                    name: "my_fn"
+                  name {
+                    sp_name_flat {
+                      name: "my_fn"
+                    }
                   }
                 }
               }
@@ -146,8 +154,10 @@ body {
                   fn {
                     builtin_fn {
                       name {
-                        fn_name_flat {
-                          name: "lit"
+                        name {
+                          sp_name_flat {
+                            name: "lit"
+                          }
                         }
                       }
                     }
@@ -175,8 +185,10 @@ body {
                   fn {
                     builtin_fn {
                       name {
-                        fn_name_flat {
-                          name: "lit"
+                        name {
+                          sp_name_flat {
+                            name: "lit"
+                          }
                         }
                       }
                     }
@@ -227,9 +239,11 @@ body {
             fn {
               indirect_table_fn_name_ref {
                 name {
-                  fn_name_structured {
-                    name: "foo"
-                    name: "bar"
+                  name {
+                    sp_name_structured {
+                      name: "foo"
+                      name: "bar"
+                    }
                   }
                 }
               }
@@ -262,8 +276,10 @@ body {
         fn {
           call_table_function_expr {
             name {
-              fn_name_flat {
-                name: "my_fn1"
+              name {
+                sp_name_flat {
+                  name: "my_fn1"
+                }
               }
             }
           }
@@ -323,8 +339,10 @@ body {
         fn {
           call_table_function_expr {
             name {
-              fn_name_flat {
-                name: "my_fn2"
+              name {
+                sp_name_flat {
+                  name: "my_fn2"
+                }
               }
             }
           }
@@ -393,8 +411,10 @@ body {
         fn {
           call_table_function_expr {
             name {
-              fn_name_flat {
-                name: "my_fn3"
+              name {
+                sp_name_flat {
+                  name: "my_fn3"
+                }
               }
             }
           }
@@ -454,8 +474,10 @@ body {
         fn {
           call_table_function_expr {
             name {
-              fn_name_flat {
-                name: "my_fn4"
+              name {
+                sp_name_flat {
+                  name: "my_fn4"
+                }
               }
             }
           }
