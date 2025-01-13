@@ -1915,7 +1915,7 @@ def test_show_dataframe_spark(session):
     assert compare_show_string(
         df._show_string_spark(
             _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
-        ).strip(),
+        ),
         """
 +-----+-----+-----+--------------------+----------+------------+-----+-----+-----+------+------+--------------------+------------------+
 |col_1|col_2|col_3|               col_4|     col_5|       col_6|col_7|col_8|col_9|col_10|col_11|              col_12|            col_13|
@@ -1929,7 +1929,7 @@ def test_show_dataframe_spark(session):
             vertical=True,
             _emit_ast=session.ast_enabled,
             _spark_column_names=spark_col_names,
-        ).strip(),
+        ),
         """
 -RECORD 0----------------------
  col_1  | 1
@@ -1953,7 +1953,7 @@ def test_show_dataframe_spark(session):
             truncate=False,
             _emit_ast=session.ast_enabled,
             _spark_column_names=spark_col_names,
-        ).strip(),
+        ),
         """
 -RECORD 0------------------------------
  col_1  | 1
@@ -1976,7 +1976,7 @@ def test_show_dataframe_spark(session):
             truncate=False,
             _emit_ast=session.ast_enabled,
             _spark_column_names=spark_col_names,
-        ).strip(),
+        ),
         """
 +-----+-----+-----+----------------------------+----------+------------+-----+-----+-----+------+------+---------------------+------------------+
 |col_1|col_2|col_3|col_4                       |col_5     |col_6       |col_7|col_8|col_9|col_10|col_11|col_12               |col_13            |
@@ -1990,7 +1990,7 @@ def test_show_dataframe_spark(session):
             truncate=10,
             _emit_ast=session.ast_enabled,
             _spark_column_names=spark_col_names,
-        ).strip(),
+        ),
         """
 +-----+-----+-----+----------+----------+----------+-----+-----+-----+------+------+----------+----------+
 |col_1|col_2|col_3|     col_4|     col_5|     col_6|col_7|col_8|col_9|col_10|col_11|    col_12|    col_13|
