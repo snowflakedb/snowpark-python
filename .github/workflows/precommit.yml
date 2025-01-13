@@ -540,7 +540,7 @@ jobs:
         # only run doctest for macos on aws
       - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
         name: Run Snowpark pandas API doctests
-        run: python -u -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci" -vvvvv
+        run: python -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -552,7 +552,7 @@ jobs:
         # do not run other tests for macos on aws
       - if: ${{ !(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
         name: Run Snowpark pandas API tests (excluding doctests)
-        run: python -u -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci" -vvvvv
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
