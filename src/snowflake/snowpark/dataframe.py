@@ -277,6 +277,7 @@ def _disambiguate(
     *,
     lsuffix: str = "",
     rsuffix: str = "",
+    ignore_alias_conflict: bool = False,
 ) -> Tuple["DataFrame", "DataFrame"]:
     if lsuffix == rsuffix and lsuffix:
         raise ValueError(
@@ -332,15 +333,52 @@ def _disambiguate(
         ],
         _emit_ast=False,
     )
-    new_map = {}
-    for k, v in lhs_remapped._plan.expr_to_alias_v2.items():
-        new_map[(k[0], lhs._plan.uuid)] = v
-        lhs_remapped._plan.expr_to_alias_v2 = new_map.copy()
+    # dedupconflict alias
+    # if expr_id + plan id -> same alias in both, no need to dedup, keep the plan uuid
+    # else, dedup
 
-    new_map = {}
-    for k, v in rhs_remapped._plan.expr_to_alias_v2.items():
-        new_map[(k[0], rhs._plan.uuid)] = v
-        rhs_remapped._plan.expr_to_alias_v2 = new_map.copy()
+    def update_dicts(dict_a, dict_b):
+        updated_a = {}
+        updated_b = {}
+
+        for key, value in dict_a.items():
+            if key in dict_b:
+                if dict_b[key] != value:
+                    # If values are different, update the key in dict_a
+                    updated_a[(key[0], lhs._plan.uuid)] = value
+                    updated_b[(key[0], rhs._plan.uuid)] = dict_b[key]
+                else:
+                    # If values are the same, keep the key-value pair unchanged
+                    updated_a[key] = value
+                    updated_b[key] = value
+            else:
+                # If the key doesn't show up in dict_b, keep the key-value pair
+                updated_a[key] = value
+
+        for key, value in dict_b.items():
+            if key not in dict_a:
+                # If the key doesn't show up in dict_a, keep the key-value pair
+                updated_b[key] = value
+
+        return updated_a, updated_b
+
+    # new_map = {}
+    #
+    # for k, v in lhs_remapped._plan.expr_to_alias_v2.items():
+    #     new_map[(k[0], lhs._plan.uuid)] = v
+    #     lhs_remapped._plan.expr_to_alias_v2 = new_map.copy()
+    #
+    # new_map = {}
+    # for k, v in rhs_remapped._plan.expr_to_alias_v2.items():
+    #     new_map[(k[0], rhs._plan.uuid)] = v
+    #     rhs_remapped._plan.expr_to_alias_v2 = new_map.copy()
+
+    new_a, new_b = update_dicts(
+        lhs_remapped._plan.expr_to_alias_v2, rhs_remapped._plan.expr_to_alias_v2
+    )
+    lhs_remapped._plan.expr_to_alias_v2 = new_a.copy()
+    rhs_remapped._plan.expr_to_alias_v2 = new_b.copy()
+
     return lhs_remapped, rhs_remapped
 
 
@@ -631,8 +669,8 @@ class DataFrame:
 
         self._alias: Optional[str] = None
         # update the output attributes to point to the current plan
-        for attr in self._output:
-            attr.snowflake_plan_uuid = self._plan.uuid
+        # for attr in self._output:
+        #     attr.snowflake_plan_uuid = self._plan.uuid
 
     def _set_ast_ref(self, sp_dataframe_expr_builder: Any) -> None:
         """
@@ -3587,6 +3625,7 @@ class DataFrame:
             lsuffix=lsuffix,
             rsuffix=rsuffix,
             _ast_stmt=stmt,
+            ignore_alias_conflict=True,
         )
 
     def _join_dataframes(
@@ -3667,6 +3706,7 @@ class DataFrame:
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
         _ast_stmt: proto.Expr = None,
+        ignore_alias_conflict: bool = False,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
@@ -5570,11 +5610,19 @@ Query List:
 
     @cached_property
     def _output(self) -> List[Attribute]:
-        return (
+        attrs = (
             self._select_statement.column_states.projection
             if self._select_statement
             else self._plan.output
         )
+        for attr in attrs:
+            attr.snowflake_plan_uuid = self._plan.uuid
+        return attrs
+        # return (
+        #     self._select_statement.column_states.projection
+        #     if self._select_statement
+        #     else self._plan.output
+        # )
 
     @cached_property
     def schema(self) -> StructType:
