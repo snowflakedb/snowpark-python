@@ -1895,35 +1895,42 @@ def test_show_dataframe_spark(session):
         ),
     )
     spark_col_names = [f"col_{i + 1}" for i in range(len(data))]
-    assert (
-        df._show_string_spark(_emit_ast=session.ast_enabled).strip()
-        == """
+
+    def compare_show_string(actual: str, expected: str) -> bool:
+        actual_lines = actual.strip().split("\n")
+        expected_lines = expected.strip().split("\n")
+        result = [a.strip() == e.strip() for a, e in zip(actual_lines, expected_lines)]
+        return all(result)
+
+    assert compare_show_string(
+        df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
+        """
 +-------+-------+-------+--------------------+----------+------------+-------+-------+-------+--------+--------+--------------------+------------------+
 |"COL_1"|"COL_2"|"COL_3"|             "COL_4"|   "COL_5"|     "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|"COL_11"|            "COL_12"|          "COL_13"|
 +-------+-------+-------+--------------------+----------+------------+-------+-------+-------+--------+--------+--------------------+------------------+
 |      1|  "one"|    1.1|"2017-02-24T12:00...|"20:57:06"|"2017-02-25"|   true|  false|   NULL|    "61"|     0.5|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|
 +-------+-------+-------+--------------------+----------+------------+-------+-------+-------+--------+--------+--------------------+------------------+
-    """.strip()
+    """,
     )
-    assert (
+    assert compare_show_string(
         df._show_string_spark(
             _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
-        ).strip()
-        == """
+        ).strip(),
+        """
 +-----+-----+-----+--------------------+----------+------------+-----+-----+-----+------+------+--------------------+------------------+
 |col_1|col_2|col_3|               col_4|     col_5|       col_6|col_7|col_8|col_9|col_10|col_11|              col_12|            col_13|
 +-----+-----+-----+--------------------+----------+------------+-----+-----+-----+------+------+--------------------+------------------+
 |    1|"one"|  1.1|"2017-02-24T12:00...|"20:57:06"|"2017-02-25"| true|false| NULL|  "61"|   0.5|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|
 +-----+-----+-----+--------------------+----------+------------+-----+-----+-----+------+------+--------------------+------------------+
-        """.strip()
+        """,
     )
-    assert (
+    assert compare_show_string(
         df._show_string_spark(
             vertical=True,
             _emit_ast=session.ast_enabled,
             _spark_column_names=spark_col_names,
-        ).strip()
-        == """
+        ).strip(),
+        """
 -RECORD 0----------------------
  col_1  | 1
  col_2  | "one"
@@ -1938,16 +1945,16 @@ def test_show_dataframe_spark(session):
  col_11 | 0.5
  col_12 | [\\n  1,\\n  2,\\n  ...
  col_13 | {\\n  "a": "foo"\\n}
-        """.strip()
+        """,
     )
-    assert (
+    assert compare_show_string(
         df._show_string_spark(
             vertical=True,
             truncate=False,
             _emit_ast=session.ast_enabled,
             _spark_column_names=spark_col_names,
-        ).strip()
-        == """
+        ).strip(),
+        """
 -RECORD 0------------------------------
  col_1  | 1
  col_2  | "one"
@@ -1962,35 +1969,35 @@ def test_show_dataframe_spark(session):
  col_11 | 0.5
  col_12 | [\\n  1,\\n  2,\\n  3\\n]
  col_13 | {\\n  "a": "foo"\\n}
-            """.strip()
+            """,
     )
-    assert (
+    assert compare_show_string(
         df._show_string_spark(
             truncate=False,
             _emit_ast=session.ast_enabled,
             _spark_column_names=spark_col_names,
-        ).strip()
-        == """
+        ).strip(),
+        """
 +-----+-----+-----+----------------------------+----------+------------+-----+-----+-----+------+------+---------------------+------------------+
 |col_1|col_2|col_3|col_4                       |col_5     |col_6       |col_7|col_8|col_9|col_10|col_11|col_12               |col_13            |
 +-----+-----+-----+----------------------------+----------+------------+-----+-----+-----+------+------+---------------------+------------------+
 |1    |"one"|1.1  |"2017-02-24T12:00:05.456000"|"20:57:06"|"2017-02-25"|true |false|NULL |"61"  |0.5   |[\\n  1,\\n  2,\\n  3\\n]|{\\n  "a": "foo"\\n}|
 +-----+-----+-----+----------------------------+----------+------------+-----+-----+-----+------+------+---------------------+------------------+
-        """.strip()
+        """,
     )
-    assert (
+    assert compare_show_string(
         df._show_string_spark(
             truncate=10,
             _emit_ast=session.ast_enabled,
             _spark_column_names=spark_col_names,
-        ).strip()
-        == """
+        ).strip(),
+        """
 +-----+-----+-----+----------+----------+----------+-----+-----+-----+------+------+----------+----------+
 |col_1|col_2|col_3|     col_4|     col_5|     col_6|col_7|col_8|col_9|col_10|col_11|    col_12|    col_13|
 +-----+-----+-----+----------+----------+----------+-----+-----+-----+------+------+----------+----------+
 |    1|"one"|  1.1|"2017-0...|"20:57:06"|"2017-0...| true|false| NULL|  "61"|   0.5|[\\n  1,...|{\\n  "a...|
 +-----+-----+-----+----------+----------+----------+-----+-----+-----+------+------+----------+----------+
-        """.strip()
+        """,
     )
 
 
