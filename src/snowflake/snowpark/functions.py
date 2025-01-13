@@ -10570,7 +10570,7 @@ def bitmap_construct_agg(
 @publicapi
 def cbrt(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the cube root of the records in a group.
+    Returns the cube root of value in a column.
 
     Example::
 
