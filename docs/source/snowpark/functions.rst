@@ -243,6 +243,7 @@ Functions
     not_
     ntile
     nullifzero
+    nvl
     object_agg
     object_construct
     object_construct_keep_null
