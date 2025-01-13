@@ -997,6 +997,7 @@ def extract_bracket_content(type_str: str, keyword: str) -> str:
     e.g., "array<int>" => "int". It also parses the nested array like "array<array<...>>".
     Raises ValueError on mismatched or missing bracket.
     """
+    type_str = type_str.strip()
     prefix_pattern = rf"(?i)^\s*{keyword}\s*<"
     match = re.match(prefix_pattern, type_str)
     if not match:
