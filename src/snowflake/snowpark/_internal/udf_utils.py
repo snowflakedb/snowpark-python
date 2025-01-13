@@ -1258,11 +1258,13 @@ def create_python_udf_or_sp(
     runtime_version: Optional[str] = None,
 ) -> None:
     runtime_version = runtime_version or f"{sys.version_info[0]}.{sys.version_info[1]}"
-
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType) and not return_type.structured:
-        return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields)})'
+        if return_type.fields is None and object_type is not TempObjectType.PROCEDURE:
+            return_sql = "RETURNS OBJECT"
+        else:
+            return_sql = f'RETURNS TABLE ({",".join(f"{field.name} {convert_sp_to_sf_type(field.datatype)}" for field in return_type.fields or [])})'
     elif installed_pandas and isinstance(return_type, PandasDataFrameType):
         return_sql = f'RETURNS TABLE ({",".join(f"{name} {convert_sp_to_sf_type(datatype)}" for name, datatype in zip(return_type.col_names, return_type.col_types))})'
     else:

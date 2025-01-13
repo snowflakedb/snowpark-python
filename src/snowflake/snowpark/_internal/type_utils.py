@@ -672,6 +672,12 @@ def python_type_to_snow_type(
             if tp_args
             else None
         )
+        if (
+            key_type is None
+            and value_type is None
+            and context._should_use_structured_type_semantics()
+        ):
+            return StructType(), False
         return MapType(key_type, value_type), False
 
     if installed_pandas:

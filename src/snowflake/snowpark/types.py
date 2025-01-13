@@ -398,7 +398,11 @@ class MapType(DataType):
         structured: Optional[bool] = None,
     ) -> None:
         if context._should_use_structured_type_semantics():
-            self.structured = True  # Snowflake has no unstructured MapTypes
+            if key_type is None or value_type is None:
+                raise ValueError(
+                    "MapType requires both key and value type be defined. For semi-structured OBJECT use StructType()"
+                )
+            self.structured = True  # Snowflake has no unstructured MAP
         else:
             self.structured = structured or False
         self.key_type = key_type if key_type else StringType()
@@ -773,8 +777,8 @@ class StructType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_struct_type.structured = self.structured
-        for field in self.fields:
-            field._fill_ast(ast.sp_struct_type.fields.add())
+        for field in self.fields or []:
+            field._fill_ast(ast.sp_struct_type.fields.list.add())
 
 
 class VariantType(DataType):
