@@ -185,7 +185,6 @@ class PlanCompiler:
                     error_type=type(e).__name__,
                     error_message=str(e),
                 )
-                pass
 
         return self.replace_temp_obj_placeholders(queries)
 

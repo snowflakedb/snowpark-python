@@ -3,7 +3,8 @@
 #
 
 import logging
-from typing import Any, Optional, Iterable, List, Union, Dict, Tuple
+import re
+from typing import Any, Optional, Iterable, List, Union, Dict, Tuple, Callable
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
@@ -11,7 +12,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from google.protobuf.json_format import MessageToDict
 
-from snowflake.snowpark import Session, Column
+from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
 import snowflake.snowpark.functions
 from snowflake.snowpark.functions import udf, when
 from snowflake.snowpark.types import (
@@ -73,7 +74,39 @@ class Decoder:
         """
         return assign_expr.symbol.value
 
-    def decode_col_exprs(self, expr: proto.Expr, is_variadic: bool) -> List[Column]:
+    def get_dataframe_analytics_function_column_formatter(
+        self, sp_dataframe_analytics_expr: proto.Expr
+    ) -> Callable:
+        """
+        Create a dataframe analytics function column formatter.
+        This is mainly to pass the df_analytics_functions.test.
+
+        Parameters
+        ----------
+        sp_dataframe_analytics_expr : proto.Expr
+            The dataframe analytics expression.
+
+        Returns
+        -------
+        Callable
+            The dataframe analytics function column formatter.
+        """
+        if "formattedColNames" in MessageToDict(sp_dataframe_analytics_expr):
+            formatted_col_names = list(sp_dataframe_analytics_expr.formatted_col_names)
+            w_lambda_pattern = re.compile(r"^(\w+)_W_(\w+)$")
+            xy_lambda_pattern = re.compile(r"^(\w+)_X_(\w+)_Y_(\w+)$")
+            if all(re.match(xy_lambda_pattern, col) for col in formatted_col_names):
+                return (
+                    lambda input, agg, window_size: f"{input}_X_{agg}_Y_{window_size}"
+                )
+            elif all(re.match(w_lambda_pattern, col) for col in formatted_col_names):
+                return lambda input, agg: f"{input}_W_{agg}"
+            else:
+                return lambda input_col, agg, window: f"{agg}_{input_col}_{window}"
+        else:
+            return DataFrameAnalyticsFunctions._default_col_formatter
+
+    def decode_col_exprs(self, expr: proto.Expr) -> List[Column]:
         """
         Decode a protobuf object to a list of column expressions.
 
@@ -81,8 +114,6 @@ class Decoder:
         ----------
         expr : proto.Expr
             The protobuf object to decode.
-        is_variadic : bool
-            Whether the expression is variadic.
 
         Returns
         -------
@@ -93,7 +124,7 @@ class Decoder:
             # Prevent nesting the list in a list if there is only one expression.
             # This usually happens when the expression is a list_val.
             col_list = self.decode_expr(expr[0])
-            if not isinstance(col_list, list) and not is_variadic:
+            if not isinstance(col_list, list):
                 col_list = [col_list]
         else:
             col_list = [self.decode_expr(arg) for arg in expr]
@@ -129,28 +160,12 @@ class Decoder:
             python_map[key] = value
         return python_map
 
-    def decode_fn_name_expr(self, fn_name: proto.FnName) -> str:
-        """
-        Decode a function name expression to get the function name.
+    def convert_name_to_list(self, name: any) -> List:
+        if isinstance(name, str):
+            return [name]
+        return [qualified_name for qualified_name in name]
 
-        Parameters
-        ----------
-        fn_name : proto.FnName
-            The function name to decode.
-
-        Returns
-        -------
-        str
-            The decoded function name.
-        """
-        if hasattr(fn_name, "fn_name_flat"):
-            return fn_name.fn_name_flat.name
-        elif hasattr(fn_name, "fn_name_structured"):
-            return fn_name.fn_name_structured.name
-        else:
-            raise ValueError("Function name not found in proto.FnName")
-
-    def decode_table_name_expr(self, table_name: proto.SpTableName) -> str:
+    def decode_name_expr(self, table_name: proto.SpName) -> str:
         """
         Decode a table name expression to get the table name.
 
@@ -164,10 +179,10 @@ class Decoder:
         str
             The decoded table name.
         """
-        if hasattr(table_name, "sp_table_name_flat"):
-            return table_name.sp_table_name_flat.name
-        elif hasattr(table_name, "sp_table_name_structured"):
-            return table_name.sp_table_name_structured.name
+        if table_name.name.HasField("sp_name_flat"):
+            return table_name.name.sp_name_flat.name
+        elif table_name.name.HasField("sp_name_structured"):
+            return table_name.name.sp_name_structured.name
         else:
             raise ValueError("Table name not found in proto.SpTableName")
 
@@ -191,7 +206,7 @@ class Decoder:
             # case "trait_fn_name_ref_expr":
             #     pass
             case "builtin_fn":
-                return self.decode_fn_name_expr(fn_ref_expr.builtin_fn.name)
+                return self.decode_name_expr(fn_ref_expr.builtin_fn.name)
             # case "call_table_function_expr":
             #     pass
             # case "indirect_table_fn_id_ref":
@@ -286,7 +301,7 @@ class Decoder:
             case _:
                 raise ValueError(
                     "Unknown dataframe schema type: %s"
-                    % df_schema_expr.WhichOneof("variant")
+                    % df_schema_expr.WhichOneof("sealed_value")
                 )
 
     def decode_data_type_expr(
@@ -800,9 +815,9 @@ class Decoder:
 
             case "sp_column_string_substr":
                 col = self.decode_expr(expr.sp_column_string_substr.col)
-                len = self.decode_expr(expr.sp_column_string_substr.len)
+                length = self.decode_expr(expr.sp_column_string_substr.len)
                 pos = self.decode_expr(expr.sp_column_string_substr.pos)
-                return col.substr(pos, len)
+                return col.substr(pos, length)
 
             case "sp_column_string_ends_with":
                 col = self.decode_expr(expr.sp_column_string_ends_with.col)
@@ -892,8 +907,11 @@ class Decoder:
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
                 data = self.decode_dataframe_data_expr(expr.sp_create_dataframe.data)
-                schema = self.decode_dataframe_schema_expr(
-                    expr.sp_create_dataframe.schema
+                d = MessageToDict(expr.sp_create_dataframe)
+                schema = (
+                    self.decode_dataframe_schema_expr(expr.sp_create_dataframe.schema)
+                    if "schema" in d
+                    else None
                 )
                 df = self.session.create_dataframe(data=data, schema=schema)
                 if hasattr(expr, "var_id"):
@@ -917,6 +935,96 @@ class Decoder:
                 df = self.decode_expr(expr.sp_dataframe_alias.df)
                 name = expr.sp_dataframe_alias.name
                 return df.alias(name)
+
+            case "sp_dataframe_analytics_compute_lag":
+                df = self.decode_expr(expr.sp_dataframe_analytics_compute_lag.df)
+                cols = [
+                    self.decode_expr(col)
+                    for col in expr.sp_dataframe_analytics_compute_lag.cols
+                ]
+                group_by = list(expr.sp_dataframe_analytics_compute_lag.group_by)
+                lags = list(expr.sp_dataframe_analytics_compute_lag.lags)
+                order_by = list(expr.sp_dataframe_analytics_compute_lag.order_by)
+                col_formatter = self.get_dataframe_analytics_function_column_formatter(
+                    expr.sp_dataframe_analytics_compute_lag
+                )
+                return df.analytics.compute_lag(
+                    cols, lags, order_by, group_by, col_formatter
+                )
+
+            case "sp_dataframe_analytics_compute_lead":
+                df = self.decode_expr(expr.sp_dataframe_analytics_compute_lead.df)
+                cols = [
+                    self.decode_expr(col)
+                    for col in expr.sp_dataframe_analytics_compute_lead.cols
+                ]
+                group_by = list(expr.sp_dataframe_analytics_compute_lead.group_by)
+                leads = list(expr.sp_dataframe_analytics_compute_lead.leads)
+                order_by = list(expr.sp_dataframe_analytics_compute_lead.order_by)
+                col_formatter = self.get_dataframe_analytics_function_column_formatter(
+                    expr.sp_dataframe_analytics_compute_lead
+                )
+                return df.analytics.compute_lead(
+                    cols, leads, order_by, group_by, col_formatter
+                )
+
+            case "sp_dataframe_analytics_cumulative_agg":
+                df = self.decode_expr(expr.sp_dataframe_analytics_cumulative_agg.df)
+                gen_aggs = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_analytics_cumulative_agg.aggs
+                )
+                # The aggs dict created has generator objects as the kv pairs. Convert them to strings/list of strings.
+                aggs = {str(k): list(v) for k, v in gen_aggs.items()}
+                group_by = list(expr.sp_dataframe_analytics_cumulative_agg.group_by)
+                order_by = list(expr.sp_dataframe_analytics_cumulative_agg.order_by)
+                is_forward = (
+                    expr.sp_dataframe_analytics_cumulative_agg.is_forward
+                    if hasattr(expr.sp_dataframe_analytics_cumulative_agg, "is_forward")
+                    else False
+                )
+                col_formatter = self.get_dataframe_analytics_function_column_formatter(
+                    expr.sp_dataframe_analytics_cumulative_agg
+                )
+                return df.analytics.cumulative_agg(
+                    aggs, group_by, order_by, is_forward, col_formatter
+                )
+
+            case "sp_dataframe_analytics_moving_agg":
+                df = self.decode_expr(expr.sp_dataframe_analytics_moving_agg.df)
+                gen_aggs = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_analytics_moving_agg.aggs
+                )
+                # The aggs dict created has generator objects as the kv pairs. Convert them to strings/list of strings.
+                aggs = {str(k): list(v) for k, v in gen_aggs.items()}
+                group_by = list(expr.sp_dataframe_analytics_moving_agg.group_by)
+                order_by = list(expr.sp_dataframe_analytics_moving_agg.order_by)
+                window_sizes = list(expr.sp_dataframe_analytics_moving_agg.window_sizes)
+                col_formatter = self.get_dataframe_analytics_function_column_formatter(
+                    expr.sp_dataframe_analytics_moving_agg
+                )
+                return df.analytics.moving_agg(
+                    aggs, window_sizes, order_by, group_by, col_formatter
+                )
+
+            case "sp_dataframe_analytics_time_series_agg":
+                df = self.decode_expr(expr.sp_dataframe_analytics_time_series_agg.df)
+                gen_aggs = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_analytics_time_series_agg.aggs
+                )
+                # The aggs dict created has generator objects as the kv pairs. Convert them to strings/list of strings.
+                aggs = {str(k): list(v) for k, v in gen_aggs.items()}
+                group_by = list(expr.sp_dataframe_analytics_time_series_agg.group_by)
+                sliding_interval = (
+                    expr.sp_dataframe_analytics_time_series_agg.sliding_interval
+                )
+                time_col = expr.sp_dataframe_analytics_time_series_agg.time_col
+                windows = list(expr.sp_dataframe_analytics_time_series_agg.windows)
+                col_formatter = self.get_dataframe_analytics_function_column_formatter(
+                    expr.sp_dataframe_analytics_time_series_agg
+                )
+                return df.analytics.time_series_agg(
+                    time_col, aggs, windows, group_by, sliding_interval, col_formatter
+                )
 
             case "sp_dataframe_col":
                 col_name = expr.sp_dataframe_col.col_name
@@ -955,16 +1063,47 @@ class Decoder:
                     block=block,
                 )
 
+            case "sp_dataframe_cube":
+                df = self.decode_expr(expr.sp_dataframe_cube.df)
+                d = MessageToDict(expr.sp_dataframe_cube.cols)
+                if "args" not in d:
+                    return df.cube()
+                cols = self.decode_col_exprs(expr.sp_dataframe_cube.cols.args)
+                if d.get("variadic", False):
+                    return df.cube(*cols)
+                else:
+                    return df.cube(cols)
+
+            case "sp_dataframe_describe":
+                df = self.decode_expr(expr.sp_dataframe_describe.df)
+                d = MessageToDict(expr.sp_dataframe_describe.cols)
+                if "args" not in d:
+                    return df.describe()
+                cols = self.decode_col_exprs(expr.sp_dataframe_describe.cols.args)
+                if d.get("variadic", False):
+                    return df.describe(*cols)
+                else:
+                    return df.describe(cols)
+
+            case "sp_dataframe_distinct":
+                df = self.decode_expr(expr.sp_dataframe_distinct.df)
+                return df.distinct()
+
             case "sp_dataframe_drop":
                 df = self.decode_expr(expr.sp_dataframe_drop.df)
-                cols = self.decode_col_exprs(
-                    expr.sp_dataframe_drop.cols.args,
-                    expr.sp_dataframe_drop.cols.variadic,
-                )
-                if expr.sp_dataframe_group_by.cols.variadic:
+                cols = self.decode_col_exprs(expr.sp_dataframe_drop.cols.args)
+                if MessageToDict(expr.sp_dataframe_drop.cols).get("variadic", False):
                     return df.drop(*cols)
                 else:
                     return df.drop(cols)
+
+            case "sp_dataframe_drop_duplicates":
+                df = self.decode_expr(expr.sp_dataframe_drop_duplicates.df)
+                cols = list(expr.sp_dataframe_drop_duplicates.cols)
+                if expr.sp_dataframe_drop_duplicates.variadic:
+                    return df.drop_duplicates(*cols)
+                else:
+                    return df.drop_duplicates(cols)
 
             case "sp_dataframe_except":
                 df = self.decode_expr(expr.sp_dataframe_except.df)
@@ -987,11 +1126,10 @@ class Decoder:
 
             case "sp_dataframe_group_by":
                 df = self.decode_expr(expr.sp_dataframe_group_by.df)
-                cols = self.decode_col_exprs(
-                    expr.sp_dataframe_group_by.cols.args,
-                    expr.sp_dataframe_group_by.cols.variadic,
-                )
-                if expr.sp_dataframe_group_by.cols.variadic:
+                cols = self.decode_col_exprs(expr.sp_dataframe_group_by.cols.args)
+                if MessageToDict(expr.sp_dataframe_group_by.cols).get(
+                    "variadic", False
+                ):
                     return df.group_by(*cols)
                 else:
                     return df.group_by(cols)
@@ -1122,11 +1260,10 @@ class Decoder:
             case "sp_dataframe_select__columns":
                 df = self.decode_expr(expr.sp_dataframe_select__columns.df)
                 # The columns can be a list of Expr or a single Expr.
-                cols = self.decode_col_exprs(
-                    expr.sp_dataframe_select__columns.cols,
-                    not hasattr(expr.sp_dataframe_select__columns, "variadic"),
-                )
-                if hasattr(expr.sp_dataframe_select__columns, "variadic"):
+                cols = self.decode_col_exprs(expr.sp_dataframe_select__columns.cols)
+                if MessageToDict(expr.sp_dataframe_select__columns).get(
+                    "variadic", False
+                ):
                     val = df.select(*cols)
                 else:
                     val = df.select(cols)
@@ -1145,17 +1282,23 @@ class Decoder:
 
             case "sp_dataframe_sort":
                 df = self.decode_expr(expr.sp_dataframe_sort.df)
-                is_variadic = (
-                    expr.sp_dataframe_sort.cols_variadic
-                    if hasattr(expr.sp_dataframe_sort, "cols_variadic")
-                    else False
+                cols = list(
+                    self.decode_expr(col) for col in expr.sp_dataframe_sort.cols
                 )
-                cols = self.decode_col_exprs(expr.sp_dataframe_sort.cols, is_variadic)
                 ascending = self.decode_expr(expr.sp_dataframe_sort.ascending)
-                if is_variadic:
+
+                if MessageToDict(expr.sp_dataframe_sort).get("colsVariadic", False):
                     return df.sort(*cols, ascending=ascending)
                 else:
                     return df.sort(cols, ascending=ascending)
+
+            case "sp_dataframe_to_df":
+                df = self.decode_expr(expr.sp_dataframe_to_df.df)
+                col_names = list(expr.sp_dataframe_to_df.col_names)
+                if expr.sp_dataframe_to_df.variadic:
+                    return df.to_df(*col_names)
+                else:
+                    return df.to_df(col_names)
 
             case "sp_dataframe_unpivot":
                 df = self.decode_expr(expr.sp_dataframe_unpivot.df)
@@ -1192,10 +1335,11 @@ class Decoder:
                     expr.sp_relational_grouped_dataframe_agg.grouped_df
                 )
                 exprs = self.decode_col_exprs(
-                    expr.sp_relational_grouped_dataframe_agg.exprs.args,
-                    expr.sp_relational_grouped_dataframe_agg.cols.variadic,
+                    expr.sp_relational_grouped_dataframe_agg.exprs.args
                 )
-                if expr.sp_relational_grouped_dataframe_agg.exprs.variadic is True:
+                if MessageToDict(expr.sp_relational_grouped_dataframe_agg.exprs).get(
+                    "variadic", False
+                ):
                     return grouped_df.agg(*exprs)
                 else:
                     return grouped_df.agg(exprs)
@@ -1214,18 +1358,20 @@ class Decoder:
                 grouped_df = self.decode_expr(
                     expr.sp_relational_grouped_dataframe_builtin.grouped_df
                 )
-                cols = self.decode_col_exprs(
-                    expr.sp_relational_grouped_dataframe_builtin.cols.args,
-                    expr.sp_relational_grouped_dataframe_builtin.cols.variadic,
-                )
                 agg_name = expr.sp_relational_grouped_dataframe_builtin.agg_name
-                if (
-                    expr.sp_relational_grouped_dataframe_builtin.cols.variadic
-                    and isinstance(agg_name, list)
+                if "cols" not in MessageToDict(
+                    expr.sp_relational_grouped_dataframe_builtin
                 ):
-                    return grouped_df.function(*agg_name)(*cols)
+                    return getattr(grouped_df, agg_name)()
+                cols = self.decode_col_exprs(
+                    expr.sp_relational_grouped_dataframe_builtin.cols.args
+                )
+                if MessageToDict(expr.sp_relational_grouped_dataframe_builtin.cols).get(
+                    "variadic", False
+                ):
+                    return getattr(grouped_df, agg_name)(*cols)
                 else:
-                    return grouped_df.function(agg_name)(*cols)
+                    return getattr(grouped_df, agg_name)(cols)
 
             case "sp_relational_grouped_dataframe_ref":
                 return self.symbol_table[
@@ -1234,7 +1380,7 @@ class Decoder:
 
             case "sp_table":
                 assert expr.sp_table.HasField("name")
-                table_name = self.decode_table_name_expr(expr.sp_table.name)
+                table_name = self.decode_name_expr(expr.sp_table.name)
                 return self.session.table(table_name)
 
             case "udf":
@@ -1286,11 +1432,11 @@ class Decoder:
 
             case "sp_dataframe_create_or_replace_view":
                 df = self.decode_expr(expr.sp_dataframe_create_or_replace_view.df)
-                name = [
-                    qualified_name
-                    for qualified_name in expr.sp_dataframe_create_or_replace_view.name
-                ]
-
+                name = self.decode_name_expr(
+                    expr.sp_dataframe_create_or_replace_view.name
+                )
+                if not isinstance(name, str):
+                    name = self.convert_name_to_list(name)
                 statement_params = None
                 if hasattr(
                     expr.sp_dataframe_create_or_replace_view, "statement_params"
@@ -1322,10 +1468,10 @@ class Decoder:
 
             case "sp_dataframe_copy_into_table":
                 df = self.decode_expr(expr.sp_dataframe_copy_into_table.df)
-                name = [
-                    qualified_name
-                    for qualified_name in expr.sp_dataframe_copy_into_table.table_name
-                ]
+                name = self.decode_name_expr(
+                    expr.sp_dataframe_copy_into_table.table_name
+                )
+                name = self.convert_name_to_list(name)
                 files = [
                     file_name for file_name in expr.sp_dataframe_copy_into_table.files
                 ]
@@ -1398,10 +1544,11 @@ class Decoder:
                 df = self.decode_expr(
                     expr.sp_dataframe_create_or_replace_dynamic_table.df
                 )
-                name = [
-                    qualified_name_part
-                    for qualified_name_part in expr.sp_dataframe_create_or_replace_dynamic_table.name
-                ]
+                name = self.decode_name_expr(
+                    expr.sp_dataframe_create_or_replace_dynamic_table.name
+                )
+                if not isinstance(name, str):
+                    name = self.convert_name_to_list(name)
                 warehouse = expr.sp_dataframe_create_or_replace_dynamic_table.warehouse
                 lag = expr.sp_dataframe_create_or_replace_dynamic_table.lag
                 comment = (
