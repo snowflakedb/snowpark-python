@@ -9,12 +9,13 @@ import os
 import platform
 import random
 import string
-from threading import Thread
 import uuid
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, NamedTuple, Optional, Union
+from threading import Thread
+from unittest import mock
 
 import pytest
 import pytz
@@ -121,7 +122,8 @@ def iceberg_supported(session, local_testing_mode):
 def structured_types_enabled_session(session):
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session set {param}=true").collect()
-    yield session
+    with mock.patch("snowflake.snowpark.context._use_structured_type_semantics", True):
+        yield session
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session unset {param}").collect()
 
