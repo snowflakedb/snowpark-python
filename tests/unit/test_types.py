@@ -1540,6 +1540,14 @@ def test_type_string_to_type_object_array_of_decimal():
     assert dt.element_type.precision == 10
     assert dt.element_type.scale == 2
 
+    try:
+        type_string_to_type_object("array<decimal(10,2>")
+        raise AssertionError("Expected ValueError for not a supported type")
+    except ValueError as ex:
+        assert "is not a supported type" in str(
+            ex
+        ), f"Expected not a supported type, got: {ex}"
+
 
 def test_type_string_to_type_object_map_of_int_string():
     dt = type_string_to_type_object("map<int, string>")
@@ -1720,7 +1728,7 @@ def test_type_string_to_type_object_implicit_struct_with_spaces():
     Test spacing variations. E.g. "  col1  :   int  ,  col2  :  map< string , decimal(5,2) >  ".
     """
     dt = type_string_to_type_object(
-        "  col1 :  int  ,  col2 :   map< string , decimal(5,2) > "
+        "  col1 :  int  ,  col2 :   map< string , decimal( 5 , 2 ) > "
     )
     assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
     assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
