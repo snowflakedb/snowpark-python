@@ -49,6 +49,7 @@
   - %X: Locale’s appropriate time representation.
   - %%: A literal '%' character.
 - Added support for `Series.between`.
+- Added support for `include_groups=False` in `DataFrameGroupBy.apply`.
 
 #### Bug Fixes
 
