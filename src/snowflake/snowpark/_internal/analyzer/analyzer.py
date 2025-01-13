@@ -373,12 +373,13 @@ class Analyzer:
 
         if isinstance(expr, Attribute):
             # assert self.alias_maps_to_use is not None
-            # name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
             assert self.alias_maps_to_use_v2 is not None
             name2 = self.alias_maps_to_use_v2.get(
                 (expr.expr_id, expr.snowflake_plan_uuid), expr.name
             )
-            # return name
+            if name is self.alias_maps_to_use:
+                assert name == name2
             # return name
             return quote_name(name2)
 
