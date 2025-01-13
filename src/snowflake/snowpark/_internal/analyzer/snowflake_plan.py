@@ -171,7 +171,7 @@ class SnowflakePlan(LogicalPlan):
                                 "", val
                             )
                             for child in children
-                            for val in child.expr_to_alias_v2.values()
+                            for val in child.expr_to_alias_v2.values()  # TODO: this need v1 choice
                         ]
                         if col in remapped:
                             unaliased_cols = (
@@ -600,6 +600,7 @@ class SnowflakePlanBuilder:
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
             referenced_ctes=child.referenced_ctes,
+            expr_to_alias_v2=select_child.expr_to_alias_v2,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -1660,6 +1661,7 @@ class SnowflakePlanBuilder:
                 api_calls=plan.api_calls,
                 session=self.session,
                 referenced_ctes=plan.referenced_ctes,
+                expr_to_alias_v2=plan.expr_to_alias_v2,
             )
 
     def with_query_block(
@@ -1694,6 +1696,7 @@ class SnowflakePlanBuilder:
             api_calls=child.api_calls,
             session=self.session,
             referenced_ctes=referenced_ctes,
+            expr_to_alias_v2=child.expr_to_alias_v2,
         )
 
 
