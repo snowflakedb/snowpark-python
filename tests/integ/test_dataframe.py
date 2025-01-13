@@ -1902,6 +1902,41 @@ def test_show_dataframe_spark(session):
         result = [a.strip() == e.strip() for a, e in zip(actual_lines, expected_lines)]
         return all(result)
 
+    print("\n")
+    print(df._show_string_spark(_emit_ast=session.ast_enabled).strip())
+    print("\n")
+    print(
+        df._show_string_spark(
+            _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
+        ).strip()
+    )
+    print("\n")
+    print(
+        df._show_string_spark(
+            vertical=True,
+            _emit_ast=session.ast_enabled,
+            _spark_column_names=spark_col_names,
+        ).strip()
+    )
+    print("\n")
+    print(
+        df._show_string_spark(
+            truncate=False,
+            vertical=True,
+            _emit_ast=session.ast_enabled,
+            _spark_column_names=spark_col_names,
+        ).strip()
+    )
+    print("\n")
+    print(
+        df._show_string_spark(
+            truncate=10,
+            _emit_ast=session.ast_enabled,
+            _spark_column_names=spark_col_names,
+        ).strip()
+    )
+    print("\n")
+
     assert compare_show_string(
         df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
         """
