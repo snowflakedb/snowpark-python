@@ -171,7 +171,7 @@ class SnowflakePlan(LogicalPlan):
                                 "", val
                             )
                             for child in children
-                            for val in child.expr_to_alias.values()
+                            for val in child.expr_to_alias_v2.values()
                         ]
                         if col in remapped:
                             unaliased_cols = (

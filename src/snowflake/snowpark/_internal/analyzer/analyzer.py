@@ -378,6 +378,8 @@ class Analyzer:
             name2 = self.alias_maps_to_use_v2.get(
                 (expr.expr_id, expr.snowflake_plan_uuid), expr.name
             )
+            # return name
+            # return name
             return quote_name(name2)
 
         if isinstance(expr, UnresolvedAttribute):
@@ -645,9 +647,14 @@ class Analyzer:
                     (expr.child.expr_id, expr.child.snowflake_plan_uuid)
                 ] = quoted_name
                 assert self.alias_maps_to_use is not None
+                # backfill the alias_maps_to_use?
+                # if name == old name, then replace it with new name?
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
                         self.generated_alias_maps[k] = quoted_name
+                for k, v in self.alias_maps_to_use_v2.items():
+                    if v == expr.child.name:
+                        self.generated_alias_maps_v2[k] = quoted_name
 
                 for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
                     for k, v in df_alias_dict.items():
