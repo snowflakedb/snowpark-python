@@ -532,18 +532,6 @@ def test_structured_dtypes_iceberg(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
-def test_structured_dtypes_negative(structured_type_session, structured_type_support):
-    if not structured_type_support:
-        pytest.skip("Test requires structured type support.")
-
-    x = StructType()
-    x._fill_ast(mock.Mock())
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="local testing does not fully support structured types yet.",
-)
 def test_udaf_structured_map_downcast(
     structured_type_session, structured_type_support, caplog
 ):
