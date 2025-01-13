@@ -2823,7 +2823,7 @@ def test_save_as_table_with_table_sproc_output(session, save_mode, table_type):
             lambda session_: session_.sql("SELECT 1 as A"),
             packages=["snowflake-snowpark-python"],
             name=temp_sp_name,
-            return_type=StructType([StructField("A", IntegerType())]),
+            return_type=StructType([StructField("A", IntegerType())], structured=False),
             input_types=[],
             replace=True,
         )
