@@ -6,6 +6,7 @@
 
 from snowflake.snowpark.modin.plugin.docstrings.base import BasePandasDataset
 from snowflake.snowpark.modin.plugin.docstrings.dataframe import DataFrame
+from snowflake.snowpark.modin.plugin.docstrings.datetime_index import DatetimeIndex
 from snowflake.snowpark.modin.plugin.docstrings.general import *  # noqa: F401,F403
 from snowflake.snowpark.modin.plugin.docstrings.groupby import (
     DataFrameGroupBy,
@@ -33,4 +34,5 @@ __all__ = [
     "SeriesGroupBy",
     "StringMethods",
     "Index",
+    "DatetimeIndex",
 ]
