@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.ast.utils import (
@@ -717,7 +718,10 @@ class UDAFRegistration:
                     "_do_register_udaf",
                     "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object.",
                 )
-                return_type = StructType()
+                if context._should_use_structured_type_semantics():
+                    return_type = StructType()
+                else:
+                    return_type = MapType()
 
         # Capture original parameters.
         if _emit_ast:

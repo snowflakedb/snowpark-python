@@ -402,7 +402,7 @@ class MapType(DataType):
                 raise ValueError(
                     "MapType requires both key and value type be defined. For semi-structured OBJECT use StructType()"
                 )
-            self.structured = True  # Snowflake has no unstructured MAP
+            self.structured = True  # Snowflake has no semi-structured MAP
         else:
             self.structured = structured or False
         self.key_type = key_type if key_type else StringType()

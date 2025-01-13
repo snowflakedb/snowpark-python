@@ -1261,6 +1261,7 @@ def create_python_udf_or_sp(
     if replace and if_not_exists:
         raise ValueError("options replace and if_not_exists are incompatible")
     if isinstance(return_type, StructType) and not return_type.structured:
+        # sprocs can return tables without columns defined, but other udxfs expect the return type to be OBJECT in these cases
         if return_type.fields is None and object_type is not TempObjectType.PROCEDURE:
             return_sql = "RETURNS OBJECT"
         else:
