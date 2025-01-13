@@ -843,15 +843,13 @@ def convert_numpy_int_result_to_int(value: Any) -> Any:
 
 
 DUMMY_BOOL_INPUT = native_pd.Series([False, True])
-DUMMY_INT_INPUT = native_pd.Series(
-    [-37, -9, -2, -1, 0, 2, 3, 5, 7, 9, 13, 16, 20]
-    + np.power(10, np.arange(19)).tolist()
-    + np.multiply(-1, np.power(10, np.arange(19))).tolist()
-)
+# Note: we use only small dummy values here to avoid the risk of certain callables
+# taking a long time to execute (where execution time is a function of the input value).
+# As a downside this reduces diversity in input data so will reduce the effectiveness
+# type inference framework in some rare cases.
+DUMMY_INT_INPUT = native_pd.Series([-37, -9, -2, -1, 0, 2, 3, 5, 7, 9, 13, 16, 20, 101])
 DUMMY_FLOAT_INPUT = native_pd.Series(
-    [-9.9, -2.2, -1.0, 0.0, 0.5, 0.33, None, 0.99, 2.0, 3.0, 5.0, 7.7, 9.898989]
-    + np.power(10.1, np.arange(19)).tolist()
-    + np.multiply(-1.0, np.power(10.1, np.arange(19))).tolist()
+    [-9.9, -2.2, -1.0, 0.0, 0.5, 0.33, None, 0.99, 2.0, 3.0, 5.0, 7.7, 9.898989, 100.1]
 )
 DUMMY_STRING_INPUT = native_pd.Series(
     ["", "a", "A", "0", "1", "01", "123", "-1", "-12", "true", "True", "false", "False"]
