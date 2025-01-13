@@ -687,7 +687,8 @@ class Series(BasePandasDataset):
         Notes
         -----
         1. When ``func`` has a type annotation for its return value, the result will be cast
-        to the corresponding dtype. When no type annotation is provided, data will be converted
+        to the corresponding dtype. When no type annotation is provided, we try to infer
+        return type using dummy data. If return type inference is not successful data will be converted
         to VARIANT type in Snowflake, and the result will have ``dtype=object``. In this case, the return value must
         be JSON-serializable, which can be a valid input to ``json.dumps`` (e.g., ``dict`` and
         ``list`` objects are JSON-serializable, but ``bytes`` and ``datetime.datetime`` objects
