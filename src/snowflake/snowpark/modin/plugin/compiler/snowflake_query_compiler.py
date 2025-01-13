@@ -3979,6 +3979,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_args: Any,
         agg_kwargs: dict[str, Any],
         series_groupby: bool,
+        include_groups: bool,
         force_single_group: bool = False,
         force_list_like_to_series: bool = False,
     ) -> "SnowflakeQueryCompiler":
@@ -4001,6 +4002,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Keyword arguments to pass to agg_func when applying it to each group.
             series_groupby:
                 Whether we are performing a SeriesGroupBy.apply() instead of a DataFrameGroupBy.apply()
+            include_groups:
+                When True, will include grouping keys when calling func in the case that
+                they are columns of the DataFrame.
             force_single_group:
                 Force single group (empty set of group by labels) useful for DataFrame.apply() with axis=0
             force_list_like_to_series:
@@ -4018,14 +4022,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"No support for groupby.apply with parameters by={by}, "
                 + f"level={level}, and axis={axis}"
             )
-
-        if "include_groups" in agg_kwargs:
-            # exclude "include_groups" from the apply function kwargs
-            include_groups = agg_kwargs.pop("include_groups")
-            if not include_groups:
-                ErrorMessage.not_implemented(
-                    f"No support for groupby.apply with include_groups = {include_groups}"
-                )
 
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
@@ -4051,17 +4047,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         snowflake_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
-
-        # For DataFrameGroupBy, `func` operates on this frame in its entirety.
-        # For SeriesGroupBy, this frame may also include some grouping columns
-        # that `func` should not take as input. In that case, the only column
-        # that `func` takes as input is the last data column, so grab just that
-        # column with a slice starting at index -1 and ending at None.
-        input_data_column_identifiers = (
-            self._modin_frame.data_column_snowflake_quoted_identifiers[
-                slice(-1, None) if series_groupby else slice(None)
-            ]
-        )
+        input_data_column_positions = [
+            i
+            for i, identifier in enumerate(
+                self._modin_frame.data_column_snowflake_quoted_identifiers
+            )
+            if (
+                (
+                    # For SeriesGroupBy, this frame may also include some
+                    # grouping columns that `func` should not take as input. In
+                    # that case, the only column that `func` takes as input is
+                    # the last data column, so take just that column.
+                    # include_groups has no effect.
+                    i
+                    == len(self._modin_frame.data_column_snowflake_quoted_identifiers)
+                    - 1
+                )
+                if series_groupby
+                else (
+                    # For DataFrameGroupBy, if include_groups, we apply the
+                    # function to all data columns. Otherwise, we exclude
+                    # data columns that we are grouping by.
+                    include_groups
+                    or identifier not in by_snowflake_quoted_identifiers_list
+                )
+            )
+        ]
+        input_data_column_identifiers = [
+            self._modin_frame.data_column_snowflake_quoted_identifiers[i]
+            for i in input_data_column_positions
+        ]
 
         # TODO(SNOW-1210489): When type hints show that `agg_func` returns a
         # scalar, we can use a vUDF instead of a vUDTF and we can skip the
@@ -4070,7 +4085,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             agg_func,
             agg_args,
             agg_kwargs,
-            data_column_index=self._modin_frame.data_columns_index,
+            data_column_index=self._modin_frame.data_columns_index[
+                input_data_column_positions
+            ],
             index_column_names=self._modin_frame.index_column_pandas_labels,
             input_data_column_types=[
                 snowflake_type_map[quoted_identifier]
@@ -8435,14 +8452,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
-        # TODO SNOW-1739034: remove 'no cover' when apply tests are enabled in CI
-        sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(
-            func
-        )  # pragma: no cover
-        if sf_func is not None:  # pragma: no cover
+        sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
+        if sf_func is not None:
             return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
 
-        if get_snowflake_agg_func(func, {}, axis) is not None:  # pragma: no cover
+        if get_snowflake_agg_func(func, {}, axis) is not None:
             # np.std and np.var 'ddof' parameter defaults to 0 but
             # df.std and df.var 'ddof' parameter defaults to 1.
             # Set it here explicitly to 0 if not provided.
@@ -8470,7 +8484,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # If raw, then pass numpy ndarray rather than pandas Series as input to the apply function.
             if raw:
 
-                def wrapped_func(*args, **kwargs):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
+                def wrapped_func(*args, **kwargs):  # type: ignore[no-untyped-def] # pragma: no cover: skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
                     raw_input_obj = args[0].to_numpy()
                     args = (raw_input_obj,) + args[1:]
                     return func(*args, **kwargs)
@@ -8514,6 +8528,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     series_groupby=True,
                     force_single_group=True,
                     force_list_like_to_series=True,
+                    include_groups=True,
                 )
 
                 data_col_result_frame = data_col_qc._modin_frame
@@ -8674,8 +8689,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             # Extract return type from annotations (or lookup for known pandas functions) for func object,
-            # if not return type could be extracted the variable will hold None.
-            return_type = deduce_return_type_from_function(func)
+            # if no return type could be extracted the variable will hold None.
+            return_type = deduce_return_type_from_function(func, None)
 
             # Check whether return_type has been extracted. If return type is not
             # a Series, tuple or list object, compute df.apply using a vUDF. In this case no column expansion needs to
@@ -8768,7 +8783,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Function to apply to each element of the QueryCompiler.
         na_action: If 'ignore', propagate NULL values
         *args : iterable
+            Positional arguments passed to func after the input data.
         **kwargs : dict
+            Additional keyword arguments to pass as keywords arguments to func.
         """
         self._raise_not_implemented_error_for_timedelta()
 
@@ -8783,14 +8800,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
-        # TODO SNOW-1739034: remove pragma no cover when apply tests are enabled in CI
-        # Check if the function is a known numpy function that can be translated to
-        # Snowflake function.
+        # Check if the function is a known numpy function that can be translated
+        # to Snowflake function.
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
-        if sf_func is not None:  # pragma: no cover
+        if sf_func is not None:
             return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
 
-        if func in (np.sum, np.min, np.max):  # pragma: no cover
+        if func in (np.sum, np.min, np.max):
             # Aggregate functions applied element-wise to columns are no-op.
             return self
 
@@ -8802,15 +8818,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas applymap API doesn't yet support na_action == 'ignore'"
             )
-        return_type = deduce_return_type_from_function(func)
-        if not return_type:
-            return_type = VariantType()
 
         # create and apply udfs on all data columns
         replace_mapping = {}
         for f in self._modin_frame.ordered_dataframe.schema.fields:
             identifier = f.column_identifier.quoted_name
             if identifier in self._modin_frame.data_column_snowflake_quoted_identifiers:
+                return_type = deduce_return_type_from_function(
+                    func, f.datatype, **kwargs
+                )
+                if not return_type:
+                    return_type = VariantType()
                 func_udf = create_udf_for_series_apply(
                     func,
                     return_type,
