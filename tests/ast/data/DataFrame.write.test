@@ -18,7 +18,7 @@ df.write.partition_by(col("value")).mode("overwrite").save_as_table("saved_table
 
 df.write.option("copy_into_location", "abcd").partition_by(col("value")).mode("overwrite").save_as_table("saved_table", table_type="temporary")
 
-df.write.option("copy_into_location", "abcd").option("copy_into_location", "pqrs").option("mode", "append").partition_by(col("value")).mode("overwrite").save_as_table("saved_table", table_type="temporary")
+df.write.option("copy_into_location", "abcd").option("copy_into_location", "pqrs").option("overwrite", True).option("mode", "append").partition_by(col("value")).mode("overwrite").save_as_table("saved_table", table_type="temporary")
 
 stage_created_result = session.sql("create temp stage if not exists test_stage").collect()
 
@@ -62,7 +62,7 @@ df.write.mode("overwrite").partition_by(col("value")).save_as_table("saved_table
 
 df.write.mode("overwrite").partition_by(col("value")).options({"COPY_INTO_LOCATION": "abcd"}).save_as_table("saved_table", table_type="temporary")
 
-df.write.mode("overwrite").partition_by(col("value")).options({"COPY_INTO_LOCATION": "abcd", "COPY_INTO_LOCATION": "pqrs", "MODE": "append"}).save_as_table("saved_table", table_type="temporary")
+df.write.mode("overwrite").partition_by(col("value")).options({"COPY_INTO_LOCATION": "abcd", "COPY_INTO_LOCATION": "pqrs", "OVERWRITE": True, "MODE": "append"}).save_as_table("saved_table", table_type="temporary")
 
 stage_created_result = session.sql("create temp stage if not exists test_stage")
 
@@ -610,7 +610,15 @@ body {
         }
         options {
           _1: "COPY_INTO_LOCATION"
-          _2: "abcd"
+          _2 {
+            string_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 41
+              }
+              v: "abcd"
+            }
+          }
         }
         partition_by {
           apply_expr {
@@ -709,15 +717,51 @@ body {
         }
         options {
           _1: "COPY_INTO_LOCATION"
-          _2: "abcd"
+          _2 {
+            string_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              v: "abcd"
+            }
+          }
         }
         options {
           _1: "COPY_INTO_LOCATION"
-          _2: "pqrs"
+          _2 {
+            string_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              v: "pqrs"
+            }
+          }
+        }
+        options {
+          _1: "OVERWRITE"
+          _2 {
+            bool_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              v: true
+            }
+          }
         }
         options {
           _1: "MODE"
-          _2: "append"
+          _2 {
+            string_val {
+              src {
+                file: "SRC_POSITION_TEST_MODE"
+                start_line: 43
+              }
+              v: "append"
+            }
+          }
         }
         partition_by {
           apply_expr {

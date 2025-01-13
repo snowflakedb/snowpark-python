@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     build_expr_from_snowpark_column_or_sql_str,
+    build_expr_from_snowpark_column_or_python_val,
     debug_check_missing_ast,
     fill_sp_save_mode,
     fill_sp_write_file,
@@ -160,7 +161,7 @@ class DataFrameWriter:
             if self._ast_stmt is not None:
                 t = self._ast_stmt.expr.sp_dataframe_write.options.add()
                 t._1 = aliased_key
-                t._2 = value
+                build_expr_from_snowpark_column_or_python_val(t._2, value)
 
         return self
 
