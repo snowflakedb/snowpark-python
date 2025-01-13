@@ -3732,7 +3732,7 @@ class DataFrame:
         Args:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
-            keep_column_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplcing a column.
+            keep_column_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplacing a column.
         """
         if ast_stmt is None and _emit_ast:
             ast_stmt = self._session._ast_batch.assign()
@@ -3808,7 +3808,7 @@ class DataFrame:
             col_names: A list of the names of the columns to add or replace.
             values: A list of the :class:`Column` objects or :class:`table_function.TableFunctionCall` object
                     to add or replace.
-            keep_column_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplcing a column.
+            keep_column_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplacing a column.
         """
         # Get a list of the new columns and their dedupped values
         qualified_names = [quote_name(n) for n in col_names]
