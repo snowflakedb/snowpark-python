@@ -4447,3 +4447,16 @@ def test_map_negative(session):
             output_types=[IntegerType(), StringType()],
             output_column_names=["a", "b", "c"],
         )
+
+
+def test_SNOW_1879403_replace_with_lit(session):
+    from snowflake.snowpark.functions import replace
+
+    df = session.create_dataframe(
+        [["apple"], ["apple pie"], ["apple juice"]], schema=["a"]
+    )
+    ans = df.select(
+        replace(col("a"), lit("apple"), lit("orange")).alias("result")
+    ).collect()
+
+    Utils.check_answer(ans, ["orange", "orange pie", "orange juice"])
