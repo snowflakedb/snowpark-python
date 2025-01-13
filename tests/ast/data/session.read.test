@@ -483,34 +483,36 @@ body {
             }
             schema {
               fields {
-                column_identifier {
-                  name: "a"
+                list {
+                  column_identifier {
+                    name: "a"
+                  }
+                  data_type {
+                    sp_integer_type: true
+                  }
+                  nullable: true
                 }
-                data_type {
-                  sp_integer_type: true
-                }
-                nullable: true
-              }
-              fields {
-                column_identifier {
-                  name: "b"
-                }
-                data_type {
-                  sp_string_type {
-                    length {
+                list {
+                  column_identifier {
+                    name: "b"
+                  }
+                  data_type {
+                    sp_string_type {
+                      length {
+                      }
                     }
                   }
+                  nullable: true
                 }
-                nullable: true
-              }
-              fields {
-                column_identifier {
-                  name: "c"
+                list {
+                  column_identifier {
+                    name: "c"
+                  }
+                  data_type {
+                    sp_float_type: true
+                  }
+                  nullable: true
                 }
-                data_type {
-                  sp_float_type: true
-                }
-                nullable: true
               }
             }
             src {

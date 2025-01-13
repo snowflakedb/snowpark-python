@@ -574,7 +574,7 @@ def test_udaf_structured_map_downcast(
             "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object."
             in caplog.text
         )
-        assert MapCollector._return_type == MapType()
+        assert MapCollector._return_type == StructType()
 
 
 @pytest.mark.skipif(
@@ -960,7 +960,7 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
     expected_semi_schema = StructType(
         [
             StructField("ARR", ArrayType(), nullable=True),
-            StructField("MAP", MapType(), nullable=True),
+            StructField("MAP", StructType(), nullable=True),
             StructField("OBJ", StructType(), nullable=True),
         ]
     )
@@ -990,7 +990,7 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
         schema=StructType(
             [
                 StructField("arr", ArrayType()),
-                StructField("map", MapType()),
+                StructField("map", StructType()),
                 StructField("obj", StructType()),
             ]
         ),
@@ -999,7 +999,7 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
     assert df.collect() == [
         Row(
             "[\n  1,\n  2,\n  3\n]",
-            {"k1": "1", "k2": "2"},
+            '{\n  "k1": 1,\n  "k2": 2\n}',
             '{\n  "A": 1,\n  "B": "foobar"\n}',
         )
     ]
