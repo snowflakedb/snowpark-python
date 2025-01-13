@@ -4449,7 +4449,14 @@ def test_map_negative(session):
         )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="replace function is not supported in Local Testing",
+)
 def test_SNOW_1879403_replace_with_lit(session):
+
+    # TODO SNOW-1880749: support for local testing mode.
+
     from snowflake.snowpark.functions import replace
 
     df = session.create_dataframe(
