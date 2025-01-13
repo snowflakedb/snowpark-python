@@ -281,7 +281,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, StructType):
         if data_type.structured:
             schema_strings = []
-            for field in data_type.fields:
+            for field in data_type.fields or []:
                 # Even if nulls are allowed the cast will fail due to schema mismatch when passed a null field.
                 schema_strings += [
                     f"'{field.name}'",
