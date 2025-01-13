@@ -873,8 +873,8 @@ def test_structured_dtypes_iceberg_create_from_values(
     _, __, expected_schema = _create_example(True)
     table_name = f"snowpark_structured_dtypes_{uuid.uuid4().hex[:5]}"
     data = [
-        ({"x": 1}, {"A": "a", "b": 1}, [1, 1, 1]),
-        ({"x": 2}, {"A": "b", "b": 2}, [2, 2, 2]),
+        ({"x": 1}, Row(A="a", b=1), [1, 1, 1]),
+        ({"x": 2}, Row(A="b", b=2), [2, 2, 2]),
     ]
     try:
         create_df = structured_type_session.create_dataframe(
@@ -1040,7 +1040,7 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
     )
     assert cast_df.schema == expected_structured_schema
     assert cast_df.collect() == [
-        Row([1, 2, 3], {"k1": 1, "k2": 2}, {"A": 1.0, "B": "foobar"})
+        Row([1, 2, 3], {"k1": 1, "k2": 2}, Row(A=1.0, B="foobar"))
     ]
 
 
