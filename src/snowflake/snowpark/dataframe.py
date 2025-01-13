@@ -4490,6 +4490,8 @@ class DataFrame:
         def cell_to_str(cell: Any) -> str:
             # Special handling for boolean to string in Python.
             # TODO: this operation can be pushed down to Snowflake for execution.
+            if cell is None:
+                return "NULL"
             if isinstance(cell, bool):
                 return "true" if cell else "false"
             return str(cell).replace("\n", "\\n")
@@ -4507,7 +4509,7 @@ class DataFrame:
             processed_row = []
             for res_cell in res_row:
                 # Convert res_cell to string and escape meta-characters
-                str_value = cell_to_str(res_cell) if res_cell is not None else "NULL"
+                str_value = cell_to_str(res_cell)
                 # Truncate string if necessary
                 if isinstance(truncate, bool):
                     truncate_length = 20 if truncate else 0
