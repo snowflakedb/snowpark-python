@@ -26,6 +26,8 @@ _should_continue_registration: Optional[Callable[..., bool]] = None
 _use_structured_type_semantics = False
 _use_structured_type_semantics_lock = threading.RLock()
 
+_use_v2_alias = True
+
 
 def _should_use_structured_type_semantics():
     global _use_structured_type_semantics
