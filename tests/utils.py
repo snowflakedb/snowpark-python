@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
@@ -10,11 +10,12 @@ import platform
 import random
 import string
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, NamedTuple, Optional, Union
+from threading import Thread
+from unittest import mock
 
 import pytest
 import pytz
@@ -121,7 +122,8 @@ def iceberg_supported(session, local_testing_mode):
 def structured_types_enabled_session(session):
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session set {param}=true").collect()
-    yield session
+    with mock.patch("snowflake.snowpark.context._use_structured_type_semantics", True):
+        yield session
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session unset {param}").collect()
 
@@ -138,17 +140,17 @@ def running_on_jenkins() -> bool:
 
 def multithreaded_run(num_threads: int = 5) -> None:
     """When multithreading_mode is enabled, run the decorated test function in multiple threads."""
-    from tests.conftest import MULTITHREADING_TEST_MODE_ENABLED
 
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if MULTITHREADING_TEST_MODE_ENABLED:
-                with ThreadPoolExecutor(max_workers=num_threads) as executor:
-                    for _ in range(num_threads):
-                        executor.submit(func, *args, **kwargs)
-            else:
-                func(*args, **kwargs)
+            all_threads = []
+            for _ in range(num_threads):
+                job = Thread(target=func, args=args, kwargs=kwargs)
+                all_threads.append(job)
+                job.start()
+            for thread in all_threads:
+                thread.join()
 
         return wrapper
 
