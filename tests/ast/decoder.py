@@ -212,8 +212,10 @@ class Decoder:
             #     pass
             # case "indirect_table_fn_id_ref":
             #     pass
-            # case "indirect_table_fn_name_ref":
-            #     pass
+            case "indirect_table_fn_name_ref":
+                return self.decode_name_expr(
+                    fn_ref_expr.indirect_table_fn_name_ref.name
+                )
             case "sp_fn_ref":
                 return self.symbol_table[fn_ref_expr.sp_fn_ref.id.bitfield1][0]
             # case "stored_procedure":
@@ -1437,6 +1439,26 @@ class Decoder:
                 else:
                     return df.to_df(col_names)
 
+            case "sp_dataframe_union":
+                df = self.decode_expr(expr.sp_dataframe_union.df)
+                other = self.decode_expr(expr.sp_dataframe_union.other)
+                return df.union(other)
+
+            case "sp_dataframe_union_all":
+                df = self.decode_expr(expr.sp_dataframe_union_all.df)
+                other = self.decode_expr(expr.sp_dataframe_union_all.other)
+                return df.union_all(other)
+
+            case "sp_dataframe_union_all_by_name":
+                df = self.decode_expr(expr.sp_dataframe_union_all_by_name.df)
+                other = self.decode_expr(expr.sp_dataframe_union_all_by_name.other)
+                return df.union_all_by_name(other)
+
+            case "sp_dataframe_union_by_name":
+                df = self.decode_expr(expr.sp_dataframe_union_by_name.df)
+                other = self.decode_expr(expr.sp_dataframe_union_by_name.other)
+                return df.union_by_name(other)
+
             case "sp_dataframe_unpivot":
                 df = self.decode_expr(expr.sp_dataframe_unpivot.df)
                 column_list = [
@@ -1514,6 +1536,10 @@ class Decoder:
                 return self.symbol_table[
                     expr.sp_relational_grouped_dataframe_ref.id.bitfield1
                 ][1]
+
+            case "sp_session_table_function":
+                fn = self.decode_expr(expr.sp_session_table_function.fn)
+                return self.session.table_function(fn)
 
             case "sp_table":
                 assert expr.sp_table.HasField("name")

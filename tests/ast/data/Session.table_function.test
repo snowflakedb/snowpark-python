@@ -1,5 +1,9 @@
 ## TEST CASE
 
+from snowflake.snowpark.functions import table_function
+
+my_fn = table_function("my_fn")
+
 df = session.table_function("my_fn", lit(1), lit("two"))
 
 df2 = session.table_function("my_fn", kwd=lit(3), foo=lit("bar"))
@@ -70,14 +74,14 @@ body {
                   int64_val {
                     src {
                       file: "SRC_POSITION_TEST_MODE"
-                      start_line: 25
+                      start_line: 29
                     }
                     v: 1
                   }
                 }
                 src {
                   file: "SRC_POSITION_TEST_MODE"
-                  start_line: 25
+                  start_line: 29
                 }
               }
             }
@@ -98,26 +102,26 @@ body {
                   string_val {
                     src {
                       file: "SRC_POSITION_TEST_MODE"
-                      start_line: 25
+                      start_line: 29
                     }
                     v: "two"
                   }
                 }
                 src {
                   file: "SRC_POSITION_TEST_MODE"
-                  start_line: 25
+                  start_line: 29
                 }
               }
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 25
+              start_line: 29
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 25
+          start_line: 29
         }
       }
     }
@@ -166,14 +170,14 @@ body {
                     string_val {
                       src {
                         file: "SRC_POSITION_TEST_MODE"
-                        start_line: 27
+                        start_line: 31
                       }
                       v: "bar"
                     }
                   }
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 27
+                    start_line: 31
                   }
                 }
               }
@@ -197,27 +201,27 @@ body {
                     int64_val {
                       src {
                         file: "SRC_POSITION_TEST_MODE"
-                        start_line: 27
+                        start_line: 31
                       }
                       v: 3
                     }
                   }
                   src {
                     file: "SRC_POSITION_TEST_MODE"
-                    start_line: 27
+                    start_line: 31
                   }
                 }
               }
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 27
+              start_line: 31
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 27
+          start_line: 31
         }
       }
     }
@@ -250,13 +254,13 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 29
+              start_line: 33
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 29
+          start_line: 33
         }
       }
     }
@@ -286,7 +290,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 32
+          start_line: 36
         }
       }
     }
@@ -313,13 +317,13 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 32
+              start_line: 36
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 32
+          start_line: 36
         }
       }
     }
@@ -351,14 +355,14 @@ body {
           string_val {
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 35
+              start_line: 39
             }
             v: "foo"
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 35
+          start_line: 39
         }
       }
     }
@@ -385,13 +389,13 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 35
+              start_line: 39
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 35
+          start_line: 39
         }
       }
     }
@@ -421,7 +425,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 37
+          start_line: 41
         }
       }
     }
@@ -448,13 +452,13 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 38
+              start_line: 42
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 38
+          start_line: 42
         }
       }
     }
@@ -486,14 +490,14 @@ body {
           string_val {
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 40
+              start_line: 44
             }
             v: "foo"
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 40
+          start_line: 44
         }
       }
     }
@@ -520,13 +524,13 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 41
+              start_line: 45
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 41
+          start_line: 45
         }
       }
     }
