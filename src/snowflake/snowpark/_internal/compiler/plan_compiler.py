@@ -125,7 +125,7 @@ class PlanCompiler:
                     plot_plan_if_enabled(plan, f"cte_optimized_plan_{i}")
 
                 # Large query breakdown
-                breakdown_failure_summary, skipped_summary = {}, {}
+                breakdown_summary, skipped_summary = {}, {}
                 if session.large_query_breakdown_enabled:
                     large_query_breakdown = LargeQueryBreakdown(
                         session,
@@ -135,7 +135,7 @@ class PlanCompiler:
                     )
                     breakdown_result = large_query_breakdown.apply()
                     logical_plans = breakdown_result.logical_plans
-                    breakdown_failure_summary = breakdown_result.breakdown_summary
+                    breakdown_summary = breakdown_result.breakdown_summary
                     skipped_summary = breakdown_result.skipped_summary
 
                 large_query_breakdown_end_time = time.time()
@@ -166,8 +166,8 @@ class PlanCompiler:
                     CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value: complexity_score_before_compilation,
                     CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_CTE_OPTIMIZATION.value: complexity_scores_after_cte,
                     CompilationStageTelemetryField.COMPLEXITY_SCORE_AFTER_LARGE_QUERY_BREAKDOWN.value: complexity_scores_after_large_query_breakdown,
-                    CompilationStageTelemetryField.BREAKDOWN_FAILURE_SUMMARY.value: breakdown_failure_summary,
-                    CompilationStageTelemetryField.TYPE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value: skipped_summary,
+                    CompilationStageTelemetryField.BREAKDOWN_SUMMARY.value: breakdown_summary,
+                    CompilationStageTelemetryField.LARGE_QUERY_BREAKDOWN_OPTIMIZATION_SKIPPED.value: skipped_summary,
                 }
                 # add the extra optimization status
                 summary_value.update(extra_optimization_status)
