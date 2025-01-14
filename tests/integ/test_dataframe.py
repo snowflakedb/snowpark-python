@@ -1827,8 +1827,10 @@ def test_create_dataframe_with_schema_col_names(session):
     for field, expected_name in zip(df.schema.fields, col_names[:2] + ["_3", "_4"]):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
-    # the column names provided via schema keyword will overwrite other column names
+    # specify nullable in structtype to avoid insert null value into non-nullable column
     struct_col_name = StructType([StructField(col, StringType()) for col in col_names])
+
+    # the column names provided via schema keyword will overwrite other column names
     df = session.create_dataframe(
         [{"aa": 1, "bb": 2, "cc": 3, "dd": 4}], schema=struct_col_name
     )
