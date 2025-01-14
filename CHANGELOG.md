@@ -14,6 +14,33 @@
   - `map_keys`
   - `nullifzero`
   - `snowflake_cortex_sentiment`
+  - `acosh`
+  - `asinh`
+  - `atanh`
+  - `bit_length`
+  - `bitmap_bit_position`
+  - `bitmap_bucket_number`
+  - `bitmap_construct_agg`
+  - `cbrt`
+  - `equal_null`
+  - `ifnull`
+  - `localtimestamp`
+  - `max_by`
+  - `min_by`
+  - `nvl`
+  - `octet_length`
+  - `position`
+  - `regr_avgx`
+  - `regr_avgy`
+  - `regr_count`
+  - `regr_intercept`
+  - `regr_r2`
+  - `regr_slope`
+  - `regr_sxx`
+  - `regr_sxy`
+  - `regr_syy`
+  - `try_to_binary`
+
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
 
 #### Improvements
@@ -24,9 +51,10 @@
 #### Bug Fixes
 
 - Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
-- Fixed a bug in `StructField.from_json` that prevented TimestampTypes with tzinfo from being parsed correctly.
+- Fixed a bug in `StructField.from_json` that prevented TimestampTypes with `tzinfo` from being parsed correctly.
 - Fixed a bug in function `date_format` that caused an error when the input column was date type or timestamp type.
 - Fixed a bug in dataframe that null value can be inserted in a non-nullable column.
+- Fixed a bug in `replace` when passing `Column` expression objects.
 
 ### Snowpark pandas API Updates
 

@@ -98,7 +98,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest-64-cores
             download_name: windows
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
@@ -145,13 +145,24 @@ jobs:
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
-      - name: Run tests (excluding doctests)
+      - if: ${{ matrix.python-version != '3.12' }}
+        name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ matrix.python-version == '3.12' }}
+        name: Run tests (excluding doctests and udf tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -217,7 +228,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -258,13 +269,24 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - name: Run tests (excluding doctests)
+      - if: ${{ matrix.python-version != '3.12' }}
+        name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ matrix.python-version == '3.12' }}
+        name: Run tests (excluding doctests and udf tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
+          TOX_PARALLEL_NO_SPINNER: 1
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -354,7 +376,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -484,7 +506,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -525,8 +547,17 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - name: Run tests (excluding doctests)
+      - if: ${{ matrix.python-version != '3.12' }}
+        name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ matrix.python-version == '3.12' }}
+        name: Run tests (excluding doctests and udf tests)
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
