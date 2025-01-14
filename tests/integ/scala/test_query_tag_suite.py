@@ -2,10 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-#
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
-
 # This file contains the query tag related tests in Scala's APIInternalSuite.scala
 # Because the implementation of query tag is different between the two languages,
 # the tests below differ from Scala tests.

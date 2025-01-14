@@ -1,10 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
-#
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
 import logging
 import threading
 from typing import List, Literal, Optional

@@ -1,10 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
-#
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
 from typing import Any, Dict, Iterable, NamedTuple, Optional, Union
 
 from snowflake.snowpark.mock._options import installed_pandas, pandas as pd

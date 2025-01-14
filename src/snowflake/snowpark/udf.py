@@ -3,10 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-#
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
-
 """User-defined functions (UDFs) in Snowpark. Please see `Python UDFs <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs>`_ for details.
 Furthermore, there is vectorized UDF (Please see `Python UDF Batch API <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-batch.html>`__ for details). Compared to the default row-by-row processing pattern of a normal UDF, which sometimes is
 inefficient, a vectorized UDF allows vectorized operations on a dataframe, with the input as a `pandas DataFrame <https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html>`_ or `pandas Series <https://pandas.pydata.org/docs/reference/api/pandas.Series.html>`_. In a

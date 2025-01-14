@@ -2,10 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-#
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
-
 """
 The converter module is used to convert string into data in pandas dataframe complying with snowflake spec.
 for example, when we call pandas.read_csv, we use the converter functions to validate, convert the data into python

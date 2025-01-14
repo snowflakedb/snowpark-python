@@ -3,10 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-#
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
-
 from typing import Optional
 
 from snowflake.connector import OperationalError, ProgrammingError

@@ -3,10 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-#
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
-
 from snowflake.snowpark._internal.utils import (
     QUERY_TAG_STRING,
     create_or_update_statement_params_with_query_tag,

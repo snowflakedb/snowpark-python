@@ -1,10 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
-#
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
-#
 import threading
 from concurrent.futures import ALL_COMPLETED, ThreadPoolExecutor, wait
 from unittest import mock
