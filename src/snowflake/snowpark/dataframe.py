@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -3688,6 +3688,8 @@ class DataFrame:
         self,
         col_name: str,
         col: Union[Column, TableFunctionCall],
+        *,
+        keep_column_order: bool = False,
         ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
@@ -3730,6 +3732,7 @@ class DataFrame:
         Args:
             col_name: The name of the column to add or replace.
             col: The :class:`Column` or :class:`table_function.TableFunctionCall` with single column output to add or replace.
+            keep_column_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplacing a column.
         """
         if ast_stmt is None and _emit_ast:
             ast_stmt = self._session._ast_batch.assign()
@@ -3738,7 +3741,13 @@ class DataFrame:
             build_expr_from_snowpark_column_or_table_fn(expr.col, col)
             self._set_ast_ref(expr.df)
 
-        df = self.with_columns([col_name], [col], _ast_stmt=ast_stmt, _emit_ast=False)
+        df = self.with_columns(
+            [col_name],
+            [col],
+            keep_column_order=keep_column_order,
+            _ast_stmt=ast_stmt,
+            _emit_ast=False,
+        )
 
         if _emit_ast:
             df._ast_id = ast_stmt.var_id.bitfield1
@@ -3751,6 +3760,8 @@ class DataFrame:
         self,
         col_names: List[str],
         values: List[Union[Column, TableFunctionCall]],
+        *,
+        keep_column_order: bool = False,
         _ast_stmt: proto.Expr = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
@@ -3797,6 +3808,7 @@ class DataFrame:
             col_names: A list of the names of the columns to add or replace.
             values: A list of the :class:`Column` objects or :class:`table_function.TableFunctionCall` object
                     to add or replace.
+            keep_column_order: If ``True``, the original order of the columns in the DataFrame is preserved when reaplacing a column.
         """
         # Get a list of the new columns and their dedupped values
         qualified_names = [quote_name(n) for n in col_names]
@@ -3837,14 +3849,7 @@ class DataFrame:
                     names = col_names[i : i + offset + 1]
                     new_cols.append(col.as_(*names))
 
-        # Get a list of existing column names that are not being replaced
-        old_cols = [
-            Column(field)
-            for field in self._output
-            if field.name not in new_column_names
-        ]
-
-        # AST.
+        # AST
         if _ast_stmt is None and _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(
@@ -3856,8 +3861,41 @@ class DataFrame:
                 build_expr_from_snowpark_column_or_table_fn(expr.values.add(), value)
             self._set_ast_ref(expr.df)
 
-        # Put it all together
-        df = self.select([*old_cols, *new_cols], _ast_stmt=_ast_stmt, _emit_ast=False)
+        # If there's a table function call or keep_column_order=False,
+        # we do the original "remove old columns and append new ones" logic.
+        if num_table_func_calls > 0 or not keep_column_order:
+            old_cols = [
+                Column(field)
+                for field in self._output
+                if field.name not in new_column_names
+            ]
+            final_cols = [*old_cols, *new_cols]
+        else:
+            # keep_column_order=True and no table function calls
+            # Re-insert replaced columns in their original positions if they exist
+            replaced_map = {
+                name: new_col for name, new_col in zip(qualified_names, new_cols)
+            }
+            final_cols = []
+            used = set()  # track which new cols we've inserted
+
+            for field in self._output:
+                field_quoted = quote_name(field.name)
+                # If this old column name is being replaced, insert the new col at the same position
+                if field_quoted in replaced_map:
+                    final_cols.append(replaced_map[field_quoted])
+                    used.add(field_quoted)
+                else:
+                    # keep the original col
+                    final_cols.append(Column(field))
+
+            # For any new columns that didn't exist in the old schema, append them at the end
+            for name, c in replaced_map.items():
+                if name not in used:
+                    final_cols.append(c)
+
+        # Construct the final DataFrame
+        df = self.select(final_cols, _ast_stmt=_ast_stmt, _emit_ast=False)
 
         if _emit_ast:
             df._ast_id = _ast_stmt.var_id.bitfield1
