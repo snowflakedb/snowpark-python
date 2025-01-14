@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
 import datetime
@@ -4447,3 +4447,15 @@ def test_map_negative(session):
             output_types=[IntegerType(), StringType()],
             output_column_names=["a", "b", "c"],
         )
+
+
+def test_with_column_keep_column_order(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+    df1 = df.with_column("A", lit(0), keep_column_order=True)
+    assert df1.columns == ["A", "B"]
+    df2 = df.with_columns(["A"], [lit(0)], keep_column_order=True)
+    assert df2.columns == ["A", "B"]
+    df3 = df.with_columns(["A", "C"], [lit(0), lit(0)], keep_column_order=True)
+    assert df3.columns == ["A", "B", "C"]
+    df3 = df.with_columns(["C", "A"], [lit(0), lit(0)], keep_column_order=True)
+    assert df3.columns == ["A", "B", "C"]
