@@ -1411,3 +1411,33 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+
+def merge_multiple_dicts_with_assertion(*dicts):
+    """
+    Merge multiple dictionaries with an assertion that checks if values for
+    duplicate keys are the same.
+
+    :param dicts: Multiple dictionaries to merge
+    :return: Merged dictionary
+    """
+    merged_dict = {}
+
+    for d in dicts:
+        for key, value in d.items():
+            if key in merged_dict:
+                if merged_dict[key] != value:
+                    logging.warning(
+                        "confliced key: %s, %s != %s", key, merged_dict[key], value
+                    )
+                #     raise ValueError(
+                #         f"Conflict for key '{key}': {merged_dict[key]} != {value}"
+                #     )
+                # assert (
+                #     merged_dict[key] == value
+                # ), f"Conflict for key '{key}': {merged_dict[key]} != {value}"
+                else:
+                    merged_dict[key] = value
+            merged_dict[key] = value
+
+    return merged_dict

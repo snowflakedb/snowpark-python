@@ -56,6 +56,7 @@ def mock_snowflake_plan() -> SnowflakePlan:
     fake_snowflake_plan = mock.create_autospec(SnowflakePlan)
     fake_snowflake_plan._id = "dummy id"
     fake_snowflake_plan.expr_to_alias = {}
+    fake_snowflake_plan.expr_to_alias_v2 = {}
     fake_snowflake_plan.df_aliased_col_name_to_real_col_name = {}
     fake_snowflake_plan.queries = [
         Query("FAKE SQL", query_id_place_holder="query_id_place_holder_abc")
@@ -125,6 +126,7 @@ def verify_snowflake_plan(plan: SnowflakePlan, expected_plan: SnowflakePlan) -> 
     assert plan.queries == expected_plan.queries
     assert plan.post_actions == expected_plan.post_actions
     assert plan.expr_to_alias == expected_plan.expr_to_alias
+    assert plan.expr_to_alias_v2 == expected_plan.expr_to_alias_v2
     assert plan.is_ddl_on_temp_object == expected_plan.is_ddl_on_temp_object
     assert plan._output_dict == expected_plan._output_dict
     assert (
@@ -167,6 +169,7 @@ def test_logical_plan(
             schema_query="",
             post_actions=[],
             expr_to_alias={},
+            expr_to_alias_v2={},
             source_plan=src_join_plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
@@ -295,6 +298,7 @@ def test_selectable_entity(
             schema_query="",
             post_actions=[],
             expr_to_alias={},
+            expr_to_alias_v2={},
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
@@ -326,6 +330,7 @@ def test_select_sql(
             schema_query="",
             post_actions=[],
             expr_to_alias={},
+            expr_to_alias_v2={},
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
@@ -362,6 +367,7 @@ def test_select_snowflake_plan(
         schema_query="",
         post_actions=[],
         expr_to_alias={},
+        expr_to_alias_v2={},
         source_plan=project_plan,
         api_calls=None,
         df_aliased_col_name_to_real_col_name=None,
@@ -376,6 +382,7 @@ def test_select_snowflake_plan(
             schema_query="",
             post_actions=[],
             expr_to_alias={},
+            expr_to_alias_v2={},
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
@@ -426,6 +433,7 @@ def test_select_statement(
             schema_query="",
             post_actions=[],
             expr_to_alias={},
+            expr_to_alias_v2={},
             source_plan=None,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
@@ -441,6 +449,7 @@ def test_select_statement(
             schema_query="",
             post_actions=[],
             expr_to_alias={},
+            expr_to_alias_v2={},
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
@@ -489,6 +498,7 @@ def test_select_table_function(
         schema_query="",
         post_actions=[],
         expr_to_alias={},
+        expr_to_alias_v2={},
         source_plan=project_plan,
         api_calls=None,
         df_aliased_col_name_to_real_col_name=None,
@@ -505,6 +515,7 @@ def test_select_table_function(
             schema_query="",
             post_actions=[],
             expr_to_alias={},
+            expr_to_alias_v2={},
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,
@@ -562,6 +573,7 @@ def test_set_statement(
             schema_query="",
             post_actions=[],
             expr_to_alias={},
+            expr_to_alias_v2={},
             source_plan=plan,
             api_calls=None,
             df_aliased_col_name_to_real_col_name=None,

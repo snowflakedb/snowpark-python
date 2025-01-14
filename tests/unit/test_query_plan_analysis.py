@@ -166,6 +166,7 @@ def test_select_statement_individual_node_complexity(
     from_.pre_actions = None
     from_.post_actions = None
     from_.expr_to_alias = {}
+    from_.expr_to_alias_v2 = {}
     from_.df_aliased_col_name_to_real_col_name = {}
 
     plan_node = SelectStatement(from_=from_, analyzer=mock_analyzer)
@@ -203,6 +204,7 @@ def test_set_statement_individual_node_complexity(mock_analyzer, set_operator):
     mock_selectable.pre_actions = None
     mock_selectable.post_actions = None
     mock_selectable.expr_to_alias = {}
+    mock_selectable.expr_to_alias_v2 = {}
     mock_selectable.df_aliased_col_name_to_real_col_name = {}
     set_operands = [
         SetOperand(mock_selectable, set_operator),
@@ -394,6 +396,7 @@ def test_select_statement_get_complexity_map_no_column_state(mock_analyzer):
     mock_from.pre_actions = None
     mock_from.post_actions = None
     mock_from.expr_to_alias = {}
+    mock_from.expr_to_alias_v2 = {}
     mock_from.df_aliased_col_name_to_real_col_name = {}
     select_statement = SelectStatement(analyzer=mock_analyzer, from_=mock_from)
 
@@ -412,6 +415,7 @@ def test_select_statement_get_complexity_map_mismatch_projection_length(mock_ana
     mock_from.pre_actions = None
     mock_from.post_actions = None
     mock_from.expr_to_alias = {}
+    mock_from.expr_to_alias_v2 = {}
     mock_from.df_aliased_col_name_to_real_col_name = {}
 
     # create a select_statement with 2 projections
