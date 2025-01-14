@@ -1777,3 +1777,34 @@ def test_filepath_with_single_quote(session):
     )
 
     assert result1 == result2
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="read json not supported in localtesting",
+)
+def test_read_json_user_input_schema(session):
+    test_file = f"@{tmp_stage_name1}/{test_file_json}"
+
+    schema = StructType(
+        [
+            StructField("fruit", StringType(), True),
+            StructField("size", StringType(), True),
+            StructField("color", StringType(), True),
+        ]
+    )
+
+    df = session.read.schema(schema).json(test_file)
+    Utils.check_answer(df, [Row(fruit="Apple", size="Large", color="Red")])
+
+    schema = StructType(
+        [
+            StructField("fruit", StringType(), True),
+            StructField("size", StringType(), True),
+            StructField("not_included_column", StringType(), True),
+        ]
+    )
+
+    df = session.read.schema(schema).json(test_file)
+    print(df.collect())
+    Utils.check_answer(df, [Row(fruit="Apple", size="Large", not_included_column=None)])
