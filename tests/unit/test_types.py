@@ -331,7 +331,7 @@ def test_struct_type_add():
     field_c = StructField("c", LongType())
 
     expected = StructType([field_a, field_b, field_c])
-    struct_type = StructType().add(field_a).add(field_b).add("c", LongType())
+    struct_type = StructType([]).add(field_a).add(field_b).add("c", LongType())
     assert struct_type == expected
     with pytest.raises(
         ValueError,

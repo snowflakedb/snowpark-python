@@ -529,39 +529,6 @@ def test_structured_dtypes_iceberg(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
-def test_structured_dtypes_negative(structured_type_session, structured_type_support):
-    if not structured_type_support:
-        pytest.skip("Test requires structured type support.")
-
-    # SNOW-1862700: Array Type and Map Type missing element or value fails to generate AST
-    with pytest.raises(
-        NotImplementedError, match="AST does not support empty element_type."
-    ):
-        x = ArrayType()
-        x._fill_ast(mock.Mock())
-
-    with pytest.raises(
-        NotImplementedError, match="AST does not support empty key or value type."
-    ):
-        x = MapType()
-        x._fill_ast(mock.Mock())
-
-    # Maptype requires both key and value type be set if either is set
-    with pytest.raises(
-        ValueError,
-        match="Must either set both key_type and value_type or leave both unset.",
-    ):
-        MapType(StringType())
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="local testing does not fully support structured types yet.",
-)
-@pytest.mark.skipif(
-    "config.getoption('enable_ast', default=False)",
-    reason="SNOW-1862700: AST does not support new structured type semantics yet.",
-)
 def test_udaf_structured_map_downcast(
     structured_type_session, structured_type_support, caplog
 ):
@@ -592,7 +559,7 @@ def test_udaf_structured_map_downcast(
             "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object."
             in caplog.text
         )
-        assert MapCollector._return_type == MapType()
+        assert MapCollector._return_type == StructType()
 
 
 @pytest.mark.skipif(
@@ -972,18 +939,14 @@ def test_dtypes_vector(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: SNOW-1372813 Cast to StructType not supported",
 )
-@pytest.mark.skipif(
-    "config.getoption('enable_ast', default=False)",
-    reason="SNOW-1862700: AST does not support new structured type semantics yet.",
-)
 def test_structured_dtypes_cast(structured_type_session, structured_type_support):
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
     expected_semi_schema = StructType(
         [
             StructField("ARR", ArrayType(), nullable=True),
-            StructField("MAP", MapType(), nullable=True),
-            StructField("OBJ", MapType(), nullable=True),
+            StructField("MAP", StructType(), nullable=True),
+            StructField("OBJ", StructType(), nullable=True),
         ]
     )
     expected_structured_schema = StructType(
@@ -1012,8 +975,8 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
         schema=StructType(
             [
                 StructField("arr", ArrayType()),
-                StructField("map", MapType()),
-                StructField("obj", MapType()),
+                StructField("map", StructType()),
+                StructField("obj", StructType()),
             ]
         ),
     )

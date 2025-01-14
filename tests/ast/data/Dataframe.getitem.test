@@ -28,7 +28,10 @@ body {
           }
         }
         src {
+          end_column: 41
+          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -60,7 +63,10 @@ body {
               }
             }
             src {
+              end_column: 24
+              end_line: 27
               file: "SRC_POSITION_TEST_MODE"
+              start_column: 18
               start_line: 27
             }
           }
@@ -76,7 +82,10 @@ body {
               }
             }
             src {
+              end_column: 35
+              end_line: 27
               file: "SRC_POSITION_TEST_MODE"
+              start_column: 26
               start_line: 27
             }
           }
@@ -89,7 +98,10 @@ body {
           }
         }
         src {
+          end_column: 36
+          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
           start_line: 27
         }
         variadic: true
@@ -113,7 +125,10 @@ body {
           bitfield1: 2
         }
         src {
+          end_column: 46
+          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
           start_line: 27
         }
       }
@@ -154,14 +169,20 @@ body {
             pos_args {
               string_val {
                 src {
+                  end_column: 26
+                  end_line: 29
                   file: "SRC_POSITION_TEST_MODE"
+                  start_column: 8
                   start_line: 29
                 }
                 v: "STR"
               }
             }
             src {
+              end_column: 26
+              end_line: 29
               file: "SRC_POSITION_TEST_MODE"
+              start_column: 8
               start_line: 29
             }
           }
@@ -182,14 +203,20 @@ body {
             pos_args {
               string_val {
                 src {
+                  end_column: 26
+                  end_line: 29
                   file: "SRC_POSITION_TEST_MODE"
+                  start_column: 8
                   start_line: 29
                 }
                 v: "STR"
               }
             }
             src {
+              end_column: 26
+              end_line: 29
               file: "SRC_POSITION_TEST_MODE"
+              start_column: 8
               start_line: 29
             }
           }
@@ -202,7 +229,10 @@ body {
           }
         }
         src {
+          end_column: 26
+          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
           start_line: 29
         }
       }
@@ -225,7 +255,10 @@ body {
           bitfield1: 5
         }
         src {
+          end_column: 36
+          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
           start_line: 29
         }
       }
