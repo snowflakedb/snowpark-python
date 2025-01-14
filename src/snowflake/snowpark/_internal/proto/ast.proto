@@ -2248,7 +2248,7 @@ message SpDataframeWithColumns {
 // sp-df-io.ir:84
 message SpDataframeWrite {
   SpDataframeExpr df = 1;
-  repeated Tuple_String_String options = 2;
+  repeated Tuple_String_Expr options = 2;
   Expr partition_by = 3;
   SpSaveMode save_mode = 4;
   SrcPosition src = 5;
