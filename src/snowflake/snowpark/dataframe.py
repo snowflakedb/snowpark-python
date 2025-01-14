@@ -25,6 +25,7 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark.context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
@@ -332,6 +333,47 @@ def _disambiguate(
         ],
         _emit_ast=False,
     )
+
+    if snowflake.snowpark.context._use_v2_alias:
+        # update the conflicting expr_id, plan_id -> alias mapping caused by the internal intermediate disambiguated DF
+        # suppose left DF_L and right DF_R both have a column named colk from DF_K
+        # - DF_K.colk is aliased as l_colk in the left iternal intermediate DF_L_Alias
+        # - DF_K.colk is aliased as r_colk in the right internal intermediate DF_R_Alias
+        # users will access the column through DF_L.colk and DF_R.colk, DF_L_Alias and DF_R_Alias are invisible to users
+        # if users want to access the columns through DF_K.colk, it is ambiguous as we don't know which DF to reference
+        def update_expr_to_alias_dicts(left_expr_to_alias, right_expr_to_alias):
+            updated_left = {}
+            updated_right = {}
+
+            for key in set(left_expr_to_alias.keys()).union(right_expr_to_alias.keys()):
+                value_left = left_expr_to_alias.get(key)
+                value_right = right_expr_to_alias.get(key)
+
+                if key in left_expr_to_alias and key in right_expr_to_alias:
+                    if value_left != value_right:
+                        # Update the keys with respective UUIDs if values differ
+                        # It indicates the same column name is used in both DataFrames and aliased differently
+                        # we need to update the plan id so that users references to the column are correct
+                        updated_left[(key[0], lhs._plan.uuid)] = value_left
+                        updated_right[(key[0], rhs._plan.uuid)] = value_right
+                    else:
+                        # Retain the key-value pair if values are the same
+                        updated_left[key] = value_left
+                        updated_right[key] = value_left
+                elif key in left_expr_to_alias:
+                    # Retain key-value pairs unique to left_expr_to_alias
+                    updated_left[key] = value_left
+                elif key in right_expr_to_alias:
+                    # Retain key-value pairs unique to right_expr_to_alias
+                    updated_right[key] = value_right
+
+            return updated_left, updated_right
+
+        (
+            lhs_remapped._plan.expr_to_alias,
+            rhs_remapped._plan.expr_to_alias,
+        ) = update_expr_to_alias_dicts(lhs._plan.expr_to_alias, rhs._plan.expr_to_alias)
+
     return lhs_remapped, rhs_remapped
 
 
@@ -5585,7 +5627,9 @@ Query List:
         )
 
         if len(cols) == 1:
-            return cols[0].with_name(normalized_col_name)
+            return cols[0].with_name(
+                normalized_col_name, snowflake_plan_id=self._plan.uuid
+            )
         else:
             raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
                 col_name
@@ -5593,11 +5637,14 @@ Query List:
 
     @cached_property
     def _output(self) -> List[Attribute]:
-        return (
+        attrs = (
             self._select_statement.column_states.projection
             if self._select_statement
             else self._plan.output
         )
+        for attr in attrs:
+            attr.snowflake_plan_id = self._plan.uuid
+        return attrs
 
     @cached_property
     def schema(self) -> StructType:

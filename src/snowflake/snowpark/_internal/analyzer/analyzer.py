@@ -4,9 +4,10 @@
 #
 import uuid
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union, Tuple
 
 import snowflake.snowpark
+import snowflake.snowpark.context
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     alias_expression,
     binary_arithmetic_expression,
@@ -151,7 +152,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark._internal.utils import quote_name, merge_multiple_dicts
 from snowflake.snowpark.types import BooleanType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
@@ -164,9 +165,16 @@ class Analyzer:
     def __init__(self, session: "snowflake.snowpark.session.Session") -> None:
         self.session = session
         self.plan_builder = SnowflakePlanBuilder(self.session)
-        self.generated_alias_maps = {}
+        self.generated_alias_maps: Union[
+            Dict[uuid.UUID, str], Dict[Tuple[uuid.UUID, uuid.UUID], str]
+        ] = {}
         self.subquery_plans = []
-        self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
+        # in v1, alias map key is expr_id, value is alias name
+        # in v2, alias map key is a tuple (expr_id, snowflake_plan_id), value is alias name which represents
+        #  <expr_id> coming from <snowflake_plan_id> is aliased to <alias>
+        self.alias_maps_to_use: Optional[
+            Union[Dict[uuid.UUID, str], Dict[Tuple[uuid.UUID, uuid.UUID], str]]
+        ] = None
 
     def analyze(
         self,
@@ -367,7 +375,12 @@ class Analyzer:
 
         if isinstance(expr, Attribute):
             assert self.alias_maps_to_use is not None
-            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            key = (
+                (expr.expr_id, expr.snowflake_plan_id)
+                if snowflake.snowpark.context._use_v2_alias
+                else expr.expr_id
+            )
+            name = self.alias_maps_to_use.get(key, expr.name)
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
@@ -629,7 +642,12 @@ class Analyzer:
         if isinstance(expr, Alias):
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
-                self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                key = (
+                    (expr.child.expr_id, expr.child.snowflake_plan_id)
+                    if snowflake.snowpark.context._use_v2_alias
+                    else expr.child.expr_id
+                )
+                self.generated_alias_maps[key] = quoted_name
                 assert self.alias_maps_to_use is not None
                 for k, v in self.alias_maps_to_use.items():
                     if v == expr.child.name:
@@ -805,19 +823,24 @@ class Analyzer:
             self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
             use_maps = {}
-            # get counts of expr_to_alias keys
-            counts = Counter()
-            for v in resolved_children.values():
-                if v.expr_to_alias:
-                    counts.update(list(v.expr_to_alias.keys()))
+            if snowflake.snowpark.context._use_v2_alias:
+                use_maps = merge_multiple_dicts(
+                    *[v.expr_to_alias for v in resolved_children.values()]
+                )
+            else:
+                # get counts of expr_to_alias keys
+                counts = Counter()
+                for v in resolved_children.values():
+                    if v.expr_to_alias:
+                        counts.update(list(v.expr_to_alias.keys()))
 
-            # Keep only non-shared expr_to_alias keys
-            # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
-            for v in resolved_children.values():
-                if v.expr_to_alias:
-                    use_maps.update(
-                        {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
-                    )
+                # Keep only non-shared expr_to_alias keys
+                # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
+                for v in resolved_children.values():
+                    if v.expr_to_alias:
+                        use_maps.update(
+                            {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
+                        )
 
             self.alias_maps_to_use = use_maps
 

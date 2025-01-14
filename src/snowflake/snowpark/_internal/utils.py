@@ -1411,3 +1411,24 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+
+def merge_multiple_dicts(*dicts):
+    # used for v2 alias mapping: (expr id, plan id) -> alias
+    # only merge non-conflicting keys into the merged dict
+    # conflicting keys is valid in case of cross join, in which case, the alias mapping is not used so we just ignore
+    # in other join cases, we won't have conflicting keys
+    merged_dict = {}
+
+    # Collect all unique keys from all dictionaries
+    all_keys = set().union(*dicts)
+
+    for key in all_keys:
+        # Collect all values for this key from all dictionaries
+        values = [d[key] for d in dicts if key in d]
+
+        # If all values are the same, add to the merged dictionary
+        if len(set(values)) == 1:
+            merged_dict[key] = values[0]
+
+    return merged_dict

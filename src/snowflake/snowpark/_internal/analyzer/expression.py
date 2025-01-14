@@ -223,13 +223,21 @@ class InExpression(Expression):
 
 
 class Attribute(Expression, NamedExpression):
-    def __init__(self, name: str, datatype: DataType, nullable: bool = True) -> None:
+    def __init__(
+        self,
+        name: str,
+        datatype: DataType,
+        nullable: bool = True,
+        *,
+        snowflake_plan_id: str = None,
+    ) -> None:
         super().__init__()
         self.name = name
         self.datatype: DataType = datatype
         self.nullable = nullable
+        self.snowflake_plan_id = snowflake_plan_id
 
-    def with_name(self, new_name: str) -> "Attribute":
+    def with_name(self, new_name: str, *, snowflake_plan_id: str = None) -> "Attribute":
         if self.name == new_name:
             return self
         else:
@@ -237,6 +245,7 @@ class Attribute(Expression, NamedExpression):
                 snowflake.snowpark._internal.utils.quote_name(new_name),
                 self.datatype,
                 self.nullable,
+                snowflake_plan_id=snowflake_plan_id,
             )
 
     @property

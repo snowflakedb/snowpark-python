@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 import snowflake.connector
 import snowflake.snowpark
+import snowflake.snowpark.context
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     TEMPORARY_STRING_SET,
     aggregate_statement,
@@ -108,6 +109,7 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_sql_select_statement,
+    merge_multiple_dicts,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -364,7 +366,10 @@ class SnowflakePlan(LogicalPlan):
 
     @cached_property
     def output(self) -> List[Attribute]:
-        return [Attribute(a.name, a.datatype, a.nullable) for a in self.attributes]
+        return [
+            Attribute(a.name, a.datatype, a.nullable, snowflake_plan_id=self.uuid)
+            for a in self.attributes
+        ]
 
     @property
     def output_dict(self) -> Dict[str, Any]:
@@ -506,6 +511,8 @@ class SnowflakePlan(LogicalPlan):
         return copied_plan
 
     def add_aliases(self, to_add: Dict) -> None:
+        # for non-conflicting keys, they will be added to the dict
+        # for conflicting keys, the value for to_add will overwrite the existing value as the expr_id is re-aliased
         self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
 
@@ -580,17 +587,22 @@ class SnowflakePlanBuilder:
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
-        common_columns = set(select_left.expr_to_alias.keys()).intersection(
-            select_right.expr_to_alias.keys()
-        )
-        new_expr_to_alias = {
-            k: v
-            for k, v in {
-                **select_left.expr_to_alias,
-                **select_right.expr_to_alias,
-            }.items()
-            if k not in common_columns
-        }
+        if snowflake.snowpark.context._use_v2_alias:
+            new_expr_to_alias = merge_multiple_dicts(
+                select_left.expr_to_alias, select_right.expr_to_alias
+            )
+        else:
+            common_columns = set(select_left.expr_to_alias.keys()).intersection(
+                select_right.expr_to_alias.keys()
+            )
+            new_expr_to_alias = {
+                k: v
+                for k, v in {
+                    **select_left.expr_to_alias,
+                    **select_right.expr_to_alias,
+                }.items()
+                if k not in common_columns
+            }
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
         # Need to do a deduplication to avoid repeated query.
