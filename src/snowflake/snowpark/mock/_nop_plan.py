@@ -6,6 +6,7 @@ from functools import cached_property
 from typing import Any, Dict, List, Optional
 
 import snowflake.snowpark
+from snowflake.snowpark.mock import TableEmulator
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.analyzer.binary_plan_node import Join
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -116,6 +117,9 @@ def resolve_attributes(
         )
         pivot_attrs.extend(pivot_result_cols)
         attributes = pivot_attrs
+
+    elif isinstance(plan, TableEmulator):
+        attributes = [Attribute(name, _NumericType(), False) for name in plan.columns]
 
     elif isinstance(plan, TableUpdate):
         attributes = [
