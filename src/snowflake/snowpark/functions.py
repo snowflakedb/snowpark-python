@@ -224,6 +224,7 @@ from snowflake.snowpark.stored_procedure import (
     StoredProcedureRegistration,
 )
 from snowflake.snowpark.types import (
+    ArrayType,
     DataType,
     FloatType,
     PandasDataFrameType,
@@ -3561,20 +3562,67 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         |Hello                                              |
         -----------------------------------------------------
         <BLANKLINE>
+
+        >>> df = session.create_dataframe([
+        ...     (['Hello', 'World', None], None, '!'),
+        ...     (['Hi', 'World', "."], "I'm Dad", '.'),
+        ... ], schema=['a', 'b', 'c'])
+        >>> df.select(_concat_ws_ignore_nulls(", ", "a", "b", "c")).show()
+        -----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS(', ', ""A"",""B"",""C"")"  |
+        -----------------------------------------------------
+        |Hello, World, !                                    |
+        |Hi, World, ., I'm Dad, .                           |
+        -----------------------------------------------------
+        <BLANKLINE>
     """
     # TODO: SNOW-1831917 create ast
     columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
     names = ",".join([c.get_name() for c in columns])
 
-    input_column_array = array_construct_compact(*columns, _emit_ast=False)
-    reduced_result = builtin("reduce", _emit_ast=False)(
-        input_column_array,
-        lit("", _emit_ast=False),
-        sql_expr(f"(l, r) -> l || '{sep}' || r"),
-    )
-    return substring(reduced_result, len(sep) + 1, _emit_ast=False).alias(
-        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False
-    )
+    # The implementation of this function is as follows with example input of
+    # sep = "," and row = [a, NULL], b, NULL, c:
+    # 1. Cast all columns to array.
+    #   [a, NULL], [b], NULL, [c]
+    # 2. Combine all arrays into a array of arrays after removing nulls (array_construct_compact).
+    #   [[a, NULL], [b], [c]]
+    # 3. Flatten the array of arrays into a single array (array_flatten).
+    #   [a, NULL, b, c]
+    # 4. Filter out nulls (array_remove_nulls).
+    #   [a, b, c]
+    # 5. Concatenate the non-null values into a single string (concat_strings_with_sep).
+    #   "a,b,c"
+
+    def array_remove_nulls(col: Column) -> Column:
+        """Expects an array and returns an array with nulls removed."""
+        return builtin("filter", _emit_ast=False)(
+            col, sql_expr("x -> NOT IS_NULL_VALUE(x)", _emit_ast=False)
+        )
+
+    def concat_strings_with_sep(col: Column) -> Column:
+        """
+        Expects an array of strings and returns a single string
+        with the values concatenated with the separator.
+        """
+        return substring(
+            builtin("reduce", _emit_ast=False)(
+                col, lit(""), sql_expr(f"(l, r) -> l || '{sep}' || r", _emit_ast=False)
+            ),
+            len(sep) + 1,
+            _emit_ast=False,
+        )
+
+    return concat_strings_with_sep(
+        array_remove_nulls(
+            array_flatten(
+                array_construct_compact(
+                    *[c.cast(ArrayType(), _emit_ast=False) for c in columns],
+                    _emit_ast=False,
+                ),
+                _emit_ast=False,
+            )
+        )
+    ).alias(f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False)
 
 
 @publicapi
@@ -3828,6 +3876,19 @@ def date_format(
         |2022/05/15 10:45:00  |
         -----------------------
         <BLANKLINE>
+
+    Example::
+        >>> df = session.sql("select '2023-10-10'::DATE as date_col, '2023-10-10 15:30:00'::TIMESTAMP as timestamp_col")
+        >>> df.select(
+        ...     date_format('date_col', 'YYYY/MM/DD').as_('formatted_dt'),
+        ...     date_format('timestamp_col', 'YYYY/MM/DD HH:mi:ss').as_('formatted_ts')
+        ... ).show()
+        ----------------------------------------
+        |"FORMATTED_DT"  |"FORMATTED_TS"       |
+        ----------------------------------------
+        |2023/10/10      |2023/10/10 15:30:00  |
+        ----------------------------------------
+        <BLANKLINE>
     """
 
     # AST.
@@ -3836,7 +3897,11 @@ def date_format(
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "date_format", c, fmt)
 
-    ans = to_char(try_cast(c, TimestampType(), _emit_ast=False), fmt, _emit_ast=False)
+    ans = to_char(
+        try_cast(to_char(c, _emit_ast=False), TimestampType(), _emit_ast=False),
+        fmt,
+        _emit_ast=False,
+    )
     ans._ast = ast
     return ans
 
