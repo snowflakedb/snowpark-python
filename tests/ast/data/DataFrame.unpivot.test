@@ -10,7 +10,7 @@ df = df.unpivot("sales", "month", ["jan", "feb"])
 
 df = session.create_dataframe([(1, "electronics", 100, 200), (2, "clothes", 100, 300)], schema=["empid", "dept", "jan", "feb"])
 
-df = df.unpivot("sales", "month", ["jan", "feb"])
+df = df.unpivot("sales", "month", ["jan", "feb"], False)
 
 ## EXPECTED ENCODED AST
 

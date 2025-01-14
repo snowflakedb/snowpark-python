@@ -161,28 +161,12 @@ class Decoder:
             python_map[key] = value
         return python_map
 
-    def decode_fn_name_expr(self, fn_name: proto.FnName) -> str:
-        """
-        Decode a function name expression to get the function name.
+    def convert_name_to_list(self, name: any) -> List:
+        if isinstance(name, str):
+            return [name]
+        return [qualified_name for qualified_name in name]
 
-        Parameters
-        ----------
-        fn_name : proto.FnName
-            The function name to decode.
-
-        Returns
-        -------
-        str
-            The decoded function name.
-        """
-        if hasattr(fn_name, "fn_name_flat"):
-            return fn_name.fn_name_flat.name
-        elif hasattr(fn_name, "fn_name_structured"):
-            return fn_name.fn_name_structured.name
-        else:
-            raise ValueError("Function name not found in proto.FnName")
-
-    def decode_table_name_expr(self, table_name: proto.SpTableName) -> str:
+    def decode_name_expr(self, table_name: proto.SpName) -> str:
         """
         Decode a table name expression to get the table name.
 
@@ -196,10 +180,10 @@ class Decoder:
         str
             The decoded table name.
         """
-        if hasattr(table_name, "sp_table_name_flat"):
-            return table_name.sp_table_name_flat.name
-        elif hasattr(table_name, "sp_table_name_structured"):
-            return table_name.sp_table_name_structured.name
+        if table_name.name.HasField("sp_name_flat"):
+            return table_name.name.sp_name_flat.name
+        elif table_name.name.HasField("sp_name_structured"):
+            return table_name.name.sp_name_structured.name
         else:
             raise ValueError("Table name not found in proto.SpTableName")
 
@@ -223,7 +207,7 @@ class Decoder:
             # case "trait_fn_name_ref_expr":
             #     pass
             case "builtin_fn":
-                return self.decode_fn_name_expr(fn_ref_expr.builtin_fn.name)
+                return self.decode_name_expr(fn_ref_expr.builtin_fn.name)
             # case "call_table_function_expr":
             #     pass
             # case "indirect_table_fn_id_ref":
@@ -488,6 +472,42 @@ class Decoder:
             case _:
                 raise ValueError(
                     "Unknown data type: %s" % data_type_expr.WhichOneof("variant")
+                )
+
+    def decode_join_type(self, join_type: proto.SpJoinType) -> str:
+        """
+        Decode a join type expression to get the join type.
+
+        Parameters
+        ----------
+        join_type : proto.SpJoinType
+            The expression to decode.
+
+        Returns
+        -------
+        str
+            The decoded join type.
+        """
+        match join_type.WhichOneof("variant"):
+            case "sp_join_type__asof":
+                return "asof"
+            case "sp_join_type__cross":
+                return "cross"
+            case "sp_join_type__full_outer":
+                return "full"
+            case "sp_join_type__inner":
+                return "inner"
+            case "sp_join_type__left_anti":
+                return "anti"
+            case "sp_join_type__left_outer":
+                return "left"
+            case "sp_join_type__left_semi":
+                return "semi"
+            case "sp_join_type__right_outer":
+                return "right"
+            case _:
+                raise ValueError(
+                    "Unknown join type: %s" % join_type.WhichOneof("variant")
                 )
 
     def decode_timezone_expr(self, tz_expr: proto.PythonTimeZone) -> Any:
@@ -796,9 +816,9 @@ class Decoder:
 
             case "sp_column_string_substr":
                 col = self.decode_expr(expr.sp_column_string_substr.col)
-                len = self.decode_expr(expr.sp_column_string_substr.len)
+                length = self.decode_expr(expr.sp_column_string_substr.len)
                 pos = self.decode_expr(expr.sp_column_string_substr.pos)
-                return col.substr(pos, len)
+                return col.substr(pos, length)
 
             case "sp_column_string_ends_with":
                 col = self.decode_expr(expr.sp_column_string_ends_with.col)
@@ -1140,11 +1160,52 @@ class Decoder:
                 other = self.decode_expr(expr.sp_dataframe_intersect.other)
                 return df.intersect(other)
 
+            case "sp_dataframe_join":
+                d = MessageToDict(expr.sp_dataframe_join)
+                join_expr = d.get("joinExpr", None)
+                join_expr = (
+                    self.decode_expr(expr.sp_dataframe_join.join_expr)
+                    if join_expr
+                    else None
+                )
+                join_type = d.get("joinType", None)
+                join_type = (
+                    self.decode_join_type(expr.sp_dataframe_join.join_type)
+                    if join_type
+                    else None
+                )
+                lhs = self.decode_expr(expr.sp_dataframe_join.lhs)
+                rhs = self.decode_expr(expr.sp_dataframe_join.rhs)
+                lsuffix = d.get("lsuffix", "")
+                rsuffix = d.get("rsuffix", "")
+                match_condition = d.get("matchCondition", None)
+                match_condition = (
+                    self.decode_expr(expr.sp_dataframe_join.match_condition)
+                    if match_condition
+                    else None
+                )
+                return lhs.join(
+                    right=rhs,
+                    on=join_expr,
+                    how=join_type,
+                    lsuffix=lsuffix,
+                    rsuffix=rsuffix,
+                    match_condition=match_condition,
+                )
+
             case "sp_dataframe_limit":
                 df = self.decode_expr(expr.sp_dataframe_limit.df)
                 n = expr.sp_dataframe_limit.n
                 offset = expr.sp_dataframe_limit.offset
                 return df.limit(n, offset)
+
+            case "sp_dataframe_natural_join":
+                lhs = self.decode_expr(expr.sp_dataframe_natural_join.lhs)
+                rhs = self.decode_expr(expr.sp_dataframe_natural_join.rhs)
+                join_type = self.decode_join_type(
+                    expr.sp_dataframe_natural_join.join_type
+                )
+                return lhs.natural_join(right=rhs, how=join_type)
 
             case "sp_dataframe_na_drop__python":
                 df = self.decode_expr(expr.sp_dataframe_na_drop__python.df)
@@ -1212,6 +1273,28 @@ class Decoder:
                 )
                 return df.na.replace(to_replace, value, subset)
 
+            case "sp_dataframe_pivot":
+                df = self.decode_expr(expr.sp_dataframe_pivot.df)
+                pivot_col = self.decode_expr(expr.sp_dataframe_pivot.pivot_col)
+                default_on_null = self.decode_expr(
+                    expr.sp_dataframe_pivot.default_on_null
+                )
+                match expr.sp_dataframe_pivot.values.WhichOneof("sealed_value"):
+                    case "sp_pivot_value__dataframe":
+                        values = self.decode_expr(
+                            expr.sp_dataframe_pivot.values.sp_pivot_value__dataframe.v
+                        )
+                    case "sp_pivot_value__expr":
+                        values = self.decode_expr(
+                            expr.sp_dataframe_pivot.values.sp_pivot_value__expr.v
+                        )
+                    case _:
+                        raise ValueError(
+                            "Unknown pivot value: %s"
+                            % expr.sp_dataframe_pivot.values.WhichOneof("sealed_value")
+                        )
+                return df.pivot(pivot_col, values, default_on_null)
+
             case "sp_dataframe_random_split":
                 df = self.decode_expr(expr.sp_dataframe_random_split.df)
                 weights = list(expr.sp_dataframe_random_split.weights)
@@ -1231,6 +1314,14 @@ class Decoder:
                     "newColumn", None
                 )
                 return df.rename(col_or_mapper, new_column)
+
+            case "sp_dataframe_rollup":
+                df = self.decode_expr(expr.sp_dataframe_rollup.df)
+                cols = self.decode_col_exprs(expr.sp_dataframe_rollup.cols.args)
+                if MessageToDict(expr.sp_dataframe_rollup.cols).get("variadic", False):
+                    return df.rollup(*cols)
+                else:
+                    return df.rollup(cols)
 
             case "sp_dataframe_sample":
                 df = self.decode_expr(expr.sp_dataframe_sample.df)
@@ -1257,6 +1348,16 @@ class Decoder:
                     )
                 return val
 
+            case "sp_dataframe_select__exprs":
+                df = self.decode_expr(expr.sp_dataframe_select__exprs.df)
+                exprs = list(expr.sp_dataframe_select__exprs.exprs)
+                if MessageToDict(expr.sp_dataframe_select__exprs).get(
+                    "variadic", False
+                ):
+                    return df.select_expr(*exprs)
+                else:
+                    return df.select_expr(exprs)
+
             case "sp_dataframe_show":
                 df = self.decode_expr(
                     self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
@@ -1269,10 +1370,64 @@ class Decoder:
                     self.decode_expr(col) for col in expr.sp_dataframe_sort.cols
                 )
                 ascending = self.decode_expr(expr.sp_dataframe_sort.ascending)
+
                 if MessageToDict(expr.sp_dataframe_sort).get("colsVariadic", False):
                     return df.sort(*cols, ascending=ascending)
                 else:
                     return df.sort(cols, ascending=ascending)
+
+            case "sp_dataframe_stat_approx_quantile":
+                d = MessageToDict(expr.sp_dataframe_stat_approx_quantile)
+                if "df" in d:
+                    df = self.decode_expr(expr.sp_dataframe_stat_approx_quantile.df)
+                else:
+                    df = self.symbol_table[
+                        expr.sp_dataframe_stat_approx_quantile.id.bitfield1
+                    ][1]
+                cols = [
+                    self.decode_expr(col)
+                    for col in expr.sp_dataframe_stat_approx_quantile.cols
+                ]
+                percentile = list(expr.sp_dataframe_stat_approx_quantile.percentile)
+                statement_params = self.get_statement_params(d)
+                return df._stat.approx_quantile(
+                    cols, percentile, statement_params=statement_params
+                )
+
+            case "sp_dataframe_stat_corr":
+                df = self.symbol_table[expr.sp_dataframe_stat_corr.id.bitfield1][1]
+                col1 = self.decode_expr(expr.sp_dataframe_stat_corr.col1)
+                col2 = self.decode_expr(expr.sp_dataframe_stat_corr.col2)
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_stat_corr)
+                )
+                return df._stat.corr(col1, col2, statement_params=statement_params)
+
+            case "sp_dataframe_stat_cov":
+                df = self.symbol_table[expr.sp_dataframe_stat_cov.id.bitfield1][1]
+                col1 = self.decode_expr(expr.sp_dataframe_stat_cov.col1)
+                col2 = self.decode_expr(expr.sp_dataframe_stat_cov.col2)
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_stat_cov)
+                )
+                return df._stat.cov(col1, col2, statement_params=statement_params)
+
+            case "sp_dataframe_stat_cross_tab":
+                df = self.symbol_table[expr.sp_dataframe_stat_cross_tab.id.bitfield1][1]
+                col1 = self.decode_expr(expr.sp_dataframe_stat_cross_tab.col1)
+                col2 = self.decode_expr(expr.sp_dataframe_stat_cross_tab.col2)
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_stat_cross_tab)
+                )
+                return df._stat.crosstab(col1, col2, statement_params=statement_params)
+
+            case "sp_dataframe_stat_sample_by":
+                df = self.decode_expr(expr.sp_dataframe_stat_sample_by.df)
+                col = self.decode_expr(expr.sp_dataframe_stat_sample_by.col)
+                fractions = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_stat_sample_by.fractions
+                )
+                return df._stat.sample_by(col, fractions)
 
             case "sp_dataframe_to_df":
                 df = self.decode_expr(expr.sp_dataframe_to_df.df)
@@ -1362,7 +1517,7 @@ class Decoder:
 
             case "sp_table":
                 assert expr.sp_table.HasField("name")
-                table_name = self.decode_table_name_expr(expr.sp_table.name)
+                table_name = self.decode_name_expr(expr.sp_table.name)
                 return self.session.table(table_name)
 
             case "udf":
@@ -1414,11 +1569,11 @@ class Decoder:
 
             case "sp_dataframe_create_or_replace_view":
                 df = self.decode_expr(expr.sp_dataframe_create_or_replace_view.df)
-                name = [
-                    qualified_name
-                    for qualified_name in expr.sp_dataframe_create_or_replace_view.name
-                ]
-
+                name = self.decode_name_expr(
+                    expr.sp_dataframe_create_or_replace_view.name
+                )
+                if not isinstance(name, str):
+                    name = self.convert_name_to_list(name)
                 statement_params = None
                 if hasattr(
                     expr.sp_dataframe_create_or_replace_view, "statement_params"
@@ -1450,10 +1605,10 @@ class Decoder:
 
             case "sp_dataframe_copy_into_table":
                 df = self.decode_expr(expr.sp_dataframe_copy_into_table.df)
-                name = [
-                    qualified_name
-                    for qualified_name in expr.sp_dataframe_copy_into_table.table_name
-                ]
+                name = self.decode_name_expr(
+                    expr.sp_dataframe_copy_into_table.table_name
+                )
+                name = self.convert_name_to_list(name)
                 files = [
                     file_name for file_name in expr.sp_dataframe_copy_into_table.files
                 ]
@@ -1526,10 +1681,11 @@ class Decoder:
                 df = self.decode_expr(
                     expr.sp_dataframe_create_or_replace_dynamic_table.df
                 )
-                name = [
-                    qualified_name_part
-                    for qualified_name_part in expr.sp_dataframe_create_or_replace_dynamic_table.name
-                ]
+                name = self.decode_name_expr(
+                    expr.sp_dataframe_create_or_replace_dynamic_table.name
+                )
+                if not isinstance(name, str):
+                    name = self.convert_name_to_list(name)
                 warehouse = expr.sp_dataframe_create_or_replace_dynamic_table.warehouse
                 lag = expr.sp_dataframe_create_or_replace_dynamic_table.lag
                 comment = (
