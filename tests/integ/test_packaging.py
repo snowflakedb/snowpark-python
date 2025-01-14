@@ -599,6 +599,7 @@ def test_add_requirements_with_native_dependency_force_push(session):
     )
 
 
+@pytest.mark.udf
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
     reason="Subprocess calls are not allowed within stored procedures.",
