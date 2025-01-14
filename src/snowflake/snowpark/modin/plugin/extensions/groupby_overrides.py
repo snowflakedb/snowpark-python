@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 # Licensed to Modin Development Team under one or more contributor license agreements.
@@ -238,7 +238,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
     # Function application
     ###########################################################################
 
-    def apply(self, func, *args, **kwargs):
+    def apply(self, func, *args, include_groups=True, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         # TODO: SNOW-1244717: Explore whether window function are performant and can be used
         #       whenever `func` is an aggregation function.
@@ -253,6 +253,7 @@ class DataFrameGroupBy(metaclass=TelemetryMeta):
                 agg_args=args,
                 agg_kwargs=kwargs,
                 series_groupby=False,
+                include_groups=include_groups,
             )
         )
         if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
@@ -1445,7 +1446,7 @@ class SeriesGroupBy(DataFrameGroupBy):
     # Function application
     ###########################################################################
 
-    def apply(self, func, *args, **kwargs):
+    def apply(self, func, *args, include_groups=True, **kwargs):
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
         if not callable(func):
             raise NotImplementedError("No support for non-callable `func`")
@@ -1457,6 +1458,7 @@ class SeriesGroupBy(DataFrameGroupBy):
                 groupby_kwargs=self._kwargs,
                 agg_args=args,
                 agg_kwargs=kwargs,
+                include_groups=include_groups,
                 # TODO(https://github.com/modin-project/modin/issues/7096):
                 # upstream the series_groupby param to Modin
                 series_groupby=True,
