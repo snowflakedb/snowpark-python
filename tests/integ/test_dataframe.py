@@ -1936,6 +1936,7 @@ def test_show_dataframe_spark(session):
         ).strip()
     )
     print("\n")
+    print("\n")
 
     assert compare_show_string(
         df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
