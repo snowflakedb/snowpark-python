@@ -16,6 +16,8 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
+    build_expr_from_snowpark_column_or_sql_str,
+    build_expr_from_snowpark_column_or_python_val,
     debug_check_missing_ast,
     fill_sp_save_mode,
     fill_sp_write_file,
@@ -130,19 +132,37 @@ class DataFrameWriter:
 
         return self
 
-    def partition_by(self, expr: ColumnOrSqlExpr) -> "DataFrameWriter":
+    def partition_by(
+        self, expr: ColumnOrSqlExpr, _emit_ast: bool = True
+    ) -> "DataFrameWriter":
         """Specifies an expression used to partition the unloaded table rows into separate files. It can be a
         :class:`Column`, a column name, or a SQL expression.
         """
         self._partition_by = expr
+
+        # Update AST if it exists.
+        if _emit_ast:
+            if self._ast_stmt is not None:
+                build_expr_from_snowpark_column_or_sql_str(
+                    self._ast_stmt.expr.sp_dataframe_write.partition_by, expr
+                )
+
         return self
 
-    def option(self, key: str, value: Any) -> "DataFrameWriter":
+    def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameWriter":
         """Depending on the ``file_format_type`` specified, you can include more format specific options.
         Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
         """
         aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
         self._cur_options[aliased_key] = value
+
+        # Update AST if it exists.
+        if _emit_ast:
+            if self._ast_stmt is not None:
+                t = self._ast_stmt.expr.sp_dataframe_write.options.add()
+                t._1 = aliased_key
+                build_expr_from_snowpark_column_or_python_val(t._2, value)
+
         return self
 
     def options(self, configs: Optional[Dict] = None, **kwargs) -> "DataFrameWriter":
