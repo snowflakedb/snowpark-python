@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import decimal
@@ -1267,7 +1267,7 @@ def test_temp_table_cleanup_exception(session):
 
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
     assert data == expected_data
-    assert type_ == "snowpark_temp_table_cleanup_abnormal_exception"
+    assert type_ == "snowpark_temp_table_cleanup"
 
 
 def test_cursor_created_telemetry(session):
