@@ -165,10 +165,11 @@ class SnowflakeValues(LeafNode):
         rows_to_compare = min(
             ARRAY_BIND_THRESHOLD // len(self.output) + 1, len(self.data)
         )
-        for i in range(rows_to_compare):
-            for j in range(len(self.output)):
-                if self.data[i][j] is None and not self.output[j].nullable:
-                    return True
+        for j in range(len(self.output)):
+            if not self.output[j].nullable:
+                for i in range(rows_to_compare):
+                    if self.data[i][j] is None:
+                        return True
         return False
 
     @property
