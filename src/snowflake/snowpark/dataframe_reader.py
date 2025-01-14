@@ -912,9 +912,9 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _infer_schema_from_user_input(self, user_schema: StructType, format: str):
-        if format != "JSON":
+        if format.lower() != "json":
             raise ValueError(
-                f"Currently only support user schema for JSON or XML format, got {format} instead"
+                f"Currently only support user schema for JSON format, got {format} instead"
             )
         schema_to_cast = []
         transformations = []
@@ -953,7 +953,7 @@ class DataFrameReader:
                     raise_error=NotImplementedError,
                 )
 
-        if self._user_schema and format != "JSON":
+        if self._user_schema and format.lower() != "json":
             raise ValueError(f"Read {format} does not support user schema")
         path = _validate_stage_path(path)
         self._file_path = path
@@ -972,7 +972,7 @@ class DataFrameReader:
             if new_schema:
                 schema = new_schema
 
-        if self._user_schema and not self._infer_schema and format == "JSON":
+        if self._user_schema and not self._infer_schema:
             (
                 new_schema,
                 schema_to_cast,
