@@ -1437,6 +1437,41 @@ class Decoder:
                 else:
                     return df.to_df(col_names)
 
+            case "sp_dataframe_to_local_iterator":
+                df = self.symbol_table[
+                    expr.sp_dataframe_to_local_iterator.id.bitfield1
+                ][1]
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_to_local_iterator)
+                )
+                block = expr.sp_dataframe_to_local_iterator.block
+                case_sensitive = expr.sp_dataframe_to_local_iterator.case_sensitive
+                return df.to_local_iterator(
+                    statement_params=statement_params,
+                    block=block,
+                    case_sensitive=case_sensitive,
+                )
+
+            case "sp_dataframe_to_pandas":
+                df = self.symbol_table[expr.sp_dataframe_to_pandas.id.bitfield1][1]
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_to_pandas)
+                )
+                block = expr.sp_dataframe_to_pandas.block
+                return df.to_pandas(statement_params=statement_params, block=block)
+
+            case "sp_dataframe_to_pandas_batches":
+                df = self.symbol_table[
+                    expr.sp_dataframe_to_pandas_batches.id.bitfield1
+                ][1]
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_to_pandas_batches)
+                )
+                block = expr.sp_dataframe_to_pandas_batches.block
+                return df.to_pandas_batches(
+                    statement_params=statement_params, block=block
+                )
+
             case "sp_dataframe_unpivot":
                 df = self.decode_expr(expr.sp_dataframe_unpivot.df)
                 column_list = [
