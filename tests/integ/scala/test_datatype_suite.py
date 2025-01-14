@@ -1451,6 +1451,10 @@ def test_stored_procedure_with_structured_returns(
     assert df.dtypes == expected_dtypes
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
 def test_cast_structtype_rename(structured_type_session):
     data = [
         ({"firstname": "James", "middlename": "", "lastname": "Smith"}, "1991-04-01")
