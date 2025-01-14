@@ -49,10 +49,17 @@ class Cast(UnaryExpression):
     sql_operator = "CAST"
     operator_first = True
 
-    def __init__(self, child: Expression, to: DataType, try_: bool = False) -> None:
+    def __init__(
+        self,
+        child: Expression,
+        to: DataType,
+        try_: bool = False,
+        is_rename: bool = False,
+    ) -> None:
         super().__init__(child)
         self.to = to
         self.try_ = try_
+        self.is_rename = is_rename
 
 
 class UnaryMinus(UnaryExpression):

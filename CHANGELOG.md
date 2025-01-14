@@ -47,6 +47,7 @@
 
 - Updated README.md to include instructions on how to verify package signatures using `cosign`.
 - Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
+- Allow column to cast to StructType.
 
 #### Bug Fixes
 

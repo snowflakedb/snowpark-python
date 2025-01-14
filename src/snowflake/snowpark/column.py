@@ -9,6 +9,7 @@ from typing import Any, Optional, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark import context
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
@@ -915,7 +916,11 @@ class Column:
         return Column(Not(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     def _cast(
-        self, to: Union[str, DataType], try_: bool = False, _emit_ast: bool = True
+        self,
+        to: Union[str, DataType],
+        try_: bool = False,
+        _emit_ast: bool = True,
+        is_rename: bool = False,
     ) -> "Column":
         if isinstance(to, str):
             to = type_string_to_type_object(to)
@@ -934,21 +939,31 @@ class Column:
             )
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
-        return Column(Cast(self._expression, to, try_), _ast=expr, _emit_ast=_emit_ast)
+        return Column(
+            Cast(self._expression, to, try_, is_rename), _ast=expr, _emit_ast=_emit_ast
+        )
 
     @publicapi
     def cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
-        return self._cast(to, False, _emit_ast=_emit_ast)
+        is_rename = (
+            isinstance(to, StructType)
+            and context._should_use_structured_type_semantics()
+        )
+        return self._cast(to, False, _emit_ast=_emit_ast, is_rename=is_rename)
 
     @publicapi
     def try_cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
-        return self._cast(to, True, _emit_ast=_emit_ast)
+        is_rename = (
+            isinstance(to, StructType)
+            and context._should_use_structured_type_semantics()
+        )
+        return self._cast(to, True, _emit_ast=_emit_ast, is_rename=is_rename)
 
     @publicapi
     def desc(self, _emit_ast: bool = True) -> "Column":

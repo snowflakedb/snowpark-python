@@ -659,6 +659,7 @@ class Analyzer:
                 ),
                 expr.to,
                 expr.try_,
+                expr.is_rename,
             )
         else:
             return unary_expression(
