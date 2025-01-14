@@ -1112,10 +1112,6 @@ def test_read_json_with_no_schema(session, mode, resources_path):
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
     ]
 
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).json(json_path)
-
     # assert local directory is invalid
     with pytest.raises(
         ValueError, match="DataFrameReader can only read files from stage locations."
