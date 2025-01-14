@@ -28,7 +28,7 @@ df = df.sort(col("A"), col("B"), ascending=[0, 1])
 
 df = df.sort(col("A"), col("B"), col("C"), ascending=[0, True, 1])
 
-df = df.sort(col("B"))
+df = df.sort(col("B"), ascending=None)
 
 ## EXPECTED ENCODED AST
 
@@ -505,6 +505,14 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 37
+            }
+          }
+        }
         cols {
           apply_expr {
             fn {

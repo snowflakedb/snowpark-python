@@ -1832,6 +1832,9 @@ class DataFrame:
                     "The length of col ({}) should be same with"
                     " the length of ascending ({}).".format(len(exprs), len(orders))
                 )
+        elif _emit_ast:
+            with_src_position(asc_expr_ast.null_val)
+            ast.ascending.CopyFrom(asc_expr_ast)
 
         sort_exprs = []
         for idx in range(len(exprs)):
@@ -5118,7 +5121,6 @@ class DataFrame:
         """
         # AST.
         _ast_stmt = None
-        expr = None
         if _emit_ast:
             _ast_stmt = self._session._ast_batch.assign()
             expr = with_src_position(_ast_stmt.expr.sp_dataframe_rename, _ast_stmt)
@@ -5343,9 +5345,12 @@ class DataFrame:
         # TODO: Clarify whether cache_result() is an Eval or not. Currently, treat as Assign.
 
         if isinstance(self._session._conn, MockServerConnection):
+            ast_id = self._ast_id
+            self._ast_id = None
             self.write.save_as_table(
                 temp_table_name, create_temp_table=True, _emit_ast=False
             )
+            self._ast_id = ast_id
         else:
             df = self._with_plan(
                 SnowflakeCreateTable(

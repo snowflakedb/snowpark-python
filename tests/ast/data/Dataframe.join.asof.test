@@ -19,7 +19,7 @@ df1 = session.create_dataframe([["A", 1, 15, 3.21], ["A", 2, 16, 3.22], ["B", 1,
 
 df2 = session.create_dataframe([["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"])
 
-df1.join(df2, on=(df1["c1"] == df2["c1"]) & (df1["c2"] == df2["c2"]), how="asof", lsuffix="_L", rsuffix="_R", match_condition=df1["c3"] >= df2["c3"]).sort("C1_L", "C2_L").collect()
+df1.join(df2, on=(df1["c1"] == df2["c1"]) & (df1["c2"] == df2["c2"]), how="asof", lsuffix="_L", rsuffix="_R", match_condition=df1["c3"] >= df2["c3"]).sort("C1_L", "C2_L", ascending=None).collect()
 
 ## EXPECTED ENCODED AST
 
@@ -522,11 +522,19 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 36
+            }
+          }
+        }
         cols {
           string_val {
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 34
+              start_line: 36
             }
             v: "C1_L"
           }
@@ -535,7 +543,7 @@ body {
           string_val {
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 34
+              start_line: 36
             }
             v: "C2_L"
           }
@@ -550,7 +558,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 34
+          start_line: 36
         }
       }
     }
@@ -573,7 +581,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 34
+          start_line: 36
         }
       }
     }

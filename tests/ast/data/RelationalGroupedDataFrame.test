@@ -47,13 +47,13 @@ df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 
 
 res10 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
-df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c").collect()
+df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c", ascending=None).collect()
 
 df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1, "B", 5000, "FEB")], schema=["empid", "team", "amount", "month"])
 
 df.group_by("empid").pivot("month", values=["JAN", "FEB"]).sum("amount").show()
 
-df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team").show()
+df.group_by(["empid", "team"]).pivot("month").sum("amount").sort("empid", "team", ascending=None).show()
 
 ## EXPECTED ENCODED AST
 
@@ -720,10 +720,8 @@ body {
         handler {
           name: "_ApplyInPandas"
           object_name {
-            name {
-              sp_name_flat {
-                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
-              }
+            sp_table_name_flat {
+              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
             }
           }
         }
@@ -917,11 +915,19 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 46
+            }
+          }
+        }
         cols {
           string_val {
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 43
+              start_line: 46
             }
             v: "temp_c"
           }
@@ -936,7 +942,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 43
+          start_line: 46
         }
       }
     }
@@ -959,7 +965,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 43
+          start_line: 46
         }
       }
     }
@@ -1427,6 +1433,14 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 56
+            }
+          }
+        }
         cols {
           string_val {
             src {
