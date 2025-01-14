@@ -972,7 +972,7 @@ class DataFrameReader:
             if new_schema:
                 schema = new_schema
 
-        if self._user_schema and format == "JSON":
+        if self._user_schema and not self._infer_schema and format == "JSON":
             (
                 new_schema,
                 schema_to_cast,

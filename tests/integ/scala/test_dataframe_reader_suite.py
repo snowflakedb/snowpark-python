@@ -1086,10 +1086,6 @@ def test_read_json_with_no_schema(session, mode, resources_path):
         Row('{\n  "color": "Red",\n  "fruit": "Apple",\n  "size": "Large"\n}')
     ]
 
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).json(json_path)
-
     # user can input customized formatTypeOptions
     df2 = get_reader(session, mode).option("FILE_EXTENSION", "json").json(json_path)
     assert df2.collect() == [
@@ -1138,10 +1134,6 @@ def test_read_json_with_infer_schema(session, mode):
     # query_test
     res = df1.where(col('"color"') == lit("Red")).collect()
     assert res == [Row(color="Red", fruit="Apple", size="Large")]
-
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).json(json_path)
 
     # user can input customized formatTypeOptions
     df2 = (
