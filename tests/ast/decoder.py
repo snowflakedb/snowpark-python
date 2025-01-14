@@ -1246,6 +1246,28 @@ class Decoder:
                 )
                 return df.na.replace(to_replace, value, subset)
 
+            case "sp_dataframe_pivot":
+                df = self.decode_expr(expr.sp_dataframe_pivot.df)
+                pivot_col = self.decode_expr(expr.sp_dataframe_pivot.pivot_col)
+                default_on_null = self.decode_expr(
+                    expr.sp_dataframe_pivot.default_on_null
+                )
+                match expr.sp_dataframe_pivot.values.WhichOneof("sealed_value"):
+                    case "sp_pivot_value__dataframe":
+                        values = self.decode_expr(
+                            expr.sp_dataframe_pivot.values.sp_pivot_value__dataframe.v
+                        )
+                    case "sp_pivot_value__expr":
+                        values = self.decode_expr(
+                            expr.sp_dataframe_pivot.values.sp_pivot_value__expr.v
+                        )
+                    case _:
+                        raise ValueError(
+                            "Unknown pivot value: %s"
+                            % expr.sp_dataframe_pivot.values.WhichOneof("sealed_value")
+                        )
+                return df.pivot(pivot_col, values, default_on_null)
+
             case "sp_dataframe_ref":
                 return self.symbol_table[expr.sp_dataframe_ref.id.bitfield1][1]
 
@@ -1256,6 +1278,14 @@ class Decoder:
                     "newColumn", None
                 )
                 return df.rename(col_or_mapper, new_column)
+
+            case "sp_dataframe_rollup":
+                df = self.decode_expr(expr.sp_dataframe_rollup.df)
+                cols = self.decode_col_exprs(expr.sp_dataframe_rollup.cols.args)
+                if MessageToDict(expr.sp_dataframe_rollup.cols).get("variadic", False):
+                    return df.rollup(*cols)
+                else:
+                    return df.rollup(cols)
 
             case "sp_dataframe_select__columns":
                 df = self.decode_expr(expr.sp_dataframe_select__columns.df)
@@ -1274,6 +1304,16 @@ class Decoder:
                     )
                 return val
 
+            case "sp_dataframe_select__exprs":
+                df = self.decode_expr(expr.sp_dataframe_select__exprs.df)
+                exprs = list(expr.sp_dataframe_select__exprs.exprs)
+                if MessageToDict(expr.sp_dataframe_select__exprs).get(
+                    "variadic", False
+                ):
+                    return df.select_expr(*exprs)
+                else:
+                    return df.select_expr(exprs)
+
             case "sp_dataframe_show":
                 df = self.decode_expr(
                     self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
@@ -1291,6 +1331,59 @@ class Decoder:
                     return df.sort(*cols, ascending=ascending)
                 else:
                     return df.sort(cols, ascending=ascending)
+
+            case "sp_dataframe_stat_approx_quantile":
+                d = MessageToDict(expr.sp_dataframe_stat_approx_quantile)
+                if "df" in d:
+                    df = self.decode_expr(expr.sp_dataframe_stat_approx_quantile.df)
+                else:
+                    df = self.symbol_table[
+                        expr.sp_dataframe_stat_approx_quantile.id.bitfield1
+                    ][1]
+                cols = [
+                    self.decode_expr(col)
+                    for col in expr.sp_dataframe_stat_approx_quantile.cols
+                ]
+                percentile = list(expr.sp_dataframe_stat_approx_quantile.percentile)
+                statement_params = self.get_statement_params(d)
+                return df._stat.approx_quantile(
+                    cols, percentile, statement_params=statement_params
+                )
+
+            case "sp_dataframe_stat_corr":
+                df = self.symbol_table[expr.sp_dataframe_stat_corr.id.bitfield1][1]
+                col1 = self.decode_expr(expr.sp_dataframe_stat_corr.col1)
+                col2 = self.decode_expr(expr.sp_dataframe_stat_corr.col2)
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_stat_corr)
+                )
+                return df._stat.corr(col1, col2, statement_params=statement_params)
+
+            case "sp_dataframe_stat_cov":
+                df = self.symbol_table[expr.sp_dataframe_stat_cov.id.bitfield1][1]
+                col1 = self.decode_expr(expr.sp_dataframe_stat_cov.col1)
+                col2 = self.decode_expr(expr.sp_dataframe_stat_cov.col2)
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_stat_cov)
+                )
+                return df._stat.cov(col1, col2, statement_params=statement_params)
+
+            case "sp_dataframe_stat_cross_tab":
+                df = self.symbol_table[expr.sp_dataframe_stat_cross_tab.id.bitfield1][1]
+                col1 = self.decode_expr(expr.sp_dataframe_stat_cross_tab.col1)
+                col2 = self.decode_expr(expr.sp_dataframe_stat_cross_tab.col2)
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_stat_cross_tab)
+                )
+                return df._stat.crosstab(col1, col2, statement_params=statement_params)
+
+            case "sp_dataframe_stat_sample_by":
+                df = self.decode_expr(expr.sp_dataframe_stat_sample_by.df)
+                col = self.decode_expr(expr.sp_dataframe_stat_sample_by.col)
+                fractions = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_stat_sample_by.fractions
+                )
+                return df._stat.sample_by(col, fractions)
 
             case "sp_dataframe_to_df":
                 df = self.decode_expr(expr.sp_dataframe_to_df.df)
