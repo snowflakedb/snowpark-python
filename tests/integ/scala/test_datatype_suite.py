@@ -1449,3 +1449,43 @@ def test_stored_procedure_with_structured_returns(
     df = structured_type_session.call(sproc_name)
     assert df.schema == expected_schema
     assert df.dtypes == expected_dtypes
+
+
+def test_cast_structtype_rename(structured_type_session):
+    data = [
+        ({"firstname": "James", "middlename": "", "lastname": "Smith"}, "1991-04-01")
+    ]
+    schema = StructType(
+        [
+            StructField(
+                "name",
+                StructType(
+                    [
+                        StructField("firstname", StringType(), True),
+                        StructField("middlename", StringType(), True),
+                        StructField("lastname", StringType(), True),
+                    ]
+                ),
+            ),
+            StructField("dob", StringType(), True),
+        ]
+    )
+
+    schema2 = StructType(
+        [
+            StructField("fname", StringType()),
+            StructField("middlename", StringType()),
+            StructField("lname", StringType()),
+        ]
+    )
+
+    df = structured_type_session.create_dataframe(data, schema)
+    Utils.check_answer(
+        df.select(col("name").cast(schema2).as_("new_name"), col("dob")),
+        [
+            Row(
+                NEW_NAME=Row(fname="James", middlename="", lname="Smith"),
+                DOB="1991-04-01",
+            )
+        ],
+    )

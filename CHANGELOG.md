@@ -51,6 +51,7 @@
 - Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for `value_contains_null` parameter to MapType.
+- Allow column to cast to StructType.
 
 #### Bug Fixes
 

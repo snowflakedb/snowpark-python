@@ -3363,7 +3363,9 @@ class Session:
                 project_columns.append(to_geometry(column(name)).as_(name))
             elif isinstance(field.datatype, (ArrayType, MapType, StructType)):
                 project_columns.append(
-                    parse_json(column(name)).cast(field.datatype).as_(name)
+                    parse_json(column(name))
+                    ._cast(field.datatype, is_rename=False)
+                    .as_(name)
                 )
             elif isinstance(field.datatype, VectorType):
                 project_columns.append(
