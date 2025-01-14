@@ -3876,6 +3876,19 @@ def date_format(
         |2022/05/15 10:45:00  |
         -----------------------
         <BLANKLINE>
+
+    Example::
+        >>> df = session.sql("select '2023-10-10'::DATE as date_col, '2023-10-10 15:30:00'::TIMESTAMP as timestamp_col")
+        >>> df.select(
+        ...     date_format('date_col', 'YYYY/MM/DD').as_('formatted_dt'),
+        ...     date_format('timestamp_col', 'YYYY/MM/DD HH:mi:ss').as_('formatted_ts')
+        ... ).show()
+        ----------------------------------------
+        |"FORMATTED_DT"  |"FORMATTED_TS"       |
+        ----------------------------------------
+        |2023/10/10      |2023/10/10 15:30:00  |
+        ----------------------------------------
+        <BLANKLINE>
     """
 
     # AST.
@@ -3884,7 +3897,11 @@ def date_format(
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "date_format", c, fmt)
 
-    ans = to_char(try_cast(c, TimestampType(), _emit_ast=False), fmt, _emit_ast=False)
+    ans = to_char(
+        try_cast(to_char(c, _emit_ast=False), TimestampType(), _emit_ast=False),
+        fmt,
+        _emit_ast=False,
+    )
     ans._ast = ast
     return ans
 
