@@ -10878,10 +10878,8 @@ def regr_intercept(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> 
 def regr_r2(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the coefficient of determination for non-null pairs in a group.
-    It is computed for non-null pairs using the following formula:
-        NULL                 if VAR_POP(x) = 0, else
-        1                    if VAR_POP(y) = 0 and VAR_POP(x) <> 0, else
-        POWER(CORR(y,x), 2)
+    It is computed for non-null pairs using the following formula: NULL if VAR_POP(x) = 0, else
+    1 if VAR_POP(y) = 0 and VAR_POP(x) <> 0, else POWER(CORR(y,x), 2).
     Where x is the independent variable and y is the dependent variable.
 
     Example::
