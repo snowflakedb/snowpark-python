@@ -3384,8 +3384,12 @@ def replace(
         if _emit_ast
         else None
     )
-    pat = lit(pattern, _emit_ast=_emit_ast)
-    rep = lit(replacement, _emit_ast=_emit_ast)
+    pat = pattern if isinstance(pattern, Column) else lit(pattern, _emit_ast=_emit_ast)
+    rep = (
+        replacement
+        if isinstance(replacement, Column)
+        else lit(replacement, _emit_ast=_emit_ast)
+    )
     return builtin(sql_func_name, _ast=ast, _emit_ast=False)(sub, pat, rep)
 
 
