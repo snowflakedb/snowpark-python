@@ -22,7 +22,7 @@ df3 = df2.select((col("\"A\"") + 1).as_("\"A\""), col("\"B\""), col("\"C\""), co
 
 df3 = df3_res1.join(df3, how="inner")
 
-df4 = df3.sort(["\"l_0004_A\"", "\"l_0004_B\"", "\"l_0004_C\"", "\"r_0000_A\"", "\"l_0000_A\"", "\"l_0002_A\"", "\"r_0006_A\"", "\"r_0006_B\"", "\"r_0006_C\"", "\"l_0001_C\"", "\"l_0003_B\""])
+df4 = df3.sort(["\"l_0004_A\"", "\"l_0004_B\"", "\"l_0004_C\"", "\"r_0000_A\"", "\"l_0000_A\"", "\"l_0002_A\"", "\"r_0006_A\"", "\"r_0006_B\"", "\"r_0006_C\"", "\"l_0001_C\"", "\"l_0003_B\""], ascending=None)
 
 df4.collect()
 
@@ -515,6 +515,14 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 31
+            }
+          }
+        }
         cols {
           string_val {
             src {
