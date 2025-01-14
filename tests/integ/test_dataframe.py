@@ -4459,3 +4459,23 @@ def test_with_column_keep_column_order(session):
     assert df3.columns == ["A", "B", "C"]
     df3 = df.with_columns(["C", "A"], [lit(0), lit(0)], keep_column_order=True)
     assert df3.columns == ["A", "B", "C"]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="replace function is not supported in Local Testing",
+)
+def test_SNOW_1879403_replace_with_lit(session):
+
+    # TODO SNOW-1880749: support for local testing mode.
+
+    from snowflake.snowpark.functions import replace
+
+    df = session.create_dataframe(
+        [["apple"], ["apple pie"], ["apple juice"]], schema=["a"]
+    )
+    ans = df.select(
+        replace(col("a"), lit("apple"), lit("orange")).alias("result")
+    ).collect()
+
+    Utils.check_answer(ans, [Row("orange"), Row("orange pie"), Row("orange juice")])
