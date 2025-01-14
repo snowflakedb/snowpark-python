@@ -911,7 +911,9 @@ class DataFrameReader:
 
         return new_schema, schema_to_cast, read_file_transformations, None
 
-    def _infer_schema_from_user_input(self, user_schema: StructType, format: str):
+    def _infer_schema_from_user_input(
+        self, user_schema: StructType, format: str
+    ) -> Tuple[List, List, List]:
         if format.lower() != "json":
             raise ValueError(
                 f"Currently only support user schema for JSON format, got {format} instead"
@@ -936,7 +938,7 @@ class DataFrameReader:
         self._infer_schema_transformations = transformations
         self._infer_schema_target_columns = self._user_schema.names
         read_file_transformations = [t._expression.sql for t in transformations]
-        return new_schema, schema_to_cast, read_file_transformations, None
+        return new_schema, schema_to_cast, read_file_transformations
 
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
@@ -977,7 +979,6 @@ class DataFrameReader:
                 new_schema,
                 schema_to_cast,
                 read_file_transformations,
-                _,
             ) = self._infer_schema_from_user_input(self._user_schema, format)
             schema = new_schema
             self._cur_options["INFER_SCHEMA"] = True
