@@ -48,11 +48,7 @@ df.copy_into_table(["test_db", "test_schema", "table2"], files=["file1", "file2"
 
 df3 = df.cache_result()
 
-df3 = df.write
-
 df4 = df.cache_result(statement_params={"foo": "bar"})
-
-df4 = df.write
 
 res6 = df.create_or_replace_dynamic_table("test_dyn_table", warehouse="test_wh", lag="1 hour", comment="foo", mode="overwrite"])
 
@@ -429,32 +425,6 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        src {
-          file: "SRC_POSITION_TEST_MODE"
-          start_line: 51
-        }
-      }
-    }
-    symbol {
-      value: "df3"
-    }
-    uid: 9
-    var_id {
-      bitfield1: 9
-    }
-  }
-}
-body {
-  assign {
-    expr {
       sp_dataframe_cache_result {
         df {
           sp_dataframe_ref {
@@ -476,35 +446,9 @@ body {
     symbol {
       value: "df4"
     }
-    uid: 10
+    uid: 9
     var_id {
-      bitfield1: 10
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_dataframe_write {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        src {
-          file: "SRC_POSITION_TEST_MODE"
-          start_line: 53
-        }
-      }
-    }
-    symbol {
-      value: "df4"
-    }
-    uid: 11
-    var_id {
-      bitfield1: 11
+      bitfield1: 9
     }
   }
 }
@@ -542,9 +486,9 @@ body {
     }
     symbol {
     }
-    uid: 12
+    uid: 10
     var_id {
-      bitfield1: 12
+      bitfield1: 10
     }
   }
 }

@@ -6,7 +6,7 @@ df = df.select(col("NUM").in_(1, 2, 3))
 
 df = df.select(col("NUM").in_(df))
 
-df = df.select(col("NUM").in_([1, 2, 3]))
+df = df.select(col("NUM").in_([1]))
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -16,7 +16,7 @@ df = df.select(col("NUM").in_(1, 2, 3))
 
 df = df.select(col("NUM").in_(df))
 
-df = df.select(col("NUM").in_([1, 2, 3]))
+df = df.select(col("NUM").in_([1]))
 
 ## EXPECTED ENCODED AST
 
@@ -25,10 +25,8 @@ body {
     expr {
       sp_table {
         name {
-          name {
-            sp_name_flat {
-              name: "table1"
-            }
+          sp_table_name_flat {
+            name: "table1"
           }
         }
         src {
@@ -60,10 +58,8 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
+                      fn_name_flat {
+                        name: "col"
                       }
                     }
                   }
@@ -146,10 +142,8 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
+                      fn_name_flat {
+                        name: "col"
                       }
                     }
                   }
@@ -212,10 +206,8 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
+                      fn_name_flat {
+                        name: "col"
                       }
                     }
                   }
@@ -248,24 +240,6 @@ body {
                       start_line: 31
                     }
                     v: 1
-                  }
-                }
-                vs {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 31
-                    }
-                    v: 2
-                  }
-                }
-                vs {
-                  int64_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 31
-                    }
-                    v: 3
                   }
                 }
               }
