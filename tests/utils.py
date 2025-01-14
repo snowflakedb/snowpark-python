@@ -9,6 +9,7 @@ import os
 import platform
 import random
 import string
+from unittest import mock
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -121,7 +122,8 @@ def iceberg_supported(session, local_testing_mode):
 def structured_types_enabled_session(session):
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session set {param}=true").collect()
-    yield session
+    with mock.patch("snowflake.snowpark.context._use_structured_type_semantics", True):
+        yield session
     for param in STRUCTURED_TYPE_PARAMETERS:
         session.sql(f"alter session unset {param}").collect()
 
