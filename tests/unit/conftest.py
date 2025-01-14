@@ -20,7 +20,6 @@ def mock_server_connection() -> ServerConnection:
     fake_snowflake_connection._conn = mock.MagicMock()
     fake_snowflake_connection._telemetry = None
     fake_snowflake_connection._session_parameters = {}
-    fake_snowflake_connection._thread_safe_session_enabled = True
     fake_snowflake_connection.cursor.return_value = mock.create_autospec(
         SnowflakeCursor
     )
@@ -34,7 +33,6 @@ def closed_mock_server_connection() -> ServerConnection:
     fake_snowflake_connection._conn = mock.MagicMock()
     fake_snowflake_connection._telemetry = None
     fake_snowflake_connection._session_parameters = {}
-    fake_snowflake_connection._thread_safe_session_enabled = True
     fake_snowflake_connection.is_closed = mock.MagicMock(return_value=False)
     fake_snowflake_connection.cursor.return_value = mock.create_autospec(
         SnowflakeCursor
