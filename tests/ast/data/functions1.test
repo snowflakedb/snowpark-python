@@ -550,7 +550,7 @@ df123 = df111.select(regexp_replace(col("A"), "B", "", 1, 0), regexp_replace(col
 
 df124 = df111.select(replace(col("A"), "", ""), replace(col("A"), "B", "ahsgj"))
 
-df125 = df111.select(char_index(col("A"), col("B"), 20), char_index(col("A"), col("B"), col("C")))
+df125 = df111.select(charindex(col("A"), col("B"), 20), charindex(col("A"), col("B"), col("C")))
 
 df126 = df111.select(collate(col("A"), "sp-upper"))
 
@@ -15229,7 +15229,7 @@ body {
                 name {
                   name {
                     sp_name_flat {
-                      name: "char_index"
+                      name: "charindex"
                     }
                   }
                 }
@@ -15313,7 +15313,7 @@ body {
                 name {
                   name {
                     sp_name_flat {
-                      name: "char_index"
+                      name: "charindex"
                     }
                   }
                 }
