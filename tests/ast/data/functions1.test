@@ -358,9 +358,9 @@ df27 = df.select(bitshiftright(col("A"), col("B")), bitshiftright(col("A"), -10)
 
 df28 = df.select(bround("A", 10), bround("A", 2), bround(col("A"), col("B")))
 
-df29 = df.select(convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("B")), convert_timezone(col("A"), col("A"), col("B")))
+df29 = df.select(convert_timezone("A", col("B")), convert_timezone(col("A"), "B"), convert_timezone("A", "B"), convert_timezone(col("A"), col("B")), convert_timezone("A", "B"), convert_timezone("A", "B", "A"))
 
-df30 = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("Asia/Shanghai"), lit("UTC"), col("b")))
+df30 = df.select(convert_timezone(lit("UTC"), col("a")), convert_timezone(lit("UTC"), col("b"), lit("Asia/Shanghai")))
 
 df31 = df.select(approx_count_distinct(col("A")), approx_count_distinct(col("A")))
 
@@ -3050,31 +3050,12 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 85
                 }
+                v: "A"
               }
             }
             pos_args {
@@ -3103,6 +3084,99 @@ body {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 85
                 }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 85
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "convert_timezone"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 85
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 85
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 85
+                }
+                v: "B"
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 85
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "convert_timezone"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 85
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 85
+                }
+                v: "B"
               }
             }
             src {
@@ -3200,59 +3274,21 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 85
                 }
+                v: "A"
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "B"
-                  }
-                }
+              string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 85
                 }
+                v: "B"
               }
             }
             src {
@@ -3275,237 +3311,30 @@ body {
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 85
                 }
+                v: "A"
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "B"
-                  }
-                }
+              string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 85
                 }
-              }
-            }
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 85
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "convert_timezone"
-                    }
-                  }
-                }
+                v: "B"
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
+              string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
                   start_line: 85
                 }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "B"
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 85
-                }
-              }
-            }
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 85
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "convert_timezone"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 85
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 85
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "B"
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 85
-                }
+                v: "A"
               }
             }
             src {
@@ -3648,34 +3477,6 @@ body {
                       file: "SRC_POSITION_TEST_MODE"
                       start_line: 87
                     }
-                    v: "Asia/Shanghai"
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 87
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "lit"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 87
-                    }
                     v: "UTC"
                   }
                 }
@@ -3705,6 +3506,34 @@ body {
                       start_line: 87
                     }
                     v: "b"
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 87
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_line: 87
+                    }
+                    v: "Asia/Shanghai"
                   }
                 }
                 src {
