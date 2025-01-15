@@ -1485,7 +1485,9 @@ def test_cast_structtype_rename(structured_type_session):
 
     df = structured_type_session.create_dataframe(data, schema)
     Utils.check_answer(
-        df.select(col("name").cast(schema2).as_("new_name"), col("dob")),
+        df.select(
+            col("name").cast(schema2, is_rename=True).as_("new_name"), col("dob")
+        ),
         [
             Row(
                 NEW_NAME=Row(fname="James", middlename="", lname="Smith"),
@@ -1493,3 +1495,62 @@ def test_cast_structtype_rename(structured_type_session):
             )
         ],
     )
+    with pytest.raises(
+        ValueError, match="is_add and is_rename cannot be set to True at the same time"
+    ):
+        df.select(
+            col("name").cast(schema2, is_rename=True, is_add=True).as_("new_name"),
+            col("dob"),
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
+def test_cast_structtype_add(structured_type_session):
+    data = [
+        ({"firstname": "James", "middlename": "", "lastname": "Smith"}, "1991-04-01")
+    ]
+    schema = StructType(
+        [
+            StructField(
+                "name",
+                StructType(
+                    [
+                        StructField("firstname", StringType(), True),
+                        StructField("middlename", StringType(), True),
+                        StructField("lastname", StringType(), True),
+                    ]
+                ),
+            ),
+            StructField("dob", StringType(), True),
+        ]
+    )
+
+    schema2 = StructType(
+        [
+            StructField("firstname", StringType()),
+            StructField("middlename", StringType()),
+            StructField("lastname", StringType()),
+            StructField("extra", StringType()),
+        ]
+    )
+
+    df = structured_type_session.create_dataframe(data, schema)
+    Utils.check_answer(
+        df.select(col("name").cast(schema2, is_add=True).as_("new_name"), col("dob")),
+        [
+            Row(
+                NEW_NAME=Row(fname="James", middlename="", lname="Smith", extra=None),
+                DOB="1991-04-01",
+            )
+        ],
+    )
+    with pytest.raises(
+        ValueError, match="is_add and is_rename cannot be set to True at the same time"
+    ):
+        df.select(
+            col("name").cast(schema2, is_rename=True, is_add=True).as_("new_name"),
+            col("dob"),
+        )

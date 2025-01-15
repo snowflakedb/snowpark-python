@@ -921,7 +921,12 @@ class Column:
         try_: bool = False,
         _emit_ast: bool = True,
         is_rename: bool = False,
+        is_add: bool = False,
     ) -> "Column":
+        if is_add and is_rename:
+            raise ValueError(
+                "is_add and is_rename cannot be set to True at the same time"
+            )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
 
@@ -940,22 +945,34 @@ class Column:
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
         return Column(
-            Cast(self._expression, to, try_, is_rename), _ast=expr, _emit_ast=_emit_ast
+            Cast(self._expression, to, try_, is_rename, is_add),
+            _ast=expr,
+            _emit_ast=_emit_ast,
         )
 
     @publicapi
-    def cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
+    def cast(
+        self,
+        to: Union[str, DataType],
+        _emit_ast: bool = True,
+        is_rename: bool = False,
+        is_add: bool = False,
+    ) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
-        is_rename = (
-            isinstance(to, StructType)
-            and context._should_use_structured_type_semantics()
+        return self._cast(
+            to, False, _emit_ast=_emit_ast, is_rename=is_rename, is_add=is_add
         )
-        return self._cast(to, False, _emit_ast=_emit_ast, is_rename=is_rename)
 
     @publicapi
-    def try_cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
+    def try_cast(
+        self,
+        to: Union[str, DataType],
+        _emit_ast: bool = True,
+        is_rename: bool = False,
+        is_add: bool = False,
+    ) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
@@ -963,7 +980,9 @@ class Column:
             isinstance(to, StructType)
             and context._should_use_structured_type_semantics()
         )
-        return self._cast(to, True, _emit_ast=_emit_ast, is_rename=is_rename)
+        return self._cast(
+            to, True, _emit_ast=_emit_ast, is_rename=is_rename, is_add=is_add
+        )
 
     @publicapi
     def desc(self, _emit_ast: bool = True) -> "Column":
