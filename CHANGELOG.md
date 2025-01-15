@@ -80,6 +80,7 @@
   - %%: A literal '%' character.
 - Added support for `Series.between`.
 - Added support for `include_groups=False` in `DataFrameGroupBy.apply`.
+- Added support for `expand=True` in `Series.str.split`.
 - Added support for `DataFrame.pop` and `Series.pop`.
 
 #### Bug Fixes
