@@ -783,7 +783,7 @@ class StructType(DataType):
         if self.fields is None:
             return
         elif len(self.fields) > 0:
-            for field in self.fields or []:
+            for field in self.fields:
                 field._fill_ast(ast.sp_struct_type.fields.list.add())
         else:
             ast.sp_struct_type.fields.list.extend([])
