@@ -164,8 +164,9 @@ from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_st
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
-from snowflake.snowpark.dataframe_writer import DataFrameWriter
+from snowflake.snowpark.dataframe_writer import DataFrameWriter, DataStreamWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
+
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
@@ -334,6 +335,18 @@ def _disambiguate(
     )
     return lhs_remapped, rhs_remapped
 
+
+from functools import wraps
+
+def propagate_stream_source(f):
+    @wraps(f)
+    def g(self, *args, **kwargs):
+        from snowflake.snowpark.dataframe import DataFrame        
+        result = f(self, *args, **kwargs)
+        if isinstance(result, DataFrame):
+            return result.set_stream_source(self._stream_source)
+        return result
+    return g
 
 class DataFrame:
     """Represents a lazily-evaluated relational dataset that contains a collection
@@ -575,13 +588,14 @@ class DataFrame:
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
         _ast_stmt: Optional[proto.Assign] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> None:
         """
         :param int _ast_stmt: The AST Assign atom corresponding to this dataframe value. We track its assigned ID in the
                              slot self._ast_id. This allows this value to be referred to symbolically when it's
                              referenced in subsequent dataframe expressions.
         """
+        self._stream_source = None
         self._session = session
         self._ast_id = None
         if _emit_ast:
@@ -620,6 +634,9 @@ class DataFrame:
         self.replace = self._na.replace
 
         self._alias: Optional[str] = None
+        
+
+
 
     def _set_ast_ref(self, sp_dataframe_expr_builder: Any) -> None:
         """
@@ -646,7 +663,7 @@ class DataFrame:
         block: bool = True,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> List[Row]:
         ...  # pragma: no cover
 
@@ -659,7 +676,7 @@ class DataFrame:
         block: bool = False,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -672,7 +689,7 @@ class DataFrame:
         block: bool = True,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> Union[List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the result as a
         list of :class:`Row` objects.
@@ -725,7 +742,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> AsyncJob:
         """Executes the query representing this DataFrame asynchronously and returns: class:`AsyncJob`.
         It is equivalent to ``collect(block=False)``.
@@ -821,7 +838,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         case_sensitive: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> Iterator[Row]:
         ...  # pragma: no cover
 
@@ -833,7 +850,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
         case_sensitive: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -845,7 +862,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         case_sensitive: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> Union[Iterator[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns an iterator
         of :class:`Row` objects that you can use to retrieve the results.
@@ -918,6 +935,7 @@ class DataFrame:
         # a separate AST entity to model deep-copying. A deep-copy would generate here a new ID different from self._ast_id.
         df = DataFrame(self._session, new_plan)
         df._ast_id = self._ast_id
+        df._stream_source = self._stream_source
         return df
 
     if installed_pandas:
@@ -930,7 +948,7 @@ class DataFrame:
             *,
             statement_params: Optional[Dict[str, str]] = None,
             block: bool = True,
-            _emit_ast: bool = True,
+            _emit_ast: bool = False,
             **kwargs: Dict[str, Any],
         ) -> pandas.DataFrame:
             ...  # pragma: no cover
@@ -942,7 +960,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
         **kwargs: Dict[str, Any],
     ) -> AsyncJob:
         ...  # pragma: no cover
@@ -954,7 +972,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
         **kwargs: Dict[str, Any],
     ) -> Union["pandas.DataFrame", AsyncJob]:
         """
@@ -1026,7 +1044,7 @@ class DataFrame:
             *,
             statement_params: Optional[Dict[str, str]] = None,
             block: bool = True,
-            _emit_ast: bool = True,
+            _emit_ast: bool = False,
             **kwargs: Dict[str, Any],
         ) -> Iterator[pandas.DataFrame]:
             ...  # pragma: no cover
@@ -1038,7 +1056,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
         **kwargs: Dict[str, Any],
     ) -> AsyncJob:
         ...  # pragma: no cover
@@ -1050,7 +1068,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
         **kwargs: Dict[str, Any],
     ) -> Union[Iterator["pandas.DataFrame"], AsyncJob]:
         """
@@ -1167,7 +1185,7 @@ class DataFrame:
         self,
         index_col: Optional[Union[str, List[str]]] = None,
         columns: Optional[List[str]] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "modin.pandas.DataFrame":
         """
         Convert the Snowpark DataFrame to Snowpark pandas DataFrame.
@@ -1286,6 +1304,7 @@ class DataFrame:
 
         return snowpandas_df
 
+    @propagate_stream_source
     def __getitem__(self, item: Union[str, Column, List, Tuple, int]):
 
         _emit_ast = self._ast_id is not None
@@ -1301,6 +1320,7 @@ class DataFrame:
         else:
             raise TypeError(f"Unexpected item type: {type(item)}")
 
+    @propagate_stream_source
     def __getattr__(self, name: str):
         # Snowflake DB ignores cases when there is no quotes.
         if name.lower() not in [c.lower() for c in self.columns]:
@@ -1328,6 +1348,7 @@ class DataFrame:
         return self.schema.names
 
     @publicapi
+    @propagate_stream_source
     def col(self, col_name: str, _emit_ast: bool = True) -> Column:
         """Returns a reference to a column in the DataFrame."""
         expr = None
@@ -1343,6 +1364,7 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def select(
         self,
         *cols: Union[
@@ -1350,7 +1372,7 @@ class DataFrame:
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
         _ast_stmt: Optional[proto.Assign] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
         (similar to SELECT in SQL). Only the Columns specified as arguments will be
@@ -1519,11 +1541,12 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def select_expr(
         self,
         *exprs: Union[str, Iterable[str]],
         _ast_stmt: proto.Assign = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """
         Projects a set of SQL expressions and returns a new :class:`DataFrame`.
@@ -1577,6 +1600,7 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def drop(
         self, *cols: Union[ColumnOrName, Iterable[ColumnOrName]], _emit_ast: bool = True
     ) -> "DataFrame":
@@ -1666,11 +1690,12 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def filter(
         self,
         expr: ColumnOrSqlExpr,
         _ast_stmt: proto.Assign = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
         in SQL).
@@ -1722,11 +1747,12 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def sort(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
         ascending: Optional[Union[bool, int, List[Union[bool, int]]]] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
@@ -1861,6 +1887,7 @@ class DataFrame:
 
     @experimental(version="1.5.0")
     @publicapi
+    @propagate_stream_source
     def alias(self, name: str, _emit_ast: bool = True):
         """Returns an aliased dataframe in which the columns can now be referenced to using `col(<df alias>, <column name>)`.
 
@@ -1929,10 +1956,11 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Aggregate the data in the DataFrame. Use this method if you don't need to
         group the data (:func:`group_by`).
@@ -2051,7 +2079,7 @@ class DataFrame:
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
         _ast_stmt: Optional[proto.Assign] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
         SQL).
@@ -2111,6 +2139,7 @@ class DataFrame:
             grouping_exprs,
             snowflake.snowpark.relational_grouped_dataframe._GroupByType(),
             _ast_stmt=stmt,
+            stream_source=self._stream_source
         )
 
         if _emit_ast:
@@ -2126,7 +2155,7 @@ class DataFrame:
             "snowflake.snowpark.GroupingSets",
             Iterable["snowflake.snowpark.GroupingSets"],
         ],
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Performs a SQL
         `GROUP BY GROUPING SETS <https://docs.snowflake.com/en/sql-reference/constructs/group-by-grouping-sets.html>`_.
@@ -2214,6 +2243,7 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def distinct(
         self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
     ) -> "DataFrame":
@@ -2244,11 +2274,12 @@ class DataFrame:
         return df
 
     @publicapi
+    @propagate_stream_source
     def drop_duplicates(
         self,
         *subset: Union[str, Iterable[str]],
         _ast_stmt: proto.Assign = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
 
@@ -2322,7 +2353,7 @@ class DataFrame:
             Union[Iterable[LiteralType], "snowflake.snowpark.DataFrame"]
         ] = None,
         default_on_null: Optional[LiteralType] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Rotates this DataFrame by turning the unique values from one column in the input
         expression into multiple columns and aggregating results where required on any
@@ -2399,17 +2430,19 @@ class DataFrame:
                 pc[0], pivot_values, default_on_null
             ),
             _ast_stmt=stmt,
+            stream_source=self._stream_source
         )
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def unpivot(
         self,
         value_column: str,
         name_column: str,
         column_list: List[ColumnOrName],
         include_nulls: bool = False,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Rotates a table by transforming columns into rows.
         UNPIVOT is a relational operator that accepts two columns (from a table or subquery), along with a list of columns, and generates a row for each column specified in the list. In a query, it is specified in the FROM clause after the table name or subquery.
@@ -2483,12 +2516,13 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def limit(
         self,
         n: int,
         offset: int = 0,
         _ast_stmt: proto.Assign = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
         DataFrame, skipping ``offset`` rows from the beginning (similar to LIMIT and OFFSET in SQL).
@@ -2870,7 +2904,7 @@ class DataFrame:
         self,
         right: "DataFrame",
         how: Optional[str] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
         **kwargs,
     ) -> "DataFrame":
         """Performs a natural join of the specified type (``how``) with the
@@ -2960,7 +2994,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
         **kwargs,
     ) -> "DataFrame":
         """Performs a join of the specified type (``how``) with the current
@@ -3327,6 +3361,16 @@ class DataFrame:
                 if rsuffix:
                     ast.rsuffix.value = rsuffix
 
+            if self._stream_source is None and right._stream_source is not None:
+                result_stream_source = right._stream_source
+            elif self._stream_source is not None and right._stream_source is None:
+                result_stream_source = self._stream_source
+            elif self._stream_source is None and right._stream_source is None:
+                result_stream_source = None
+            elif self._stream_source != right._stream_source:
+                raise NotImplementedError("cannot join two dataframes from different stream sources")
+            
+
             return self._join_dataframes(
                 right,
                 using_columns,
@@ -3335,7 +3379,7 @@ class DataFrame:
                 rsuffix=rsuffix,
                 match_condition=match_condition,
                 _ast_stmt=stmt,
-            )
+            ).set_stream_source(result_stream_source)
 
         raise TypeError("Invalid type for join. Must be Dataframe")
 
@@ -3345,7 +3389,7 @@ class DataFrame:
         self,
         func: Union[str, List[str], TableFunctionCall],
         *func_arguments: ColumnOrName,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
         **func_named_arguments: ColumnOrName,
     ) -> "DataFrame":
         """Lateral joins the current DataFrame with the output of the specified table function.
@@ -3509,7 +3553,7 @@ class DataFrame:
         *,
         lsuffix: str = "",
         rsuffix: str = "",
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Performs a cross join, which returns the Cartesian product of the current
         :class:`DataFrame` and another :class:`DataFrame` (``right``).
@@ -3684,6 +3728,7 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def with_column(
         self,
         col_name: str,
@@ -3691,7 +3736,7 @@ class DataFrame:
         *,
         keep_column_order: bool = False,
         ast_stmt: proto.Expr = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """
         Returns a DataFrame with an additional column with the specified name
@@ -3756,6 +3801,7 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def with_columns(
         self,
         col_names: List[str],
@@ -3763,7 +3809,7 @@ class DataFrame:
         *,
         keep_column_order: bool = False,
         _ast_stmt: proto.Expr = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
         ``col_names``. The columns are computed by using the specified expressions
@@ -3909,7 +3955,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> int:
         ...  # pragma: no cover
 
@@ -3920,7 +3966,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -3930,7 +3976,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> Union[int, AsyncJob]:
         """Executes the query representing this DataFrame and returns the number of
         rows in the result (similar to the COUNT function in SQL).
@@ -3999,6 +4045,10 @@ class DataFrame:
 
         return self._writer
 
+    @property
+    def writeStream(self):
+        return DataStreamWriter(self)
+
     @df_collect_api_telemetry
     @publicapi
     def copy_into_table(
@@ -4013,7 +4063,7 @@ class DataFrame:
         format_type_options: Optional[Dict[str, Any]] = None,
         statement_params: Optional[Dict[str, str]] = None,
         iceberg_config: Optional[dict] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
         **copy_options: Any,
     ) -> List[Row]:
         """Executes a `COPY INTO <table> <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html>`__ command to load data from files in a stage location into a specified table.
@@ -4246,7 +4296,7 @@ class DataFrame:
         max_width: int = 50,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> None:
         """Evaluates this DataFrame and prints out the first ``n`` rows with the
         specified maximum number of characters per column.
@@ -4279,6 +4329,7 @@ class DataFrame:
     )
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def flatten(
         self,
         input: ColumnOrName,
@@ -4286,7 +4337,7 @@ class DataFrame:
         outer: bool = False,
         recursive: bool = False,
         mode: str = "BOTH",
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Flattens (explodes) compound values into multiple rows.
 
@@ -4411,7 +4462,7 @@ class DataFrame:
         )
 
     def _show_string(
-        self, n: int = 10, max_width: int = 50, _emit_ast: bool = True, **kwargs
+        self, n: int = 10, max_width: int = 50, _emit_ast: bool = False, **kwargs
     ) -> str:
         query = self._plan.queries[-1].sql.strip().lower()
 
@@ -4520,7 +4571,7 @@ class DataFrame:
         *,
         comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
 
@@ -4584,7 +4635,7 @@ class DataFrame:
         max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
         iceberg_config: Optional[dict] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
 
@@ -4721,7 +4772,7 @@ class DataFrame:
         *,
         comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> List[Row]:
         """Creates a temporary view that returns the same results as this DataFrame.
 
@@ -4847,7 +4898,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> Union[Optional[Row], List[Row]]:
         ...  # pragma: no cover
 
@@ -4859,7 +4910,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> AsyncJob:
         ...  # pragma: no cover
 
@@ -4870,7 +4921,7 @@ class DataFrame:
         *,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> Union[Optional[Row], List[Row], AsyncJob]:
         """Executes the query representing this DataFrame and returns the first ``n``
         rows of the results.
@@ -4932,11 +4983,12 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def sample(
         self,
         frac: Optional[float] = None,
         n: Optional[int] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a
         percentage of rows to be returned.
@@ -4988,7 +5040,7 @@ class DataFrame:
         if n is not None and n < 0:
             raise ValueError(f"'n' value {n} must be greater than 0")
 
-    @property
+    @property    
     def na(self) -> DataFrameNaFunctions:
         """
         Returns a :class:`DataFrameNaFunctions` object that provides functions for
@@ -5004,6 +5056,7 @@ class DataFrame:
         return self._session
 
     @publicapi
+    @propagate_stream_source
     def describe(
         self, *cols: Union[str, List[str]], _emit_ast: bool = True
     ) -> "DataFrame":
@@ -5118,11 +5171,12 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def rename(
         self,
         col_or_mapper: Union[ColumnOrName, dict],
         new_column: str = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ):
         """
         Returns a DataFrame with the specified column ``col_or_mapper`` renamed as ``new_column``. If ``col_or_mapper``
@@ -5205,12 +5259,13 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    @propagate_stream_source
     def with_column_renamed(
         self,
         existing: ColumnOrName,
         new: str,
         _ast_stmt: Optional[proto.Assign] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
 
@@ -5286,11 +5341,12 @@ class DataFrame:
 
     @df_collect_api_telemetry
     @publicapi
+    @propagate_stream_source
     def cache_result(
         self,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> "Table":
         """Caches the content of this DataFrame to create a new cached Table DataFrame.
 
@@ -5427,7 +5483,7 @@ class DataFrame:
         seed: Optional[int] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
-        _emit_ast: bool = True,
+        _emit_ast: bool = False,
     ) -> List["DataFrame"]:
         """
         Randomly splits the current DataFrame into separate DataFrames,
@@ -5806,6 +5862,12 @@ Query List:
     # withColumns = with_columns
 
 
+    def set_stream_source(self, stream_source: str) -> "DataFrame":
+        result = self.__copy__()
+        result._stream_source = stream_source
+        return result
+
+@propagate_stream_source
 def map(
     dataframe: DataFrame,
     func: Callable,
