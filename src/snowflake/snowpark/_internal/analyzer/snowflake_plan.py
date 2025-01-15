@@ -122,6 +122,14 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+myid = 0
+
+
+def get_myid():
+    global myid
+    myid += 1
+    return myid
+
 
 class SnowflakePlan(LogicalPlan):
     class Decorator:
@@ -259,7 +267,7 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
         # to UUID track queries that are generated from the same plan.
-        self._uuid = str(uuid.uuid4())
+        self._uuid = str(get_myid())
         # Metadata for the plan
         self._metadata: PlanMetadata = infer_metadata(
             self.source_plan,
