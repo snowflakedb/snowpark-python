@@ -9,7 +9,6 @@ from typing import Any, Optional, Union
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.snowpark import context
 from snowflake.snowpark._internal.analyzer.binary_expression import (
     Add,
     And,
@@ -976,10 +975,6 @@ class Column:
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
-        is_rename = (
-            isinstance(to, StructType)
-            and context._should_use_structured_type_semantics()
-        )
         return self._cast(
             to, True, _emit_ast=_emit_ast, is_rename=is_rename, is_add=is_add
         )
