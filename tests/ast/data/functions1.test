@@ -16,7 +16,7 @@ df05 = df.select(column("X", "A"))
 
 df06 = df.select(column("A", None))
 
-df07 = df.select(lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}))
+df07 = df.select(lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}), lit(lit(1)))
 
 df08 = df.select(sql_expr("CURRENT_WAREHOUSE()"))
 
@@ -314,7 +314,7 @@ df05 = df.select(column("X", "A"))
 
 df06 = df.select(column("A"))
 
-df07 = df.select(lit(1), lit("1"), lit(1.0), lit(True), lit(bytes("snow", "utf-8")), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}))
+df07 = df.select(lit(1), lit("1"), lit(1.0), lit(True), lit(bytes("snow", "utf-8")), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}), lit(lit(1)))
 
 df08 = df.select(sql_expr("CURRENT_WAREHOUSE()"))
 
