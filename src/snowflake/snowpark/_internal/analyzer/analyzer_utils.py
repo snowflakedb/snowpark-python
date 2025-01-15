@@ -186,6 +186,7 @@ DEFAULT_ON_NULL = " DEFAULT ON NULL "
 ANY = " ANY "
 ICEBERG = " ICEBERG "
 RENAME_FIELDS = " RENAME FIELDS"
+ADD_FIELDS = " ADD FIELDS"
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -1119,7 +1120,11 @@ def rank_related_function_expression(
 
 
 def cast_expression(
-    child: str, datatype: DataType, try_: bool = False, is_rename: bool = False
+    child: str,
+    datatype: DataType,
+    try_: bool = False,
+    is_rename: bool = False,
+    is_add: bool = False,
 ) -> str:
     return (
         (TRY_CAST if try_ else CAST)
@@ -1127,7 +1132,8 @@ def cast_expression(
         + child
         + AS
         + convert_sp_to_sf_type(datatype)
-        + (RENAME_FIELDS if is_rename else "")
+        + (RENAME_FIELDS if is_rename and not is_add else "")
+        + (ADD_FIELDS if is_add and not is_rename else "")
         + RIGHT_PARENTHESIS
     )
 
