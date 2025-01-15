@@ -1835,6 +1835,34 @@ class Decoder:
                 )
                 return ret_sproc
 
+            case "sp_flatten":
+                input = self.decode_expr(expr.sp_flatten.input)
+
+                path = expr.sp_flatten.path.value
+
+                outer = expr.sp_flatten.outer
+
+                recursive = expr.sp_flatten.recursive
+
+                mode = "BOTH"
+                match expr.sp_flatten.mode.WhichOneof("variant"):
+                    case "sp_flatten_mode_both":
+                        mode = "BOTH"
+                    case "sp_flatten_mode_array":
+                        mode = "ARRAY"
+                    case "sp_flatten_mode_object":
+                        mode = "OBJECT"
+
+                if len(path) == 0:
+
+                    return self.session.flatten(
+                        input=input, outer=outer, recursive=recursive, mode=mode
+                    )
+
+                return self.session.flatten(
+                    input=input, path=path, outer=outer, recursive=recursive, mode=mode
+                )
+
             case _:
                 raise NotImplementedError(
                     "Expression type not implemented yet: %s"
