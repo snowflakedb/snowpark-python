@@ -15,7 +15,7 @@ from google.protobuf.json_format import MessageToDict
 from build.lib.snowflake.snowpark.relational_grouped_dataframe import GroupingSets
 from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
 import snowflake.snowpark.functions
-from snowflake.snowpark.functions import udf, when
+from snowflake.snowpark.functions import udf, when, sproc
 from snowflake.snowpark.types import (
     DataType,
     ArrayType,
@@ -216,8 +216,9 @@ class Decoder:
             #     pass
             case "sp_fn_ref":
                 return self.symbol_table[fn_ref_expr.sp_fn_ref.id.bitfield1][0]
-            # case "stored_procedure":
-            #     pass
+            case "stored_procedure":
+                breakpoint()
+                return self.decode_name_expr(fn_ref_expr.stored_procedure.name)
             # case "udaf":
             #     pass
             # case "udf":
@@ -1803,6 +1804,29 @@ class Decoder:
             case "sp_dataframe_write":
                 df = self.decode_expr(expr.sp_dataframe_write.df)
                 return df.write
+
+            case "stored_procedure":
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.stored_procedure.input_types.list
+                ]
+                execute_as = expr.stored_procedure.execute_as
+                comment = expr.stored_procedure.comment.value
+                registered_object_name = self.decode_name_expr(
+                    expr.stored_procedure.func.object_name
+                )
+                return_type = self.decode_data_type_expr(
+                    expr.stored_procedure.return_type
+                )
+                breakpoint()
+                return sproc(
+                    lambda *args: None,
+                    return_type=return_type,
+                    input_types=input_types,
+                    execute_as=execute_as,
+                    comment=comment,
+                    _registered_object_name=registered_object_name,
+                )
 
             case _:
                 raise NotImplementedError(
