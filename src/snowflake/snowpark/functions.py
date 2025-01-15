@@ -368,16 +368,20 @@ def lit(
         <BLANKLINE>
     """
 
-    if isinstance(literal, Column):
-        return literal
-
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        if isinstance(literal, Column):
+            ast = literal._ast
+        else:
+            ast = proto.Expr()
         if datatype is None:
             build_builtin_fn_apply(ast, "lit", literal)
         else:
             build_builtin_fn_apply(ast, "lit", literal, datatype)
+
+    if isinstance(literal, Column):
+        return literal
+
     return Column(Literal(literal, datatype=datatype), _ast=ast, _emit_ast=_emit_ast)
 
 
