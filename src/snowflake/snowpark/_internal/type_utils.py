@@ -248,7 +248,7 @@ def convert_sf_to_sp_type(
     )
 
 
-def convert_sp_to_sf_type(datatype: DataType) -> str:
+def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, DecimalType):
         return f"NUMBER({datatype.precision}, {datatype.scale})"
     if isinstance(datatype, IntegerType):
@@ -295,7 +295,9 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
             return "ARRAY"
     if isinstance(datatype, MapType):
         if datatype.structured:
-            nullable = "" if datatype.value_contains_null else " NOT NULL"
+            nullable = (
+                "" if datatype.value_contains_null or nullable_override else " NOT NULL"
+            )
             return f"MAP({convert_sp_to_sf_type(datatype.key_type)}, {convert_sp_to_sf_type(datatype.value_type)}{nullable})"
         else:
             return "OBJECT"
