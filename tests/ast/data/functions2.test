@@ -1401,17 +1401,20 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 74
+                      end_line: 41
                       file: "SRC_POSITION_TEST_MODE"
+                      start_column: 66
                       start_line: 41
                     }
                     v: "B"
                   }
                 }
                 src {
-                  end_column: 75
+                  end_column: 74
                   end_line: 41
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 47
+                  start_column: 66
                   start_line: 41
                 }
               }
@@ -1564,17 +1567,20 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 82
+                      end_line: 43
                       file: "SRC_POSITION_TEST_MODE"
+                      start_column: 74
                       start_line: 43
                     }
                     v: "B"
                   }
                 }
                 src {
-                  end_column: 83
+                  end_column: 82
                   end_line: 43
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 51
+                  start_column: 74
                   start_line: 43
                 }
               }
