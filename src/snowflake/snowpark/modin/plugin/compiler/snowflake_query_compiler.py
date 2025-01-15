@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import calendar
 import collections
 import copy
@@ -10,6 +11,7 @@ import itertools
 import json
 import logging
 import re
+from collections import Counter
 import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
@@ -531,9 +533,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ), "frame is None or not a InternalFrame"
         self._modin_frame = frame
         # self.snowpark_pandas_api_calls a list of lazy Snowpark pandas telemetry api calls
-        # Copying and modifying self.snowpark_pandas_api_calls is taken care of in telemetry decorators
+        # Copying and modifying self.snowpark_pandas_api_calls and self._method_call_counts
+        # is taken care of in telemetry decorators
         self.snowpark_pandas_api_calls: list = []
         self._attrs: dict[Any, Any] = {}
+        self._method_call_counts: Counter[str] = Counter[str]()
 
     def _raise_not_implemented_error_for_timedelta(
         self, frame: InternalFrame = None
@@ -3980,6 +3984,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_args: Any,
         agg_kwargs: dict[str, Any],
         series_groupby: bool,
+        include_groups: bool,
         force_single_group: bool = False,
         force_list_like_to_series: bool = False,
     ) -> "SnowflakeQueryCompiler":
@@ -4002,6 +4007,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 Keyword arguments to pass to agg_func when applying it to each group.
             series_groupby:
                 Whether we are performing a SeriesGroupBy.apply() instead of a DataFrameGroupBy.apply()
+            include_groups:
+                When True, will include grouping keys when calling func in the case that
+                they are columns of the DataFrame.
             force_single_group:
                 Force single group (empty set of group by labels) useful for DataFrame.apply() with axis=0
             force_list_like_to_series:
@@ -4019,14 +4027,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"No support for groupby.apply with parameters by={by}, "
                 + f"level={level}, and axis={axis}"
             )
-
-        if "include_groups" in agg_kwargs:
-            # exclude "include_groups" from the apply function kwargs
-            include_groups = agg_kwargs.pop("include_groups")
-            if not include_groups:
-                ErrorMessage.not_implemented(
-                    f"No support for groupby.apply with include_groups = {include_groups}"
-                )
 
         sort = groupby_kwargs.get("sort", True)
         as_index = groupby_kwargs.get("as_index", True)
@@ -4052,17 +4052,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         snowflake_type_map = self._modin_frame.quoted_identifier_to_snowflake_type()
-
-        # For DataFrameGroupBy, `func` operates on this frame in its entirety.
-        # For SeriesGroupBy, this frame may also include some grouping columns
-        # that `func` should not take as input. In that case, the only column
-        # that `func` takes as input is the last data column, so grab just that
-        # column with a slice starting at index -1 and ending at None.
-        input_data_column_identifiers = (
-            self._modin_frame.data_column_snowflake_quoted_identifiers[
-                slice(-1, None) if series_groupby else slice(None)
-            ]
-        )
+        input_data_column_positions = [
+            i
+            for i, identifier in enumerate(
+                self._modin_frame.data_column_snowflake_quoted_identifiers
+            )
+            if (
+                (
+                    # For SeriesGroupBy, this frame may also include some
+                    # grouping columns that `func` should not take as input. In
+                    # that case, the only column that `func` takes as input is
+                    # the last data column, so take just that column.
+                    # include_groups has no effect.
+                    i
+                    == len(self._modin_frame.data_column_snowflake_quoted_identifiers)
+                    - 1
+                )
+                if series_groupby
+                else (
+                    # For DataFrameGroupBy, if include_groups, we apply the
+                    # function to all data columns. Otherwise, we exclude
+                    # data columns that we are grouping by.
+                    include_groups
+                    or identifier not in by_snowflake_quoted_identifiers_list
+                )
+            )
+        ]
+        input_data_column_identifiers = [
+            self._modin_frame.data_column_snowflake_quoted_identifiers[i]
+            for i in input_data_column_positions
+        ]
 
         # TODO(SNOW-1210489): When type hints show that `agg_func` returns a
         # scalar, we can use a vUDF instead of a vUDTF and we can skip the
@@ -4071,7 +4090,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             agg_func,
             agg_args,
             agg_kwargs,
-            data_column_index=self._modin_frame.data_columns_index,
+            data_column_index=self._modin_frame.data_columns_index[
+                input_data_column_positions
+            ],
             index_column_names=self._modin_frame.index_column_pandas_labels,
             input_data_column_types=[
                 snowflake_type_map[quoted_identifier]
@@ -8512,6 +8533,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     series_groupby=True,
                     force_single_group=True,
                     force_list_like_to_series=True,
+                    include_groups=True,
                 )
 
                 data_col_result_frame = data_col_qc._modin_frame
