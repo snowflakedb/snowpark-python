@@ -1430,5 +1430,58 @@ def merge_multiple_dicts(*dicts):
         # If all values are the same, add to the merged dictionary
         if len(set(values)) == 1:
             merged_dict[key] = values[0]
+        else:
+            pass
+
+    return merged_dict
+
+
+def merge_multiple_chilren_expr_to_alias(*snowflake_plans):
+    all_output_columns = set()
+    for plan in snowflake_plans:
+        output_columns = [attr.name for attr in plan.output]
+        all_output_columns.update(output_columns)
+
+    dicts = [plan.expr_to_alias for plan in snowflake_plans]
+
+    # used for v2 alias mapping: (expr id, plan id) -> alias
+    # only merge non-conflicting keys into the merged dict
+    # conflicting keys is valid in case of cross join, in which case, the alias mapping is not used so we just ignore
+    # in other join cases, we won't have conflicting keys
+    merged_dict = {}
+
+    # Collect all unique keys from all dictionaries
+    all_keys = set().union(*dicts)
+
+    for key in all_keys:
+        # Collect all values for this key from all dictionaries
+        values = [d[key] for d in dicts if key in d]
+
+        # If all values are the same, add to the merged dictionary
+        if len(set(values)) == 1:
+            merged_dict[key] = values[0]
+        else:
+            candidate = None
+            for v in values:
+                if v in all_output_columns:
+                    if not candidate:
+                        candidate = v
+                    else:
+                        # self join can have ambiguous column name
+                        # this doesn't affect the output
+                        # only affecting reference column
+                        # we will ignore the conflicting key
+                        # if conflict aliases shows up in both sides of the output
+                        # we can not decide, this is a valida ambigous case that we should raise error out
+                        # to let users handle it
+                        candidate = None
+                        break
+                else:
+                    # v won't be used, ditch it
+                    pass
+            if not candidate:
+                continue
+                # raise ValueError(f"Ambiguous column name {values}")
+            merged_dict[key] = candidate
 
     return merged_dict
