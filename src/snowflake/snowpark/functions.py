@@ -350,7 +350,7 @@ def lit(
     ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
     ``datetime.datetime`` and ``decimal.Decimal``. Also, it supports Python structured data types,
     including ``list``, ``tuple`` and ``dict``, but this container must
-    be JSON serializable. If a ``Column`` is passed, it returns the column as is.
+    be JSON serializable. If a ``Column`` object is passed, it is returned as is.
 
     Example::
 
