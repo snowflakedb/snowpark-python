@@ -1139,7 +1139,6 @@ def test_structured_map_value_contains_null(
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
 
-    # SNOW-1862947 create DDL test once save as table supported
     array_df = structured_type_session.sql(
         "select {'test' : 'test'} :: MAP(STRING, STRING NOT NULL) AS M, {'test' : 'test'} :: MAP(STRING, STRING) AS M_N"
     )
@@ -1166,6 +1165,34 @@ def test_structured_map_value_contains_null(
         ]
     )
     assert array_df.schema == expected_schema
+
+    table_name = f"snowpark_structured_map_contains_null_{uuid.uuid4().hex[:5]}".upper()
+    try:
+        # Create table from select statement
+        non_null_df = structured_type_session.create_dataframe(
+            [
+                ({"a": "b"},),
+            ],
+            schema=StructType(
+                [
+                    StructField(
+                        "A",
+                        MapType(StringType(), StringType(), value_contains_null=False),
+                        nullable=False,
+                    )
+                ]
+            ),
+        )
+        non_null_df.write.save_as_table(table_name)
+        save_ddl = structured_type_session._run_query(
+            f"select get_ddl('table', '{table_name}')"
+        )
+        # Not null dropped because dataframe created from select cannot maintain nullability
+        assert save_ddl[0][0] == (
+            f"create or replace TABLE {table_name.upper()} (\n\tA MAP(VARCHAR(16777216), VARCHAR(16777216))\n);"
+        )
+    finally:
+        Utils.drop_table(structured_type_session, table_name)
 
 
 @pytest.mark.skipif(
