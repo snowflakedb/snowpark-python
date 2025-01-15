@@ -1139,7 +1139,6 @@ def test_structured_array_contains_null(
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
 
-    # SNOW-1862947 create DDL test once save as table supported
     array_df = structured_type_session.sql(
         "select [1, 2, 3] :: ARRAY(INT NOT NULL) as A, [1, 2, 3] :: ARRAY(INT) as A_N"
     )
@@ -1154,6 +1153,36 @@ def test_structured_array_contains_null(
         ]
     )
     assert array_df.schema == expected_schema
+
+    table_name = (
+        f"snowpark_structured_dtypes_contains_null_{uuid.uuid4().hex[:5]}".upper()
+    )
+    try:
+        # Create table from select statement
+        non_null_df = structured_type_session.create_dataframe(
+            [
+                ([1, 2, 3],),
+            ],
+            schema=StructType(
+                [
+                    StructField(
+                        "A",
+                        ArrayType(IntegerType(), contains_null=False),
+                        nullable=False,
+                    )
+                ]
+            ),
+        )
+        non_null_df.write.save_as_table(table_name)
+        save_ddl = structured_type_session._run_query(
+            f"select get_ddl('table', '{table_name}')"
+        )
+        # Not null dropped because dataframe created from select cannot maintain nullability
+        assert save_ddl[0][0] == (
+            f"create or replace TABLE {table_name.upper()} (\n\tA ARRAY(NUMBER(38,0))\n);"
+        )
+    finally:
+        Utils.drop_table(structured_type_session, table_name)
 
 
 @pytest.mark.skipif(
