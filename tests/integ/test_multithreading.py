@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import gc
@@ -20,10 +20,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanState,
 )
 from snowflake.snowpark._internal.compiler.cte_utils import find_duplicate_subtrees
-from snowflake.snowpark.session import (
-    _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION,
-    Session,
-)
+from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -68,9 +65,6 @@ def threadsafe_session(
     else:
         new_db_parameters = db_parameters.copy()
         new_db_parameters["local_testing"] = local_testing_mode
-        new_db_parameters["session_parameters"] = {
-            _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: True
-        }
         with Session.builder.configs(new_db_parameters).create() as session:
             session._sql_simplifier_enabled = sql_simplifier_enabled
             yield session
@@ -888,36 +882,28 @@ def test_temp_name_placeholder_for_async(
     assert len(unique_drop_file_format_queries) == 10
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Cannot create new session inside stored proc"
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="cursor are not created in local testing mode",
+    run=False,
 )
-@pytest.mark.parametrize("is_enabled", [True, False])
-def test_num_cursors_created(db_parameters, is_enabled, local_testing_mode):
-    if is_enabled and local_testing_mode:
-        pytest.skip("Multithreading is enabled by default in local testing mode")
+def test_num_cursors_created(threadsafe_session):
+    num_workers = 5
 
-    num_workers = 5 if is_enabled else 1
-    new_db_parameters = db_parameters.copy()
-    new_db_parameters["session_parameters"] = {
-        _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: is_enabled
-    }
+    def run_query(session_, thread_id):
+        assert session_.sql(f"SELECT {thread_id} as A").collect()[0][0] == thread_id
 
-    with Session.builder.configs(new_db_parameters).create() as new_session:
-
-        def run_query(session_, thread_id):
-            assert session_.sql(f"SELECT {thread_id} as A").collect()[0][0] == thread_id
-
-        with patch.object(
-            new_session._conn._telemetry_client, "send_cursor_created_telemetry"
-        ) as mock_telemetry:
-            with ThreadPoolExecutor(max_workers=num_workers) as executor:
-                for i in range(10):
-                    executor.submit(run_query, new_session, i)
+    with patch.object(
+        threadsafe_session._conn._telemetry_client, "send_cursor_created_telemetry"
+    ) as mock_telemetry:
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            for i in range(10):
+                executor.submit(run_query, threadsafe_session, i)
 
         # when multithreading is enabled, each worker will create a cursor
         # otherwise, we will use the same cursor created by the main thread
         # thus creating 0 new cursors.
-        assert mock_telemetry.call_count == (num_workers if is_enabled else 0)
+        assert mock_telemetry.call_count == num_workers
 
 
 @pytest.mark.xfail(
