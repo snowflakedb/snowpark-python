@@ -340,7 +340,9 @@ def column(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> C
 
 @publicapi
 def lit(
-    literal: LiteralType, datatype: Optional[DataType] = None, _emit_ast: bool = True
+    literal: ColumnOrLiteral,
+    datatype: Optional[DataType] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
