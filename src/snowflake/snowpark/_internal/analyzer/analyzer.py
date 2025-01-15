@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import uuid
-from collections import Counter, defaultdict
+from collections import defaultdict
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 
 import snowflake.snowpark
@@ -151,7 +151,10 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark._internal.utils import (
+    quote_name,
+    merge_multiple_snowflake_plan_expr_to_alias,
+)
 from snowflake.snowpark.types import BooleanType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
@@ -804,22 +807,9 @@ class Analyzer:
             # Selectable doesn't have children. It already has the expr_to_alias dict.
             self.alias_maps_to_use = logical_plan.expr_to_alias.copy()
         else:
-            use_maps = {}
-            # get counts of expr_to_alias keys
-            counts = Counter()
-            for v in resolved_children.values():
-                if v.expr_to_alias:
-                    counts.update(list(v.expr_to_alias.keys()))
-
-            # Keep only non-shared expr_to_alias keys
-            # let (df1.join(df2)).join(df2.join(df3)).select(df2) report error
-            for v in resolved_children.values():
-                if v.expr_to_alias:
-                    use_maps.update(
-                        {p: q for p, q in v.expr_to_alias.items() if counts[p] < 2}
-                    )
-
-            self.alias_maps_to_use = use_maps
+            self.alias_maps_to_use = merge_multiple_snowflake_plan_expr_to_alias(
+                list(resolved_children.values())
+            )
 
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
