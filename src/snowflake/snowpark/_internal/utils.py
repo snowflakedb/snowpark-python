@@ -805,6 +805,7 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
 class AstFlagSource(IntEnum):
     LOCAL = auto()
     SERVER = auto()
+    TEST = auto()
 
 
 @unique
@@ -840,6 +841,14 @@ class _AstState:
                 source,
                 enable,
             )
+            if source == AstFlagSource.TEST:
+                # Treat TEST as SERVER:
+                #   Only one place in the production code uses SERVER. Test code shouldn't use that enum value.
+                #   Treat TEST requests as final. No other test or production code can change the state that test setup code requested.
+                #   If cases where treating TEST different from SERVER come up, we can augment the logic below.
+                canonical_source = AstFlagSource.SERVER
+                _logger.info("Treating source = %s as %s", source, canonical_source)
+                source = canonical_source
             if self._state == _AstFlagState.FINALIZED:
                 _logger.warning(
                     "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s",

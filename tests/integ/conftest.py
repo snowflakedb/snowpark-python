@@ -9,6 +9,7 @@ import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.ast.ast_test_utils import (
@@ -229,6 +230,7 @@ def session(
     key2 = f"key2{Utils.random_alphanumeric_str(10)}"
     integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
     integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
+    set_ast_state(AstFlagSource.TEST, ast_enabled)
 
     session = (
         Session.builder.configs(db_parameters)
