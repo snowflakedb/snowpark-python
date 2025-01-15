@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
 import datetime
@@ -4272,9 +4272,14 @@ def test_create_empty_dataframe(session):
 def test_dataframe_to_local_iterator_with_to_pandas_isolation(
     session, local_testing_mode
 ):
-    df = session.create_dataframe(
-        [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
-    )
+    if local_testing_mode:
+        df = session.create_dataframe(
+            [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
+        )
+    else:
+        df = session.sql(
+            "select 'xyz' as A1, 1111111111111111111 as B1 from table(generator(rowCount => 200000))"
+        )
     trigger_df = session.create_dataframe(
         [[1.0]], schema=StructType([StructField("A", DecimalType())])
     )
@@ -4459,3 +4464,23 @@ def test_with_column_keep_column_order(session):
     assert df3.columns == ["A", "B", "C"]
     df3 = df.with_columns(["C", "A"], [lit(0), lit(0)], keep_column_order=True)
     assert df3.columns == ["A", "B", "C"]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="replace function is not supported in Local Testing",
+)
+def test_SNOW_1879403_replace_with_lit(session):
+
+    # TODO SNOW-1880749: support for local testing mode.
+
+    from snowflake.snowpark.functions import replace
+
+    df = session.create_dataframe(
+        [["apple"], ["apple pie"], ["apple juice"]], schema=["a"]
+    )
+    ans = df.select(
+        replace(col("a"), lit("apple"), lit("orange")).alias("result")
+    ).collect()
+
+    Utils.check_answer(ans, [Row("orange"), Row("orange pie"), Row("orange juice")])

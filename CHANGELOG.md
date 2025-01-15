@@ -14,6 +14,33 @@
   - `map_keys`
   - `nullifzero`
   - `snowflake_cortex_sentiment`
+  - `acosh`
+  - `asinh`
+  - `atanh`
+  - `bit_length`
+  - `bitmap_bit_position`
+  - `bitmap_bucket_number`
+  - `bitmap_construct_agg`
+  - `cbrt`
+  - `equal_null`
+  - `ifnull`
+  - `localtimestamp`
+  - `max_by`
+  - `min_by`
+  - `nvl`
+  - `octet_length`
+  - `position`
+  - `regr_avgx`
+  - `regr_avgy`
+  - `regr_count`
+  - `regr_intercept`
+  - `regr_r2`
+  - `regr_slope`
+  - `regr_sxx`
+  - `regr_sxy`
+  - `regr_syy`
+  - `try_to_binary`
+
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
 
 #### Improvements
@@ -24,8 +51,9 @@
 #### Bug Fixes
 
 - Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
-- Fixed a bug in `StructField.from_json` that prevented TimestampTypes with tzinfo from being parsed correctly.
+- Fixed a bug in `StructField.from_json` that prevented TimestampTypes with `tzinfo` from being parsed correctly.
 - Fixed a bug in function `date_format` that caused an error when the input column was date type or timestamp type.
+- Fixed a bug in `replace` when passing `Column` expression objects.
 
 ### Snowpark pandas API Updates
 
@@ -63,8 +91,9 @@
 - Updated integration testing for `session.lineage.trace` to exclude deleted objects
 - Added documentation for `DataFrame.map`.
 - Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
-- Added documentation on the extent of Snowpark pandas interoperability with scikit-learn
+- Added documentation on the extent of Snowpark pandas interoperability with scikit-learn.
 - Infer return type of functions in `Series.map`, `Series.apply` and `DataFrame.map` if type-hint is not provided.
+- Added `call_count` to telemetry that counts method calls including interchange protocol calls.
 
 ## 1.26.0 (2024-12-05)
 
