@@ -1132,8 +1132,8 @@ def cast_expression(
         + child
         + AS
         + convert_sp_to_sf_type(datatype)
-        + (RENAME_FIELDS if is_rename and not is_add else "")
-        + (ADD_FIELDS if is_add and not is_rename else "")
+        + (RENAME_FIELDS if is_rename else "")
+        + (ADD_FIELDS if is_add else "")
         + RIGHT_PARENTHESIS
     )
 
