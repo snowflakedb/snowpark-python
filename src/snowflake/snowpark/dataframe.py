@@ -372,7 +372,9 @@ def _disambiguate(
         (
             lhs_remapped._plan.expr_to_alias,
             rhs_remapped._plan.expr_to_alias,
-        ) = update_expr_to_alias_dicts(lhs._plan.expr_to_alias, rhs._plan.expr_to_alias)
+        ) = update_expr_to_alias_dicts(
+            lhs_remapped._plan.expr_to_alias, rhs_remapped._plan.expr_to_alias
+        )
 
     return lhs_remapped, rhs_remapped
 
@@ -1673,11 +1675,12 @@ class DataFrame:
                 if isinstance(self._session._conn, MockServerConnection):
                     self.schema  # to execute the plan and populate expr_to_alias
 
-                names.append(
-                    self._plan.expr_to_alias.get(
-                        c._expression.expr_id, c._expression.name
-                    )
+                key = (
+                    (c._expression.expr_id, c._expression.snowflake_plan_id)
+                    if snowflake.snowpark.context._use_v2_alias
+                    else c._expression.expr_id
                 )
+                names.append(self._plan.expr_to_alias.get(key, c._expression.name))
             elif (
                 isinstance(c, Column)
                 and isinstance(c._expression, UnresolvedAttribute)
@@ -5284,7 +5287,12 @@ class DataFrame:
                     self.schema
 
                 att = existing._expression
-                old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
+                key = (
+                    (att.expr_id, att.snowflake_plan_id)
+                    if snowflake.snowpark.context._use_v2_alias
+                    else att.expr_id
+                )
+                old_name = self._plan.expr_to_alias.get(key, att.name)
             elif (
                 isinstance(existing._expression, UnresolvedAttribute)
                 and existing._expression.df_alias
@@ -5686,11 +5694,12 @@ Query List:
                 if isinstance(self._session._conn, MockServerConnection):
                     self.schema  # to execute the plan and populate expr_to_alias
 
-                names.append(
-                    self._plan.expr_to_alias.get(
-                        c._expression.expr_id, c._expression.name
-                    )
+                key = (
+                    (c._expression.expr_id, c._expression.snowflake_plan_id)
+                    if snowflake.snowpark.context._use_v2_alias
+                    else c._expression.expr_id
                 )
+                names.append(self._plan.expr_to_alias.get(key, c._expression.name))
             elif (
                 isinstance(c, Column)
                 and isinstance(c._expression, UnresolvedAttribute)
