@@ -3580,128 +3580,13 @@ body {
             pos_args {
               string_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 85
-                }
-                v: "B"
-              }
-            }
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 85
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "convert_timezone"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              string_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 85
-                }
-                v: "A"
-              }
-            }
-            pos_args {
-              string_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 85
-                }
-                v: "B"
-              }
-            }
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 85
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "convert_timezone"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_line: 85
-                    }
-                    v: "A"
-                  }
-                }
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 85
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 89
-                      end_line: 85
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 58
-                      start_line: 85
-                    }
-                    v: "B"
-                  }
-                }
-                src {
                   end_column: 89
                   end_line: 85
                   file: "SRC_POSITION_TEST_MODE"
                   start_column: 58
                   start_line: 85
                 }
+                v: "B"
               }
             }
             src {
@@ -3773,12 +3658,102 @@ body {
               }
             }
             pos_args {
-              string_val {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 144
+                      end_line: 85
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 136
+                      start_line: 85
+                    }
+                    v: "A"
+                  }
+                }
                 src {
                   end_column: 144
                   end_line: 85
                   file: "SRC_POSITION_TEST_MODE"
                   start_column: 136
+                  start_line: 85
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 154
+                      end_line: 85
+                      file: "SRC_POSITION_TEST_MODE"
+                      start_column: 146
+                      start_line: 85
+                    }
+                    v: "B"
+                  }
+                }
+                src {
+                  end_column: 154
+                  end_line: 85
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 146
+                  start_line: 85
+                }
+              }
+            }
+            src {
+              end_column: 155
+              end_line: 85
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 119
+              start_line: 85
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "convert_timezone"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 187
+                  end_line: 85
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 157
                   start_line: 85
                 }
                 v: "A"
@@ -3787,10 +3762,56 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 154
+                  end_column: 187
                   end_line: 85
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 146
+                  start_column: 157
+                  start_line: 85
+                }
+                v: "B"
+              }
+            }
+            src {
+              end_column: 187
+              end_line: 85
+              file: "SRC_POSITION_TEST_MODE"
+              start_column: 157
+              start_line: 85
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "convert_timezone"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 220
+                  end_line: 85
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 189
+                  start_line: 85
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 220
+                  end_line: 85
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_column: 189
                   start_line: 85
                 }
                 v: "B"
@@ -3966,10 +3987,10 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 124
+                      end_column: 92
                       end_line: 87
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 104
+                      start_column: 82
                       start_line: 87
                     }
                     v: "UTC"
@@ -4034,14 +4055,20 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 124
+                      end_line: 87
                       file: "SRC_POSITION_TEST_MODE"
+                      start_column: 104
                       start_line: 87
                     }
                     v: "Asia/Shanghai"
                   }
                 }
                 src {
+                  end_column: 124
+                  end_line: 87
                   file: "SRC_POSITION_TEST_MODE"
+                  start_column: 104
                   start_line: 87
                 }
               }
