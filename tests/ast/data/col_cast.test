@@ -101,9 +101,9 @@ df = df.select(col("A").cast(MapType(StringType(), StringType(), structured=Fals
 
 df = df.select(col("A").cast(VectorType(FloatType(), 42)))
 
-df = df.select(col("A").cast(StructType(structured=False)))
+df = df.select(col("A").cast(StructType([], structured=False)))
 
-df = df.select(col("A").cast(StructType(structured=False)))
+df = df.select(col("A").cast(StructType([], structured=False)))
 
 df = df.select(col("A").cast(StructType([StructField("B", IntegerType(), nullable=True)], structured=False)))
 
@@ -1572,6 +1572,8 @@ body {
             }
             to {
               sp_struct_type {
+                fields {
+                }
               }
             }
           }
@@ -1651,6 +1653,8 @@ body {
             }
             to {
               sp_struct_type {
+                fields {
+                }
               }
             }
           }

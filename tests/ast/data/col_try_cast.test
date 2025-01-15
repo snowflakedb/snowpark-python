@@ -93,7 +93,7 @@ df = df.select(col("A").try_cast(MapType(StringType(), StringType(), structured=
 
 df = df.select(col("A").try_cast(VectorType(FloatType(), 42)))
 
-df = df.select(col("A").try_cast(StructType(structured=False)))
+df = df.select(col("A").try_cast(StructType([], structured=False)))
 
 df = df.select(col("A").try_cast(VariantType()))
 
@@ -1478,6 +1478,8 @@ body {
             }
             to {
               sp_struct_type {
+                fields {
+                }
               }
             }
           }
