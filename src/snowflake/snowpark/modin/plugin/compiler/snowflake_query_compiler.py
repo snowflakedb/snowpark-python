@@ -16840,7 +16840,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # Follow pandas behavior
                 return pandas_lit(np.nan)
             elif n < -1 and not pandas.isnull(pat) and len(str(pat)) > 1:
-                # Follow pandas behavior, which seems to leave the input column as is
+                # Follow pandas behavior, which based on our experiments, leaves the input column as is
                 # whenever the above condition is satisfied.
                 new_col = iff(
                     column.is_null(), pandas_lit(None), array_construct(column)
@@ -16917,7 +16917,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 final_splits = min(n + 1, max_splits)
 
             if n < -1 and not pandas.isnull(pat) and len(str(pat)) > 1:
-                # Follow pandas behavior, which seems to leave the input column as is
+                # Follow pandas behavior, which based on our experiments, leaves the input column as is
                 # whenever the above condition is satisfied.
                 final_splits = 1
 

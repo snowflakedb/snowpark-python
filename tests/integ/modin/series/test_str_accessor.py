@@ -370,7 +370,9 @@ def test_str_replace_neg(pat, n, repl, error):
         snow_ser.str.replace(pat=pat, repl=repl, n=n)
 
 
-@pytest.mark.parametrize("pat", [None, "a", "ab", "non_occurrence_pat", "|", "%"])
+@pytest.mark.parametrize(
+    "pat", [None, "a", "ab", "abc", "non_occurrence_pat", "|", "%"]
+)
 @pytest.mark.parametrize("n", [None, np.nan, 3, 2, 1, 0, -1, -2])
 @sql_count_checker(query_count=1)
 def test_str_split_expand_false(pat, n):
@@ -383,7 +385,7 @@ def test_str_split_expand_false(pat, n):
     )
 
 
-@pytest.mark.parametrize("pat", [None, "a", "ab", "no_occurrence_pat", "|", "%"])
+@pytest.mark.parametrize("pat", [None, "a", "ab", "abc", "no_occurrence_pat", "|", "%"])
 @pytest.mark.parametrize("n", [None, np.nan, 3, 2, 1, 0, -1, -2])
 @sql_count_checker(query_count=2)
 def test_str_split_expand_true(pat, n):
