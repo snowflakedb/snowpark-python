@@ -1920,24 +1920,14 @@ def test_show_dataframe_spark(session):
         df = session.create_dataframe([data], schema=schema)
         spark_col_names = [f"col_{i + 1}" for i in range(len(data))]
 
-        def compare_show_string(actual: str, expected: str) -> bool:
+        def assert_show_string_equals(actual: str, expected: str):
             actual_lines = actual.strip().split("\n")
             expected_lines = expected.strip().split("\n")
-            result = [
-                a.strip() == e.strip() for a, e in zip(actual_lines, expected_lines)
-            ]
-            return all(result)
+            for a, e in zip(actual_lines, expected_lines):
+                if a.strip() != e.strip():
+                    print(f"\nactual:\n{actual}\nexpected:{expected}")
 
-        print("\n")
-        print(
-            df._show_string_spark(
-                truncate=False,
-                _emit_ast=session.ast_enabled,
-                _spark_column_names=spark_col_names,
-            ).strip()
-        )
-        print("\n")
-        assert compare_show_string(
+        assert_show_string_equals(
             df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
             dedent(
                 """
@@ -1949,7 +1939,7 @@ def test_show_dataframe_spark(session):
             """
             ),
         )
-        assert compare_show_string(
+        assert_show_string_equals(
             df._show_string_spark(
                 _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
             ),
@@ -1963,7 +1953,7 @@ def test_show_dataframe_spark(session):
             """
             ),
         )
-        assert compare_show_string(
+        assert_show_string_equals(
             df._show_string_spark(
                 vertical=True,
                 _emit_ast=session.ast_enabled,
@@ -1988,7 +1978,7 @@ def test_show_dataframe_spark(session):
             """
             ),
         )
-        assert compare_show_string(
+        assert_show_string_equals(
             df._show_string_spark(
                 vertical=True,
                 truncate=False,
@@ -2014,7 +2004,7 @@ def test_show_dataframe_spark(session):
                 """
             ),
         )
-        assert compare_show_string(
+        assert_show_string_equals(
             df._show_string_spark(
                 truncate=False,
                 _emit_ast=session.ast_enabled,
@@ -2030,7 +2020,7 @@ def test_show_dataframe_spark(session):
             """
             ),
         )
-        assert compare_show_string(
+        assert_show_string_equals(
             df._show_string_spark(
                 truncate=10,
                 _emit_ast=session.ast_enabled,
@@ -2046,6 +2036,7 @@ def test_show_dataframe_spark(session):
             """
             ),
         )
+        pytest.fail()
 
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
