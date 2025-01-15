@@ -54,7 +54,6 @@ class Decoder:
         # Map from var_id to (symbol_name, value). symbol_name is the identifier used in the program to store value.
         self.symbol_table: Dict[int, Tuple[str, object]] = dict()
         # Map from function/stored proc name to function/stored proc object
-        self.function_symbol_table: Dict[str, object] = dict()
         try:
             self.session = session if session is not None else Session.builder.create()
         except Exception as e:
@@ -554,10 +553,11 @@ class Decoder:
                 fn_name = self.decode_fn_ref_expr(expr.apply_expr.fn)
                 if hasattr(snowflake.snowpark.functions, fn_name):
                     fn = getattr(snowflake.snowpark.functions, fn_name)
-                elif fn_name in self.function_symbol_table:
-                    fn = self.function_symbol_table[fn_name]
-                else:
+                elif expr.apply_expr.fn.sp_fn_ref.id.bitfield1 in self.symbol_table:
                     fn = self.symbol_table[expr.apply_expr.fn.sp_fn_ref.id.bitfield1][1]
+                else:
+                    fn = None
+
                 # The named arguments are stored as a list of Tuple_String_Expr.
                 named_args = self.decode_dsl_map_expr(expr.apply_expr.named_args)
                 # The positional args can be a list of Expr, a single Expr, or [].
@@ -572,9 +572,10 @@ class Decoder:
                 else:
                     pos_args = []
 
+                if fn is None:
+                    return self.session.call(fn_name, *pos_args, **named_args)
+
                 if isinstance(fn, snowflake.snowpark.stored_procedure.StoredProcedure):
-                    if expr.apply_expr.fn.HasField("stored_procedure"):
-                        return self.session.call(fn_name, *pos_args, **named_args)
                     return None
 
                 result = fn(*pos_args, **named_args)
@@ -1835,7 +1836,6 @@ class Decoder:
                     comment=comment,
                     _registered_object_name=registered_object_name,
                 )
-                self.function_symbol_table[expr.stored_procedure.func.name] = ret_sproc
                 return ret_sproc
 
             case _:
