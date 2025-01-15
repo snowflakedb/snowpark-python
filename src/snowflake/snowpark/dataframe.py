@@ -4526,13 +4526,30 @@ class DataFrame:
             _spark_column_names = []
 
         def cell_to_str(cell: Any) -> str:
-            # Special handling for boolean to string in Python.
+            # Special handling for cell printing in Spark
             # TODO: this operation can be pushed down to Snowflake for execution.
             if cell is None:
-                return "NULL"
-            if isinstance(cell, bool):
-                return "true" if cell else "false"
-            return str(cell).replace("\n", "\\n")
+                res = "NULL"
+            elif isinstance(cell, bool):
+                res = "true" if cell else "false"
+            elif isinstance(cell, bytes) or isinstance(cell, bytearray):
+                res = f"[{' '.join([str(b) for b in cell])}]"
+            elif isinstance(cell, list):
+                res = "[" + ", ".join([cell_to_str(v) for v in cell]) + "]"
+            elif isinstance(cell, dict):
+                res = (
+                    "{"
+                    + ", ".join(
+                        [
+                            f"{cell_to_str(k)} -> {cell_to_str(v)}"
+                            for k, v in sorted(cell.items())
+                        ]
+                    )
+                    + "}"
+                )
+            else:
+                res = str(cell)
+            return res.replace("\n", "\\n")
 
         # Escape field names
         header = (
