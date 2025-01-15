@@ -3887,7 +3887,11 @@ class Session:
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
-                sproc_name, *args, session=self, statement_params=statement_params
+                sproc_name,
+                *args,
+                session=self,
+                statement_params=statement_params,
+                _emit_ast=False,
             )
 
         validate_object_name(sproc_name)

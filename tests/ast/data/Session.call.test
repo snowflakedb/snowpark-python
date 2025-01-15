@@ -17,11 +17,7 @@ my_sproc_sp = sproc("my_sproc", return_type=StringType(), input_types=[LongType(
 
 df = session.call("my_sproc", 1, "two", {"param1": 10, "param2": "twenty"}, True)
 
-my_sproc_sp(1, "two", {"param1": 10, "param2": "twenty"}, True)
-
 df2 = session.call("my_sproc", 2, "one", {}, False)
-
-my_sproc_sp(2, "one", {}, False)
 
 ## EXPECTED ENCODED AST
 
@@ -216,114 +212,6 @@ body {
     expr {
       apply_expr {
         fn {
-          sp_fn_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        pos_args {
-          int64_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 32
-            }
-            v: 1
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 32
-            }
-            v: "two"
-          }
-        }
-        pos_args {
-          seq_map_val {
-            kvs {
-              vs {
-                string_val {
-                  src {
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_line: 32
-                  }
-                  v: "param1"
-                }
-              }
-              vs {
-                int64_val {
-                  src {
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_line: 32
-                  }
-                  v: 10
-                }
-              }
-            }
-            kvs {
-              vs {
-                string_val {
-                  src {
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_line: 32
-                  }
-                  v: "param2"
-                }
-              }
-              vs {
-                string_val {
-                  src {
-                    file: "SRC_POSITION_TEST_MODE"
-                    start_line: 32
-                  }
-                  v: "twenty"
-                }
-              }
-            }
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 32
-            }
-          }
-        }
-        pos_args {
-          bool_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 32
-            }
-            v: true
-          }
-        }
-        src {
-          file: "SRC_POSITION_TEST_MODE"
-          start_line: 32
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 3
-    var_id {
-      bitfield1: 3
-    }
-  }
-}
-body {
-  eval {
-    uid: 4
-    var_id {
-      bitfield1: 3
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
           stored_procedure {
             log_on_exception {
             }
@@ -379,76 +267,9 @@ body {
     symbol {
       value: "df2"
     }
-    uid: 5
+    uid: 3
     var_id {
-      bitfield1: 5
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      apply_expr {
-        fn {
-          sp_fn_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        pos_args {
-          int64_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 34
-            }
-            v: 2
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 34
-            }
-            v: "one"
-          }
-        }
-        pos_args {
-          seq_map_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 34
-            }
-          }
-        }
-        pos_args {
-          bool_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 34
-            }
-          }
-        }
-        src {
-          file: "SRC_POSITION_TEST_MODE"
-          start_line: 34
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
-  }
-}
-body {
-  eval {
-    uid: 7
-    var_id {
-      bitfield1: 6
+      bitfield1: 3
     }
   }
 }

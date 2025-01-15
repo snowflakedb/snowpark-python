@@ -15,7 +15,7 @@ from google.protobuf.json_format import MessageToDict
 from build.lib.snowflake.snowpark.relational_grouped_dataframe import GroupingSets
 from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
 import snowflake.snowpark.functions
-from snowflake.snowpark.functions import udf, when
+from snowflake.snowpark.functions import udf, when, sproc
 from snowflake.snowpark.types import (
     DataType,
     ArrayType,
@@ -216,8 +216,8 @@ class Decoder:
             #     pass
             case "sp_fn_ref":
                 return self.symbol_table[fn_ref_expr.sp_fn_ref.id.bitfield1][0]
-            # case "stored_procedure":
-            #     pass
+            case "stored_procedure":
+                return self.decode_name_expr(fn_ref_expr.stored_procedure.name)
             # case "udaf":
             #     pass
             # case "udf":
@@ -552,8 +552,11 @@ class Decoder:
                 fn_name = self.decode_fn_ref_expr(expr.apply_expr.fn)
                 if hasattr(snowflake.snowpark.functions, fn_name):
                     fn = getattr(snowflake.snowpark.functions, fn_name)
-                else:
+                elif expr.apply_expr.fn.sp_fn_ref.id.bitfield1 in self.symbol_table:
                     fn = self.symbol_table[expr.apply_expr.fn.sp_fn_ref.id.bitfield1][1]
+                else:
+                    fn = None
+
                 # The named arguments are stored as a list of Tuple_String_Expr.
                 named_args = self.decode_dsl_map_expr(expr.apply_expr.named_args)
                 # The positional args can be a list of Expr, a single Expr, or [].
@@ -567,6 +570,10 @@ class Decoder:
                         pos_args = [self.decode_expr(expr.apply_expr.pos_args)]
                 else:
                     pos_args = []
+
+                if fn is None:
+                    return self.session.call(fn_name, *pos_args, **named_args)
+
                 result = fn(*pos_args, **named_args)
                 if hasattr(expr, "var_id"):
                     self.symbol_table[expr.var_id.bitfield1] = (
@@ -1856,6 +1863,70 @@ class Decoder:
             case "sp_dataframe_write":
                 df = self.decode_expr(expr.sp_dataframe_write.df)
                 return df.write
+
+            case "stored_procedure":
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.stored_procedure.input_types.list
+                ]
+                execute_as = expr.stored_procedure.execute_as
+                comment = expr.stored_procedure.comment.value
+                registered_object_name = self.decode_name_expr(
+                    expr.stored_procedure.func.object_name
+                )
+                return_type = self.decode_data_type_expr(
+                    expr.stored_procedure.return_type
+                )
+                ret_sproc = sproc(
+                    lambda *args: None,
+                    return_type=return_type,
+                    input_types=input_types,
+                    execute_as=execute_as,
+                    comment=comment,
+                    _registered_object_name=registered_object_name,
+                )
+                return ret_sproc
+
+            case "sp_flatten":
+                input = self.decode_expr(expr.sp_flatten.input)
+
+                path = expr.sp_flatten.path.value
+
+                outer = expr.sp_flatten.outer
+
+                recursive = expr.sp_flatten.recursive
+
+                mode = "BOTH"
+                match expr.sp_flatten.mode.WhichOneof("variant"):
+                    case "sp_flatten_mode_both":
+                        mode = "BOTH"
+                    case "sp_flatten_mode_array":
+                        mode = "ARRAY"
+                    case "sp_flatten_mode_object":
+                        mode = "OBJECT"
+
+                if len(path) == 0:
+
+                    return self.session.flatten(
+                        input=input, outer=outer, recursive=recursive, mode=mode
+                    )
+
+                return self.session.flatten(
+                    input=input, path=path, outer=outer, recursive=recursive, mode=mode
+                )
+
+            case "sp_generator":
+                columns = [self.decode_expr(col) for col in expr.sp_generator.columns]
+                row_count = expr.sp_generator.row_count
+                time_limit_seconds = expr.sp_generator.time_limit_seconds
+                if expr.sp_generator.variadic:
+                    return self.session.generator(
+                        *columns, rowcount=row_count, timelimit=time_limit_seconds
+                    )
+                else:
+                    return self.session.generator(
+                        columns, rowcount=row_count, timelimit=time_limit_seconds
+                    )
 
             case _:
                 raise NotImplementedError(
