@@ -1827,9 +1827,12 @@ def test_create_dataframe_with_schema_col_names(session):
     for field, expected_name in zip(df.schema.fields, col_names[:2] + ["_3", "_4"]):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
+    # specify nullable in structtype to avoid insert null value into non-nullable column
+    struct_col_name = StructType([StructField(col, StringType()) for col in col_names])
+
     # the column names provided via schema keyword will overwrite other column names
     df = session.create_dataframe(
-        [{"aa": 1, "bb": 2, "cc": 3, "dd": 4}], schema=col_names
+        [{"aa": 1, "bb": 2, "cc": 3, "dd": 4}], schema=struct_col_name
     )
     for field, expected_name in zip(df.schema.fields, col_names):
         assert Utils.equals_ignore_case(field.name, expected_name)
@@ -2734,15 +2737,15 @@ def test_save_as_table_nullable_test(
             StructField("B", data_type, True),
         ]
     )
-    df = session.create_dataframe(
-        [(None, None)] * (5000 if large_data else 1), schema=schema
-    )
 
     try:
         with pytest.raises(
             (IntegrityError, SnowparkSQLException),
             match="NULL result in a non-nullable column",
         ):
+            df = session.create_dataframe(
+                [(None, None)] * (5000 if large_data else 1), schema=schema
+            )
             df.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)
@@ -2768,13 +2771,13 @@ def test_nullable_without_create_temp_table_access(session, save_mode):
                 StructField("B", IntegerType(), True),
             ]
         )
-        df = session.create_dataframe([(None, None)], schema=schema)
 
         try:
             with pytest.raises(
                 (IntegrityError, SnowparkSQLException),
                 match="NULL result in a non-nullable column",
             ):
+                df = session.create_dataframe([(None, None)], schema=schema)
                 df.write.save_as_table(table_name, mode=save_mode)
         finally:
             Utils.drop_table(session, table_name)
