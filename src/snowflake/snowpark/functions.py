@@ -370,10 +370,7 @@ def lit(
 
     ast = None
     if _emit_ast:
-        if isinstance(literal, Column):
-            ast = literal._ast
-        else:
-            ast = proto.Expr()
+        ast = proto.Expr()
         if datatype is None:
             build_builtin_fn_apply(ast, "lit", literal)
         else:
