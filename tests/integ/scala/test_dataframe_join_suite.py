@@ -1473,11 +1473,7 @@ def test_nested_join_diamond_shape_error(
     # df1["a"] and df4["a"] has the same expr_id in map expr_to_alias. When they join, only one will be in df5's alias
     # map. It leaves the other one resolved to "a" instead of the alias.
     df5 = df1.join(df4, df1["a"] == df4["a"])  # (df1) JOIN ((df1 JOIN df2)->df4)
-    with pytest.raises(
-        SnowparkSQLAmbiguousJoinException,
-        match="The reference to the column 'A' is ambiguous.",
-    ):
-        df5.collect()
+    df5.collect()
 
 
 def test_nested_join_diamond_shape_workaround(session):
