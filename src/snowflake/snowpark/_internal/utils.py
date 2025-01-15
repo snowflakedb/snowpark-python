@@ -21,6 +21,7 @@ import string
 import sys
 import threading
 import traceback
+import uuid
 import zipfile
 from enum import Enum
 from functools import lru_cache
@@ -50,12 +51,15 @@ from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
+
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -1411,3 +1415,59 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+
+def merge_multiple_snowflake_plan_expr_to_alias(
+    snowflake_plans: List["SnowflakePlan"],
+) -> Dict[uuid.UUID, str]:
+    """
+    Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
+
+    Args:
+        snowflake_plans (List[SnowflakePlan]): List of SnowflakePlan objects.
+
+    Returns:
+        Dict[Any, str]: Merged expression-to-alias mapping.
+    """
+    # Collect all unique output column names from all plans
+    all_output_columns = {attr.name for plan in snowflake_plans for attr in plan.output}
+
+    # Gather all expression-to-alias mappings
+    all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
+
+    # Initialize the merged dictionary
+    merged_dict = {}
+
+    # Collect all unique keys from all dictionaries
+    all_keys = set().union(*all_expr_to_alias_dicts)
+
+    for key in all_keys:
+        # Gather all aliases for the current key
+        values = [d[key] for d in all_expr_to_alias_dicts if key in d]
+
+        # Check if all aliases are identical
+        if len(set(values)) == 1:
+            merged_dict[key] = values[0]
+        else:
+            # Resolve conflicts by checking against output columns
+            candidate = None
+            for alias in values:
+                if alias in all_output_columns:
+                    if candidate is None:
+                        candidate = alias
+                    else:
+                        # Ambiguous case: multiple valid candidates
+                        candidate = None
+                        break
+
+            # Add the candidate to the merged dictionary if resolved
+            if candidate is not None:
+                merged_dict[key] = candidate
+            else:
+                # No valid candidate found
+                _logger.debug(
+                    f"Expression '{key}' is associated with multiple aliases across different plans. "
+                    f"Unable to determine which alias to use. Conflicting values: {values}"
+                )
+
+    return merged_dict

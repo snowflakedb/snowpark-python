@@ -108,6 +108,7 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_sql_select_statement,
+    merge_multiple_snowflake_plan_expr_to_alias,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -580,17 +581,10 @@ class SnowflakePlanBuilder:
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
-        common_columns = set(select_left.expr_to_alias.keys()).intersection(
-            select_right.expr_to_alias.keys()
+        new_expr_to_alias = merge_multiple_snowflake_plan_expr_to_alias(
+            [select_left, select_right]
         )
-        new_expr_to_alias = {
-            k: v
-            for k, v in {
-                **select_left.expr_to_alias,
-                **select_right.expr_to_alias,
-            }.items()
-            if k not in common_columns
-        }
+
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
         # Need to do a deduplication to avoid repeated query.
