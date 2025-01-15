@@ -575,9 +575,6 @@ class Decoder:
                 if fn is None:
                     return self.session.call(fn_name, *pos_args, **named_args)
 
-                if isinstance(fn, snowflake.snowpark.stored_procedure.StoredProcedure):
-                    return None
-
                 result = fn(*pos_args, **named_args)
                 if hasattr(expr, "var_id"):
                     self.symbol_table[expr.var_id.bitfield1] = (

@@ -458,7 +458,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                     )
 
             sproc = self._registry[sproc_name]
-            res = sproc(*args, session=session, statement_params=statement_params)
+            res = sproc(
+                *args,
+                session=session,
+                statement_params=statement_params,
+                _emit_ast=_emit_ast,
+            )
             sproc_expr = None
             if _emit_ast and sproc._ast is not None:
                 assert (
