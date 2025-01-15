@@ -224,13 +224,13 @@ def session(
     validate_ast,
     unparser_jar,
 ):
+    set_ast_state(AstFlagSource.TEST, ast_enabled)
     rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
     rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
     key1 = f"key1{Utils.random_alphanumeric_str(10)}"
     key2 = f"key2{Utils.random_alphanumeric_str(10)}"
     integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
     integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
-    set_ast_state(AstFlagSource.TEST, ast_enabled)
 
     session = (
         Session.builder.configs(db_parameters)
