@@ -259,8 +259,8 @@ class Decoder:
                         ]
                 else:
                     return []
-            # case "sp_dataframe_data__pandas":
-            #     pass
+            case "sp_dataframe_data__pandas":
+                pass
             # case "sp_dataframe_data__tuple":
             #     pass
             case _:
@@ -1803,6 +1803,33 @@ class Decoder:
             case "sp_dataframe_write":
                 df = self.decode_expr(expr.sp_dataframe_write.df)
                 return df.write
+
+            case "sp_write_pandas":
+                df = self.decode_dataframe_data_expr(expr.sp_write_pandas.df)
+                table_name = self.decode_name_expr(expr.sp_write_pandas.table_name)
+                chunk_size = expr.sp_write_pandas.chunk_size.value
+                compression = expr.sp_write_pandas.compression
+                on_error = expr.sp_write_pandas.on_error
+                parallel = expr.sp_write_pandas.parallel
+                quote_identifiers = expr.sp_write_pandas.quote_identifiers
+                auto_create_table = expr.sp_write_pandas.auto_create_table
+                create_temp_table = expr.sp_write_pandas.create_temp_table
+                overwrite = expr.sp_write_pandas.overwrite
+                table_type = expr.sp_write_pandas.table_type
+                kwargs = self.decode_dsl_map_expr(expr.sp_write_pandas.kwargs)
+                return df.write_pandas(
+                    table_name,
+                    chunk_size=chunk_size,
+                    compression=compression,
+                    on_error=on_error,
+                    parallel=parallel,
+                    quote_identifiers=quote_identifiers,
+                    auto_create_table=auto_create_table,
+                    create_temp_table=create_temp_table,
+                    overwrite=overwrite,
+                    table_type=table_type,
+                    **kwargs,
+                )
 
             case _:
                 raise NotImplementedError(
