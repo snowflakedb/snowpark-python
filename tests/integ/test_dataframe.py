@@ -4448,9 +4448,14 @@ def test_create_empty_dataframe(session):
 def test_dataframe_to_local_iterator_with_to_pandas_isolation(
     session, local_testing_mode
 ):
-    df = session.create_dataframe(
-        [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
-    )
+    if local_testing_mode:
+        df = session.create_dataframe(
+            [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
+        )
+    else:
+        df = session.sql(
+            "select 'xyz' as A1, 1111111111111111111 as B1 from table(generator(rowCount => 200000))"
+        )
     trigger_df = session.create_dataframe(
         [[1.0]], schema=StructType([StructField("A", DecimalType())])
     )
