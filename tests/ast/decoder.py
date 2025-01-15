@@ -53,6 +53,8 @@ class Decoder:
     def __init__(self, session: Optional[Session]):
         # Map from var_id to (symbol_name, value). symbol_name is the identifier used in the program to store value.
         self.symbol_table: Dict[int, Tuple[str, object]] = dict()
+        # Map from function/stored proc name to function/stored proc object
+        self.function_symbol_table: Dict[str, object] = dict()
         try:
             self.session = session if session is not None else Session.builder.create()
         except Exception as e:
@@ -217,7 +219,6 @@ class Decoder:
             case "sp_fn_ref":
                 return self.symbol_table[fn_ref_expr.sp_fn_ref.id.bitfield1][0]
             case "stored_procedure":
-                breakpoint()
                 return self.decode_name_expr(fn_ref_expr.stored_procedure.name)
             # case "udaf":
             #     pass
@@ -553,6 +554,8 @@ class Decoder:
                 fn_name = self.decode_fn_ref_expr(expr.apply_expr.fn)
                 if hasattr(snowflake.snowpark.functions, fn_name):
                     fn = getattr(snowflake.snowpark.functions, fn_name)
+                elif fn_name in self.function_symbol_table:
+                    fn = self.function_symbol_table[fn_name]
                 else:
                     fn = self.symbol_table[expr.apply_expr.fn.sp_fn_ref.id.bitfield1][1]
                 # The named arguments are stored as a list of Tuple_String_Expr.
@@ -568,6 +571,12 @@ class Decoder:
                         pos_args = [self.decode_expr(expr.apply_expr.pos_args)]
                 else:
                     pos_args = []
+
+                if isinstance(fn, snowflake.snowpark.stored_procedure.StoredProcedure):
+                    if expr.apply_expr.fn.HasField("stored_procedure"):
+                        return self.session.call(fn_name, *pos_args, **named_args)
+                    return None
+
                 result = fn(*pos_args, **named_args)
                 if hasattr(expr, "var_id"):
                     self.symbol_table[expr.var_id.bitfield1] = (
@@ -1818,8 +1827,7 @@ class Decoder:
                 return_type = self.decode_data_type_expr(
                     expr.stored_procedure.return_type
                 )
-                breakpoint()
-                return sproc(
+                ret_sproc = sproc(
                     lambda *args: None,
                     return_type=return_type,
                     input_types=input_types,
@@ -1827,6 +1835,8 @@ class Decoder:
                     comment=comment,
                     _registered_object_name=registered_object_name,
                 )
+                self.function_symbol_table[expr.stored_procedure.func.name] = ret_sproc
+                return ret_sproc
 
             case _:
                 raise NotImplementedError(
