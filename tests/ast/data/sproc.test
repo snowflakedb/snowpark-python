@@ -141,8 +141,6 @@ res11 = session.call("my_copy_sp", "test_from", "test_to", 10)
 
 session.table("test_from").limit(10, 0).write.save_as_table("test_to", mode="overwrite", table_type="temporary")
 
-my_copy_sp("test_from", "test_to", 10)
-
 session.table("test_to").count()
 
 add_one_sp = sproc("<lambda [1]>", return_type=IntegerType(), input_types=[IntegerType()], parallel=2, execute_as="caller", _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")
@@ -171,15 +169,15 @@ session.sql("call mul_sp(5, 6)").collect()
 
 sproc("sin_sp", return_type=FloatType(), input_types=[FloatType()], packages=["snowflake-snowpark-python", "numpy"], statement_params={"SF_PARTNER": "FAKE_PARTNER"}, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1.5707963267948966)
 
-res34 = sproc("select_sp", return_type=StructType([StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res33 = sproc("select_sp", return_type=StructType([StructField("A", IntegerType(), nullable=True), StructField("B", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType(), IntegerType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res38 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res37 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res42 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res41 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
@@ -757,58 +755,6 @@ body {
 body {
   assign {
     expr {
-      apply_expr {
-        fn {
-          sp_fn_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 55
-            }
-            v: "test_from"
-          }
-        }
-        pos_args {
-          string_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 55
-            }
-            v: "test_to"
-          }
-        }
-        pos_args {
-          int64_val {
-            src {
-              file: "SRC_POSITION_TEST_MODE"
-              start_line: 55
-            }
-            v: 10
-          }
-        }
-        src {
-          file: "SRC_POSITION_TEST_MODE"
-          start_line: 55
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 23
-    var_id {
-      bitfield1: 23
-    }
-  }
-}
-body {
-  assign {
-    expr {
       sp_table {
         name {
           name {
@@ -828,9 +774,9 @@ body {
     }
     symbol {
     }
-    uid: 24
+    uid: 23
     var_id {
-      bitfield1: 24
+      bitfield1: 23
     }
   }
 }
@@ -841,11 +787,36 @@ body {
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 24
+              bitfield1: 23
             }
           }
         }
         n: 10
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 39
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 24
+    var_id {
+      bitfield1: 24
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_write {
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 24
+            }
+          }
+        }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 39
@@ -863,36 +834,11 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_write {
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 25
-            }
-          }
-        }
-        src {
-          file: "SRC_POSITION_TEST_MODE"
-          start_line: 39
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 26
-    var_id {
-      bitfield1: 26
-    }
-  }
-}
-body {
-  assign {
-    expr {
       sp_write_table {
         block: true
         column_order: "index"
         id {
-          bitfield1: 26
+          bitfield1: 25
         }
         mode {
           sp_save_mode_overwrite: true
@@ -913,25 +859,17 @@ body {
     }
     symbol {
     }
+    uid: 26
+    var_id {
+      bitfield1: 26
+    }
+  }
+}
+body {
+  eval {
     uid: 27
     var_id {
-      bitfield1: 27
-    }
-  }
-}
-body {
-  eval {
-    uid: 28
-    var_id {
-      bitfield1: 27
-    }
-  }
-}
-body {
-  eval {
-    uid: 29
-    var_id {
-      bitfield1: 23
+      bitfield1: 26
     }
   }
 }
@@ -957,9 +895,9 @@ body {
     }
     symbol {
     }
-    uid: 30
+    uid: 28
     var_id {
-      bitfield1: 30
+      bitfield1: 28
     }
   }
 }
@@ -969,7 +907,7 @@ body {
       sp_dataframe_count {
         block: true
         id {
-          bitfield1: 30
+          bitfield1: 28
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -979,17 +917,17 @@ body {
     }
     symbol {
     }
-    uid: 31
+    uid: 29
     var_id {
-      bitfield1: 31
+      bitfield1: 29
     }
   }
 }
 body {
   eval {
-    uid: 32
+    uid: 30
     var_id {
-      bitfield1: 31
+      bitfield1: 29
     }
   }
 }
@@ -1028,9 +966,9 @@ body {
     symbol {
       value: "add_one_sp"
     }
-    uid: 33
+    uid: 31
     var_id {
-      bitfield1: 33
+      bitfield1: 31
     }
   }
 }
@@ -1041,7 +979,7 @@ body {
         fn {
           sp_fn_ref {
             id {
-              bitfield1: 33
+              bitfield1: 31
             }
           }
         }
@@ -1062,9 +1000,9 @@ body {
     }
     symbol {
     }
-    uid: 34
+    uid: 32
     var_id {
-      bitfield1: 34
+      bitfield1: 32
     }
   }
 }
@@ -1081,9 +1019,9 @@ body {
     }
     symbol {
     }
-    uid: 35
+    uid: 33
     var_id {
-      bitfield1: 35
+      bitfield1: 33
     }
   }
 }
@@ -1094,7 +1032,7 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 35
+          bitfield1: 33
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1104,25 +1042,25 @@ body {
     }
     symbol {
     }
-    uid: 36
-    var_id {
-      bitfield1: 36
-    }
-  }
-}
-body {
-  eval {
-    uid: 37
-    var_id {
-      bitfield1: 36
-    }
-  }
-}
-body {
-  eval {
-    uid: 38
+    uid: 34
     var_id {
       bitfield1: 34
+    }
+  }
+}
+body {
+  eval {
+    uid: 35
+    var_id {
+      bitfield1: 34
+    }
+  }
+}
+body {
+  eval {
+    uid: 36
+    var_id {
+      bitfield1: 32
     }
   }
 }
@@ -1139,9 +1077,9 @@ body {
     }
     symbol {
     }
-    uid: 39
+    uid: 37
     var_id {
-      bitfield1: 39
+      bitfield1: 37
     }
   }
 }
@@ -1152,7 +1090,7 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 39
+          bitfield1: 37
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1162,17 +1100,17 @@ body {
     }
     symbol {
     }
-    uid: 40
+    uid: 38
     var_id {
-      bitfield1: 40
+      bitfield1: 38
     }
   }
 }
 body {
   eval {
-    uid: 41
+    uid: 39
     var_id {
-      bitfield1: 40
+      bitfield1: 38
     }
   }
 }
@@ -1190,9 +1128,9 @@ body {
     symbol {
       value: "_"
     }
-    uid: 42
+    uid: 40
     var_id {
-      bitfield1: 42
+      bitfield1: 40
     }
   }
 }
@@ -1203,7 +1141,7 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 42
+          bitfield1: 40
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1213,17 +1151,17 @@ body {
     }
     symbol {
     }
-    uid: 43
+    uid: 41
     var_id {
-      bitfield1: 43
+      bitfield1: 41
     }
   }
 }
 body {
   eval {
-    uid: 44
+    uid: 42
     var_id {
-      bitfield1: 43
+      bitfield1: 41
     }
   }
 }
@@ -1275,9 +1213,9 @@ body {
     symbol {
       value: "_"
     }
-    uid: 45
+    uid: 43
     var_id {
-      bitfield1: 45
+      bitfield1: 43
     }
   }
 }
@@ -1294,9 +1232,9 @@ body {
     }
     symbol {
     }
-    uid: 46
+    uid: 44
     var_id {
-      bitfield1: 46
+      bitfield1: 44
     }
   }
 }
@@ -1307,7 +1245,7 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 46
+          bitfield1: 44
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1317,17 +1255,17 @@ body {
     }
     symbol {
     }
-    uid: 47
+    uid: 45
     var_id {
-      bitfield1: 47
+      bitfield1: 45
     }
   }
 }
 body {
   eval {
-    uid: 48
+    uid: 46
     var_id {
-      bitfield1: 47
+      bitfield1: 45
     }
   }
 }
@@ -1379,9 +1317,9 @@ body {
     symbol {
       value: "_"
     }
-    uid: 49
+    uid: 47
     var_id {
-      bitfield1: 49
+      bitfield1: 47
     }
   }
 }
@@ -1398,9 +1336,9 @@ body {
     }
     symbol {
     }
-    uid: 50
+    uid: 48
     var_id {
-      bitfield1: 50
+      bitfield1: 48
     }
   }
 }
@@ -1411,7 +1349,7 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 50
+          bitfield1: 48
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1421,17 +1359,17 @@ body {
     }
     symbol {
     }
-    uid: 51
+    uid: 49
     var_id {
-      bitfield1: 51
+      bitfield1: 49
     }
   }
 }
 body {
   eval {
-    uid: 52
+    uid: 50
     var_id {
-      bitfield1: 51
+      bitfield1: 49
     }
   }
 }
@@ -1493,9 +1431,9 @@ body {
     symbol {
       value: "_"
     }
-    uid: 53
+    uid: 51
     var_id {
-      bitfield1: 53
+      bitfield1: 51
     }
   }
 }
@@ -1512,9 +1450,9 @@ body {
     }
     symbol {
     }
-    uid: 54
+    uid: 52
     var_id {
-      bitfield1: 54
+      bitfield1: 52
     }
   }
 }
@@ -1525,7 +1463,7 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 54
+          bitfield1: 52
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1535,17 +1473,17 @@ body {
     }
     symbol {
     }
-    uid: 55
+    uid: 53
     var_id {
-      bitfield1: 55
+      bitfield1: 53
     }
   }
 }
 body {
   eval {
-    uid: 56
+    uid: 54
     var_id {
-      bitfield1: 55
+      bitfield1: 53
     }
   }
 }
@@ -1589,9 +1527,9 @@ body {
     }
     symbol {
     }
-    uid: 57
+    uid: 55
     var_id {
-      bitfield1: 57
+      bitfield1: 55
     }
   }
 }
@@ -1602,7 +1540,7 @@ body {
         fn {
           sp_fn_ref {
             id {
-              bitfield1: 57
+              bitfield1: 55
             }
           }
         }
@@ -1623,17 +1561,17 @@ body {
     }
     symbol {
     }
-    uid: 58
+    uid: 56
     var_id {
-      bitfield1: 58
+      bitfield1: 56
     }
   }
 }
 body {
   eval {
-    uid: 59
+    uid: 57
     var_id {
-      bitfield1: 58
+      bitfield1: 56
     }
   }
 }
@@ -1693,9 +1631,9 @@ body {
     }
     symbol {
     }
-    uid: 60
+    uid: 58
     var_id {
-      bitfield1: 60
+      bitfield1: 58
     }
   }
 }
@@ -1706,7 +1644,7 @@ body {
         fn {
           sp_fn_ref {
             id {
-              bitfield1: 60
+              bitfield1: 58
             }
           }
         }
@@ -1736,9 +1674,9 @@ body {
     }
     symbol {
     }
-    uid: 61
+    uid: 59
     var_id {
-      bitfield1: 61
+      bitfield1: 59
     }
   }
 }
@@ -1755,9 +1693,9 @@ body {
     }
     symbol {
     }
-    uid: 62
+    uid: 60
     var_id {
-      bitfield1: 62
+      bitfield1: 60
     }
   }
 }
@@ -1766,23 +1704,23 @@ body {
     expr {
       sp_dataframe_show {
         id {
-          bitfield1: 62
+          bitfield1: 60
         }
       }
     }
     symbol {
     }
-    uid: 63
+    uid: 61
     var_id {
-      bitfield1: 63
+      bitfield1: 61
     }
   }
 }
 body {
   eval {
-    uid: 64
+    uid: 62
     var_id {
-      bitfield1: 63
+      bitfield1: 61
     }
   }
 }
@@ -1823,9 +1761,9 @@ body {
     }
     symbol {
     }
-    uid: 65
+    uid: 63
     var_id {
-      bitfield1: 65
+      bitfield1: 63
     }
   }
 }
@@ -1836,7 +1774,7 @@ body {
         fn {
           sp_fn_ref {
             id {
-              bitfield1: 65
+              bitfield1: 63
             }
           }
         }
@@ -1866,9 +1804,9 @@ body {
     }
     symbol {
     }
-    uid: 66
+    uid: 64
     var_id {
-      bitfield1: 66
+      bitfield1: 64
     }
   }
 }
@@ -1885,9 +1823,9 @@ body {
     }
     symbol {
     }
-    uid: 67
+    uid: 65
     var_id {
-      bitfield1: 67
+      bitfield1: 65
     }
   }
 }
@@ -1896,23 +1834,23 @@ body {
     expr {
       sp_dataframe_show {
         id {
-          bitfield1: 67
+          bitfield1: 65
         }
       }
     }
     symbol {
     }
-    uid: 68
+    uid: 66
     var_id {
-      bitfield1: 68
+      bitfield1: 66
     }
   }
 }
 body {
   eval {
-    uid: 69
+    uid: 67
     var_id {
-      bitfield1: 68
+      bitfield1: 66
     }
   }
 }
@@ -1954,9 +1892,9 @@ body {
     }
     symbol {
     }
-    uid: 70
+    uid: 68
     var_id {
-      bitfield1: 70
+      bitfield1: 68
     }
   }
 }
@@ -1967,7 +1905,7 @@ body {
         fn {
           sp_fn_ref {
             id {
-              bitfield1: 70
+              bitfield1: 68
             }
           }
         }
@@ -1997,9 +1935,9 @@ body {
     }
     symbol {
     }
-    uid: 71
+    uid: 69
     var_id {
-      bitfield1: 71
+      bitfield1: 69
     }
   }
 }
@@ -2016,9 +1954,9 @@ body {
     }
     symbol {
     }
-    uid: 72
+    uid: 70
     var_id {
-      bitfield1: 72
+      bitfield1: 70
     }
   }
 }
@@ -2027,23 +1965,23 @@ body {
     expr {
       sp_dataframe_show {
         id {
-          bitfield1: 72
+          bitfield1: 70
         }
       }
     }
     symbol {
     }
-    uid: 73
+    uid: 71
     var_id {
-      bitfield1: 73
+      bitfield1: 71
     }
   }
 }
 body {
   eval {
-    uid: 74
+    uid: 72
     var_id {
-      bitfield1: 73
+      bitfield1: 71
     }
   }
 }
