@@ -53,7 +53,6 @@ class Decoder:
     def __init__(self, session: Optional[Session]):
         # Map from var_id to (symbol_name, value). symbol_name is the identifier used in the program to store value.
         self.symbol_table: Dict[int, Tuple[str, object]] = dict()
-        # Map from function/stored proc name to function/stored proc object
         try:
             self.session = session if session is not None else Session.builder.create()
         except Exception as e:
