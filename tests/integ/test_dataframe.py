@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
 import datetime
@@ -1827,9 +1827,12 @@ def test_create_dataframe_with_schema_col_names(session):
     for field, expected_name in zip(df.schema.fields, col_names[:2] + ["_3", "_4"]):
         assert Utils.equals_ignore_case(field.name, expected_name)
 
+    # specify nullable in structtype to avoid insert null value into non-nullable column
+    struct_col_name = StructType([StructField(col, StringType()) for col in col_names])
+
     # the column names provided via schema keyword will overwrite other column names
     df = session.create_dataframe(
-        [{"aa": 1, "bb": 2, "cc": 3, "dd": 4}], schema=col_names
+        [{"aa": 1, "bb": 2, "cc": 3, "dd": 4}], schema=struct_col_name
     )
     for field, expected_name in zip(df.schema.fields, col_names):
         assert Utils.equals_ignore_case(field.name, expected_name)
@@ -2734,15 +2737,15 @@ def test_save_as_table_nullable_test(
             StructField("B", data_type, True),
         ]
     )
-    df = session.create_dataframe(
-        [(None, None)] * (5000 if large_data else 1), schema=schema
-    )
 
     try:
         with pytest.raises(
             (IntegrityError, SnowparkSQLException),
             match="NULL result in a non-nullable column",
         ):
+            df = session.create_dataframe(
+                [(None, None)] * (5000 if large_data else 1), schema=schema
+            )
             df.write.save_as_table(table_name, mode=save_mode)
     finally:
         Utils.drop_table(session, table_name)
@@ -2768,13 +2771,13 @@ def test_nullable_without_create_temp_table_access(session, save_mode):
                 StructField("B", IntegerType(), True),
             ]
         )
-        df = session.create_dataframe([(None, None)], schema=schema)
 
         try:
             with pytest.raises(
                 (IntegrityError, SnowparkSQLException),
                 match="NULL result in a non-nullable column",
             ):
+                df = session.create_dataframe([(None, None)], schema=schema)
                 df.write.save_as_table(table_name, mode=save_mode)
         finally:
             Utils.drop_table(session, table_name)
@@ -4272,9 +4275,14 @@ def test_create_empty_dataframe(session):
 def test_dataframe_to_local_iterator_with_to_pandas_isolation(
     session, local_testing_mode
 ):
-    df = session.create_dataframe(
-        [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
-    )
+    if local_testing_mode:
+        df = session.create_dataframe(
+            [["xyz", int("1" * 19)] for _ in range(200000)], schema=["a1", "b1"]
+        )
+    else:
+        df = session.sql(
+            "select 'xyz' as A1, 1111111111111111111 as B1 from table(generator(rowCount => 200000))"
+        )
     trigger_df = session.create_dataframe(
         [[1.0]], schema=StructType([StructField("A", DecimalType())])
     )
@@ -4447,3 +4455,35 @@ def test_map_negative(session):
             output_types=[IntegerType(), StringType()],
             output_column_names=["a", "b", "c"],
         )
+
+
+def test_with_column_keep_column_order(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
+    df1 = df.with_column("A", lit(0), keep_column_order=True)
+    assert df1.columns == ["A", "B"]
+    df2 = df.with_columns(["A"], [lit(0)], keep_column_order=True)
+    assert df2.columns == ["A", "B"]
+    df3 = df.with_columns(["A", "C"], [lit(0), lit(0)], keep_column_order=True)
+    assert df3.columns == ["A", "B", "C"]
+    df3 = df.with_columns(["C", "A"], [lit(0), lit(0)], keep_column_order=True)
+    assert df3.columns == ["A", "B", "C"]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="replace function is not supported in Local Testing",
+)
+def test_SNOW_1879403_replace_with_lit(session):
+
+    # TODO SNOW-1880749: support for local testing mode.
+
+    from snowflake.snowpark.functions import replace
+
+    df = session.create_dataframe(
+        [["apple"], ["apple pie"], ["apple juice"]], schema=["a"]
+    )
+    ans = df.select(
+        replace(col("a"), lit("apple"), lit("orange")).alias("result")
+    ).collect()
+
+    Utils.check_answer(ans, [Row("orange"), Row("orange pie"), Row("orange juice")])

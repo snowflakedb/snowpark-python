@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -224,6 +224,7 @@ from snowflake.snowpark.stored_procedure import (
     StoredProcedureRegistration,
 )
 from snowflake.snowpark.types import (
+    ArrayType,
     DataType,
     FloatType,
     PandasDataFrameType,
@@ -752,17 +753,31 @@ def convert_timezone(
     )
     target_tz = _to_col_if_str(target_timezone, "convert_timezone")
     source_time_to_convert = _to_col_if_str(source_time, "convert_timezone")
-
+    # Build AST here to prevent rearrangement of args in the encoded AST.
+    ast = (
+        build_function_expr(
+            "convert_timezone",
+            [target_timezone, source_time, source_timezone],
+            ignore_null_args=True,
+        )
+        if _emit_ast
+        else None
+    )
     if source_timezone is None:
         return call_builtin(
-            "convert_timezone", target_tz, source_time_to_convert, _emit_ast=_emit_ast
+            "convert_timezone",
+            target_tz,
+            source_time_to_convert,
+            _ast=ast,
+            _emit_ast=False,
         )
     return call_builtin(
         "convert_timezone",
         source_tz,
         target_tz,
         source_time_to_convert,
-        _emit_ast=_emit_ast,
+        _ast=ast,
+        _emit_ast=False,
     )
 
 
@@ -888,7 +903,7 @@ def count_distinct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     return Column(
         FunctionExpression("count", [c._expression for c in cs], is_distinct=True),
         _ast=ast,
-        _emit_ast=_emit_ast,
+        _emit_ast=False,
     )
 
 
@@ -3383,8 +3398,12 @@ def replace(
         if _emit_ast
         else None
     )
-    pat = lit(pattern, _emit_ast=_emit_ast)
-    rep = lit(replacement, _emit_ast=_emit_ast)
+    pat = pattern if isinstance(pattern, Column) else lit(pattern, _emit_ast=_emit_ast)
+    rep = (
+        replacement
+        if isinstance(replacement, Column)
+        else lit(replacement, _emit_ast=_emit_ast)
+    )
     return builtin(sql_func_name, _ast=ast, _emit_ast=False)(sub, pat, rep)
 
 
@@ -3425,7 +3444,7 @@ def charindex(
     s = _to_col_if_str(source_expr, "charindex")
     # Build AST here to prevent `position` from being recorded as a literal instead of int/None.
     ast = (
-        build_function_expr("char_index", [t, s, position], ignore_null_args=True)
+        build_function_expr("charindex", [t, s, position], ignore_null_args=True)
         if _emit_ast
         else None
     )
@@ -3561,20 +3580,67 @@ def _concat_ws_ignore_nulls(sep: str, *cols: ColumnOrName) -> Column:
         |Hello                                              |
         -----------------------------------------------------
         <BLANKLINE>
+
+        >>> df = session.create_dataframe([
+        ...     (['Hello', 'World', None], None, '!'),
+        ...     (['Hi', 'World', "."], "I'm Dad", '.'),
+        ... ], schema=['a', 'b', 'c'])
+        >>> df.select(_concat_ws_ignore_nulls(", ", "a", "b", "c")).show()
+        -----------------------------------------------------
+        |"CONCAT_WS_IGNORE_NULLS(', ', ""A"",""B"",""C"")"  |
+        -----------------------------------------------------
+        |Hello, World, !                                    |
+        |Hi, World, ., I'm Dad, .                           |
+        -----------------------------------------------------
+        <BLANKLINE>
     """
     # TODO: SNOW-1831917 create ast
     columns = [_to_col_if_str(c, "_concat_ws_ignore_nulls") for c in cols]
     names = ",".join([c.get_name() for c in columns])
 
-    input_column_array = array_construct_compact(*columns, _emit_ast=False)
-    reduced_result = builtin("reduce", _emit_ast=False)(
-        input_column_array,
-        lit("", _emit_ast=False),
-        sql_expr(f"(l, r) -> l || '{sep}' || r"),
-    )
-    return substring(reduced_result, len(sep) + 1, _emit_ast=False).alias(
-        f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False
-    )
+    # The implementation of this function is as follows with example input of
+    # sep = "," and row = [a, NULL], b, NULL, c:
+    # 1. Cast all columns to array.
+    #   [a, NULL], [b], NULL, [c]
+    # 2. Combine all arrays into a array of arrays after removing nulls (array_construct_compact).
+    #   [[a, NULL], [b], [c]]
+    # 3. Flatten the array of arrays into a single array (array_flatten).
+    #   [a, NULL, b, c]
+    # 4. Filter out nulls (array_remove_nulls).
+    #   [a, b, c]
+    # 5. Concatenate the non-null values into a single string (concat_strings_with_sep).
+    #   "a,b,c"
+
+    def array_remove_nulls(col: Column) -> Column:
+        """Expects an array and returns an array with nulls removed."""
+        return builtin("filter", _emit_ast=False)(
+            col, sql_expr("x -> NOT IS_NULL_VALUE(x)", _emit_ast=False)
+        )
+
+    def concat_strings_with_sep(col: Column) -> Column:
+        """
+        Expects an array of strings and returns a single string
+        with the values concatenated with the separator.
+        """
+        return substring(
+            builtin("reduce", _emit_ast=False)(
+                col, lit(""), sql_expr(f"(l, r) -> l || '{sep}' || r", _emit_ast=False)
+            ),
+            len(sep) + 1,
+            _emit_ast=False,
+        )
+
+    return concat_strings_with_sep(
+        array_remove_nulls(
+            array_flatten(
+                array_construct_compact(
+                    *[c.cast(ArrayType(), _emit_ast=False) for c in columns],
+                    _emit_ast=False,
+                ),
+                _emit_ast=False,
+            )
+        )
+    ).alias(f"CONCAT_WS_IGNORE_NULLS('{sep}', {names})", _emit_ast=False)
 
 
 @publicapi
@@ -3828,6 +3894,19 @@ def date_format(
         |2022/05/15 10:45:00  |
         -----------------------
         <BLANKLINE>
+
+    Example::
+        >>> df = session.sql("select '2023-10-10'::DATE as date_col, '2023-10-10 15:30:00'::TIMESTAMP as timestamp_col")
+        >>> df.select(
+        ...     date_format('date_col', 'YYYY/MM/DD').as_('formatted_dt'),
+        ...     date_format('timestamp_col', 'YYYY/MM/DD HH:mi:ss').as_('formatted_ts')
+        ... ).show()
+        ----------------------------------------
+        |"FORMATTED_DT"  |"FORMATTED_TS"       |
+        ----------------------------------------
+        |2023/10/10      |2023/10/10 15:30:00  |
+        ----------------------------------------
+        <BLANKLINE>
     """
 
     # AST.
@@ -3836,7 +3915,11 @@ def date_format(
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "date_format", c, fmt)
 
-    ans = to_char(try_cast(c, TimestampType(), _emit_ast=False), fmt, _emit_ast=False)
+    ans = to_char(
+        try_cast(to_char(c, _emit_ast=False), TimestampType(), _emit_ast=False),
+        fmt,
+        _emit_ast=False,
+    )
     ans._ast = ast
     return ans
 
@@ -4262,7 +4345,12 @@ def next_day(
         [Row(NEXT_DAY("A", 'FR')=datetime.date(2020, 8, 7)), Row(NEXT_DAY("A", 'FR')=datetime.date(2020, 12, 4))]
     """
     c = _to_col_if_str(date, "next_day")
-    return builtin("next_day", _emit_ast=_emit_ast)(c, Column._to_expr(day_of_week))
+    # Build AST here to prevent `date` from being recorded as a Column instead of a literal and
+    # `day_of_week` from being recorded as a literal instead of Column.
+    ast = build_function_expr("next_day", [date, day_of_week]) if _emit_ast else None
+    return builtin("next_day", _ast=ast, _emit_ast=False)(
+        c, Column._to_expr(day_of_week)
+    )
 
 
 @publicapi
@@ -4285,7 +4373,14 @@ def previous_day(
         [Row(PREVIOUS_DAY("A", 'FR')=datetime.date(2020, 7, 31)), Row(PREVIOUS_DAY("A", 'FR')=datetime.date(2020, 11, 27))]
     """
     c = _to_col_if_str(date, "previous_day")
-    return builtin("previous_day", _emit_ast=_emit_ast)(c, Column._to_expr(day_of_week))
+    # Build AST here to prevent `date` from being recorded as a Column instead of a literal and
+    # `day_of_week` from being recorded as a literal instead of Column.
+    ast = (
+        build_function_expr("previous_day", [date, day_of_week]) if _emit_ast else None
+    )
+    return builtin("previous_day", _ast=ast, _emit_ast=False)(
+        c, Column._to_expr(day_of_week)
+    )
 
 
 @publicapi
@@ -10444,14 +10539,469 @@ def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
     Returns:
         A floating-point number from -1 to 1 (inclusive) indicating the level of negative or positive sentiment in the
         text. Values around 0 indicate neutral sentiment.
-
-    Example::
-
-        >>> content = "A very very bad review!"
-        >>> df = session.create_dataframe([[content]], schema=["content"])
-        >>> result = df.select(snowflake_cortex_sentiment(content)).collect()[0][0]
-        >>> assert -1 <= result <= 0
     """
     sql_func_name = "snowflake.cortex.sentiment"
     text_col = _to_col_if_lit(text, sql_func_name)
     return builtin(sql_func_name)(text_col)
+
+
+@publicapi
+def acosh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the inverse(arc) hyperbolic cosine of the input value.
+
+    Example::
+
+        >>> df = session.create_dataframe([2.352409615], schema=["a"])
+        >>> df.select(acosh("a").as_("acosh")).collect()
+        [Row(ACOSH=1.4999999998857607)]
+    """
+    c = _to_col_if_str(e, "acosh")
+    return builtin("acosh", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def asinh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the inverse(arc) hyperbolic sine of the input value.
+
+    Example::
+
+        >>> df = session.create_dataframe([2.129279455], schema=["a"])
+        >>> df.select(asinh(df["a"]).alias("asinh")).collect()
+        [Row(ASINH=1.4999999999596934)]
+    """
+    c = _to_col_if_str(e, "asinh")
+    return builtin("asinh", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def atanh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the inverse(arc) hyperbolic tangent of the input value.
+
+    Example::
+
+        >>> df = session.create_dataframe([0.9051482536], schema=["a"])
+        >>> df.select(atanh(df["a"]).alias("result")).collect()
+        [Row(RESULT=1.4999999997517164)]
+    """
+    c = _to_col_if_str(e, "atanh")
+    return builtin("atanh", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def bit_length(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the length of a string or binary value in bits.
+
+    Example::
+
+        >>> df = session.create_dataframe([['abc'], ['\u0394']], schema=["v"])
+        >>> df = df.withColumn("b", lit("A1B2").cast("binary"))
+        >>> df.select(bit_length(col("v")).alias("BIT_LENGTH_V"), bit_length(col("b")).alias("BIT_LENGTH_B")).collect()
+        [Row(BIT_LENGTH_V=24, BIT_LENGTH_B=16), Row(BIT_LENGTH_V=16, BIT_LENGTH_B=16)]
+    """
+    c = _to_col_if_str(e, "bit_length")
+    return builtin("bit_length", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def bitmap_bit_position(numeric_expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the position of the first set bit (i.e., the first '1' bit) in the binary representation of the input number.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, 32768, 32769], schema=["a"])
+        >>> df.select(bitmap_bit_position("a").alias("bit_position")).collect()
+        [Row(BIT_POSITION=0), Row(BIT_POSITION=1), Row(BIT_POSITION=2), Row(BIT_POSITION=32767), Row(BIT_POSITION=0)]
+    """
+    c = _to_col_if_str(numeric_expr, "bitmap_bit_position")
+    return builtin("bitmap_bit_position", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def bitmap_bucket_number(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the bucket number of the input value in a bitmap index.
+
+    The bucket number is a value between 1 and the number of buckets in the bitmap index.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 3, 32768, 32769], schema=["a"])
+        >>> df.select(bitmap_bucket_number(col("a")).alias("bucket_number")).collect()
+        [Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=1), Row(BUCKET_NUMBER=2)]
+    """
+    c = _to_col_if_str(e, "bitmap_bucket_number")
+    return builtin("bitmap_bucket_number", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def bitmap_construct_agg(
+    relative_position: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns a bitmap constructed from the relative positions of the input values.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 32769], schema=["a"])
+        >>> df.select(bitmap_bucket_number(df["a"]).alias("bitmap_id"),bitmap_bit_position(df["a"]).alias("bit_position")).group_by("bitmap_id").agg(bitmap_construct_agg(col("bit_position")).alias("bitmap")).collect()
+        [Row(BITMAP_ID=1, BITMAP=bytearray(b'\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00')), Row(BITMAP_ID=2, BITMAP=bytearray(b'\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'))]
+    """
+    c = _to_col_if_str(relative_position, "bitmap_construct_agg")
+    return builtin("bitmap_construct_agg", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def cbrt(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the cube root of value in a column.
+
+    Example::
+
+        >>> df = session.create_dataframe([0, 2, -10, None], schema=["x"])
+        >>> df.select(cbrt("x").alias("cbrt_x")).collect()
+        [Row(CBRT_X=0.0), Row(CBRT_X=1.2599210498948734), Row(CBRT_X=-2.1544346900318834), Row(CBRT_X=None)]
+    """
+    c = _to_col_if_str(e, "cbrt")
+    return builtin("cbrt", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def equal_null(e1: ColumnOrName, e2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Compares whether two expressions are equal. The function is NULL-safe, meaning it treats NULLs as
+    known values for comparing equality. Note that this is different from the EQUAL comparison operator (=),
+    which treats NULLs as unknown values.
+
+    Example::
+
+        >>> df = session.create_dataframe([[1, 1], [1, None], [None, 2], [None, None]], schema=["a", "b"])
+        >>> df.select(equal_null(df["a"], df["b"]).alias("equal_null")).collect()
+        [Row(EQUAL_NULL=True), Row(EQUAL_NULL=False), Row(EQUAL_NULL=False), Row(EQUAL_NULL=True)]
+    """
+    c1 = _to_col_if_str(e1, "equal_null")
+    c2 = _to_col_if_str(e2, "equal_null")
+    return builtin("equal_null", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def ifnull(e1: ColumnOrName, e2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    If expr1 is NULL, returns expr2, otherwise returns expr1.
+
+    Example::
+
+        >>> df = session.create_dataframe([("a", "b"), ("c", None), (None, "d"), (None, None)], schema=["e1", "e2"])
+        >>> df.select(ifnull(df["e1"], df["e2"]).alias("result")).collect()
+        [Row(RESULT='a'), Row(RESULT='c'), Row(RESULT='d'), Row(RESULT=None)]
+    """
+    c1 = _to_col_if_str(e1, "ifnull")
+    c2 = _to_col_if_str(e2, "ifnull")
+    return builtin("ifnull", _emit_ast=_emit_ast)(c1, c2)
+
+
+nvl = ifnull
+
+
+@publicapi
+def localtimestamp(fract_sec_precision: int = 9, _emit_ast: bool = True) -> Column:
+    """
+    Returns the current timestamp at the start of the query with the specified fractional second precision.
+
+    Example::
+
+        >>> df = session.create_dataframe([1], schema=["a"])
+        >>> df.select(localtimestamp(3)).collect()  # doctest: +SKIP
+    """
+    return builtin("localtimestamp", _emit_ast=_emit_ast)(lit(fract_sec_precision))
+
+
+@publicapi
+def max_by(
+    col_to_return: ColumnOrName,
+    col_containing_maximum: ColumnOrName,
+    maximum_number_of_values_to_return: Optional[int] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Finds the row(s) containing the maximum value for a column and returns the value of another column in that row.
+
+    Example::
+
+        >>> df = session.create_dataframe([
+        ...     [1001, 10, 10000],
+        ...     [1020, 10, 9000],
+        ...     [1030, 10, 8000],
+        ...     [900, 20, 15000],
+        ...     [2000, 20, None],
+        ...     [2010, 20, 15000],
+        ...     [2020, 20, 8000]
+        ... ], schema=["employee_id", "department_id", "salary"])
+        >>> df.select(max_by("employee_id", "salary", 3)).collect()
+        [Row(MAX_BY("EMPLOYEE_ID", "SALARY", 3)='[\\n  900,\\n  2010,\\n  1001\\n]')]
+    """
+    c1 = _to_col_if_str(col_to_return, "max_by")
+    c2 = _to_col_if_str(col_containing_maximum, "max_by")
+    if maximum_number_of_values_to_return is not None:
+        return builtin("max_by", _emit_ast=_emit_ast)(
+            c1, c2, lit(maximum_number_of_values_to_return)
+        )
+    else:
+        return builtin("max_by", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def min_by(
+    col_to_return: ColumnOrName,
+    col_containing_minimum: ColumnOrName,
+    maximum_number_of_values_to_return: Optional[int] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Finds the row(s) containing the minimum value for a column and returns the value of another column in that row.
+
+    Example::
+
+        >>> df = session.create_dataframe([
+        ...     [1001, 10, 10000],
+        ...     [1020, 10, 9000],
+        ...     [1030, 10, 8000],
+        ...     [900, 20, 15000],
+        ...     [2000, 20, None],
+        ...     [2010, 20, 15000],
+        ...     [2020, 20, 8000]
+        ... ], schema=["employee_id", "department_id", "salary"])
+        >>> df.select(min_by("employee_id", "salary", 3).alias("min_by")).collect()
+        [Row(MIN_BY='[\\n  1030,\\n  2020,\\n  1020\\n]')]
+
+    """
+    c1 = _to_col_if_str(col_to_return, "min_by")
+    c2 = _to_col_if_str(col_containing_minimum, "min_by")
+    if maximum_number_of_values_to_return is not None:
+        return builtin("min_by", _emit_ast=_emit_ast)(
+            c1, c2, lit(maximum_number_of_values_to_return)
+        )
+    else:
+        return builtin("min_by", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def octet_length(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the length of a string or binary value in bytes.
+    This will be the same as LENGTH for ASCII strings and greater than LENGTH for strings using Unicode code points.
+    For binary, this is always the same as LENGTH.
+
+    Example::
+
+        >>> df = session.create_dataframe(['abc', '\u0392', "X'A1B2'"], schema=["a"])
+        >>> df.select(octet_length(col("a")).alias("octet_length")).collect()
+        [Row(OCTET_LENGTH=3), Row(OCTET_LENGTH=2), Row(OCTET_LENGTH=7)]
+    """
+    c = _to_col_if_str(e, "octet_length")
+    return builtin("octet_length", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def position(
+    expr1: ColumnOrName,
+    expr2: ColumnOrName,
+    start_pos: int = 1,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Searches for the first occurrence of the first argument in the second argument and, if successful, returns
+    the position (1-based) of the first argument in the second argument.
+
+    Example::
+
+        >>> df = session.create_dataframe([['an', 'banana'], ['nan', 'banana']], schema=["expr1", "expr2"])
+        >>> df.select(position(df["expr1"], df["expr2"], 3).alias("position")).collect()
+        [Row(POSITION=4), Row(POSITION=3)]
+    """
+    c1 = _to_col_if_str(expr1, "position")
+    c2 = _to_col_if_str(expr2, "position")
+    return builtin("position", _emit_ast=_emit_ast)(c1, c2, lit(start_pos))
+
+
+@publicapi
+def regr_avgx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the average of the independent variable for non-null pairs in a group, where x is the
+    independent variable and y is the dependent variable.
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
+        >>> df.groupBy("v").agg(regr_avgx(df["v"], df["v2"]).alias("regr_avgx")).collect()
+        [Row(V=10, REGR_AVGX=11.0), Row(V=20, REGR_AVGX=22.0), Row(V=25, REGR_AVGX=None), Row(V=30, REGR_AVGX=35.0)]
+    """
+    c1 = _to_col_if_str(y, "regr_avgx")
+    c2 = _to_col_if_str(x, "regr_avgx")
+    return builtin("regr_avgx", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def regr_avgy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the average of the dependent variable for non-null pairs in a group, where x is the
+    independent variable and y is the dependent variable.
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
+        >>> df = df.group_by("v").agg(regr_avgy(df["v"], df["v2"]).alias("regr_avgy"))
+        >>> df.collect()
+        [Row(V=10, REGR_AVGY=10.0), Row(V=20, REGR_AVGY=20.0), Row(V=25, REGR_AVGY=None), Row(V=30, REGR_AVGY=30.0)]
+    """
+    y = _to_col_if_str(y, "regr_avgy")
+    x = _to_col_if_str(x, "regr_avgy")
+    return builtin("regr_avgy", _emit_ast=_emit_ast)(y, x)
+
+
+@publicapi
+def regr_count(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the number of non-null number pairs in a group.
+
+    Example::
+
+        >>> df = session.create_dataframe([[1, 10, 11], [1, 20, 22], [1, 25, None], [2, 30, 35]], schema=["k", "v", "v2"])
+        >>> df.group_by("k").agg(regr_count(col("v"), col("v2")).alias("regr_count")).collect()
+        [Row(K=1, REGR_COUNT=2), Row(K=2, REGR_COUNT=1)]
+    """
+    c1 = _to_col_if_str(y, "regr_count")
+    c2 = _to_col_if_str(x, "regr_count")
+    return builtin("regr_count", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def regr_intercept(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the intercept of the univariate linear regression line for non-null pairs in a group.
+    It is computed for non-null pairs using the following formula: AVG(y)-REGR_SLOPE(y,x)*AVG(x), where x is
+    the independent variable and y is the dependent variable.
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 11], [20, 22], [30, 35]], schema=["v", "v2"])
+        >>> df.groupBy().agg(regr_intercept(df["v"], df["v2"]).alias("regr_intercept")).collect()
+        [Row(REGR_INTERCEPT=1.1547344110854496)]
+    """
+    c1 = _to_col_if_str(y, "regr_intercept")
+    c2 = _to_col_if_str(x, "regr_intercept")
+    return builtin("regr_intercept", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def regr_r2(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the coefficient of determination for non-null pairs in a group.
+    It is computed for non-null pairs using the following formula: NULL if VAR_POP(x) = 0, else
+    1 if VAR_POP(y) = 0 and VAR_POP(x) <> 0, else POWER(CORR(y,x), 2).
+    Where x is the independent variable and y is the dependent variable.
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
+        >>> df.groupBy("v").agg(regr_r2(col("v"), col("v2")).alias("regr_r2")).collect()
+        [Row(V=10, REGR_R2=None), Row(V=20, REGR_R2=None), Row(V=25, REGR_R2=None), Row(V=30, REGR_R2=None)]
+    """
+    y = _to_col_if_str(y, "regr_r2")
+    x = _to_col_if_str(x, "regr_r2")
+    return builtin("regr_r2", _emit_ast=_emit_ast)(y, x)
+
+
+@publicapi
+def regr_slope(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the slope of the linear regression line for non-null pairs in a group.
+    It is computed for non-null pairs using the following formula: COVAR_POP(x,y) / VAR_POP(x), where x is the
+    independent variable and y is the dependent variable.
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
+        >>> df = df.group_by("v").agg(regr_slope(df["v2"], df["v"]).alias("regr_slope"))
+        >>> df.collect()
+        [Row(V=10, REGR_SLOPE=None), Row(V=20, REGR_SLOPE=None), Row(V=25, REGR_SLOPE=None), Row(V=30, REGR_SLOPE=None)]
+    """
+    c1 = _to_col_if_str(y, "regr_slope")
+    c2 = _to_col_if_str(x, "regr_slope")
+    return builtin("regr_slope", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def regr_sxx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns REGR_COUNT(y, x) * VAR_POP(x) for non-null pairs.
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
+        >>> df.group_by("v").agg(regr_sxx(col("v"), col("v2")).alias("regr_sxx")).collect()
+        [Row(V=10, REGR_SXX=0.0), Row(V=20, REGR_SXX=0.0), Row(V=25, REGR_SXX=None), Row(V=30, REGR_SXX=0.0)]
+    """
+    y_col = _to_col_if_str(y, "regr_sxx")
+    x_col = _to_col_if_str(x, "regr_sxx")
+    return builtin("regr_sxx", _emit_ast=_emit_ast)(y_col, x_col)
+
+
+@publicapi
+def regr_sxy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns REGR_COUNT(expr1, expr2) * COVAR_POP(expr1, expr2) for non-null pairs.
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
+        >>> df = df.filter(df["v2"].is_not_null())
+        >>> df.group_by("v").agg(regr_sxy(df["v"], df["v2"]).alias("regr_sxy")).collect()
+        [Row(V=10, REGR_SXY=0.0), Row(V=20, REGR_SXY=0.0), Row(V=30, REGR_SXY=0.0)]
+    """
+    y_col = _to_col_if_str(y, "regr_sxy")
+    x_col = _to_col_if_str(x, "regr_sxy")
+    return builtin("regr_sxy", _emit_ast=_emit_ast)(y_col, x_col)
+
+
+@publicapi
+def regr_syy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns REGR_COUNT(y, x) * VAR_POP(y) for non-null pairs.
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
+        >>> df.groupBy("v").agg(regr_syy(df["v"], df["v2"]).alias("regr_syy")).collect()
+        [Row(V=10, REGR_SYY=0.0), Row(V=20, REGR_SYY=0.0), Row(V=25, REGR_SYY=None), Row(V=30, REGR_SYY=0.0)]
+    """
+    c1 = _to_col_if_str(y, "regr_syy")
+    c2 = _to_col_if_str(x, "regr_syy")
+    return builtin("regr_syy", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def try_to_binary(
+    e: ColumnOrName, fmt: Optional[str] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    A special version of TO_BINARY that performs the same operation (i.e. converts an input expression to
+    a binary value), but with error handling support (i.e. if the conversion cannot be performed,
+    it returns a NULL value instead of raising an error).
+
+    Example::
+
+        >>> df = session.create_dataframe(["01", "A B", "Hello", None], schema=["hex_encoded_string"])
+        >>> df.select(try_to_binary(df["hex_encoded_string"], 'HEX').alias("b")).collect()
+        [Row(B=bytearray(b'\\x01')), Row(B=None), Row(B=None), Row(B=None)]
+    """
+    c = _to_col_if_str(e, "try_to_binary")
+    return (
+        builtin("try_to_binary", _emit_ast=_emit_ast)(c, fmt)
+        if fmt
+        else builtin("try_to_binary", _emit_ast=_emit_ast)(c)
+    )
