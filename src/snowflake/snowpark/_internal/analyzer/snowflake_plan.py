@@ -110,6 +110,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     is_sql_select_statement,
     merge_multiple_dicts,
+    merge_multiple_chilren_expr_to_alias,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -598,6 +599,9 @@ class SnowflakePlanBuilder:
         if snowflake.snowpark.context._use_v2_alias:
             new_expr_to_alias = merge_multiple_dicts(
                 select_left.expr_to_alias, select_right.expr_to_alias
+            )
+            new_expr_to_alias = merge_multiple_chilren_expr_to_alias(
+                select_left, select_right
             )
         else:
             common_columns = set(select_left.expr_to_alias.keys()).intersection(

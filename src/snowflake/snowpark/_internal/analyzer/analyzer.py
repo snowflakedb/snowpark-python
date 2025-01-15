@@ -152,7 +152,11 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryField
-from snowflake.snowpark._internal.utils import quote_name, merge_multiple_dicts
+from snowflake.snowpark._internal.utils import (
+    quote_name,
+    merge_multiple_dicts,
+    merge_multiple_chilren_expr_to_alias,
+)
 from snowflake.snowpark.types import BooleanType, _NumericType
 
 ARRAY_BIND_THRESHOLD = 512
@@ -826,6 +830,10 @@ class Analyzer:
             if snowflake.snowpark.context._use_v2_alias:
                 use_maps = merge_multiple_dicts(
                     *[v.expr_to_alias for v in resolved_children.values()]
+                )
+
+                use_maps = merge_multiple_chilren_expr_to_alias(
+                    *list(resolved_children.values())
                 )
             else:
                 # get counts of expr_to_alias keys
