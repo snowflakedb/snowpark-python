@@ -1151,34 +1151,36 @@ def test_valid_func_valid_kwarg_should_work(basic_snowpark_pandas_df):
 
 
 @pytest.mark.parametrize("skipna", [True, False])
+@pytest.mark.parametrize("op", ["first", "last"])
 @sql_count_checker(query_count=1)
-def test_groupby_agg_first(skipna):
+def test_groupby_agg_first_and_last(skipna, op):
     native_df = native_pd.DataFrame(
         {"grp_col": ["A", "A", "B", "B", "A"], "float_col": [np.nan, 2, 3, np.nan, 4]}
     )
     snow_df = pd.DataFrame(native_df)
+
+    def comparator(snow_result, native_result):
+        # When passing a list of aggregations, native pandas does not respect kwargs, so skipna
+        # is always treated as the default value (true).
+        # Massage the native results to match the expected behavior.
+        if not skipna:
+            if op == "first":
+                assert native_result["float_col", "first"]["A"] == 2
+                assert native_result["float_col", "first"]["B"] == 3
+                native_result["float_col", "first"]["A"] = None
+            else:
+                assert native_result["float_col", "last"]["A"] == 4
+                assert native_result["float_col", "last"]["B"] == 3
+                native_result["float_col", "last"]["B"] = None
+        assert_snowpark_pandas_equal_to_pandas(snow_result, native_result)
+
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
         lambda df: df.groupby(by="grp_col").agg(
-            {"float_col": ["quantile", "first"]}, skipna=skipna
+            {"float_col": ["quantile", op]}, skipna=skipna
         ),
-    )
-
-
-@pytest.mark.parametrize("skipna", [True, False])
-@sql_count_checker(query_count=1)
-def test_groupby_agg_last(skipna):
-    native_df = native_pd.DataFrame(
-        {"grp_col": ["A", "A", "B", "B", "A"], "float_col": [np.nan, 2, 3, np.nan, 4]}
-    )
-    snow_df = pd.DataFrame(native_df)
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.groupby(by="grp_col").agg(
-            {"float_col": ["quantile", "last"]}, skipna=skipna
-        ),
+        comparator=comparator,
     )
 
 

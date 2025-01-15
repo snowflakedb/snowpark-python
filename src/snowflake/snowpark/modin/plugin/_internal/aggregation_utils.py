@@ -456,7 +456,7 @@ def _column_first_value(
         col_to_min_by = iff(
             col(column).is_null(),
             pandas_lit(None),
-            row_position_snowflake_quoted_identifier,
+            col(row_position_snowflake_quoted_identifier),
         )
     else:
         col_to_min_by = col(row_position_snowflake_quoted_identifier)
@@ -488,7 +488,7 @@ def _column_last_value(
         col_to_max_by = iff(
             col(column).is_null(),
             pandas_lit(None),
-            row_position_snowflake_quoted_identifier,
+            col(row_position_snowflake_quoted_identifier),
         )
     else:
         col_to_max_by = col(row_position_snowflake_quoted_identifier)
