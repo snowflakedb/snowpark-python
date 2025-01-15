@@ -1863,6 +1863,19 @@ class Decoder:
                     input=input, path=path, outer=outer, recursive=recursive, mode=mode
                 )
 
+            case "sp_generator":
+                columns = [self.decode_expr(col) for col in expr.sp_generator.columns]
+                row_count = expr.sp_generator.row_count
+                time_limit_seconds = expr.sp_generator.time_limit_seconds
+                if expr.sp_generator.variadic:
+                    return self.session.generator(
+                        *columns, rowcount=row_count, timelimit=time_limit_seconds
+                    )
+                else:
+                    return self.session.generator(
+                        columns, rowcount=row_count, timelimit=time_limit_seconds
+                    )
+
             case _:
                 raise NotImplementedError(
                     "Expression type not implemented yet: %s"
