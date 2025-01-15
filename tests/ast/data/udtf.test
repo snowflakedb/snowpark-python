@@ -166,13 +166,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "number"
+                  list {
+                    column_identifier {
+                      name: "number"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -350,13 +352,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "number"
+                  list {
+                    column_identifier {
+                      name: "number"
+                    }
+                    data_type {
+                      sp_long_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_long_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -634,13 +638,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "number"
+                  list {
+                    column_identifier {
+                      name: "number"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -858,22 +864,24 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "a"
+                  list {
+                    column_identifier {
+                      name: "a"
+                    }
+                    data_type {
+                      sp_long_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_long_type: true
+                  list {
+                    column_identifier {
+                      name: "b"
+                    }
+                    data_type {
+                      sp_long_type: true
+                    }
+                    nullable: true
                   }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "b"
-                  }
-                  data_type {
-                    sp_long_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -1101,13 +1109,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "two_x"
+                  list {
+                    column_identifier {
+                      name: "two_x"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -1271,22 +1281,24 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "two_x"
+                  list {
+                    column_identifier {
+                      name: "two_x"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
+                  list {
+                    column_identifier {
+                      name: "six_x"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "six_x"
-                  }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
