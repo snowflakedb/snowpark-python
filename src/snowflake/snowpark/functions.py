@@ -348,7 +348,7 @@ def lit(
     ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
     ``datetime.datetime`` and ``decimal.Decimal``. Also, it supports Python structured data types,
     including ``list``, ``tuple`` and ``dict``, but this container must
-    be JSON serializable.
+    be JSON serializable. If a ``Column`` is passed, it returns the column as is.
 
     Example::
 
@@ -366,9 +366,8 @@ def lit(
         <BLANKLINE>
     """
 
-    assert not isinstance(
-        literal, Column
-    ), "Do not use lit(Column(...)), type hint does not allow this syntax."
+    if isinstance(literal, Column):
+        return literal
 
     ast = None
     if _emit_ast:
