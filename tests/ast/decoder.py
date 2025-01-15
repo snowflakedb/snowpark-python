@@ -1555,6 +1555,24 @@ class Decoder:
                 table_name = self.decode_name_expr(expr.sp_table.name)
                 return self.session.table(table_name)
 
+            case "sp_to_snowpark_pandas":
+                df = self.decode_expr(expr.sp_to_snowpark_pandas.df)
+                d = MessageToDict(expr.sp_to_snowpark_pandas)
+                index_col, columns = None, None
+                if "indexCol" in d:
+                    index_col = [
+                        col for col in expr.sp_to_snowpark_pandas.index_col.list
+                    ]
+                if "columns" in d:
+                    columns = [col for col in expr.sp_to_snowpark_pandas.columns.list]
+                # Returning the result of to_snowpark_pandas causes recursion issues when local_testing_mode is enabled.
+                # When disabled, to_snowpark_pandas will raise an error since df will be an empty Dataframe
+                # (passing non-None values of index_col or columns will make the snowpark_to_pandas_helper complain
+                # about columns that do not exist).
+                # Therefore, silently execute to_snowpark_pandas to record the AST and return None.
+                df.to_snowpark_pandas(index_col, columns)
+                return None
+
             case "udf":
                 return_type = self.decode_data_type_expr(expr.udf.return_type)
                 input_types = [
