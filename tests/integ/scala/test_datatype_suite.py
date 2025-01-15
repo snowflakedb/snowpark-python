@@ -533,7 +533,7 @@ def test_structured_dtypes_negative(structured_type_session, structured_type_sup
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
 
-    # SNOW-1862700: Map Type missing element or value fails to generate AST
+    # SNOW-1862700: Map Type missing element or value fails to generate AST.
     with pytest.raises(
         NotImplementedError, match="AST does not support empty key or value type."
     ):
