@@ -12,6 +12,7 @@ from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
+from textwrap import dedent
 from typing import Tuple
 from unittest import mock
 
@@ -91,6 +92,8 @@ from tests.utils import (
     TestFiles,
     Utils,
     multithreaded_run,
+    structured_types_enabled_session,
+    structured_types_supported,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1873,6 +1876,181 @@ def test_create_dataframe_with_variant(session):
             '{\n  "a": "foo"\n}',
         )
     ]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_show_dataframe_spark(session):
+    if not structured_types_supported(session, False):
+        pytest.skip("Test requires structured type support.")
+
+    data = [
+        1,
+        "one",
+        1.1,
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        True,
+        False,
+        None,
+        bytearray("a", "utf-8"),
+        bytearray("abc", "utf-8"),
+        Decimal(0.5),
+        [1, 2, 3],
+        [
+            bytearray("abc", "utf-8"),
+            bytearray("a", "utf-8"),
+        ],
+        {"a": "foo"},
+    ]
+
+    with structured_types_enabled_session(session) as session:
+        schema = StructType(
+            [
+                StructField("col_1", IntegerType()),
+                StructField("col_2", StringType()),
+                StructField("col_3", FloatType()),
+                StructField("col_4", TimestampType()),
+                StructField("col_5", TimeType()),
+                StructField("col_6", DateType()),
+                StructField("col_7", BooleanType()),
+                StructField("col_8", BooleanType()),
+                StructField("col_9", VariantType()),
+                StructField("col_10", BinaryType()),
+                StructField("col_11", BinaryType()),
+                StructField("col_12", DecimalType()),
+                StructField("col_13", ArrayType(IntegerType())),
+                StructField("col_14", ArrayType(BinaryType())),
+                StructField("col_15", MapType(StringType(), StringType())),
+            ]
+        )
+        df = session.create_dataframe([data], schema=schema)
+        spark_col_names = [f"col_{i + 1}" for i in range(len(data))]
+
+        def assert_show_string_equals(actual: str, expected: str):
+            actual_lines = actual.strip().split("\n")
+            expected_lines = expected.strip().split("\n")
+            for a, e in zip(actual_lines, expected_lines):
+                if a.strip() != e.strip():
+                    print(f"\nactual:\n{actual}\nexpected:{expected}")
+                    pytest.fail()
+
+        assert_show_string_equals(
+            df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
+            dedent(
+                """
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
+            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|  "COL_11"|"COL_12"| "COL_13"|          "COL_14"|  "COL_15"|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
+            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [97]|[97 98 99]|       1|[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
+            ),
+            dedent(
+                """
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|            col_14|    col_15|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [97]|[97 98 99]|     1|[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                vertical=True,
+                _emit_ast=session.ast_enabled,
+                _spark_column_names=spark_col_names,
+            ),
+            dedent(
+                """
+            -RECORD 0----------------------
+             col_1  | 1
+             col_2  | one
+             col_3  | 1.1
+             col_4  | 2017-02-24 12:00:...
+             col_5  | 20:57:06
+             col_6  | 2017-02-25
+             col_7  | true
+             col_8  | false
+             col_9  | NULL
+             col_10 | [97]
+             col_11 | [97 98 99]
+             col_12 | 1
+             col_13 | [1, 2, 3]
+             col_14 | [[97 98 99], [97]]
+             col_15 | {a -> foo}
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                vertical=True,
+                truncate=False,
+                _emit_ast=session.ast_enabled,
+                _spark_column_names=spark_col_names,
+            ),
+            dedent(
+                """
+            -RECORD 0----------------------------
+             col_1  | 1
+             col_2  | one
+             col_3  | 1.1
+             col_4  | 2017-02-24 12:00:05.456000
+             col_5  | 20:57:06
+             col_6  | 2017-02-25
+             col_7  | true
+             col_8  | false
+             col_9  | NULL
+             col_10 | [97]
+             col_11 | [97 98 99]
+             col_12 | 1
+             col_13 | [1, 2, 3]
+             col_14 | [[97 98 99], [97]]
+             col_15 | {a -> foo}
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                truncate=False,
+                _emit_ast=session.ast_enabled,
+                _spark_column_names=spark_col_names,
+            ),
+            dedent(
+                """
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11    |col_12|col_13   |col_14            |col_15    |
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[97]  |[97 98 99]|1     |[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                truncate=10,
+                _emit_ast=session.ast_enabled,
+                _spark_column_names=spark_col_names,
+            ),
+            dedent(
+                """
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
+            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
+            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [97]|[97 98 99]|     1|[1, 2, 3]|[[97 98...|{a -> foo}|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
+            """
+            ),
+        )
 
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
