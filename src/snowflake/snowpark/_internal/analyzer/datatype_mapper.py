@@ -272,6 +272,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
         return "to_array(0)"
     if isinstance(data_type, MapType):
         if data_type.structured:
+            assert data_type.key_type is not None and data_type.value_type is not None
             # Key values can never be null
             key = schema_expression(data_type.key_type, False)
             # Value nullability is variable. Defaults to True
