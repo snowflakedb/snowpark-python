@@ -184,6 +184,10 @@ from tests.utils import (
 )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="querying json element is not supported in local testing",
+)
 def test_col_json_element(session):
     # 2-level deep
     df = session.sql(
