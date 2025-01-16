@@ -1142,9 +1142,34 @@ def test_named_agg_not_supported_axis_1(numeric_native_df):
         ),
         param(
             None,
-            {"x": ("A", np.exp), "y": pd.NamedAgg("C", sum)},
+            {
+                "x": ("A", np.exp),
+                "y": pd.NamedAgg("C", sum),
+            },
             "Snowpark pandas aggregate does not yet support the aggregation "
             + "new_label=\\(label, np\\.exp\\), new_label=\\(label, <built-in function sum>\\)"
+            + " with the given arguments",
+            id="named_agg",
+        ),
+        param(
+            None,
+            {
+                "x": ("A", "first"),
+                "y": pd.NamedAgg("C", sum),
+            },
+            "Snowpark pandas aggregate does not yet support the aggregation "
+            + "new_label=\\(label, 'first'\\), new_label=\\(label, <built-in function sum>\\)"
+            + " with the given arguments",
+            id="named_agg",
+        ),
+        param(
+            None,
+            {
+                "x": ("A", "last"),
+                "y": pd.NamedAgg("C", sum),
+            },
+            "Snowpark pandas aggregate does not yet support the aggregation "
+            + "new_label=\\(label, 'last'\\), new_label=\\(label, <built-in function sum>\\)"
             + " with the given arguments",
             id="named_agg",
         ),
