@@ -18,7 +18,6 @@ import platform
 import random
 import re
 import string
-import sys
 import threading
 import traceback
 import zipfile
@@ -1262,6 +1261,33 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
+# Define the full-width regex pattern, copied from Spark
+full_width_regex = re.compile(
+    r"[\u1100-\u115F"
+    r"\u2E80-\uA4CF"
+    r"\uAC00-\uD7A3"
+    r"\uF900-\uFAFF"
+    r"\uFE10-\uFE19"
+    r"\uFE30-\uFE6F"
+    r"\uFF00-\uFF60"
+    r"\uFFE0-\uFFE6]"
+)
+
+
+def string_half_width(s: str) -> int:
+    """
+    Calculate the half-width of a string by adding 1 for each character
+    and adding an extra 1 for each full-width character.
+
+    :param s: The input string
+    :return: The calculated width
+    """
+    if s is None:
+        return 0
+    full_width_count = len(full_width_regex.findall(s))
+    return len(s) + full_width_count
+
+
 def prepare_pivot_arguments(
     df: "snowflake.snowpark.DataFrame",
     df_name: str,
@@ -1390,10 +1416,6 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         return modin, True
     except ImportError:
         return MissingModin(), False
-
-
-# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
-COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
 
 
 class GlobalCounter:

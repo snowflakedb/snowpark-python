@@ -42,17 +42,20 @@
   - `try_to_binary`
 
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 
 #### Improvements
 
 - Updated README.md to include instructions on how to verify package signatures using `cosign`.
 - Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
+- Added support for `contains_null` parameter to ArrayType.
 
 #### Bug Fixes
 
 - Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
 - Fixed a bug in `StructField.from_json` that prevented TimestampTypes with `tzinfo` from being parsed correctly.
 - Fixed a bug in function `date_format` that caused an error when the input column was date type or timestamp type.
+- Fixed a bug in dataframe that null value can be inserted in a non-nullable column.
 - Fixed a bug in `replace` when passing `Column` expression objects.
 
 ### Snowpark pandas API Updates
