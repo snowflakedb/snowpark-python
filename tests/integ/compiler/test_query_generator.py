@@ -1,11 +1,12 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
 from typing import List
 
 import pytest
+from snowflake.connector import IntegrityError
 
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
@@ -51,6 +52,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.functions import avg, col, lit, when_matched
+from snowflake.snowpark.types import StructType, StructField, LongType
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import TestFiles, Utils
@@ -533,3 +535,26 @@ def test_select_alias(session):
     # Add a new column d that doesn't use c after c was added previously. Flatten safely.
     df2 = df1.select("a", "b", "c", (col("a") + col("b") + 1).as_("d"))
     check_generated_plan_queries(df2._plan)
+
+
+def test_nullable_is_false_dataframe(session):
+    from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
+
+    schema = StructType([StructField("key", LongType(), nullable=True)])
+    assert session.create_dataframe([None], schema=schema).collect()[0][0] is None
+
+    assert (
+        session.create_dataframe(
+            [None for _ in range(ARRAY_BIND_THRESHOLD + 1)], schema=schema
+        ).collect()[0][0]
+        is None
+    )
+
+    schema = StructType([StructField("key", LongType(), nullable=False)])
+    with pytest.raises(IntegrityError, match="NULL result in a non-nullable column"):
+        session.create_dataframe([None for _ in range(10)], schema=schema).collect()
+
+    with pytest.raises(IntegrityError, match="NULL result in a non-nullable column"):
+        session.create_dataframe(
+            [None for _ in range(ARRAY_BIND_THRESHOLD + 1)], schema=schema
+        ).collect()

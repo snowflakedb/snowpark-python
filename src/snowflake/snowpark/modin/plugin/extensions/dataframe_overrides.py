@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -380,11 +380,6 @@ def to_xml(
     compression="infer",
     storage_options=None,
 ):
-    pass  # pragma: no cover
-
-
-@register_dataframe_not_implemented()
-def __delitem__(self, key):
     pass  # pragma: no cover
 
 

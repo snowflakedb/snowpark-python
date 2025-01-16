@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import uuid
@@ -174,10 +174,7 @@ def examples(structured_type_support):
 def structured_type_session(session, structured_type_support):
     if structured_type_support:
         with structured_types_enabled_session(session) as sess:
-            with mock.patch(
-                "snowflake.snowpark.context._use_structured_type_semantics", True
-            ):
-                yield sess
+            yield sess
     else:
         yield session
 

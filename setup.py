@@ -31,7 +31,7 @@ INSTALL_REQ_LIST = [
     "tzlocal",  # Snowpark IR
     "snowflake.core>=1.0.0, <2",  # Catalog
 ]
-REQUIRED_PYTHON_VERSION = ">=3.8, <3.12"
+REQUIRED_PYTHON_VERSION = ">=3.8, <3.13"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.8"
@@ -58,9 +58,8 @@ DEVELOPMENT_REQUIREMENTS = [
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
-    "protoc-wheel-0==21.1",  # Protocol buffer compiler, for Snowpark IR
-    "mypy-protobuf",  # used in generating typed Python code from protobuf for Snowpark IR
     "lxml",  # used in read_xml tests
+    "tox",  # used for setting up testing environments
 ]
 
 # read the version
@@ -229,6 +228,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Database",
         "Topic :: Software Development",
         "Topic :: Software Development :: Libraries",

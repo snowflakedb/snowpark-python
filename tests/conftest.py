@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from snowflake.snowpark._internal.utils import COMPATIBLE_WITH_MODIN, warning_dict
+from snowflake.snowpark._internal.utils import warning_dict
 from .ast.conftest import default_unparser_path
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
@@ -19,6 +19,10 @@ logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 excluded_frontend_files = [
     "accessor.py",
 ]
+
+# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
+COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
+
 
 # the fixture only works when opentelemetry is installed
 try:
@@ -56,9 +60,6 @@ def is_excluded_frontend_file(path):
 def pytest_addoption(parser, pluginmanager):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
     parser.addoption("--disable_cte_optimization", action="store_true", default=False)
-    parser.addoption(
-        "--disable_multithreading_mode", action="store_true", default=False
-    )
     parser.addoption("--skip_sql_count_check", action="store_true", default=False)
     if not any(
         "--local_testing_mode" in opt.names() for opt in parser._anonymous.options
@@ -149,17 +150,6 @@ def proto_generated():
         from snowflake.snowpark._internal.proto.generated import ast_pb2  # noqa: F401
     except ImportError:
         subprocess.check_call([sys.executable, "-m", "tox", "-e", "protoc"])
-
-
-MULTITHREADING_TEST_MODE_ENABLED = False
-
-
-@pytest.fixture(scope="session", autouse=True)
-def multithreading_mode_enabled(pytestconfig):
-    enabled = not pytestconfig.getoption("disable_multithreading_mode")
-    global MULTITHREADING_TEST_MODE_ENABLED
-    MULTITHREADING_TEST_MODE_ENABLED = enabled
-    return enabled
 
 
 @pytest.fixture(scope="session")

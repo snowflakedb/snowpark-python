@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -258,11 +258,6 @@ def mode(self, axis=0, numeric_only=False, dropna=True):  # noqa: PR01, RT01, D2
 
 @register_base_not_implemented()
 def pipe(self, func, *args, **kwargs):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
-def pop(self, item):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
