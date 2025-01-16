@@ -42,6 +42,7 @@
   - `try_to_binary`
 
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 
 #### Improvements
 
