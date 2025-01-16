@@ -43,7 +43,6 @@ requirements:
     - protobuf >=3.20,<6
     - python-dateutil
     - tzlocal
-    - snowflake.core >=1.0.0,<2
 
 test:
   imports:
