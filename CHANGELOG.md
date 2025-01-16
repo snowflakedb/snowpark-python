@@ -49,6 +49,7 @@
 
 - Updated README.md to include instructions on how to verify package signatures using `cosign`.
 - Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
+- Added options to column casts that allow renaming or adding fields in StructType columns.
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for `value_contains_null` parameter to MapType.
 - Allow column to cast to StructType.
