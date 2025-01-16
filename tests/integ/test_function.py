@@ -184,6 +184,47 @@ from tests.utils import (
 )
 
 
+def test_col_json_element(session):
+    df = session.sql(
+        'select parse_json(\'{"firstname": "John", "lastname": "Doe"}\') as name'
+    )
+    Utils.check_answer(
+        df.select(
+            col("name.firstname", json_element=True),
+            col("name.lastname", json_element=True),
+        ),
+        [Row('"John"', '"Doe"')],
+    )
+    Utils.check_answer(
+        df.select(
+            col('name."firstname"', json_element=True),
+            col('NAME."lastname"', json_element=True),
+        ),
+        [Row('"John"', '"Doe"')],
+    )
+    Utils.check_answer(df.select(col("name.FIRSTNAME", json_element=True)), [Row(None)])
+
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.select(col("name:firstname", json_element=True)).collect()
+
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.select(col("name.firstname")).collect()
+
+    df = session.sql('select parse_json(\'{"l1": {"l2": "xyz"}}\') as value')
+    Utils.check_answer(df.select(col("value.l1.l2", json_element=True)), Row('"xyz"'))
+    Utils.check_answer(
+        df.select(col('value."l1"."l2"', json_element=True)), Row('"xyz"')
+    )
+    Utils.check_answer(df.select(col("value.L1.l2", json_element=True)), Row(None))
+    Utils.check_answer(df.select(col("value.l1.L2", json_element=True)), Row(None))
+
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.select(col("value:l1.l2", json_element=True)).collect()
+
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.select(col("value.l1.l2")).collect()
+
+
 def test_order(session):
     null_data1 = TestData.null_data1(session)
     assert null_data1.sort(asc(null_data1["A"])).collect() == [
