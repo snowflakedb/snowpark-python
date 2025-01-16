@@ -2001,6 +2001,11 @@ class Decoder:
                         columns, rowcount=row_count, timelimit=time_limit_seconds
                     )
 
+            case "sp_sql":
+                params = [self.decode_expr(param) for parm in expr.sp_sql.params]
+                query = expr.sp_sql.query
+                return self.session.sql(query=query, params=params)
+
             case _:
                 raise NotImplementedError(
                     "Expression type not implemented yet: %s"
