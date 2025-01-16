@@ -786,6 +786,16 @@ class Session:
 
     @property
     def ast_enabled(self) -> bool:
+        """
+        Set to ``True`` to enable the AST (Abstract Syntax Tree) capture for ``DataFrame`` operations.
+
+        This is an internal, experimental feature that is not yet fully supported. The value of the parameter is controlled by the Snowflake service.
+
+        It is not possible to re-enable this feature if the system or a user explicitly disables it. Setting this property to ``True`` can result in no change if the setting was already set explicitly to ``False`` internally.
+
+        Returns:
+            The current value of the property.
+        """
         return is_ast_enabled()
 
     @ast_enabled.setter
