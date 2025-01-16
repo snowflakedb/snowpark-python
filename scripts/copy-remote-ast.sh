@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euxo pipefail
 
 # This script assumes the target Cloud Workspace specified as the command-line argument has the build target.
 # To make sure this is the case, run bazel build //Snowpark/ast:ast_proto and bazel build //Snowpark/unparser.

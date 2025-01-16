@@ -22,6 +22,10 @@ message List_SpDataType {
   repeated SpDataType list = 1;
 }
 
+message List_SpStructField {
+  repeated SpStructField list = 1;
+}
+
 message List_String {
   repeated string list = 1;
 }
@@ -174,7 +178,7 @@ message SpStructField {
 
 // sp-type.ir:46
 message SpStructType {
-  repeated SpStructField fields = 1;
+  List_SpStructField fields = 1;
   bool structured = 2;
 }
 
