@@ -350,6 +350,8 @@ class SnowflakePlan(LogicalPlan):
     def attributes(self) -> List[Attribute]:
         if self._metadata.attributes is not None:
             return self._metadata.attributes
+        if self.schema_query is None:
+            pass
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
