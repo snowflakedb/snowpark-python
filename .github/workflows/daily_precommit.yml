@@ -558,6 +558,7 @@ jobs:
         shell: bash
       - if: ${{ matrix.python-version == '3.12' }}
         name: Run tests (excluding doctests and udf tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
