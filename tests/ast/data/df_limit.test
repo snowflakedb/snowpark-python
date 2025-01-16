@@ -25,15 +25,14 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -58,10 +57,7 @@ body {
           sp_column_sql_expr {
             sql: "*"
             src {
-              end_column: 31
-              end_line: 27
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 23
               start_line: 27
             }
           }
@@ -74,10 +70,7 @@ body {
           }
         }
         src {
-          end_column: 32
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 27
         }
         variadic: true
@@ -105,10 +98,7 @@ body {
         }
         n: 3
         src {
-          end_column: 41
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 27
         }
       }
@@ -130,10 +120,7 @@ body {
           sp_column_sql_expr {
             sql: "*"
             src {
-              end_column: 31
-              end_line: 29
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 23
               start_line: 29
             }
           }
@@ -146,10 +133,7 @@ body {
           }
         }
         src {
-          end_column: 32
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 29
         }
         variadic: true
@@ -178,10 +162,7 @@ body {
         n: 1
         offset: 1
         src {
-          end_column: 53
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 29
         }
       }
@@ -208,5 +189,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

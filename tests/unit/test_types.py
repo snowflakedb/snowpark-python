@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import decimal
@@ -683,6 +683,7 @@ def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
 @pytest.mark.parametrize(
     "value_str,datatype,expected_value",
     [
+        (None, None, None),
         ("1", IntegerType(), 1),
         ("True", BooleanType(), True),
         ("1.0", FloatType(), 1.0),
@@ -1428,6 +1429,23 @@ def test_from_json_wrong_data_type():
     }
     with pytest.raises(ValueError, match="Unsupported data type: wrong_type"):
         StructField.from_json(wrong_json)
+
+
+def test_timestamp_json_round_trip():
+    timestamp_types = [
+        "timestamp",
+        "timestamp_tz",
+        "timestamp_ntz",
+        "timestamp_ltz",
+    ]
+
+    for ts in timestamp_types:
+        assert (
+            StructField.from_json(
+                {"name": "TS", "type": ts, "nullable": True}
+            ).json_value()["type"]
+            == ts
+        )
 
 
 def test_maptype_alias():

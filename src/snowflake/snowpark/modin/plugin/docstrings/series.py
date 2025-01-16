@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This module contains Series docstrings that override modin's docstrings."""
@@ -687,7 +687,8 @@ class Series(BasePandasDataset):
         Notes
         -----
         1. When ``func`` has a type annotation for its return value, the result will be cast
-        to the corresponding dtype. When no type annotation is provided, data will be converted
+        to the corresponding dtype. When no type annotation is provided, we try to infer
+        return type using dummy data. If return type inference is not successful data will be converted
         to VARIANT type in Snowflake, and the result will have ``dtype=object``. In this case, the return value must
         be JSON-serializable, which can be a valid input to ``json.dumps`` (e.g., ``dict`` and
         ``list`` objects are JSON-serializable, but ``bytes`` and ``datetime.datetime`` objects
@@ -728,6 +729,71 @@ class Series(BasePandasDataset):
     def between():
         """
         Return boolean Series equivalent to left <= series <= right.
+
+        This function returns a boolean vector containing `True` wherever the
+        corresponding Series element is between the boundary values `left` and
+        `right`. NA values are treated as `False`.
+
+        Parameters
+        ----------
+        left : scalar or list-like
+            Left boundary.
+        right : scalar or list-like
+            Right boundary.
+        inclusive : {"both", "neither", "left", "right"}
+            Include boundaries. Whether to set each bound as closed or open.
+
+        Returns
+        -------
+        Series
+            Series representing whether each element is between left and
+            right (inclusive).
+
+        See Also
+        --------
+        Series.gt : Greater than of series and other.
+        Series.lt : Less than of series and other.
+
+        Notes
+        -----
+        This function is equivalent to ``(left <= ser) & (ser <= right)``
+
+        Examples
+        --------
+        >>> s = pd.Series([2, 0, 4, 8, np.nan])
+
+        Boundary values are included by default:
+
+        >>> s.between(1, 4)
+        0     True
+        1    False
+        2     True
+        3    False
+        4     None
+        dtype: object
+
+        Note that to for consistency with Snowflake SQL rules, comparisons with `None`/`np.nan`
+        will return `None`. Call `astype(bool)` on the result to coerce `None` to `False`.
+
+        With `inclusive` set to ``"neither"`` boundary values are excluded:
+
+        >>> s.between(1, 4, inclusive="neither")
+        0     True
+        1    False
+        2    False
+        3    False
+        4     None
+        dtype: object
+
+        `left` and `right` can be any scalar value:
+
+        >>> s = pd.Series(['Alice', 'Bob', 'Carol', 'Eve'])
+        >>> s.between('Anna', 'Daniel')
+        0    False
+        1     True
+        2     True
+        3    False
+        dtype: bool
         """
 
     def bfill():
@@ -2248,6 +2314,32 @@ class Series(BasePandasDataset):
     def plot():
         """
         Make plot of Series.
+        """
+
+    def pop():
+        """
+        Return item and drops from series. Raise KeyError if not found.
+
+        Parameters
+        ----------
+        item : label
+            Index of the element that needs to be removed.
+
+        Returns
+        -------
+            Value that is popped from series.
+
+        Examples
+        --------
+        >>> ser = pd.Series([1, 2, 3])
+
+        >>> ser.pop(0)
+        1
+
+        >>> ser
+        1    2
+        2    3
+        dtype: int64
         """
 
     @_create_operator_docstring(pandas.core.series.Series.pow, overwrite_existing=True)

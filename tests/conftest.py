@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -11,13 +11,18 @@ from pathlib import Path
 
 import pytest
 
-from snowflake.snowpark._internal.utils import COMPATIBLE_WITH_MODIN, warning_dict
+from snowflake.snowpark._internal.utils import warning_dict
+from .ast.conftest import default_unparser_path
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 
 excluded_frontend_files = [
     "accessor.py",
 ]
+
+# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
+COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
+
 
 # the fixture only works when opentelemetry is installed
 try:
@@ -45,12 +50,6 @@ except ModuleNotFoundError:
     opentelemetry_installed = False
 
 
-def default_unparser_path():
-    explicit = os.getenv("SNOWPARK_UNPARSER_JAR")
-    default_default = f"{os.getenv('HOME')}/Snowflake/trunk/Snowpark/unparser/target/scala-2.13/unparser-assembly-0.1.jar"
-    return explicit or default_default
-
-
 def is_excluded_frontend_file(path):
     for excluded in excluded_frontend_files:
         if str(path).endswith(excluded):
@@ -61,9 +60,6 @@ def is_excluded_frontend_file(path):
 def pytest_addoption(parser, pluginmanager):
     parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
     parser.addoption("--disable_cte_optimization", action="store_true", default=False)
-    parser.addoption(
-        "--disable_multithreading_mode", action="store_true", default=False
-    )
     parser.addoption("--skip_sql_count_check", action="store_true", default=False)
     if not any(
         "--local_testing_mode" in opt.names() for opt in parser._anonymous.options
@@ -76,7 +72,7 @@ def pytest_addoption(parser, pluginmanager):
         action="store",
         default=default_unparser_path(),
         type=str,
-        help="Path to the Unparser JAR built in the monorepo. To build it, run `sbt assembly` from the unparser directory.",
+        help="Path to the Unparser JAR built in the monorepo.",
     )
 
 
@@ -154,17 +150,6 @@ def proto_generated():
         from snowflake.snowpark._internal.proto.generated import ast_pb2  # noqa: F401
     except ImportError:
         subprocess.check_call([sys.executable, "-m", "tox", "-e", "protoc"])
-
-
-MULTITHREADING_TEST_MODE_ENABLED = False
-
-
-@pytest.fixture(scope="session", autouse=True)
-def multithreading_mode_enabled(pytestconfig):
-    enabled = not pytestconfig.getoption("disable_multithreading_mode")
-    global MULTITHREADING_TEST_MODE_ENABLED
-    MULTITHREADING_TEST_MODE_ENABLED = enabled
-    return enabled
 
 
 @pytest.fixture(scope="session")

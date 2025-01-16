@@ -31,19 +31,13 @@ body {
             vs {
               list_val {
                 src {
-                  end_column: 82
-                  end_line: 27
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 13
                   start_line: 27
                 }
                 vs {
                   int64_val {
                     src {
-                      end_column: 82
-                      end_line: 27
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 13
                       start_line: 27
                     }
                     v: 1
@@ -52,10 +46,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 82
-                      end_line: 27
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 13
                       start_line: 27
                     }
                     v: 2
@@ -66,19 +57,13 @@ body {
             vs {
               list_val {
                 src {
-                  end_column: 82
-                  end_line: 27
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 13
                   start_line: 27
                 }
                 vs {
                   int64_val {
                     src {
-                      end_column: 82
-                      end_line: 27
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 13
                       start_line: 27
                     }
                     v: 3
@@ -87,10 +72,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 82
-                      end_line: 27
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 13
                       start_line: 27
                     }
                     v: 4
@@ -101,19 +83,13 @@ body {
             vs {
               list_val {
                 src {
-                  end_column: 82
-                  end_line: 27
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 13
                   start_line: 27
                 }
                 vs {
                   int64_val {
                     src {
-                      end_column: 82
-                      end_line: 27
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 13
                       start_line: 27
                     }
                     v: 1
@@ -122,10 +98,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 82
-                      end_line: 27
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 13
                       start_line: 27
                     }
                     v: 4
@@ -142,10 +115,7 @@ body {
           }
         }
         src {
-          end_column: 82
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 27
         }
       }
@@ -176,8 +146,10 @@ body {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "stddev"
+                    name {
+                      sp_name_flat {
+                        name: "stddev"
+                      }
                     }
                   }
                 }
@@ -187,8 +159,10 @@ body {
                   fn {
                     builtin_fn {
                       name {
-                        fn_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
@@ -196,29 +170,20 @@ body {
                   pos_args {
                     string_val {
                       src {
-                        end_column: 36
-                        end_line: 29
                         file: "SRC_POSITION_TEST_MODE"
-                        start_column: 28
                         start_line: 29
                       }
                       v: "a"
                     }
                   }
                   src {
-                    end_column: 36
-                    end_line: 29
                     file: "SRC_POSITION_TEST_MODE"
-                    start_column: 28
                     start_line: 29
                   }
                 }
               }
               src {
-                end_column: 37
-                end_line: 29
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 21
                 start_line: 29
               }
             }
@@ -228,8 +193,10 @@ body {
               fn {
                 builtin_fn {
                   name {
-                    fn_name_flat {
-                      name: "stddev_pop"
+                    name {
+                      sp_name_flat {
+                        name: "stddev_pop"
+                      }
                     }
                   }
                 }
@@ -239,8 +206,10 @@ body {
                   fn {
                     builtin_fn {
                       name {
-                        fn_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
@@ -248,29 +217,20 @@ body {
                   pos_args {
                     string_val {
                       src {
-                        end_column: 58
-                        end_line: 29
                         file: "SRC_POSITION_TEST_MODE"
-                        start_column: 50
                         start_line: 29
                       }
                       v: "a"
                     }
                   }
                   src {
-                    end_column: 58
-                    end_line: 29
                     file: "SRC_POSITION_TEST_MODE"
-                    start_column: 50
                     start_line: 29
                   }
                 }
               }
               src {
-                end_column: 59
-                end_line: 29
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 39
                 start_line: 29
               }
             }
@@ -278,10 +238,7 @@ body {
           variadic: true
         }
         src {
-          end_column: 60
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 29
         }
       }
@@ -310,19 +267,13 @@ body {
           args {
             tuple_val {
               src {
-                end_column: 48
-                end_line: 31
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 14
                 start_line: 31
               }
               vs {
                 string_val {
                   src {
-                    end_column: 48
-                    end_line: 31
                     file: "SRC_POSITION_TEST_MODE"
-                    start_column: 14
                     start_line: 31
                   }
                   v: "a"
@@ -331,10 +282,7 @@ body {
               vs {
                 string_val {
                   src {
-                    end_column: 48
-                    end_line: 31
                     file: "SRC_POSITION_TEST_MODE"
-                    start_column: 14
                     start_line: 31
                   }
                   v: "min"
@@ -345,19 +293,13 @@ body {
           args {
             tuple_val {
               src {
-                end_column: 48
-                end_line: 31
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 14
                 start_line: 31
               }
               vs {
                 string_val {
                   src {
-                    end_column: 48
-                    end_line: 31
                     file: "SRC_POSITION_TEST_MODE"
-                    start_column: 14
                     start_line: 31
                   }
                   v: "b"
@@ -366,10 +308,7 @@ body {
               vs {
                 string_val {
                   src {
-                    end_column: 48
-                    end_line: 31
                     file: "SRC_POSITION_TEST_MODE"
-                    start_column: 14
                     start_line: 31
                   }
                   v: "max"
@@ -380,10 +319,7 @@ body {
           variadic: true
         }
         src {
-          end_column: 48
-          end_line: 31
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 31
         }
       }
@@ -415,10 +351,7 @@ body {
                 vs {
                   string_val {
                     src {
-                      end_column: 48
-                      end_line: 33
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 14
                       start_line: 33
                     }
                     v: "a"
@@ -427,10 +360,7 @@ body {
                 vs {
                   string_val {
                     src {
-                      end_column: 48
-                      end_line: 33
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 14
                       start_line: 33
                     }
                     v: "count"
@@ -441,10 +371,7 @@ body {
                 vs {
                   string_val {
                     src {
-                      end_column: 48
-                      end_line: 33
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 14
                       start_line: 33
                     }
                     v: "b"
@@ -453,10 +380,7 @@ body {
                 vs {
                   string_val {
                     src {
-                      end_column: 48
-                      end_line: 33
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 14
                       start_line: 33
                     }
                     v: "sum"
@@ -464,10 +388,7 @@ body {
                 }
               }
               src {
-                end_column: 48
-                end_line: 33
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 14
                 start_line: 33
               }
             }
@@ -475,10 +396,7 @@ body {
           variadic: true
         }
         src {
-          end_column: 48
-          end_line: 33
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 33
         }
       }
@@ -505,5 +423,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

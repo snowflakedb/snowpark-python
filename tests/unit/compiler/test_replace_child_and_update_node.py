@@ -1,8 +1,9 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
+from functools import partial
 from unittest import mock
 
 import pytest
@@ -67,6 +68,7 @@ def mock_snowflake_plan() -> SnowflakePlan:
     with_query_block = WithQueryBlock(name="TEST_CTE", child=LogicalPlan())
     fake_snowflake_plan.referenced_ctes = {with_query_block: 1}
     fake_snowflake_plan._cumulative_node_complexity = {}
+    fake_snowflake_plan._is_valid_for_replacement = True
     return fake_snowflake_plan
 
 
@@ -82,6 +84,10 @@ def mock_query_generator(mock_session) -> QueryGenerator:
     fake_query_generator = mock.create_autospec(QueryGenerator)
     fake_query_generator.resolve.side_effect = mock_resolve
     fake_query_generator.session = mock_session
+    fake_query_generator.to_selectable = partial(
+        QueryGenerator.to_selectable, fake_query_generator
+    )
+    fake_query_generator._to_selectable_memo_dict = {}
     return fake_query_generator
 
 
