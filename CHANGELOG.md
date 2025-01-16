@@ -23,6 +23,7 @@
   - `bitmap_construct_agg`
   - `cbrt`
   - `equal_null`
+  - `from_json`
   - `ifnull`
   - `localtimestamp`
   - `max_by`
@@ -85,6 +86,7 @@
 - Added support for `include_groups=False` in `DataFrameGroupBy.apply`.
 - Added support for `expand=True` in `Series.str.split`.
 - Added support for `DataFrame.pop` and `Series.pop`.
+- Added support for `first` and `last` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
 
 #### Bug Fixes
 
