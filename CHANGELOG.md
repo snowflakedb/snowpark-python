@@ -23,6 +23,7 @@
   - `bitmap_construct_agg`
   - `cbrt`
   - `equal_null`
+  - `from_json`
   - `ifnull`
   - `localtimestamp`
   - `max_by`
