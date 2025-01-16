@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from snowflake.snowpark._internal.utils import COMPATIBLE_WITH_MODIN, warning_dict
+from snowflake.snowpark._internal.utils import warning_dict
 from .ast.conftest import default_unparser_path
 
 logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
@@ -19,6 +19,10 @@ logging.getLogger("snowflake.connector").setLevel(logging.ERROR)
 excluded_frontend_files = [
     "accessor.py",
 ]
+
+# Modin breaks Python 3.8 compatibility, do not test when running under 3.8.
+COMPATIBLE_WITH_MODIN = sys.version_info.minor > 8
+
 
 # the fixture only works when opentelemetry is installed
 try:
