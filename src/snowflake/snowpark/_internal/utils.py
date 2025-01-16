@@ -815,7 +815,9 @@ class AstFlagSource(IntEnum):
     TEST = auto()
     """
     Do not use this in production Snowpark code. Test code set the value. This has the highest precedence.
-    Nothing else can override it.
+    However, other test code can override previous settings.
+
+    Do not misuse this flag source in production code, as it will lead to unpredictable behavior.
     """
 
 
@@ -893,13 +895,11 @@ class _AstState:
                 enable,
             )
             if source == AstFlagSource.TEST:
-                # Treat TEST as SERVER:
-                #   Only one place in the production code uses SERVER. Test code shouldn't use that enum value.
-                #   Treat TEST requests as final. No other test or production code can change the state that test setup code requested.
-                #   If cases where treating TEST different from SERVER come up, we can augment the logic below.
-                canonical_source = AstFlagSource.SERVER
-                _logger.info("Treating source = %s as %s", source, canonical_source)
-                source = canonical_source
+                # TEST behaviors override everything.
+                # If you see this code path running in production, the calling code is broken.
+                self._state = _AstFlagState.FINALIZED
+                self._ast_enabled = enable
+                return
             if self._state == _AstFlagState.FINALIZED and self._ast_enabled != enable:
                 _logger.warning(
                     "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s",
