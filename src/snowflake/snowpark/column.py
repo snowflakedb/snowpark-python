@@ -252,10 +252,26 @@ class Column:
         self,
         expr1: Union[str, Expression],
         expr2: Optional[str] = None,
+        json_element: bool = False,
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
     ) -> None:
         self._ast = _ast
+
+        def derive_json_element_expr(
+            expr: str, df_alias: Optional[str] = None
+        ) -> UnresolvedAttribute:
+            parts = expr.split(".")
+            if len(parts) == 1:
+                return UnresolvedAttribute(quote_name(parts[0]), df_alias=df_alias)
+            else:
+                # According to https://docs.snowflake.com/en/user-guide/querying-semistructured#dot-notation,
+                # the json value on the path should be case-sensitive
+                return UnresolvedAttribute(
+                    f"{quote_name(parts[0])}:{'.'.join(quote_name(part, keep_case=True) for part in parts[1:])}",
+                    is_sql_text=True,
+                    df_alias=df_alias,
+                )
 
         if expr2 is not None:
             if not (isinstance(expr1, str) and isinstance(expr2, str)):
@@ -265,6 +281,8 @@ class Column:
 
             if expr2 == "*":
                 self._expression = Star([], df_alias=expr1)
+            elif json_element:
+                self._expression = derive_json_element_expr(expr2, expr1)
             else:
                 self._expression = UnresolvedAttribute(
                     quote_name(expr2), df_alias=expr1
@@ -279,6 +297,8 @@ class Column:
         elif isinstance(expr1, str):
             if expr1 == "*":
                 self._expression = Star([])
+            elif json_element:
+                self._expression = derive_json_element_expr(expr1)
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
@@ -1446,9 +1466,15 @@ class CaseExpr(Column):
     """
 
     def __init__(
-        self, expr: CaseWhen, _ast: Optional[proto.Expr] = None, _emit_ast: bool = True
+        self,
+        expr: CaseWhen,
+        json_element: bool = False,
+        _ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
     ) -> None:
-        super().__init__(expr, _ast=_ast, _emit_ast=_emit_ast)
+        super().__init__(
+            expr, json_element=json_element, _ast=_ast, _emit_ast=_emit_ast
+        )
         self._branches = expr.branches
 
     @publicapi
