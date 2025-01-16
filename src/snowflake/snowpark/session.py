@@ -134,7 +134,7 @@ from snowflake.snowpark._internal.utils import (
     warning,
     zip_file_or_directory_to_stream,
     set_ast_state,
-    get_ast_enabled,
+    is_ast_enabled,
     AstFlagSource,
 )
 from snowflake.snowpark.async_job import AsyncJob
@@ -786,7 +786,7 @@ class Session:
 
     @property
     def ast_enabled(self) -> bool:
-        return get_ast_enabled()
+        return is_ast_enabled()
 
     @ast_enabled.setter
     def ast_enabled(self, value: bool) -> None:
