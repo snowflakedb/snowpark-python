@@ -12,7 +12,6 @@ from tests.parameters import CONNECTION_PARAMETERS
 @pytest.mark.parametrize("use_local_testing", [False, True])
 @pytest.mark.parametrize("ast_enabled,n_batches", [(True, 1), (False, 0)])
 def test_parameter(use_local_testing, ast_enabled, n_batches):
-
     set_ast_state(AstFlagSource.TEST, ast_enabled)
     # Check for each session whether AST collection works or not.
     # TODO: on public CI, need to replace schema.

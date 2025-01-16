@@ -79,8 +79,10 @@ def test_execute_as_negative():
 
 @mock.patch("snowflake.snowpark.stored_procedure.cleanup_failed_permanent_registration")
 def test_do_register_sp_negative(cleanup_registration_patch):
-    set_ast_state(AstFlagSource.TEST, False)
+    AST_ENABLED = False
+    set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     fake_session = mock.create_autospec(Session)
+    fake_session.ast_enabled = AST_ENABLED
     fake_session._runtime_version_from_requirement = None
     fake_session.get_fully_qualified_name_if_possible = mock.Mock(
         return_value="database.schema"
