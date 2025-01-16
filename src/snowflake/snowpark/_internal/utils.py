@@ -821,21 +821,46 @@ class AstFlagSource(IntEnum):
 
 @unique
 class _AstFlagState(IntEnum):
+    """
+    Describes the state of the AST feature flag value.
+    """
+
     NEW = auto()
+    """The flag is initialized with a hard-coded default. No source has set the value."""
     TENTATIVE = auto()
+    """The flag has been set by a source with lower precedence than SERVER. It can be overridden by SERVER."""
     FINALIZED = auto()
+    """The flag has been set by SERVER. It cannot be overridden."""
 
 
 class _AstState:
+    """
+    Tracks the state of the ast_enabled feature flag. This class is thread-safe. The most important role of this
+    class is to prevent the flag from flip-flopping. In particular, once the feature is disabled (for any reason),
+    nothing can re-enable it.
+    """
+
     def __init__(self) -> None:
+        """Creates an instance of _AstState."""
         self._mutex = threading.Lock()
+        # The only safe default value is True. If the default is False, the flag can never be enabled.
+        # Consider a simple scenario:
+        # Initialize Snowpark.
+        # Create a few objects that are session-agnostic:
+        # a = Col("a")
+        # b = Col("b")
+        # Initialize a Snowpark session, and try to use a and b with ast_enabled = True.
+        # The objects got created with ast_enabled = False and are unusable.
         self._ast_enabled = True
         self._state = _AstFlagState.NEW
 
     @property
     def enabled(self) -> bool:
+        """Gets the value of the ast_enabled feature flag."""
         with self._mutex:
             if self._state == _AstFlagState.NEW:
+                # Nothing (test harness, local code, or explicit server setting) has set the value.
+                # Transition to TENTATIVE state as if local code had set the value.
                 _logger.info(
                     "AST state has not been set explicitly. Defaulting to ast_enabled = %s",
                     self._ast_enabled,
@@ -844,6 +869,21 @@ class _AstState:
             return self._ast_enabled
 
     def set_state(self, source: AstFlagSource, enable: bool) -> None:
+        """
+        Sets the value of the ast_enabled feature flag. The method may ignore the change request if the requested
+        transition is unsafe, or if the flag was already set at a precedence level not greater than the precedence
+        level of "source".
+
+        Flip-flopping the flag (enabled -> disabled -> enabled) is unsafe.
+
+        The AST feature can be disabled only once, and stays disabled no matter what happens afterward. The feature can
+        be enabled transiently, and once something (server setting or test configuration) makes a final decision, that
+        decision is permanent for the life of the process.
+
+        Args:
+            source: The source of the request. Using SERVER or TEST will finalize the flag.
+            enable: The new value of the flag.
+        """
         with self._mutex:
             _logger.debug(
                 "Setting AST state. Current state: ast_enabled = %s, state = %s. Request: source = %s, enable = %s",
@@ -867,26 +907,26 @@ class _AstState:
                     enable,
                 )
                 return
-            invalid_transition: bool = (
+            safe_transition: bool = not (
                 self._state == _AstFlagState.TENTATIVE
                 and not self._ast_enabled
                 and enable
             )
             if source == AstFlagSource.SERVER:
-                if invalid_transition:
+                if safe_transition:
+                    self._ast_enabled = enable
+                else:
                     _logger.warning(
                         "Server cannot enable AST after treating it as disabled locally. Ignoring request"
                     )
-                else:
-                    self._ast_enabled = enable
                 self._state = _AstFlagState.FINALIZED
             elif source == AstFlagSource.LOCAL:
-                if invalid_transition:
+                if safe_transition:
+                    self._ast_enabled = enable
+                else:
                     _logger.warning(
                         "Cannot enable AST by local preference after treating it as disabled. Ignoring request"
                     )
-                else:
-                    self._ast_enabled = enable
                 self._state = _AstFlagState.TENTATIVE
             else:
                 raise NotImplementedError(
