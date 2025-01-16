@@ -262,11 +262,6 @@ def pipe(self, func, *args, **kwargs):  # noqa: PR01, RT01, D200
 
 
 @register_base_not_implemented()
-def pop(self, item):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def reindex_like(
     self, other, method=None, copy=True, limit=None, tolerance=None
 ):  # noqa: PR01, RT01, D200
