@@ -1089,9 +1089,14 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
-            raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
+            # If creating a temp view, we can't drop any temp object in the post_actions
+            # It's okay to leave these temp objects in the current session for now.
+            if is_temp:
+                child.post_actions.clear()
+            else:
+                raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
 
-        if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
+        if not is_sql_select_statement(child.queries[-1].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         return self.build(
