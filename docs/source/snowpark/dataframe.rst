@@ -50,6 +50,8 @@ DataFrame
     DataFrame.fillna
     DataFrame.filter
     DataFrame.first
+    DataFrame.flat_map
+    DataFrame.flatMap
     DataFrame.flatten
     DataFrame.groupBy
     DataFrame.group_by
@@ -58,6 +60,7 @@ DataFrame
     DataFrame.join
     DataFrame.join_table_function
     DataFrame.limit
+    DataFrame.map
     DataFrame.minus
     DataFrame.natural_join
     DataFrame.orderBy
@@ -79,15 +82,19 @@ DataFrame
     DataFrame.show
     DataFrame.sort
     DataFrame.subtract
+    DataFrame.summary
     DataFrame.take
     DataFrame.toDF
+    DataFrame.toJSON
     DataFrame.toLocalIterator
     DataFrame.toPandas
     DataFrame.to_df
     DataFrame.to_local_iterator
+    DataFrame.to_json
     DataFrame.to_pandas
     DataFrame.to_pandas_batches
     DataFrame.to_snowpark_pandas
+    DataFrame.transform
     DataFrame.union
     DataFrame.unionAll
     DataFrame.unionAllByName
@@ -117,7 +124,6 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lag
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
-    dataframe.map
 
 
 
