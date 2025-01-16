@@ -1133,9 +1133,10 @@ def test_snow_type_to_dtype_str():
         (
             ArrayType(IntegerType()),
             "array<int>",
-            '{"element_type":"integer","type":"array"}',
+            '{"contains_null":true,"element_type":"integer","type":"array"}',
             "array",
             {
+                "contains_null": True,
                 "element_type": "integer",
                 "type": "array",
             },
@@ -1143,10 +1144,15 @@ def test_snow_type_to_dtype_str():
         (
             ArrayType(ArrayType(IntegerType())),
             "array<array<int>>",
-            '{"element_type":{"element_type":"integer","type":"array"},"type":"array"}',
+            '{"contains_null":true,"element_type":{"contains_null":true,"element_type":"integer","type":"array"},"type":"array"}',
             "array",
             {
-                "element_type": {"element_type": "integer", "type": "array"},
+                "contains_null": True,
+                "element_type": {
+                    "contains_null": True,
+                    "element_type": "integer",
+                    "type": "array",
+                },
                 "type": "array",
             },
         ),
@@ -1255,7 +1261,7 @@ def test_snow_type_to_dtype_str():
                 [ArrayType(ArrayType(IntegerType())), IntegerType(), FloatType()]
             ),
             "pandas<array<array<int>>,int,float>",
-            '{"fields":[{"name":"","type":{"element_type":{"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandas_dataframe"}',
+            '{"fields":[{"name":"","type":{"contains_null":true,"element_type":{"contains_null":true,"element_type":"integer","type":"array"},"type":"array"}},{"name":"","type":"integer"},{"name":"","type":"float"}],"type":"pandas_dataframe"}',
             "pandas_dataframe",
             {
                 "type": "pandas_dataframe",
@@ -1263,8 +1269,10 @@ def test_snow_type_to_dtype_str():
                     {
                         "name": "",
                         "type": {
+                            "contains_null": True,
                             "type": "array",
                             "element_type": {
+                                "contains_null": True,
                                 "type": "array",
                                 "element_type": "integer",
                             },
