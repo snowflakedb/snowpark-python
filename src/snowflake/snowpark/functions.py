@@ -340,7 +340,9 @@ def column(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> C
 
 @publicapi
 def lit(
-    literal: LiteralType, datatype: Optional[DataType] = None, _emit_ast: bool = True
+    literal: ColumnOrLiteral,
+    datatype: Optional[DataType] = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
@@ -348,27 +350,23 @@ def lit(
     ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
     ``datetime.datetime`` and ``decimal.Decimal``. Also, it supports Python structured data types,
     including ``list``, ``tuple`` and ``dict``, but this container must
-    be JSON serializable.
+    be JSON serializable. If a ``Column`` object is passed, it is returned as is.
 
     Example::
 
         >>> import datetime
-        >>> columns = [lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"})]
+        >>> columns = [lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}), lit(lit(1))]
         >>> session.create_dataframe([[]]).select([c.as_(str(i)) for i, c in enumerate(columns)]).show()
-        ---------------------------------------------------------------------------------------
-        |"0"  |"1"  |"2"  |"3"   |"4"                 |"5"         |"6"   |"7"                |
-        ---------------------------------------------------------------------------------------
-        |1    |1    |1.0  |True  |bytearray(b'snow')  |2023-02-02  |[     |{                  |
-        |     |     |     |      |                    |            |  1,  |  "snow": "flake"  |
-        |     |     |     |      |                    |            |  2   |}                  |
-        |     |     |     |      |                    |            |]     |                   |
-        ---------------------------------------------------------------------------------------
+        ---------------------------------------------------------------------------------------------
+        |"0"  |"1"  |"2"  |"3"   |"4"                 |"5"         |"6"   |"7"                |"8"  |
+        ---------------------------------------------------------------------------------------------
+        |1    |1    |1.0  |True  |bytearray(b'snow')  |2023-02-02  |[     |{                  |1    |
+        |     |     |     |      |                    |            |  1,  |  "snow": "flake"  |     |
+        |     |     |     |      |                    |            |  2   |}                  |     |
+        |     |     |     |      |                    |            |]     |                   |     |
+        ---------------------------------------------------------------------------------------------
         <BLANKLINE>
     """
-
-    assert not isinstance(
-        literal, Column
-    ), "Do not use lit(Column(...)), type hint does not allow this syntax."
 
     ast = None
     if _emit_ast:
@@ -377,6 +375,10 @@ def lit(
             build_builtin_fn_apply(ast, "lit", literal)
         else:
             build_builtin_fn_apply(ast, "lit", literal, datatype)
+
+    if isinstance(literal, Column):
+        return literal
+
     return Column(Literal(literal, datatype=datatype), _ast=ast, _emit_ast=_emit_ast)
 
 
