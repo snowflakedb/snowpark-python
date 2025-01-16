@@ -4521,8 +4521,8 @@ def test_create_dataframe_with_implicit_struct_nested(session):
         [["1", "2"], Decimal("3.14")],
         [["5", "6"], Decimal("2.72")],
     ]
-    # Nested schema: first column is array<int>, second is decimal(10,2)
-    schema_str = "arr: array<int>, val: decimal(10,2)"
+    # Nested schema: first column is array<string>, second is decimal(10,2)
+    schema_str = "arr: array<string>, val: decimal(10,2)"
 
     df = session.create_dataframe(data, schema=schema_str)
     # Verify schema
@@ -4631,3 +4631,125 @@ def test_create_dataframe_invalid_schema_string_not_struct(session):
     assert (
         "invalid schema string" in err_msg and "struct type" in err_msg
     ), f"Expected error message about invalid schema string or struct type. Got: {ex_info.value}"
+
+
+def test_create_dataframe_implicit_struct_not_null_single(session):
+    """
+    Test a schema with one NOT NULL field.
+    """
+    data = [
+        [1],
+        [2],
+    ]
+    # One field 'col1: int not null'
+    schema_str = "col1: int NOT    NULL"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert isinstance(df.schema, StructType)
+    assert len(df.schema.fields) == 1
+
+    expected_field = StructField("COL1", LongType(), nullable=False)
+    assert df.schema.fields[0] == expected_field
+
+    # Collect rows
+    result = df.collect()
+    expected_rows = [Row(COL1=1), Row(COL1=2)]
+    assert result == expected_rows
+
+
+def test_create_dataframe_implicit_struct_not_null_multiple(session):
+    """
+    Test a schema with multiple fields, one of which is NOT NULL.
+    """
+    data = [
+        [10, "foo"],
+        [20, "bar"],
+    ]
+    schema_str = "col1: int not null, col2: string"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 2
+
+    expected_fields = [
+        StructField("COL1", LongType(), nullable=False),
+        StructField("COL2", StringType(), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(COL1=10, COL2="foo"),
+        Row(COL1=20, COL2="bar"),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_implicit_struct_not_null_nested(session):
+    """
+    Test a schema with nested array and a NOT NULL decimal field.
+    """
+    data = [
+        [["1", "2"], Decimal("3.14")],
+        [["5", "6"], Decimal("2.72")],
+    ]
+    schema_str = "arr: array<string>, val: decimal(10,2) NOT NULL"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 2
+
+    expected_fields = [
+        StructField("ARR", ArrayType(StringType()), nullable=True),
+        StructField("VAL", DecimalType(10, 2), nullable=False),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(ARR='[\n  "1",\n  "2"\n]', VAL=Decimal("3.14")),
+        Row(ARR='[\n  "5",\n  "6"\n]', VAL=Decimal("2.72")),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_implicit_struct_not_null_mixed(session):
+    """
+    Test a schema mixing NOT NULL columns with normal columns,
+    plus various data types like boolean or date.
+    """
+    data = [
+        [True, datetime.date(2020, 1, 1), "Hello"],
+        [False, datetime.date(2021, 1, 2), "World"],
+    ]
+    schema_str = "flag: boolean not null, dt: date, txt: string not null"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 3
+
+    expected_fields = [
+        StructField("FLAG", BooleanType(), nullable=False),
+        StructField("DT", df.schema.fields[1].datatype, nullable=True),
+        StructField("TXT", StringType(), nullable=False),
+    ]
+
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(FLAG=True, DT=datetime.date(2020, 1, 1), TXT="Hello"),
+        Row(FLAG=False, DT=datetime.date(2021, 1, 2), TXT="World"),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_implicit_struct_not_null_invalid(session):
+    data = [1, 2, 3]
+    schema_str = "int not null"  # not a struct => ValueError
+    with pytest.raises(ValueError, match="'intnotnull' is not a supported type"):
+        session.create_dataframe(data, schema=schema_str)

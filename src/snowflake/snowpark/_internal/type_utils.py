@@ -978,6 +978,8 @@ MAP_RE = re.compile(r"(?i)^\s*map\s*<")
 STRUCT_RE = re.compile(r"(?i)^\s*struct\s*<")
 # support type string format like starting with "struct<..."
 
+_NOT_NULL_PATTERN = re.compile(r"^(?P<base>.*?)\s+not\s+null\s*$", re.IGNORECASE)
+
 
 def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
     decimal_matches = DECIMAL_RE.match(type_str)
@@ -1036,6 +1038,24 @@ def extract_bracket_content(type_str: str, keyword: str) -> str:
     raise ValueError(f"Missing closing '>' in '{type_str}'.")
 
 
+def extract_nullable_keyword(type_str: str) -> Tuple[str, bool]:
+    """
+    Checks if `type_str` ends with something like 'NOT NULL' (ignoring
+    case and allowing arbitrary space between NOT and NULL). If found,
+    return the type substring minus that part, along with nullable=False.
+    Otherwise, return (type_str, True).
+    """
+    trimmed = type_str.strip()
+    match = _NOT_NULL_PATTERN.match(trimmed)
+    if match:
+        # Group 'base' is everything before 'not null'
+        base_type_str = match.group("base").strip()
+        return base_type_str, False
+
+    # By default, the field is nullable
+    return trimmed, True
+
+
 def parse_struct_field_list(fields_str: str) -> StructType:
     """
     Parse something like "a: int, b: string, c: array<int>"
@@ -1058,8 +1078,11 @@ def parse_struct_field_list(fields_str: str) -> StructType:
         if not field_name:
             raise ValueError(f"Struct field missing name in '{field_def}'")
 
-        field_type = type_string_to_type_object(type_part)
-        fields.append(StructField(field_name, field_type, nullable=True))
+        # 1) Check for trailing "NOT NULL" => sets nullable=False
+        base_type_str, nullable = extract_nullable_keyword(type_part)
+        # 2) Parse the base type
+        field_type = type_string_to_type_object(base_type_str)
+        fields.append(StructField(field_name, field_type, nullable=nullable))
 
     return StructType(fields)
 

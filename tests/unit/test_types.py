@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.type_utils import (
     parse_struct_field_list,
     split_top_level_comma_fields,
     extract_bracket_content,
+    extract_nullable_keyword,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -1857,3 +1858,64 @@ def test_is_likely_struct_false():
     # No top-level colon or comma => not a struct
     s = "array<int>"
     assert is_likely_struct(s) is False, "Expected False for non-struct string"
+
+
+def test_extract_nullable_keyword_no_not_null():
+    """
+    Verifies that if there's no NOT NULL keyword, the function
+    returns the original string and nullable=True.
+    """
+    base_str, is_nullable = extract_nullable_keyword("integer")
+    assert base_str == "integer"
+    assert is_nullable is True
+
+
+def test_extract_nullable_keyword_case_insensitive():
+    """
+    Verifies that NOT NULL is matched regardless of case,
+    and the returned base_str excludes that portion.
+    """
+    base_str, is_nullable = extract_nullable_keyword("INT NOT NULL")
+    assert base_str == "INT"
+    assert is_nullable is False
+
+
+def test_extract_nullable_keyword_weird_spacing():
+    """
+    Verifies that arbitrary spacing in 'not   null' is handled,
+    returning the correct base_str and nullable=False.
+    """
+    base_str, is_nullable = extract_nullable_keyword("decimal(10,2)  not    null")
+    assert base_str == "decimal(10,2)"
+    assert is_nullable is False
+
+
+def test_extract_nullable_keyword_random_case():
+    """
+    Verifies that random case usage like 'NoT nUlL' is detected,
+    returning nullable=False.
+    """
+    base_str, is_nullable = extract_nullable_keyword("decimal(10,2) NoT nUlL")
+    assert base_str == "decimal(10,2)"
+    assert is_nullable is False
+
+
+def test_extract_nullable_keyword_with_leading_trailing_spaces():
+    """
+    Verifies leading/trailing whitespace is stripped properly,
+    and the base_str excludes 'not null'.
+    """
+    base_str, is_nullable = extract_nullable_keyword("  decimal(10,2) not null   ")
+    assert base_str == "decimal(10,2)"
+    assert is_nullable is False
+
+
+def test_extract_nullable_keyword_mix_of_no_keywords():
+    """
+    If there's a keyword 'null' alone (no 'not'),
+    it's not recognized by this pattern, so we treat it as normal text.
+    """
+    base_str, is_nullable = extract_nullable_keyword("mytype null")
+    # This doesn't match 'NOT NULL', so it returns original string with is_nullable=True
+    assert base_str == "mytype null"
+    assert is_nullable is True
