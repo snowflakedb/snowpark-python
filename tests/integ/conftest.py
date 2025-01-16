@@ -184,9 +184,7 @@ def connection(db_parameters, local_testing_mode):
             **{
                 k: db_parameters[k]
                 for k in _keys
-                if k in db_parameters
-                and db_parameters[k] is not None
-                and len(db_parameters[k]) > 0
+                if k in db_parameters and db_parameters[k] is not None
             }
         ) as con:
             yield con
