@@ -900,7 +900,7 @@ class _AstState:
                 canonical_source = AstFlagSource.SERVER
                 _logger.info("Treating source = %s as %s", source, canonical_source)
                 source = canonical_source
-            if self._state == _AstFlagState.FINALIZED:
+            if self._state == _AstFlagState.FINALIZED and self._ast_enabled != enable:
                 _logger.warning(
                     "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s",
                     self._ast_enabled,
