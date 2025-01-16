@@ -170,15 +170,24 @@ def connection(db_parameters, local_testing_mode):
         _keys = [
             "user",
             "password",
+            "private_key_file",
             "host",
             "port",
             "database",
+            "schema",
             "account",
             "protocol",
             "role",
+            "warehouse",
         ]
         with snowflake.connector.connect(
-            **{k: db_parameters[k] for k in _keys if k in db_parameters}
+            **{
+                k: db_parameters[k]
+                for k in _keys
+                if k in db_parameters
+                and db_parameters[k] is not None
+                and len(db_parameters[k]) > 0
+            }
         ) as con:
             yield con
 
