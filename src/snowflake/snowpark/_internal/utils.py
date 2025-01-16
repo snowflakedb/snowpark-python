@@ -1430,7 +1430,12 @@ def merge_multiple_snowflake_plan_expr_to_alias(
         Dict[Any, str]: Merged expression-to-alias mapping.
     """
     # Collect all unique output column names from all plans
-    all_output_columns = {attr.name for plan in snowflake_plans for attr in plan.output}
+    all_output_columns = {
+        attr.name
+        for plan in snowflake_plans
+        if plan.schema_query
+        for attr in plan.output
+    }
 
     # Gather all expression-to-alias mappings
     all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
