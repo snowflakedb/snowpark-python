@@ -158,6 +158,7 @@ from snowflake.snowpark._internal.utils import (
     str_to_enum,
     validate_object_name,
     global_counter,
+    string_half_width,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -4410,9 +4411,7 @@ class DataFrame:
             self._session, Lateral(child._plan, table_function), _ast_stmt=_ast_stmt
         )
 
-    def _show_string(
-        self, n: int = 10, max_width: int = 50, _emit_ast: bool = True, **kwargs
-    ) -> str:
+    def _get_result_and_meta_for_show(self, n: int, _emit_ast: bool, **kwargs):
         query = self._plan.queries[-1].sql.strip().lower()
 
         if _emit_ast:
@@ -4434,6 +4433,13 @@ class DataFrame:
                 self._plan, **kwargs
             )
             result = res[:n]
+
+        return result, meta
+
+    def _show_string(
+        self, n: int = 10, max_width: int = 50, _emit_ast: bool = True, **kwargs
+    ) -> str:
+        result, meta = self._get_result_and_meta_for_show(n, _emit_ast, **kwargs)
 
         # The query has been executed
         col_count = len(meta)
@@ -4497,6 +4503,161 @@ class DataFrame:
             + ("".join(row_to_string(b) for b in body) if body else row_to_string([]))
             + line
         )
+
+    def _show_string_spark(
+        self,
+        num_rows: int = 20,
+        truncate: Union[bool, int] = True,
+        vertical: bool = False,
+        _spark_column_names: List[str] = None,
+        _emit_ast: bool = True,
+        **kwargs,
+    ) -> str:
+        """Spark's show() logic - translated from scala to python."""
+        # Fetch one more rows to check whether the result is truncated.
+        result, meta = self._get_result_and_meta_for_show(
+            num_rows + 1, _emit_ast, **kwargs
+        )
+
+        # handle empty dataframe
+        if len(meta) == 1 and meta[0].name == '""':
+            meta = []
+            result = []
+            _spark_column_names = []
+
+        def cell_to_str(cell: Any) -> str:
+            # Special handling for cell printing in Spark
+            # TODO: this operation can be pushed down to Snowflake for execution.
+            if cell is None:
+                res = "NULL"
+            elif isinstance(cell, bool):
+                res = "true" if cell else "false"
+            elif isinstance(cell, bytes) or isinstance(cell, bytearray):
+                res = f"[{' '.join([str(b) for b in cell])}]"
+            elif isinstance(cell, list):
+                res = "[" + ", ".join([cell_to_str(v) for v in cell]) + "]"
+            elif isinstance(cell, dict):
+                res = (
+                    "{"
+                    + ", ".join(
+                        [
+                            f"{cell_to_str(k)} -> {cell_to_str(v)}"
+                            for k, v in sorted(cell.items())
+                        ]
+                    )
+                    + "}"
+                )
+            else:
+                res = str(cell)
+            return res.replace("\n", "\\n")
+
+        # Escape field names
+        header = (
+            [field.name for field in meta]
+            if _spark_column_names is None
+            else _spark_column_names
+        )
+
+        # Process each row
+        res_rows = []
+        for res_row in result:
+            processed_row = []
+            for res_cell in res_row:
+                # Convert res_cell to string and escape meta-characters
+                str_value = cell_to_str(res_cell)
+                # Truncate string if necessary
+                if isinstance(truncate, bool):
+                    truncate_length = 20 if truncate else 0
+                else:
+                    truncate_length = truncate
+                if 0 < truncate_length < len(str_value):
+                    if truncate_length < 4:
+                        str_value = str_value[:truncate_length]
+                    else:
+                        str_value = str_value[: truncate_length - 3] + "..."
+                processed_row.append(str_value)
+            res_rows.append(processed_row)
+
+        # Get rows represented as a list of lists of strings
+        tmp_rows = [header] + res_rows
+        has_more_data = len(tmp_rows) - 1 > num_rows
+        rows = tmp_rows[: num_rows + 1]
+
+        sb = []
+        num_cols = len(meta)
+        minimum_col_width = 3
+
+        if not vertical:
+            # Initialize the width of each column to a minimum value
+            col_widths = [minimum_col_width] * num_cols
+
+            # Compute the width of each column
+            for row in rows:
+                for i, cell in enumerate(row):
+                    col_widths[i] = max(col_widths[i], string_half_width(cell))
+
+            # Pad the rows
+            padded_rows = [
+                [
+                    (
+                        cell.rjust(col_widths[i])
+                        if truncate > 0
+                        else cell.ljust(col_widths[i])
+                    )
+                    for i, cell in enumerate(row)
+                ]
+                for row in rows
+            ]
+
+            # Create the separator line
+            sep = "+" + "+".join("-" * width for width in col_widths) + "+\n"
+
+            # Add column names
+            sb.append(sep)
+            sb.append("|" + "|".join(padded_rows[0]) + "|\n")
+            sb.append(sep)
+
+            # Add data rows
+            for row in padded_rows[1:]:
+                sb.append("|" + "|".join(row) + "|\n")
+            sb.append(sep)
+        else:
+            # Extended display mode enabled
+            field_names = rows[0]
+            data_rows = rows[1:]
+
+            # Compute the width of the field name and data columns
+            field_name_col_width = max(
+                minimum_col_width, max(string_half_width(name) for name in field_names)
+            )
+            data_col_width = (
+                minimum_col_width
+                if len(data_rows) == 0
+                else max(
+                    minimum_col_width,
+                    max(string_half_width(cell) for row in data_rows for cell in row),
+                )
+            )
+
+            for i, row in enumerate(data_rows):
+                # Header for each record
+                row_header = f"-RECORD {i}".ljust(
+                    field_name_col_width + data_col_width + 5, "-"
+                )
+                sb.append(row_header + "\n")
+                for j, cell in enumerate(row):
+                    field_name = field_names[j].ljust(field_name_col_width)
+                    data = cell.ljust(data_col_width)
+                    sb.append(f" {field_name} | {data} \n")
+
+        # Footer
+        if vertical and len(rows[1:]) == 0:
+            sb.append("(0 rows)")
+        elif has_more_data:
+            row_string = "row" if num_rows == 1 else "rows"
+            sb.append(f"only showing top {num_rows} {row_string}\n")
+
+        return "".join(sb)
 
     def _format_name_for_view(
         self, func_name: str, name: Union[str, Iterable[str]]
