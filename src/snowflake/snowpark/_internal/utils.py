@@ -1429,13 +1429,6 @@ def merge_multiple_snowflake_plan_expr_to_alias(
     Returns:
         Dict[Any, str]: Merged expression-to-alias mapping.
     """
-    # Collect all unique output column names from all plans
-    all_output_columns = {
-        attr.name
-        for plan in snowflake_plans
-        if plan.schema_query
-        for attr in plan.output
-    }
 
     # Gather all expression-to-alias mappings
     all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
@@ -1446,17 +1439,29 @@ def merge_multiple_snowflake_plan_expr_to_alias(
     # Collect all unique keys from all dictionaries
     all_keys = set().union(*all_expr_to_alias_dicts)
 
+    conflicted_keys = {}
+
     for key in all_keys:
         # Gather all aliases for the current key
         values = [d[key] for d in all_expr_to_alias_dicts if key in d]
-
         # Check if all aliases are identical
         if len(set(values)) == 1:
             merged_dict[key] = values[0]
         else:
-            # Resolve conflicts by checking against output columns
+            conflicted_keys[key] = values
+
+    if conflicted_keys:
+        # Collect all unique output column names from all plans
+        all_output_columns = {
+            attr.name
+            for plan in snowflake_plans
+            if plan.schema_query
+            for attr in plan.output
+        }
+        for key in conflicted_keys:
             candidate = None
-            for alias in values:
+            values = conflicted_keys[key]
+            for alias in set(values) & all_output_columns:
                 if alias in all_output_columns:
                     if candidate is None:
                         candidate = alias
