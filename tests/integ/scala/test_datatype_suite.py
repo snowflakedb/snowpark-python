@@ -1364,13 +1364,12 @@ def test_structured_type_schema_expression(
         assert table.union(table).schema == expected_schema
         # Functions used in schema generation don't respect nested nullability so compare query string instead
         non_null_union = non_null_table.union(non_null_table)
-        # __import__('pdb').set_trace()
         assert non_null_union._plan.schema_query == (
-            "( SELECT object_construct_keep_null('a' ::  STRING (16777216), 0 :: DOUBLE) :: "
+            "( SELECT object_construct_keep_null('a' ::  STRING (16777216), NULL :: DOUBLE) :: "
             'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR",'
             " object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
             'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ") UNION ( SELECT '
-            "object_construct_keep_null('a' ::  STRING (16777216), 0 :: DOUBLE) :: "
+            "object_construct_keep_null('a' ::  STRING (16777216), NULL :: DOUBLE) :: "
             'MAP(STRING(16777216), DOUBLE) AS "MAP", to_array(NULL :: DOUBLE) :: ARRAY(DOUBLE) AS "ARR", '
             "object_construct_keep_null('FIELD1', 'a' ::  STRING (16777216), 'FIELD2', 0 :: "
             'DOUBLE) :: OBJECT(FIELD1 STRING(16777216), FIELD2 DOUBLE) AS "OBJ")'
