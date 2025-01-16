@@ -22,10 +22,7 @@ body {
       sp_sql {
         query: "select 42"
         src {
-          end_column: 37
-          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 25
         }
       }
@@ -46,10 +43,7 @@ body {
         params {
           int64_val {
             src {
-              end_column: 89
-              end_line: 27
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
               start_line: 27
             }
             v: 1
@@ -58,10 +52,7 @@ body {
         params {
           string_val {
             src {
-              end_column: 89
-              end_line: 27
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
               start_line: 27
             }
             v: "a"
@@ -70,10 +61,7 @@ body {
         params {
           int64_val {
             src {
-              end_column: 89
-              end_line: 27
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
               start_line: 27
             }
             v: 2
@@ -82,10 +70,7 @@ body {
         params {
           string_val {
             src {
-              end_column: 89
-              end_line: 27
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
               start_line: 27
             }
             v: "b"
@@ -93,10 +78,7 @@ body {
         }
         query: "select * from values (?, ?), (?, ?)"
         src {
-          end_column: 89
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 27
         }
       }
@@ -116,10 +98,7 @@ body {
       sp_sql {
         query: "select 42"
         src {
-          end_column: 42
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
           start_line: 29
         }
       }
@@ -146,5 +125,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

@@ -25,15 +25,14 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -55,14 +54,16 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_in__seq {
+          sp_column_in {
             col {
               apply_expr {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -70,20 +71,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 33
-                      end_line: 27
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 23
                       start_line: 27
                     }
                     v: "NUM"
                   }
                 }
                 src {
-                  end_column: 33
-                  end_line: 27
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 27
                 }
               }
@@ -91,10 +86,7 @@ body {
             values {
               int64_val {
                 src {
-                  end_column: 46
-                  end_line: 27
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 27
                 }
                 v: 1
@@ -103,10 +95,7 @@ body {
             values {
               int64_val {
                 src {
-                  end_column: 46
-                  end_line: 27
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 27
                 }
                 v: 2
@@ -115,10 +104,7 @@ body {
             values {
               int64_val {
                 src {
-                  end_column: 46
-                  end_line: 27
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 27
                 }
                 v: 3
@@ -134,10 +120,7 @@ body {
           }
         }
         src {
-          end_column: 47
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 27
         }
         variadic: true
@@ -157,14 +140,16 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_in__seq {
+          sp_column_in {
             col {
               apply_expr {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -172,20 +157,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 33
-                      end_line: 29
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 23
                       start_line: 29
                     }
                     v: "NUM"
                   }
                 }
                 src {
-                  end_column: 33
-                  end_line: 29
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 29
                 }
               }
@@ -207,10 +186,7 @@ body {
           }
         }
         src {
-          end_column: 42
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 29
         }
         variadic: true
@@ -230,14 +206,16 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_in__seq {
+          sp_column_in {
             col {
               apply_expr {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -245,20 +223,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 33
-                      end_line: 31
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 23
                       start_line: 31
                     }
                     v: "NUM"
                   }
                 }
                 src {
-                  end_column: 33
-                  end_line: 31
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 31
                 }
               }
@@ -266,19 +238,13 @@ body {
             values {
               list_val {
                 src {
-                  end_column: 48
-                  end_line: 31
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 31
                 }
                 vs {
                   int64_val {
                     src {
-                      end_column: 48
-                      end_line: 31
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 23
                       start_line: 31
                     }
                     v: 1
@@ -287,10 +253,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 48
-                      end_line: 31
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 23
                       start_line: 31
                     }
                     v: 2
@@ -299,10 +262,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 48
-                      end_line: 31
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 23
                       start_line: 31
                     }
                     v: 3
@@ -320,10 +280,7 @@ body {
           }
         }
         src {
-          end_column: 49
-          end_line: 31
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 31
         }
         variadic: true
@@ -351,5 +308,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

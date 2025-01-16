@@ -58,8 +58,10 @@ body {
         func {
           name: "<lambda>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_FUNCTION_xxx\""
+              }
             }
           }
         }
@@ -74,10 +76,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 94
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 18
           start_line: 29
         }
       }
@@ -100,10 +99,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 62
-                  end_line: 31
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 13
                   start_line: 31
                 }
                 v: 1
@@ -112,10 +108,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 62
-                  end_line: 31
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 13
                   start_line: 31
                 }
                 v: 2
@@ -124,10 +117,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 62
-                  end_line: 31
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 13
                   start_line: 31
                 }
                 v: 3
@@ -141,10 +131,7 @@ body {
           }
         }
         src {
-          end_column: 62
-          end_line: 31
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 31
         }
       }
@@ -178,8 +165,10 @@ body {
                     fn {
                       builtin_fn {
                         name {
-                          fn_name_flat {
-                            name: "col"
+                          name {
+                            sp_name_flat {
+                              name: "col"
+                            }
                           }
                         }
                       }
@@ -187,43 +176,31 @@ body {
                     pos_args {
                       string_val {
                         src {
-                          end_column: 34
-                          end_line: 33
                           file: "SRC_POSITION_TEST_MODE"
-                          start_column: 26
                           start_line: 33
                         }
                         v: "a"
                       }
                     }
                     src {
-                      end_column: 34
-                      end_line: 33
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 26
                       start_line: 33
                     }
                   }
                 }
                 src {
-                  end_column: 35
-                  end_line: 33
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 18
                   start_line: 33
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "ans"
             src {
-              end_column: 46
-              end_line: 33
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 18
               start_line: 33
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -235,10 +212,7 @@ body {
           }
         }
         src {
-          end_column: 47
-          end_line: 33
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 33
         }
         variadic: true
@@ -262,10 +236,7 @@ body {
           bitfield1: 3
         }
         src {
-          end_column: 57
-          end_line: 33
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 33
         }
       }
@@ -294,8 +265,10 @@ body {
           id: 1
           name: "<lambda [1]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"ADD_TWO\""
+              }
             }
           }
         }
@@ -305,8 +278,10 @@ body {
           }
         }
         name {
-          fn_name_flat {
-            name: "add_two"
+          name {
+            sp_name_flat {
+              name: "add_two"
+            }
           }
         }
         parallel: 4
@@ -316,10 +291,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 124
-          end_line: 37
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 18
           start_line: 37
         }
       }
@@ -344,8 +316,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "call_udf"
+                      name {
+                        sp_name_flat {
+                          name: "call_udf"
+                        }
                       }
                     }
                   }
@@ -353,10 +327,7 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 47
-                      end_line: 39
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 18
                       start_line: 39
                     }
                     v: "add_two"
@@ -367,8 +338,10 @@ body {
                     fn {
                       builtin_fn {
                         name {
-                          fn_name_flat {
-                            name: "col"
+                          name {
+                            sp_name_flat {
+                              name: "col"
+                            }
                           }
                         }
                       }
@@ -376,43 +349,31 @@ body {
                     pos_args {
                       string_val {
                         src {
-                          end_column: 46
-                          end_line: 39
                           file: "SRC_POSITION_TEST_MODE"
-                          start_column: 38
                           start_line: 39
                         }
                         v: "A"
                       }
                     }
                     src {
-                      end_column: 46
-                      end_line: 39
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 38
                       start_line: 39
                     }
                   }
                 }
                 src {
-                  end_column: 47
-                  end_line: 39
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 18
                   start_line: 39
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "a_Ans"
             src {
-              end_column: 60
-              end_line: 39
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 18
               start_line: 39
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -424,10 +385,7 @@ body {
           }
         }
         src {
-          end_column: 61
-          end_line: 39
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 39
         }
         variadic: true
@@ -451,10 +409,7 @@ body {
           bitfield1: 7
         }
         src {
-          end_column: 71
-          end_line: 39
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 39
         }
       }
@@ -487,15 +442,19 @@ body {
           id: 2
           name: "<lambda [2]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF\""
+              }
             }
           }
         }
         immutable: true
         imports {
-          sp_table_name_flat {
-            name: "numpy"
+          name {
+            sp_name_flat {
+              name: "numpy"
+            }
           }
         }
         input_types {
@@ -512,10 +471,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 83
-                end_line: 45
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 20
                 start_line: 41
               }
               v: true
@@ -526,8 +482,10 @@ body {
           value: 2
         }
         name {
-          fn_name_flat {
-            name: "param_udf"
+          name {
+            sp_name_flat {
+              name: "param_udf"
+            }
           }
         }
         packages: "bla"
@@ -546,10 +504,7 @@ body {
         }
         secure: true
         src {
-          end_column: 83
-          end_line: 45
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 20
           start_line: 41
         }
         stage_location: "@"
@@ -577,16 +532,20 @@ body {
           id: 3
           name: "<lambda [3]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"PARAM_UDF2\""
+              }
             }
           }
         }
         if_not_exists: true
         immutable: true
         imports {
-          sp_table_name_flat {
-            name: "numpy"
+          name {
+            sp_name_flat {
+              name: "numpy"
+            }
           }
         }
         input_types {
@@ -603,10 +562,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 84
-                end_line: 52
                 file: "SRC_POSITION_TEST_MODE"
-                start_column: 21
                 start_line: 48
               }
               v: true
@@ -617,8 +573,10 @@ body {
           value: 2
         }
         name {
-          fn_name_flat {
-            name: "param_udf2"
+          name {
+            sp_name_flat {
+              name: "param_udf2"
+            }
           }
         }
         packages: "bla"
@@ -636,10 +594,7 @@ body {
         }
         secure: true
         src {
-          end_column: 84
-          end_line: 52
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 21
           start_line: 48
         }
         stage_location: "@"
@@ -673,8 +628,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -682,20 +639,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 36
-                      end_line: 54
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 28
                       start_line: 54
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 36
-                  end_line: 54
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 28
                   start_line: 54
                 }
               }
@@ -705,8 +656,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -714,29 +667,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 46
-                      end_line: 54
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 38
                       start_line: 54
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 46
-                  end_line: 54
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 38
                   start_line: 54
                 }
               }
             }
             src {
-              end_column: 47
-              end_line: 54
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 18
               start_line: 54
             }
           }
@@ -749,10 +693,7 @@ body {
           }
         }
         src {
-          end_column: 48
-          end_line: 54
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
           start_line: 54
         }
         variadic: true
@@ -779,5 +720,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

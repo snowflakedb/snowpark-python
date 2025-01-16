@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 # Code in this file may constitute partial or total reimplementation, or modification of
@@ -30,11 +30,13 @@ from typing import (  # noqa: F401
     get_origin,
 )
 
+import snowflake.snowpark.context as context
 import snowflake.snowpark.types  # type: ignore
 from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -157,9 +159,12 @@ def convert_metadata_to_sp_type(
             return StructType(
                 [
                     StructField(
-                        quote_name(field.name, keep_case=True),
+                        field.name
+                        if context._should_use_structured_type_semantics()
+                        else quote_name(field.name, keep_case=True),
                         convert_metadata_to_sp_type(field, max_string_size),
                         nullable=field.is_nullable,
+                        _is_column=False,
                     )
                     for field in metadata.fields
                 ],
@@ -183,12 +188,15 @@ def convert_sf_to_sp_type(
     max_string_size: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
+    semi_structured_fill = (
+        None if context._should_use_structured_type_semantics() else StringType()
+    )
     if column_type_name == "ARRAY":
-        return ArrayType(StringType())
+        return ArrayType(semi_structured_fill)
     if column_type_name == "VARIANT":
         return VariantType()
     if column_type_name in {"OBJECT", "MAP"}:
-        return MapType(StringType(), StringType())
+        return MapType(semi_structured_fill, semi_structured_fill)
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
     if column_type_name == "GEOMETRY":
@@ -434,6 +442,8 @@ def infer_type(obj: Any) -> DataType:
             if key is not None and value is not None:
                 return MapType(infer_type(key), infer_type(value))
         return MapType(NullType(), NullType())
+    elif isinstance(obj, Row) and context._should_use_structured_type_semantics():
+        return infer_schema(obj)
     elif isinstance(obj, (list, tuple)):
         for v in obj:
             if v is not None:
@@ -530,7 +540,10 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         return a
 
 
-def python_value_str_to_object(value, tp: DataType) -> Any:
+def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
+    if tp is None:
+        return None
+
     if isinstance(tp, StringType):
         return value
 
@@ -639,7 +652,7 @@ def python_type_to_snow_type(
         element_type = (
             python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
             if tp_args
-            else StringType()
+            else None
         )
         return ArrayType(element_type), False
 
@@ -649,12 +662,12 @@ def python_type_to_snow_type(
         key_type = (
             python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
             if tp_args
-            else StringType()
+            else None
         )
         value_type = (
             python_type_to_snow_type(tp_args[1], is_return_type_of_sproc)[0]
             if tp_args
-            else StringType()
+            else None
         )
         return MapType(key_type, value_type), False
 

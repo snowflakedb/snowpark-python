@@ -27,15 +27,14 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
-          end_column: 41
-          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 27
         }
         variant {
@@ -63,8 +62,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -72,29 +73,23 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 29
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 23
                       start_line: 29
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 29
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 29
                 }
               }
             }
+            null_order {
+              sp_null_order_default: true
+            }
             src {
-              end_column: 37
-              end_line: 29
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 23
               start_line: 29
             }
           }
@@ -107,10 +102,7 @@ body {
           }
         }
         src {
-          end_column: 38
-          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 29
         }
         variadic: true
@@ -136,8 +128,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -145,32 +139,23 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 31
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 23
                       start_line: 31
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 31
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 31
                 }
               }
             }
-            nulls_first {
-              value: true
+            null_order {
+              sp_null_order_nulls_first: true
             }
             src {
-              end_column: 49
-              end_line: 31
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 23
               start_line: 31
             }
           }
@@ -183,10 +168,7 @@ body {
           }
         }
         src {
-          end_column: 50
-          end_line: 31
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 31
         }
         variadic: true
@@ -212,8 +194,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -221,31 +205,23 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 33
                       file: "SRC_POSITION_TEST_MODE"
-                      start_column: 23
                       start_line: 33
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 33
                   file: "SRC_POSITION_TEST_MODE"
-                  start_column: 23
                   start_line: 33
                 }
               }
             }
-            nulls_first {
+            null_order {
+              sp_null_order_nulls_last: true
             }
             src {
-              end_column: 48
-              end_line: 33
               file: "SRC_POSITION_TEST_MODE"
-              start_column: 23
               start_line: 33
             }
           }
@@ -258,10 +234,7 @@ body {
           }
         }
         src {
-          end_column: 49
-          end_line: 33
           file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
           start_line: 33
         }
         variadic: true
@@ -289,5 +262,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }
