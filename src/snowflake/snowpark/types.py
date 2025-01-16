@@ -335,6 +335,7 @@ class ArrayType(DataType):
         self,
         element_type: Optional[DataType] = None,
         structured: Optional[bool] = None,
+        contains_null: bool = True,
     ) -> None:
         if context._should_use_structured_type_semantics():
             self.structured = (
@@ -344,6 +345,7 @@ class ArrayType(DataType):
         else:
             self.structured = structured or False
             self.element_type = element_type if element_type else StringType()
+        self.contains_null = contains_null
 
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
@@ -354,7 +356,7 @@ class ArrayType(DataType):
         element_type = self.element_type
         if isinstance(element_type, (ArrayType, MapType, StructType)):
             element_type = element_type._as_nested()
-        return ArrayType(element_type, self.structured)
+        return ArrayType(element_type, self.structured, self.contains_null)
 
     def is_primitive(self):
         return False
@@ -366,7 +368,8 @@ class ArrayType(DataType):
                 json_dict["elementType"]
                 if "elementType" in json_dict
                 else json_dict["element_type"]
-            )
+            ),
+            contains_null=json_dict.get("contains_null", True),
         )
 
     def simple_string(self) -> str:
@@ -376,6 +379,7 @@ class ArrayType(DataType):
         return {
             "type": self.type_name(),
             "element_type": self.element_type.json_value(),
+            "contains_null": self.contains_null,
         }
 
     simpleString = simple_string
