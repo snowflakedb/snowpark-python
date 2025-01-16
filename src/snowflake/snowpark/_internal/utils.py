@@ -803,9 +803,20 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
 
 @unique
 class AstFlagSource(IntEnum):
+    """
+    Describes the source of the AST feature flag value. This is not just an annotation!
+    The enum value determines the precedence of the value.
+    """
+
     LOCAL = auto()
+    """Some local criteria determined the value. This has the lowest precedence. Any other source can override it."""
     SERVER = auto()
+    """The server set the value. This has the highest precedence. Nothing else can override it."""
     TEST = auto()
+    """
+    Do not use this in production Snowpark code. Test code set the value. This has the highest precedence.
+    Nothing else can override it.
+    """
 
 
 @unique
