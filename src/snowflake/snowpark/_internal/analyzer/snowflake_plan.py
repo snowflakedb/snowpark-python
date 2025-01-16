@@ -1092,7 +1092,11 @@ class SnowflakePlanBuilder:
             # If creating a temp view, we can't drop any temp object in the post_actions
             # It's okay to leave these temp objects in the current session for now.
             if is_temp:
-                child.post_actions.clear()
+                child.post_actions = [
+                    post_action
+                    for post_action in child.post_actions
+                    if not post_action.sql.lower().strip().startswith("drop")
+                ]
             else:
                 raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
 

@@ -242,3 +242,13 @@ def test_create_or_replace_temp_view_with_file(session, resources_path):
     Utils.check_answer(
         session.table(view_name), [Row(A=1, B="one", C=1.2), Row(A=2, B="two", C=2.2)]
     )
+
+    # no post action
+    assert len(df.queries["post_actions"]) == 0
+
+    # for sub-dataframes, we have a new temp table so even if it's dropped,
+    # it won't affect the created temp view
+    df.select("a").collect()
+    Utils.check_answer(
+        session.table(view_name), [Row(A=1, B="one", C=1.2), Row(A=2, B="two", C=2.2)]
+    )
