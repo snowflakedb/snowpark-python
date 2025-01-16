@@ -377,16 +377,16 @@ def lit(
             build_builtin_fn_apply(ast, "lit", literal, datatype)
 
     if isinstance(literal, Column):
-        # Create new Column, and assign expression of current Column object.
-        # This will encode AST correctly.
-        c = Column("", _emit_ast=False)
-        c._expression = literal._expression
-        c._ast = ast
-        return c
-    else:
-        return Column(
-            Literal(literal, datatype=datatype), _ast=ast, _emit_ast=_emit_ast
-        )
+        if _emit_ast:
+            # Create new Column, and assign expression of current Column object.
+            # This will encode AST correctly.
+            c = Column("", _emit_ast=False)
+            c._expression = literal._expression
+            c._ast = ast
+            return c
+        return literal
+
+    return Column(Literal(literal, datatype=datatype), _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
