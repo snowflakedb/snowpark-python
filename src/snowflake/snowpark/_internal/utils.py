@@ -938,11 +938,17 @@ _ast_state: _AstState = _AstState()
 
 
 def get_ast_enabled() -> bool:
+    """Gets the value of the ast_enabled feature flag."""
     global _ast_state
     return _ast_state.enabled
 
 
 def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
+    """
+    Sets the value of the ast_enabled feature flag.
+
+    See _AstState.set_state for more information.
+    """
     global _ast_state
     return _ast_state.set_state(source, enabled)
 
