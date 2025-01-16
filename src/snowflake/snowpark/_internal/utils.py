@@ -814,7 +814,7 @@ class AstFlagSource(IntEnum):
     """The server set the value. This has the highest precedence. Nothing else can override it."""
     TEST = auto()
     """
-    Do not use this in production Snowpark code. Test code set the value. This has the highest precedence.
+    Do not use this in production Snowpark code. Test code sets the value. This has the highest precedence.
     However, other test code can override previous settings.
 
     Do not misuse this flag source in production code, as it will lead to unpredictable behavior.
@@ -864,7 +864,7 @@ class _AstState:
                 # Nothing (test harness, local code, or explicit server setting) has set the value.
                 # Transition to TENTATIVE state as if local code had set the value.
                 _logger.info(
-                    "AST state has not been set explicitly. Defaulting to ast_enabled = %s",
+                    "AST state has not been set explicitly. Defaulting to ast_enabled = %s.",
                     self._ast_enabled,
                 )
                 self._state = _AstFlagState.TENTATIVE
@@ -888,7 +888,7 @@ class _AstState:
         """
         with self._mutex:
             _logger.debug(
-                "Setting AST state. Current state: ast_enabled = %s, state = %s. Request: source = %s, enable = %s",
+                "Setting AST state. Current state: ast_enabled = %s, state = %s. Request: source = %s, enable = %s.",
                 self._ast_enabled,
                 self._state,
                 source,
@@ -902,7 +902,7 @@ class _AstState:
                 return
             if self._state == _AstFlagState.FINALIZED and self._ast_enabled != enable:
                 _logger.warning(
-                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s",
+                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s.",
                     self._ast_enabled,
                     enable,
                 )
@@ -917,7 +917,7 @@ class _AstState:
                     self._ast_enabled = enable
                 else:
                     _logger.warning(
-                        "Server cannot enable AST after treating it as disabled locally. Ignoring request"
+                        "Server cannot enable AST after treating it as disabled locally. Ignoring request."
                     )
                 self._state = _AstFlagState.FINALIZED
             elif source == AstFlagSource.LOCAL:
@@ -925,7 +925,7 @@ class _AstState:
                     self._ast_enabled = enable
                 else:
                     _logger.warning(
-                        "Cannot enable AST by local preference after treating it as disabled. Ignoring request"
+                        "Cannot enable AST by local preference after treating it as disabled. Ignoring request."
                     )
                 self._state = _AstFlagState.TENTATIVE
             else:
@@ -937,7 +937,7 @@ class _AstState:
 _ast_state: _AstState = _AstState()
 
 
-def get_ast_enabled() -> bool:
+def is_ast_enabled() -> bool:
     """Gets the value of the ast_enabled feature flag."""
     global _ast_state
     return _ast_state.enabled
@@ -971,7 +971,7 @@ def publicapi(func) -> Callable:
             # The caller provided _emit_ast explicitly.
             return func(*args, **kwargs)
 
-        kwargs["_emit_ast"] = get_ast_enabled()
+        kwargs["_emit_ast"] = is_ast_enabled()
 
         # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
 
