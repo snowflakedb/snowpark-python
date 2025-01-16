@@ -185,6 +185,7 @@ from tests.utils import (
 
 
 def test_col_json_element(session):
+    # 2-level deep
     df = session.sql(
         'select parse_json(\'{"firstname": "John", "lastname": "Doe"}\') as name'
     )
@@ -204,6 +205,7 @@ def test_col_json_element(session):
     )
     Utils.check_answer(df.select(col("name.FIRSTNAME", json_element=True)), [Row(None)])
 
+    # 3-level deep
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(col("name:firstname", json_element=True)).collect()
 
