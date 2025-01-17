@@ -403,6 +403,7 @@ class MapType(DataType):
         key_type: Optional[DataType] = None,
         value_type: Optional[DataType] = None,
         structured: Optional[bool] = None,
+        value_contains_null: bool = True,
     ) -> None:
         if context._should_use_structured_type_semantics():
             if (key_type is None and value_type is not None) or (
@@ -420,6 +421,7 @@ class MapType(DataType):
             self.structured = structured or False
             self.key_type = key_type if key_type else StringType()
             self.value_type = value_type if value_type else StringType()
+        self.value_contains_null = value_contains_null
 
     def __repr__(self) -> str:
         type_str = ""
