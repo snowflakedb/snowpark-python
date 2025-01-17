@@ -369,7 +369,6 @@ def lit(
         <BLANKLINE>
     """
 
-    ast = None
     if _emit_ast:
         ast = proto.Expr()
         if datatype is None:
@@ -377,17 +376,21 @@ def lit(
         else:
             build_builtin_fn_apply(ast, "lit", literal, datatype)
 
-    if isinstance(literal, Column):
-        if _emit_ast:
+        if isinstance(literal, Column):
             # Create new Column, and assign expression of current Column object.
             # This will encode AST correctly.
             c = Column("", _emit_ast=False)
             c._expression = literal._expression
             c._ast = ast
             return c
+        return Column(
+            Literal(literal, datatype=datatype), _ast=ast, _emit_ast=_emit_ast
+        )
+
+    if isinstance(literal, Column):
         return literal
 
-    return Column(Literal(literal, datatype=datatype), _ast=ast, _emit_ast=_emit_ast)
+    return Column(Literal(literal, datatype=datatype), _ast=None, _emit_ast=False)
 
 
 @publicapi
