@@ -158,8 +158,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
@@ -191,8 +193,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -260,8 +264,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -330,8 +336,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -399,8 +407,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -469,8 +479,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -539,8 +551,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -609,8 +623,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -679,8 +695,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -749,8 +767,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -831,8 +851,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -913,8 +935,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -995,8 +1019,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1067,8 +1093,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1146,8 +1174,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1225,8 +1255,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1304,8 +1336,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1374,8 +1408,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1444,8 +1480,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1514,8 +1552,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1584,8 +1624,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1654,8 +1696,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1724,8 +1768,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1795,8 +1841,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1866,8 +1914,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -1936,8 +1986,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2006,8 +2058,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2076,8 +2130,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2148,8 +2204,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2220,8 +2278,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2292,8 +2352,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2364,8 +2426,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2436,8 +2500,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2508,8 +2574,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2677,8 +2745,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -2856,8 +2926,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -3061,5 +3133,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

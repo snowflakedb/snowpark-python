@@ -63,8 +63,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
@@ -99,9 +101,15 @@ body {
             }
           }
         }
-        name: "test_db"
-        name: "test_schema"
-        name: "test_view"
+        name {
+          name {
+            sp_name_structured {
+              name: "test_db"
+              name: "test_schema"
+              name: "test_view"
+            }
+          }
+        }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 27
@@ -127,7 +135,13 @@ body {
             }
           }
         }
-        name: "test_view"
+        name {
+          name {
+            sp_name_flat {
+              name: "test_view"
+            }
+          }
+        }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 29
@@ -161,9 +175,15 @@ body {
           }
         }
         is_temp: true
-        name: "test_db"
-        name: "test_schema"
-        name: "test_view"
+        name {
+          name {
+            sp_name_structured {
+              name: "test_db"
+              name: "test_schema"
+              name: "test_view"
+            }
+          }
+        }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 31
@@ -190,7 +210,13 @@ body {
           }
         }
         is_temp: true
-        name: "test_view"
+        name {
+          name {
+            sp_name_flat {
+              name: "test_view"
+            }
+          }
+        }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 33
@@ -269,9 +295,15 @@ body {
           _1: "foo"
           _2: "bar"
         }
-        table_name: "test_db"
-        table_name: "test_schema"
-        table_name: "table2"
+        table_name {
+          name {
+            sp_name_structured {
+              name: "test_db"
+              name: "test_schema"
+              name: "table2"
+            }
+          }
+        }
         target_columns: "n"
         target_columns: "str"
         transformations {
@@ -281,8 +313,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -322,8 +356,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -490,7 +526,13 @@ body {
         mode {
           sp_save_mode_overwrite: true
         }
-        name: "test_dyn_table"
+        name {
+          name {
+            sp_name_flat {
+              name: "test_dyn_table"
+            }
+          }
+        }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 55
@@ -519,5 +561,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

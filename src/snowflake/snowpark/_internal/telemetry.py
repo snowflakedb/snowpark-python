@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
@@ -88,9 +88,6 @@ class TelemetryField(Enum):
     NUM_TEMP_TABLES_CLEANED = "num_temp_tables_cleaned"
     NUM_TEMP_TABLES_CREATED = "num_temp_tables_created"
     TEMP_TABLE_CLEANER_ENABLED = "temp_table_cleaner_enabled"
-    TYPE_TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION = (
-        "snowpark_temp_table_cleanup_abnormal_exception"
-    )
     TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_TABLE_NAME = (
         "temp_table_cleanup_abnormal_exception_table_name"
     )
@@ -488,6 +485,22 @@ class TelemetryClient:
         }
         self.send(message)
 
+    def send_query_compilation_stage_failed_telemetry(
+        self, session_id: int, plan_uuid: str, error_type: str, error_message: str
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
+                CompilationStageTelemetryField.ERROR_TYPE.value: error_type,
+                CompilationStageTelemetryField.ERROR_MESSAGE.value: error_message,
+            },
+        }
+        self.send(message)
+
     def send_temp_table_cleanup_telemetry(
         self,
         session_id: str,
@@ -516,7 +529,7 @@ class TelemetryClient:
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                TelemetryField.TYPE_TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION.value
+                TelemetryField.TYPE_TEMP_TABLE_CLEANUP.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,

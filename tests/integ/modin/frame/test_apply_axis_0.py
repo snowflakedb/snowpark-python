@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -18,18 +18,12 @@ from tests.integ.modin.series.test_apply_and_map import (
     create_func_with_return_type_hint,
 )
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-pytestmark = pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
 
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
 BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
@@ -88,11 +82,12 @@ def test_axis_0_basic_types_without_type_hints(data, func, return_type):
     # this test processes functions without type hints and invokes the UDTF solution.
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
     snow_df = pd.DataFrame(data, columns=["A", "b"])
+    # np.min is mapped to builtin function so no UDTF is required.
     with SqlCounter(
-        query_count=11,
-        join_count=2,
-        udtf_count=2,
-        high_count_expected=True,
+        query_count=1 if func == np.min else 11,
+        join_count=0 if func == np.min else 2,
+        udtf_count=0 if func == np.min else 2,
+        high_count_expected=func != np.min,
         high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func, axis=0))

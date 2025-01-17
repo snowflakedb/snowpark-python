@@ -21,8 +21,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "parse_json"
+                  name {
+                    sp_name_flat {
+                      name: "parse_json"
+                    }
                   }
                 }
               }
@@ -32,8 +34,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "lit"
+                      name {
+                        sp_name_flat {
+                          name: "lit"
+                        }
                       }
                     }
                   }
@@ -89,8 +93,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -142,5 +148,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

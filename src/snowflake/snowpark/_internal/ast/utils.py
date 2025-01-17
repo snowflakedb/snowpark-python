@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import ast
 import base64
@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 import dateutil
 from dateutil.tz import tzlocal
 from google.protobuf.text_format import MessageToString, Parse
+from google.protobuf.message import Message
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -344,6 +345,17 @@ def build_proto_from_struct_type(
         ast_field.nullable = field.nullable
 
 
+def build_sp_name(name: Union[str, Iterable[str]], expr: proto.SpName) -> None:
+    if isinstance(name, str):
+        expr.sp_name_flat.name = name
+    elif isinstance(name, Iterable):
+        expr.sp_name_structured.name.extend(name)
+    else:
+        raise ValueError(
+            f"Invalid object name: {name}. The object name must be a string or an iterable of strings."
+        )
+
+
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def _set_fn_name(
     name: Union[str, Iterable[str]], fn: proto.FnNameRefExpr
@@ -357,26 +369,54 @@ def _set_fn_name(
     Raises:
         ValueError: Raised if the function name is not a string or an iterable of strings.
     """
-    if isinstance(name, str):
-        fn.name.fn_name_flat.name = name  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "FnNameRefExpr" has no attribute "name"
-    elif isinstance(name, Iterable):
-        fn.name.fn_name_structured.name.extend(name)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "FnNameRefExpr" has no attribute "name"
-    else:
-        raise ValueError(
-            f"Invalid function name: {name}. The function name must be a string or an iterable of strings."
-        )
+    try:
+        build_sp_name(name, fn.name.name)
+    except ValueError as e:
+        raise ValueError("Invalid function name") from e
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def build_sp_table_name(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
-    expr_builder: proto.SpTableName, name: Union[str, Iterable[str]]
-):  # pragma: no cover
-    if isinstance(name, str):
-        expr_builder.sp_table_name_flat.name = name
-    elif isinstance(name, Iterable):
-        expr_builder.sp_table_name_structured.name.extend(name)
-    else:
-        raise ValueError(f"Invalid name type {type(name)} for SpTableName entity.")
+def build_sp_table_name(
+    expr_builder: proto.SpNameRef, name: Union[str, Iterable[str]]
+) -> None:  # pragma: no cover
+    try:
+        build_sp_name(name, expr_builder.name)
+    except ValueError as e:
+        raise ValueError("Invalid table name") from e
+
+
+def build_sp_view_name(expr: proto.SpNameRef, name: Union[str, Iterable[str]]) -> None:
+    try:
+        build_sp_name(name, expr.name)
+    except ValueError as e:
+        raise ValueError("Invalid view name") from e
+
+
+def build_function_expr(
+    builtin_name: str,
+    args: List[Any],
+    ignore_null_args: bool = False,
+) -> proto.Expr:
+    """
+    Creates AST encoding for the methods in function.py.
+    Args:
+        builtin_name: Name of the builtin function to call.
+        args: Positional arguments to pass to function, in the form of a list.
+        ignore_null_args: If True, null arguments will be ignored.
+    Returns:
+        The AST encoding of the function.
+    """
+    ast = proto.Expr()
+    args_list = [arg for arg in args if arg is not None] if ignore_null_args else args
+    build_builtin_fn_apply(
+        ast,
+        builtin_name,
+        *tuple(
+            snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+            for arg in args_list
+        ),
+    )
+    return ast
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
@@ -394,7 +434,6 @@ def build_builtin_fn_apply(
         builtin_name: Name of the builtin function to call.
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
-
     """
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
     _set_fn_name(builtin_name, expr.fn.builtin_fn)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
@@ -1081,7 +1120,7 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpTableName()
+            import_expr = proto.SpNameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1170,7 +1209,7 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         ast.stage_location.value = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpTableName()
+            import_expr = proto.SpNameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1267,7 +1306,7 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpTableName()
+            import_expr = proto.SpNameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1379,7 +1418,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpTableName()
+            import_expr = proto.SpNameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1494,3 +1533,27 @@ def base64_lines_to_textproto(base64_str: str) -> str:
 def textproto_to_request(textproto_str: str) -> proto.Request:
     request = Parse(textproto_str, proto.Request())
     return request
+
+
+def clear_line_no_in_ast(ast: Any) -> None:
+    """Clear any 'src' information in the statement body."""
+    if isinstance(ast, Iterable) and not isinstance(ast, str):
+        for c in ast:
+            clear_line_no_in_ast(c)
+    elif hasattr(ast, "DESCRIPTOR"):
+        if hasattr(ast, "src"):
+            ast.ClearField("src")  # type: ignore[union-attr]
+
+        for f in ast.DESCRIPTOR.fields:
+            c = getattr(ast, f.name)
+            if (isinstance(c, Iterable) and not isinstance(c, str) and len(c) > 0) or (  # type: ignore[arg-type]
+                isinstance(c, Message) and c.ByteSize() > 0
+            ):
+                clear_line_no_in_ast(c)
+
+
+def clear_line_no_in_request(request: proto.Request) -> None:
+    """There are inconsistencies in the frame_info.line_no depending on the python version, this seems to be due to
+    fixes in determining better line_no info for chained python code, etc."""
+    for stmt in request.body:
+        clear_line_no_in_ast(stmt)

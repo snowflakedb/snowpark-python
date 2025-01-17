@@ -36,8 +36,10 @@ body {
         func {
           name: "my_sproc"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_SPROC\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_SPROC\""
+              }
             }
           }
         }
@@ -72,8 +74,10 @@ body {
           }
         }
         name {
-          fn_name_flat {
-            name: "my_sproc"
+          name {
+            sp_name_flat {
+              name: "my_sproc"
+            }
           }
         }
         parallel: 4
@@ -109,8 +113,10 @@ body {
             log_on_exception {
             }
             name {
-              fn_name_flat {
-                name: "my_sproc"
+              name {
+                sp_name_flat {
+                  name: "my_sproc"
+                }
               }
             }
           }
@@ -322,8 +328,10 @@ body {
             log_on_exception {
             }
             name {
-              fn_name_flat {
-                name: "my_sproc"
+              name {
+                sp_name_flat {
+                  name: "my_sproc"
+                }
               }
             }
           }
@@ -457,5 +465,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

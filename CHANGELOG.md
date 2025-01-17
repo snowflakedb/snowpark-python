@@ -1,6 +1,108 @@
 # Release History
 
-## 1.26.0 (TBD)
+## 1.27.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following functions in `functions.py`
+  - `array_reverse`
+  - `divnull`
+  - `map_cat`
+  - `map_contains_key`
+  - `map_keys`
+  - `nullifzero`
+  - `snowflake_cortex_sentiment`
+  - `acosh`
+  - `asinh`
+  - `atanh`
+  - `bit_length`
+  - `bitmap_bit_position`
+  - `bitmap_bucket_number`
+  - `bitmap_construct_agg`
+  - `cbrt`
+  - `equal_null`
+  - `from_json`
+  - `ifnull`
+  - `localtimestamp`
+  - `max_by`
+  - `min_by`
+  - `nvl`
+  - `octet_length`
+  - `position`
+  - `regr_avgx`
+  - `regr_avgy`
+  - `regr_count`
+  - `regr_intercept`
+  - `regr_r2`
+  - `regr_slope`
+  - `regr_sxx`
+  - `regr_sxy`
+  - `regr_syy`
+  - `try_to_binary`
+
+- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
+
+#### Improvements
+
+- Updated README.md to include instructions on how to verify package signatures using `cosign`.
+- Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
+- Added support for `contains_null` parameter to ArrayType.
+- Added support for `value_contains_null` parameter to MapType.
+
+#### Bug Fixes
+
+- Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
+- Fixed a bug in `StructField.from_json` that prevented TimestampTypes with `tzinfo` from being parsed correctly.
+- Fixed a bug in function `date_format` that caused an error when the input column was date type or timestamp type.
+- Fixed a bug in dataframe that null value can be inserted in a non-nullable column.
+- Fixed a bug in `replace` when passing `Column` expression objects.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `Series.str.ljust` and `Series.str.rjust`.
+- Added support for `Series.str.center`.
+- Added support for `Series.str.pad`.
+- Added support for applying Snowpark Python function `snowflake_cortex_sentiment`.
+- Added support for `DataFrame.map`.
+- Added support for `DataFrame.from_dict` and `DataFrame.from_records`.
+- Added support for mixed case field names in struct type columns.
+- Added support for `SeriesGroupBy.unique`
+- Added support for `Series.dt.strftime` with the following directives:
+  - %d: Day of the month as a zero-padded decimal number.
+  - %m: Month as a zero-padded decimal number.
+  - %Y: Year with century as a decimal number.
+  - %H: Hour (24-hour clock) as a zero-padded decimal number.
+  - %M: Minute as a zero-padded decimal number.
+  - %S: Second as a zero-padded decimal number.
+  - %f: Microsecond as a decimal number, zero-padded to 6 digits.
+  - %j: Day of the year as a zero-padded decimal number.
+  - %X: Locale’s appropriate time representation.
+  - %%: A literal '%' character.
+- Added support for `Series.between`.
+- Added support for `include_groups=False` in `DataFrameGroupBy.apply`.
+- Added support for `expand=True` in `Series.str.split`.
+- Added support for `DataFrame.pop` and `Series.pop`.
+- Added support for `first` and `last` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
+
+#### Bug Fixes
+
+- Fixed a bug that system function called through `session.call` have incorrect type conversion.
+
+#### Improvements
+- Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
+- Updated integration testing for `session.lineage.trace` to exclude deleted objects
+- Added documentation for `DataFrame.map`.
+- Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
+- Added documentation on the extent of Snowpark pandas interoperability with scikit-learn.
+- Infer return type of functions in `Series.map`, `Series.apply` and `DataFrame.map` if type-hint is not provided.
+- Added `call_count` to telemetry that counts method calls including interchange protocol calls.
+
+## 1.26.0 (2024-12-05)
 
 ### Snowpark Python API Updates
 
@@ -23,7 +125,6 @@
 - Added support for following functions in `functions.py`:
   - `size` to get size of array, object, or map columns.
   - `collect_list` an alias of `array_agg`.
-  - `concat_ws_ignore_nulls` to concatenate strings with a separator, ignoring null values.
   - `substring` makes `len` argument optional.
 - Added parameter `ast_enabled` to session for internal usage (default: `False`).
 
@@ -43,6 +144,7 @@
   - Added `load` method to `DataFrameReader` to work in conjunction with `format`.
   - Added `save` method to `DataFrameWriter` to work in conjunction with `format`.
   - Added support to read keyword arguments to `options` method for `DataFrameReader` and `DataFrameWriter`.
+- Relaxed the cloudpickle dependency for Python 3.11 to simplify build requirements. However, for Python 3.11, `cloudpickle==2.2.1` remains the only supported version.
 
 #### Bug Fixes
 
@@ -50,9 +152,9 @@
   dynamic pivot is now generally available.
 - Fixed a bug in `session.read.options` where `False` Boolean values were incorrectly parsed as `True` in the generated file format.
 
-
 #### Dependency Updates
 
+- Added a runtime dependency on `python-dateutil`.
 
 ### Snowpark pandas API Updates
 
@@ -66,24 +168,17 @@
 - Added support for `GroupBy.pct_change` with `axis=0`, `freq=None`, and `limit=None`.
 - Added support for `DataFrameGroupBy.__iter__` and `SeriesGroupBy.__iter__`.
 - Added support for `np.sqrt`, `np.trunc`, `np.floor`, numpy trig functions, `np.exp`, `np.abs`, `np.positive` and `np.negative`.
-
-#### Dependency Updates
+- Added partial support for the dataframe interchange protocol method
+  `DataFrame.__dataframe__()`.
 
 #### Bug Fixes
+
 - Fixed a bug in `df.loc` where setting a single column from a series results in unexpected `None` values.
 
-
 #### Improvements
-- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinal values
 
-
-### Snowpark Local Testing Updates
-
-#### New Features
-
-
-#### Bug Fixes
-
+- Use UNPIVOT INCLUDE NULLS for unpivot operations in pandas instead of sentinel values.
+- Improved documentation for pd.read_excel.
 
 ## 1.25.0 (2024-11-14)
 
