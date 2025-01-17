@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 #
 # This file contains utils functions used by aggregation functions.
 #
@@ -430,6 +431,70 @@ def _columns_coalescing_sum(*cols: SnowparkColumn) -> Callable:
     return sum(builtin("zeroifnull")(col) for col in cols)
 
 
+def _column_first_value(
+    column: SnowparkColumn,
+    row_position_snowflake_quoted_identifier: str,
+    ignore_nulls: bool,
+) -> SnowparkColumn:
+    """
+    Returns the first value (ordered by `row_position_snowflake_identifier`) over the specified group.
+
+    Parameters
+    ----------
+    col: Snowpark Column
+        The Snowpark column to aggregate.
+    row_position_snowflake_quoted_identifier: str
+        The Snowflake quoted identifier of the column to order by.
+    ignore_nulls: bool
+        Whether or not to ignore nulls.
+
+    Returns
+    -------
+        The aggregated Snowpark Column.
+    """
+    if ignore_nulls:
+        col_to_min_by = iff(
+            col(column).is_null(),
+            pandas_lit(None),
+            col(row_position_snowflake_quoted_identifier),
+        )
+    else:
+        col_to_min_by = col(row_position_snowflake_quoted_identifier)
+    return builtin("min_by")(col(column), col_to_min_by)
+
+
+def _column_last_value(
+    column: SnowparkColumn,
+    row_position_snowflake_quoted_identifier: str,
+    ignore_nulls: bool,
+) -> SnowparkColumn:
+    """
+    Returns the last value (ordered by `row_position_snowflake_identifier`) over the specified group.
+
+    Parameters
+    ----------
+    col: Snowpark Column
+        The Snowpark column to aggregate.
+    row_position_snowflake_quoted_identifier: str
+        The Snowflake quoted identifier of the column to order by.
+    ignore_nulls: bool
+        Whether or not to ignore nulls.
+
+    Returns
+    -------
+        The aggregated Snowpark Column.
+    """
+    if ignore_nulls:
+        col_to_max_by = iff(
+            col(column).is_null(),
+            pandas_lit(None),
+            col(row_position_snowflake_quoted_identifier),
+        )
+    else:
+        col_to_max_by = col(row_position_snowflake_quoted_identifier)
+    return builtin("max_by")(col(column), col_to_max_by)
+
+
 def _create_pandas_to_snowpark_pandas_aggregation_map(
     pandas_functions: Iterable[AggFuncTypeBase],
     snowpark_pandas_aggregation: _SnowparkPandasAggregation,
@@ -468,6 +533,18 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
                 axis_1_aggregation_skipna=_columns_count_keep_nulls,
                 preserves_snowpark_pandas_types=False,
             ),
+        ),
+        "first": _SnowparkPandasAggregation(
+            axis_0_aggregation=_column_first_value,
+            axis_1_aggregation_keepna=lambda *cols: cols[0],
+            axis_1_aggregation_skipna=lambda *cols: coalesce(*cols),
+            preserves_snowpark_pandas_types=True,
+        ),
+        "last": _SnowparkPandasAggregation(
+            axis_0_aggregation=_column_last_value,
+            axis_1_aggregation_keepna=lambda *cols: cols[-1],
+            axis_1_aggregation_skipna=lambda *cols: coalesce(*(cols[::-1])),
+            preserves_snowpark_pandas_types=True,
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
             ("mean", np.mean),
@@ -610,7 +687,10 @@ def is_snowflake_agg_func(agg_func: AggFuncTypeBase) -> bool:
 
 
 def get_snowflake_agg_func(
-    agg_func: AggFuncTypeBase, agg_kwargs: dict[str, Any], axis: Literal[0, 1]
+    agg_func: AggFuncTypeBase,
+    agg_kwargs: dict[str, Any],
+    axis: Literal[0, 1],
+    _is_df_agg: bool = False,
 ) -> Optional[SnowflakeAggFunc]:
     """
     Get the corresponding Snowflake/Snowpark aggregation function for the given aggregation function.
@@ -658,6 +738,23 @@ def get_snowflake_agg_func(
 
         def snowpark_aggregation(col: SnowparkColumn) -> SnowparkColumn:
             return column_quantile(col, interpolation, q)
+
+    elif (
+        snowpark_aggregation == _column_first_value
+        or snowpark_aggregation == _column_last_value
+    ):
+        if _is_df_agg:
+            # First and last are not supported for df.agg.
+            return None
+        ignore_nulls = agg_kwargs.get("skipna", True)
+        row_position_snowflake_quoted_identifier = agg_kwargs.get(
+            "_first_last_row_pos_col", None
+        )
+        snowpark_aggregation = functools.partial(
+            snowpark_aggregation,
+            ignore_nulls=ignore_nulls,
+            row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
+        )
 
     assert (
         snowpark_aggregation is not None
@@ -707,7 +804,10 @@ def _generate_rowwise_aggregation_function(
 
 
 def _is_supported_snowflake_agg_func(
-    agg_func: AggFuncTypeBase, agg_kwargs: dict[str, Any], axis: Literal[0, 1]
+    agg_func: AggFuncTypeBase,
+    agg_kwargs: dict[str, Any],
+    axis: Literal[0, 1],
+    _is_df_agg: bool = False,
 ) -> bool:
     """
     check if the aggregation function is supported with snowflake. Current supported
@@ -724,11 +824,14 @@ def _is_supported_snowflake_agg_func(
         # For named aggregations, like `df.agg(new_col=("old_col", "sum"))`,
         # take the second part of the named aggregation.
         agg_func = agg_func[0]
-    return get_snowflake_agg_func(agg_func, agg_kwargs, axis) is not None
+    return get_snowflake_agg_func(agg_func, agg_kwargs, axis, _is_df_agg) is not None
 
 
 def _are_all_agg_funcs_supported_by_snowflake(
-    agg_funcs: list[AggFuncTypeBase], agg_kwargs: dict[str, Any], axis: Literal[0, 1]
+    agg_funcs: list[AggFuncTypeBase],
+    agg_kwargs: dict[str, Any],
+    axis: Literal[0, 1],
+    _is_df_agg: bool = False,
 ) -> bool:
     """
     Check if all aggregation functions in the given list are snowflake supported
@@ -739,7 +842,8 @@ def _are_all_agg_funcs_supported_by_snowflake(
         return False.
     """
     return all(
-        _is_supported_snowflake_agg_func(func, agg_kwargs, axis) for func in agg_funcs
+        _is_supported_snowflake_agg_func(func, agg_kwargs, axis, _is_df_agg)
+        for func in agg_funcs
     )
 
 
@@ -747,6 +851,7 @@ def check_is_aggregation_supported_in_snowflake(
     agg_func: AggFuncType,
     agg_kwargs: dict[str, Any],
     axis: Literal[0, 1],
+    _is_df_agg: bool = False,
 ) -> bool:
     """
     check if distributed implementation with snowflake is available for the aggregation
@@ -756,6 +861,8 @@ def check_is_aggregation_supported_in_snowflake(
         agg_func: the aggregation function to apply
         agg_kwargs: keyword argument passed for the aggregation function, such as ddof, min_count etc.
                     The value can be different for different aggregation function.
+        _is_df_agg: whether or not this is being called by df.agg, since some functions are only supported
+                    for groupby_agg.
     Returns:
         bool
             Whether the aggregation operation can be executed with snowflake sql engine.
@@ -765,15 +872,21 @@ def check_is_aggregation_supported_in_snowflake(
     if is_dict_like(agg_func):
         return all(
             (
-                _are_all_agg_funcs_supported_by_snowflake(value, agg_kwargs, axis)
+                _are_all_agg_funcs_supported_by_snowflake(
+                    value, agg_kwargs, axis, _is_df_agg
+                )
                 if is_list_like(value) and not is_named_tuple(value)
-                else _is_supported_snowflake_agg_func(value, agg_kwargs, axis)
+                else _is_supported_snowflake_agg_func(
+                    value, agg_kwargs, axis, _is_df_agg
+                )
             )
             for value in agg_func.values()
         )
     elif is_list_like(agg_func):
-        return _are_all_agg_funcs_supported_by_snowflake(agg_func, agg_kwargs, axis)
-    return _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis)
+        return _are_all_agg_funcs_supported_by_snowflake(
+            agg_func, agg_kwargs, axis, _is_df_agg
+        )
+    return _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, _is_df_agg)
 
 
 def _is_snowflake_numeric_type_required(snowflake_agg_func: Callable) -> bool:
@@ -1372,10 +1485,21 @@ def repr_aggregate_function(agg_func: AggFuncType, agg_kwargs: Mapping) -> str:
     if using_named_aggregations_for_func(agg_func):
         # New axis labels are sensitive, so replace them with "new_label."
         # Existing axis labels are sensitive, so replace them with "label."
-        return ", ".join(
-            f"new_label=(label, {repr_aggregate_function(f, agg_kwargs)})"
-            for _, f in agg_kwargs.values()
-        )
+        # This is checking whether the named aggregations are for a DataFrame,
+        # in which case they are of the format new_col_name = (col_to_operate_on,
+        # function), or for a Series, in which case they are of the format
+        # new_col_name=function, in order to ensure we parse the functions out
+        # from the keyword args correctly.
+        if is_list_like(list(agg_kwargs.values())[0]):
+            return ", ".join(
+                f"new_label=(label, {repr_aggregate_function(f, agg_kwargs)})"
+                for _, f in agg_kwargs.values()
+            )
+        else:
+            return ", ".join(
+                f"new_label=(label, {repr_aggregate_function(f, agg_kwargs)})"
+                for f in agg_kwargs.values()
+            )
     if isinstance(agg_func, str):
         # Strings functions represent names of pandas functions, e.g.
         # "sum" means to aggregate with pandas.Series.sum. string function
@@ -1422,3 +1546,30 @@ def repr_aggregate_function(agg_func: AggFuncType, agg_kwargs: Mapping) -> str:
     # exposing sensitive user input in the NotImplemented error message and
     # thus in telemetry.
     return "Callable"
+
+
+def is_first_last_in_agg_funcs(
+    column_to_agg_func: dict[str, Union[list[AggFuncInfo], AggFuncInfo]]
+) -> bool:
+    """
+    Helper function to check if the `first` or `last` aggregation functions have been specified.
+
+    Parameters
+    ----------
+    column_to_agg_func: dict[str, Union[list[AggFuncInfo], AggFuncInfo]]
+        The mapping of column name to aggregation function (or functions) to apply.
+
+    Returns
+    -------
+    bool
+        Whether any of the functions to apply are either `first` or `last`.
+    """
+
+    def _is_first_last_agg_func(value: AggFuncInfo) -> bool:
+        return value.func in ["first", "last"]
+
+    return any(
+        (isinstance(val, AggFuncInfo) and _is_first_last_agg_func(val))
+        or (isinstance(val, list) and any(_is_first_last_agg_func(v) for v in val))
+        for val in column_to_agg_func.values()
+    )

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This package contains all Snowpark logical types."""
@@ -335,6 +335,7 @@ class ArrayType(DataType):
         self,
         element_type: Optional[DataType] = None,
         structured: Optional[bool] = None,
+        contains_null: bool = True,
     ) -> None:
         if context._should_use_structured_type_semantics():
             self.structured = (
@@ -344,6 +345,7 @@ class ArrayType(DataType):
         else:
             self.structured = structured or False
             self.element_type = element_type if element_type else StringType()
+        self.contains_null = contains_null
 
     def __repr__(self) -> str:
         return f"ArrayType({repr(self.element_type) if self.element_type else ''})"
@@ -354,7 +356,7 @@ class ArrayType(DataType):
         element_type = self.element_type
         if isinstance(element_type, (ArrayType, MapType, StructType)):
             element_type = element_type._as_nested()
-        return ArrayType(element_type, self.structured)
+        return ArrayType(element_type, self.structured, self.contains_null)
 
     def is_primitive(self):
         return False
@@ -366,7 +368,8 @@ class ArrayType(DataType):
                 json_dict["elementType"]
                 if "elementType" in json_dict
                 else json_dict["element_type"]
-            )
+            ),
+            contains_null=json_dict.get("contains_null", True),
         )
 
     def simple_string(self) -> str:
@@ -376,6 +379,7 @@ class ArrayType(DataType):
         return {
             "type": self.type_name(),
             "element_type": self.element_type.json_value(),
+            "contains_null": self.contains_null,
         }
 
     simpleString = simple_string
@@ -384,11 +388,8 @@ class ArrayType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_array_type.structured = self.structured
-        if self.element_type is None:
-            raise NotImplementedError(
-                "SNOW-1862700: AST does not support empty element_type."
-            )
-        self.element_type._fill_ast(ast.sp_array_type.ty)
+        if self.element_type is not None:
+            self.element_type._fill_ast(ast.sp_array_type.ty)
 
 
 class MapType(DataType):
@@ -399,6 +400,7 @@ class MapType(DataType):
         key_type: Optional[DataType] = None,
         value_type: Optional[DataType] = None,
         structured: Optional[bool] = None,
+        value_contains_null: bool = True,
     ) -> None:
         if context._should_use_structured_type_semantics():
             if (key_type is None and value_type is not None) or (
@@ -416,6 +418,7 @@ class MapType(DataType):
             self.structured = structured or False
             self.key_type = key_type if key_type else StringType()
             self.value_type = value_type if value_type else StringType()
+        self.value_contains_null = value_contains_null
 
     def __repr__(self) -> str:
         type_str = ""
@@ -783,8 +786,13 @@ class StructType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_struct_type.structured = self.structured
-        for field in self.fields:
-            field._fill_ast(ast.sp_struct_type.fields.add())
+        if self.fields is None:
+            return
+        elif len(self.fields) > 0:
+            for field in self.fields:
+                field._fill_ast(ast.sp_struct_type.fields.list.add())
+        else:
+            ast.sp_struct_type.fields.list.extend([])
 
 
 class VariantType(DataType):

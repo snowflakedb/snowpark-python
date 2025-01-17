@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import binascii
@@ -266,16 +266,19 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             return "to_timestamp('2020-09-16 06:30:00')"
     if isinstance(data_type, ArrayType):
         if data_type.structured:
-            assert isinstance(data_type.element_type, DataType)
-            element = schema_expression(data_type.element_type, is_nullable)
+            assert data_type.element_type is not None
+            element = schema_expression(data_type.element_type, data_type.contains_null)
             return f"to_array({element}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_array(0)"
     if isinstance(data_type, MapType):
         if data_type.structured:
-            assert isinstance(data_type.key_type, DataType)
-            assert isinstance(data_type.value_type, DataType)
-            key = schema_expression(data_type.key_type, is_nullable)
-            value = schema_expression(data_type.value_type, is_nullable)
+            assert data_type.key_type is not None and data_type.value_type is not None
+            # Key values can never be null
+            key = schema_expression(data_type.key_type, False)
+            # Value nullability is variable. Defaults to True
+            value = schema_expression(
+                data_type.value_type, data_type.value_contains_null
+            )
             return f"object_construct_keep_null({key}, {value}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_object(parse_json('0'))"
     if isinstance(data_type, StructType):
