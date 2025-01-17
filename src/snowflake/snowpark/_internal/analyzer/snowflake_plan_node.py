@@ -159,6 +159,20 @@ class SnowflakeValues(LeafNode):
         return len(self.data) * len(self.output) >= ARRAY_BIND_THRESHOLD
 
     @property
+    def is_contain_illegal_null_value(self) -> bool:
+        from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
+
+        rows_to_compare = min(
+            ARRAY_BIND_THRESHOLD // len(self.output) + 1, len(self.data)
+        )
+        for j in range(len(self.output)):
+            if not self.output[j].nullable:
+                for i in range(rows_to_compare):
+                    if self.data[i][j] is None:
+                        return True
+        return False
+
+    @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         if self.is_large_local_data:
             # When the number of literals exceeds the threshold, we generate 3 queries:
