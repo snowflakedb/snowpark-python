@@ -63,6 +63,7 @@ class TelemetryField(Enum):
     KEY_PYTHON_VERSION = "python_version"
     KEY_CLIENT_LANGUAGE = "client_language"
     KEY_OS = "operating_system"
+    KEY_IS_INTERACTIVE = "interactive"
     KEY_DATA = "data"
     KEY_CATEGORY = "category"
     KEY_CREATED_BY_SNOWPARK = "created_by_snowpark"
@@ -319,6 +320,10 @@ class TelemetryClient:
             telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
             self.telemetry.try_add_log_to_batch(telemetry_data)
 
+    def _is_interactive():
+        import sys
+        return hasattr(sys, 'ps1') or sys.flags.interactive or "snowbook" in sys.modules
+
     def _create_basic_telemetry_data(self, telemetry_type: str) -> Dict[str, Any]:
         message = {
             PCTelemetryField.KEY_SOURCE.value: self.source,
@@ -326,6 +331,7 @@ class TelemetryClient:
             TelemetryField.KEY_PYTHON_VERSION.value: self.python_version,
             TelemetryField.KEY_OS.value: self.os,
             PCTelemetryField.KEY_TYPE.value: telemetry_type,
+            TelemetryField.KEY_IS_INTERACTIVE: self._is_interactive(),
         }
         return message
 
