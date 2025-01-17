@@ -1794,5 +1794,4 @@ def test_read_json_user_input_schema(session):
     )
 
     df = session.read.schema(schema).json(test_file)
-    print(df.collect())
     Utils.check_answer(df, [Row(fruit="Apple", size="Large", not_included_column=None)])
