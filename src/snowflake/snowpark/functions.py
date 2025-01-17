@@ -383,9 +383,7 @@ def lit(
             c._expression = literal._expression
             c._ast = ast
             return c
-        return Column(
-            Literal(literal, datatype=datatype), _ast=ast, _emit_ast=_emit_ast
-        )
+        return Column(Literal(literal, datatype=datatype), _ast=ast, _emit_ast=True)
 
     if isinstance(literal, Column):
         return literal
