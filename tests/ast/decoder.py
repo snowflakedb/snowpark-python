@@ -1,4 +1,8 @@
 #
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
+#
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
@@ -15,7 +19,7 @@ from google.protobuf.json_format import MessageToDict
 from build.lib.snowflake.snowpark.relational_grouped_dataframe import GroupingSets
 from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
 import snowflake.snowpark.functions
-from snowflake.snowpark.functions import udf, when
+from snowflake.snowpark.functions import udf, when, sproc
 from snowflake.snowpark.types import (
     DataType,
     ArrayType,
@@ -218,8 +222,8 @@ class Decoder:
                 )
             case "sp_fn_ref":
                 return self.symbol_table[fn_ref_expr.sp_fn_ref.id.bitfield1][0]
-            # case "stored_procedure":
-            #     pass
+            case "stored_procedure":
+                return self.decode_name_expr(fn_ref_expr.stored_procedure.name)
             # case "udaf":
             #     pass
             # case "udf":
@@ -554,8 +558,11 @@ class Decoder:
                 fn_name = self.decode_fn_ref_expr(expr.apply_expr.fn)
                 if hasattr(snowflake.snowpark.functions, fn_name):
                     fn = getattr(snowflake.snowpark.functions, fn_name)
-                else:
+                elif expr.apply_expr.fn.sp_fn_ref.id.bitfield1 in self.symbol_table:
                     fn = self.symbol_table[expr.apply_expr.fn.sp_fn_ref.id.bitfield1][1]
+                else:
+                    fn = None
+
                 # The named arguments are stored as a list of Tuple_String_Expr.
                 named_args = self.decode_dsl_map_expr(expr.apply_expr.named_args)
                 # The positional args can be a list of Expr, a single Expr, or [].
@@ -569,6 +576,10 @@ class Decoder:
                         pos_args = [self.decode_expr(expr.apply_expr.pos_args)]
                 else:
                     pos_args = []
+
+                if fn is None:
+                    return self.session.call(fn_name, *pos_args, **named_args)
+
                 result = fn(*pos_args, **named_args)
                 if hasattr(expr, "var_id"):
                     self.symbol_table[expr.var_id.bitfield1] = (
@@ -1439,6 +1450,41 @@ class Decoder:
                 else:
                     return df.to_df(col_names)
 
+            case "sp_dataframe_to_local_iterator":
+                df = self.symbol_table[
+                    expr.sp_dataframe_to_local_iterator.id.bitfield1
+                ][1]
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_to_local_iterator)
+                )
+                block = expr.sp_dataframe_to_local_iterator.block
+                case_sensitive = expr.sp_dataframe_to_local_iterator.case_sensitive
+                return df.to_local_iterator(
+                    statement_params=statement_params,
+                    block=block,
+                    case_sensitive=case_sensitive,
+                )
+
+            case "sp_dataframe_to_pandas":
+                df = self.symbol_table[expr.sp_dataframe_to_pandas.id.bitfield1][1]
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_to_pandas)
+                )
+                block = expr.sp_dataframe_to_pandas.block
+                return df.to_pandas(statement_params=statement_params, block=block)
+
+            case "sp_dataframe_to_pandas_batches":
+                df = self.symbol_table[
+                    expr.sp_dataframe_to_pandas_batches.id.bitfield1
+                ][1]
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_to_pandas_batches)
+                )
+                block = expr.sp_dataframe_to_pandas_batches.block
+                return df.to_pandas_batches(
+                    statement_params=statement_params, block=block
+                )
+
             case "sp_dataframe_union":
                 df = self.decode_expr(expr.sp_dataframe_union.df)
                 other = self.decode_expr(expr.sp_dataframe_union.other)
@@ -1545,6 +1591,24 @@ class Decoder:
                 assert expr.sp_table.HasField("name")
                 table_name = self.decode_name_expr(expr.sp_table.name)
                 return self.session.table(table_name)
+
+            case "sp_to_snowpark_pandas":
+                df = self.decode_expr(expr.sp_to_snowpark_pandas.df)
+                d = MessageToDict(expr.sp_to_snowpark_pandas)
+                index_col, columns = None, None
+                if "indexCol" in d:
+                    index_col = [
+                        col for col in expr.sp_to_snowpark_pandas.index_col.list
+                    ]
+                if "columns" in d:
+                    columns = [col for col in expr.sp_to_snowpark_pandas.columns.list]
+                # Returning the result of to_snowpark_pandas causes recursion issues when local_testing_mode is enabled.
+                # When disabled, to_snowpark_pandas will raise an error since df will be an empty Dataframe
+                # (passing non-None values of index_col or columns will make the snowpark_to_pandas_helper complain
+                # about columns that do not exist).
+                # Therefore, silently execute to_snowpark_pandas to record the AST and return None.
+                df.to_snowpark_pandas(index_col, columns)
+                return None
 
             case "udf":
                 return_type = self.decode_data_type_expr(expr.udf.return_type)
@@ -1829,6 +1893,70 @@ class Decoder:
             case "sp_dataframe_write":
                 df = self.decode_expr(expr.sp_dataframe_write.df)
                 return df.write
+
+            case "stored_procedure":
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.stored_procedure.input_types.list
+                ]
+                execute_as = expr.stored_procedure.execute_as
+                comment = expr.stored_procedure.comment.value
+                registered_object_name = self.decode_name_expr(
+                    expr.stored_procedure.func.object_name
+                )
+                return_type = self.decode_data_type_expr(
+                    expr.stored_procedure.return_type
+                )
+                ret_sproc = sproc(
+                    lambda *args: None,
+                    return_type=return_type,
+                    input_types=input_types,
+                    execute_as=execute_as,
+                    comment=comment,
+                    _registered_object_name=registered_object_name,
+                )
+                return ret_sproc
+
+            case "sp_flatten":
+                input = self.decode_expr(expr.sp_flatten.input)
+
+                path = expr.sp_flatten.path.value
+
+                outer = expr.sp_flatten.outer
+
+                recursive = expr.sp_flatten.recursive
+
+                mode = "BOTH"
+                match expr.sp_flatten.mode.WhichOneof("variant"):
+                    case "sp_flatten_mode_both":
+                        mode = "BOTH"
+                    case "sp_flatten_mode_array":
+                        mode = "ARRAY"
+                    case "sp_flatten_mode_object":
+                        mode = "OBJECT"
+
+                if len(path) == 0:
+
+                    return self.session.flatten(
+                        input=input, outer=outer, recursive=recursive, mode=mode
+                    )
+
+                return self.session.flatten(
+                    input=input, path=path, outer=outer, recursive=recursive, mode=mode
+                )
+
+            case "sp_generator":
+                columns = [self.decode_expr(col) for col in expr.sp_generator.columns]
+                row_count = expr.sp_generator.row_count
+                time_limit_seconds = expr.sp_generator.time_limit_seconds
+                if expr.sp_generator.variadic:
+                    return self.session.generator(
+                        *columns, rowcount=row_count, timelimit=time_limit_seconds
+                    )
+                else:
+                    return self.session.generator(
+                        columns, rowcount=row_count, timelimit=time_limit_seconds
+                    )
 
             case _:
                 raise NotImplementedError(

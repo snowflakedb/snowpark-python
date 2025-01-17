@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import ast
 import base64
@@ -1492,6 +1492,8 @@ def clear_symbols_and_udfs(message: proto.Request) -> None:
             stmt.assign.ClearField("symbol")
         if str(stmt.assign.expr.udf):
             stmt.assign.expr.ClearField("udf")
+        if str(stmt.assign.expr.stored_procedure):
+            stmt.assign.expr.ClearField("stored_procedure")
 
 
 def base64_str_to_request(base64_str: str) -> proto.Request:
