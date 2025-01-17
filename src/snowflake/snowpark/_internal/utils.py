@@ -1451,12 +1451,25 @@ def merge_multiple_snowflake_plan_expr_to_alias(
             conflicted_keys[key] = values
 
     if conflicted_keys:
+        # the following approach would issue extra describe query in CTE, can we avoid it by reusing existing
+        # output columns for the node we are trying to replace?
         # Collect all unique output column names from all plans
+        # all_output_columns = {
+        #     attr.name
+        #     for plan in snowflake_plans
+        #     if plan.schema_query
+        #     for attr in plan.output
+        # }
+
+        # the following approach assume source_plan is SelectStatement which has projection variable
+        # can we ensure the following case when sql simplifier is enabled?
+        # 1. can we make sure in case there is conflict, the source plan would always be SelectStatement?
+        # 2. can we make sure in case there is conflict, the source plan would always have projection variable?
         all_output_columns = {
-            attr.name
+            proj.name
             for plan in snowflake_plans
             if plan.schema_query
-            for attr in plan.output
+            for proj in plan.source_plan.projection
         }
         for key in conflicted_keys:
             candidate = None
