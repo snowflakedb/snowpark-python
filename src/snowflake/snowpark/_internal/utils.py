@@ -310,6 +310,13 @@ def get_python_version() -> str:
 
 
 @lru_cache
+def is_interactive() -> bool:
+    import sys
+
+    return hasattr(sys, "ps1") or sys.flags.interactive or "snowbook" in sys.modules
+
+
+@lru_cache
 def get_connector_version() -> str:
     return ".".join([str(d) for d in connector_version if d is not None])
 
