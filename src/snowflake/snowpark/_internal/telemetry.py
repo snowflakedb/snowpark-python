@@ -319,7 +319,8 @@ class TelemetryClient:
 
     def _is_interactive():
         import sys
-        return hasattr(sys, 'ps1') or sys.flags.interactive or "snowbook" in sys.modules
+
+        return hasattr(sys, "ps1") or sys.flags.interactive or "snowbook" in sys.modules
 
     def _create_basic_telemetry_data(self, telemetry_type: str) -> Dict[str, Any]:
         message = {
