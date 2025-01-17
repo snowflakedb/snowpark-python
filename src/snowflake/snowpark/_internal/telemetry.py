@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.utils import (
     get_python_version,
     get_version,
     is_in_stored_procedure,
+    is_interactive,
 )
 
 
@@ -309,6 +310,7 @@ class TelemetryClient:
         self.version: str = get_version()
         self.python_version: str = get_python_version()
         self.os: str = get_os_name()
+        self.is_interactive = is_interactive()
 
     def send(self, msg: Dict, timestamp: Optional[int] = None):
         if self.telemetry:
@@ -317,11 +319,6 @@ class TelemetryClient:
             telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
             self.telemetry.try_add_log_to_batch(telemetry_data)
 
-    def _is_interactive(self):
-        import sys
-
-        return hasattr(sys, "ps1") or sys.flags.interactive or "snowbook" in sys.modules
-
     def _create_basic_telemetry_data(self, telemetry_type: str) -> Dict[str, Any]:
         message = {
             PCTelemetryField.KEY_SOURCE.value: self.source,
@@ -329,7 +326,9 @@ class TelemetryClient:
             TelemetryField.KEY_PYTHON_VERSION.value: self.python_version,
             TelemetryField.KEY_OS.value: self.os,
             PCTelemetryField.KEY_TYPE.value: telemetry_type,
-            TelemetryField.KEY_IS_INTERACTIVE: self._is_interactive(),
+            TelemetryField.KEY_IS_INTERACTIVE.value: PCTelemetryData.TRUE
+            if self.is_interactive
+            else PCTelemetryData.FALSE,
         }
         return message
 
