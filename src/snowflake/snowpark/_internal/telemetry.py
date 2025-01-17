@@ -317,7 +317,7 @@ class TelemetryClient:
             telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
             self.telemetry.try_add_log_to_batch(telemetry_data)
 
-    def _is_interactive():
+    def _is_interactive(self):
         import sys
 
         return hasattr(sys, "ps1") or sys.flags.interactive or "snowbook" in sys.modules
