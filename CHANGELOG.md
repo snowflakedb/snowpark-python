@@ -23,6 +23,7 @@
   - `bitmap_construct_agg`
   - `cbrt`
   - `equal_null`
+  - `from_json`
   - `ifnull`
   - `localtimestamp`
   - `max_by`
@@ -42,11 +43,14 @@
   - `try_to_binary`
 
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 
 #### Improvements
 
 - Updated README.md to include instructions on how to verify package signatures using `cosign`.
 - Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
+- Added support for `contains_null` parameter to ArrayType.
+- Added support for `value_contains_null` parameter to MapType.
 
 #### Bug Fixes
 
@@ -83,6 +87,7 @@
 - Added support for `include_groups=False` in `DataFrameGroupBy.apply`.
 - Added support for `expand=True` in `Series.str.split`.
 - Added support for `DataFrame.pop` and `Series.pop`.
+- Added support for `first` and `last` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
 
 #### Bug Fixes
 

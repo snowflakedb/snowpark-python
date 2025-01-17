@@ -12,6 +12,7 @@ from array import array
 from collections import namedtuple
 from decimal import Decimal
 from itertools import product
+from textwrap import dedent
 from typing import Tuple
 from unittest import mock
 
@@ -91,6 +92,8 @@ from tests.utils import (
     TestFiles,
     Utils,
     multithreaded_run,
+    structured_types_enabled_session,
+    structured_types_supported,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1873,6 +1876,181 @@ def test_create_dataframe_with_variant(session):
             '{\n  "a": "foo"\n}',
         )
     ]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not fully support structured types yet.",
+)
+def test_show_dataframe_spark(session):
+    if not structured_types_supported(session, False):
+        pytest.skip("Test requires structured type support.")
+
+    data = [
+        1,
+        "one",
+        1.1,
+        datetime.datetime.strptime("2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"),
+        datetime.datetime.strptime("20:57:06", "%H:%M:%S").time(),
+        datetime.datetime.strptime("2017-02-25", "%Y-%m-%d").date(),
+        True,
+        False,
+        None,
+        bytearray("a", "utf-8"),
+        bytearray("abc", "utf-8"),
+        Decimal(0.5),
+        [1, 2, 3],
+        [
+            bytearray("abc", "utf-8"),
+            bytearray("a", "utf-8"),
+        ],
+        {"a": "foo"},
+    ]
+
+    with structured_types_enabled_session(session) as session:
+        schema = StructType(
+            [
+                StructField("col_1", IntegerType()),
+                StructField("col_2", StringType()),
+                StructField("col_3", FloatType()),
+                StructField("col_4", TimestampType()),
+                StructField("col_5", TimeType()),
+                StructField("col_6", DateType()),
+                StructField("col_7", BooleanType()),
+                StructField("col_8", BooleanType()),
+                StructField("col_9", VariantType()),
+                StructField("col_10", BinaryType()),
+                StructField("col_11", BinaryType()),
+                StructField("col_12", DecimalType()),
+                StructField("col_13", ArrayType(IntegerType())),
+                StructField("col_14", ArrayType(BinaryType())),
+                StructField("col_15", MapType(StringType(), StringType())),
+            ]
+        )
+        df = session.create_dataframe([data], schema=schema)
+        spark_col_names = [f"col_{i + 1}" for i in range(len(data))]
+
+        def assert_show_string_equals(actual: str, expected: str):
+            actual_lines = actual.strip().split("\n")
+            expected_lines = expected.strip().split("\n")
+            for a, e in zip(actual_lines, expected_lines):
+                if a.strip() != e.strip():
+                    print(f"\nactual:\n{actual}\nexpected:{expected}")
+                    pytest.fail()
+
+        assert_show_string_equals(
+            df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
+            dedent(
+                """
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
+            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|  "COL_11"|"COL_12"| "COL_13"|          "COL_14"|  "COL_15"|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
+            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [97]|[97 98 99]|       1|[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
+            ),
+            dedent(
+                """
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|            col_14|    col_15|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [97]|[97 98 99]|     1|[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                vertical=True,
+                _emit_ast=session.ast_enabled,
+                _spark_column_names=spark_col_names,
+            ),
+            dedent(
+                """
+            -RECORD 0----------------------
+             col_1  | 1
+             col_2  | one
+             col_3  | 1.1
+             col_4  | 2017-02-24 12:00:...
+             col_5  | 20:57:06
+             col_6  | 2017-02-25
+             col_7  | true
+             col_8  | false
+             col_9  | NULL
+             col_10 | [97]
+             col_11 | [97 98 99]
+             col_12 | 1
+             col_13 | [1, 2, 3]
+             col_14 | [[97 98 99], [97]]
+             col_15 | {a -> foo}
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                vertical=True,
+                truncate=False,
+                _emit_ast=session.ast_enabled,
+                _spark_column_names=spark_col_names,
+            ),
+            dedent(
+                """
+            -RECORD 0----------------------------
+             col_1  | 1
+             col_2  | one
+             col_3  | 1.1
+             col_4  | 2017-02-24 12:00:05.456000
+             col_5  | 20:57:06
+             col_6  | 2017-02-25
+             col_7  | true
+             col_8  | false
+             col_9  | NULL
+             col_10 | [97]
+             col_11 | [97 98 99]
+             col_12 | 1
+             col_13 | [1, 2, 3]
+             col_14 | [[97 98 99], [97]]
+             col_15 | {a -> foo}
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                truncate=False,
+                _emit_ast=session.ast_enabled,
+                _spark_column_names=spark_col_names,
+            ),
+            dedent(
+                """
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11    |col_12|col_13   |col_14            |col_15    |
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[97]  |[97 98 99]|1     |[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df._show_string_spark(
+                truncate=10,
+                _emit_ast=session.ast_enabled,
+                _spark_column_names=spark_col_names,
+            ),
+            dedent(
+                """
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
+            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
+            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [97]|[97 98 99]|     1|[1, 2, 3]|[[97 98...|{a -> foo}|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
+            """
+            ),
+        )
 
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
@@ -4487,3 +4665,277 @@ def test_SNOW_1879403_replace_with_lit(session):
     ).collect()
 
     Utils.check_answer(ans, [Row("orange"), Row("orange pie"), Row("orange juice")])
+
+
+def test_create_dataframe_with_implicit_struct_simple(session):
+    """
+    Test an implicit struct string with two integer columns.
+    """
+    data = [
+        [1, 2],
+        [3, 4],
+    ]
+    # The new feature: implicit struct string "col1: int, col2: int"
+    schema_str = "col1: int, col2: int"
+
+    # Create the dataframe
+    df = session.create_dataframe(data, schema=schema_str)
+    # Check schema
+    # We expect the schema to be a StructType with 2 fields
+    assert isinstance(df.schema, StructType)
+    assert len(df.schema.fields) == 2
+    expected_fields = [
+        StructField("COL1", LongType(), nullable=True),
+        StructField("COL2", LongType(), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Collect rows
+    result = df.collect()
+    expected_rows = [
+        Row(COL1=1, COL2=2),
+        Row(COL1=3, COL2=4),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_with_implicit_struct_nested(session):
+    """
+    Test an implicit struct string with nested array and decimal columns.
+    """
+    data = [
+        [["1", "2"], Decimal("3.14")],
+        [["5", "6"], Decimal("2.72")],
+    ]
+    # Nested schema: first column is array<string>, second is decimal(10,2)
+    schema_str = "arr: array<string>, val: decimal(10,2)"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 2
+    expected_fields = [
+        StructField("ARR", ArrayType(StringType()), nullable=True),
+        StructField("VAL", DecimalType(10, 2), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(ARR='[\n  "1",\n  "2"\n]', VAL=Decimal("3.14")),
+        Row(ARR='[\n  "5",\n  "6"\n]', VAL=Decimal("2.72")),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_with_explicit_struct_string(session):
+    """
+    Test an explicit struct string "struct<colA: string, colB: double>"
+    to confirm it also works (even though it's not strictly 'implicit').
+    """
+    data = [
+        ["hello", 3.14],
+        ["world", 2.72],
+    ]
+    schema_str = "struct<colA: string, colB: double>"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 2
+    expected_fields = [
+        StructField("COLA", StringType(), nullable=True),
+        StructField("COLB", DoubleType(), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(COLA="hello", COLB=3.14),
+        Row(COLA="world", COLB=2.72),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_with_implicit_struct_malformed(session):
+    """
+    Test malformed implicit struct string, which should raise an error.
+    """
+    data = [[1, 2]]
+    # Missing type for second column
+    schema_str = "col1: int, col2"
+
+    with pytest.raises(ValueError) as ex_info:
+        session.create_dataframe(data, schema=schema_str)
+    # Check that the error message mentions the problem
+    assert (
+        "col2" in str(ex_info.value).lower()
+    ), f"Unexpected error message: {ex_info.value}"
+
+
+def test_create_dataframe_with_implicit_struct_datetime(session):
+    """
+    Another example mixing basic data with boolean and dates, ensuring
+    the implicit struct string handles them properly.
+    """
+    data = [
+        [True, datetime.date(2020, 1, 1)],
+        [False, datetime.date(2021, 12, 31)],
+    ]
+    schema_str = "flag: boolean, d: date"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Check schema
+    assert len(df.schema.fields) == 2
+    expected_fields = [
+        StructField("FLAG", BooleanType(), nullable=True),
+        StructField("D", DateType(), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Check rows
+    result = df.collect()
+    expected_rows = [
+        Row(FLAG=True, D=datetime.date(2020, 1, 1)),
+        Row(FLAG=False, D=datetime.date(2021, 12, 31)),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_invalid_schema_string_not_struct(session):
+    """
+    Verifies that a non-struct schema string (e.g. "int") raises ValueError
+    because the resulting type is not an instance of StructType.
+    """
+    data = [1, 2, 3]
+    # "int" does not represent a struct, so we expect a ValueError
+    with pytest.raises(ValueError) as ex_info:
+        session.create_dataframe(data, schema="int")
+
+    # Check that the error message mentions "Invalid schema string" or "struct type"
+    err_msg = str(ex_info.value).lower()
+    assert (
+        "invalid schema string" in err_msg and "struct type" in err_msg
+    ), f"Expected error message about invalid schema string or struct type. Got: {ex_info.value}"
+
+
+def test_create_dataframe_implicit_struct_not_null_single(session):
+    """
+    Test a schema with one NOT NULL field.
+    """
+    data = [
+        [1],
+        [2],
+    ]
+    # One field 'col1: int not null'
+    schema_str = "col1: int NOT    NULL"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert isinstance(df.schema, StructType)
+    assert len(df.schema.fields) == 1
+
+    expected_field = StructField("COL1", LongType(), nullable=False)
+    assert df.schema.fields[0] == expected_field
+
+    # Collect rows
+    result = df.collect()
+    expected_rows = [Row(COL1=1), Row(COL1=2)]
+    assert result == expected_rows
+
+
+def test_create_dataframe_implicit_struct_not_null_multiple(session):
+    """
+    Test a schema with multiple fields, one of which is NOT NULL.
+    """
+    data = [
+        [10, "foo"],
+        [20, "bar"],
+    ]
+    schema_str = "col1: int not null, col2: string"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 2
+
+    expected_fields = [
+        StructField("COL1", LongType(), nullable=False),
+        StructField("COL2", StringType(), nullable=True),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(COL1=10, COL2="foo"),
+        Row(COL1=20, COL2="bar"),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_implicit_struct_not_null_nested(session):
+    """
+    Test a schema with nested array and a NOT NULL decimal field.
+    """
+    data = [
+        [["1", "2"], Decimal("3.14")],
+        [["5", "6"], Decimal("2.72")],
+    ]
+    schema_str = "arr: array<string>, val: decimal(10,2) NOT NULL"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 2
+
+    expected_fields = [
+        StructField("ARR", ArrayType(StringType()), nullable=True),
+        StructField("VAL", DecimalType(10, 2), nullable=False),
+    ]
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(ARR='[\n  "1",\n  "2"\n]', VAL=Decimal("3.14")),
+        Row(ARR='[\n  "5",\n  "6"\n]', VAL=Decimal("2.72")),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_implicit_struct_not_null_mixed(session):
+    """
+    Test a schema mixing NOT NULL columns with normal columns,
+    plus various data types like boolean or date.
+    """
+    data = [
+        [True, datetime.date(2020, 1, 1), "Hello"],
+        [False, datetime.date(2021, 1, 2), "World"],
+    ]
+    schema_str = "flag: boolean not null, dt: date, txt: string not null"
+
+    df = session.create_dataframe(data, schema=schema_str)
+    # Verify schema
+    assert len(df.schema.fields) == 3
+
+    expected_fields = [
+        StructField("FLAG", BooleanType(), nullable=False),
+        StructField("DT", df.schema.fields[1].datatype, nullable=True),
+        StructField("TXT", StringType(), nullable=False),
+    ]
+
+    assert df.schema.fields == expected_fields
+
+    # Verify rows
+    result = df.collect()
+    expected_rows = [
+        Row(FLAG=True, DT=datetime.date(2020, 1, 1), TXT="Hello"),
+        Row(FLAG=False, DT=datetime.date(2021, 1, 2), TXT="World"),
+    ]
+    assert result == expected_rows
+
+
+def test_create_dataframe_implicit_struct_not_null_invalid(session):
+    data = [1, 2, 3]
+    schema_str = "int not null"  # not a struct => ValueError
+    with pytest.raises(ValueError, match="'intnotnull' is not a supported type"):
+        session.create_dataframe(data, schema=schema_str)
