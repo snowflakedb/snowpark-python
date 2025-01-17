@@ -18,6 +18,7 @@ import platform
 import random
 import re
 import string
+import sys
 import threading
 import traceback
 import zipfile
@@ -311,8 +312,6 @@ def get_python_version() -> str:
 
 @lru_cache
 def is_interactive() -> bool:
-    import sys
-
     return hasattr(sys, "ps1") or sys.flags.interactive or "snowbook" in sys.modules
 
 
