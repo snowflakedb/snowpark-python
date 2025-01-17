@@ -1281,6 +1281,7 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_file_format_if_exists_statement(format_name),
                     is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT),
                 )
             )
 
