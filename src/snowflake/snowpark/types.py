@@ -388,11 +388,8 @@ class ArrayType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_array_type.structured = self.structured
-        if self.element_type is None:
-            raise NotImplementedError(
-                "SNOW-1862700: AST does not support empty element_type."
-            )
-        self.element_type._fill_ast(ast.sp_array_type.ty)
+        if self.element_type is not None:
+            self.element_type._fill_ast(ast.sp_array_type.ty)
 
 
 class MapType(DataType):
@@ -789,8 +786,13 @@ class StructType(DataType):
 
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_struct_type.structured = self.structured
-        for field in self.fields:
-            field._fill_ast(ast.sp_struct_type.fields.add())
+        if self.fields is None:
+            return
+        elif len(self.fields) > 0:
+            for field in self.fields:
+                field._fill_ast(ast.sp_struct_type.fields.list.add())
+        else:
+            ast.sp_struct_type.fields.list.extend([])
 
 
 class VariantType(DataType):
