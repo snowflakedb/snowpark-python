@@ -96,7 +96,14 @@ def check_result_with_and_without_breakdown(session, df):
 def check_summary_breakdown_value(patch_send, expected_summary):
     _, kwargs = patch_send.call_args
     summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == expected_summary
+    assert summary_value["breakdown_summary"] == expected_summary
+
+
+def check_optimization_skipped_reason(patch_send, expected_reason):
+    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
+    assert (
+        summary_value["query_breakdown_optimization_skipped_reason"] == expected_reason
+    )
 
 
 def test_no_pipeline_breaker_nodes(session):
@@ -134,6 +141,8 @@ def test_no_pipeline_breaker_nodes(session):
     expected_summary = [
         {
             "num_partitions_made": 1,
+            "num_pipeline_breaker_used": 0,
+            "num_relaxed_breaker_used": 1,
         }
     ]
     check_summary_breakdown_value(patch_send, expected_summary)
@@ -174,13 +183,17 @@ def test_large_query_breakdown_external_cte_ref(session):
     patch_send.assert_called_once()
     expected_summary = [
         {
-            "num_external_cte_ref_nodes": 6 if sql_simplifier_enabled else 2,
-            "num_non_pipeline_breaker_nodes": 0 if sql_simplifier_enabled else 2,
-            "num_nodes_below_lower_bound": 28,
-            "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
-            "num_valid_nodes": 0,
-            "num_valid_nodes_relaxed": 0,
+            "failed_partition_summary": {
+                "num_external_cte_ref_nodes": 6 if sql_simplifier_enabled else 2,
+                "num_non_pipeline_breaker_nodes": 0 if sql_simplifier_enabled else 2,
+                "num_nodes_below_lower_bound": 28,
+                "num_nodes_above_upper_bound": 1 if sql_simplifier_enabled else 0,
+                "num_valid_nodes": 0,
+                "num_valid_nodes_relaxed": 0,
+            },
             "num_partitions_made": 0,
+            "num_pipeline_breaker_used": 0,
+            "num_relaxed_breaker_used": 0,
         }
     ]
     check_summary_breakdown_value(patch_send, expected_summary)
@@ -213,14 +226,12 @@ def test_breakdown_at_with_query_node(session):
 
 def test_large_query_breakdown_with_cte_optimization(session):
     """Test large query breakdown works with cte optimized plan"""
-    if not session.cte_optimization_enabled:
-        pytest.skip("CTE optimization is not enabled")
+    session._cte_optimization_enabled = True
 
     if not session.sql_simplifier_enabled:
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled
         set_bounds(session, 60, 90)
-    session._cte_optimization_enabled = True
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
     df1 = df1.join(df0, on=["b"], how="inner")
@@ -231,7 +242,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
         df2 = df2.with_column("a", col("a") + i + col("a"))
         df3 = df3.with_column("b", col("b") + i + col("b"))
 
-    df2 = df2.group_by("a").agg(sum_distinct(col("b")).alias("b"))
+    df2 = df2.select("b", "a")
     df3 = df3.group_by("b").agg(sum_distinct(col("a")).alias("a"))
 
     df4 = df2.union_all(df3).filter(col("a") > 2).with_column("a", col("a") + 1)
@@ -256,14 +267,15 @@ def test_large_query_breakdown_with_cte_optimization(session):
     assert len(queries["post_actions"]) == 1
     assert queries["post_actions"][0].startswith("DROP  TABLE  If  EXISTS")
 
-    patch_send.assert_called_once()
-    _, kwargs = patch_send.call_args
-    summary_value = kwargs["compilation_stage_summary"]
-    assert summary_value["breakdown_failure_summary"] == [
+    expected_summary = [
         {
             "num_partitions_made": 1,
+            "num_pipeline_breaker_used": 1,
+            "num_relaxed_breaker_used": 0,
         }
     ]
+    check_summary_breakdown_value(patch_send, expected_summary)
+    patch_send.assert_called_once()
 
 
 def test_save_as_table(session, large_query_df):
@@ -547,10 +559,7 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
                 ) as patch_send:
                     large_query_df.collect()
 
-    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
-        "active transaction": 1,
-    }
+    check_optimization_skipped_reason(patch_send, {"active transaction": 1})
 
     assert len(history.queries) == 2, history.queries
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
@@ -582,10 +591,9 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
             "Skipping large query breakdown optimization for view/dynamic table plan"
             in caplog.text
         )
-        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
-            "view or dynamic table command": 1,
-        }
+        check_optimization_skipped_reason(
+            patch_send, {"view or dynamic table command": 1}
+        )
 
         with caplog.at_level(logging.DEBUG):
             with patch.object(
@@ -598,10 +606,9 @@ def test_optimization_skipped_with_views_and_dynamic_tables(session, caplog):
             in caplog.text
         )
         patch_send.assert_called_once()
-        summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-        assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
-            "view or dynamic table command": 1,
-        }
+        check_optimization_skipped_reason(
+            patch_send, {"view or dynamic table command": 1}
+        )
     finally:
         Utils.drop_dynamic_table(session, table_name)
         Utils.drop_view(session, view_name)
@@ -656,10 +663,7 @@ def test_optimization_skipped_with_no_active_db_or_schema(
         in caplog.text
     )
     patch_send.assert_called_once()
-    summary_value = patch_send.call_args[1]["compilation_stage_summary"]
-    assert summary_value["snowpark_large_query_breakdown_optimization_skipped"] == {
-        f"no active {db_or_schema}": 1,
-    }
+    check_optimization_skipped_reason(patch_send, {f"no active {db_or_schema}": 1})
 
 
 def test_async_job_with_large_query_breakdown(large_query_df):

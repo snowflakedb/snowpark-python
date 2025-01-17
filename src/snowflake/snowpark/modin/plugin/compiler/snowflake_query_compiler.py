@@ -107,6 +107,7 @@ from snowflake.snowpark.functions import (
     dense_rank,
     first_value,
     floor,
+    get,
     greatest,
     hour,
     iff,
@@ -175,6 +176,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     get_agg_func_to_col_map,
     get_pandas_aggr_func_name,
     get_snowflake_agg_func,
+    is_first_last_in_agg_funcs,
     repr_aggregate_function,
     using_named_aggregations_for_func,
 )
@@ -3800,9 +3802,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             internal_frame.index_column_snowflake_quoted_identifiers
         )
 
+        # We need to check if `first` or `last` are in the aggregation functions,
+        # as we need to ensure a row position column and pass it in as an agg_kwarg
+        # if it is (for the min_by/max_by function).
+        first_last_present = is_first_last_in_agg_funcs(column_to_agg_func)
+        if first_last_present:
+            internal_frame = internal_frame.ensure_row_position_column()
+            agg_kwargs[
+                "_first_last_row_pos_col"
+            ] = internal_frame.row_position_snowflake_quoted_identifier
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
+        if first_last_present:
+            agg_kwargs.pop("_first_last_row_pos_col")
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
         new_data_column_pandas_labels = []
@@ -6047,7 +6060,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # by snowflake engine.
         # If we are using Named Aggregations, we need to do our supported check slightly differently.
         uses_named_aggs = using_named_aggregations_for_func(func)
-        if not check_is_aggregation_supported_in_snowflake(func, kwargs, axis):
+        if not check_is_aggregation_supported_in_snowflake(
+            func, kwargs, axis, _is_df_agg=True
+        ):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas aggregate does not yet support the aggregation {repr_aggregate_function(func, kwargs)} with the given arguments."
             )
@@ -16813,10 +16828,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.not_implemented(
                 "Snowpark pandas doesn't support non-str 'pat' argument"
             )
-        if expand:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas doesn't support 'expand' argument"
-            )
         if regex:
             ErrorMessage.not_implemented(
                 "Snowpark pandas doesn't support 'regex' argument"
@@ -16864,6 +16875,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if np.isnan(n):
                 # Follow pandas behavior
                 return pandas_lit(np.nan)
+            elif n < -1 and not pandas.isnull(pat) and len(str(pat)) > 1:
+                # Follow pandas behavior, which based on our experiments, leaves the input column as is
+                # whenever the above condition is satisfied.
+                new_col = iff(
+                    column.is_null(), pandas_lit(None), array_construct(column)
+                )
             elif n <= 0:
                 # If all possible splits are requested, we just use SQL's split function.
                 new_col = builtin("split")(new_col, pandas_lit(new_pat))
@@ -16907,9 +16924,93 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
-            lambda col_name: output_col(col_name, pat, n)
-        )
+        def output_cols(
+            column: SnowparkColumn, pat: Optional[str], n: int, max_splits: int
+        ) -> list[SnowparkColumn]:
+            """
+            Returns the list of columns that the input column will be split into.
+            This is only used when expand=True.
+            Args:
+                column : SnowparkColumn
+                    Input column
+                pat : str
+                    String to split on
+                n : int
+                    Limit on the number of output splits
+                max_splits : int
+                    Maximum number of achievable splits across all values in the input column.
+                    This is needed to be able to pad rows with fewer splits than desired with nulls.
+            """
+            col = output_col(column, pat, n)
+            final_splits = 0
+
+            if np.isnan(n):
+                # Follow pandas behavior
+                final_splits = 1
+            elif n <= 0:
+                final_splits = max_splits
+            else:
+                final_splits = min(n + 1, max_splits)
+
+            if n < -1 and not pandas.isnull(pat) and len(str(pat)) > 1:
+                # Follow pandas behavior, which based on our experiments, leaves the input column as is
+                # whenever the above condition is satisfied.
+                final_splits = 1
+
+            return [
+                iff(
+                    array_size(col) > pandas_lit(i),
+                    get(col, pandas_lit(i)),
+                    pandas_lit(None),
+                )
+                for i in range(final_splits)
+            ]
+
+        def get_max_splits() -> int:
+            """
+            Returns the maximum number of splits achievable
+            across all values stored in the input column.
+            """
+            splits_as_list_frame = self.str_split(
+                pat=pat,
+                n=-1,
+                expand=False,
+                regex=regex,
+            )._modin_frame
+
+            split_counts_frame = splits_as_list_frame.append_column(
+                "split_counts",
+                array_size(
+                    col(
+                        splits_as_list_frame.data_column_snowflake_quoted_identifiers[0]
+                    )
+                ),
+            )
+
+            max_count_rows = split_counts_frame.ordered_dataframe.agg(
+                max_(
+                    col(split_counts_frame.data_column_snowflake_quoted_identifiers[-1])
+                ).as_("max_count")
+            ).collect()
+
+            return max_count_rows[0][0]
+
+        if expand:
+            cols = output_cols(
+                col(self._modin_frame.data_column_snowflake_quoted_identifiers[0]),
+                pat,
+                n,
+                get_max_splits(),
+            )
+            new_internal_frame = self._modin_frame.project_columns(
+                list(range(len(cols))),
+                cols,
+            )
+        else:
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                lambda col_name: output_col(col_name, pat, n)
+            )
+
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_rsplit(

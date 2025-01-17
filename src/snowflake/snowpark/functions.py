@@ -202,6 +202,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
     LiteralType,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.udf_utils import check_decorator_args
 from snowflake.snowpark._internal.utils import (
@@ -753,17 +754,31 @@ def convert_timezone(
     )
     target_tz = _to_col_if_str(target_timezone, "convert_timezone")
     source_time_to_convert = _to_col_if_str(source_time, "convert_timezone")
-
+    # Build AST here to prevent rearrangement of args in the encoded AST.
+    ast = (
+        build_function_expr(
+            "convert_timezone",
+            [target_timezone, source_time, source_timezone],
+            ignore_null_args=True,
+        )
+        if _emit_ast
+        else None
+    )
     if source_timezone is None:
         return call_builtin(
-            "convert_timezone", target_tz, source_time_to_convert, _emit_ast=_emit_ast
+            "convert_timezone",
+            target_tz,
+            source_time_to_convert,
+            _ast=ast,
+            _emit_ast=False,
         )
     return call_builtin(
         "convert_timezone",
         source_tz,
         target_tz,
         source_time_to_convert,
-        _emit_ast=_emit_ast,
+        _ast=ast,
+        _emit_ast=False,
     )
 
 
@@ -889,7 +904,7 @@ def count_distinct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     return Column(
         FunctionExpression("count", [c._expression for c in cs], is_distinct=True),
         _ast=ast,
-        _emit_ast=_emit_ast,
+        _emit_ast=False,
     )
 
 
@@ -3430,7 +3445,7 @@ def charindex(
     s = _to_col_if_str(source_expr, "charindex")
     # Build AST here to prevent `position` from being recorded as a literal instead of int/None.
     ast = (
-        build_function_expr("char_index", [t, s, position], ignore_null_args=True)
+        build_function_expr("charindex", [t, s, position], ignore_null_args=True)
         if _emit_ast
         else None
     )
@@ -4331,7 +4346,12 @@ def next_day(
         [Row(NEXT_DAY("A", 'FR')=datetime.date(2020, 8, 7)), Row(NEXT_DAY("A", 'FR')=datetime.date(2020, 12, 4))]
     """
     c = _to_col_if_str(date, "next_day")
-    return builtin("next_day", _emit_ast=_emit_ast)(c, Column._to_expr(day_of_week))
+    # Build AST here to prevent `date` from being recorded as a Column instead of a literal and
+    # `day_of_week` from being recorded as a literal instead of Column.
+    ast = build_function_expr("next_day", [date, day_of_week]) if _emit_ast else None
+    return builtin("next_day", _ast=ast, _emit_ast=False)(
+        c, Column._to_expr(day_of_week)
+    )
 
 
 @publicapi
@@ -4354,7 +4374,14 @@ def previous_day(
         [Row(PREVIOUS_DAY("A", 'FR')=datetime.date(2020, 7, 31)), Row(PREVIOUS_DAY("A", 'FR')=datetime.date(2020, 11, 27))]
     """
     c = _to_col_if_str(date, "previous_day")
-    return builtin("previous_day", _emit_ast=_emit_ast)(c, Column._to_expr(day_of_week))
+    # Build AST here to prevent `date` from being recorded as a Column instead of a literal and
+    # `day_of_week` from being recorded as a literal instead of Column.
+    ast = (
+        build_function_expr("previous_day", [date, day_of_week]) if _emit_ast else None
+    )
+    return builtin("previous_day", _ast=ast, _emit_ast=False)(
+        c, Column._to_expr(day_of_week)
+    )
 
 
 @publicapi
@@ -6477,6 +6504,52 @@ def parse_json(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(e, "parse_json")
     return builtin("parse_json", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def from_json(
+    e: ColumnOrName, schema: Union[str, DataType], _emit_ast: bool = True
+) -> Column:
+    """Parses a column contains a JSON string value into a column of the type specified by schema.
+    Schema can be defined as a DataType object or as a compatible type string.
+
+    Example::
+
+        >>> from snowflake.snowpark.types import MapType, StringType
+        >>> df = session.create_dataframe([('{"key": "value"}',),], schema=["a"])
+        >>> df.select(from_json(df.a, MapType(StringType(), StringType()))).show()
+        ----------------------
+        |"from_json(""A"")"  |
+        ----------------------
+        |{                   |
+        |  "key": "value"    |
+        |}                   |
+        ----------------------
+        <BLANKLINE>
+
+    Example::
+
+        >>> df = session.create_dataframe([('[1, 2, 3]',),], schema=["b"])
+        >>> df.select(from_json(df.b, "array<integer>")).show()
+        ----------------------
+        |"from_json(""B"")"  |
+        ----------------------
+        |[                   |
+        |  1,                |
+        |  2,                |
+        |  3                 |
+        |]                   |
+        ----------------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(e, "from_json")
+    if isinstance(schema, str):
+        schema = type_string_to_type_object(schema)
+    return (
+        parse_json(e, _emit_ast=False)
+        .cast(schema, _emit_ast=False)
+        .alias(f"from_json({c.get_name()})", _emit_ast=False)
+    )
 
 
 @publicapi
