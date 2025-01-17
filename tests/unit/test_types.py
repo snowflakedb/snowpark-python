@@ -980,6 +980,18 @@ def test_convert_sp_to_sf_type():
         == "ARRAY(INT NOT NULL)"
     )
     assert convert_sp_to_sf_type(MapType()) == "OBJECT"
+    assert (
+        convert_sp_to_sf_type(MapType(StringType(), StringType(), structured=True))
+        == "MAP(STRING, STRING)"
+    )
+    assert (
+        convert_sp_to_sf_type(
+            MapType(
+                StringType(), StringType(), structured=True, value_contains_null=False
+            )
+        )
+        == "MAP(STRING, STRING NOT NULL)"
+    )
     assert convert_sp_to_sf_type(StructType()) == "OBJECT"
     assert convert_sp_to_sf_type(VariantType()) == "VARIANT"
     assert convert_sp_to_sf_type(GeographyType()) == "GEOGRAPHY"
