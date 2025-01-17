@@ -699,7 +699,13 @@ class SnowflakePlanBuilder:
         return SnowflakePlan(
             queries=queries,
             schema_query=schema_query,
-            post_actions=[Query(drop_table_stmt, is_ddl_on_temp_object=True)],
+            post_actions=[
+                Query(
+                    drop_table_stmt,
+                    is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                )
+            ],
             session=self.session,
             source_plan=source_plan,
         )
@@ -1092,10 +1098,17 @@ class SnowflakePlanBuilder:
             # If creating a temp view, we can't drop any temp object in the post_actions
             # It's okay to leave these temp objects in the current session for now.
             if is_temp:
+                temp_object_names = {
+                    query.temp_obj_name_placeholder[0]
+                    for query in child.queries
+                    if query.temp_obj_name_placeholder
+                }
                 child.post_actions = [
                     post_action
                     for post_action in child.post_actions
-                    if not post_action.sql.lower().strip().startswith("drop")
+                    if post_action.temp_obj_name_placeholder
+                    and post_action.temp_obj_name_placeholder[0]
+                    not in temp_object_names
                 ]
             else:
                 raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
@@ -1360,6 +1373,7 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_table_if_exists_statement(temp_table_name),
                     is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
                 )
             ]
             return SnowflakePlan(
