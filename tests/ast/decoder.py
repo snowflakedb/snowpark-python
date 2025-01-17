@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -12,7 +12,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from google.protobuf.json_format import MessageToDict
 
-from build.lib.snowflake.snowpark.relational_grouped_dataframe import GroupingSets
+from snowflake.snowpark.relational_grouped_dataframe import GroupingSets
 from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
 import snowflake.snowpark.functions
 from snowflake.snowpark.functions import udf, when, sproc
@@ -676,6 +676,9 @@ class Decoder:
                     for kv in expr.seq_map_val.kvs
                 }
 
+            case "sp_datatype_val":
+                return self.decode_data_type_expr(expr.sp_datatype_val.datatype)
+
             case "tuple_val":
                 # vs can be a list of Expr, a single Expr, or ().
                 if hasattr(expr.tuple_val, "vs"):
@@ -803,7 +806,13 @@ class Decoder:
                 return col.is_null()
 
             case "sp_column_sql_expr":
-                return expr.sp_column_sql_expr.sql
+                sql_expr = expr.sp_column_sql_expr.sql
+                # Need to explicitly specify col("*") because of the way sql_expr AST is encoded.
+                return (
+                    snowflake.snowpark.functions.col(sql_expr)
+                    if sql_expr == "*"
+                    else sql_expr
+                )
 
             case "sp_column_string_like":
                 col = self.decode_expr(expr.sp_column_string_like.col)
