@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import math
@@ -1542,7 +1542,7 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
         attr.name
         + SPACE
-        + convert_sp_to_sf_type(attr.datatype)
+        + convert_sp_to_sf_type(attr.datatype, attr.nullable)
         + (NOT_NULL if not attr.nullable else EMPTY_STRING)
         for attr in attributes
     )

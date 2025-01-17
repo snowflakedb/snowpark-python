@@ -37,32 +37,37 @@ body {
           sp_dataframe_schema__struct {
             v {
               fields {
-                column_identifier {
-                  name: "\"A\""
-                }
-                data_type {
-                  sp_string_type {
-                    length {
-                      value: 16777216
+                list {
+                  column_identifier {
+                    name: "\"A\""
+                  }
+                  data_type {
+                    sp_string_type {
+                      length {
+                        value: 16777216
+                      }
                     }
                   }
+                  nullable: true
                 }
-                nullable: true
-              }
-              fields {
-                column_identifier {
-                  name: "\"B\""
+                list {
+                  column_identifier {
+                    name: "\"B\""
+                  }
+                  data_type {
+                    sp_long_type: true
+                  }
+                  nullable: true
                 }
-                data_type {
-                  sp_long_type: true
-                }
-                nullable: true
               }
             }
           }
         }
         src {
+          end_column: 111
+          end_line: 28
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 28
         }
       }
@@ -85,7 +90,10 @@ body {
           bitfield1: 1
         }
         src {
+          end_column: 18
+          end_line: 30
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
           start_line: 30
         }
       }
@@ -114,7 +122,10 @@ body {
           bitfield1: 1
         }
         src {
+          end_column: 29
+          end_line: 32
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
           start_line: 32
         }
       }
@@ -143,7 +154,10 @@ body {
           bitfield1: 1
         }
         src {
+          end_column: 78
+          end_line: 34
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 8
           start_line: 34
         }
         statement_params {

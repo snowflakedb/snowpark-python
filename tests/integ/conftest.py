@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import os
 from typing import Dict
@@ -219,7 +219,6 @@ def session(
     sql_simplifier_enabled,
     local_testing_mode,
     cte_optimization_enabled,
-    multithreading_mode_enabled,
     ast_enabled,
     validate_ast,
     unparser_jar,
@@ -234,10 +233,6 @@ def session(
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
-        .config(
-            "session_parameters",
-            {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled},
-        )
         .create()
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
