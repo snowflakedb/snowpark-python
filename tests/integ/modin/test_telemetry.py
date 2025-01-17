@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import contextlib
+
 import json
 import sys
 from typing import Any, Optional
@@ -144,6 +144,7 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
         "sfqids",
         "func_name",
         "error_msg",
+        "call_count",
     }
     assert data["category"] == "snowpark_pandas"
     assert data["api_calls"] == df1_expected_api_calls + [
@@ -179,6 +180,7 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
         func_name="test_send_func",
         query_history=None,
         api_calls=[],
+        method_call_count=None,
     )
     send_mock.assert_called_with(
         {
@@ -420,37 +422,35 @@ def test_telemetry_getitem_setitem():
 
 
 @pytest.mark.parametrize(
-    "name, expected_func_name, method, expected_query_count, method_implemented",
+    "name, expected_func_name, method, expected_query_count",
     [
         # __repr__ is an extension method, so the class name is shown only once.
-        ["__repr__", "DataFrame.__repr__", lambda df: df.__repr__(), 1, True],
+        ["__repr__", "DataFrame.__repr__", lambda df: df.__repr__(), 1],
         # __iter__ was defined on the DataFrame class, so it is shown twice.
-        ["__iter__", "DataFrame.DataFrame.__iter__", lambda df: df.__iter__(), 0, True],
+        ["__iter__", "DataFrame.DataFrame.__iter__", lambda df: df.__iter__(), 0],
         [
             "__dataframe__",
             "DataFrame.__dataframe__",
             lambda df: df.__dataframe__(),
-            0,
-            False,
+            # The interchange protocol method will trigger a query to convert
+            # the Snowpark pandas dataframe to native pandas.
+            1,
         ],
     ],
 )
 def test_telemetry_private_method(
-    name, expected_func_name, method, expected_query_count, method_implemented
+    name,
+    expected_func_name,
+    method,
+    expected_query_count,
 ):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
     df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
-
-    with SqlCounter(query_count=expected_query_count), (
-        contextlib.nullcontext()
-        if method_implemented
-        else pytest.raises(NotImplementedError)
-    ):
+    with SqlCounter(query_count=expected_query_count):
         method(df)
     # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
     # the telemetry log from the connector to validate
-
     data = _extract_snowpark_pandas_telemetry_log_data(
         expected_func_name=expected_func_name,
         session=df._query_compiler._modin_frame.ordered_dataframe.session,
@@ -560,6 +560,119 @@ def test_telemetry_repr():
         {"name": "Series.property.name_set"},
         {"name": "Series.__repr__"},
     ]
+
+
+@sql_count_checker(query_count=6, join_count=4)
+def test_telemetry_interchange_call_count():
+    s = pd.DataFrame([1, 2, 3, 4])
+    t = pd.DataFrame([5])
+    s.__dataframe__()
+    s.__dataframe__()
+    t.__dataframe__()
+
+    s.iloc[0, 0] = 7
+    s.__dataframe__()
+    s.__dataframe__()
+    t.__dataframe__()
+
+    def _get_data(call):
+        try:
+            return call.to_dict()["message"][TelemetryField.KEY_DATA.value]
+        except Exception:
+            return None
+
+    telemetry_data = [
+        _get_data(call)
+        for call in pd.session._conn._telemetry_client.telemetry._log_batch
+        if _get_data(call) is not None
+        and "func_name" in _get_data(call)
+        and _get_data(call)["func_name"] == "DataFrame.__dataframe__"
+    ]
+    assert len(telemetry_data) == 6
+    # s calls __dataframe__() for the first time.
+    assert telemetry_data[0]["call_count"] == 1
+    # s calls __dataframe__() for the second time.
+    assert telemetry_data[1]["call_count"] == 2
+    # t calls __dataframe__() for the first time.
+    assert telemetry_data[2]["call_count"] == 1
+    # the new version of s calls __dataframe__() for the first time.
+    assert telemetry_data[3]["call_count"] == 1
+    # the new version of s calls __dataframe__() for the second time.
+    assert telemetry_data[4]["call_count"] == 2
+    # t calls __dataframe__() for the second time.
+    assert telemetry_data[5]["call_count"] == 2
+
+
+@sql_count_checker(query_count=4)
+def test_telemetry_func_call_count():
+    s = pd.DataFrame([1, 2, np.nan, 4])
+    t = pd.DataFrame([5])
+
+    s.__repr__()
+    s.__repr__()
+    s.__repr__()
+
+    t.__repr__()
+
+    def _get_data(call):
+        try:
+            return call.to_dict()["message"][TelemetryField.KEY_DATA.value]
+        except Exception:
+            return None
+
+    telemetry_data = [
+        _get_data(call)
+        for call in pd.session._conn._telemetry_client.telemetry._log_batch
+        if _get_data(call) is not None
+        and "func_name" in _get_data(call)
+        and _get_data(call)["func_name"] == "DataFrame.__repr__"
+    ]
+
+    # second to last call from telemetry data
+    # s called __repr__() 3 times.
+    assert telemetry_data[-2]["call_count"] == 3
+
+    # last call from telemetry data
+    # t called __repr__() 1 time.
+    assert telemetry_data[-1]["call_count"] == 1
+
+
+@sql_count_checker(query_count=3)
+def test_telemetry_multiple_func_call_count():
+    s = pd.DataFrame([1, 2, np.nan, 4])
+
+    s.__repr__()
+    s.__repr__()
+    s.__dataframe__()
+
+    def _get_data(call):
+        try:
+            return call.to_dict()["message"][TelemetryField.KEY_DATA.value]
+        except Exception:
+            return None
+
+    repr_telemetry_data = [
+        _get_data(call)
+        for call in pd.session._conn._telemetry_client.telemetry._log_batch
+        if _get_data(call) is not None
+        and "func_name" in _get_data(call)
+        and _get_data(call)["func_name"] == "DataFrame.__repr__"
+    ]
+    dataframe_telemetry_data = [
+        _get_data(call)
+        for call in pd.session._conn._telemetry_client.telemetry._log_batch
+        if _get_data(call) is not None
+        and "func_name" in _get_data(call)
+        and _get_data(call)["func_name"] == "DataFrame.__dataframe__"
+    ]
+
+    # last call from telemetry data
+    # s called __repr__() 2 times.
+    assert repr_telemetry_data[-1]["call_count"] == 2
+
+    # last call from telemetry data
+    # s called __dataframe__() 2 times.
+    assert dataframe_telemetry_data[-1]["call_count"] == 1
 
 
 @sql_count_checker(query_count=0)

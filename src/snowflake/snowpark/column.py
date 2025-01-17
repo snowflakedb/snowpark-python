@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
+import typing
 from typing import Any, Optional, Union
 
 import snowflake.snowpark
@@ -90,6 +91,9 @@ from snowflake.snowpark.types import (
     StringType,
     TimestampTimeZone,
     TimestampType,
+    ArrayType,
+    MapType,
+    StructType,
 )
 from snowflake.snowpark.window import Window, WindowSpec
 
@@ -643,7 +647,7 @@ class Column:
             ast = None
             if _emit_ast:
                 ast = proto.Expr()
-                proto_ast = ast.sp_column_in__seq
+                proto_ast = ast.sp_column_in
                 proto_ast.col.CopyFrom(self._ast)
 
             return Column(Literal(False), _ast=ast, _emit_ast=_emit_ast)
@@ -698,7 +702,7 @@ class Column:
         ast = None
         if _emit_ast:
             ast = proto.Expr()
-            proto_ast = ast.sp_column_in__seq
+            proto_ast = ast.sp_column_in
             proto_ast.col.CopyFrom(self._ast)
             for val in vals:
                 val_ast = proto_ast.values.add()
@@ -916,6 +920,9 @@ class Column:
         if isinstance(to, str):
             to = type_string_to_type_object(to)
 
+        if isinstance(to, (ArrayType, MapType, StructType)):
+            to = to._as_nested()
+
         if self._ast is None:
             _emit_ast = False
 
@@ -951,6 +958,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_desc)
             ast.col.CopyFrom(self._ast)
+            ast.null_order.sp_null_order_default = True
         return Column(
             SortOrder(self._expression, Descending()), _ast=expr, _emit_ast=_emit_ast
         )
@@ -964,7 +972,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.nulls_first.value = True
+            ast.null_order.sp_null_order_nulls_first = True
         return Column(
             SortOrder(self._expression, Descending(), NullsFirst()),
             _ast=expr,
@@ -980,7 +988,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.nulls_first.value = False
+            ast.null_order.sp_null_order_nulls_last = True
         return Column(
             SortOrder(self._expression, Descending(), NullsLast()),
             _ast=expr,
@@ -995,6 +1003,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_asc)
             ast.col.CopyFrom(self._ast)
+            ast.null_order.sp_null_order_default = True
         return Column(
             SortOrder(self._expression, Ascending()), _ast=expr, _emit_ast=_emit_ast
         )
@@ -1008,7 +1017,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.nulls_first.value = True
+            ast.null_order.sp_null_order_nulls_first = True
         return Column(
             SortOrder(self._expression, Ascending(), NullsFirst()),
             _ast=expr,
@@ -1024,7 +1033,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.nulls_first.value = False
+            ast.null_order.sp_null_order_nulls_last = True
         return Column(
             SortOrder(self._expression, Ascending(), NullsLast()),
             _ast=expr,
@@ -1230,30 +1239,37 @@ class Column:
     @publicapi
     def as_(self, alias: str, _emit_ast: bool = True) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias, variant_is_as=True, _emit_ast=_emit_ast)
+        return self.name(alias, variant="as_", _emit_ast=_emit_ast)
 
     @publicapi
     def alias(self, alias: str, _emit_ast: bool = True) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias, variant_is_as=False, _emit_ast=_emit_ast)
+        return self.name(alias, variant="alias", _emit_ast=_emit_ast)
 
     @publicapi
     def name(
-        self, alias: str, variant_is_as: bool = None, _emit_ast: bool = True
+        self,
+        alias: str,
+        variant: typing.Literal["as_", "alias", "name"] = "name",
+        _emit_ast: bool = True,
     ) -> "Column":
         """Returns a new renamed Column."""
         expr = self._expression  # Snowpark expression
         if isinstance(expr, Alias):
             expr = expr.child
-
         ast_expr = None  # Snowpark IR expression
         if _emit_ast and self._ast is not None:
             ast_expr = proto.Expr()
             ast = with_src_position(ast_expr.sp_column_alias)
             ast.col.CopyFrom(self._ast)
             ast.name = alias
-            if variant_is_as is not None:
-                ast.variant_is_as.value = variant_is_as
+            if variant == "as_":
+                ast.fn.sp_column_alias_fn_as = True
+            elif variant == "alias":
+                ast.fn.sp_column_alias_fn_alias = True
+            elif variant == "name":
+                ast.fn.sp_column_alias_fn_name = True
+
         return Column(
             Alias(expr, quote_name(alias)), _ast=ast_expr, _emit_ast=_emit_ast
         )

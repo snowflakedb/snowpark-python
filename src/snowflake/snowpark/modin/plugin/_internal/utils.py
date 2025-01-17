@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import json
 import logging
 import re
@@ -313,8 +314,9 @@ def _create_read_only_table(
     )
     # TODO (SNOW-1669224): pushing read only table creation down to snowpark for general usage
     session.sql(
-        f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} READ ONLY TABLE {readonly_table_name} CLONE {table_name}"
-    ).collect(statement_params=statement_params)
+        f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} READ ONLY TABLE {readonly_table_name} CLONE {table_name}",
+        _emit_ast=False,
+    ).collect(statement_params=statement_params, _emit_ast=False)
 
     return readonly_table_name
 
@@ -389,7 +391,7 @@ def create_ordered_dataframe_with_readonly_temp_table(
                     error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
                 ) from ex
         initial_ordered_dataframe = OrderedDataFrame(
-            DataFrameReference(session.table(readonly_table_name))
+            DataFrameReference(session.table(readonly_table_name, _emit_ast=False))
         )
         # generate a snowflake quoted identifier for row position column that can be used for aliasing
         snowflake_quoted_identifiers = (
@@ -415,7 +417,7 @@ def create_ordered_dataframe_with_readonly_temp_table(
         # with the created snowpark dataframe. In order to get the metadata column access in the created
         # dataframe, we create dataframe through sql which access the corresponding metadata column.
         dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
-        snowpark_df = session.sql(dataframe_sql)
+        snowpark_df = session.sql(dataframe_sql, _emit_ast=False)
 
         result_columns_quoted_identifiers = [
             row_position_snowflake_quoted_identifier

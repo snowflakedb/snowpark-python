@@ -1,15 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from typing import Any, Dict, Iterable, NamedTuple, Optional, Union
-
-from pandas.core.dtypes.common import (
-    is_bool_dtype,
-    is_float_dtype,
-    is_integer_dtype,
-    is_object_dtype,
-    is_string_dtype,
-)
 
 from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
@@ -55,6 +47,13 @@ _TIMESTAMP_TYPE_TIMEZONE_MAPPING = {
 
 def infer_sp_type_from_python_type(p: Any) -> DataType:
     """helper function to map python types (using pandas) to Snowpark types."""
+    from pandas.core.dtypes.common import (
+        is_bool_dtype,
+        is_float_dtype,
+        is_integer_dtype,
+        is_object_dtype,
+        is_string_dtype,
+    )
 
     # TODO SNOW-1826001: refactor this with Snowpark pandas to avoid redundancy.
 
@@ -534,6 +533,8 @@ class ColumnEmulator(PandasSeriesType):
             # Can not use short cut self.isna().any() as this leads to endless recursion
             # due to ColumnEmulator inheriting from a pandas Series.
             nullable = any([isna_helper(obj) for obj in self.values])
+
+            from pandas.core.dtypes.common import is_object_dtype
 
             if is_object_dtype(self.dtype) and len(self) != 0:
                 # Infer from data when object type for the type to become more specific.

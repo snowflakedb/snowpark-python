@@ -68,7 +68,8 @@ foo = udtf(Foo,  output_schema= ["a", "b"],
 
 df = session.create_dataframe(
     [(1, "one o one", 10), (2, "twenty two", 20), (3, "thirty three", 30)]
-).to_df(["a", "b", "c"])
+)
+df = df.to_df(["a", "b", "c"])
 
 class TwoXUDTF:
     def process(self, n: int):
@@ -137,8 +138,10 @@ body {
         handler {
           name: "PrimeSieve"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -207,8 +210,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "lit"
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
                   }
                 }
               }
@@ -314,8 +319,10 @@ body {
           id: 1
           name: "sum_udtf"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -599,8 +606,10 @@ body {
           id: 2
           name: "GeneratorUDTF"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -669,8 +678,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "lit"
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
                   }
                 }
               }
@@ -780,21 +791,27 @@ body {
           id: 3
           name: "Foo"
           object_name {
-            sp_table_name_flat {
-              name: "foo"
+            name {
+              sp_name_flat {
+                name: "foo"
+              }
             }
           }
         }
         immutable: true
         imports {
-          sp_table_name_flat {
-            name: "numpy"
+          name {
+            sp_name_flat {
+              name: "numpy"
+            }
           }
         }
         imports {
-          sp_table_name_structured {
-            name: "seaborn"
-            name: "sns"
+          name {
+            sp_name_structured {
+              name: "seaborn"
+              name: "sns"
+            }
           }
         }
         input_types {
@@ -830,8 +847,10 @@ body {
           }
         }
         name {
-          fn_name_flat {
-            name: "foo"
+          name {
+            sp_name_flat {
+              name: "foo"
+            }
           }
         }
         output_schema {
@@ -1033,7 +1052,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 91
+          start_line: 94
         }
       }
     }
@@ -1054,8 +1073,10 @@ body {
           id: 4
           name: "TwoXUDTF"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -1070,7 +1091,7 @@ body {
             bool_val {
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 99
+                start_line: 100
               }
             }
           }
@@ -1095,7 +1116,7 @@ body {
         parallel: 4
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 99
+          start_line: 100
         }
       }
     }
@@ -1123,14 +1144,14 @@ body {
           string_val {
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 105
+              start_line: 106
             }
             v: "a"
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 105
+          start_line: 106
         }
       }
     }
@@ -1157,7 +1178,7 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 105
+              start_line: 106
             }
           }
         }
@@ -1170,7 +1191,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 105
+          start_line: 106
         }
         variadic: true
       }
@@ -1194,7 +1215,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 105
+          start_line: 106
         }
       }
     }
@@ -1222,8 +1243,10 @@ body {
           id: 5
           name: "TwoXSixXUDTF"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -1238,7 +1261,7 @@ body {
             bool_val {
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 111
+                start_line: 112
               }
             }
           }
@@ -1272,7 +1295,7 @@ body {
         parallel: 4
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 111
+          start_line: 112
         }
       }
     }
@@ -1308,13 +1331,13 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 119
+              start_line: 120
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 119
+          start_line: 120
         }
       }
     }
@@ -1342,7 +1365,7 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 119
+              start_line: 120
             }
           }
         }
@@ -1357,7 +1380,7 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 119
+              start_line: 120
             }
           }
         }
@@ -1370,7 +1393,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 119
+          start_line: 120
         }
         variadic: true
       }
@@ -1394,7 +1417,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 119
+          start_line: 120
         }
       }
     }
@@ -1423,7 +1446,7 @@ body {
             string_val {
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 121
+                start_line: 122
               }
               v: "double"
             }
@@ -1432,7 +1455,7 @@ body {
             string_val {
               src {
                 file: "SRC_POSITION_TEST_MODE"
-                start_line: 121
+                start_line: 122
               }
               v: "six_x"
             }
@@ -1452,20 +1475,20 @@ body {
               string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
-                  start_line: 121
+                  start_line: 122
                 }
                 v: "a"
               }
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 121
+              start_line: 122
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 121
+          start_line: 122
         }
       }
     }
@@ -1486,8 +1509,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -1496,14 +1521,14 @@ body {
               string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
-                  start_line: 121
+                  start_line: 122
                 }
                 v: "a"
               }
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 121
+              start_line: 122
             }
           }
         }
@@ -1518,7 +1543,7 @@ body {
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 121
+              start_line: 122
             }
           }
         }
@@ -1527,8 +1552,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -1537,14 +1564,14 @@ body {
               string_val {
                 src {
                   file: "SRC_POSITION_TEST_MODE"
-                  start_line: 121
+                  start_line: 122
                 }
                 v: "c"
               }
             }
             src {
               file: "SRC_POSITION_TEST_MODE"
-              start_line: 121
+              start_line: 122
             }
           }
         }
@@ -1557,7 +1584,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 121
+          start_line: 122
         }
         variadic: true
       }
@@ -1581,7 +1608,7 @@ body {
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
-          start_line: 121
+          start_line: 122
         }
       }
     }
@@ -1614,5 +1641,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

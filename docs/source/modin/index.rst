@@ -19,5 +19,6 @@ For your convenience, here is all the :doc:`Supported APIs <supported/index>`
     window
     groupby
     resampling
+    interoperability
     numpy
     performance

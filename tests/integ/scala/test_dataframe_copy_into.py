@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -30,9 +30,6 @@ from tests.utils import (
     TestFiles,
     Utils,
     iceberg_supported,
-    add_to_time,
-    local_to_utc_offset_in_hours,
-    running_on_public_ci,
 )
 
 test_file_csv = "testCSV.csv"
@@ -979,18 +976,17 @@ def test_copy_non_csv_transformation(
                     S="string",
                     C="a",
                     D=datetime.date(2022, 4, 1),
-                    T=add_to_time(
-                        datetime.time(4, 11, 11),
-                        datetime.timedelta(hours=-local_to_utc_offset_in_hours()),
+                    T=datetime.time(11, 11, 11),
+                    TS_NTZ=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
                     )
-                    if not running_on_public_ci()
-                    else datetime.time(11, 11, 11),
-                    TS_NTZ=datetime.datetime(2022, 4, 1, 4, 11, 11)
-                    if not running_on_public_ci()
-                    else datetime.datetime(2022, 4, 1, 11, 11, 11),
-                    TS=datetime.datetime(2022, 4, 1, 4, 11, 11)
-                    if not running_on_public_ci()
-                    else datetime.datetime(2022, 4, 1, 11, 11, 11),
+                    .astimezone()
+                    .replace(tzinfo=None),
+                    TS=datetime.datetime(
+                        2022, 4, 1, 11, 11, 11, tzinfo=datetime.timezone.utc
+                    )
+                    .astimezone()
+                    .replace(tzinfo=None),
                     V='{"key":"value"}',
                 )
             ],
