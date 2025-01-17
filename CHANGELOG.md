@@ -52,7 +52,6 @@
 - Added options to column casts that allow renaming or adding fields in StructType columns.
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for `value_contains_null` parameter to MapType.
-- Allow column to cast to StructType.
 
 #### Bug Fixes
 
