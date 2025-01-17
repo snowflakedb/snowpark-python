@@ -1455,7 +1455,9 @@ def test_stored_procedure_with_structured_returns(
     "config.getoption('local_testing_mode', default=False)",
     reason="Structured types are not supported in Local Testing",
 )
-def test_cast_structtype_rename(structured_type_session):
+def test_cast_structtype_rename(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
     data = [
         ({"firstname": "James", "middlename": "", "lastname": "Smith"}, "1991-04-01")
     ]
@@ -1508,7 +1510,9 @@ def test_cast_structtype_rename(structured_type_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Structured types are not supported in Local Testing",
 )
-def test_cast_structtype_add(structured_type_session):
+def test_cast_structtype_add(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
     data = [
         ({"firstname": "James", "middlename": "", "lastname": "Smith"}, "1991-04-01")
     ]
