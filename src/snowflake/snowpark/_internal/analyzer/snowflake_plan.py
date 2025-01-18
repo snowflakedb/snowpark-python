@@ -699,7 +699,13 @@ class SnowflakePlanBuilder:
         return SnowflakePlan(
             queries=queries,
             schema_query=schema_query,
-            post_actions=[Query(drop_table_stmt, is_ddl_on_temp_object=True)],
+            post_actions=[
+                Query(
+                    drop_table_stmt,
+                    is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                )
+            ],
             session=self.session,
             source_plan=source_plan,
         )
@@ -1089,9 +1095,25 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
-            raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
+            # If creating a temp view, we can't drop any temp object in the post_actions
+            # It's okay to leave these temp objects in the current session for now.
+            if is_temp:
+                temp_object_names = {
+                    query.temp_obj_name_placeholder[0]
+                    for query in child.queries
+                    if query.temp_obj_name_placeholder
+                }
+                child.post_actions = [
+                    post_action
+                    for post_action in child.post_actions
+                    if post_action.temp_obj_name_placeholder
+                    and post_action.temp_obj_name_placeholder[0]
+                    not in temp_object_names
+                ]
+            else:
+                raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
 
-        if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
+        if not is_sql_select_statement(child.queries[-1].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         return self.build(
@@ -1259,6 +1281,7 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_file_format_if_exists_statement(format_name),
                     is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT),
                 )
             )
 
@@ -1351,6 +1374,7 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_table_if_exists_statement(temp_table_name),
                     is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
                 )
             ]
             return SnowflakePlan(
