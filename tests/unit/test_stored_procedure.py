@@ -13,7 +13,11 @@ from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBuilder
 from snowflake.snowpark._internal.server_connection import ServerConnection
 from snowflake.snowpark._internal.telemetry import TelemetryClient
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    set_ast_state,
+    AstFlagSource,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import sproc
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
@@ -75,7 +79,10 @@ def test_execute_as_negative():
 
 @mock.patch("snowflake.snowpark.stored_procedure.cleanup_failed_permanent_registration")
 def test_do_register_sp_negative(cleanup_registration_patch):
+    AST_ENABLED = False
+    set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     fake_session = mock.create_autospec(Session)
+    fake_session.ast_enabled = AST_ENABLED
     fake_session._runtime_version_from_requirement = None
     fake_session.get_fully_qualified_name_if_possible = mock.Mock(
         return_value="database.schema"
@@ -83,7 +90,6 @@ def test_do_register_sp_negative(cleanup_registration_patch):
     fake_session._run_query = mock.Mock(side_effect=ProgrammingError())
     fake_session.sproc = StoredProcedureRegistration(fake_session)
     fake_session._packages = {}
-    fake_session.ast_enabled = False
     with pytest.raises(SnowparkSQLException) as ex_info:
         sproc(lambda: 1, session=fake_session, return_type=IntegerType(), packages=[])
     assert ex_info.value.error_code == "1304"
