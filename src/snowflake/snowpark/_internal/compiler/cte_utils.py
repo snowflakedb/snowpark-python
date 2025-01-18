@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    LogicalPlan,
     SnowflakeTable,
     WithQueryBlock,
 )
@@ -58,7 +59,7 @@ def find_duplicate_subtrees(
     )
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
-    def is_simple_select_entity(node: "TreeNode") -> bool:
+    def is_simple_select_entity(node: LogicalPlan) -> bool:
         """
         Check if the current node is a simple select on top of a SelectEntity, for example:
         select * from TABLE. This check only works with selectable when sql simplifier is enabled.
