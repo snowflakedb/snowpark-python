@@ -16,6 +16,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from google.protobuf.json_format import MessageToDict
 
+from build.lib.snowflake.snowpark.functions import call_table_function
 from build.lib.snowflake.snowpark.relational_grouped_dataframe import GroupingSets
 from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
 import snowflake.snowpark.functions
@@ -212,10 +213,12 @@ class Decoder:
             #     pass
             case "builtin_fn":
                 return self.decode_name_expr(fn_ref_expr.builtin_fn.name)
-            # case "call_table_function_expr":
-            #     pass
-            # case "indirect_table_fn_id_ref":
-            #     pass
+            case "call_table_function_expr":
+                return self.decode_name_expr(fn_ref_expr.call_table_function_expr.name)
+            case "indirect_table_fn_id_ref":
+                return self.symbol_table[
+                    fn_ref_expr.indirect_table_fn_id_ref.id.bitfield1
+                ][0]
             case "indirect_table_fn_name_ref":
                 return self.decode_name_expr(
                     fn_ref_expr.indirect_table_fn_name_ref.name
@@ -546,7 +549,7 @@ class Decoder:
             ] = statement_params_list_map["2"]
         return statement_params
 
-    def decode_expr(self, expr: proto.Expr) -> Any:
+    def decode_expr(self, expr: proto.Expr, **kwargs) -> Any:
         match expr.WhichOneof("variant"):
             # COLUMN BINARY OPERATIONS
             case "add":
@@ -556,11 +559,18 @@ class Decoder:
 
             case "apply_expr":
                 fn_name = self.decode_fn_ref_expr(expr.apply_expr.fn)
-                if hasattr(snowflake.snowpark.functions, fn_name):
-                    fn = getattr(snowflake.snowpark.functions, fn_name)
-                elif expr.apply_expr.fn.sp_fn_ref.id.bitfield1 in self.symbol_table:
-                    fn = self.symbol_table[expr.apply_expr.fn.sp_fn_ref.id.bitfield1][1]
+                if isinstance(fn_name, str):
+                    if hasattr(snowflake.snowpark.functions, fn_name):
+                        fn = getattr(snowflake.snowpark.functions, fn_name)
+                    elif expr.apply_expr.fn.sp_fn_ref.id.bitfield1 in self.symbol_table:
+                        fn = self.symbol_table[
+                            expr.apply_expr.fn.sp_fn_ref.id.bitfield1
+                        ][1]
+                    else:
+                        fn = None
                 else:
+                    # If fn_name is not a string, it is a collection of table functions. Convert it to a list.
+                    fn_name = [name for name in fn_name]
                     fn = None
 
                 # The named arguments are stored as a list of Tuple_String_Expr.
@@ -578,7 +588,33 @@ class Decoder:
                     pos_args = []
 
                 if fn is None:
-                    return self.session.call(fn_name, *pos_args, **named_args)
+                    # Stored procedures, table functions, (and in the future I expect UDTFs maybe) will pass through
+                    # here directly (not through their respective entities) when invoked. Call the right method.
+                    # If a source is provided via kwargs, short-circuit with that.
+                    source = kwargs.get("source", None)
+                    match expr.apply_expr.fn.WhichOneof("variant"):
+                        case "sp_fn_ref":
+                            return self.session.call(fn_name, *pos_args, **named_args)
+                        case "indirect_table_fn_id_ref":
+                            return self.session.table_function(
+                                self.symbol_table[
+                                    expr.apply_expr.fn.indirect_table_fn_id_ref.id.bitfield1
+                                ][1]
+                            )
+                        case "call_table_function_expr" | "indirect_table_fn_name_ref":
+                            if source is "sp_session_table_function":
+                                return self.session.table_function(
+                                    fn_name, *pos_args, **named_args
+                                )
+                            else:
+                                return call_table_function(
+                                    fn_name, *pos_args, **named_args
+                                )
+                        case _:
+                            raise ValueError(
+                                "Unknown function reference type: %s"
+                                % expr.apply_expr.fn.WhichOneof("variant")
+                            )
 
                 result = fn(*pos_args, **named_args)
                 if hasattr(expr, "var_id"):
@@ -1584,8 +1620,11 @@ class Decoder:
                 ][1]
 
             case "sp_session_table_function":
-                fn = self.decode_expr(expr.sp_session_table_function.fn)
-                return self.session.table_function(fn)
+                # Here, self.decode_expr will most likely run Session.call since Session.call does not have an explicit
+                # AST entity. To prevent Session.call from running, give context to self.decode_expr that the caller is
+                # sp_session_table_function entity via kwargs.
+                kwargs = {"source": "sp_session_table_function"}
+                return self.decode_expr(expr.sp_session_table_function.fn, **kwargs)
 
             case "sp_table":
                 assert expr.sp_table.HasField("name")
