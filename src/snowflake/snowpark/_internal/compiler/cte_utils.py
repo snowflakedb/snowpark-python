@@ -10,7 +10,10 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    SnowflakeTable,
+    WithQueryBlock,
+)
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 if TYPE_CHECKING:
@@ -49,7 +52,6 @@ def find_duplicate_subtrees(
     id_parents_map = defaultdict(set)
 
     from snowflake.snowpark._internal.analyzer.select_statement import (
-        Selectable,
         SelectStatement,
         SelectableEntity,
         SelectSnowflakePlan,
@@ -61,7 +63,7 @@ def find_duplicate_subtrees(
         Check if the current node is a simple select on top of a SelectEntity, for example:
         select * from TABLE. This check only works with selectable when sql simplifier is enabled.
         """
-        if isinstance(node, SelectableEntity):
+        if isinstance(node, (SelectableEntity, SnowflakeTable)):
             return True
         if (
             isinstance(node, SelectStatement)
@@ -69,11 +71,7 @@ def find_duplicate_subtrees(
             and isinstance(node.from_, SelectableEntity)
         ):
             return True
-        if (
-            isinstance(node, SnowflakePlan)
-            and (node.source_plan is not None)
-            and isinstance(node.source_plan, (SnowflakePlan, Selectable))
-        ):
+        if isinstance(node, SnowflakePlan) and (node.source_plan is not None):
             return is_simple_select_entity(node.source_plan)
 
         if isinstance(node, SelectSnowflakePlan):
