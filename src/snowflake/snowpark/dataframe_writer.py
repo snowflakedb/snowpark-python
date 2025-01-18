@@ -966,13 +966,14 @@ class DataFrameWriter:
         qualified_table_name = (
             parse_table_name(table_name) if isinstance(table_name, str) else table_name
         )
-
-        target_table = self._dataframe._session.table(qualified_table_name)
-        if target_table.schema != self._dataframe.schema:
+        if not self._dataframe._session._table_exists(qualified_table_name):
             raise SnowparkClientException(
-                f"Schema of the DataFrame: {self._dataframe.schema} does not match the schema of the table {full_table_name}: {target_table.schema}."
+                f"Table {full_table_name} does not exist or not authorized."
             )
-        self.save_as_table(table_name, mode="truncate" if overwrite else "append")
+
+        self.save_as_table(
+            qualified_table_name, mode="truncate" if overwrite else "append"
+        )
 
     insertInto = insert_into
     saveAsTable = save_as_table
