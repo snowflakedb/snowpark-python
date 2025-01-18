@@ -864,7 +864,8 @@ class _AstState:
                 # Nothing (test harness, local code, or explicit server setting) has set the value.
                 # Transition to TENTATIVE state as if local code had set the value.
                 _logger.info(
-                    f"AST state has not been set explicitly. Defaulting to ast_enabled = {self._ast_enabled}."
+                    "AST state has not been set explicitly. Defaulting to ast_enabled = %s.",
+                    self._ast_enabled,
                 )
                 self._state = _AstFlagState.TENTATIVE
             return self._ast_enabled
@@ -887,7 +888,11 @@ class _AstState:
         """
         with self._mutex:
             _logger.debug(
-                f"Setting AST state. Current state: ast_enabled = {self._ast_enabled}, state = {self._state}. Request: source = {source}, enable = {enable}."
+                "Setting AST state. Current state: ast_enabled = %s, state = %s. Request: source = %s, enable = %s.",
+                self._ast_enabled,
+                self._state,
+                source,
+                enable,
             )
             if source == AstFlagSource.TEST:
                 # TEST behaviors override everything.
@@ -897,7 +902,9 @@ class _AstState:
                 return
             if self._state == _AstFlagState.FINALIZED and self._ast_enabled != enable:
                 _logger.warning(
-                    f"Cannot change AST state after it has been finalized. Frozen ast_enabled = {self._ast_enabled}. Ignoring value {enable}."
+                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s.",
+                    self._ast_enabled,
+                    enable,
                 )
                 return
             safe_transition: bool = not (
