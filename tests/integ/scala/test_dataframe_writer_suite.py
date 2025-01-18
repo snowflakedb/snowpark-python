@@ -922,7 +922,10 @@ def test_insert_into(session):
             [["Extra", "Column", 123]],
             schema=["FIRST_NAME", "LAST_NAME", "AGE"],
         )
-        with pytest.raises(SnowparkClientException):
+        with pytest.raises(
+            SnowparkSQLException,
+            match="Insert value list does not match column list expecting 2 but got 3",
+        ):
             df_more_columns.write.insert_into(table_name)
 
         # Negative Test: Schema mismatch, less columns
@@ -930,7 +933,10 @@ def test_insert_into(session):
             [["Column"]],
             schema=["FIRST_NAME"],
         )
-        with pytest.raises(SnowparkClientException):
+        with pytest.raises(
+            SnowparkSQLException,
+            match="Insert value list does not match column list expecting 2 but got 1",
+        ):
             df_less_column.write.insert_into(table_name)
 
         # Negative Test: Schema mismatch, type
@@ -938,11 +944,17 @@ def test_insert_into(session):
             [[[1, 2, 3, 4], False]],
             schema=["FIRST_NAME", "LAST_NAME"],
         )
-        with pytest.raises(SnowparkClientException):
+        with pytest.raises(
+            SnowparkSQLException,
+            match="Expression type does not match column data type",
+        ):
             df_not_same_type.write.insert_into(table_name)
 
         # Negative Test: Table does not exist
-        with pytest.raises(SnowparkClientException):
+        with pytest.raises(
+            SnowparkClientException,
+            match="Table non_existent_table does not exist or not authorized.",
+        ):
             df.write.insert_into("non_existent_table")
 
     finally:
