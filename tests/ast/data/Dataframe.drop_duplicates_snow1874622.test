@@ -315,33 +315,35 @@ body {
           sp_dataframe_schema__struct {
             v {
               fields {
-                column_identifier {
-                  name: "id"
-                }
-                data_type {
-                  sp_integer_type: true
-                }
-              }
-              fields {
-                column_identifier {
-                  name: "name"
-                }
-                data_type {
-                  sp_string_type {
-                    length {
-                    }
+                list {
+                  column_identifier {
+                    name: "id"
+                  }
+                  data_type {
+                    sp_integer_type: true
                   }
                 }
-                nullable: true
-              }
-              fields {
-                column_identifier {
-                  name: "age"
+                list {
+                  column_identifier {
+                    name: "name"
+                  }
+                  data_type {
+                    sp_string_type {
+                      length {
+                      }
+                    }
+                  }
+                  nullable: true
                 }
-                data_type {
-                  sp_integer_type: true
+                list {
+                  column_identifier {
+                    name: "age"
+                  }
+                  data_type {
+                    sp_integer_type: true
+                  }
+                  nullable: true
                 }
-                nullable: true
               }
             }
           }
