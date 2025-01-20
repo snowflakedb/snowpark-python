@@ -65,9 +65,11 @@ _logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
+RELATIVE_PATH_PREFIX = "/"
 SNOWFLAKE_PATH_PREFIXES = [
     STAGE_PREFIX,
     SNOWURL_PREFIX,
+    RELATIVE_PATH_PREFIX,
 ]
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
