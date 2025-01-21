@@ -911,7 +911,7 @@ class DataFrameReader:
 
         return new_schema, schema_to_cast, read_file_transformations, None
 
-    def _infer_schema_from_user_input(
+    def _get_schema_from_user_input(
         self, user_schema: StructType
     ) -> Tuple[List, List, List]:
         """This function accept a user input structtype and return schemas needed for reading semi-structured file"""
@@ -961,15 +961,18 @@ class DataFrameReader:
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
+        use_user_schema = False
 
         if self._user_schema:
             (
                 new_schema,
                 schema_to_cast,
                 read_file_transformations,
-            ) = self._infer_schema_from_user_input(self._user_schema)
+            ) = self._get_schema_from_user_input(self._user_schema)
             schema = new_schema
             self._cur_options["INFER_SCHEMA"] = False
+            use_user_schema = True
+
         elif self._infer_schema:
             (
                 new_schema,
@@ -996,6 +999,7 @@ class DataFrameReader:
                             transformations=read_file_transformations,
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
+                            use_user_schema=use_user_schema,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -1014,6 +1018,7 @@ class DataFrameReader:
                     transformations=read_file_transformations,
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
+                    use_user_schema=use_user_schema,
                 ),
             )
         df._reader = self
