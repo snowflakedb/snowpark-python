@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#
 # This script assumes the target Cloud Workspace specified as the command-line argument has the build target.
 # To make sure this is the case, run bazel build //Snowpark/ast:ast_proto && bazel build //Snowpark/unparser && bazel run //Snowpark/unparser.
 # The bazel build commands will create the proto and unparser.jar files, whereas bazel run will create the run-files directory.

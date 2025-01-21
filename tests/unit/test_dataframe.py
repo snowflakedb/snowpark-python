@@ -22,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlanBu
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
 from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.dataframe import _get_unaliased
 from snowflake.snowpark.exceptions import SnowparkCreateDynamicTableException
 from snowflake.snowpark.session import Session
@@ -140,10 +141,12 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
 
 
 def test_select_negative():
+    AST_ENABLED = False
+    set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     fake_session = mock.create_autospec(snowflake.snowpark.session.Session)
+    fake_session.ast_enabled = AST_ENABLED
     fake_session._analyzer = mock.MagicMock()
     fake_session._ast_batch = mock.create_autospec(AstBatch)
-    fake_session.ast_enabled = False
     df = DataFrame(fake_session)
     with pytest.raises(TypeError) as exc_info:
         df.select(123)
