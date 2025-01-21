@@ -162,7 +162,7 @@ import sys
 import typing
 from random import randint
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, Tuple, Union, overload
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark.table_function
@@ -189,11 +189,12 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
+    build_function_expr,
     create_ast_for_column,
+    make_proto_expr,
     set_builtin_fn_alias,
     snowpark_expression_to_ast,
     with_src_position,
-    build_function_expr,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
@@ -205,11 +206,11 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import check_decorator_args
 from snowflake.snowpark._internal.utils import (
+    check_create_map_parameter,
     parse_duration_string,
     parse_positional_args_to_list,
     publicapi,
     validate_object_name,
-    check_create_map_parameter,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -244,6 +245,9 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 
 # check function to allow test_dataframe_alias_negative to pass in AST mode.
@@ -369,7 +373,7 @@ def lit(
     """
 
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         if datatype is None:
             build_builtin_fn_apply(ast, "lit", literal)
         else:
@@ -402,12 +406,12 @@ def sql_expr(sql: str, _emit_ast: bool = True) -> Column:
     """
     ast = None
     if _emit_ast:
-        sql_expr_ast = proto.Expr()
+        sql_expr_ast = make_proto_expr()
         ast = with_src_position(sql_expr_ast.sp_column_sql_expr)
         ast.sql = sql
 
         # Capture with ApplyFn in order to restore sql_expr(...) function.
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "sql_expr", sql_expr_ast)
 
     return Column._expr(sql, ast=ast)
@@ -705,7 +709,7 @@ def bround(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "bround", col, scale)
 
     col = _to_col_if_str(col, "bround")
@@ -876,7 +880,7 @@ def count(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "count", e)
 
     c = _to_col_if_str(e, "count")
@@ -906,7 +910,7 @@ def count_distinct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "count_distinct", *cols)
 
     cs = [_to_col_if_str(c, "count_distinct") for c in cols]
@@ -1517,7 +1521,7 @@ def explode(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "explode", col)
 
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(False))
@@ -1575,7 +1579,7 @@ def explode_outer(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "explode_outer", col)
 
     func_call = snowflake.snowpark.table_function._ExplodeFunctionCall(col, lit(True))
@@ -1661,7 +1665,7 @@ def flatten(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "flatten", col, path, outer, recursive, mode)
 
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
@@ -1811,7 +1815,7 @@ def random(seed: Optional[int] = None, _emit_ast: bool = True) -> Column:
     # Create AST here to encode whether a seed was supplied by the user or not.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         args = (seed,) if seed is not None else ()
         build_builtin_fn_apply(ast, "random", *args)
 
@@ -2015,7 +2019,7 @@ def to_double(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "to_double", e, fmt)
 
     c = _to_col_if_str(e, "to_double")
@@ -2352,7 +2356,7 @@ def format_number(col: ColumnOrName, d: Union[Column, int], _emit_ast: bool = Tr
 
     # AST.
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "format_number", col, d)
         c._ast = ast
 
@@ -2890,7 +2894,7 @@ def struct(*cols: ColumnOrName, _emit_ast: bool = True) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "struct", *cols)
 
     def flatten_col_list(obj):
@@ -3028,7 +3032,7 @@ def round(
 
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "round", e, scale)
 
     col = builtin("round", _ast=ast, _emit_ast=False)(c, scale_col)
@@ -3200,7 +3204,7 @@ def substring_index(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "substring_index", text, delim, count)
 
     s = _to_col_if_str(text, "substring_index")
@@ -3292,7 +3296,7 @@ def regexp_extract(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "regexp_extract", value, regexp, idx)
 
     value = _to_col_if_str(value, "regexp_extract")
@@ -3922,7 +3926,7 @@ def date_format(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "date_format", c, fmt)
 
     ans = to_char(
@@ -4032,7 +4036,7 @@ def to_timestamp_ntz(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "to_timestamp_ntz", e, fmt)
 
     c = _to_col_if_str(e, "to_timestamp_ntz")
@@ -4061,7 +4065,7 @@ def to_timestamp_ltz(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "to_timestamp_ltz", e, fmt)
 
     c = _to_col_if_str(e, "to_timestamp_ltz")
@@ -4090,7 +4094,7 @@ def to_timestamp_tz(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "to_timestamp_tz", e, fmt)
 
     c = _to_col_if_str(e, "to_timestamp_tz")
@@ -4134,7 +4138,7 @@ def from_utc_timestamp(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "from_utc_timestamp", e, tz)
 
     c = _to_col_if_str(e, "from_utc_timestamp")
@@ -4173,7 +4177,7 @@ def to_utc_timestamp(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "to_utc_timestamp", e, tz)
 
     c = _to_col_if_str(e, "to_utc_timestamp")
@@ -4218,7 +4222,7 @@ def to_date(
 
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         args = (e, fmt) if fmt is not None else (e,)
         build_builtin_fn_apply(ast, "to_date", *args)
     ans._ast = ast
@@ -4786,7 +4790,7 @@ def array_except(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(
             ast,
             "array_except",
@@ -5227,7 +5231,7 @@ def sequence(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "sequence", start, stop, step)
 
     start_col = _to_col_if_str(start, "sequence")
@@ -5276,7 +5280,7 @@ def date_add(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "date_add", col, num_of_days)
 
     # Convert the input to a column if it is a string
@@ -5319,7 +5323,7 @@ def date_sub(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "date_sub", col, num_of_days)
 
     # Convert the input parameters to the appropriate type
@@ -5392,7 +5396,7 @@ def daydiff(col1: ColumnOrName, col2: ColumnOrName, _emit_ast: bool = True) -> C
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "daydiff", col1, col2)
 
     col1 = _to_col_if_str(col1, "daydiff")
@@ -5444,7 +5448,7 @@ def trunc(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "trunc", e, scale)
 
     c = _to_col_if_str(e, "trunc")
@@ -5554,7 +5558,7 @@ def date_from_parts(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "date_from_parts", y, m, d)
 
     y_col = _to_col_if_str_or_int(y, "date_from_parts")
@@ -6121,7 +6125,7 @@ def time_from_parts(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(
             ast, "time_from_parts", hour, minute, second, nanoseconds
         )
@@ -6194,7 +6198,7 @@ def timestamp_from_parts(*args, _emit_ast: bool = True, **kwargs) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "timestamp_from_parts", *args)
 
     ans = builtin("timestamp_from_parts", _emit_ast=False)(
@@ -6235,7 +6239,7 @@ def timestamp_ltz_from_parts(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(
             ast, func_name, year, month, day, hour, minute, second, nanoseconds
         )
@@ -6342,7 +6346,7 @@ def timestamp_tz_from_parts(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(
             ast,
             func_name,
@@ -6730,7 +6734,7 @@ def array_remove(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "array_remove", array, element)
 
     a = _to_col_if_str(array, "array_remove")
@@ -7214,7 +7218,7 @@ def size(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "size", col)
 
     c = _to_col_if_str(col, "size")
@@ -7541,7 +7545,7 @@ def ln(c: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "ln", c)
 
     c = _to_col_if_str(c, "ln")
@@ -7563,7 +7567,7 @@ def asc(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "asc", c)
 
     c = _to_col_if_str(c, "asc")
@@ -7586,7 +7590,7 @@ def asc_nulls_first(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "asc_nulls_first", c)
 
     c = _to_col_if_str(c, "asc_nulls_first")
@@ -7609,7 +7613,7 @@ def asc_nulls_last(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "asc_nulls_last", c)
 
     c = _to_col_if_str(c, "asc_nulls_last")
@@ -7632,7 +7636,7 @@ def desc(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "desc", c)
 
     c = _to_col_if_str(c, "desc")
@@ -7656,7 +7660,7 @@ def desc_nulls_first(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "desc_nulls_first", c)
 
     c = _to_col_if_str(c, "desc_nulls_first")
@@ -7679,7 +7683,7 @@ def desc_nulls_last(c: ColumnOrName, _emit_ast: bool = True) -> Column:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "desc_nulls_last", c)
     c = _to_col_if_str(c, "desc_nulls_last")
     ans = c.desc_nulls_last(_emit_ast=False)
@@ -7803,7 +7807,7 @@ def cast(
 
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "cast", column, to)
 
     c = _to_col_if_str(column, "cast")
@@ -7839,7 +7843,7 @@ def try_cast(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "try_cast", column, to)
 
     c = _to_col_if_str(column, "try_cast")
@@ -7890,7 +7894,7 @@ def as_decimal(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "as_decimal", variant, precision, scale)
 
     ans = _as_decimal_or_number("as_decimal", variant, precision, scale)
@@ -8366,7 +8370,7 @@ def when(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         expr = with_src_position(ast.sp_column_case_when)
         case_expr = with_src_position(expr.cases.add())
         build_expr_from_snowpark_column_or_sql_str(case_expr.condition, condition)
@@ -8471,7 +8475,7 @@ def in_(
     if _emit_ast:
         # MultipleExpression uses _expression field from columns, which will drop the column info/its ast.
         # Fix here by constructing ast based on current column expressions.
-        list_arg = proto.Expr()
+        list_arg = make_proto_expr()
         list_ast = with_src_position(list_arg.list_val)
         for col in cols:
             col_ast = list_ast.vs.add()
@@ -8486,14 +8490,14 @@ def in_(
             ):
                 continue
 
-            val_ast = proto.Expr()
+            val_ast = make_proto_expr()
             if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
                 val._set_ast_ref(val_ast)
             else:
                 build_expr_from_python_val(val_ast, val)
             values_args.append(val_ast)
 
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "in_", list_arg, *values_args)
 
     vals = parse_positional_args_to_list(*vals)
@@ -8684,7 +8688,7 @@ def lag(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "lag", e, offset, default_value, ignore_nulls)
 
     c = _to_col_if_str(e, "lag")
@@ -8728,7 +8732,7 @@ def lead(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "lead", e, offset, default_value, ignore_nulls)
 
     c = _to_col_if_str(e, "lead")
@@ -8759,7 +8763,7 @@ def last_value(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "last_value", e, ignore_nulls)
 
     c = _to_col_if_str(e, "last_value")
@@ -8787,7 +8791,7 @@ def first_value(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "first_value", e, ignore_nulls)
 
     c = _to_col_if_str(e, "last_value")
@@ -8919,7 +8923,7 @@ def listagg(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "listagg", e, delimiter, is_distinct)
 
     c = _to_col_if_str(e, "listagg")
@@ -9972,7 +9976,7 @@ def call_udf(udf_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True) -> C
     # AST.
     if _emit_ast:
         args_list = parse_positional_args_to_list(*args)
-        ast = proto.Expr()
+        ast = make_proto_expr()
         # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
         #       Python objects are passed.
         build_builtin_fn_apply(
@@ -10023,7 +10027,7 @@ def call_table_function(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_call_table_function_apply(ast, function_name, *args, **kwargs)
 
     func_call = snowflake.snowpark.table_function.TableFunctionCall(
@@ -10053,7 +10057,7 @@ def table_function(function_name: str, _emit_ast: bool = True) -> Callable:
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "table_function", function_name)
     fn._ast = ast
 
@@ -10064,7 +10068,7 @@ def table_function(function_name: str, _emit_ast: bool = True) -> Callable:
 def call_function(
     function_name: str,
     *args: ColumnOrLiteral,
-    _ast: proto.Expr = None,
+    _ast: Optional["proto.Expr"] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
@@ -10093,7 +10097,7 @@ def call_function(
 
 @publicapi
 def function(
-    function_name: str, _ast: proto.Expr = None, _emit_ast: bool = True
+    function_name: str, _ast: Optional["proto.Expr"] = None, _emit_ast: bool = True
 ) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
@@ -10134,14 +10138,14 @@ def _call_function(
     *args: ColumnOrLiteral,
     api_call_source: Optional[str] = None,
     is_data_generator: bool = False,
-    _ast: proto.Expr = None,
+    _ast: Optional["proto.Expr"] = None,
     _emit_ast: bool = True,
 ) -> Column:
 
     args_list = parse_positional_args_to_list(*args)
     ast = _ast
     if ast is None and _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
         #       Python objects are passed.
         build_builtin_fn_apply(
@@ -10428,7 +10432,7 @@ def unix_timestamp(
     # AST.
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         build_builtin_fn_apply(ast, "unix_timestamp", e, fmt)
 
     ans = date_part(
@@ -10513,7 +10517,7 @@ def make_interval(
     """
     ast = None
     if _emit_ast:
-        ast = proto.Expr()
+        ast = make_proto_expr()
         # Encode the parameters as kwargs to make them more readable.
         # If any of the parameters are None, ignore them.
         kwargs = {}
