@@ -33,7 +33,10 @@ body {
           }
         }
         src {
+          end_column: 41
+          end_line: 25
           file: 2
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -62,7 +65,10 @@ body {
           }
         }
         src {
+          end_column: 27
+          end_line: 27
           file: 2
+          start_column: 14
           start_line: 27
         }
       }

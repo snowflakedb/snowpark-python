@@ -39,7 +39,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 25
           file: 2
+          start_column: 14
           start_line: 25
         }
         variant {
@@ -68,7 +71,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 27
           file: 2
+          start_column: 14
           start_line: 27
         }
         variant {
@@ -102,7 +108,10 @@ body {
                   }
                 }
                 src {
+                  end_column: 35
+                  end_line: 29
                   file: 2
+                  start_column: 28
                   start_line: 29
                 }
               }
@@ -118,13 +127,19 @@ body {
                   }
                 }
                 src {
+                  end_column: 46
+                  end_line: 29
                   file: 2
+                  start_column: 39
                   start_line: 29
                 }
               }
             }
             src {
+              end_column: 46
+              end_line: 29
               file: 2
+              start_column: 28
               start_line: 29
             }
           }
@@ -147,7 +162,10 @@ body {
           }
         }
         src {
+          end_column: 47
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
       }
@@ -178,7 +196,10 @@ body {
                   }
                 }
                 src {
+                  end_column: 62
+                  end_line: 29
                   file: 2
+                  start_column: 55
                   start_line: 29
                 }
               }
@@ -188,7 +209,10 @@ body {
             }
             name: "num1"
             src {
+              end_column: 76
+              end_line: 29
               file: 2
+              start_column: 55
               start_line: 29
             }
           }
@@ -206,7 +230,10 @@ body {
                   }
                 }
                 src {
+                  end_column: 85
+                  end_line: 29
                   file: 2
+                  start_column: 78
                   start_line: 29
                 }
               }
@@ -216,7 +243,10 @@ body {
             }
             name: "num2"
             src {
+              end_column: 99
+              end_line: 29
               file: 2
+              start_column: 78
               start_line: 29
             }
           }
@@ -232,7 +262,10 @@ body {
               }
             }
             src {
+              end_column: 108
+              end_line: 29
               file: 2
+              start_column: 101
               start_line: 29
             }
           }
@@ -245,7 +278,10 @@ body {
           }
         }
         src {
+          end_column: 109
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
         variadic: true

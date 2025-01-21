@@ -38,7 +38,10 @@ body {
     expr {
       sp_range {
         src {
+          end_column: 29
+          end_line: 25
           file: 2
+          start_column: 12
           start_line: 25
         }
         start: 10
@@ -64,7 +67,10 @@ body {
           value: 10
         }
         src {
+          end_column: 32
+          end_line: 27
           file: 2
+          start_column: 12
           start_line: 27
         }
         start: 1
@@ -90,7 +96,10 @@ body {
           value: 10
         }
         src {
+          end_column: 35
+          end_line: 29
           file: 2
+          start_column: 12
           start_line: 29
         }
         start: 1
@@ -113,7 +122,10 @@ body {
     expr {
       sp_range {
         src {
+          end_column: 34
+          end_line: 31
           file: 2
+          start_column: 12
           start_line: 31
         }
         start: 1
@@ -136,7 +148,10 @@ body {
     expr {
       sp_range {
         src {
+          end_column: 37
+          end_line: 33
           file: 2
+          start_column: 12
           start_line: 33
         }
         start: 1

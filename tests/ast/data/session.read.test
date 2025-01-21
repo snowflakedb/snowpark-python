@@ -59,13 +59,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
+              end_column: 26
+              end_line: 25
               file: 2
+              start_column: 14
               start_line: 25
             }
           }
         }
         src {
+          end_column: 53
+          end_line: 25
           file: 2
+          start_column: 14
           start_line: 25
         }
       }
@@ -87,13 +93,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
+              end_column: 26
+              end_line: 27
               file: 2
+              start_column: 14
               start_line: 27
             }
           }
         }
         src {
+          end_column: 59
+          end_line: 27
           file: 2
+          start_column: 14
           start_line: 27
         }
       }
@@ -115,13 +127,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
+              end_column: 26
+              end_line: 29
               file: 2
+              start_column: 14
               start_line: 29
             }
           }
         }
         src {
+          end_column: 55
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
       }
@@ -143,13 +161,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
+              end_column: 26
+              end_line: 31
               file: 2
+              start_column: 14
               start_line: 31
             }
           }
         }
         src {
+          end_column: 61
+          end_line: 31
           file: 2
+          start_column: 14
           start_line: 31
         }
       }
@@ -171,13 +195,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
+              end_column: 26
+              end_line: 33
               file: 2
+              start_column: 14
               start_line: 33
             }
           }
         }
         src {
+          end_column: 53
+          end_line: 33
           file: 2
+          start_column: 14
           start_line: 33
         }
       }
@@ -199,13 +229,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
+              end_column: 26
+              end_line: 35
               file: 2
+              start_column: 14
               start_line: 35
             }
           }
         }
         src {
+          end_column: 53
+          end_line: 35
           file: 2
+          start_column: 14
           start_line: 35
         }
       }
@@ -233,19 +269,28 @@ body {
                 reader {
                   sp_dataframe_reader_init {
                     src {
+                      end_column: 26
+                      end_line: 37
                       file: 2
+                      start_column: 14
                       start_line: 37
                     }
                   }
                 }
                 src {
+                  end_column: 55
+                  end_line: 37
                   file: 2
+                  start_column: 14
                   start_line: 37
                 }
                 value {
                   bool_val {
                     src {
+                      end_column: 55
+                      end_line: 37
                       file: 2
+                      start_column: 14
                       start_line: 37
                     }
                     v: true
@@ -254,13 +299,19 @@ body {
               }
             }
             src {
+              end_column: 84
+              end_line: 37
               file: 2
+              start_column: 14
               start_line: 37
             }
             value {
               bool_val {
                 src {
+                  end_column: 84
+                  end_line: 37
                   file: 2
+                  start_column: 14
                   start_line: 37
                 }
                 v: true
@@ -269,7 +320,10 @@ body {
           }
         }
         src {
+          end_column: 110
+          end_line: 37
           file: 2
+          start_column: 14
           start_line: 37
         }
       }
@@ -295,7 +349,10 @@ body {
               _2 {
                 bool_val {
                   src {
+                    end_column: 80
+                    end_line: 39
                     file: 2
+                    start_column: 14
                     start_line: 39
                   }
                   v: true
@@ -307,7 +364,10 @@ body {
               _2 {
                 bool_val {
                   src {
+                    end_column: 80
+                    end_line: 39
                     file: 2
+                    start_column: 14
                     start_line: 39
                   }
                   v: true
@@ -317,19 +377,28 @@ body {
             reader {
               sp_dataframe_reader_init {
                 src {
+                  end_column: 26
+                  end_line: 39
                   file: 2
+                  start_column: 14
                   start_line: 39
                 }
               }
             }
             src {
+              end_column: 80
+              end_line: 39
               file: 2
+              start_column: 14
               start_line: 39
             }
           }
         }
         src {
+          end_column: 106
+          end_line: 39
           file: 2
+          start_column: 14
           start_line: 39
         }
       }
@@ -369,14 +438,20 @@ body {
                       pos_args {
                         string_val {
                           src {
+                            end_column: 72
+                            end_line: 43
                             file: 2
+                            start_column: 41
                             start_line: 43
                           }
                           v: "METADATA$FILE_ROW_NUMBER"
                         }
                       }
                       src {
+                        end_column: 72
+                        end_line: 43
                         file: 2
+                        start_column: 41
                         start_line: 43
                       }
                     }
@@ -384,7 +459,10 @@ body {
                   args {
                     string_val {
                       src {
+                        end_column: 104
+                        end_line: 43
                         file: 2
+                        start_column: 14
                         start_line: 43
                       }
                       v: "METADATA$FILE_LAST_MODIFIED"
@@ -395,13 +473,19 @@ body {
                 reader {
                   sp_dataframe_reader_init {
                     src {
+                      end_column: 26
+                      end_line: 43
                       file: 2
+                      start_column: 14
                       start_line: 43
                     }
                   }
                 }
                 src {
+                  end_column: 104
+                  end_line: 43
                   file: 2
+                  start_column: 14
                   start_line: 43
                 }
               }
@@ -441,13 +525,19 @@ body {
               }
             }
             src {
+              end_column: 124
+              end_line: 43
               file: 2
+              start_column: 14
               start_line: 43
             }
           }
         }
         src {
+          end_column: 150
+          end_line: 43
           file: 2
+          start_column: 14
           start_line: 43
         }
       }

@@ -151,13 +151,19 @@ body {
             vs {
               list_val {
                 src {
+                  end_column: 43
+                  end_line: 32
                   file: 2
+                  start_column: 13
                   start_line: 32
                 }
                 vs {
                   string_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: "2023-01-01"
@@ -166,7 +172,10 @@ body {
                 vs {
                   int64_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: 101
@@ -175,7 +184,10 @@ body {
                 vs {
                   int64_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: 200
@@ -186,13 +198,19 @@ body {
             vs {
               list_val {
                 src {
+                  end_column: 43
+                  end_line: 32
                   file: 2
+                  start_column: 13
                   start_line: 32
                 }
                 vs {
                   string_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: "2023-01-02"
@@ -201,7 +219,10 @@ body {
                 vs {
                   int64_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: 101
@@ -210,7 +231,10 @@ body {
                 vs {
                   int64_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: 100
@@ -221,13 +245,19 @@ body {
             vs {
               list_val {
                 src {
+                  end_column: 43
+                  end_line: 32
                   file: 2
+                  start_column: 13
                   start_line: 32
                 }
                 vs {
                   string_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: "2023-01-03"
@@ -236,7 +266,10 @@ body {
                 vs {
                   int64_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: 101
@@ -245,7 +278,10 @@ body {
                 vs {
                   int64_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: 300
@@ -256,13 +292,19 @@ body {
             vs {
               list_val {
                 src {
+                  end_column: 43
+                  end_line: 32
                   file: 2
+                  start_column: 13
                   start_line: 32
                 }
                 vs {
                   string_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: "2023-01-04"
@@ -271,7 +313,10 @@ body {
                 vs {
                   int64_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: 102
@@ -280,7 +325,10 @@ body {
                 vs {
                   int64_val {
                     src {
+                      end_column: 43
+                      end_line: 32
                       file: 2
+                      start_column: 13
                       start_line: 32
                     }
                     v: 250
@@ -291,7 +339,10 @@ body {
           }
         }
         src {
+          end_column: 43
+          end_line: 32
           file: 2
+          start_column: 13
           start_line: 32
         }
       }
@@ -320,7 +371,10 @@ body {
           }
         }
         src {
+          end_column: 9
+          end_line: 34
           file: 2
+          start_column: 13
           start_line: 32
         }
         variadic: true
@@ -352,7 +406,10 @@ body {
                   }
                 }
                 src {
+                  end_column: 61
+                  end_line: 36
                   file: 2
+                  start_column: 44
                   start_line: 36
                 }
               }
@@ -360,14 +417,20 @@ body {
             rhs {
               int64_val {
                 src {
+                  end_column: 65
+                  end_line: 36
                   file: 2
+                  start_column: 44
                   start_line: 36
                 }
                 v: 2
               }
             }
             src {
+              end_column: 65
+              end_line: 36
               file: 2
+              start_column: 44
               start_line: 36
             }
           }
@@ -381,7 +444,10 @@ body {
           }
         }
         src {
+          end_column: 66
+          end_line: 36
           file: 2
+          start_column: 14
           start_line: 36
         }
       }
@@ -414,7 +480,10 @@ body {
         group_by: "PRODUCTKEY"
         order_by: "ORDERDATE"
         src {
+          end_column: 9
+          end_line: 43
           file: 2
+          start_column: 25
           start_line: 38
         }
         window_sizes: 2
@@ -456,7 +525,10 @@ body {
         group_by: "PRODUCTKEY"
         order_by: "ORDERDATE"
         src {
+          end_column: 9
+          end_line: 54
           file: 2
+          start_column: 26
           start_line: 48
         }
         window_sizes: 2
@@ -493,7 +565,10 @@ body {
         is_forward: true
         order_by: "ORDERDATE"
         src {
+          end_column: 9
+          end_line: 61
           file: 2
+          start_column: 29
           start_line: 56
         }
       }
@@ -531,7 +606,10 @@ body {
         is_forward: true
         order_by: "ORDERDATE"
         src {
+          end_column: 9
+          end_line: 72
           file: 2
+          start_column: 30
           start_line: 66
         }
       }
@@ -552,7 +630,10 @@ body {
         cols {
           string_val {
             src {
+              end_column: 9
+              end_line: 79
               file: 2
+              start_column: 26
               start_line: 74
             }
             v: "SALESAMOUNT"
@@ -570,7 +651,10 @@ body {
         lags: 2
         order_by: "ORDERDATE"
         src {
+          end_column: 9
+          end_line: 79
           file: 2
+          start_column: 26
           start_line: 74
         }
       }
@@ -591,7 +675,10 @@ body {
         cols {
           string_val {
             src {
+              end_column: 9
+              end_line: 87
               file: 2
+              start_column: 27
               start_line: 81
             }
             v: "SALESAMOUNT"
@@ -611,7 +698,10 @@ body {
         lags: 2
         order_by: "ORDERDATE"
         src {
+          end_column: 9
+          end_line: 87
           file: 2
+          start_column: 27
           start_line: 81
         }
       }
@@ -632,7 +722,10 @@ body {
         cols {
           string_val {
             src {
+              end_column: 9
+              end_line: 94
               file: 2
+              start_column: 27
               start_line: 89
             }
             v: "SALESAMOUNT"
@@ -650,7 +743,10 @@ body {
         leads: 2
         order_by: "ORDERDATE"
         src {
+          end_column: 9
+          end_line: 94
           file: 2
+          start_column: 27
           start_line: 89
         }
       }
@@ -671,7 +767,10 @@ body {
         cols {
           string_val {
             src {
+              end_column: 9
+              end_line: 102
               file: 2
+              start_column: 28
               start_line: 96
             }
             v: "SALESAMOUNT"
@@ -691,7 +790,10 @@ body {
         leads: 2
         order_by: "ORDERDATE"
         src {
+          end_column: 9
+          end_line: 102
           file: 2
+          start_column: 28
           start_line: 96
         }
       }
@@ -733,13 +835,19 @@ body {
                   }
                 }
                 src {
+                  end_column: 69
+                  end_line: 104
                   file: 2
+                  start_column: 54
                   start_line: 104
                 }
               }
             }
             src {
+              end_column: 70
+              end_line: 104
               file: 2
+              start_column: 41
               start_line: 104
             }
           }
@@ -753,7 +861,10 @@ body {
           }
         }
         src {
+          end_column: 71
+          end_line: 104
           file: 2
+          start_column: 13
           start_line: 104
         }
       }
@@ -786,7 +897,10 @@ body {
         group_by: "PRODUCTKEY"
         sliding_interval: "12H"
         src {
+          end_column: 9
+          end_line: 112
           file: 2
+          start_column: 30
           start_line: 106
         }
         time_col: "ORDERDATE"
@@ -826,7 +940,10 @@ body {
         group_by: "PRODUCTKEY"
         sliding_interval: "12H"
         src {
+          end_column: 9
+          end_line: 124
           file: 2
+          start_column: 31
           start_line: 117
         }
         time_col: "ORDERDATE"

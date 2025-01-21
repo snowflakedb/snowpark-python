@@ -33,7 +33,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 25
           file: 2
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -70,14 +73,20 @@ body {
             pos_args {
               string_val {
                 src {
+                  end_column: 39
+                  end_line: 27
                   file: 2
+                  start_column: 13
                   start_line: 27
                 }
                 v: "STR"
               }
             }
             src {
+              end_column: 39
+              end_line: 27
               file: 2
+              start_column: 13
               start_line: 27
             }
           }
@@ -98,14 +107,20 @@ body {
             pos_args {
               string_val {
                 src {
+                  end_column: 38
+                  end_line: 27
                   file: 2
+                  start_column: 30
                   start_line: 27
                 }
                 v: "A"
               }
             }
             src {
+              end_column: 38
+              end_line: 27
               file: 2
+              start_column: 30
               start_line: 27
             }
           }
@@ -118,7 +133,10 @@ body {
           }
         }
         src {
+          end_column: 39
+          end_line: 27
           file: 2
+          start_column: 13
           start_line: 27
         }
         variadic: true

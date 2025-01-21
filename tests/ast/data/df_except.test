@@ -37,7 +37,10 @@ body {
           }
         }
         src {
+          end_column: 45
+          end_line: 25
           file: 2
+          start_column: 14
           start_line: 25
         }
         variant {
@@ -66,7 +69,10 @@ body {
           }
         }
         src {
+          end_column: 45
+          end_line: 27
           file: 2
+          start_column: 14
           start_line: 27
         }
         variant {
@@ -102,7 +108,10 @@ body {
           }
         }
         src {
+          end_column: 30
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
       }

@@ -33,7 +33,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 25
           file: 2
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -58,7 +61,10 @@ body {
           bitfield1: 1
         }
         src {
+          end_column: 23
+          end_line: 27
           file: 2
+          start_column: 8
           start_line: 27
         }
       }

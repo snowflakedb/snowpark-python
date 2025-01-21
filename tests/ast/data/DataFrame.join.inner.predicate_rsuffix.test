@@ -39,7 +39,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 25
           file: 2
+          start_column: 14
           start_line: 25
         }
         variant {
@@ -68,7 +71,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 27
           file: 2
+          start_column: 14
           start_line: 27
         }
         variant {
@@ -104,7 +110,10 @@ body {
                       }
                     }
                     src {
+                      end_column: 39
+                      end_line: 29
                       file: 2
+                      start_column: 29
                       start_line: 29
                     }
                   }
@@ -120,13 +129,19 @@ body {
                       }
                     }
                     src {
+                      end_column: 52
+                      end_line: 29
                       file: 2
+                      start_column: 42
                       start_line: 29
                     }
                   }
                 }
                 src {
+                  end_column: 52
+                  end_line: 29
                   file: 2
+                  start_column: 29
                   start_line: 29
                 }
               }
@@ -144,7 +159,10 @@ body {
                       }
                     }
                     src {
+                      end_column: 67
+                      end_line: 29
                       file: 2
+                      start_column: 57
                       start_line: 29
                     }
                   }
@@ -160,19 +178,28 @@ body {
                       }
                     }
                     src {
+                      end_column: 81
+                      end_line: 29
                       file: 2
+                      start_column: 71
                       start_line: 29
                     }
                   }
                 }
                 src {
+                  end_column: 81
+                  end_line: 29
                   file: 2
+                  start_column: 57
                   start_line: 29
                 }
               }
             }
             src {
+              end_column: 82
+              end_line: 29
               file: 2
+              start_column: 28
               start_line: 29
             }
           }
@@ -198,7 +225,10 @@ body {
           value: "_2"
         }
         src {
+          end_column: 97
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
       }
@@ -220,7 +250,10 @@ body {
           sp_column_sql_expr {
             sql: "*"
             src {
+              end_column: 109
+              end_line: 29
               file: 2
+              start_column: 14
               start_line: 29
             }
           }
@@ -233,7 +266,10 @@ body {
           }
         }
         src {
+          end_column: 109
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
         variadic: true

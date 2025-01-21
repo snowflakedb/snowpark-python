@@ -38,7 +38,10 @@ body {
           }
         }
         src {
+          end_column: 41
+          end_line: 25
           file: 2
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -69,7 +72,10 @@ body {
           }
         }
         src {
+          end_column: 41
+          end_line: 27
           file: 2
+          start_column: 19
           start_line: 27
         }
         variadic: true
@@ -98,7 +104,10 @@ body {
           }
         }
         src {
+          end_column: 47
+          end_line: 29
           file: 2
+          start_column: 23
           start_line: 29
         }
       }

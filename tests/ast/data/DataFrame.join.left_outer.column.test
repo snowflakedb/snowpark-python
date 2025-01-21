@@ -39,7 +39,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 25
           file: 2
+          start_column: 14
           start_line: 25
         }
         variant {
@@ -68,7 +71,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 27
           file: 2
+          start_column: 14
           start_line: 27
         }
         variant {
@@ -94,7 +100,10 @@ body {
             vs {
               string_val {
                 src {
+                  end_column: 51
+                  end_line: 29
                   file: 2
+                  start_column: 14
                   start_line: 29
                 }
                 v: "num"
@@ -103,7 +112,10 @@ body {
             vs {
               string_val {
                 src {
+                  end_column: 51
+                  end_line: 29
                   file: 2
+                  start_column: 14
                   start_line: 29
                 }
                 v: "str"
@@ -129,7 +141,10 @@ body {
           }
         }
         src {
+          end_column: 51
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
       }
@@ -151,7 +166,10 @@ body {
           sp_column_sql_expr {
             sql: "*"
             src {
+              end_column: 63
+              end_line: 29
               file: 2
+              start_column: 14
               start_line: 29
             }
           }
@@ -164,7 +182,10 @@ body {
           }
         }
         src {
+          end_column: 63
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
         variadic: true

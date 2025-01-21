@@ -33,7 +33,10 @@ body {
           }
         }
         src {
+          end_column: 71
+          end_line: 25
           file: 2
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -70,14 +73,20 @@ body {
             pos_args {
               string_val {
                 src {
+                  end_column: 29
+                  end_line: 26
                   file: 2
+                  start_column: 13
                   start_line: 26
                 }
                 v: "num"
               }
             }
             src {
+              end_column: 29
+              end_line: 26
               file: 2
+              start_column: 13
               start_line: 26
             }
           }
@@ -90,7 +99,10 @@ body {
           }
         }
         src {
+          end_column: 29
+          end_line: 26
           file: 2
+          start_column: 13
           start_line: 26
         }
         variadic: true

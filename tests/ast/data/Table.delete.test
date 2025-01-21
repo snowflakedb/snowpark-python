@@ -69,7 +69,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 25
           file: 2
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -95,7 +98,10 @@ body {
           bitfield1: 1
         }
         src {
+          end_column: 19
+          end_line: 27
           file: 2
+          start_column: 8
           start_line: 27
         }
       }
@@ -128,7 +134,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 29
           file: 2
+          start_column: 13
           start_line: 29
         }
         variant {
@@ -153,7 +162,10 @@ body {
           bitfield1: 4
         }
         src {
+          end_column: 30
+          end_line: 31
           file: 2
+          start_column: 8
           start_line: 31
         }
       }
@@ -186,7 +198,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 33
           file: 2
+          start_column: 13
           start_line: 33
         }
         variant {
@@ -211,7 +226,10 @@ body {
           bitfield1: 7
         }
         src {
+          end_column: 79
+          end_line: 35
           file: 2
+          start_column: 8
           start_line: 35
         }
         statement_params {
@@ -248,7 +266,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 37
           file: 2
+          start_column: 13
           start_line: 37
         }
         variant {
@@ -283,7 +304,10 @@ body {
                   }
                 }
                 src {
+                  end_column: 27
+                  end_line: 39
                   file: 2
+                  start_column: 18
                   start_line: 39
                 }
               }
@@ -291,14 +315,20 @@ body {
             rhs {
               int64_val {
                 src {
+                  end_column: 32
+                  end_line: 39
                   file: 2
+                  start_column: 18
                   start_line: 39
                 }
                 v: 1
               }
             }
             src {
+              end_column: 32
+              end_line: 39
               file: 2
+              start_column: 18
               start_line: 39
             }
           }
@@ -307,7 +337,10 @@ body {
           bitfield1: 10
         }
         src {
+          end_column: 33
+          end_line: 39
           file: 2
+          start_column: 8
           start_line: 39
         }
       }
@@ -340,7 +373,10 @@ body {
           }
         }
         src {
+          end_column: 42
+          end_line: 41
           file: 2
+          start_column: 13
           start_line: 41
         }
         variant {
@@ -366,7 +402,10 @@ body {
             vs {
               int64_val {
                 src {
+                  end_column: 72
+                  end_line: 43
                   file: 2
+                  start_column: 20
                   start_line: 43
                 }
                 v: 2
@@ -375,7 +414,10 @@ body {
             vs {
               int64_val {
                 src {
+                  end_column: 72
+                  end_line: 43
                   file: 2
+                  start_column: 20
                   start_line: 43
                 }
                 v: 3
@@ -384,7 +426,10 @@ body {
             vs {
               int64_val {
                 src {
+                  end_column: 72
+                  end_line: 43
                   file: 2
+                  start_column: 20
                   start_line: 43
                 }
                 v: 4
@@ -393,7 +438,10 @@ body {
             vs {
               int64_val {
                 src {
+                  end_column: 72
+                  end_line: 43
                   file: 2
+                  start_column: 20
                   start_line: 43
                 }
                 v: 5
@@ -407,7 +455,10 @@ body {
           }
         }
         src {
+          end_column: 72
+          end_line: 43
           file: 2
+          start_column: 20
           start_line: 43
         }
       }
@@ -439,7 +490,10 @@ body {
                   }
                 }
                 src {
+                  end_column: 40
+                  end_line: 45
                   file: 2
+                  start_column: 29
                   start_line: 45
                 }
               }
@@ -447,13 +501,19 @@ body {
             rhs {
               list_val {
                 src {
+                  end_column: 40
+                  end_line: 45
                   file: 2
+                  start_column: 18
                   start_line: 45
                 }
                 vs {
                   string_val {
                     src {
+                      end_column: 40
+                      end_line: 45
                       file: 2
+                      start_column: 18
                       start_line: 45
                     }
                     v: "num"
@@ -462,7 +522,10 @@ body {
               }
             }
             src {
+              end_column: 40
+              end_line: 45
               file: 2
+              start_column: 18
               start_line: 45
             }
           }
@@ -478,7 +541,10 @@ body {
           }
         }
         src {
+          end_column: 52
+          end_line: 45
           file: 2
+          start_column: 8
           start_line: 45
         }
       }

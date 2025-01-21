@@ -65,7 +65,10 @@ body {
           }
         }
         src {
+          end_column: 41
+          end_line: 25
           file: 2
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -106,14 +109,20 @@ body {
                     pos_args {
                       string_val {
                         src {
+                          end_column: 48
+                          end_line: 27
                           file: 2
+                          start_column: 38
                           start_line: 27
                         }
                         v: "num"
                       }
                     }
                     src {
+                      end_column: 48
+                      end_line: 27
                       file: 2
+                      start_column: 38
                       start_line: 27
                     }
                   }
@@ -134,20 +143,29 @@ body {
                     pos_args {
                       string_val {
                         src {
+                          end_column: 61
+                          end_line: 27
                           file: 2
+                          start_column: 51
                           start_line: 27
                         }
                         v: "num"
                       }
                     }
                     src {
+                      end_column: 61
+                      end_line: 27
                       file: 2
+                      start_column: 51
                       start_line: 27
                     }
                   }
                 }
                 src {
+                  end_column: 61
+                  end_line: 27
                   file: 2
+                  start_column: 38
                   start_line: 27
                 }
               }
@@ -155,14 +173,20 @@ body {
             rhs {
               int64_val {
                 src {
+                  end_column: 66
+                  end_line: 27
                   file: 2
+                  start_column: 37
                   start_line: 27
                 }
                 v: 2
               }
             }
             src {
+              end_column: 66
+              end_line: 27
               file: 2
+              start_column: 37
               start_line: 27
             }
           }
@@ -176,7 +200,10 @@ body {
           }
         }
         src {
+          end_column: 67
+          end_line: 27
           file: 2
+          start_column: 14
           start_line: 27
         }
       }
@@ -203,7 +230,10 @@ body {
           }
         }
         src {
+          end_column: 65
+          end_line: 29
           file: 2
+          start_column: 14
           start_line: 29
         }
         values {
@@ -224,14 +254,20 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 50
+                      end_line: 29
                       file: 2
+                      start_column: 40
                       start_line: 29
                     }
                     v: "num"
                   }
                 }
                 src {
+                  end_column: 50
+                  end_line: 29
                   file: 2
+                  start_column: 40
                   start_line: 29
                 }
               }
@@ -252,20 +288,29 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 63
+                      end_line: 29
                       file: 2
+                      start_column: 53
                       start_line: 29
                     }
                     v: "num"
                   }
                 }
                 src {
+                  end_column: 63
+                  end_line: 29
                   file: 2
+                  start_column: 53
                   start_line: 29
                 }
               }
             }
             src {
+              end_column: 63
+              end_line: 29
               file: 2
+              start_column: 40
               start_line: 29
             }
           }
@@ -295,7 +340,10 @@ body {
           }
         }
         src {
+          end_column: 98
+          end_line: 31
           file: 2
+          start_column: 14
           start_line: 31
         }
         values {
@@ -316,14 +364,20 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 58
+                      end_line: 31
                       file: 2
+                      start_column: 48
                       start_line: 31
                     }
                     v: "num"
                   }
                 }
                 src {
+                  end_column: 58
+                  end_line: 31
                   file: 2
+                  start_column: 48
                   start_line: 31
                 }
               }
@@ -344,20 +398,29 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 71
+                      end_line: 31
                       file: 2
+                      start_column: 61
                       start_line: 31
                     }
                     v: "num"
                   }
                 }
                 src {
+                  end_column: 71
+                  end_line: 31
                   file: 2
+                  start_column: 61
                   start_line: 31
                 }
               }
             }
             src {
+              end_column: 71
+              end_line: 31
               file: 2
+              start_column: 48
               start_line: 31
             }
           }
@@ -380,14 +443,20 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 83
+                      end_line: 31
                       file: 2
+                      start_column: 73
                       start_line: 31
                     }
                     v: "num"
                   }
                 }
                 src {
+                  end_column: 83
+                  end_line: 31
                   file: 2
+                  start_column: 73
                   start_line: 31
                 }
               }
@@ -408,20 +477,29 @@ body {
                 pos_args {
                   string_val {
                     src {
+                      end_column: 96
+                      end_line: 31
                       file: 2
+                      start_column: 86
                       start_line: 31
                     }
                     v: "num"
                   }
                 }
                 src {
+                  end_column: 96
+                  end_line: 31
                   file: 2
+                  start_column: 86
                   start_line: 31
                 }
               }
             }
             src {
+              end_column: 96
+              end_line: 31
               file: 2
+              start_column: 73
               start_line: 31
             }
           }
@@ -457,14 +535,20 @@ body {
             pos_args {
               string_val {
                 src {
+                  end_column: 34
+                  end_line: 33
                   file: 2
+                  start_column: 24
                   start_line: 33
                 }
                 v: "STR"
               }
             }
             src {
+              end_column: 34
+              end_line: 33
               file: 2
+              start_column: 24
               start_line: 33
             }
           }
@@ -480,7 +564,10 @@ body {
           value: "NEW"
         }
         src {
+          end_column: 42
+          end_line: 33
           file: 2
+          start_column: 14
           start_line: 33
         }
       }
@@ -517,14 +604,20 @@ body {
                   pos_args {
                     string_val {
                       src {
+                        end_column: 35
+                        end_line: 35
                         file: 2
+                        start_column: 25
                         start_line: 35
                       }
                       v: "STR"
                     }
                   }
                   src {
+                    end_column: 35
+                    end_line: 35
                     file: 2
+                    start_column: 25
                     start_line: 35
                   }
                 }
@@ -532,7 +625,10 @@ body {
               vs {
                 string_val {
                   src {
+                    end_column: 44
+                    end_line: 35
                     file: 2
+                    start_column: 14
                     start_line: 35
                   }
                   v: "NEW"
@@ -540,7 +636,10 @@ body {
               }
             }
             src {
+              end_column: 44
+              end_line: 35
               file: 2
+              start_column: 14
               start_line: 35
             }
           }
@@ -553,7 +652,10 @@ body {
           }
         }
         src {
+          end_column: 44
+          end_line: 35
           file: 2
+          start_column: 14
           start_line: 35
         }
       }
@@ -590,14 +692,20 @@ body {
                   pos_args {
                     string_val {
                       src {
+                        end_column: 35
+                        end_line: 37
                         file: 2
+                        start_column: 25
                         start_line: 37
                       }
                       v: "STR"
                     }
                   }
                   src {
+                    end_column: 35
+                    end_line: 37
                     file: 2
+                    start_column: 25
                     start_line: 37
                   }
                 }
@@ -605,7 +713,10 @@ body {
               vs {
                 string_val {
                   src {
+                    end_column: 66
+                    end_line: 37
                     file: 2
+                    start_column: 14
                     start_line: 37
                   }
                   v: "NEW_STR"
@@ -616,7 +727,10 @@ body {
               vs {
                 string_val {
                   src {
+                    end_column: 66
+                    end_line: 37
                     file: 2
+                    start_column: 14
                     start_line: 37
                   }
                   v: "NUM"
@@ -625,7 +739,10 @@ body {
               vs {
                 string_val {
                   src {
+                    end_column: 66
+                    end_line: 37
                     file: 2
+                    start_column: 14
                     start_line: 37
                   }
                   v: "NEW_NUM"
@@ -633,7 +750,10 @@ body {
               }
             }
             src {
+              end_column: 66
+              end_line: 37
               file: 2
+              start_column: 14
               start_line: 37
             }
           }
@@ -646,7 +766,10 @@ body {
           }
         }
         src {
+          end_column: 66
+          end_line: 37
           file: 2
+          start_column: 14
           start_line: 37
         }
       }
@@ -667,7 +790,10 @@ body {
         col {
           string_val {
             src {
+              end_column: 50
+              end_line: 39
               file: 2
+              start_column: 14
               start_line: 39
             }
             v: "STR"
@@ -682,7 +808,10 @@ body {
         }
         new_name: "NEW"
         src {
+          end_column: 50
+          end_line: 39
           file: 2
+          start_column: 14
           start_line: 39
         }
       }
@@ -716,14 +845,20 @@ body {
             pos_args {
               string_val {
                 src {
+                  end_column: 47
+                  end_line: 41
                   file: 2
+                  start_column: 37
                   start_line: 41
                 }
                 v: "NUM"
               }
             }
             src {
+              end_column: 47
+              end_line: 41
               file: 2
+              start_column: 37
               start_line: 41
             }
           }
@@ -737,7 +872,10 @@ body {
         }
         new_name: "NEW_NUM"
         src {
+          end_column: 59
+          end_line: 41
           file: 2
+          start_column: 14
           start_line: 41
         }
       }
@@ -771,14 +909,20 @@ body {
             pos_args {
               string_val {
                 src {
+                  end_column: 48
+                  end_line: 43
                   file: 2
+                  start_column: 38
                   start_line: 43
                 }
                 v: "STR"
               }
             }
             src {
+              end_column: 48
+              end_line: 43
               file: 2
+              start_column: 38
               start_line: 43
             }
           }
@@ -792,7 +936,10 @@ body {
         }
         new_name: "NEW_STR"
         src {
+          end_column: 60
+          end_line: 43
           file: 2
+          start_column: 15
           start_line: 43
         }
       }
