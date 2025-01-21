@@ -62,6 +62,7 @@
 - Fixed a bug in function `date_format` that caused an error when the input column was date type or timestamp type.
 - Fixed a bug in dataframe that null value can be inserted in a non-nullable column.
 - Fixed a bug in `replace` and `lit` which raised type hint assertion error when passing `Column` expression objects.
+- Fixed a bug in `pandas_udf` and `pandas_udtf` where `session` parameter was erroneously ignored.
 
 ### Snowpark pandas API Updates
 
