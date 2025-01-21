@@ -4,7 +4,6 @@
 #
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import pandas
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (

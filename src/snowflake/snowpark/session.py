@@ -36,7 +36,6 @@ from typing import (
 import cloudpickle
 import pkg_resources
 
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
