@@ -53,7 +53,6 @@
 - Added support for `value_contains_null` parameter to MapType.
 - Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
 
-
 #### Bug Fixes
 
 - Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
