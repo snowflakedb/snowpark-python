@@ -961,7 +961,6 @@ class DataFrameReader:
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
-        use_user_schema = False
 
         if self._user_schema:
             (
@@ -971,7 +970,6 @@ class DataFrameReader:
             ) = self._get_schema_from_user_input(self._user_schema)
             schema = new_schema
             self._cur_options["INFER_SCHEMA"] = False
-            use_user_schema = True
 
         elif self._infer_schema:
             (
@@ -999,7 +997,6 @@ class DataFrameReader:
                             transformations=read_file_transformations,
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
-                            use_user_schema=use_user_schema,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -1018,7 +1015,6 @@ class DataFrameReader:
                     transformations=read_file_transformations,
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
-                    use_user_schema=use_user_schema,
                 ),
             )
         df._reader = self
