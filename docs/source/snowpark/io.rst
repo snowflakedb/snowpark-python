@@ -44,6 +44,8 @@ Input/Output
     DataFrameWriter.save
     DataFrameWriter.saveAsTable
     DataFrameWriter.save_as_table
+    DataFrameWriter.insertInto
+    DataFrameWriter.insert_into
     FileOperation.get
     FileOperation.get_stream
     FileOperation.put
