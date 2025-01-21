@@ -4636,6 +4636,14 @@ def array_distinct(col: ColumnOrName, _emit_ast: bool = True):
 
 
 @publicapi
+def transform(
+    array: ColumnOrName, fn: Callable[[Column], Column], _emit_ast: bool = True
+) -> Column:
+    arr = _to_col_if_str(array, "transform")
+    return function("transform", _emit_ast=_emit_ast)(arr, fn)
+
+
+@publicapi
 def array_intersection(
     array1: ColumnOrName, array2: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
@@ -10132,7 +10140,7 @@ def function(
 def _call_function(
     name: str,
     is_distinct: bool = False,
-    *args: ColumnOrLiteral,
+    *args: Union[ColumnOrLiteral, Callable],
     api_call_source: Optional[str] = None,
     is_data_generator: bool = False,
     _ast: proto.Expr = None,

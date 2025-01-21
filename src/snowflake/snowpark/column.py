@@ -45,6 +45,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
     WithinGroup,
+    LambdaFunctionExpression,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -85,6 +86,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     quote_name,
 )
+import inspect
 from snowflake.snowpark.types import (
     DataType,
     IntegerType,
@@ -1389,7 +1391,9 @@ class Column:
             return UnresolvedAlias(self._expression)
 
     @classmethod
-    def _to_expr(cls, expr: Union[ColumnOrLiteral, Expression]) -> Expression:
+    def _to_expr(
+        cls, expr: Union[typing.Callable, ColumnOrLiteral, Expression]
+    ) -> Expression:
         """
         Convert a Column object, or an literal value to an expression.
         If it's a Column, get its expression.
@@ -1397,7 +1401,22 @@ class Column:
         If it's a literal value (here we treat str as literal value instead of column name),
         create a Literal expression.
         """
-        if isinstance(expr, cls):
+        if isinstance(expr, typing.Callable):
+            parameters = inspect.signature(expr).parameters.values()
+
+            arg_exprs = [
+                UnresolvedAttribute(arg_name)
+                for arg_name in [p.name for p in parameters]
+            ]
+            arg_cols = [Column(arg_expr) for arg_expr in arg_exprs]
+
+            result: Column = expr(*arg_cols)
+
+            if not isinstance(result, Column):
+                raise TypeError("Should be column")
+
+            return LambdaFunctionExpression(result._expression, arg_exprs)
+        elif isinstance(expr, cls):
             return expr._expression
         elif isinstance(expr, Expression):
             return expr
