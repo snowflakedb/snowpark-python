@@ -1207,7 +1207,6 @@ class SnowflakePlanBuilder:
         transformations: Optional[List[str]] = None,
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
-        use_user_schema: bool = False,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
         format_type_options = self._merge_file_format_options(
@@ -1220,7 +1219,7 @@ class SnowflakePlanBuilder:
             options.get("INFER_SCHEMA", True)
             if format in INFER_SCHEMA_FORMAT_TYPES
             else False
-        ) or use_user_schema
+        ) or schema_to_cast
         # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
