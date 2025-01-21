@@ -1,0 +1,408 @@
+## TEST CASE
+
+# Create a dictionary to use as data
+data = [
+    {"id": 1, "name": "Alice", "age": 30},
+    {"id": 2, "name": "Bob", "age": 25},
+    {"id": 3, "name": "Alice", "age": 30},  # Duplicate row
+    {"id": 4, "name": "Charlie", "age": 35},
+]
+
+# Define the schema for the DataFrame
+schema = StructType(
+    [
+        StructField("id", IntegerType(), nullable=False),
+        StructField("name", StringType(), nullable=True),
+        StructField("age", IntegerType(), nullable=True),
+    ]
+)
+
+# Create a Snowpark DataFrame from the dictionary
+df = session.create_dataframe(data, schema)
+
+# Use the `drop_duplicates` function
+unique_df = df.drop_duplicates(["name", "age"])
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.create_dataframe([{"id": 1, "name": "Alice", "age": 30}, {"id": 2, "name": "Bob", "age": 25}, {"id": 3, "name": "Alice", "age": 30}, {"id": 4, "name": "Charlie", "age": 35}], schema=StructType([StructField("id", IntegerType(), nullable=False), StructField("name", StringType(), nullable=True), StructField("age", IntegerType(), nullable=True)], structured=False))
+
+unique_df = df.drop_duplicates(["name", "age"])
+
+## EXPECTED ENCODED AST
+
+body {
+  assign {
+    expr {
+      sp_create_dataframe {
+        data {
+          sp_dataframe_data__list {
+            vs {
+              seq_map_val {
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "id"
+                    }
+                  }
+                  vs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: 1
+                    }
+                  }
+                }
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "name"
+                    }
+                  }
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "Alice"
+                    }
+                  }
+                }
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "age"
+                    }
+                  }
+                  vs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: 30
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 43
+                }
+              }
+            }
+            vs {
+              seq_map_val {
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "id"
+                    }
+                  }
+                  vs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: 2
+                    }
+                  }
+                }
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "name"
+                    }
+                  }
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "Bob"
+                    }
+                  }
+                }
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "age"
+                    }
+                  }
+                  vs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: 25
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 43
+                }
+              }
+            }
+            vs {
+              seq_map_val {
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "id"
+                    }
+                  }
+                  vs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: 3
+                    }
+                  }
+                }
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "name"
+                    }
+                  }
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "Alice"
+                    }
+                  }
+                }
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "age"
+                    }
+                  }
+                  vs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: 30
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 43
+                }
+              }
+            }
+            vs {
+              seq_map_val {
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "id"
+                    }
+                  }
+                  vs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: 4
+                    }
+                  }
+                }
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "name"
+                    }
+                  }
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "Charlie"
+                    }
+                  }
+                }
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: "age"
+                    }
+                  }
+                  vs {
+                    int64_val {
+                      src {
+                        file: "SRC_POSITION_TEST_MODE"
+                        start_line: 43
+                      }
+                      v: 35
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 43
+                }
+              }
+            }
+          }
+        }
+        schema {
+          sp_dataframe_schema__struct {
+            v {
+              fields {
+                list {
+                  column_identifier {
+                    name: "id"
+                  }
+                  data_type {
+                    sp_integer_type: true
+                  }
+                }
+                list {
+                  column_identifier {
+                    name: "name"
+                  }
+                  data_type {
+                    sp_string_type {
+                      length {
+                      }
+                    }
+                  }
+                  nullable: true
+                }
+                list {
+                  column_identifier {
+                    name: "age"
+                  }
+                  data_type {
+                    sp_integer_type: true
+                  }
+                  nullable: true
+                }
+              }
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 43
+        }
+      }
+    }
+    symbol {
+      value: "df"
+    }
+    uid: 1
+    var_id {
+      bitfield1: 1
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_drop_duplicates {
+        cols: "name"
+        cols: "age"
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 46
+        }
+      }
+    }
+    symbol {
+      value: "unique_df"
+    }
+    uid: 2
+    var_id {
+      bitfield1: 2
+    }
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 26
+}
