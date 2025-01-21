@@ -95,6 +95,7 @@ from snowflake.snowpark._internal.type_utils import (
     infer_schema,
     infer_type,
     merge_type,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
@@ -132,6 +133,9 @@ from snowflake.snowpark._internal.utils import (
     warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
+    set_ast_state,
+    is_ast_enabled,
+    AstFlagSource,
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.catalog import Catalog
@@ -618,9 +622,10 @@ class Session:
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
-        self._ast_enabled: bool = self._conn._get_client_side_session_parameter(
+        ast_enabled: bool = self._conn._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
         )
+        set_ast_state(AstFlagSource.SERVER, ast_enabled)
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
         self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (
@@ -781,7 +786,17 @@ class Session:
 
     @property
     def ast_enabled(self) -> bool:
-        return self._ast_enabled
+        """
+        Set to ``True`` to enable the AST (Abstract Syntax Tree) capture for ``DataFrame`` operations.
+
+        This is an internal, experimental feature that is not yet fully supported. The value of the parameter is controlled by the Snowflake service.
+
+        It is not possible to re-enable this feature if the system or a user explicitly disables it. Setting this property to ``True`` can result in no change if the setting was already set explicitly to ``False`` internally.
+
+        Returns:
+            The current value of the property.
+        """
+        return is_ast_enabled()
 
     @ast_enabled.setter
     def ast_enabled(self, value: bool) -> None:
@@ -796,16 +811,16 @@ class Session:
         #     )
         # except Exception:
         #     pass
-        self._ast_enabled = value
 
         # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
         # This feature should get moved server-side anyways.
-        if self._ast_enabled:
+        if value:
             _logger.warning(
                 "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
             self.auto_clean_up_temp_table_enabled = False
+        set_ast_state(AstFlagSource.LOCAL, value)
 
     @property
     def cte_optimization_enabled(self) -> bool:
@@ -3029,7 +3044,7 @@ class Session:
     def create_dataframe(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
-        schema: Optional[Union[StructType, Iterable[str]]] = None,
+        schema: Optional[Union[StructType, Iterable[str], str]] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
@@ -3046,9 +3061,15 @@ class Session:
                 ``data`` will constitute a row in the DataFrame.
             schema: A :class:`~snowflake.snowpark.types.StructType` containing names and
                 data types of columns, or a list of column names, or ``None``.
-                When ``schema`` is a list of column names or ``None``, the schema of the
-                DataFrame will be inferred from the data across all rows. To improve
-                performance, provide a schema. This avoids the need to infer data types
+
+                - When passing a **string**, it can be either an *explicit* struct
+                  (e.g. ``"struct<a: int, b: string>"``) or an *implicit* struct
+                  (e.g. ``"a: int, b: string"``). Internally, the string is parsed and
+                  converted into a :class:`StructType` using Snowpark's type parsing.
+                - When ``schema`` is a list of column names or ``None``, the schema of the
+                  DataFrame will be inferred from the data across all rows.
+
+                To improve performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
 
         Examples::
@@ -3077,6 +3098,10 @@ class Session:
             >>> import pandas as pd
             >>> session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])).collect()
             [Row(a=1, b=2, c=3, d=4)]
+
+            >>> # create a dataframe using an implicit struct schema string
+            >>> session.create_dataframe([[10, 20], [30, 40]], schema="x: int, y: int").collect()
+            [Row(X=10, Y=20), Row(X=30, Y=40)]
 
         Note:
             When `data` is a pandas DataFrame, `snowflake.connector.pandas_tools.write_pandas` is called, which
@@ -3156,6 +3181,13 @@ class Session:
         # infer the schema based on the data
         names = None
         schema_query = None
+        if isinstance(schema, str):
+            schema = type_string_to_type_object(schema)
+            if not isinstance(schema, StructType):
+                raise ValueError(
+                    f"Invalid schema string: {schema}. "
+                    f"You should provide a valid schema string representing a struct type."
+                )
         if isinstance(schema, StructType):
             new_schema = schema
             # SELECT query has an undefined behavior for nullability, so if the schema requires non-nullable column and
@@ -4052,42 +4084,44 @@ class Session:
         """ """
         # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
         qualified_table_name = list(raw_table_name)
-        if len(qualified_table_name) == 1:
-            # name in the form of "table"
-            tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
-            )
-        elif len(qualified_table_name) == 2:
-            # name in the form of "schema.table" omitting database
-            # schema: qualified_table_name[0]
-            # table: qualified_table_name[1]
-            tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
-            )
-        elif len(qualified_table_name) == 3:
-            # name in the form of "database.schema.table"
-            # database: qualified_table_name[0]
-            # schema: qualified_table_name[1]
-            # table: qualified_table_name[2]
-            # special case:  (''<database_name>..<object_name>''), by following
-            # https://docs.snowflake.com/en/sql-reference/name-resolution#resolution-when-schema-omitted-double-dot-notation
-            # The two dots indicate that the schema name is not specified.
-            # The PUBLIC default schema is always referenced.
-            condition = (
-                f"schema {qualified_table_name[0]}.PUBLIC"
-                if qualified_table_name[1] == ""
-                else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
-            )
-            tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
-            )
+        if isinstance(self._conn, MockServerConnection):
+            return self._conn.entity_registry.is_existing_table(qualified_table_name)
         else:
-            # we do not support len(qualified_table_name) > 3 for now
-            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
-                ".".join(raw_table_name)
-            )
-
-        return tables is not None and len(tables) > 0
+            if len(qualified_table_name) == 1:
+                # name in the form of "table"
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
+                )
+            elif len(qualified_table_name) == 2:
+                # name in the form of "schema.table" omitting database
+                # schema: qualified_table_name[0]
+                # table: qualified_table_name[1]
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
+                )
+            elif len(qualified_table_name) == 3:
+                # name in the form of "database.schema.table"
+                # database: qualified_table_name[0]
+                # schema: qualified_table_name[1]
+                # table: qualified_table_name[2]
+                # special case:  (''<database_name>..<object_name>''), by following
+                # https://docs.snowflake.com/en/sql-reference/name-resolution#resolution-when-schema-omitted-double-dot-notation
+                # The two dots indicate that the schema name is not specified.
+                # The PUBLIC default schema is always referenced.
+                condition = (
+                    f"schema {qualified_table_name[0]}.PUBLIC"
+                    if qualified_table_name[1] == ""
+                    else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+                )
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
+                )
+            else:
+                # we do not support len(qualified_table_name) > 3 for now
+                raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                    ".".join(raw_table_name)
+                )
+            return tables is not None and len(tables) > 0
 
     def _explain_query(self, query: str) -> Optional[str]:
         try:
