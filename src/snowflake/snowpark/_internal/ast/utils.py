@@ -16,12 +16,23 @@ from functools import reduce
 from logging import getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import dateutil
 from dateutil.tz import tzlocal
-from google.protobuf.text_format import MessageToString, Parse
 from google.protobuf.message import Message
+from google.protobuf.text_format import MessageToString, Parse
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -45,6 +56,9 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.utils import str_to_enum
 from snowflake.snowpark.types import DataType, StructType
+
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 # TODO(SNOW-1791994): Enable pyright type checks for this file.
 
@@ -129,7 +143,7 @@ def extract_assign_targets(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def fill_timezone(
-    ast: proto.Expr, obj: Union[datetime.datetime, datetime.time]
+    ast: "proto.Expr", obj: Union[datetime.datetime, datetime.time]
 ) -> None:  # pragma: no cover
 
     datetime_val = (
@@ -178,7 +192,7 @@ def fill_timezone(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_expr_from_python_val(
-    expr_builder: proto.Expr, obj: Any
+    expr_builder: "proto.Expr", obj: Any
 ) -> None:  # pragma: no cover
     """Infer the Const AST expression from obj, and populate the provided ast.Expr() instance
 
@@ -330,7 +344,7 @@ def build_expr_from_python_val(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_proto_from_struct_type(
-    schema: "snowflake.snowpark.types.StructType", expr: proto.SpStructType
+    schema: "snowflake.snowpark.types.StructType", expr: "proto.SpStructType"
 ) -> None:  # pragma: no cover
     from snowflake.snowpark.types import StructType
 
@@ -344,7 +358,7 @@ def build_proto_from_struct_type(
         ast_field.nullable = field.nullable
 
 
-def build_sp_name(name: Union[str, Iterable[str]], expr: proto.SpName) -> None:
+def build_sp_name(name: Union[str, Iterable[str]], expr: "proto.SpName") -> None:
     if isinstance(name, str):
         expr.sp_name_flat.name = name
     elif isinstance(name, Iterable):
@@ -357,7 +371,7 @@ def build_sp_name(name: Union[str, Iterable[str]], expr: proto.SpName) -> None:
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def _set_fn_name(
-    name: Union[str, Iterable[str]], fn: proto.FnNameRefExpr
+    name: Union[str, Iterable[str]], fn: "proto.FnNameRefExpr"
 ) -> None:  # pragma: no cover
     """
     Set the function name in the AST. The function name can be a string or an iterable of strings.
@@ -376,7 +390,7 @@ def _set_fn_name(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_sp_table_name(
-    expr_builder: proto.SpNameRef, name: Union[str, Iterable[str]]
+    expr_builder: "proto.SpNameRef", name: Union[str, Iterable[str]]
 ) -> None:  # pragma: no cover
     try:
         build_sp_name(name, expr_builder.name)
@@ -384,7 +398,9 @@ def build_sp_table_name(
         raise ValueError("Invalid table name") from e
 
 
-def build_sp_view_name(expr: proto.SpNameRef, name: Union[str, Iterable[str]]) -> None:
+def build_sp_view_name(
+    expr: "proto.SpNameRef", name: Union[str, Iterable[str]]
+) -> None:
     try:
         build_sp_name(name, expr.name)
     except ValueError as e:
@@ -395,7 +411,7 @@ def build_function_expr(
     builtin_name: str,
     args: List[Any],
     ignore_null_args: bool = False,
-) -> proto.Expr:
+) -> "proto.Expr":
     """
     Creates AST encoding for the methods in function.py.
     Args:
@@ -405,6 +421,8 @@ def build_function_expr(
     Returns:
         The AST encoding of the function.
     """
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     ast = proto.Expr()
     args_list = [arg for arg in args if arg is not None] if ignore_null_args else args
     build_builtin_fn_apply(
@@ -420,10 +438,10 @@ def build_function_expr(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_builtin_fn_apply(
-    ast: proto.Expr,
+    ast: "proto.Expr",
     builtin_name: str,
-    *args: Tuple[Union[proto.Expr, Any]],
-    **kwargs: Dict[str, Union[proto.Expr, Any]],
+    *args: Tuple[Union["proto.Expr", Any]],
+    **kwargs: Dict[str, Union["proto.Expr", Any]],
 ) -> None:  # pragma: no cover
     """
     Creates AST encoding for ApplyExpr(BuiltinFn(<builtin_name>), List(<args...>), Map(<kwargs...>)) for builtin
@@ -441,9 +459,9 @@ def build_builtin_fn_apply(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_udf_apply(
-    ast: proto.Expr,
+    ast: "proto.Expr",
     udf_id: int,
-    *args: Tuple[Union[proto.Expr, Any]],
+    *args: Tuple[Union["proto.Expr", Any]],
 ) -> None:  # pragma: no cover
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
     expr.fn.sp_fn_ref.id.bitfield1 = udf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
@@ -452,9 +470,9 @@ def build_udf_apply(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_udaf_apply(
-    ast: proto.Expr,
+    ast: "proto.Expr",
     udaf_id: int,
-    *args: Tuple[Union[proto.Expr, Any]],
+    *args: Tuple[Union["proto.Expr", Any]],
 ) -> None:  # pragma: no cover
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
     expr.fn.sp_fn_ref.id.bitfield1 = udaf_id  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
@@ -463,7 +481,7 @@ def build_udaf_apply(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_udtf_apply(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a type annotation for one or more arguments
-    ast: proto.Expr, udtf_id: int, *args: Tuple[Union[proto.Expr, Any]], **kwargs
+    ast: "proto.Expr", udtf_id: int, *args: Tuple[Union["proto.Expr", Any]], **kwargs
 ) -> None:  # pragma: no cover
     """Encodes a call to UDTF into ast as a Snowpark IR expression."""
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
@@ -473,10 +491,10 @@ def build_udtf_apply(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Fun
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_sproc_apply(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a type annotation for one or more arguments
-    ast: proto.Expr,
+    ast: "proto.Expr",
     sproc_id: int,
     statement_params: Optional[Dict[str, str]] = None,
-    *args: Tuple[Union[proto.Expr, Any]],
+    *args: Tuple[Union["proto.Expr", Any]],
     **kwargs,
 ) -> None:  # pragma: no cover
     """Encodes a call to stored procedure into ast as a Snowpark IR expression."""
@@ -487,10 +505,10 @@ def build_sproc_apply(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Fu
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_call_table_function_apply(
-    ast: proto.Expr,
+    ast: "proto.Expr",
     name: str,
-    *args: Tuple[Union[proto.Expr, Any]],
-    **kwargs: Dict[str, Union[proto.Expr, Any]],
+    *args: Tuple[Union["proto.Expr", Any]],
+    **kwargs: Dict[str, Union["proto.Expr", Any]],
 ) -> None:  # pragma: no cover
     """
     Creates AST encoding for
@@ -511,7 +529,7 @@ def build_call_table_function_apply(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_indirect_table_fn_apply(
-    ast: proto.Expr,
+    ast: "proto.Expr",
     func: Union[
         str, List[str], "snowflake.snowpark.table_function.TableFunctionCall", Callable
     ],
@@ -551,9 +569,9 @@ def build_indirect_table_fn_apply(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_fn_apply_args(
-    ast: proto.Expr,
-    *args: Tuple[Union[proto.Expr, Any]],
-    **kwargs: Dict[str, Union[proto.Expr, Any]],
+    ast: "proto.Expr",
+    *args: Tuple[Union["proto.Expr", Any]],
+    **kwargs: Dict[str, Union["proto.Expr", Any]],
 ) -> None:  # pragma: no cover
     """
     Creates AST encoding for the argument lists of ApplyExpr.
@@ -562,6 +580,8 @@ def build_fn_apply_args(
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
     """
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     expr = ast.apply_expr
 
     for arg in args:
@@ -606,7 +626,7 @@ def build_fn_apply_args(
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:  # pragma: no cover
+def set_builtin_fn_alias(ast: "proto.Expr", alias: str) -> None:  # pragma: no cover
     """
     Set the alias for a builtin function call. Requires that the expression has an ApplyExpr with a BuiltinFn.
     Args:
@@ -618,12 +638,12 @@ def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:  # pragma: no cov
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def with_src_position(
-    expr_ast: proto.Expr,
-    assign: Optional[proto.Assign] = None,
+    expr_ast: "proto.Expr",
+    assign: Optional["proto.Assign"] = None,
     caller_frame_depth: Optional[int] = None,
     debug: bool = False,
     target_idx: Optional[int] = None,
-) -> proto.Expr:  # pragma: no cover
+) -> "proto.Expr":  # pragma: no cover
     """
     Sets the src_position on the supplied Expr AST node and returns it.
     N.B. This function assumes it's always invoked from a public API, meaning that the caller's caller
@@ -727,7 +747,7 @@ def with_src_position(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_expr_from_snowpark_column(
-    expr_builder: proto.Expr, value: "snowflake.snowpark.Column"
+    expr_builder: "proto.Expr", value: "snowflake.snowpark.Column"
 ) -> None:  # pragma: no cover
     """Copy from a Column object's AST into an AST expression.
 
@@ -748,7 +768,7 @@ def build_expr_from_snowpark_column(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_expr_from_snowpark_column_or_col_name(
-    expr_builder: proto.Expr, value: ColumnOrName
+    expr_builder: "proto.Expr", value: ColumnOrName
 ) -> None:  # pragma: no cover
     """Copy from a Column object's AST, or copy a column name into an AST expression.
 
@@ -772,7 +792,7 @@ def build_expr_from_snowpark_column_or_col_name(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_expr_from_snowpark_column_or_sql_str(
-    expr_builder: proto.Expr, value: ColumnOrSqlExpr
+    expr_builder: "proto.Expr", value: ColumnOrSqlExpr
 ) -> None:  # pragma: no cover
     """Copy from a Column object's AST, or copy a SQL expression into an AST expression.
 
@@ -796,7 +816,7 @@ def build_expr_from_snowpark_column_or_sql_str(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_expr_from_snowpark_column_or_python_val(
-    expr_builder: proto.Expr, value: ColumnOrLiteral
+    expr_builder: "proto.Expr", value: ColumnOrLiteral
 ) -> None:  # pragma: no cover
     """Copy from a Column object's AST, or copy a literal value into an AST expression.
 
@@ -820,7 +840,7 @@ def build_expr_from_snowpark_column_or_python_val(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_expr_from_snowpark_column_or_table_fn(
-    expr_builder: proto.Expr,
+    expr_builder: "proto.Expr",
     value: Union[
         "snowflake.snowpark.Column",
         "snowflake.snowpark.table_function.TableFunctionCall",
@@ -850,7 +870,7 @@ def build_expr_from_snowpark_column_or_table_fn(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def fill_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a type annotation for one or more arguments
-    expr: proto.Expr, name1: str, name2: Optional[str], fn_name="col"
+    expr: "proto.Expr", name1: str, name2: Optional[str], fn_name="col"
 ) -> None:  # pragma: no cover
     """
     Fill in expr node to encode Snowpark Column created through col(...) / column(...).
@@ -893,17 +913,19 @@ def fill_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def create_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a type annotation for one or more arguments
     name1: str, name2: Optional[str], fn_name="col"
-) -> proto.Expr:  # pragma: no cover
+) -> "proto.Expr":  # pragma: no cover
     """
     Helper function to create Ast for Snowpark Column. Cf. fill_ast_for_column on parameter details.
     """
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     ast = proto.Expr()
     fill_ast_for_column(ast, name1, name2, fn_name)
     return ast
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no cover
+def snowpark_expression_to_ast(expr: Expression) -> "proto.Expr":  # pragma: no cover
     """
     Converts Snowpark expression expr to protobuf ast.
     Args:
@@ -912,6 +934,8 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no co
     Returns:
         protobuf expression.
     """
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     if hasattr(expr, "_ast") and expr._ast is not None:
         return expr._ast
 
@@ -963,7 +987,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no co
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def fill_sp_save_mode(
-    expr: proto.SpSaveMode, save_mode: Union[str, SaveMode]
+    expr: "proto.SpSaveMode", save_mode: Union[str, SaveMode]
 ) -> None:  # pragma: no cover
     if isinstance(save_mode, str):
         save_mode = str_to_enum(save_mode.lower(), SaveMode, "`save_mode`")  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "Enum", variable has type "Union[str, SaveMode]")
@@ -982,7 +1006,7 @@ def fill_sp_save_mode(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def fill_sp_write_file(
-    expr: proto.Expr,
+    expr: "proto.Expr",
     location: str,
     *,
     partition_by: Optional[ColumnOrSqlExpr] = None,
@@ -1022,7 +1046,7 @@ def fill_sp_write_file(
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_proto_from_pivot_values(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
-    expr_builder: proto.SpPivotValue,
+    expr_builder: "proto.SpPivotValue",
     values: Optional[Union[Iterable["LiteralType"], "DataFrame"]],  # type: ignore[name-defined] # noqa: F821 # TODO(SNOW-1491199) # Name "LiteralType" is not defined, Name "DataFrame" is not defined
 ):  # pragma: no cover
     """Helper function to encode Snowpark pivot values that are used in various pivot operations to AST."""
@@ -1037,7 +1061,7 @@ def build_proto_from_pivot_values(  # type: ignore[no-untyped-def] # TODO(SNOW-1
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
-    expr_builder: proto.SpCallable,
+    expr_builder: "proto.SpCallable",
     func: Union[Callable, Tuple[str, str]],
     ast_batch: Optional[AstBatch] = None,
     object_name: Optional[Union[str, Iterable[str]]] = None,
@@ -1071,7 +1095,7 @@ def build_proto_from_callable(  # type: ignore[no-untyped-def] # TODO(SNOW-14911
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation, Function is missing a type annotation for one or more arguments
-    ast: proto.Udf,
+    ast: "proto.Udf",
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
@@ -1097,6 +1121,8 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDF parameters (used in both regular and mock UDFRegistration)."""
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     # This is the name the UDF is registered to. Not the name to display when unparsing, that name is captured in callable.
 
     if name is not None:
@@ -1164,7 +1190,7 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation, Function is missing a type annotation for one or more arguments
-    ast: proto.Udaf,
+    ast: "proto.Udaf",
     handler: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
@@ -1186,6 +1212,8 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDAF parameters (used in both regular and mock UDFRegistration)."""
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     # This is the name the UDAF is registered to. Not the name to display when unparsing, that name is captured in callable.
 
     if name is not None:
@@ -1248,7 +1276,7 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation, Function is missing a type annotation for one or more arguments
-    ast: proto.Udtf,
+    ast: "proto.Udtf",
     handler: Union[Callable, Tuple[str, str]],
     output_schema: Union[  # type: ignore[name-defined] # TODO(SNOW-1491199) # Name "PandasDataFrameType" is not defined
         StructType, Iterable[str], "PandasDataFrameType"  # noqa: F821
@@ -1275,6 +1303,8 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
     **kwargs,
 ):  # pragma: no cover
     """Helper function to encode UDTF parameters (used in both regular and mock UDFRegistration)."""
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     # This is the name the UDTF is registered to. Not the name to display when unparsing, that name is captured in callable.
 
     if name is not None:
@@ -1372,7 +1402,7 @@ def add_intermediate_stmt(ast_batch: AstBatch, o: Any) -> None:  # pragma: no co
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a type annotation for one or more arguments
-    ast: proto.StoredProcedure,
+    ast: "proto.StoredProcedure",
     func: Union[Callable, Tuple[str, str]],
     return_type: Optional[DataType],
     input_types: Optional[List[DataType]],
@@ -1396,6 +1426,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
     **kwargs,
 ) -> None:  # pragma: no cover
     """Helper function to encode stored procedure parameters (used in both regular and mock StoredProcedureRegistration)."""
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
     if sp_name is not None:
         _set_fn_name(sp_name, ast)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "StoredProcedure"; expected "FnNameRefExpr"
@@ -1462,7 +1493,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def build_expr_from_dict_str_str(
-    ast_dict: proto.Tuple_String_String, dict_str_str: Dict[str, str]
+    ast_dict: "proto.Tuple_String_String", dict_str_str: Dict[str, str]
 ) -> None:  # pragma: no cover
     """Populate the AST structure with dictionary for str -> str.
 
@@ -1476,7 +1507,7 @@ def build_expr_from_dict_str_str(
         t._2 = v
 
 
-def ClearTempTables(message: proto.Request) -> None:
+def ClearTempTables(message: "proto.Request") -> None:
     """Removes temp table when passing pandas data."""
     for stmt in message.body:
         if str(
@@ -1487,14 +1518,18 @@ def ClearTempTables(message: proto.Request) -> None:
             )
 
 
-def base64_str_to_request(base64_str: str) -> proto.Request:
+def base64_str_to_request(base64_str: str) -> "proto.Request":
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     message = proto.Request()
     message.ParseFromString(base64.b64decode(base64_str))
     return message
 
 
-def merge_requests(requests: List[proto.Request]) -> proto.Request:
+def merge_requests(requests: List["proto.Request"]) -> "proto.Request":
     """Merge list of requests into a single request through accumulating the request body segments in same order."""
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     request = proto.Request()
 
     # Copy the client_version, etc as part of first message.
@@ -1508,7 +1543,7 @@ def merge_requests(requests: List[proto.Request]) -> proto.Request:
     return request
 
 
-def base64_lines_to_request(base64_lines: str) -> proto.Request:
+def base64_lines_to_request(base64_lines: str) -> "proto.Request":
     messages = [base64_str_to_request(s) for s in base64_lines.split("\n")]
     return merge_requests(messages)
 
@@ -1529,7 +1564,9 @@ def base64_lines_to_textproto(base64_str: str) -> str:
     return message
 
 
-def textproto_to_request(textproto_str: str) -> proto.Request:
+def textproto_to_request(textproto_str: str) -> "proto.Request":
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
     request = Parse(textproto_str, proto.Request())
     return request
 
@@ -1551,7 +1588,7 @@ def clear_line_no_in_ast(ast: Any) -> None:
                 clear_line_no_in_ast(c)
 
 
-def clear_line_no_in_request(request: proto.Request) -> None:
+def clear_line_no_in_request(request: "proto.Request") -> None:
     """There are inconsistencies in the frame_info.line_no depending on the python version, this seems to be due to
     fixes in determining better line_no info for chained python code, etc."""
     for stmt in request.body:
