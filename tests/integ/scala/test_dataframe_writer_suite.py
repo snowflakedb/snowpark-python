@@ -878,7 +878,7 @@ def test_writer_parquet(session, tmpdir_factory, local_testing_mode):
         Utils.drop_stage(session, temp_stage)
 
 
-def test_insert_into(session):
+def test_insert_into(session, local_testing_mode):
     """
     Test the insert_into API with positive and negative test cases.
     """
@@ -924,7 +924,9 @@ def test_insert_into(session):
         )
         with pytest.raises(
             SnowparkSQLException,
-            match="Insert value list does not match column list expecting 2 but got 3",
+            match="Insert value list does not match column list expecting 2 but got 3"
+            if not local_testing_mode
+            else "Cannot append because incoming data has different schema",
         ):
             df_more_columns.write.insert_into(table_name)
 
@@ -935,7 +937,9 @@ def test_insert_into(session):
         )
         with pytest.raises(
             SnowparkSQLException,
-            match="Insert value list does not match column list expecting 2 but got 1",
+            match="Insert value list does not match column list expecting 2 but got 1"
+            if not local_testing_mode
+            else "Cannot append because incoming data has different schema",
         ):
             df_less_column.write.insert_into(table_name)
 
@@ -944,11 +948,14 @@ def test_insert_into(session):
             [[[1, 2, 3, 4], False]],
             schema=["FIRST_NAME", "LAST_NAME"],
         )
-        with pytest.raises(
-            SnowparkSQLException,
-            match="Expression type does not match column data type",
-        ):
-            df_not_same_type.write.insert_into(table_name)
+
+        if not local_testing_mode:
+            # SNOW-1890315: Local Testing missing type coercion check
+            with pytest.raises(
+                SnowparkSQLException,
+                match="Expression type does not match column data type",
+            ):
+                df_not_same_type.write.insert_into(table_name)
 
         # Negative Test: Table does not exist
         with pytest.raises(
