@@ -326,7 +326,6 @@ class Decoder:
             The decoded data type.
         """
         if hasattr(data_type_expr, "data_type"):
-            breakpoint()
             column_identifier = data_type_expr.column_identifier.name
             data_type = self.decode_data_type_expr(data_type_expr.data_type)
             nullable = data_type_expr.nullable
@@ -614,6 +613,9 @@ class Decoder:
                                 return call_table_function(
                                     fn_name, *pos_args, **named_args
                                 )
+                        case "stored_procedure":
+                            return self.session.call(fn_name, *pos_args, **named_args)
+
                         case _:
                             raise ValueError(
                                 "Unknown function reference type: %s"
