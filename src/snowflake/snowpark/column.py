@@ -918,11 +918,11 @@ class Column:
         self,
         to: Union[str, DataType],
         try_: bool = False,
+        rename_fields: bool = False,
+        add_fields: bool = False,
         _emit_ast: bool = True,
-        is_rename: bool = False,
-        is_add: bool = False,
     ) -> "Column":
-        if is_add and is_rename:
+        if add_fields and rename_fields:
             raise ValueError(
                 "is_add and is_rename cannot be set to True at the same time"
             )
@@ -944,7 +944,7 @@ class Column:
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
         return Column(
-            Cast(self._expression, to, try_, is_rename, is_add),
+            Cast(self._expression, to, try_, rename_fields, add_fields),
             _ast=expr,
             _emit_ast=_emit_ast,
         )
@@ -953,30 +953,38 @@ class Column:
     def cast(
         self,
         to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
         _emit_ast: bool = True,
-        is_rename: bool = False,
-        is_add: bool = False,
     ) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
         return self._cast(
-            to, False, _emit_ast=_emit_ast, is_rename=is_rename, is_add=is_add
+            to,
+            False,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
         )
 
     @publicapi
     def try_cast(
         self,
         to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
         _emit_ast: bool = True,
-        is_rename: bool = False,
-        is_add: bool = False,
     ) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
         return self._cast(
-            to, True, _emit_ast=_emit_ast, is_rename=is_rename, is_add=is_add
+            to,
+            True,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
         )
 
     @publicapi
