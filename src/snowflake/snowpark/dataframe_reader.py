@@ -912,12 +912,9 @@ class DataFrameReader:
         return new_schema, schema_to_cast, read_file_transformations, None
 
     def _infer_schema_from_user_input(
-        self, user_schema: StructType, format: str
+        self, user_schema: StructType
     ) -> Tuple[List, List, List]:
-        if format.lower() != "json":
-            raise ValueError(
-                f"Currently only support user schema for JSON format, got {format} instead"
-            )
+        """This function accept a user input structtype and return schemas needed for reading semi-structured file"""
         schema_to_cast = []
         transformations = []
         new_schema = []
@@ -964,7 +961,16 @@ class DataFrameReader:
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
-        if self._infer_schema:
+
+        if self._user_schema:
+            (
+                new_schema,
+                schema_to_cast,
+                read_file_transformations,
+            ) = self._infer_schema_from_user_input(self._user_schema)
+            schema = new_schema
+            self._cur_options["INFER_SCHEMA"] = False
+        elif self._infer_schema:
             (
                 new_schema,
                 schema_to_cast,
@@ -973,15 +979,6 @@ class DataFrameReader:
             ) = self._infer_schema_for_file_format(path, format)
             if new_schema:
                 schema = new_schema
-
-        if self._user_schema and not self._infer_schema:
-            (
-                new_schema,
-                schema_to_cast,
-                read_file_transformations,
-            ) = self._infer_schema_from_user_input(self._user_schema, format)
-            schema = new_schema
-            self._cur_options["INFER_SCHEMA"] = True
 
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
