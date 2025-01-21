@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import os
 from typing import Dict
@@ -9,6 +9,7 @@ import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.ast.ast_test_utils import (
@@ -169,15 +170,22 @@ def connection(db_parameters, local_testing_mode):
         _keys = [
             "user",
             "password",
+            "private_key_file",
             "host",
             "port",
             "database",
+            "schema",
             "account",
             "protocol",
             "role",
+            "warehouse",
         ]
         with snowflake.connector.connect(
-            **{k: db_parameters[k] for k in _keys if k in db_parameters}
+            **{
+                k: db_parameters[k]
+                for k in _keys
+                if k in db_parameters and db_parameters[k] is not None
+            }
         ) as con:
             yield con
 
@@ -219,11 +227,11 @@ def session(
     sql_simplifier_enabled,
     local_testing_mode,
     cte_optimization_enabled,
-    multithreading_mode_enabled,
     ast_enabled,
     validate_ast,
     unparser_jar,
 ):
+    set_ast_state(AstFlagSource.TEST, ast_enabled)
     rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
     rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
     key1 = f"key1{Utils.random_alphanumeric_str(10)}"
@@ -234,10 +242,6 @@ def session(
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
-        .config(
-            "session_parameters",
-            {"PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION": multithreading_mode_enabled},
-        )
         .create()
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled

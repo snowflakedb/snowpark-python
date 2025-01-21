@@ -870,8 +870,10 @@ body {
         handler {
           name: "_ApplyInPandas"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -1041,34 +1043,36 @@ body {
         }
         output_schema {
           fields {
-            column_identifier {
-              name: "location"
-            }
-            data_type {
-              sp_string_type {
-                length {
+            list {
+              column_identifier {
+                name: "location"
+              }
+              data_type {
+                sp_string_type {
+                  length {
+                  }
                 }
               }
+              nullable: true
             }
-            nullable: true
-          }
-          fields {
-            column_identifier {
-              name: "temp_c"
+            list {
+              column_identifier {
+                name: "temp_c"
+              }
+              data_type {
+                sp_float_type: true
+              }
+              nullable: true
             }
-            data_type {
-              sp_float_type: true
+            list {
+              column_identifier {
+                name: "temp_f"
+              }
+              data_type {
+                sp_float_type: true
+              }
+              nullable: true
             }
-            nullable: true
-          }
-          fields {
-            column_identifier {
-              name: "temp_f"
-            }
-            data_type {
-              sp_float_type: true
-            }
-            nullable: true
           }
         }
         src {

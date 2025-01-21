@@ -138,8 +138,10 @@ body {
         handler {
           name: "PrimeSieve"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -167,13 +169,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "number"
+                  list {
+                    column_identifier {
+                      name: "number"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -214,8 +218,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "lit"
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
                   }
                 }
               }
@@ -339,8 +345,10 @@ body {
           id: 1
           name: "sum_udtf"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -371,13 +379,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "number"
+                  list {
+                    column_identifier {
+                      name: "number"
+                    }
+                    data_type {
+                      sp_long_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_long_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -669,8 +679,10 @@ body {
           id: 2
           name: "GeneratorUDTF"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -698,13 +710,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "number"
+                  list {
+                    column_identifier {
+                      name: "number"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -745,8 +759,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "lit"
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
                   }
                 }
               }
@@ -874,21 +890,27 @@ body {
           id: 3
           name: "Foo"
           object_name {
-            sp_table_name_flat {
-              name: "foo"
+            name {
+              sp_name_flat {
+                name: "foo"
+              }
             }
           }
         }
         immutable: true
         imports {
-          sp_table_name_flat {
-            name: "numpy"
+          name {
+            sp_name_flat {
+              name: "numpy"
+            }
           }
         }
         imports {
-          sp_table_name_structured {
-            name: "seaborn"
-            name: "sns"
+          name {
+            sp_name_structured {
+              name: "seaborn"
+              name: "sns"
+            }
           }
         }
         input_types {
@@ -930,8 +952,10 @@ body {
           }
         }
         name {
-          fn_name_flat {
-            name: "foo"
+          name {
+            sp_name_flat {
+              name: "foo"
+            }
           }
         }
         output_schema {
@@ -939,22 +963,24 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "a"
+                  list {
+                    column_identifier {
+                      name: "a"
+                    }
+                    data_type {
+                      sp_long_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_long_type: true
+                  list {
+                    column_identifier {
+                      name: "b"
+                    }
+                    data_type {
+                      sp_long_type: true
+                    }
+                    nullable: true
                   }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "b"
-                  }
-                  data_type {
-                    sp_long_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -1199,8 +1225,10 @@ body {
           id: 4
           name: "TwoXUDTF"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -1228,13 +1256,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "two_x"
+                  list {
+                    column_identifier {
+                      name: "two_x"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -1388,8 +1418,10 @@ body {
           id: 5
           name: "TwoXSixXUDTF"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
+              }
             }
           }
         }
@@ -1417,22 +1449,24 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "two_x"
+                  list {
+                    column_identifier {
+                      name: "two_x"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
+                  list {
+                    column_identifier {
+                      name: "six_x"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "six_x"
-                  }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -1691,8 +1725,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -1741,8 +1777,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }

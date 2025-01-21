@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import atexit
@@ -12,6 +12,7 @@ import os
 import re
 import sys
 import tempfile
+import threading
 import warnings
 from array import array
 from functools import reduce
@@ -36,6 +37,7 @@ import cloudpickle
 import pkg_resources
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
@@ -93,6 +95,7 @@ from snowflake.snowpark._internal.type_utils import (
     infer_schema,
     infer_type,
     merge_type,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.udf_utils import generate_call_python_sp_sql
 from snowflake.snowpark._internal.utils import (
@@ -103,8 +106,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     check_flatten_mode,
-    create_rlock,
-    create_thread_local,
     deprecated,
     escape_quotes,
     experimental,
@@ -132,8 +133,12 @@ from snowflake.snowpark._internal.utils import (
     warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
+    set_ast_state,
+    is_ast_enabled,
+    AstFlagSource,
 )
 from snowflake.snowpark.async_job import AsyncJob
+from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -256,9 +261,6 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
     "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND"
 )
-_PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
-    "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
-)
 # Flag for controlling the usage of scoped temp read only table.
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
     "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
@@ -348,8 +350,6 @@ class Session:
 
     :class:`Session` contains functions to construct a :class:`DataFrame` like :meth:`table`,
     :meth:`sql` and :attr:`read`, etc.
-
-    A :class:`Session` object is not thread-safe.
     """
 
     class RuntimeConfig:
@@ -622,9 +622,10 @@ class Session:
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
-        self._ast_enabled: bool = self._conn._get_client_side_session_parameter(
+        ast_enabled: bool = self._conn._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
         )
+        set_ast_state(AstFlagSource.SERVER, ast_enabled)
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
         self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (
@@ -637,25 +638,25 @@ class Session:
                 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
             ),
         )
-        self._thread_store = create_thread_local(
-            self._conn._thread_safe_session_enabled
-        )
-        self._lock = create_rlock(self._conn._thread_safe_session_enabled)
+
+        self._thread_store = threading.local()
+        self._lock = RLock()
 
         # this lock is used to protect _packages. We use introduce a new lock because add_packages
         # launches a query to snowflake to get all version of packages available in snowflake. This
         # query can be slow and prevent other threads from moving on waiting for _lock.
-        self._package_lock = create_rlock(self._conn._thread_safe_session_enabled)
+        self._package_lock = RLock()
 
         # this lock is used to protect race-conditions when evaluating critical lazy properties
         # of SnowflakePlan or Selectable objects
-        self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
+        self._plan_lock = RLock()
 
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._catalog = None
 
         self._ast_batch = AstBatch(self)
 
@@ -735,6 +736,19 @@ class Session:
 
     getActiveSession = get_active_session
 
+    @property
+    @experimental(version="1.27.0")
+    def catalog(self) -> Catalog:
+        """Returns the catalog object."""
+        if self._catalog is None:
+            if isinstance(self._conn, MockServerConnection):
+                self._conn.log_not_supported_error(
+                    external_feature_name="Session.catalog",
+                    raise_error=NotImplementedError,
+                )
+            self._catalog = Catalog(self)
+        return self._catalog
+
     def close(self) -> None:
         """Close this session."""
         if is_in_stored_procedure():
@@ -772,7 +786,17 @@ class Session:
 
     @property
     def ast_enabled(self) -> bool:
-        return self._ast_enabled
+        """
+        Set to ``True`` to enable the AST (Abstract Syntax Tree) capture for ``DataFrame`` operations.
+
+        This is an internal, experimental feature that is not yet fully supported. The value of the parameter is controlled by the Snowflake service.
+
+        It is not possible to re-enable this feature if the system or a user explicitly disables it. Setting this property to ``True`` can result in no change if the setting was already set explicitly to ``False`` internally.
+
+        Returns:
+            The current value of the property.
+        """
+        return is_ast_enabled()
 
     @ast_enabled.setter
     def ast_enabled(self, value: bool) -> None:
@@ -787,16 +811,16 @@ class Session:
         #     )
         # except Exception:
         #     pass
-        self._ast_enabled = value
 
         # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
         # This feature should get moved server-side anyways.
-        if self._ast_enabled:
+        if value:
             _logger.warning(
                 "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
             self.auto_clean_up_temp_table_enabled = False
+        set_ast_state(AstFlagSource.LOCAL, value)
 
     @property
     def cte_optimization_enabled(self) -> bool:
@@ -886,9 +910,7 @@ class Session:
 
     @sql_simplifier_enabled.setter
     def sql_simplifier_enabled(self, value: bool) -> None:
-        warn_session_config_update_in_multithreaded_mode(
-            "sql_simplifier_enabled", self._conn._thread_safe_session_enabled
-        )
+        warn_session_config_update_in_multithreaded_mode("sql_simplifier_enabled")
 
         with self._lock:
             self._conn._telemetry_client.send_sql_simplifier_telemetry(
@@ -905,9 +927,7 @@ class Session:
     @cte_optimization_enabled.setter
     @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
-        warn_session_config_update_in_multithreaded_mode(
-            "cte_optimization_enabled", self._conn._thread_safe_session_enabled
-        )
+        warn_session_config_update_in_multithreaded_mode("cte_optimization_enabled")
 
         with self._lock:
             if value:
@@ -921,8 +941,7 @@ class Session:
     def eliminate_numeric_sql_value_cast_enabled(self, value: bool) -> None:
         """Set the value for eliminate_numeric_sql_value_cast_enabled"""
         warn_session_config_update_in_multithreaded_mode(
-            "eliminate_numeric_sql_value_cast_enabled",
-            self._conn._thread_safe_session_enabled,
+            "eliminate_numeric_sql_value_cast_enabled"
         )
 
         if value in [True, False]:
@@ -941,7 +960,7 @@ class Session:
     def auto_clean_up_temp_table_enabled(self, value: bool) -> None:
         """Set the value for auto_clean_up_temp_table_enabled"""
         warn_session_config_update_in_multithreaded_mode(
-            "auto_clean_up_temp_table_enabled", self._conn._thread_safe_session_enabled
+            "auto_clean_up_temp_table_enabled"
         )
 
         if value in [True, False]:
@@ -964,7 +983,7 @@ class Session:
         overall performance.
         """
         warn_session_config_update_in_multithreaded_mode(
-            "large_query_breakdown_enabled", self._conn._thread_safe_session_enabled
+            "large_query_breakdown_enabled"
         )
 
         if value in [True, False]:
@@ -982,8 +1001,7 @@ class Session:
     def large_query_breakdown_complexity_bounds(self, value: Tuple[int, int]) -> None:
         """Set the lower and upper bounds for the complexity score used in large query breakdown optimization."""
         warn_session_config_update_in_multithreaded_mode(
-            "large_query_breakdown_complexity_bounds",
-            self._conn._thread_safe_session_enabled,
+            "large_query_breakdown_complexity_bounds"
         )
 
         if len(value) != 2:
@@ -2253,7 +2271,12 @@ class Session:
                 )
 
     @publicapi
-    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
+    def table(
+        self,
+        name: Union[str, Iterable[str]],
+        is_temp_table_for_cleanup: bool = False,
+        _emit_ast: bool = True,
+    ) -> Table:
         """
         Returns a Table that points the specified table.
 
@@ -2282,18 +2305,22 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_table, stmt)
-            if isinstance(name, str):
-                ast.name.sp_table_name_flat.name = name
-            elif isinstance(name, Iterable):
-                ast.name.sp_table_name_structured.name.extend(name)
+            build_sp_table_name(ast.name, name)
             ast.variant.sp_session_table = True
+            ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
         else:
             stmt = None
 
         if not isinstance(name, str) and isinstance(name, Iterable):
             name = ".".join(name)
         validate_object_name(name)
-        t = Table(name, session=self, _ast_stmt=stmt, _emit_ast=_emit_ast)
+        t = Table(
+            name,
+            session=self,
+            is_temp_table_for_cleanup=is_temp_table_for_cleanup,
+            _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
+        )
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
         return t
@@ -2975,8 +3002,8 @@ class Session:
                 ast.compression = compression
                 ast.create_temp_table = create_temp_table
                 if isinstance(df, pandas.DataFrame):
-                    ast.df.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
-                        table.table_name
+                    build_sp_table_name(
+                        ast.df.sp_dataframe_data__pandas.v.temp_table, table.table_name
                     )
                 else:
                     raise NotImplementedError(
@@ -3017,7 +3044,7 @@ class Session:
     def create_dataframe(
         self,
         data: Union[List, Tuple, "pandas.DataFrame"],
-        schema: Optional[Union[StructType, Iterable[str]]] = None,
+        schema: Optional[Union[StructType, Iterable[str], str]] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
@@ -3034,9 +3061,15 @@ class Session:
                 ``data`` will constitute a row in the DataFrame.
             schema: A :class:`~snowflake.snowpark.types.StructType` containing names and
                 data types of columns, or a list of column names, or ``None``.
-                When ``schema`` is a list of column names or ``None``, the schema of the
-                DataFrame will be inferred from the data across all rows. To improve
-                performance, provide a schema. This avoids the need to infer data types
+
+                - When passing a **string**, it can be either an *explicit* struct
+                  (e.g. ``"struct<a: int, b: string>"``) or an *implicit* struct
+                  (e.g. ``"a: int, b: string"``). Internally, the string is parsed and
+                  converted into a :class:`StructType` using Snowpark's type parsing.
+                - When ``schema`` is a list of column names or ``None``, the schema of the
+                  DataFrame will be inferred from the data across all rows.
+
+                To improve performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
 
         Examples::
@@ -3065,6 +3098,10 @@ class Session:
             >>> import pandas as pd
             >>> session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"])).collect()
             [Row(a=1, b=2, c=3, d=4)]
+
+            >>> # create a dataframe using an implicit struct schema string
+            >>> session.create_dataframe([[10, 20], [30, 40]], schema="x: int, y: int").collect()
+            [Row(X=10, Y=20), Row(X=30, Y=40)]
 
         Note:
             When `data` is a pandas DataFrame, `snowflake.connector.pandas_tools.write_pandas` is called, which
@@ -3130,12 +3167,10 @@ class Session:
                 if _emit_ast:
                     stmt = self._ast_batch.assign()
                     ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
-
                     # Save temp table and schema of it in AST (dataframe).
-                    ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
-                        temp_table_name
+                    build_sp_table_name(
+                        ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
                     )
-
                     build_proto_from_struct_type(
                         table.schema, ast.schema.sp_dataframe_schema__struct.v
                     )
@@ -3146,6 +3181,13 @@ class Session:
         # infer the schema based on the data
         names = None
         schema_query = None
+        if isinstance(schema, str):
+            schema = type_string_to_type_object(schema)
+            if not isinstance(schema, StructType):
+                raise ValueError(
+                    f"Invalid schema string: {schema}. "
+                    f"You should provide a valid schema string representing a struct type."
+                )
         if isinstance(schema, StructType):
             new_schema = schema
             # SELECT query has an undefined behavior for nullability, so if the schema requires non-nullable column and
@@ -3279,6 +3321,14 @@ class Session:
                     data_type, (MapType, StructType)
                 ):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
+                elif (
+                    isinstance(value, Row)
+                    and isinstance(data_type, StructType)
+                    and context._should_use_structured_type_semantics()
+                ):
+                    converted_row.append(
+                        json.dumps(value.as_dict(), cls=PythonObjJSONEncoder)
+                    )
                 elif isinstance(data_type, VariantType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
                 elif isinstance(data_type, GeographyType):
@@ -3378,10 +3428,9 @@ class Session:
                 ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
 
                 # Save temp table and schema of it in AST (dataframe).
-                ast.data.sp_dataframe_data__pandas.v.temp_table.sp_table_name_flat.name = (
-                    temp_table_name
+                build_sp_table_name(
+                    ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
                 )
-
                 build_proto_from_struct_type(
                     table.schema, ast.schema.sp_dataframe_schema__struct.v
                 )
@@ -3845,7 +3894,7 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             expr = with_src_position(stmt.expr.apply_expr, stmt)
-            expr.fn.stored_procedure.name.fn_name_flat.name = sproc_name
+            expr.fn.stored_procedure.name.name.sp_name_flat.name = sproc_name
             for arg in args:
                 build_expr_from_python_val(expr.pos_args.add(), arg)
             if statement_params is not None:

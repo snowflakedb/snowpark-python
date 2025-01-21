@@ -192,25 +192,27 @@ body {
           sp_dataframe_schema__struct {
             v {
               fields {
-                column_identifier {
-                  name: "num"
+                list {
+                  column_identifier {
+                    name: "num"
+                  }
+                  data_type {
+                    sp_integer_type: true
+                  }
+                  nullable: true
                 }
-                data_type {
-                  sp_integer_type: true
-                }
-                nullable: true
-              }
-              fields {
-                column_identifier {
-                  name: "str"
-                }
-                data_type {
-                  sp_string_type {
-                    length {
+                list {
+                  column_identifier {
+                    name: "str"
+                  }
+                  data_type {
+                    sp_string_type {
+                      length {
+                      }
                     }
                   }
+                  nullable: true
                 }
-                nullable: true
               }
             }
           }
@@ -238,8 +240,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_1"
+          name {
+            sp_name_flat {
+              name: "test_table_1"
+            }
           }
         }
         src {
@@ -442,8 +446,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_1b"
+          name {
+            sp_name_flat {
+              name: "test_table_1b"
+            }
           }
         }
         src {
@@ -660,8 +666,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_2"
+          name {
+            sp_name_flat {
+              name: "test_table_2"
+            }
           }
         }
         src {
@@ -864,8 +872,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_2b"
+          name {
+            sp_name_flat {
+              name: "test_table_2b"
+            }
           }
         }
         src {
@@ -1082,8 +1092,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_3"
+          name {
+            sp_name_flat {
+              name: "test_table_3"
+            }
           }
         }
         src {
@@ -1205,8 +1217,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_4"
+          name {
+            sp_name_flat {
+              name: "test_table_4"
+            }
           }
         }
         src {
@@ -1422,8 +1436,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_table_5"
+          name {
+            sp_name_flat {
+              name: "test_table_5"
+            }
           }
         }
         src {

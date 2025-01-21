@@ -807,8 +807,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "to_timestamp"
+                  name {
+                    sp_name_flat {
+                      name: "to_timestamp"
+                    }
                   }
                 }
               }

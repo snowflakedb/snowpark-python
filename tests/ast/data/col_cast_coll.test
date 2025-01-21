@@ -50,8 +50,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
@@ -86,8 +88,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -166,8 +170,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -246,8 +252,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -326,8 +334,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -406,8 +416,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -487,8 +499,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -571,8 +585,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -652,8 +668,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -689,61 +707,63 @@ body {
             to {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "test1"
-                  }
-                  data_type {
-                    sp_string_type {
-                      length {
-                      }
+                  list {
+                    column_identifier {
+                      name: "test1"
                     }
-                  }
-                }
-                fields {
-                  column_identifier {
-                    name: "test2"
-                  }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "test3"
-                  }
-                  data_type {
-                    sp_array_type {
-                      ty {
-                        sp_long_type: true
-                      }
-                    }
-                  }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "test4"
-                  }
-                  data_type {
-                    sp_map_type {
-                      key_ty {
-                        sp_decimal_type {
-                          precision: 42
-                          scale: 23
+                    data_type {
+                      sp_string_type {
+                        length {
                         }
                       }
-                      value_ty {
-                        sp_vector_type {
-                          dimension: 64
-                          ty {
-                            sp_float_type: true
+                    }
+                  }
+                  list {
+                    column_identifier {
+                      name: "test2"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
+                  }
+                  list {
+                    column_identifier {
+                      name: "test3"
+                    }
+                    data_type {
+                      sp_array_type {
+                        ty {
+                          sp_long_type: true
+                        }
+                      }
+                    }
+                    nullable: true
+                  }
+                  list {
+                    column_identifier {
+                      name: "test4"
+                    }
+                    data_type {
+                      sp_map_type {
+                        key_ty {
+                          sp_decimal_type {
+                            precision: 42
+                            scale: 23
+                          }
+                        }
+                        value_ty {
+                          sp_vector_type {
+                            dimension: 64
+                            ty {
+                              sp_float_type: true
+                            }
                           }
                         }
                       }
                     }
+                    nullable: true
                   }
-                  nullable: true
                 }
                 structured: true
               }

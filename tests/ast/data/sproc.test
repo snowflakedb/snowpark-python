@@ -196,8 +196,10 @@ body {
         func {
           name: "my_copy"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MY_COPY_SP\""
+              }
             }
           }
         }
@@ -219,8 +221,10 @@ body {
           }
         }
         name {
-          fn_name_flat {
-            name: "my_copy_sp"
+          name {
+            sp_name_flat {
+              name: "my_copy_sp"
+            }
           }
         }
         parallel: 4
@@ -422,8 +426,10 @@ body {
           start_line: 47
         }
         table_name {
-          sp_table_name_flat {
-            name: "test_from"
+          name {
+            sp_name_flat {
+              name: "test_from"
+            }
           }
         }
         table_type: "temporary"
@@ -548,8 +554,10 @@ body {
           start_line: 49
         }
         table_name {
-          sp_table_name_flat {
-            name: "test_to"
+          name {
+            sp_name_flat {
+              name: "test_to"
+            }
           }
         }
         table_type: "temporary"
@@ -632,8 +640,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_to"
+          name {
+            sp_name_flat {
+              name: "test_to"
+            }
           }
         }
         src {
@@ -755,8 +765,10 @@ body {
             log_on_exception {
             }
             name {
-              fn_name_flat {
-                name: "my_copy_sp"
+              name {
+                sp_name_flat {
+                  name: "my_copy_sp"
+                }
               }
             }
           }
@@ -883,8 +895,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_from"
+          name {
+            sp_name_flat {
+              name: "test_from"
+            }
           }
         }
         src {
@@ -984,8 +998,10 @@ body {
           start_line: 39
         }
         table_name {
-          sp_table_name_flat {
-            name: "test_to"
+          name {
+            sp_name_flat {
+              name: "test_to"
+            }
           }
         }
         table_type: "temporary"
@@ -1020,8 +1036,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "test_to"
+          name {
+            sp_name_flat {
+              name: "test_to"
+            }
           }
         }
         src {
@@ -1086,8 +1104,10 @@ body {
           id: 1
           name: "<lambda [1]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -1345,8 +1365,10 @@ body {
           id: 2
           name: "<lambda [2]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+              }
             }
           }
         }
@@ -1360,8 +1382,10 @@ body {
         }
         is_permanent: true
         name {
-          fn_name_flat {
-            name: "mul_sp"
+          name {
+            sp_name_flat {
+              name: "mul_sp"
+            }
           }
         }
         parallel: 4
@@ -1454,8 +1478,10 @@ body {
           id: 3
           name: "<lambda [3]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+              }
             }
           }
         }
@@ -1470,8 +1496,10 @@ body {
         }
         is_permanent: true
         name {
-          fn_name_flat {
-            name: "mul_sp"
+          name {
+            sp_name_flat {
+              name: "mul_sp"
+            }
           }
         }
         parallel: 4
@@ -1564,8 +1592,10 @@ body {
           id: 4
           name: "<lambda [4]>"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"MUL_SP\""
+              }
             }
           }
         }
@@ -1579,8 +1609,10 @@ body {
         }
         is_permanent: true
         name {
-          fn_name_flat {
-            name: "mul_sp"
+          name {
+            sp_name_flat {
+              name: "mul_sp"
+            }
           }
         }
         parallel: 4
@@ -1682,8 +1714,10 @@ body {
           id: 5
           name: "sin_sp"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -1777,8 +1811,10 @@ body {
           id: 6
           name: "select_sp"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -1794,22 +1830,24 @@ body {
         return_type {
           sp_struct_type {
             fields {
-              column_identifier {
-                name: "A"
+              list {
+                column_identifier {
+                  name: "A"
+                }
+                data_type {
+                  sp_integer_type: true
+                }
+                nullable: true
               }
-              data_type {
-                sp_integer_type: true
+              list {
+                column_identifier {
+                  name: "B"
+                }
+                data_type {
+                  sp_integer_type: true
+                }
+                nullable: true
               }
-              nullable: true
-            }
-            fields {
-              column_identifier {
-                name: "B"
-              }
-              data_type {
-                sp_integer_type: true
-              }
-              nullable: true
             }
           }
         }
@@ -1939,8 +1977,10 @@ body {
           id: 7
           name: "select_sp"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -1955,6 +1995,8 @@ body {
         parallel: 4
         return_type {
           sp_struct_type {
+            fields {
+            }
           }
         }
         src {
@@ -2082,8 +2124,10 @@ body {
           id: 8
           name: "select_sp"
           object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+            name {
+              sp_name_flat {
+                name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\""
+              }
             }
           }
         }
@@ -2098,6 +2142,8 @@ body {
         parallel: 4
         return_type {
           sp_struct_type {
+            fields {
+            }
           }
         }
         source_code_display: true

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -157,6 +157,20 @@ class SnowflakeValues(LeafNode):
         from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
 
         return len(self.data) * len(self.output) >= ARRAY_BIND_THRESHOLD
+
+    @property
+    def is_contain_illegal_null_value(self) -> bool:
+        from snowflake.snowpark._internal.analyzer.analyzer import ARRAY_BIND_THRESHOLD
+
+        rows_to_compare = min(
+            ARRAY_BIND_THRESHOLD // len(self.output) + 1, len(self.data)
+        )
+        for j in range(len(self.output)):
+            if not self.output[j].nullable:
+                for i in range(rows_to_compare):
+                    if self.data[i][j] is None:
+                        return True
+        return False
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
