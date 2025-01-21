@@ -5,14 +5,17 @@
 import re
 from typing import List, Optional, Union
 
-from snowflake.core import Root  # type: ignore
-from snowflake.core.database import Database  # type: ignore
-from snowflake.core.exceptions import NotFoundError
-from snowflake.core.procedure import Procedure
-from snowflake.core.schema import Schema  # type: ignore
-from snowflake.core.table import Table, TableColumn
-from snowflake.core.user_defined_function import UserDefinedFunction
-from snowflake.core.view import View
+try:
+    from snowflake.core import Root  # type: ignore
+    from snowflake.core.database import Database  # type: ignore
+    from snowflake.core.exceptions import NotFoundError
+    from snowflake.core.procedure import Procedure
+    from snowflake.core.schema import Schema  # type: ignore
+    from snowflake.core.table import Table, TableColumn
+    from snowflake.core.user_defined_function import UserDefinedFunction
+    from snowflake.core.view import View
+except ImportError as e:
+    raise ImportError("Missing optional dependency: 'snowflake.core'.") from e
 
 
 import snowflake.snowpark
