@@ -91,6 +91,7 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
+MAX_WORKER_NUMBER = 10
 
 
 def _validate_stage_path(path: str) -> str:
@@ -1019,7 +1020,9 @@ class DataFrameReader:
         snowflake_table_name: Optional[str] = None,
         snowflake_stage_name: str = None,  # for test purpose should use temp stage in production code
         use_stored_procedure: bool = False,
+        max_workers: Optional[int] = None,
     ) -> DataFrame:
+        num_workers = min(max_workers, MAX_WORKER_NUMBER)
         conn = create_connection()
         struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
         if column is None:
@@ -1058,9 +1061,7 @@ class DataFrameReader:
                 num_partitions,
                 predicates,
             )
-        with ProcessPoolExecutor(
-            max_workers=min(len(partitioned_queries), 10)
-        ) as executor:
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
             futures = [
                 executor.submit(
                     task_fetch_from_data_source, create_connection, query, raw_schema, i
@@ -1070,7 +1071,7 @@ class DataFrameReader:
 
             completed_futures = wait(futures, return_when=ALL_COMPLETED)
         files = [f.result() for f in completed_futures.done]
-        with ThreadPoolExecutor(max_workers=min(len(files), 10)) as thread_executor:
+        with ThreadPoolExecutor(max_workers=num_workers) as thread_executor:
             futures = [
                 thread_executor.submit(
                     self.upload_and_copy_into_table,
