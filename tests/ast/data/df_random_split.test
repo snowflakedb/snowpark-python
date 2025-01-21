@@ -52,6 +52,15 @@ t[0].collect()
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -64,10 +73,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
+          file: 2
           start_line: 25
         }
         variant {
@@ -96,10 +102,7 @@ body {
           }
         }
         src {
-          end_column: 48
-          end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 24
+          file: 2
           start_line: 33
         }
         weights: 0.1
@@ -122,10 +125,7 @@ body {
         args {
           int64_val {
             src {
-              end_column: 48
-              end_line: 33
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 24
+              file: 2
               start_line: 33
             }
           }
@@ -134,10 +134,7 @@ body {
           bitfield1: 2
         }
         src {
-          end_column: 48
-          end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 24
+          file: 2
           start_line: 33
         }
       }
@@ -158,10 +155,7 @@ body {
         args {
           int64_val {
             src {
-              end_column: 48
-              end_line: 33
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 24
+              file: 2
               start_line: 33
             }
             v: 1
@@ -171,10 +165,7 @@ body {
           bitfield1: 2
         }
         src {
-          end_column: 48
-          end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 24
+          file: 2
           start_line: 33
         }
       }
@@ -195,10 +186,7 @@ body {
         args {
           int64_val {
             src {
-              end_column: 48
-              end_line: 33
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 24
+              file: 2
               start_line: 33
             }
             v: 2
@@ -208,10 +196,7 @@ body {
           bitfield1: 2
         }
         src {
-          end_column: 48
-          end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 24
+          file: 2
           start_line: 33
         }
       }
@@ -240,10 +225,7 @@ body {
           value: 24
         }
         src {
-          end_column: 57
-          end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 24
+          file: 2
           start_line: 37
         }
         weights: 0.1
@@ -266,10 +248,7 @@ body {
         args {
           int64_val {
             src {
-              end_column: 57
-              end_line: 37
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 24
+              file: 2
               start_line: 37
             }
           }
@@ -278,10 +257,7 @@ body {
           bitfield1: 6
         }
         src {
-          end_column: 57
-          end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 24
+          file: 2
           start_line: 37
         }
       }
@@ -302,10 +278,7 @@ body {
         args {
           int64_val {
             src {
-              end_column: 57
-              end_line: 37
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 24
+              file: 2
               start_line: 37
             }
             v: 1
@@ -315,10 +288,7 @@ body {
           bitfield1: 6
         }
         src {
-          end_column: 57
-          end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 24
+          file: 2
           start_line: 37
         }
       }
@@ -339,10 +309,7 @@ body {
         args {
           int64_val {
             src {
-              end_column: 57
-              end_line: 37
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 24
+              file: 2
               start_line: 37
             }
             v: 2
@@ -352,10 +319,7 @@ body {
           bitfield1: 6
         }
         src {
-          end_column: 57
-          end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 24
+          file: 2
           start_line: 37
         }
       }
@@ -391,20 +355,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 29
-                      end_line: 39
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 19
+                      file: 2
                       start_line: 39
                     }
                     v: "NUM"
                   }
                 }
                 src {
-                  end_column: 29
-                  end_line: 39
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_column: 19
+                  file: 2
                   start_line: 39
                 }
               }
@@ -425,29 +383,20 @@ body {
                 pos_args {
                   int64_val {
                     src {
-                      end_column: 39
-                      end_line: 39
-                      file: "SRC_POSITION_TEST_MODE"
-                      start_column: 32
+                      file: 2
                       start_line: 39
                     }
                     v: 10
                   }
                 }
                 src {
-                  end_column: 39
-                  end_line: 39
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_column: 32
+                  file: 2
                   start_line: 39
                 }
               }
             }
             src {
-              end_column: 39
-              end_line: 39
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 19
+              file: 2
               start_line: 39
             }
           }
@@ -460,10 +409,7 @@ body {
           }
         }
         src {
-          end_column: 40
-          end_line: 39
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
+          file: 2
           start_line: 39
         }
         variadic: true
@@ -487,10 +433,7 @@ body {
           bitfield1: 10
         }
         src {
-          end_column: 50
-          end_line: 39
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
+          file: 2
           start_line: 39
         }
       }
@@ -526,10 +469,7 @@ body {
           value: 24
         }
         src {
-          end_column: 48
-          end_line: 41
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
+          file: 2
           start_line: 41
         }
         weights: 0.1
@@ -553,10 +493,7 @@ body {
         args {
           int64_val {
             src {
-              end_column: 48
-              end_line: 41
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 12
+              file: 2
               start_line: 41
             }
           }
@@ -565,10 +502,7 @@ body {
           bitfield1: 13
         }
         src {
-          end_column: 48
-          end_line: 41
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
+          file: 2
           start_line: 41
         }
       }
@@ -588,10 +522,7 @@ body {
         args {
           int64_val {
             src {
-              end_column: 48
-              end_line: 41
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 12
+              file: 2
               start_line: 41
             }
             v: 1
@@ -601,10 +532,7 @@ body {
           bitfield1: 13
         }
         src {
-          end_column: 48
-          end_line: 41
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
+          file: 2
           start_line: 41
         }
       }
@@ -624,10 +552,7 @@ body {
         args {
           int64_val {
             src {
-              end_column: 48
-              end_line: 41
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 12
+              file: 2
               start_line: 41
             }
             v: 2
@@ -637,10 +562,7 @@ body {
           bitfield1: 13
         }
         src {
-          end_column: 48
-          end_line: 41
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 12
+          file: 2
           start_line: 41
         }
       }
@@ -663,10 +585,7 @@ body {
           bitfield1: 14
         }
         src {
-          end_column: 22
-          end_line: 43
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
+          file: 2
           start_line: 43
         }
       }
