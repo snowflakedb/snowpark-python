@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -16,11 +16,14 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
+    build_expr_from_snowpark_column_or_sql_str,
+    build_expr_from_snowpark_column_or_python_val,
     debug_check_missing_ast,
     fill_sp_save_mode,
     fill_sp_write_file,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
+    build_sp_table_name,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -129,19 +132,37 @@ class DataFrameWriter:
 
         return self
 
-    def partition_by(self, expr: ColumnOrSqlExpr) -> "DataFrameWriter":
+    def partition_by(
+        self, expr: ColumnOrSqlExpr, _emit_ast: bool = True
+    ) -> "DataFrameWriter":
         """Specifies an expression used to partition the unloaded table rows into separate files. It can be a
         :class:`Column`, a column name, or a SQL expression.
         """
         self._partition_by = expr
+
+        # Update AST if it exists.
+        if _emit_ast:
+            if self._ast_stmt is not None:
+                build_expr_from_snowpark_column_or_sql_str(
+                    self._ast_stmt.expr.sp_dataframe_write.partition_by, expr
+                )
+
         return self
 
-    def option(self, key: str, value: Any) -> "DataFrameWriter":
+    def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameWriter":
         """Depending on the ``file_format_type`` specified, you can include more format specific options.
         Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
         """
         aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
         self._cur_options[aliased_key] = value
+
+        # Update AST if it exists.
+        if _emit_ast:
+            if self._ast_stmt is not None:
+                t = self._ast_stmt.expr.sp_dataframe_write.options.add()
+                t._1 = aliased_key
+                build_expr_from_snowpark_column_or_python_val(t._2, value)
+
         return self
 
     def options(self, configs: Optional[Dict] = None, **kwargs) -> "DataFrameWriter":
@@ -318,10 +339,7 @@ class DataFrameWriter:
             # copy_grants: bool = False,
             # iceberg_config: Optional[dict] = None,
 
-            if isinstance(table_name, str):
-                expr.table_name.sp_table_name_flat.name = table_name
-            elif isinstance(table_name, Iterable):
-                expr.table_name.sp_table_name_structured.name.extend(table_name)
+            build_sp_table_name(expr.table_name, table_name)
 
             if mode is not None:
                 fill_sp_save_mode(expr.mode, mode)

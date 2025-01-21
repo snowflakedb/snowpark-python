@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -15,6 +15,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
+    _concat_ws_ignore_nulls,
     abs,
     array_agg,
     array_append,
@@ -127,6 +128,7 @@ from snowflake.snowpark.functions import (
     reverse,
     sequence,
     size,
+    snowflake_cortex_sentiment,
     snowflake_cortex_summarize,
     split,
     sqrt,
@@ -174,7 +176,12 @@ from snowflake.snowpark.types import (
     TimestampType,
     VariantType,
 )
-from tests.utils import TestData, Utils
+from tests.utils import (
+    TestData,
+    Utils,
+    running_on_jenkins,
+    structured_types_enabled_session,
+)
 
 
 def test_order(session):
@@ -305,6 +312,62 @@ def test_concat_ws(session, col_a, col_b, col_c):
     df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
     res = df.select(concat_ws(lit(","), col_a, col_b, col_c)).collect()
     assert res[0][0] == "1,2,3"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="lambda function not supported",
+)
+@pytest.mark.parametrize("structured_type_semantics", [True, False])
+def test__concat_ws_ignore_nulls(session, structured_type_semantics):
+    data = [
+        (["a", "b"], ["c"], "d", "e", 1, 2),  # no nulls column
+        (
+            ["Hello", None, "world"],
+            [None, "!", None],
+            "bye",
+            "world",
+            3,
+            None,
+        ),  # some nulls column
+        ([None, None], ["R", "H"], None, "TD", 4, 5),  # some nulls column
+        (None, [None], None, None, None, None),  # all nulls column
+        (None, None, None, None, None, None),  # all nulls column
+    ]
+    cols = ["arr1", "arr2", "str1", "str2", "int1", "int2"]
+
+    def check_concat_ws_ignore_nulls_output(session):
+        df = session.create_dataframe(data, schema=cols)
+
+        # single character delimiter
+        Utils.check_answer(
+            df.select(_concat_ws_ignore_nulls(",", *cols)),
+            [
+                Row("a,b,c,d,e,1,2"),
+                Row("Hello,world,!,bye,world,3"),
+                Row("R,H,TD,4,5"),
+                Row(""),
+                Row(""),
+            ],
+        )
+
+        # multi-character delimiter
+        Utils.check_answer(
+            df.select(_concat_ws_ignore_nulls(" : ", *cols)),
+            [
+                Row("a : b : c : d : e : 1 : 2"),
+                Row("Hello : world : ! : bye : world : 3"),
+                Row("R : H : TD : 4 : 5"),
+                Row(""),
+                Row(""),
+            ],
+        )
+
+    if structured_type_semantics:
+        with structured_types_enabled_session(session) as session:
+            check_concat_ws_ignore_nulls_output(session)
+    else:
+        check_concat_ws_ignore_nulls_output(session)
 
 
 def test_concat_edge_cases(session):
@@ -1290,9 +1353,9 @@ def test_to_date_to_array_to_variant_to_object(session, local_testing_mode):
     Utils.assert_rows(res1, expected)
 
     assert df1.schema.fields[0].datatype == DateType()
-    assert df1.schema.fields[1].datatype == ArrayType(StringType())
+    assert df1.schema.fields[1].datatype == ArrayType()
     assert df1.schema.fields[2].datatype == VariantType()
-    assert df1.schema.fields[3].datatype == MapType(StringType(), StringType())
+    assert df1.schema.fields[3].datatype == MapType()
 
 
 def test_to_binary(session):
@@ -2272,8 +2335,15 @@ def test_ln(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
 )
-@pytest.mark.skip("SNOW-1758914 snowflake.cortex.summarize error on GCP")
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.summarize SSL error",
+)
 def test_snowflake_cortex_summarize(session):
+    # TODO: SNOW-1758914 snowflake.cortex.summarize error on GCP
+    if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+        return
+
     content = """In Snowpark, the main way in which you query and process data is through a DataFrame. This topic explains how to work with DataFrames.
 
 To retrieve and manipulate data, you use the DataFrame class. A DataFrame represents a relational dataset that is evaluated lazily: it only executes when a specific action is triggered. In a sense, a DataFrame is like a query that needs to be evaluated in order to retrieve data.
@@ -2302,3 +2372,27 @@ The next sections explain these steps in more detail.
     # this length check is to get around the fact that this function may not be deterministic
     assert 0 < len(summary_from_col) < len(content)
     assert 0 < len(summary_from_str) < len(content)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: snowflake_cortex functions not supported",
+)
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
+def test_snowflake_cortex_sentiment(session):
+    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
+    if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+        return
+    content = "A very very bad review!"
+    df = session.create_dataframe([[content]], schema=["content"])
+
+    sentiment_from_col = df.select(
+        snowflake_cortex_sentiment(col("content"))
+    ).collect()[0][0]
+    sentiment_from_str = df.select(snowflake_cortex_sentiment(content)).collect()[0][0]
+
+    assert -1 <= sentiment_from_col <= 0
+    assert -1 <= sentiment_from_str <= 0

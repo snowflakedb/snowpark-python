@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -12,7 +12,10 @@ import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.utils import assert_series_equal, eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_series_equal,
+    eval_snowpark_pandas_result,
+)
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 TEST_DATA = [
@@ -367,16 +370,31 @@ def test_str_replace_neg(pat, n, repl, error):
         snow_ser.str.replace(pat=pat, repl=repl, n=n)
 
 
-@pytest.mark.parametrize("pat", [None, "a", "|", "%"])
+@pytest.mark.parametrize(
+    "pat", [None, "a", "ab", "abc", "non_occurrence_pat", "|", "%"]
+)
 @pytest.mark.parametrize("n", [None, np.nan, 3, 2, 1, 0, -1, -2])
 @sql_count_checker(query_count=1)
-def test_str_split(pat, n):
+def test_str_split_expand_false(pat, n):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
     eval_snowpark_pandas_result(
         snow_ser,
         native_ser,
         lambda ser: ser.str.split(pat=pat, n=n, expand=False, regex=None),
+    )
+
+
+@pytest.mark.parametrize("pat", [None, "a", "ab", "abc", "no_occurrence_pat", "|", "%"])
+@pytest.mark.parametrize("n", [None, np.nan, 3, 2, 1, 0, -1, -2])
+@sql_count_checker(query_count=2)
+def test_str_split_expand_true(pat, n):
+    native_ser = native_pd.Series(TEST_DATA)
+    snow_ser = pd.Series(native_ser)
+    eval_snowpark_pandas_result(
+        snow_ser,
+        native_ser,
+        lambda ser: ser.str.split(pat=pat, n=n, expand=True, regex=None),
     )
 
 
@@ -395,21 +413,20 @@ def test_str_split_regex(regex):
 
 
 @pytest.mark.parametrize(
-    "pat, n, expand, error",
+    "pat, n, error",
     [
-        ("", 1, False, ValueError),
-        (re.compile("a"), 1, False, NotImplementedError),
-        (-2.0, 1, False, NotImplementedError),
-        ("a", "a", False, NotImplementedError),
-        ("a", 1, True, NotImplementedError),
+        ("", 1, ValueError),
+        (re.compile("a"), 1, NotImplementedError),
+        (-2.0, 1, NotImplementedError),
+        ("a", "a", NotImplementedError),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_str_split_neg(pat, n, expand, error):
+def test_str_split_neg(pat, n, error):
     native_ser = native_pd.Series(TEST_DATA)
     snow_ser = pd.Series(native_ser)
     with pytest.raises(error):
-        snow_ser.str.split(pat=pat, n=n, expand=expand, regex=False)
+        snow_ser.str.split(pat=pat, n=n, expand=False, regex=False)
 
 
 @pytest.mark.parametrize("func", ["isdigit", "islower", "isupper", "lower", "upper"])

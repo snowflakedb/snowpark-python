@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from decimal import Decimal
@@ -17,8 +17,10 @@ from snowflake.snowpark.types import (
     LongType,
     StructField,
     StructType,
+    StringType,
+    DoubleType,
 )
-from tests.utils import TestData, Utils
+from tests.utils import TestData, Utils, TestFiles, IS_IN_STORED_PROC_LOCALFS
 
 
 def test_create_view(session, local_testing_mode):
@@ -215,3 +217,38 @@ def test_create_temp_view_on_functions(session, local_testing_mode):
         Utils.drop_table(session, table_name)
         if not local_testing_mode:
             Utils.drop_view(session, view_name)
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
+def test_create_or_replace_temp_view_with_file(session, resources_path):
+    tmp_stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    test_files = TestFiles(resources_path)
+    Utils.upload_to_stage(
+        session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
+    )
+    test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
+    user_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", StringType()),
+            StructField("c", DoubleType()),
+        ]
+    )
+
+    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    df.create_or_replace_temp_view(view_name)
+    Utils.check_answer(
+        session.table(view_name), [Row(A=1, B="one", C=1.2), Row(A=2, B="two", C=2.2)]
+    )
+
+    # no post action
+    assert len(df.queries["post_actions"]) == 0
+
+    # for sub-dataframes, we have a new temp table so even if it's dropped,
+    # it won't affect the created temp view
+    df.select("a").collect()
+    Utils.check_answer(
+        session.table(view_name), [Row(A=1, B="one", C=1.2), Row(A=2, B="two", C=2.2)]
+    )

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import importlib
@@ -1881,9 +1881,9 @@ def execute_mock_plan(
         # This requires us to wrap the aggregation function with extract logic to handle this special case.
         def agg_function(column):
             return (
-                agg_functions[agg_function_name](column.dropna())
-                if column.any()
-                else sentinel
+                sentinel
+                if column.isnull().all()
+                else agg_functions[agg_function_name](column.dropna())
             )
 
         default = (

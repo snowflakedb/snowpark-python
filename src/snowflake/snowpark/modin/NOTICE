@@ -6,7 +6,7 @@ as Client Software. The open source libraries used in the Snowflake Snowpark pan
 ```
 Modin
 
-Copyright (c) 2018-2024 Modin Developers.
+Copyright (c) 2018-2025 Modin Developers.
 
 
                                  Apache License
@@ -220,7 +220,7 @@ BSD 3-Clause License
 Copyright (c) 2008-2011, AQR Capital Management, LLC, Lambda Foundry, Inc. and PyData Development Team
 All rights reserved.
 
-Copyright (c) 2011-2024, Open source contributors.
+Copyright (c) 2011-2025, Open source contributors.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:

@@ -25,8 +25,10 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
@@ -61,8 +63,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -87,6 +91,9 @@ body {
                   start_line: 27
                 }
               }
+            }
+            null_order {
+              sp_null_order_default: true
             }
             src {
               end_column: 38
@@ -134,8 +141,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -161,8 +170,8 @@ body {
                 }
               }
             }
-            nulls_first {
-              value: true
+            null_order {
+              sp_null_order_nulls_first: true
             }
             src {
               end_column: 50
@@ -210,8 +219,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -237,7 +248,8 @@ body {
                 }
               }
             }
-            nulls_first {
+            null_order {
+              sp_null_order_nulls_last: true
             }
             src {
               end_column: 49
