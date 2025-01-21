@@ -4107,8 +4107,7 @@ class Session:
                 raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
                     ".".join(raw_table_name)
                 )
-
-        return tables is not None and len(tables) > 0
+            return tables is not None and len(tables) > 0
 
     def _explain_query(self, query: str) -> Optional[str]:
         try:
