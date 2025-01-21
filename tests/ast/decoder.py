@@ -1646,9 +1646,13 @@ class Decoder:
                 return self.decode_expr(expr.sp_session_table_function.fn, **kwargs)
 
             case "sp_table":
+                breakpoint()
                 assert expr.sp_table.HasField("name")
                 table_name = self.decode_name_expr(expr.sp_table.name)
-                return self.session.table(table_name)
+                is_temp_table_for_cleanup = expr.sp_table.is_temp_table_for_cleanup
+                return self.session.table(
+                    table_name, is_temp_table_for_cleanup=is_temp_table_for_cleanup
+                )
 
             case "sp_to_snowpark_pandas":
                 df = self.decode_expr(expr.sp_to_snowpark_pandas.df)
@@ -1953,10 +1957,29 @@ class Decoder:
                 return df.write
 
             case "stored_procedure":
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.stored_procedure.input_types.list
+                ]
+                execute_as = expr.stored_procedure.execute_as
+                comment = expr.stored_procedure.comment.value
                 registered_object_name = self.decode_name_expr(
                     expr.stored_procedure.func.object_name
                 )
-                return self.session.sproc._registry[registered_object_name]
+                return_type = self.decode_data_type_expr(
+                    expr.stored_procedure.return_type
+                )
+                name = self.decode_name_expr(expr.stored_procedure.name)
+                ret_sproc = sproc(
+                    self.session.sproc._registry[registered_object_name],
+                    name=name,
+                    return_type=return_type,
+                    input_types=input_types,
+                    execute_as=execute_as,
+                    comment=comment,
+                    _registered_object_name=registered_object_name,
+                )
+                return ret_sproc
 
             case "sp_flatten":
                 input = self.decode_expr(expr.sp_flatten.input)
@@ -2038,15 +2061,25 @@ class Decoder:
                 d = MessageToDict(expr.sp_write_table)
                 statement_params = self.get_statement_params(d)
                 block = expr.sp_write_table.block
-                comment = expr.sp_write_table.comment.value
-                enable_schema_evolution = (
-                    expr.sp_write_table.enable_schema_evolution.value
-                )
-                data_retention_time = expr.sp_write_table.data_retention_time.value
-                max_data_extension_time = (
-                    expr.sp_write_table.max_data_extension_time.value
-                )
-                change_tracking = expr.sp_write_table.change_tracking.value
+                comment = None
+                if "comment" in d:
+                    comment = expr.sp_write_table.comment.value
+                enable_schema_evolution = None
+                if "enable_schema_evolution" in d:
+                    enable_schema_evolution = (
+                        expr.sp_write_table.enable_schema_evolution.value
+                    )
+                data_retention_time = None
+                if "data_retention_time" in d:
+                    data_retention_time = expr.sp_write_table.data_retention_time.value
+                max_data_extension_time = None
+                if "max_data_extension_time" in d:
+                    max_data_extension_time = (
+                        expr.sp_write_table.max_data_extension_time.value
+                    )
+                change_tracking = None
+                if "change_tracking" in d:
+                    change_tracking = expr.sp_write_table.change_tracking.value
                 copy_grants = expr.sp_write_table.copy_grants
                 iceberg_config = None
                 if hasattr(expr.sp_write_table, "iceberg_config"):
