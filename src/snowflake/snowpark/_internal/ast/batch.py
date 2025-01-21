@@ -11,7 +11,6 @@ from collections import namedtuple
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-
 from snowflake.snowpark.version import VERSION
 
 # TODO(SNOW-1791994): Enable pyright type checks for this file.
@@ -107,6 +106,8 @@ class AstBatch:
         return SerializedBatch(req_id, batch)
 
     def _init_batch(self) -> None:
+        import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
         # Reset the AST batch by initializing a new request.
         self._request_id = AstBatch.generate_request_id()  # Generate a new unique ID.
         self._request = proto.Request()
