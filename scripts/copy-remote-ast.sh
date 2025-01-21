@@ -28,17 +28,15 @@ fi
 REMOTE_HOME=$(ssh $1 'echo "$HOME"')
 
 # Run bazel build remotely.
-ssh $1 'cd ~/Snowflake/trunk && bazel build //Snowpark/ast:ast_proto && bazel build //Snowpark/unparser && bazel run //Snowpark/unparser'
+# Adding _deploy to a bazel JVM target builds a fat jar,
+# For the unparser this target is //Snowpark/unparser:unparser_deploy.jar.
+ssh $1 'cd ~/Snowflake/trunk && bazel build //Snowpark/ast:ast_proto && bazel build //Snowpark/unparser:unparser_deploy.jar'
 
 scp $1:"$REMOTE_HOME/Snowflake/trunk/bazel-bin/Snowpark/ast/ast.proto" $SNOWPARK_ROOT/src/snowflake/snowpark/_internal/proto/ast.proto
 
 mkdir -p $MONOREPO_DIR/bazel-bin/Snowpark/unparser/unparser.runfiles
 
-# The runfiles contain the scala libraries/jars.
-scp -r $1:$REMOTE_HOME/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.runfiles/ $MONOREPO_DIR/bazel-bin/Snowpark/unparser/unparser.runfiles/
-
-scp $1:$REMOTE_HOME/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser-lib.jar $MONOREPO_DIR/bazel-bin/Snowpark/unparser/
-scp $1:$REMOTE_HOME/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser.jar $MONOREPO_DIR/bazel-bin/Snowpark/unparser/
+scp $1:$REMOTE_HOME/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser_deploy.jar $MONOREPO_DIR/bazel-bin/Snowpark/unparser/unparser.jar
 
 pushd $SNOWPARK_ROOT
 python -m tox -e protoc
