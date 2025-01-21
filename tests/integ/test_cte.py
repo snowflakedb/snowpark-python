@@ -1011,11 +1011,13 @@ def test_time_series_aggregation_grouping(session):
     )
 
 
-def test_table_select_cte(session):
-    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+@pytest.mark.parametrize("from_table", [True, False])
+def test_table_avoid_cte_on_select_and_values(session, from_table):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    df.write.save_as_table(table_name, table_type="temp")
-    df = session.table(table_name)
+    if from_table:
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        df.write.save_as_table(table_name, table_type="temp")
+        df = session.table(table_name)
     df_result = df.with_column("add_one", col("a") + 1).union(
         df.with_column("add_two", col("a") + 2)
     )
