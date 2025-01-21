@@ -1216,7 +1216,7 @@ class SnowflakePlanBuilder:
         pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
-        infer_schema = (
+        schema_available = (
             options.get("INFER_SCHEMA", True)
             if format in INFER_SCHEMA_FORMAT_TYPES
             else False
@@ -1263,7 +1263,7 @@ class SnowflakePlanBuilder:
                 )
             )
 
-            if infer_schema:
+            if schema_available:
                 assert schema_to_cast is not None
                 schema_project: List[str] = schema_cast_named(schema_to_cast)
             else:
@@ -1303,7 +1303,7 @@ class SnowflakePlanBuilder:
             # If we have inferred the schema, we want to use those column names
             temp_table_schema = (
                 schema
-                if infer_schema
+                if schema_available
                 else [
                     Attribute(f'"COL{index}"', att.datatype, att.nullable)
                     for index, att in enumerate(schema)
