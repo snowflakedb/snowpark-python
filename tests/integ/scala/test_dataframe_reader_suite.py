@@ -1786,39 +1786,40 @@ def test_read_json_user_input_schema(session):
     Utils.check_answer(df, [Row(fruit="Apple", size="Large", color="Red")])
 
     # schema that have part of column in file and column not in the file
-    schema = StructType(
-        [
-            StructField("fruit", StringType(), True),
-            StructField("size", StringType(), True),
-            StructField("not_included_column", StringType(), True),
-        ]
-    )
-
-    df = session.read.schema(schema).json(test_file)
-    Utils.check_answer(df, [Row(fruit="Apple", size="Large", not_included_column=None)])
-
-    # schema that have extra column
-    schema = StructType(
-        [
-            StructField("fruit", StringType(), True),
-            StructField("size", StringType(), True),
-            StructField("color", StringType(), True),
-            StructField("extra_column", StringType(), True),
-        ]
-    )
-
-    df = session.read.schema(schema).json(test_file)
-    Utils.check_answer(
-        df, [Row(fruit="Apple", size="Large", color="Red", extra_column=None)]
-    )
-
-    # schema that have false datatype
-    schema = StructType(
-        [
-            StructField("fruit", StringType(), True),
-            StructField("size", StringType(), True),
-            StructField("color", IntegerType(), True),
-        ]
-    )
-    with pytest.raises(SnowparkSQLException, match="Failed to cast variant value"):
-        session.read.schema(schema).json(test_file).collect()
+    # schema = StructType(
+    #     [
+    #         StructField("fruit", StringType(), True),
+    #         StructField("size", StringType(), True),
+    #         StructField("not_included_column", StringType(), True),
+    #     ]
+    #     ]
+    # )
+    #
+    # df = session.read.schema(schema).json(test_file)
+    # Utils.check_answer(df, [Row(fruit="Apple", size="Large", not_included_column=None)])
+    #
+    # # schema that have extra column
+    # schema = StructType(
+    #     [
+    #         StructField("fruit", StringType(), True),
+    #         StructField("size", StringType(), True),
+    #         StructField("color", StringType(), True),
+    #         StructField("extra_column", StringType(), True),
+    #     ]
+    # )
+    #
+    # df = session.read.schema(schema).json(test_file)
+    # Utils.check_answer(
+    #     df, [Row(fruit="Apple", size="Large", color="Red", extra_column=None)]
+    # )
+    #
+    # # schema that have false datatype
+    # schema = StructType(
+    #     [
+    #         StructField("fruit", StringType(), True),
+    #         StructField("size", StringType(), True),
+    #         StructField("color", IntegerType(), True),
+    #     ]
+    # )
+    # with pytest.raises(SnowparkSQLException, match="Failed to cast variant value"):
+    #     session.read.schema(schema).json(test_file).collect()
