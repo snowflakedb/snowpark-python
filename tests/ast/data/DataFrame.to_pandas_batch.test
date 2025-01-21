@@ -24,6 +24,15 @@ df.to_pandas_batches(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=Fals
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -36,10 +45,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
+          file: 2
           start_line: 25
         }
         variant {
@@ -65,10 +71,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 30
-          end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
+          file: 2
           start_line: 27
         }
       }
@@ -97,10 +100,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 41
-          end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
+          file: 2
           start_line: 29
         }
       }
@@ -130,10 +130,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 77
-          end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
+          file: 2
           start_line: 31
         }
         statement_params {
@@ -166,10 +163,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 90
-          end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 8
+          file: 2
           start_line: 33
         }
         statement_params {

@@ -18,6 +18,15 @@ df3 = df3.select("*")
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -30,10 +39,7 @@ body {
           }
         }
         src {
-          end_column: 42
-          end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
+          file: 2
           start_line: 25
         }
         variant {
@@ -62,10 +68,7 @@ body {
           }
         }
         src {
-          end_column: 42
-          end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
+          file: 2
           start_line: 27
         }
         variant {
@@ -99,10 +102,7 @@ body {
                   }
                 }
                 src {
-                  end_column: 38
-                  end_line: 29
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_column: 28
+                  file: 2
                   start_line: 29
                 }
               }
@@ -118,19 +118,13 @@ body {
                   }
                 }
                 src {
-                  end_column: 51
-                  end_line: 29
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_column: 41
+                  file: 2
                   start_line: 29
                 }
               }
             }
             src {
-              end_column: 51
-              end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 28
+              file: 2
               start_line: 29
             }
           }
@@ -153,10 +147,7 @@ body {
           }
         }
         src {
-          end_column: 61
-          end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
+          file: 2
           start_line: 29
         }
       }
@@ -178,10 +169,7 @@ body {
           sp_column_sql_expr {
             sql: "*"
             src {
-              end_column: 73
-              end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 14
+              file: 2
               start_line: 29
             }
           }
@@ -194,10 +182,7 @@ body {
           }
         }
         src {
-          end_column: 73
-          end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 14
+          file: 2
           start_line: 29
         }
         variadic: true

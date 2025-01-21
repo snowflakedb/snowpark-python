@@ -13,6 +13,15 @@ df = df.select("*")
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -25,10 +34,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
+          file: 2
           start_line: 25
         }
         variant {
@@ -53,10 +59,7 @@ body {
           sp_column_sql_expr {
             sql: "*"
             src {
-              end_column: 31
-              end_line: 27
-              file: "SRC_POSITION_TEST_MODE"
-              start_column: 23
+              file: 2
               start_line: 27
             }
           }
@@ -69,10 +72,7 @@ body {
           }
         }
         src {
-          end_column: 32
-          end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
-          start_column: 13
+          file: 2
           start_line: 27
         }
         variadic: true
