@@ -37,7 +37,10 @@ body {
           }
         }
         src {
+          end_column: 41
+          end_line: 25
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 25
         }
         variant {
@@ -67,7 +70,10 @@ body {
         }
         exprs: "$1"
         src {
+          end_column: 33
+          end_line: 27
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 27
         }
         variadic: true
@@ -95,7 +101,10 @@ body {
         }
         exprs: "$1"
         src {
+          end_column: 35
+          end_line: 29
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 29
         }
       }
@@ -127,7 +136,10 @@ body {
         exprs: "MAX $5"
         exprs: "COUNT DISTINCT $6"
         src {
+          end_column: 100
+          end_line: 31
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 31
         }
         variadic: true
@@ -160,7 +172,10 @@ body {
         exprs: "MAX $5"
         exprs: "COUNT DISTINCT $6"
         src {
+          end_column: 102
+          end_line: 33
           file: "SRC_POSITION_TEST_MODE"
+          start_column: 13
           start_line: 33
         }
       }
