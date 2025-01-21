@@ -549,6 +549,21 @@ class SubfieldInt(Expression):
         )
 
 
+class LambdaFunctionExpression(Expression):
+    def __init__(
+        self,
+        body: Expression,
+        args: list[UnresolvedAttribute],
+    ) -> None:
+        super().__init__()
+        self.body = body
+        self.args = args
+
+    @property
+    def sql(self) -> str:
+        return f"{', '.join([a.sql for a in self.args])} -> {self.body.sql}"
+
+
 class FunctionExpression(Expression):
     def __init__(
         self,
