@@ -1593,3 +1593,9 @@ def clear_line_no_in_request(request: "proto.Request") -> None:
     fixes in determining better line_no info for chained python code, etc."""
     for stmt in request.body:
         clear_line_no_in_ast(stmt)
+
+
+def make_proto_expr() -> "proto.Expr":
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+    return proto.Expr()
