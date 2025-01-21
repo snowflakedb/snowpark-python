@@ -733,7 +733,7 @@ class Session:
     @property
     @experimental(version="1.27.0")
     def catalog(self):
-        """Returns the catalog object."""
+        """Returns a :class:`Catalog` object rooted on current session."""
         from snowflake.snowpark.catalog import Catalog
 
         if self._catalog is None:

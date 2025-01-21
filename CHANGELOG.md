@@ -41,7 +41,10 @@
   - `regr_syy`
   - `try_to_binary`
 
+#### Experimental Features
+
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+  - `snowflake.core` is a dependency required for this feature.
 
 #### Improvements
 
