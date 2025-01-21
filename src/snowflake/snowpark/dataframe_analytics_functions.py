@@ -5,7 +5,6 @@
 from typing import Callable, Dict, List, Tuple, Union
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,

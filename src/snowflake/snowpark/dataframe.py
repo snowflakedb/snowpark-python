@@ -25,7 +25,6 @@ from typing import (
 )
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,

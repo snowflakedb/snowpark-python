@@ -11,7 +11,6 @@ from collections import namedtuple
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from snowflake.snowpark.version import VERSION
 

@@ -165,7 +165,6 @@ from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,

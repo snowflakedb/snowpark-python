@@ -9,7 +9,6 @@ from enum import IntEnum
 from typing import List, Optional, Tuple, Union
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.expression import Expression, Literal
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.window_expression import (
