@@ -133,6 +133,9 @@ from snowflake.snowpark._internal.utils import (
     warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
+    set_ast_state,
+    is_ast_enabled,
+    AstFlagSource,
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.catalog import Catalog
@@ -619,9 +622,10 @@ class Session:
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
-        self._ast_enabled: bool = self._conn._get_client_side_session_parameter(
+        ast_enabled: bool = self._conn._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
         )
+        set_ast_state(AstFlagSource.SERVER, ast_enabled)
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
         self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (
@@ -782,7 +786,17 @@ class Session:
 
     @property
     def ast_enabled(self) -> bool:
-        return self._ast_enabled
+        """
+        Set to ``True`` to enable the AST (Abstract Syntax Tree) capture for ``DataFrame`` operations.
+
+        This is an internal, experimental feature that is not yet fully supported. The value of the parameter is controlled by the Snowflake service.
+
+        It is not possible to re-enable this feature if the system or a user explicitly disables it. Setting this property to ``True`` can result in no change if the setting was already set explicitly to ``False`` internally.
+
+        Returns:
+            The current value of the property.
+        """
+        return is_ast_enabled()
 
     @ast_enabled.setter
     def ast_enabled(self, value: bool) -> None:
@@ -797,16 +811,16 @@ class Session:
         #     )
         # except Exception:
         #     pass
-        self._ast_enabled = value
 
         # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
         # This feature should get moved server-side anyways.
-        if self._ast_enabled:
+        if value:
             _logger.warning(
                 "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
             self.auto_clean_up_temp_table_enabled = False
+        set_ast_state(AstFlagSource.LOCAL, value)
 
     @property
     def cte_optimization_enabled(self) -> bool:

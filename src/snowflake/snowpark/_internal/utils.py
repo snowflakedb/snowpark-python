@@ -21,7 +21,7 @@ import string
 import threading
 import traceback
 import zipfile
-from enum import Enum
+from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache
 from itertools import count
 from json import JSONEncoder
@@ -801,153 +801,183 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     warning_dict[name].warning(text)
 
 
-# TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def infer_ast_enabled_from_global_sessions(func: Callable) -> bool:  # pragma: no cover
-    session = None
-    try:
-        # Multiple default session attempts:
-        session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
-            None
-        )
-        assert session is not None
-    except (
-        snowflake.snowpark.exceptions.SnowparkSessionException,
-        AssertionError,
-    ):
-        # Use modin session retrieval first, as it supports multiple sessions.
-        # Expect this to fail if modin was not installed, for Python 3.8, ... but that's ok.
-        try:
-            import modin.pandas as pd
+@unique
+class AstFlagSource(IntEnum):
+    """
+    Describes the source of the AST feature flag value. This is not just an annotation!
+    The enum value determines the precedence of the value.
+    """
 
-            session = pd.session
-        except Exception as e:  # noqa: F841
-            try:
-                # Get from default session.
-                from snowflake.snowpark.context import get_active_session
+    LOCAL = auto()
+    """Some local criteria determined the value. This has the lowest precedence. Any other source can override it."""
+    SERVER = auto()
+    """The server set the value. This has the highest precedence. Nothing else can override it."""
+    TEST = auto()
+    """
+    Do not use this in production Snowpark code. Test code sets the value. This has the highest precedence.
+    However, other test code can override previous settings.
 
-                session = get_active_session()
-            except Exception as e:  # noqa: F841
-                pass
-    finally:
-        if session is None:
+    Do not misuse this flag source in production code, as it will lead to unpredictable behavior.
+    """
+
+
+@unique
+class _AstFlagState(IntEnum):
+    """
+    Describes the state of the AST feature flag value.
+    """
+
+    NEW = auto()
+    """The flag is initialized with a hard-coded default. No source has set the value."""
+    TENTATIVE = auto()
+    """The flag has been set by a source with lower precedence than SERVER. It can be overridden by SERVER."""
+    FINALIZED = auto()
+    """The flag has been set by SERVER. It cannot be overridden."""
+
+
+class _AstState:
+    """
+    Tracks the state of the ast_enabled feature flag. This class is thread-safe. The most important role of this
+    class is to prevent the flag from flip-flopping. In particular, once the feature is disabled (for any reason),
+    nothing can re-enable it.
+    """
+
+    def __init__(self) -> None:
+        """Creates an instance of _AstState."""
+        self._mutex = threading.Lock()
+        # The only safe default value is True. If the default is False, the flag can never be enabled.
+        # Consider a simple scenario:
+        # Initialize Snowpark.
+        # Create a few objects that are session-agnostic:
+        # a = Col("a")
+        # b = Col("b")
+        # Initialize a Snowpark session, and try to use a and b with ast_enabled = True.
+        # The objects got created with ast_enabled = False and are unusable.
+        self._ast_enabled = True
+        self._state = _AstFlagState.NEW
+
+    @property
+    def enabled(self) -> bool:
+        """Gets the value of the ast_enabled feature flag."""
+        with self._mutex:
+            if self._state == _AstFlagState.NEW:
+                # Nothing (test harness, local code, or explicit server setting) has set the value.
+                # Transition to TENTATIVE state as if local code had set the value.
+                _logger.info(
+                    "AST state has not been set explicitly. Defaulting to ast_enabled = %s.",
+                    self._ast_enabled,
+                )
+                self._state = _AstFlagState.TENTATIVE
+            return self._ast_enabled
+
+    def set_state(self, source: AstFlagSource, enable: bool) -> None:
+        """
+        Sets the value of the ast_enabled feature flag. The method may ignore the change request if the requested
+        transition is unsafe, or if the flag was already set at a precedence level not greater than the precedence
+        level of "source".
+
+        Flip-flopping the flag (enabled -> disabled -> enabled) is unsafe.
+
+        The AST feature can be disabled only once, and stays disabled no matter what happens afterward. The feature can
+        be enabled transiently, and once something (server setting or test configuration) makes a final decision, that
+        decision is permanent for the life of the process.
+
+        Args:
+            source: The source of the request. Using SERVER or TEST will finalize the flag.
+            enable: The new value of the flag.
+        """
+        with self._mutex:
             _logger.debug(
-                f"Could not retrieve default session "
-                f"for function {func.__qualname__}, capturing AST by default."
+                "Setting AST state. Current state: ast_enabled = %s, state = %s. Request: source = %s, enable = %s.",
+                self._ast_enabled,
+                self._state,
+                source,
+                enable,
             )
-            # session has not been created yet. To not lose information, always encode AST.
-            return True  # noqa: B012
-        else:
-            return session.ast_enabled  # noqa: B012
+            if source == AstFlagSource.TEST:
+                # TEST behaviors override everything.
+                # If you see this code path running in production, the calling code is broken.
+                self._state = _AstFlagState.FINALIZED
+                self._ast_enabled = enable
+                return
+            if self._state == _AstFlagState.FINALIZED and self._ast_enabled != enable:
+                _logger.warning(
+                    "Cannot change AST state after it has been finalized. Frozen ast_enabled = %s. Ignoring value %s.",
+                    self._ast_enabled,
+                    enable,
+                )
+                return
+            safe_transition: bool = not (
+                self._state == _AstFlagState.TENTATIVE
+                and not self._ast_enabled
+                and enable
+            )
+            if source == AstFlagSource.SERVER:
+                if safe_transition:
+                    self._ast_enabled = enable
+                else:
+                    _logger.warning(
+                        "Server cannot enable AST after treating it as disabled locally. Ignoring request."
+                    )
+                self._state = _AstFlagState.FINALIZED
+            elif source == AstFlagSource.LOCAL:
+                if safe_transition:
+                    self._ast_enabled = enable
+                else:
+                    _logger.warning(
+                        "Cannot enable AST by local preference after treating it as disabled. Ignoring request."
+                    )
+                self._state = _AstFlagState.TENTATIVE
+            else:
+                raise NotImplementedError(
+                    f"Unhandled transition. Current state: ast_enabled = {self._ast_enabled}, state = {self._state}. Request: source = {source}, enable = {enable}"
+                )
+
+
+_ast_state: _AstState = _AstState()
+
+
+def is_ast_enabled() -> bool:
+    """Gets the value of the ast_enabled feature flag."""
+    global _ast_state
+    return _ast_state.enabled
+
+
+def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
+    """
+    Sets the value of the ast_enabled feature flag.
+
+    See _AstState.set_state for more information.
+    """
+    global _ast_state
+    return _ast_state.set_state(source, enabled)
 
 
 def publicapi(func) -> Callable:
     """decorator to safeguard public APIs with global feature flags."""
 
-    # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
+    # Note that co_varnames also includes local variables. This can trigger false positives.
+    has_emit_ast: bool = "_emit_ast" in func.__code__.co_varnames
+
     @functools.wraps(func)
-    def func_call_wrapper(*args, **kwargs):  # pragma: no cover
+    def call_wrapper(*args, **kwargs):  # pragma: no cover
         # warning(func.__qualname__, warning_text)
 
-        # Handle AST encoding, by modifying default behavior.
-        # If a function supports AST encoding, it must have a parameter _emit_ast.
-        # If now _emit_ast is passed as part of kwargs (we do not allow for the positional syntax!)
-        # then we use this value directly. If not, but the function supports _emit_ast,
-        # we override _emit_ast with the session parameter.
-        if "_emit_ast" in func.__code__.co_varnames and "_emit_ast" not in kwargs:
-            # No arguments, or single argument with function.
-            if len(args) == 0 or (len(args) == 1 and isinstance(args[0], Callable)):
-                if func.__name__ in {
-                    "udf",
-                    "udtf",
-                    "udaf",
-                    "pandas_udf",
-                    "pandas_udtf",
-                    "sproc",
-                }:
-                    session = kwargs.get("session")
-                    # Lookup session directly as in implementation of these decorators.
-                    session = snowflake.snowpark.session._get_sandbox_conditional_active_session(
-                        session
-                    )
-                    # If session is None, do nothing (i.e., keep encoding AST).
-                    # This happens when the decorator is called before a session is started.
-                    if session is not None:
-                        kwargs["_emit_ast"] = session.ast_enabled
-                # Function passed fully with kwargs only (i.e., not a method - self will always be passed positionally)
-                elif len(kwargs) != 0:
-                    # Check if one of the kwargs holds a session object. If so, retrieve AST enabled from there.
-                    session_vars = [
-                        var
-                        for var in kwargs.values()
-                        if isinstance(var, snowflake.snowpark.session.Session)
-                    ]
-                    if session_vars:
-                        kwargs["_emit_ast"] = session_vars[0].ast_enabled
-                    else:
-                        kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(
-                            func
-                        )
-            elif isinstance(args[0], snowflake.snowpark.dataframe.DataFrame):
-                # special case: __init__ called, self._session is then not initialized yet.
-                if func.__qualname__.endswith(".__init__"):
-                    # Try to find a session argument.
-                    session_args = [
-                        arg
-                        for arg in args
-                        if isinstance(arg, snowflake.snowpark.session.Session)
-                    ]
-                    assert (
-                        len(session_args) != 0
-                    ), f"{func.__qualname__} must have at least one session arg."
-                    kwargs["_emit_ast"] = session_args[0].ast_enabled
-                else:
-                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
-            elif isinstance(
-                args[0], snowflake.snowpark.dataframe_reader.DataFrameReader
-            ):
-                if func.__qualname__.endswith(".__init__"):
-                    assert isinstance(
-                        args[1], snowflake.snowpark.session.Session
-                    ), f"{func.__qualname__} second arg must be session."
-                    kwargs["_emit_ast"] = args[1].ast_enabled
-                else:
-                    kwargs["_emit_ast"] = args[0]._session.ast_enabled
-            elif isinstance(
-                args[0], snowflake.snowpark.dataframe_writer.DataFrameWriter
-            ):
-                if func.__qualname__.endswith(".__init__"):
-                    assert isinstance(
-                        args[1], snowflake.snowpark.DataFrame
-                    ), f"{func.__qualname__} second arg must be dataframe."
-                    kwargs["_emit_ast"] = args[1]._session.ast_enabled
-                else:
-                    kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
-            elif isinstance(
-                args[0],
-                (
-                    snowflake.snowpark.dataframe_stat_functions.DataFrameStatFunctions,
-                    snowflake.snowpark.dataframe_analytics_functions.DataFrameAnalyticsFunctions,
-                    snowflake.snowpark.dataframe_na_functions.DataFrameNaFunctions,
-                ),
-            ):
-                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
-            elif hasattr(args[0], "_session") and args[0]._session is not None:
-                kwargs["_emit_ast"] = args[0]._session.ast_enabled
-            elif isinstance(args[0], snowflake.snowpark.session.Session):
-                kwargs["_emit_ast"] = args[0].ast_enabled
-            elif isinstance(
-                args[0],
-                snowflake.snowpark.relational_grouped_dataframe.RelationalGroupedDataFrame,
-            ):
-                kwargs["_emit_ast"] = args[0]._dataframe._session.ast_enabled
-            else:
-                kwargs["_emit_ast"] = infer_ast_enabled_from_global_sessions(func)
+        if not has_emit_ast:
+            # This callee doesn't have a _emit_ast parameter.
+            return func(*args, **kwargs)
+
+        if "_emit_ast" in kwargs:
+            # The caller provided _emit_ast explicitly.
+            return func(*args, **kwargs)
+
+        kwargs["_emit_ast"] = is_ast_enabled()
 
         # TODO: Could modify internal docstring to display that users should not modify the _emit_ast parameter.
 
         return func(*args, **kwargs)
 
-    return func_call_wrapper
+    return call_wrapper
 
 
 def func_decorator(
