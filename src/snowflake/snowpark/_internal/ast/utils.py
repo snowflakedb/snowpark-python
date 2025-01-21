@@ -618,12 +618,13 @@ def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:  # pragma: no cov
 
 
 # Global string interning map, grows over time.
-# Initialize
+# Map is stable along a process, not on a a per-session basis.
+# Initialize with empty string, to allow for simple checks.
 __STRING_INTERNING_MAP__ = {"": -1}
 
 
 def __intern_string(s: str) -> int:
-    """Helper function to add string to string map and return integer lookup index.
+    """Helper function to add string to global string interning map and return integer lookup index.
     Empty string will always yield -1 as lookup index.
     Args:
         s: str string to intern
