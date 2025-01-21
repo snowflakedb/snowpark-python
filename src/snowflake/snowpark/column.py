@@ -915,8 +915,17 @@ class Column:
         return Column(Not(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     def _cast(
-        self, to: Union[str, DataType], try_: bool = False, _emit_ast: bool = True
+        self,
+        to: Union[str, DataType],
+        try_: bool = False,
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
     ) -> "Column":
+        if add_fields and rename_fields:
+            raise ValueError(
+                "is_add and is_rename cannot be set to True at the same time"
+            )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
 
@@ -934,21 +943,49 @@ class Column:
             )
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
-        return Column(Cast(self._expression, to, try_), _ast=expr, _emit_ast=_emit_ast)
+        return Column(
+            Cast(self._expression, to, try_, rename_fields, add_fields),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     @publicapi
-    def cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
+    def cast(
+        self,
+        to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
-        return self._cast(to, False, _emit_ast=_emit_ast)
+        return self._cast(
+            to,
+            False,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
+        )
 
     @publicapi
-    def try_cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
+    def try_cast(
+        self,
+        to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
-        return self._cast(to, True, _emit_ast=_emit_ast)
+        return self._cast(
+            to,
+            True,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
+        )
 
     @publicapi
     def desc(self, _emit_ast: bool = True) -> "Column":
