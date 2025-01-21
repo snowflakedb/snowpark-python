@@ -1488,7 +1488,7 @@ def test_cast_structtype_rename(structured_type_session, structured_type_support
     df = structured_type_session.create_dataframe(data, schema)
     Utils.check_answer(
         df.select(
-            col("name").cast(schema2, is_rename=True).as_("new_name"), col("dob")
+            col("name").cast(schema2, rename_fields=True).as_("new_name"), col("dob")
         ),
         [
             Row(
@@ -1501,7 +1501,9 @@ def test_cast_structtype_rename(structured_type_session, structured_type_support
         ValueError, match="is_add and is_rename cannot be set to True at the same time"
     ):
         df.select(
-            col("name").cast(schema2, is_rename=True, is_add=True).as_("new_name"),
+            col("name")
+            .cast(schema2, rename_fields=True, add_fields=True)
+            .as_("new_name"),
             col("dob"),
         )
 
@@ -1543,7 +1545,9 @@ def test_cast_structtype_add(structured_type_session, structured_type_support):
 
     df = structured_type_session.create_dataframe(data, schema)
     Utils.check_answer(
-        df.select(col("name").cast(schema2, is_add=True).as_("new_name"), col("dob")),
+        df.select(
+            col("name").cast(schema2, add_fields=True).as_("new_name"), col("dob")
+        ),
         [
             Row(
                 NEW_NAME=Row(fname="James", middlename="", lname="Smith", extra=None),
@@ -1555,6 +1559,8 @@ def test_cast_structtype_add(structured_type_session, structured_type_support):
         ValueError, match="is_add and is_rename cannot be set to True at the same time"
     ):
         df.select(
-            col("name").cast(schema2, is_rename=True, is_add=True).as_("new_name"),
+            col("name")
+            .cast(schema2, rename_fields=True, add_fields=True)
+            .as_("new_name"),
             col("dob"),
         )
