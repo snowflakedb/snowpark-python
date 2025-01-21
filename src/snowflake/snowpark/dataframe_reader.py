@@ -931,7 +931,6 @@ class DataFrameReader:
             schema_to_cast.append((identifier, field._name))
             transformations.append(sql_expr(identifier))
         self._user_schema = StructType._from_attributes(new_schema)
-        # If the user sets transformations, we should not override this
         self._infer_schema_transformations = transformations
         self._infer_schema_target_columns = self._user_schema.names
         read_file_transformations = [t._expression.sql for t in transformations]
