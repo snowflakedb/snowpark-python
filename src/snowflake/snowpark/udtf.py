@@ -22,13 +22,25 @@ Refer to :class:`~snowflake.snowpark.udtf.UDTFRegistration` for details and samp
 """
 import sys
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
+
+from snowflake.connector import ProgrammingError
 
 import snowflake.snowpark
-from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.ast.utils import (
     build_udtf,
     build_udtf_apply,
+    make_proto_expr,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -65,6 +77,10 @@ else:
     from collections.abc import Iterable
 
 
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+
 class UserDefinedTableFunction:
     """
     Encapsulates a user defined table function that is returned by
@@ -88,7 +104,7 @@ class UserDefinedTableFunction:
         input_types: List[DataType],
         name: str,
         packages: Optional[List[Union[str, ModuleType]]] = None,
-        _ast: Optional[proto.Udtf] = None,
+        _ast: Optional["proto.Udtf"] = None,
         _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
@@ -118,7 +134,7 @@ class UserDefinedTableFunction:
                 self._ast is not None
             ), "Need to ensure _emit_ast is True when registering UDTF."
             assert self._ast_id is not None, "Need to assign UDTF an ID."
-            udtf_expr = proto.Expr()
+            udtf_expr = make_proto_expr()
             build_udtf_apply(udtf_expr, self._ast_id, *arguments, **named_arguments)
 
         table_function_call = TableFunctionCall(
