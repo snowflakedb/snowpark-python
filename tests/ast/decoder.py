@@ -8,12 +8,14 @@ from typing import Any, Optional, Iterable, List, Union, Dict, Tuple, Callable
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
+from snowflake.snowpark.window import WindowSpec, Window, WindowRelativePosition
+
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from google.protobuf.json_format import MessageToDict
 
 from snowflake.snowpark.relational_grouped_dataframe import GroupingSets
-from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
+from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions, Row
 import snowflake.snowpark.functions
 from snowflake.snowpark.functions import udf, when, sproc, call_table_function
 from snowflake.snowpark.types import (
@@ -275,7 +277,7 @@ class Decoder:
 
     def decode_dataframe_schema_expr(
         self, df_schema_expr: proto.SpDataframeSchema
-    ) -> Union[List, None]:
+    ) -> Union[List, None, StructType]:
         """
         Decode a dataframe schema expression to get the schema.
 
@@ -301,8 +303,17 @@ class Decoder:
                         return [df_schema_expr.sp_dataframe_schema__list.vs]
                 else:
                     return None
-            # case "sp_dataframe_schema__struct":
-            #     pass
+            case "sp_dataframe_schema__struct":
+                struct_field_list = []
+                for field in df_schema_expr.sp_dataframe_schema__struct.v.fields.list:
+                    column_identifier = field.column_identifier.name
+                    datatype = self.decode_data_type_expr(field.data_type)
+                    nullable = field.nullable
+                    struct_field_list.append(
+                        StructField(column_identifier, datatype, nullable)
+                    )
+                structured = df_schema_expr.sp_dataframe_schema__struct.v.structured
+                return StructType(struct_field_list, structured)
             case _:
                 raise ValueError(
                     "Unknown dataframe schema type: %s"
@@ -526,6 +537,100 @@ class Decoder:
         tz_name = tz_expr.name.value
         offset_seconds = tz_expr.offset_seconds
         return timezone(offset=timedelta(seconds=offset_seconds), name=tz_name)
+
+    def decode_window_spec_expr(self, window_spec_expr: proto.SpWindowSpecExpr) -> Any:
+        """
+        Decode a window specification expression.
+
+        Parameters
+        ----------
+        window_spec_expr : proto.SpWindowSpecExpr
+            The expression to decode.
+
+        Returns
+        -------
+        Any
+            The decoded window specification.
+        """
+        match window_spec_expr.WhichOneof("variant"):
+            case "sp_window_spec_empty":
+                return Window._spec()
+            case "sp_window_spec_order_by":
+                window_spec = self.decode_window_spec_expr(
+                    window_spec_expr.sp_window_spec_order_by.wnd
+                )
+                cols = self.decode_col_exprs(
+                    window_spec_expr.sp_window_spec_order_by.cols
+                )
+                return window_spec.order_by(*cols)
+            case "sp_window_spec_partition_by":
+                window_spec = self.decode_window_spec_expr(
+                    window_spec_expr.sp_window_spec_partition_by.wnd
+                )
+                cols = self.decode_col_exprs(
+                    window_spec_expr.sp_window_spec_partition_by.cols
+                )
+                return window_spec.partition_by(*cols)
+            case "sp_window_spec_range_between":
+                start = self.decode_window_relative_position(
+                    window_spec_expr.sp_window_spec_range_between.start
+                )
+                end = self.decode_window_relative_position(
+                    window_spec_expr.sp_window_spec_range_between.end
+                )
+                window_spec = self.decode_window_spec_expr(
+                    window_spec_expr.sp_window_spec_range_between.wnd
+                )
+                return window_spec.range_between(start, end)
+            case "sp_window_spec_rows_between":
+                start = self.decode_window_relative_position(
+                    window_spec_expr.sp_window_spec_rows_between.start
+                )
+                end = self.decode_window_relative_position(
+                    window_spec_expr.sp_window_spec_rows_between.end
+                )
+                window_spec = self.decode_window_spec_expr(
+                    window_spec_expr.sp_window_spec_rows_between.wnd
+                )
+                return window_spec.rows_between(start, end)
+            case None:
+                # This is for the case col.over() where the window spec is None.
+                return None
+            case _:
+                raise ValueError(
+                    "Unknown window specification type: %s"
+                    % window_spec_expr.WhichOneof("variant")
+                )
+
+    def decode_window_relative_position(
+        self, wnd_relative_position: proto.SpWindowRelativePosition
+    ):
+        """
+        Helper function for AST decoding to fill relative positions for window spec range-between, and rows-between.
+        If the value passed in for start/end is of type WindowRelativePosition encoding will preserve the syntax.
+        (For example, Window.CURRENT_ROW)
+
+        Parameters
+        ----------
+        wnd_relative_position : proto.SpWindowRelativePosition
+            The expression to decode.
+        """
+        match wnd_relative_position.WhichOneof("variant"):
+            case "sp_window_relative_position__current_row":
+                return WindowRelativePosition.CURRENT_ROW
+            case "sp_window_relative_position__position":
+                return self.decode_expr(
+                    wnd_relative_position.sp_window_relative_position__position.n
+                )
+            case "sp_window_relative_position__unbounded_following":
+                return WindowRelativePosition.UNBOUNDED_FOLLOWING
+            case "sp_window_relative_position__unbounded_preceding":
+                return WindowRelativePosition.UNBOUNDED_PRECEDING
+            case _:
+                raise ValueError(
+                    "Unknown window relative position type: %s"
+                    % wnd_relative_position.WhichOneof("variant")
+                )
 
     def binop(self, ast, fn):
         return fn(self.decode_expr(ast.lhs), self.decode_expr(ast.rhs))
@@ -841,6 +946,12 @@ class Decoder:
             case "sp_column_is_null":
                 col = self.decode_expr(expr.sp_column_is_null.col)
                 return col.is_null()
+
+            case "sp_column_over":
+                col = self.decode_expr(expr.sp_column_over.col)
+                return col.over(
+                    window=self.decode_window_spec_expr(expr.sp_column_over.window_spec)
+                )
 
             case "sp_column_sql_expr":
                 sql_expr = expr.sp_column_sql_expr.sql
@@ -1589,6 +1700,12 @@ class Decoder:
                 else:
                     return grouped_df.agg(exprs)
 
+            case "sp_range":
+                start = expr.sp_range.start
+                end = expr.sp_range.end.value if expr.sp_range.HasField("end") else None
+                step = expr.sp_range.step.value if expr.sp_range.HasField("step") else 1
+                return self.session.range(start, end, step)
+
             case "sp_relational_grouped_dataframe_apply_in_pandas":
                 # TODO: SNOW-1830603 Flesh out this logic when implementing UDTFs. Need to create a dict to maintain
                 #       all functions registered (here, `func`). Implement `decode_callable_expr`.
@@ -2000,6 +2117,14 @@ class Decoder:
                     return self.session.generator(
                         columns, rowcount=row_count, timelimit=time_limit_seconds
                     )
+
+            case "sp_row":
+                names = [name for name in expr.sp_row.names.list]
+                values = [self.decode_expr(value) for value in expr.sp_row.vs]
+                if names:
+                    return Row(**dict(zip(names, values)))
+                else:
+                    return Row(*values)
 
             case _:
                 raise NotImplementedError(

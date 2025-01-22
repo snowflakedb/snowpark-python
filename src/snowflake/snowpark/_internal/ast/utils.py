@@ -337,7 +337,7 @@ def build_proto_from_struct_type(
 
     expr.structured = schema.structured
     for field in schema.fields:
-        ast_field = expr.fields.add()
+        ast_field = expr.fields.list.add()
         field.column_identifier._fill_ast(ast_field.column_identifier)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "ColumnIdentifier" has no attribute "_fill_ast"
         field.datatype._fill_ast(ast_field.data_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
         ast_field.nullable = field.nullable
