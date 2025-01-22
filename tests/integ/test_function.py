@@ -181,6 +181,7 @@ from tests.utils import (
     Utils,
     running_on_jenkins,
     structured_types_enabled_session,
+    structured_types_supported,
 )
 
 
@@ -364,6 +365,8 @@ def test__concat_ws_ignore_nulls(session, structured_type_semantics):
         )
 
     if structured_type_semantics:
+        if not structured_types_supported(session, False):
+            pytest.skip("Structured type support required.")
         with structured_types_enabled_session(session) as session:
             check_concat_ws_ignore_nulls_output(session)
     else:
