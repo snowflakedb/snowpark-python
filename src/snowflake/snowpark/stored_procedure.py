@@ -7,14 +7,16 @@
 import sys
 import typing
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
+from snowflake.connector import ProgrammingError
 
 import snowflake.snowpark
-from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.ast.utils import (
     build_sproc,
     build_sproc_apply,
+    make_proto_expr,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -53,6 +55,10 @@ else:
     from collections.abc import Iterable
 
 
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+
 class StoredProcedure:
     """
     Encapsulates a user defined lambda or function that is returned by
@@ -77,9 +83,9 @@ class StoredProcedure:
         execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
-        _ast: Optional[proto.StoredProcedure] = None,
+        _ast: Optional["proto.StoredProcedure"] = None,
         _ast_id: Optional[int] = None,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -145,7 +151,7 @@ class StoredProcedure:
             assert (
                 self._ast_id is not None
             ), "Need to assign an ID to the stored procedure."
-            sproc_expr = proto.Expr()
+            sproc_expr = make_proto_expr()
             build_sproc_apply(sproc_expr, self._ast_id, statement_params, *args)
 
         if self._anonymous_sp_sql:
