@@ -953,3 +953,39 @@ def test_critical_lazy_evaluation_for_plan(
     # called only once and the cached result should be used for the rest of
     # the calls.
     mock_find_duplicate_subtrees.assert_called_once()
+
+
+def test_SNOW_1878372(threadsafe_session):
+    class ReturnableThread(threading.Thread):
+        def __init__(self, target, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            self._target = target
+            self.result = None
+
+        def run(self):
+            if self._target is not None:
+                try:
+                    self.result = self._target()
+                except Exception as e:
+                    print(f"Error: {e}")
+
+    def create_and_join():
+        df1 = threadsafe_session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        df2 = threadsafe_session.create_dataframe([[1, 7], [3, 8]], schema=["a", "b"])
+        df3 = df1.join(df2)
+        df3.show()
+        return [df1, df2, df3]
+
+    def join_again(df1, df2, df3):
+        df3 = df1.join(df2).select(df1.a)
+        df3.show()
+
+    thread = ReturnableThread(target=create_and_join)
+    thread.start()
+    thread.join()
+
+    t = threading.Thread(
+        target=join_again, args=(thread.result[0], thread.result[1], thread.result[2])
+    )
+    t.start()
+    t.join()
