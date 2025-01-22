@@ -8,6 +8,8 @@ from typing import Any, Optional, Iterable, List, Union, Dict, Tuple, Callable
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
+from pandas import DataFrame as PandasDataFrame
+
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from google.protobuf.json_format import MessageToDict
@@ -166,7 +168,7 @@ class Decoder:
             return [name]
         return [qualified_name for qualified_name in name]
 
-    def decode_name_expr(self, table_name: proto.SpName) -> str:
+    def decode_name_expr(self, table_name: proto.SpName) -> Union[str, List]:
         """
         Decode a table name expression to get the table name.
 
@@ -183,7 +185,7 @@ class Decoder:
         if table_name.name.HasField("sp_name_flat"):
             return table_name.name.sp_name_flat.name
         elif table_name.name.HasField("sp_name_structured"):
-            return table_name.name.sp_name_structured.name
+            return [name for name in table_name.name.sp_name_structured.name]
         else:
             raise ValueError("Table name not found in proto.SpTableName")
 
@@ -234,7 +236,9 @@ class Decoder:
                     % fn_ref_expr.WhichOneof("variant")
                 )
 
-    def decode_dataframe_data_expr(self, df_data_expr: proto.SpDataframeData) -> List:
+    def decode_dataframe_data_expr(
+        self, df_data_expr: proto.SpDataframeData
+    ) -> Union[List, PandasDataFrame]:
         """
         Decode a dataframe data expression to get the underlying data.
 
@@ -245,7 +249,7 @@ class Decoder:
 
         Returns
         -------
-        List
+        List or pandas.DataFrame
             The decoded data.
         """
         match df_data_expr.WhichOneof("sealed_value"):
@@ -263,14 +267,15 @@ class Decoder:
                         ]
                 else:
                     return []
-            # case "sp_dataframe_data__pandas":
-            #     pass
+            case "sp_dataframe_data__pandas":
+                # We don't know what pandas DataFrame was passed in, return an empty one.
+                return PandasDataFrame()
             # case "sp_dataframe_data__tuple":
             #     pass
             case _:
                 raise ValueError(
                     "Unknown dataframe data type: %s"
-                    % df_data_expr.WhichOneof("variant")
+                    % df_data_expr.WhichOneof("sealed_value")
                 )
 
     def decode_dataframe_schema_expr(
@@ -1633,7 +1638,12 @@ class Decoder:
             case "sp_table":
                 assert expr.sp_table.HasField("name")
                 table_name = self.decode_name_expr(expr.sp_table.name)
-                return self.session.table(table_name)
+                return self.session.table(
+                    table_name,
+                    is_temp_table_for_cleanup=expr.sp_table.is_temp_table_for_cleanup
+                    if hasattr(expr.sp_table, "is_temp_table_for_cleanup")
+                    else False,
+                )
 
             case "sp_to_snowpark_pandas":
                 df = self.decode_expr(expr.sp_to_snowpark_pandas.df)
@@ -2004,7 +2014,19 @@ class Decoder:
             case "sp_write_pandas":
                 df = self.decode_dataframe_data_expr(expr.sp_write_pandas.df)
                 table_name = self.decode_name_expr(expr.sp_write_pandas.table_name)
-                chunk_size = expr.sp_write_pandas.chunk_size.value
+                if isinstance(table_name, str):
+                    database, schema = None, None
+                else:
+                    database, schema, table_name = (
+                        table_name[0],
+                        table_name[1],
+                        table_name[2],
+                    )
+                chunk_size = (
+                    expr.sp_write_pandas.chunk_size.value
+                    if expr.sp_write_pandas.HasField("chunk_size")
+                    else None
+                )
                 compression = expr.sp_write_pandas.compression
                 on_error = expr.sp_write_pandas.on_error
                 parallel = expr.sp_write_pandas.parallel
@@ -2014,8 +2036,11 @@ class Decoder:
                 overwrite = expr.sp_write_pandas.overwrite
                 table_type = expr.sp_write_pandas.table_type
                 kwargs = self.decode_dsl_map_expr(expr.sp_write_pandas.kwargs)
-                return df.write_pandas(
+                return self.session.write_pandas(
+                    df,
                     table_name,
+                    database=database,
+                    schema=schema,
                     chunk_size=chunk_size,
                     compression=compression,
                     on_error=on_error,
