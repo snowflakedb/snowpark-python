@@ -24,8 +24,10 @@ from typing import (
     overload,
 )
 
-import snowflake.snowpark
 from snowflake.connector.options import installed_pandas, pandas
+
+import snowflake.snowpark
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -40,11 +42,12 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     LeftSemi,
     NaturalJoin,
     RightOuter,
-    Union as UnionPlan,
+)
+from snowflake.snowpark._internal.analyzer.binary_plan_node import Union as UnionPlan
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     UsingJoin,
     create_join_type,
 )
-from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     Expression,
@@ -97,6 +100,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     ViewType,
 )
 from snowflake.snowpark._internal.ast.utils import (
+    DATAFRAME_AST_PARAMETER,
     add_intermediate_stmt,
     build_expr_from_dict_str_str,
     build_expr_from_python_val,
@@ -106,13 +110,13 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_table_fn,
     build_indirect_table_fn_apply,
     build_proto_from_pivot_values,
+    build_sp_table_name,
+    build_sp_view_name,
     debug_check_missing_ast,
     fill_ast_for_column,
     fill_sp_save_mode,
+    make_proto_expr,
     with_src_position,
-    DATAFRAME_AST_PARAMETER,
-    build_sp_view_name,
-    build_sp_table_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -144,6 +148,7 @@ from snowflake.snowpark._internal.utils import (
     experimental,
     generate_random_alphanumeric,
     get_copy_into_table_options,
+    global_counter,
     is_snowflake_quoted_id_case_insensitive,
     is_snowflake_unquoted_suffix_case_insensitive,
     is_sql_select_statement,
@@ -155,9 +160,8 @@ from snowflake.snowpark._internal.utils import (
     quote_name,
     random_name_for_temp_object,
     str_to_enum,
-    validate_object_name,
-    global_counter,
     string_half_width,
+    validate_object_name,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -166,20 +170,12 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
-from snowflake.snowpark.functions import (
-    abs as abs_,
-    col,
-    count,
-    lit,
-    max as max_,
-    mean,
-    min as min_,
-    random,
-    row_number,
-    sql_expr,
-    stddev,
-    to_char,
-)
+from snowflake.snowpark.functions import abs as abs_
+from snowflake.snowpark.functions import col, count, lit
+from snowflake.snowpark.functions import max as max_
+from snowflake.snowpark.functions import mean
+from snowflake.snowpark.functions import min as min_
+from snowflake.snowpark.functions import random, row_number, sql_expr, stddev, to_char
 from snowflake.snowpark.mock._select_statement import MockSelectStatement
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.table_function import (
@@ -210,6 +206,8 @@ else:
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
+
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 _logger = getLogger(__name__)
 
@@ -574,7 +572,7 @@ class DataFrame:
         session: Optional["snowflake.snowpark.Session"] = None,
         plan: Optional[LogicalPlan] = None,
         is_cached: bool = False,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> None:
         """
@@ -1243,7 +1241,6 @@ class DataFrame:
         # If snowflake.snowpark.modin.plugin was successfully imported, then modin.pandas is available
         import modin.pandas as pd  # isort: skip
         # fmt: on
-
         # AST.
         stmt = None
         if _emit_ast:
@@ -1332,7 +1329,7 @@ class DataFrame:
         """Returns a reference to a column in the DataFrame."""
         expr = None
         if _emit_ast:
-            expr = proto.Expr()
+            expr = make_proto_expr()
             col_expr_ast = with_src_position(expr.sp_dataframe_col)
             self._set_ast_ref(col_expr_ast.df)
             col_expr_ast.col_name = col_name
@@ -1349,7 +1346,7 @@ class DataFrame:
             Union[ColumnOrName, TableFunctionCall],
             Iterable[Union[ColumnOrName, TableFunctionCall]],
         ],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame with the specified Column expressions as output
@@ -1417,7 +1414,7 @@ class DataFrame:
             elif isinstance(e, str):
                 col_expr_ast = None
                 if _emit_ast and _ast_stmt is None:
-                    col_expr_ast = proto.Expr()
+                    col_expr_ast = make_proto_expr()
                     fill_ast_for_column(col_expr_ast, e, None)
                     ast_cols.append(col_expr_ast)
 
@@ -1433,7 +1430,7 @@ class DataFrame:
                 table_func = e
                 if _emit_ast and _ast_stmt is None:
                     add_intermediate_stmt(self._session._ast_batch, table_func)
-                    ast_col = proto.Expr()
+                    ast_col = make_proto_expr()
                     build_indirect_table_fn_apply(ast_col, table_func)
                     ast_cols.append(ast_col)
 
@@ -1522,7 +1519,7 @@ class DataFrame:
     def select_expr(
         self,
         *exprs: Union[str, Iterable[str]],
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """
@@ -1669,7 +1666,7 @@ class DataFrame:
     def filter(
         self,
         expr: ColumnOrSqlExpr,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Filters rows based on the specified conditional expression (similar to WHERE
@@ -1799,14 +1796,14 @@ class DataFrame:
         # Therefore, construct the required bool, int, or list and copy from that.
         asc_expr_ast = None
         if _emit_ast:
-            asc_expr_ast = proto.Expr()
+            asc_expr_ast = make_proto_expr()
         if ascending is not None:
             if isinstance(ascending, (list, tuple)):
                 orders = [Ascending() if asc else Descending() for asc in ascending]
                 if _emit_ast:
                     # Here asc_expr_ast is a list of bools and ints.
                     for asc in ascending:
-                        asc_ast = proto.Expr()
+                        asc_ast = make_proto_expr()
                         if isinstance(asc, bool):
                             asc_ast.bool_val.v = asc
                         else:
@@ -2050,7 +2047,7 @@ class DataFrame:
     def group_by(
         self,
         *cols: Union[ColumnOrName, Iterable[ColumnOrName]],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
         """Groups rows by the columns specified by expressions (similar to GROUP BY in
@@ -2215,7 +2212,7 @@ class DataFrame:
     @df_api_usage
     @publicapi
     def distinct(
-        self, _ast_stmt: proto.Assign = None, _emit_ast: bool = True
+        self, _ast_stmt: Optional["proto.Assign"] = None, _emit_ast: bool = True
     ) -> "DataFrame":
         """Returns a new DataFrame that contains only the rows with distinct values
         from the current DataFrame.
@@ -2247,7 +2244,7 @@ class DataFrame:
     def drop_duplicates(
         self,
         *subset: Union[str, Iterable[str]],
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Creates a new DataFrame by removing duplicated rows on given subset of columns.
@@ -2487,7 +2484,7 @@ class DataFrame:
         self,
         n: int,
         offset: int = 0,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a new DataFrame that contains at most ``n`` rows from the current
@@ -2716,7 +2713,10 @@ class DataFrame:
         return self._union_by_name_internal(other, is_all=True, _ast_stmt=stmt)
 
     def _union_by_name_internal(
-        self, other: "DataFrame", is_all: bool = False, _ast_stmt: proto.Assign = None
+        self,
+        other: "DataFrame",
+        is_all: bool = False,
+        _ast_stmt: Optional["proto.Assign"] = None,
     ) -> "DataFrame":
         left_output_attrs = self._output
         right_output_attrs = other._output
@@ -3585,7 +3585,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
-        _ast_stmt: proto.Expr = None,
+        _ast_stmt: Optional["proto.Expr"] = None,
     ) -> "DataFrame":
         if isinstance(using_columns, Column):
             return self._join_dataframes_internal(
@@ -3653,7 +3653,7 @@ class DataFrame:
         lsuffix: str = "",
         rsuffix: str = "",
         match_condition: Optional[Column] = None,
-        _ast_stmt: proto.Expr = None,
+        _ast_stmt: Optional["proto.Expr"] = None,
     ) -> "DataFrame":
         (lhs, rhs) = _disambiguate(
             self, right, join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
@@ -3690,7 +3690,7 @@ class DataFrame:
         col: Union[Column, TableFunctionCall],
         *,
         keep_column_order: bool = False,
-        ast_stmt: proto.Expr = None,
+        ast_stmt: Optional["proto.Expr"] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """
@@ -3762,7 +3762,7 @@ class DataFrame:
         values: List[Union[Column, TableFunctionCall]],
         *,
         keep_column_order: bool = False,
-        _ast_stmt: proto.Expr = None,
+        _ast_stmt: Optional["proto.Expr"] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a DataFrame with additional columns with the specified names
@@ -4374,7 +4374,9 @@ class DataFrame:
         )
 
     def _lateral(
-        self, table_function: TableFunctionExpression, _ast_stmt: proto.Assign = None
+        self,
+        table_function: TableFunctionExpression,
+        _ast_stmt: Optional["proto.Assign"] = None,
     ) -> "DataFrame":
         from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -4937,7 +4939,7 @@ class DataFrame:
         view_name: str,
         view_type: ViewType,
         comment: Optional[str],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         **kwargs,
     ):
         validate_object_name(view_name)
@@ -5369,7 +5371,7 @@ class DataFrame:
         self,
         existing: ColumnOrName,
         new: str,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Returns a DataFrame with the specified column ``existing`` renamed as ``new``.
