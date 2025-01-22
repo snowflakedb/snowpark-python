@@ -1617,3 +1617,9 @@ def make_proto_sp_grouping_sets() -> "proto.SpGroupingSets":
     import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
     return proto.SpGroupingSets()
+
+
+def make_proto_sp_window_spec_expr() -> "proto.SpWindowSpecExpr":
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+    return proto.SpWindowSpecExpr()
