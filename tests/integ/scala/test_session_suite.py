@@ -10,11 +10,13 @@ import pytest
 from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark import Row, Session
 from snowflake.snowpark._internal.utils import (
+    AstFlagSource,
     TempObjectType,
     get_application_name,
     get_python_version,
     get_version,
     quote_name,
+    set_ast_state,
 )
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
@@ -277,7 +279,18 @@ def test_large_local_relation_no_commit(session):
     reason="transactions not supported by local testing.",
     run=False,
 )
-def test_create_temp_table_no_commit(session):
+def test_create_temp_table_no_commit(
+    db_parameters,
+    sql_simplifier_enabled,
+    cte_optimization_enabled,
+    ast_enabled,
+):
+    set_ast_state(AstFlagSource.TEST, ast_enabled)
+    session = Session.builder.configs(db_parameters).create()
+    session.sql_simplifier_enabled = sql_simplifier_enabled
+    session._cte_optimization_enabled = cte_optimization_enabled
+    session.ast_enabled = ast_enabled
+
     # cache_result creates a temp table
     test_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
@@ -291,3 +304,4 @@ def test_create_temp_table_no_commit(session):
         assert not Utils.is_active_transaction(session)
     finally:
         Utils.drop_table(session, test_table)
+        session.close()
