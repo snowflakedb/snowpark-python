@@ -94,6 +94,8 @@ from snowflake.snowpark.types import (
     ArrayType,
     MapType,
     StructType,
+    VariantType,
+    LongType,
 )
 from snowflake.snowpark.window import Window, WindowSpec
 
@@ -960,6 +962,27 @@ class Column:
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
+        from snowflake.snowpark.functions import lit, typeof, iff, date_part
+
+        is_time_stamp_type = (
+            (lit("TIMESTAMP_NTZ") == typeof(self._cast(VariantType())))
+            | (lit("TIMESTAMP_LTZ") == typeof(self._cast(VariantType())))
+            | (lit("TIMESTAMP_TZ") == typeof(self._cast(VariantType())))
+            | (lit("TIMESTAMP") == typeof(self._cast(VariantType())))
+        )
+
+        if isinstance(to, LongType) or to == "long":
+            return iff(
+                is_time_stamp_type,
+                date_part("epoch_millisecond", self),
+                self._cast(VariantType())._cast(
+                    to,
+                    False,
+                    rename_fields=rename_fields,
+                    add_fields=add_fields,
+                    _emit_ast=_emit_ast,
+                ),
+            )
         return self._cast(
             to,
             False,
