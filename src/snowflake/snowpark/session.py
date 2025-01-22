@@ -658,7 +658,10 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._catalog = None
 
-        self._ast_batch = AstBatch(self)
+        if is_ast_enabled():
+            self._ast_batch = AstBatch(self)
+        else:
+            self._ast_batch = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
