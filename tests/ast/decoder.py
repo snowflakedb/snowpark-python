@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from pandas import DataFrame as PandasDataFrame
 
+from snowflake.snowpark.table import WhenMatchedClause, WhenNotMatchedClause
 from snowflake.snowpark.window import Window, WindowRelativePosition
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
@@ -536,7 +537,9 @@ class Decoder:
                     "Unknown join type: %s" % join_type.WhichOneof("variant")
                 )
 
-    def decode_matched_clause(self, matched_clause: proto.SpMatchedClause):
+    def decode_matched_clause(
+        self, matched_clause: proto.SpMatchedClause
+    ) -> Union[WhenMatchedClause, WhenNotMatchedClause]:
         """
         Decode a matched clause expression to get the clause.
 
@@ -544,6 +547,11 @@ class Decoder:
         ----------
         matched_clause : proto.SpMatchedClause
             The expression to decode.
+
+        Returns
+        -------
+        WhenMatchedClause or WhenNotMatchedClause
+            The decoded clause.
         """
         match matched_clause.WhichOneof("variant"):
             case "sp_merge_delete_when_matched_clause":
