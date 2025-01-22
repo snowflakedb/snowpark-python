@@ -231,7 +231,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
     if not session.sql_simplifier_enabled:
         # the complexity bounds are updated since nested selected calculation is not supported
         # when sql simplifier disabled
-        set_bounds(session, 60, 90)
+        set_bounds(session, 50, 80)
     df0 = session.sql("select 2 as b, 32 as c")
     df1 = session.sql("select 1 as a, 2 as b").filter(col("a") == 1)
     df1 = df1.join(df0, on=["b"], how="inner")
@@ -741,14 +741,17 @@ def test_optimization_skipped_with_exceptions(
 
 def test_large_query_breakdown_with_nested_cte(session):
     session.cte_optimization_enabled = True
-    set_bounds(session, 15, 20)
+    if session.sql_simplifier_enabled:
+        set_bounds(session, 35, 45)
+    else:
+        set_bounds(session, 55, 65)
 
     temp_table = Utils.random_table_name()
     session.create_dataframe([(1, 2), (3, 4)], ["A", "B"]).write.save_as_table(
         temp_table, table_type="temp"
     )
     base_select = session.table(temp_table)
-    for i in range(2):
+    for i in range(7):
         base_select = base_select.with_column("A", col("A") + lit(i))
 
     base_df = base_select.union_all(base_select)
