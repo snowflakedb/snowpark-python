@@ -2,9 +2,10 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.connector.options import pandas
+
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -30,6 +31,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_proto_from_callable,
     build_proto_from_pivot_values,
     build_proto_from_struct_type,
+    make_proto_sp_grouping_sets,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -46,6 +48,9 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.types import StructType
+
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 
 def _alias(expr: Expression) -> NamedExpression:
@@ -129,7 +134,7 @@ class GroupingSets:
     ) -> None:
         self._ast = None
         if _emit_ast:
-            self._ast = with_src_position(proto.SpGroupingSets())
+            self._ast = with_src_position(make_proto_sp_grouping_sets())
             set_list, self._ast.sets.variadic = parse_positional_args_to_list_variadic(
                 *sets
             )
@@ -158,7 +163,7 @@ class RelationalGroupedDataFrame:
         df: DataFrame,
         grouping_exprs: List[Expression],
         group_type: _GroupType,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
     ) -> None:
         self._dataframe = df
         self._grouping_exprs = grouping_exprs
@@ -169,7 +174,7 @@ class RelationalGroupedDataFrame:
     def _to_df(
         self,
         agg_exprs: List[Expression],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = False,
     ) -> DataFrame:
         aliased_agg = []
@@ -252,7 +257,7 @@ class RelationalGroupedDataFrame:
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """Returns a :class:`DataFrame` with computed aggregates. See examples in :meth:`DataFrame.group_by`.
@@ -679,7 +684,7 @@ class RelationalGroupedDataFrame:
             return self.builtin(func_name, _emit_ast=_emit_ast)(*cols)
 
     def _set_ast_ref(
-        self, expr_builder: proto.SpRelationalGroupedDataframeExpr
+        self, expr_builder: "proto.SpRelationalGroupedDataframeExpr"
     ) -> None:
         """
         Given a field builder expression of the AST type SpRelationalGroupedDataframeExpr, points the builder to reference this RelationalGroupedDataFrame.

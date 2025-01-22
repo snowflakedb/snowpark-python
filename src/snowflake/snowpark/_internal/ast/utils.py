@@ -1611,3 +1611,9 @@ def make_proto_sp_dataframe_reader() -> "proto.SpDataframeReader":
     import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
     return proto.SpDataframeReader()
+
+
+def make_proto_sp_grouping_sets() -> "proto.SpGroupingSets":
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+    return proto.SpGroupingSets()
