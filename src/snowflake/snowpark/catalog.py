@@ -15,7 +15,9 @@ try:
     from snowflake.core.user_defined_function import UserDefinedFunction
     from snowflake.core.view import View
 except ImportError as e:
-    raise ImportError("Missing optional dependency: 'snowflake.core'.") from e
+    raise ImportError(
+        "Missing optional dependency: 'snowflake.core'."
+    ) from e  # pragma: no cover
 
 
 import snowflake.snowpark
