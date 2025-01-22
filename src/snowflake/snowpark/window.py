@@ -6,7 +6,7 @@
 """Window frames in Snowpark."""
 import sys
 from enum import IntEnum
-from typing import List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import Expression, Literal
@@ -25,6 +25,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_python_val,
+    make_proto_sp_window_spec_expr,
     with_src_position,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
@@ -37,6 +38,10 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 
 def _convert_boundary_to_expr(
@@ -264,7 +269,7 @@ def _check_window_position_parameter(
 
 
 def _fill_window_spec_ast_with_relative_positions(
-    ast: proto.SpWindowSpecExpr,
+    ast: "proto.SpWindowSpecExpr",
     start: Union[int, WindowRelativePosition],
     end: Union[int, WindowRelativePosition],
 ) -> None:
@@ -311,14 +316,14 @@ class WindowSpec:
         partition_spec: List[Expression],
         order_spec: List[SortOrder],
         frame: WindowFrame,
-        ast: Optional[proto.SpWindowSpecExpr] = None,
+        ast: Optional["proto.SpWindowSpecExpr"] = None,
     ) -> None:
         self.partition_spec = partition_spec
         self.order_spec = order_spec
         self.frame = frame
 
         if ast is None:
-            ast = proto.SpWindowSpecExpr()
+            ast = make_proto_sp_window_spec_expr()
             window_ast = with_src_position(ast.sp_window_spec_empty)  # noqa: F841
 
         self._ast = ast
@@ -349,7 +354,7 @@ class WindowSpec:
         # AST.
         ast = None
         if _emit_ast:
-            ast = proto.SpWindowSpecExpr()
+            ast = make_proto_sp_window_spec_expr()
             window_ast = with_src_position(ast.sp_window_spec_partition_by)
             window_ast.wnd.CopyFrom(self._ast)
             for e in exprs:
@@ -396,7 +401,7 @@ class WindowSpec:
         # AST.
         ast = None
         if _emit_ast:
-            ast = proto.SpWindowSpecExpr()
+            ast = make_proto_sp_window_spec_expr()
             window_ast = with_src_position(ast.sp_window_spec_order_by)
             window_ast.wnd.CopyFrom(self._ast)
             for e in exprs:
@@ -431,7 +436,7 @@ class WindowSpec:
         # AST.
         ast = None
         if _emit_ast:
-            ast = proto.SpWindowSpecExpr()
+            ast = make_proto_sp_window_spec_expr()
             window_ast = with_src_position(ast.sp_window_spec_rows_between)
             _fill_window_spec_ast_with_relative_positions(window_ast, start, end)
             window_ast.wnd.CopyFrom(self._ast)
@@ -463,7 +468,7 @@ class WindowSpec:
         # AST.
         ast = None
         if _emit_ast:
-            ast = proto.SpWindowSpecExpr()
+            ast = make_proto_sp_window_spec_expr()
             window_ast = with_src_position(ast.sp_window_spec_range_between)
             _fill_window_spec_ast_with_relative_positions(window_ast, start, end)
             window_ast.wnd.CopyFrom(self._ast)
@@ -480,7 +485,7 @@ class WindowSpec:
     def _with_aggregate(
         self,
         aggregate: Expression,
-        ast: Optional[proto.Expr] = None,
+        ast: Optional["proto.Expr"] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.column.Column":
         spec = WindowSpecDefinition(self.partition_spec, self.order_spec, self.frame)
