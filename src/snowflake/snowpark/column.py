@@ -1507,11 +1507,11 @@ class CaseExpr(Column):
 
 # We support the metadata columns below based on https://docs.snowflake.com/en/user-guide/querying-metadata
 # If the list changes, we will have to add support for new columns
-METADATA_FILE_ROW_NUMBER = Column("METADATA$FILE_ROW_NUMBER")
-METADATA_FILE_CONTENT_KEY = Column("METADATA$FILE_CONTENT_KEY")
-METADATA_FILE_LAST_MODIFIED = Column("METADATA$FILE_LAST_MODIFIED")
-METADATA_START_SCAN_TIME = Column("METADATA$START_SCAN_TIME")
-METADATA_FILENAME = Column("METADATA$FILENAME")
+METADATA_FILE_ROW_NUMBER = Column("METADATA$FILE_ROW_NUMBER", _emit_ast=False)
+METADATA_FILE_CONTENT_KEY = Column("METADATA$FILE_CONTENT_KEY", _emit_ast=False)
+METADATA_FILE_LAST_MODIFIED = Column("METADATA$FILE_LAST_MODIFIED", _emit_ast=False)
+METADATA_START_SCAN_TIME = Column("METADATA$START_SCAN_TIME", _emit_ast=False)
+METADATA_FILENAME = Column("METADATA$FILENAME", _emit_ast=False)
 
 METADATA_COLUMN_TYPES = {
     METADATA_FILE_ROW_NUMBER.get_name(): IntegerType(),
