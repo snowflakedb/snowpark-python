@@ -6,12 +6,13 @@ import json
 import typing
 from copy import copy
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.ast.utils import (
     build_sproc,
     build_sproc_apply,
+    make_proto_expr,
     with_src_position,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
@@ -38,6 +39,9 @@ from snowflake.snowpark.stored_procedure import (
 )
 from snowflake.snowpark.types import ArrayType, DataType, MapType, StructType
 
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
 
 class MockStoredProcedure(StoredProcedure):
     def __init__(
@@ -50,7 +54,7 @@ class MockStoredProcedure(StoredProcedure):
         execute_as: typing.Literal["caller", "owner"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         strict=False,
-        _ast: Optional[proto.Expr] = None,
+        _ast: Optional["proto.Expr"] = None,
         _ast_id: Optional[int] = None,
         **kwargs,
     ) -> None:
@@ -466,7 +470,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                 assert (
                     sproc._ast_id is not None
                 ), "Need to assign an ID to the stored procedure."
-                sproc_expr = proto.Expr()
+                sproc_expr = make_proto_expr()
                 build_sproc_apply(sproc_expr, sproc._ast_id, statement_params, *args)
 
             if sproc._is_return_table:
