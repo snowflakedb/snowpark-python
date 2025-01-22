@@ -133,9 +133,11 @@ from snowflake.snowpark._internal.utils import (
     warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
+    set_ast_state,
+    is_ast_enabled,
+    AstFlagSource,
 )
 from snowflake.snowpark.async_job import AsyncJob
-from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -619,9 +621,10 @@ class Session:
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
-        self._ast_enabled: bool = self._conn._get_client_side_session_parameter(
+        ast_enabled: bool = self._conn._get_client_side_session_parameter(
             _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
         )
+        set_ast_state(AstFlagSource.SERVER, ast_enabled)
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
         self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (
@@ -734,8 +737,10 @@ class Session:
 
     @property
     @experimental(version="1.27.0")
-    def catalog(self) -> Catalog:
-        """Returns the catalog object."""
+    def catalog(self):
+        """Returns a :class:`Catalog` object rooted on current session."""
+        from snowflake.snowpark.catalog import Catalog
+
         if self._catalog is None:
             if isinstance(self._conn, MockServerConnection):
                 self._conn.log_not_supported_error(
@@ -782,7 +787,17 @@ class Session:
 
     @property
     def ast_enabled(self) -> bool:
-        return self._ast_enabled
+        """
+        Set to ``True`` to enable the AST (Abstract Syntax Tree) capture for ``DataFrame`` operations.
+
+        This is an internal, experimental feature that is not yet fully supported. The value of the parameter is controlled by the Snowflake service.
+
+        It is not possible to re-enable this feature if the system or a user explicitly disables it. Setting this property to ``True`` can result in no change if the setting was already set explicitly to ``False`` internally.
+
+        Returns:
+            The current value of the property.
+        """
+        return is_ast_enabled()
 
     @ast_enabled.setter
     def ast_enabled(self, value: bool) -> None:
@@ -797,16 +812,16 @@ class Session:
         #     )
         # except Exception:
         #     pass
-        self._ast_enabled = value
 
         # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
         # This feature should get moved server-side anyways.
-        if self._ast_enabled:
+        if value:
             _logger.warning(
                 "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
             self.auto_clean_up_temp_table_enabled = False
+        set_ast_state(AstFlagSource.LOCAL, value)
 
     @property
     def cte_optimization_enabled(self) -> bool:
@@ -4070,42 +4085,44 @@ class Session:
         """ """
         # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
         qualified_table_name = list(raw_table_name)
-        if len(qualified_table_name) == 1:
-            # name in the form of "table"
-            tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
-            )
-        elif len(qualified_table_name) == 2:
-            # name in the form of "schema.table" omitting database
-            # schema: qualified_table_name[0]
-            # table: qualified_table_name[1]
-            tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
-            )
-        elif len(qualified_table_name) == 3:
-            # name in the form of "database.schema.table"
-            # database: qualified_table_name[0]
-            # schema: qualified_table_name[1]
-            # table: qualified_table_name[2]
-            # special case:  (''<database_name>..<object_name>''), by following
-            # https://docs.snowflake.com/en/sql-reference/name-resolution#resolution-when-schema-omitted-double-dot-notation
-            # The two dots indicate that the schema name is not specified.
-            # The PUBLIC default schema is always referenced.
-            condition = (
-                f"schema {qualified_table_name[0]}.PUBLIC"
-                if qualified_table_name[1] == ""
-                else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
-            )
-            tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
-            )
+        if isinstance(self._conn, MockServerConnection):
+            return self._conn.entity_registry.is_existing_table(qualified_table_name)
         else:
-            # we do not support len(qualified_table_name) > 3 for now
-            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
-                ".".join(raw_table_name)
-            )
-
-        return tables is not None and len(tables) > 0
+            if len(qualified_table_name) == 1:
+                # name in the form of "table"
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
+                )
+            elif len(qualified_table_name) == 2:
+                # name in the form of "schema.table" omitting database
+                # schema: qualified_table_name[0]
+                # table: qualified_table_name[1]
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
+                )
+            elif len(qualified_table_name) == 3:
+                # name in the form of "database.schema.table"
+                # database: qualified_table_name[0]
+                # schema: qualified_table_name[1]
+                # table: qualified_table_name[2]
+                # special case:  (''<database_name>..<object_name>''), by following
+                # https://docs.snowflake.com/en/sql-reference/name-resolution#resolution-when-schema-omitted-double-dot-notation
+                # The two dots indicate that the schema name is not specified.
+                # The PUBLIC default schema is always referenced.
+                condition = (
+                    f"schema {qualified_table_name[0]}.PUBLIC"
+                    if qualified_table_name[1] == ""
+                    else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+                )
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
+                )
+            else:
+                # we do not support len(qualified_table_name) > 3 for now
+                raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                    ".".join(raw_table_name)
+                )
+            return tables is not None and len(tables) > 0
 
     def _explain_query(self, query: str) -> Optional[str]:
         try:

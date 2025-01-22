@@ -20,6 +20,15 @@ df3 = df.describe("STR", "num")
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -34,7 +43,7 @@ body {
         src {
           end_column: 41
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
@@ -69,7 +78,7 @@ body {
         src {
           end_column: 27
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 27
         }
@@ -94,7 +103,7 @@ body {
               src {
                 end_column: 32
                 end_line: 29
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 29
               }
@@ -113,7 +122,7 @@ body {
         src {
           end_column: 32
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }
@@ -138,7 +147,7 @@ body {
               src {
                 end_column: 39
                 end_line: 31
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 31
               }
@@ -150,7 +159,7 @@ body {
               src {
                 end_column: 39
                 end_line: 31
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_column: 14
                 start_line: 31
               }
@@ -169,7 +178,7 @@ body {
         src {
           end_column: 39
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 31
         }

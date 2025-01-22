@@ -25,6 +25,15 @@ df = df.select_expr(["COUNT $1", "SUM $2", "AVG $3", "MIN $4", "MAX $5", "COUNT 
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -39,7 +48,7 @@ body {
         src {
           end_column: 41
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
@@ -72,7 +81,7 @@ body {
         src {
           end_column: 33
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 27
         }
@@ -103,7 +112,7 @@ body {
         src {
           end_column: 35
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 29
         }
@@ -138,7 +147,7 @@ body {
         src {
           end_column: 100
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 31
         }
@@ -174,7 +183,7 @@ body {
         src {
           end_column: 102
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 33
         }
