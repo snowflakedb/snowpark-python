@@ -1391,9 +1391,27 @@ class Column:
             return UnresolvedAlias(self._expression)
 
     @classmethod
-    def _to_expr(
-        cls, expr: Union[typing.Callable, ColumnOrLiteral, Expression]
+    def _callable_to_expr(
+        cls, expr: typing.Callable, _ast: proto.Expr = None, _emit_ast: bool = True
     ) -> Expression:
+        parameters = inspect.signature(expr).parameters.values()
+
+        arg_exprs = [
+            UnresolvedAttribute(arg_name) for arg_name in [p.name for p in parameters]
+        ]
+        arg_cols = [
+            Column(arg_expr, _ast=_ast, _emit_ast=_emit_ast) for arg_expr in arg_exprs
+        ]
+
+        result: Column = expr(*arg_cols)
+
+        if not isinstance(result, Column):
+            raise TypeError("Should be column")
+
+        return LambdaFunctionExpression(result._expression, arg_exprs)
+
+    @classmethod
+    def _to_expr(cls, expr: Union[ColumnOrLiteral, Expression]) -> Expression:
         """
         Convert a Column object, or an literal value to an expression.
         If it's a Column, get its expression.
@@ -1401,22 +1419,7 @@ class Column:
         If it's a literal value (here we treat str as literal value instead of column name),
         create a Literal expression.
         """
-        if isinstance(expr, typing.Callable):
-            parameters = inspect.signature(expr).parameters.values()
-
-            arg_exprs = [
-                UnresolvedAttribute(arg_name)
-                for arg_name in [p.name for p in parameters]
-            ]
-            arg_cols = [Column(arg_expr) for arg_expr in arg_exprs]
-
-            result: Column = expr(*arg_cols)
-
-            if not isinstance(result, Column):
-                raise TypeError("Should be column")
-
-            return LambdaFunctionExpression(result._expression, arg_exprs)
-        elif isinstance(expr, cls):
+        if isinstance(expr, cls):
             return expr._expression
         elif isinstance(expr, Expression):
             return expr
