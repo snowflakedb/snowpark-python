@@ -234,6 +234,9 @@ class Selectable(LogicalPlan, ABC):
         # the Selectable object and use the session to access the appropriate analyzer
         # for current thread.
         self._session = analyzer.session
+        # We create this internal object to be used for setting query generator during
+        # the optimization stage
+        self._analyzer = None
         self.pre_actions: Optional[List["Query"]] = None
         self.post_actions: Optional[List["Query"]] = None
         self.flatten_disabled: bool = False
@@ -250,7 +253,21 @@ class Selectable(LogicalPlan, ABC):
     @property
     def analyzer(self) -> "Analyzer":
         """Get the analyzer for used for the current thread"""
-        return self._session._analyzer
+        if self._analyzer is None:
+            return self._session._analyzer
+        return self._analyzer
+
+    @analyzer.setter
+    def analyzer(self, value: "Analyzer") -> None:
+        """For query optimization stage, we need to replace the analyzer with a query generator which
+        is aware of schema for the final plan and can compile WithQueryBlocks. Therefore we update the
+        setter to allow the analyzer to be set externally."""
+        if not self._is_valid_for_replacement:
+            raise ValueError(
+                "Cannot set analyzer for a Selectable that is not valid for replacement"
+            )
+
+        self._analyzer = value
 
     @property
     @abstractmethod
