@@ -951,6 +951,66 @@ class Column:
             _emit_ast=_emit_ast,
         )
 
+    def _cast_timestamp_to_long(
+        self,
+        to: Union[str, DataType],
+        try_: bool = False,
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
+        from snowflake.snowpark.functions import (
+            lit,
+            typeof,
+            iff,
+            date_part,
+            to_timestamp,
+            to_timestamp_ltz,
+            to_timestamp_ntz,
+            to_timestamp_tz,
+            when,
+        )
+
+        is_time_stamp_type = (
+            (lit("TIMESTAMP_NTZ") == typeof(self._cast(VariantType())))
+            | (lit("TIMESTAMP_LTZ") == typeof(self._cast(VariantType())))
+            | (lit("TIMESTAMP_TZ") == typeof(self._cast(VariantType())))
+            | (lit("TIMESTAMP") == typeof(self._cast(VariantType())))
+        )
+        # to cast timestamp to long, we need to use date_part and iff to decide whether we should do the transform
+        # we cast to Varchar first because directly cast timestamp to long is illegal and iff require all expression
+        # in it to be legal expression, the when function is also used to make it legal cause date_part require
+        # timestamp type as arguments
+        return iff(
+            is_time_stamp_type,
+            date_part(
+                "epoch_millisecond",
+                when(
+                    lit("TIMESTAMP_NTZ") == typeof(self._cast(VariantType())),
+                    to_timestamp_ntz(self),
+                )
+                .when(
+                    lit("TIMESTAMP_LTZ") == typeof(self._cast(VariantType())),
+                    to_timestamp_ltz(self),
+                )
+                .when(
+                    lit("TIMESTAMP_TZ") == typeof(self._cast(VariantType())),
+                    to_timestamp_tz(self),
+                )
+                .when(
+                    lit("TIMESTAMP") == typeof(self._cast(VariantType())),
+                    to_timestamp(self),
+                ),
+            ),
+            self._cast(StringType())._cast(
+                to,
+                try_,
+                rename_fields=rename_fields,
+                add_fields=add_fields,
+                _emit_ast=_emit_ast,
+            ),
+        )
+
     @publicapi
     def cast(
         self,
@@ -962,26 +1022,13 @@ class Column:
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
-        from snowflake.snowpark.functions import lit, typeof, iff, date_part
-
-        is_time_stamp_type = (
-            (lit("TIMESTAMP_NTZ") == typeof(self._cast(VariantType())))
-            | (lit("TIMESTAMP_LTZ") == typeof(self._cast(VariantType())))
-            | (lit("TIMESTAMP_TZ") == typeof(self._cast(VariantType())))
-            | (lit("TIMESTAMP") == typeof(self._cast(VariantType())))
-        )
-
         if isinstance(to, LongType) or to == "long":
-            return iff(
-                is_time_stamp_type,
-                date_part("epoch_millisecond", self),
-                self._cast(VariantType())._cast(
-                    to,
-                    False,
-                    rename_fields=rename_fields,
-                    add_fields=add_fields,
-                    _emit_ast=_emit_ast,
-                ),
+            return self._cast_timestamp_to_long(
+                to,
+                False,
+                rename_fields=rename_fields,
+                add_fields=add_fields,
+                _emit_ast=_emit_ast,
             )
         return self._cast(
             to,
@@ -1002,6 +1049,14 @@ class Column:
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
+        if isinstance(to, LongType) or to == "long":
+            return self._cast_timestamp_to_long(
+                to,
+                True,
+                rename_fields=rename_fields,
+                add_fields=add_fields,
+                _emit_ast=_emit_ast,
+            )
         return self._cast(
             to,
             True,

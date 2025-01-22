@@ -1633,3 +1633,70 @@ def test_cast_timestamp_to_long(session):
             Row(1561982479000),
         ],
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
+def test_try_cast_timestamp_to_long(session):
+    date1 = [str(datetime(2019, 7, 1, 12, 1, 19))]
+    date2 = [str(datetime(2019, 7, 1, 12, 1, 19, tzinfo=pytz.UTC))]
+    schema1 = StructType(
+        [
+            StructField(
+                "from_timestamp", TimestampType(timezone=TimestampTimeZone.NTZ)
+            ),
+        ]
+    )
+    schema2 = StructType(
+        [
+            StructField(
+                "from_timestamp", TimestampType(timezone=TimestampTimeZone.LTZ)
+            ),
+        ]
+    )
+    schema3 = StructType(
+        [
+            StructField("from_timestamp", TimestampType(timezone=TimestampTimeZone.TZ)),
+        ]
+    )
+    schema4 = StructType(
+        [
+            StructField(
+                "from_timestamp", TimestampType(timezone=TimestampTimeZone.DEFAULT)
+            ),
+        ]
+    )
+
+    df = session.create_dataframe(data=date1, schema=schema1)
+    Utils.check_answer(
+        df.select(col("from_timestamp").try_cast("long").as_("RES")),
+        [
+            Row(1561982479000),
+        ],
+    )
+
+    df = session.create_dataframe(data=date2, schema=schema2)
+    Utils.check_answer(
+        df.select(col("from_timestamp").try_cast("long").as_("RES")),
+        [
+            Row(1561982479000),
+        ],
+    )
+
+    df = session.create_dataframe(data=date2, schema=schema3)
+    Utils.check_answer(
+        df.select(col("from_timestamp").try_cast("long").as_("RES")),
+        [
+            Row(1561982479000),
+        ],
+    )
+
+    df = session.create_dataframe(data=date1, schema=schema4)
+    Utils.check_answer(
+        df.select(col("from_timestamp").try_cast("long").as_("RES")),
+        [
+            Row(1561982479000),
+        ],
+    )
