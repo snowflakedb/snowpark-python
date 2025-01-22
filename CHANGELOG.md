@@ -41,10 +41,13 @@
   - `regr_sxy`
   - `regr_syy`
   - `try_to_binary`
-
-- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 - Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
+
+#### Experimental Features
+
+- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+  - `snowflake.core` is a dependency required for this feature.
 
 #### Improvements
 
