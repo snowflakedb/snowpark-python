@@ -229,8 +229,10 @@ class Selectable(LogicalPlan, ABC):
         ] = None,  # Use Any because it's recursive.
     ) -> None:
         super().__init__()
-        # Due to multi-threading changes, we need to use the session object to
-        # access the analyzer created for current thread.
+        # With multi-threading support, each thread has its own analyzer which can be
+        # accessed through session object. Therefore, we need to store the session in
+        # the Selectable object and use the session to access the appropriate analyzer
+        # for current thread.
         self._session = analyzer.session
         self.pre_actions: Optional[List["Query"]] = None
         self.post_actions: Optional[List["Query"]] = None
