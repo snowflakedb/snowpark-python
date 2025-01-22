@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 from typing import Any
 
 import numpy as np
@@ -10,14 +11,18 @@ import pytest
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     convert_numpy_int_result_to_int,
     deduce_return_type_from_function,
+    infer_return_type_using_dummy_data,
     handle_missing_value_in_variant,
 )
 from snowflake.snowpark.types import (
+    BinaryType,
+    BooleanType,
     ArrayType,
     FloatType,
     LongType,
     MapType,
     StringType,
+    TimestampType,
     VariantType,
 )
 
@@ -70,10 +75,53 @@ def foo_any(x: Any) -> Any:
 def test_deduce_return_type_from_function(func, datatype):
     if datatype is not None:
         # type could be deduced
-        assert isinstance(deduce_return_type_from_function(func), datatype)
+        assert isinstance(deduce_return_type_from_function(func, None), datatype)
     else:
         # type could not be deduced
-        assert deduce_return_type_from_function(func) is None
+        assert deduce_return_type_from_function(func, None) is None
+
+
+@pytest.mark.parametrize(
+    "func, input_type, return_type",
+    [
+        (lambda x: x.decode("ascii"), BinaryType(), StringType()),
+        (lambda x: x + 1, BooleanType(), LongType()),
+        (lambda x: [x, x + 1], LongType(), ArrayType(LongType())),
+        (lambda x: str(x).encode("utf-8"), LongType(), BinaryType()),
+        (lambda x: x > 0, LongType(), BooleanType()),
+        (lambda x: x + 1.8, LongType(), FloatType()),
+        (lambda x: x + 1, LongType(), LongType()),
+        (lambda x: str(x), LongType(), StringType()),
+        (lambda x: 1 if x < 0 else "abc", LongType(), VariantType()),
+        (lambda x: {x: x}, StringType(), MapType()),
+        (lambda x: None, StringType(), None),  # failed to infer return type
+        (lambda x: x.year, TimestampType(), LongType()),
+        (lambda x: {x: str(x)}, LongType(), MapType(LongType(), StringType())),
+        (
+            lambda x: {x: x if x < 3 else str(x)},
+            LongType(),
+            MapType(LongType(), VariantType()),  # mixed return type in map values
+        ),
+    ],
+    ids=[
+        "binary_to_str",
+        "bool_to_long",
+        "long_to_array",
+        "long_to_binary",
+        "long_to_bool",
+        "long_to_float",
+        "long_to_long",
+        "long_to_str",
+        "long_to_variant",
+        "str_to_map",
+        "str_to_none",
+        "timestamp_to_long",
+        "long_to_map[long,str]",
+        "long_to_map[long,variant]",
+    ],
+)
+def test_infer_return_type_from_function(func, input_type, return_type):
+    assert infer_return_type_using_dummy_data(func, input_type) == return_type
 
 
 @pytest.mark.parametrize(

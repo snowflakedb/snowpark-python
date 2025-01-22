@@ -1,6 +1,8 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
+import threading
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -8,7 +10,7 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark import QueryRecord
-from tests.integ.modin.utils import PANDAS_VERSION_PREDICATE, assert_frame_equal
+from tests.integ.modin.utils import assert_frame_equal
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
@@ -126,10 +128,6 @@ def test_sql_counter_with_fallback_count():
     assert len(df) == 3
 
 
-@pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
 @sql_count_checker(query_count=5, join_count=2, udtf_count=1)
 def test_sql_counter_with_df_udtf_count():
     df = pd.DataFrame([[1, 2], [3, 4]]).apply(lambda x: str(type(x)), axis=1, raw=True)
@@ -154,29 +152,48 @@ def test_high_sql_count_pass():
 
 
 def test_sql_count_with_joins():
+    thread_id = threading.get_ident()
     with SqlCounter(query_count=1, join_count=1) as sql_counter:
         sql_counter._notify(
-            QueryRecord(query_id="1", sql_text="SELECT A FROM X JOIN Y")
+            QueryRecord(
+                query_id="1", sql_text="SELECT A FROM X JOIN Y", thread_id=thread_id
+            )
         )
 
     with SqlCounter(query_count=1, join_count=2) as sql_counter:
         sql_counter._notify(
-            QueryRecord(query_id="1", sql_text="SELECT A FROM X JOIN Y JOIN Z")
+            QueryRecord(
+                query_id="1",
+                sql_text="SELECT A FROM X JOIN Y JOIN Z",
+                thread_id=thread_id,
+            )
         )
 
     with SqlCounter(query_count=2, join_count=5) as sql_counter:
         sql_counter._notify(
-            QueryRecord(query_id="1", sql_text="SELECT A FROM X JOIN Y JOIN Z")
+            QueryRecord(
+                query_id="1",
+                sql_text="SELECT A FROM X JOIN Y JOIN Z",
+                thread_id=thread_id,
+            )
         )
         sql_counter._notify(
-            QueryRecord(query_id="2", sql_text="SELECT A FROM X JOIN Y JOIN Z JOIN W")
+            QueryRecord(
+                query_id="2",
+                sql_text="SELECT A FROM X JOIN Y JOIN Z JOIN W",
+                thread_id=thread_id,
+            )
         )
 
 
 def test_sql_count_by_query_substr():
     with SqlCounter(query_count=1) as sql_counter:
         sql_counter._notify(
-            QueryRecord(query_id="1", sql_text="SELECT A FROM X JOIN Y JOIN W")
+            QueryRecord(
+                query_id="1",
+                sql_text="SELECT A FROM X JOIN Y JOIN W",
+                thread_id=threading.get_ident(),
+            )
         )
 
         assert sql_counter._count_by_query_substr(contains=[" JOIN "]) == 1
@@ -197,7 +214,11 @@ def test_sql_count_by_query_substr():
 def test_sql_count_instances_by_query_substr():
     with SqlCounter(query_count=1) as sql_counter:
         sql_counter._notify(
-            QueryRecord(query_id="1", sql_text="SELECT A FROM X JOIN Y JOIN W")
+            QueryRecord(
+                query_id="1",
+                sql_text="SELECT A FROM X JOIN Y JOIN W",
+                thread_id=threading.get_ident(),
+            )
         )
 
         assert sql_counter._count_instances_by_query_substr(contains=[" JOIN "]) == 2

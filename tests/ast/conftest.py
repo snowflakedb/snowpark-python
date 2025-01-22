@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import logging
 import os
@@ -8,6 +8,7 @@ from functools import cached_property
 import pytest
 
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 
 
 def default_unparser_path():
@@ -164,10 +165,12 @@ class TestTables:
 def session(local_testing_mode):
     # Note: Do NOT use Session(MockServerConnection()), as this doesn't setup the correct registrations throughout snowpark.
     # Need to use the Session.builder to properly register this as active session etc.
+    AST_ENABLED = True
+    set_ast_state(AstFlagSource.TEST, AST_ENABLED)
     with Session.builder.config("local_testing", local_testing_mode).config(
         "nop_testing", True
     ).create() as s:
-        s.ast_enabled = True
+        s.ast_enabled = AST_ENABLED
         s.sql_simplifier_enabled = False
         yield s
 

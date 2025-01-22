@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import doctest
 import logging
@@ -39,6 +39,27 @@ def pytest_runtest_makereport(item, call):
             tr.wasxfail = "[Local Testing] Function has not been implemented yet."
 
     return tr
+
+
+# These tests require python packages that are no longer built for python 3.8
+PYTHON_38_SKIPS = {
+    "snowpark.session.Session.replicate_local_environment",
+    "snowpark.session.Session.table_function",
+}
+
+DocTestFinder = doctest.DocTestFinder
+
+
+class CustomDocTestFinder(DocTestFinder):
+    def _find(self, tests, obj, name, module, source_lines, globs, seen):
+        if name in PYTHON_38_SKIPS and sys.version_info < (3, 9):
+            return
+        return DocTestFinder._find(
+            self, tests, obj, name, module, source_lines, globs, seen
+        )
+
+
+doctest.DocTestFinder = CustomDocTestFinder
 
 
 # scope is module so that we ensure we delete the session before

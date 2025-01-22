@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -190,6 +190,15 @@ def run_test(session, tables):
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
 def test_ast(session, tables, test_case):
     _logger.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
+
+    # Reset string interning (avoids issues for testing).
+    from snowflake.snowpark._internal.ast.utils import (
+        __intern_string,
+        __reset_interning_map,
+    )
+
+    __reset_interning_map()
+    assert __intern_string("SRC_POSITION_TEST_MODE") == 2
 
     actual, base64_str = run_test(
         session, tables, test_case.filename.replace(".", "_"), test_case.source
