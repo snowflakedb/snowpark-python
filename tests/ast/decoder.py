@@ -166,13 +166,13 @@ class Decoder:
             return [name]
         return [qualified_name for qualified_name in name]
 
-    def decode_name_expr(self, table_name: proto.SpName) -> str:
+    def decode_name_expr(self, name: proto.SpName) -> str:
         """
-        Decode a table name expression to get the table name.
+        Decode a name expression to get the name.
 
         Parameters
         ----------
-        table_name : proto.SpTableName
+        name : proto.SpTableName
             The table name to decode.
 
         Returns
@@ -180,12 +180,12 @@ class Decoder:
         str
             The decoded table name.
         """
-        if table_name.name.HasField("sp_name_flat"):
-            return table_name.name.sp_name_flat.name
-        elif table_name.name.HasField("sp_name_structured"):
-            return table_name.name.sp_name_structured.name
+        if name.name.HasField("sp_name_flat"):
+            return name.name.sp_name_flat.name
+        elif name.name.HasField("sp_name_structured"):
+            return name.name.sp_name_structured.name
         else:
-            raise ValueError("Table name not found in proto.SpTableName")
+            return None
 
     def decode_fn_ref_expr(self, fn_ref_expr: proto.FnRefExpr) -> str:
         """
@@ -325,6 +325,12 @@ class Decoder:
         DataType, StructField, or ColumnIdentifier
             The decoded data type.
         """
+        if hasattr(data_type_expr, "data_type"):
+            column_identifier = data_type_expr.column_identifier.name
+            data_type = self.decode_data_type_expr(data_type_expr.data_type)
+            nullable = data_type_expr.nullable
+            return StructField(column_identifier, data_type, nullable)
+
         match data_type_expr.WhichOneof("variant"):
             case "sp_array_type":
                 structured = data_type_expr.sp_array_type.structured
@@ -545,6 +551,8 @@ class Decoder:
         return statement_params
 
     def decode_expr(self, expr: proto.Expr, **kwargs) -> Any:
+        if not hasattr(expr, "WhichOneof"):
+            breakpoint()
         match expr.WhichOneof("variant"):
             # COLUMN BINARY OPERATIONS
             case "add":
@@ -605,6 +613,9 @@ class Decoder:
                                 return call_table_function(
                                     fn_name, *pos_args, **named_args
                                 )
+                        case "stored_procedure":
+                            return self.session.call(fn_name, *pos_args, **named_args)
+
                         case _:
                             raise ValueError(
                                 "Unknown function reference type: %s"
@@ -1112,7 +1123,7 @@ class Decoder:
                     )
 
             case "sp_dataframe_count":
-                df = self.decode_expr(expr.sp_dataframe_first.df)
+                df = self.symbol_table[expr.sp_dataframe_count.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_count)
                 statement_params = self.get_statement_params(d)
                 block = d["block"]
@@ -1412,9 +1423,13 @@ class Decoder:
                     return df.select_expr(exprs)
 
             case "sp_dataframe_show":
-                df = self.decode_expr(
-                    self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
-                )
+                df_show = self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
+                if isinstance(df_show, snowflake.snowpark.dataframe.DataFrame):
+                    df = df_show
+                else:
+                    df = self.decode_expr(
+                        self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
+                    )
                 return df.show()
 
             case "sp_dataframe_sort":
@@ -1631,9 +1646,13 @@ class Decoder:
                 return self.decode_expr(expr.sp_session_table_function.fn, **kwargs)
 
             case "sp_table":
+                breakpoint()
                 assert expr.sp_table.HasField("name")
                 table_name = self.decode_name_expr(expr.sp_table.name)
-                return self.session.table(table_name)
+                is_temp_table_for_cleanup = expr.sp_table.is_temp_table_for_cleanup
+                return self.session.table(
+                    table_name, is_temp_table_for_cleanup=is_temp_table_for_cleanup
+                )
 
             case "sp_to_snowpark_pandas":
                 df = self.decode_expr(expr.sp_to_snowpark_pandas.df)
@@ -1950,8 +1969,10 @@ class Decoder:
                 return_type = self.decode_data_type_expr(
                     expr.stored_procedure.return_type
                 )
+                name = self.decode_name_expr(expr.stored_procedure.name)
                 ret_sproc = sproc(
-                    lambda *args: None,
+                    self.session.sproc._registry[registered_object_name],
+                    name=name,
                     return_type=return_type,
                     input_types=input_types,
                     execute_as=execute_as,
@@ -2001,7 +2022,94 @@ class Decoder:
                         columns, rowcount=row_count, timelimit=time_limit_seconds
                     )
 
+            case "sp_sql":
+                params = [self.decode_expr(param) for parm in expr.sp_sql.params]
+                query = expr.sp_sql.query
+                return self.session.sql(query=query, params=params)
+
+            case "sp_write_table":
+                table_name = self.decode_name_expr(expr.sp_write_table.table_name)
+
+                mode = None
+
+                match expr.sp_write_table.mode.WhichOneof("variant"):
+                    case "sp_save_mode_overwrite":
+                        mode = "overwrite"
+
+                    case "sp_save_mode_append":
+                        mode = "append"
+
+                    case "sp_save_mode_truncate":
+                        mode = "truncate"
+
+                    case "sp_save_mode_error_if_exists":
+                        mode = "error_if_exists"
+
+                    case "sp_save_mode_truncate":
+                        mode = "truncate"
+
+                    case "_":
+                        mode = None
+
+                table_type = expr.sp_write_table.table_type
+                column_order = expr.sp_write_table.column_order
+                create_temp_table = expr.sp_write_table.create_temp_table
+                clustering_keys = [
+                    self.decode_expr(col)
+                    for col in expr.sp_write_table.clustering_keys.list
+                ]
+                d = MessageToDict(expr.sp_write_table)
+                statement_params = self.get_statement_params(d)
+                block = expr.sp_write_table.block
+                comment = None
+                if "comment" in d:
+                    comment = expr.sp_write_table.comment.value
+                enable_schema_evolution = None
+                if "enable_schema_evolution" in d:
+                    enable_schema_evolution = (
+                        expr.sp_write_table.enable_schema_evolution.value
+                    )
+                data_retention_time = None
+                if "data_retention_time" in d:
+                    data_retention_time = expr.sp_write_table.data_retention_time.value
+                max_data_extension_time = None
+                if "max_data_extension_time" in d:
+                    max_data_extension_time = (
+                        expr.sp_write_table.max_data_extension_time.value
+                    )
+                change_tracking = None
+                if "change_tracking" in d:
+                    change_tracking = expr.sp_write_table.change_tracking.value
+                copy_grants = expr.sp_write_table.copy_grants
+                iceberg_config = None
+                if hasattr(expr.sp_write_table, "iceberg_config"):
+                    iceberg_config = {
+                        expr.sp_write_table.iceberg_config[i]
+                        ._1: expr.sp_write_table.iceberg_config[i]
+                        ._2
+                        for i in range(len(expr.sp_write_table.iceberg_config))
+                    }
+                df_writer = self.symbol_table[expr.sp_write_table.id.bitfield1][1]
+                return df_writer.save_as_table(
+                    table_name=table_name,
+                    mode=mode,
+                    column_order=column_order,
+                    create_temp_table=create_temp_table,
+                    table_type=table_type,
+                    clustering_keys=clustering_keys,
+                    statement_params=statement_params,
+                    block=block,
+                    comment=comment,
+                    enable_schema_evolution=enable_schema_evolution,
+                    data_retention_time=data_retention_time,
+                    max_data_extension_time=max_data_extension_time,
+                    change_tracking=change_tracking,
+                    copy_grants=copy_grants,
+                    iceberg_config=iceberg_config,
+                )
+
             case _:
+                breakpoint()
                 raise NotImplementedError(
                     "Expression type not implemented yet: %s"
                     % expr.WhichOneof("variant")
