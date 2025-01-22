@@ -408,14 +408,12 @@ def test_mix_set_operator(session):
     df2 = session.create_dataframe([2]).to_df("a")
     df3 = session.create_dataframe([3]).to_df("a")
 
-    res = df1.union(df2).intersect(df2.union(df3)).collect()
-    expected = df2.collect()
-    assert res == expected
+    res = df1.union(df2).intersect(df2.union(df3))
+    Utils.check_answer(res, df2)
 
-    res1 = df1.union(df2).intersect(df2.union(df3)).union(df3).collect()
-    res2 = df2.union(df3).collect()
-    assert res1 == res2
+    res1 = df1.union(df2).intersect(df2.union(df3)).union(df3)
+    res2 = df2.union(df3)
+    Utils.check_answer(res1, res2)
 
-    res = df1.union(df2).except_(df2.union(df3).intersect(df1.union(df2))).collect()
-    expected = df1.collect()
-    assert res == expected
+    res = df1.union(df2).except_(df2.union(df3).intersect(df1.union(df2)))
+    Utils.check_answer(res, df1)

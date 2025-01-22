@@ -200,7 +200,7 @@ def test_write_pandas(session, tmp_table_basic):
     # uploading data twice
     df = session.write_pandas(pd, tmp_table_basic, auto_create_table=True)
     results = df.distinct().to_pandas()
-    assert_frame_equal(results, pd, check_dtype=False)
+    assert_frame_equal(results, pd, check_dtype=False, check_like=True)
 
     # # Do a more complex case where we create the table
     # pd = PandasDF(
