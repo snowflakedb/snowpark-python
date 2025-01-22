@@ -171,8 +171,18 @@ jobs:
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.11 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
-      - name: Run Snowpark pandas API tests (excluding doctests)
+      - if: ${{ !contains('macos', matrix.os.download_name) }}
+        name: Run Snowpark pandas API tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasdailynotdoctest-modin-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ contains('macos', matrix.os.download_name) }}
+        name: Run Snowpark pandas API tests (excluding doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
