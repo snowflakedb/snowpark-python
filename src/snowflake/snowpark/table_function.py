@@ -3,7 +3,7 @@
 #
 
 """Contains table function related classes."""
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Tuple, Union
 
 from snowflake.snowpark._internal.analyzer.sort_expression import Ascending, SortOrder
 from snowflake.snowpark._internal.analyzer.table_function import (
@@ -25,8 +25,12 @@ from ._internal.analyzer.snowflake_plan import SnowflakePlan
 from ._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
+    make_proto_expr,
     with_src_position,
 )
+
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 
 class TableFunctionCall:
@@ -44,7 +48,7 @@ class TableFunctionCall:
         self,
         func_name: Union[str, Iterable[str]],
         *func_arguments: ColumnOrName,
-        _ast: Optional[proto.Expr] = None,
+        _ast: Optional["proto.Expr"] = None,
         _emit_ast: bool = True,
         **func_named_arguments: ColumnOrName,
     ) -> None:
@@ -109,7 +113,7 @@ class TableFunctionCall:
 
         ast = None
         if _emit_ast and self._ast:
-            ast = proto.Expr()
+            ast = make_proto_expr()
             expr = with_src_position(ast.sp_table_fn_call_over)
             expr.lhs.CopyFrom(self._ast)
             if partition_by is not None:
@@ -180,7 +184,7 @@ class TableFunctionCall:
         """
         ast = None
         if _emit_ast:
-            ast = proto.Expr()
+            ast = make_proto_expr()
             expr = with_src_position(ast.sp_table_fn_call_alias)
             expr.lhs.CopyFrom(self._ast)
             expr.aliases.variadic = True
