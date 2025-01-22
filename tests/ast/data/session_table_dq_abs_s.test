@@ -11,19 +11,30 @@ df = df.select(col("num"))
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "mock_database.mock_schema.\"the#qui.ck#bro.wn#\"\"Fox\"\"won\'t#jump!\""
+          name {
+            sp_name_flat {
+              name: "mock_database.mock_schema.\"the#qui.ck#bro.wn#\"\"Fox\"\"won\'t#jump!\""
+            }
           }
         }
         src {
           end_column: 85
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
@@ -50,8 +61,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -61,7 +74,7 @@ body {
                 src {
                   end_column: 29
                   end_line: 26
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 13
                   start_line: 26
                 }
@@ -71,7 +84,7 @@ body {
             src {
               end_column: 29
               end_line: 26
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 13
               start_line: 26
             }
@@ -87,7 +100,7 @@ body {
         src {
           end_column: 29
           end_line: 26
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 26
         }

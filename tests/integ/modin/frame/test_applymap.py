@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -15,17 +16,11 @@ from tests.integ.modin.series.test_apply_and_map import (
     create_func_with_return_type_hint,
 )
 from tests.integ.modin.utils import (
-    PANDAS_VERSION_PREDICATE,
     assert_snowpark_pandas_equal_to_pandas,
     create_test_dfs,
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-pytestmark = pytest.mark.skipif(
-    PANDAS_VERSION_PREDICATE,
-    reason="SNOW-1739034: tests with UDFs/sprocs cannot run without pandas 2.2.3 in Snowflake anaconda",
-)
 
 
 @pytest.fixture(params=["applymap", "map"])
@@ -172,6 +167,12 @@ def test_preserve_order():
         eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(lambda y: -y))
 
 
+@sql_count_checker(
+    query_count=10,
+    udf_count=1,
+    high_count_expected=True,
+    high_count_reason="udf creation",
+)
 def test_applymap_variant_json_null():
     def f(x):
         if native_pd.isna(x):
@@ -188,11 +189,5 @@ def test_applymap_variant_json_null():
     # the last column is a variant column [None, pd.NA], where both None and pd.NA
     # are mapped to SQL null by Python UDF in the input
     df = pd.DataFrame([[1, 2, None], [3, 4, pd.NA]])
-    with SqlCounter(query_count=9):
-        df = df.applymap(f)
-
-    with SqlCounter(query_count=1, udf_count=1):
-        assert df.isna().to_numpy().tolist() == [
-            [False, True, True],
-            [True, False, True],
-        ]
+    native_df = native_pd.DataFrame([[1, 2, None], [3, 4, pd.NA]])
+    eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(f).isna())

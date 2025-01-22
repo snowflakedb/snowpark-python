@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -1022,7 +1022,7 @@ def test_table_select_cte(session):
     check_result(
         session,
         df_result,
-        expect_cte_optimized=False if session.sql_simplifier_enabled else True,
+        expect_cte_optimized=False,
         query_count=1,
         describe_count=0,
         union_count=1,
