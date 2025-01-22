@@ -781,7 +781,9 @@ def test_struct_dtype_iceberg_lqb(
         structured_type_session._query_compilation_stage_enabled = True
         structured_type_session._cte_optimization_enabled = cte_enabled
         structured_type_session._large_query_breakdown_enabled = True
-        structured_type_session._large_query_breakdown_complexity_bounds = (300, 600)
+        structured_type_session._large_query_breakdown_complexity_bounds = (
+            (300, 600) if structured_type_session.sql_simplifier_enabled else (50, 80)
+        )
 
         create_df = structured_type_session.create_dataframe([], schema=expected_schema)
         create_df.write.save_as_table(read_table, iceberg_config=ICEBERG_CONFIG)
@@ -1449,3 +1451,118 @@ def test_stored_procedure_with_structured_returns(
     df = structured_type_session.call(sproc_name)
     assert df.schema == expected_schema
     assert df.dtypes == expected_dtypes
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
+def test_cast_structtype_rename(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+    data = [
+        ({"firstname": "James", "middlename": "", "lastname": "Smith"}, "1991-04-01")
+    ]
+    schema = StructType(
+        [
+            StructField(
+                "name",
+                StructType(
+                    [
+                        StructField("firstname", StringType(), True),
+                        StructField("middlename", StringType(), True),
+                        StructField("lastname", StringType(), True),
+                    ]
+                ),
+            ),
+            StructField("dob", StringType(), True),
+        ]
+    )
+
+    schema2 = StructType(
+        [
+            StructField("fname", StringType()),
+            StructField("middlename", StringType()),
+            StructField("lname", StringType()),
+        ]
+    )
+
+    df = structured_type_session.create_dataframe(data, schema)
+    Utils.check_answer(
+        df.select(
+            col("name").cast(schema2, rename_fields=True).as_("new_name"), col("dob")
+        ),
+        [
+            Row(
+                NEW_NAME=Row(fname="James", middlename="", lname="Smith"),
+                DOB="1991-04-01",
+            )
+        ],
+    )
+    with pytest.raises(
+        ValueError, match="is_add and is_rename cannot be set to True at the same time"
+    ):
+        df.select(
+            col("name")
+            .cast(schema2, rename_fields=True, add_fields=True)
+            .as_("new_name"),
+            col("dob"),
+        )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
+def test_cast_structtype_add(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+    data = [
+        ({"firstname": "James", "middlename": "", "lastname": "Smith"}, "1991-04-01")
+    ]
+    schema = StructType(
+        [
+            StructField(
+                "name",
+                StructType(
+                    [
+                        StructField("firstname", StringType(), True),
+                        StructField("middlename", StringType(), True),
+                        StructField("lastname", StringType(), True),
+                    ]
+                ),
+            ),
+            StructField("dob", StringType(), True),
+        ]
+    )
+
+    schema2 = StructType(
+        [
+            StructField("firstname", StringType()),
+            StructField("middlename", StringType()),
+            StructField("lastname", StringType()),
+            StructField("extra", StringType()),
+        ]
+    )
+
+    df = structured_type_session.create_dataframe(data, schema)
+    Utils.check_answer(
+        df.select(
+            col("name").cast(schema2, add_fields=True).as_("new_name"), col("dob")
+        ),
+        [
+            Row(
+                NEW_NAME=Row(fname="James", middlename="", lname="Smith", extra=None),
+                DOB="1991-04-01",
+            )
+        ],
+    )
+    with pytest.raises(
+        ValueError, match="is_add and is_rename cannot be set to True at the same time"
+    ):
+        df.select(
+            col("name")
+            .cast(schema2, rename_fields=True, add_fields=True)
+            .as_("new_name"),
+            col("dob"),
+        )
