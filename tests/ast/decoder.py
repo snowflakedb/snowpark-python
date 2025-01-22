@@ -54,6 +54,14 @@ logger = logging.getLogger(__name__)
 
 class Decoder:
     def __init__(self, session: Optional[Session]):
+        """
+        Create a new decoder.
+
+        Parameters
+        ----------
+        session : Optional[Session]
+            The session to use for the decoder. If a session is not provided, the decoder will create one.
+        """
         # Map from var_id to (symbol_name, value). symbol_name is the identifier used in the program to store value.
         self.symbol_table: Dict[int, Tuple[str, object]] = dict()
         try:
@@ -77,38 +85,6 @@ class Decoder:
             The local variable name.
         """
         return assign_expr.symbol.value
-
-    def get_dataframe_analytics_function_column_formatter(
-        self, sp_dataframe_analytics_expr: proto.Expr
-    ) -> Callable:
-        """
-        Create a dataframe analytics function column formatter.
-        This is mainly to pass the df_analytics_functions.test.
-
-        Parameters
-        ----------
-        sp_dataframe_analytics_expr : proto.Expr
-            The dataframe analytics expression.
-
-        Returns
-        -------
-        Callable
-            The dataframe analytics function column formatter.
-        """
-        if "formattedColNames" in MessageToDict(sp_dataframe_analytics_expr):
-            formatted_col_names = list(sp_dataframe_analytics_expr.formatted_col_names)
-            w_lambda_pattern = re.compile(r"^(\w+)_W_(\w+)$")
-            xy_lambda_pattern = re.compile(r"^(\w+)_X_(\w+)_Y_(\w+)$")
-            if all(re.match(xy_lambda_pattern, col) for col in formatted_col_names):
-                return (
-                    lambda input, agg, window_size: f"{input}_X_{agg}_Y_{window_size}"
-                )
-            elif all(re.match(w_lambda_pattern, col) for col in formatted_col_names):
-                return lambda input, agg: f"{input}_W_{agg}"
-            else:
-                return lambda input_col, agg, window: f"{agg}_{input_col}_{window}"
-        else:
-            return DataFrameAnalyticsFunctions._default_col_formatter
 
     def decode_col_exprs(self, expr: proto.Expr) -> List[Column]:
         """
@@ -164,7 +140,20 @@ class Decoder:
             python_map[key] = value
         return python_map
 
-    def convert_name_to_list(self, name: any) -> List:
+    def convert_name_to_list(self, name: Union[str, Iterable]) -> List:
+        """
+        Convert a name to a list.
+
+        Parameters
+        ----------
+        name : str or Iterable
+            The name to convert.
+
+        Returns
+        -------
+        List
+            The converted name.
+        """
         if isinstance(name, str):
             return [name]
         return [qualified_name for qualified_name in name]
@@ -180,7 +169,7 @@ class Decoder:
 
         Returns
         -------
-        str
+        str or List
             The decoded table name.
         """
         if table_name.name.HasField("sp_name_flat"):
@@ -281,7 +270,7 @@ class Decoder:
 
     def decode_dataframe_schema_expr(
         self, df_schema_expr: proto.SpDataframeSchema
-    ) -> Union[List, None, StructType]:
+    ) -> Union[List, StructType, None]:
         """
         Decode a dataframe schema expression to get the schema.
 
@@ -292,7 +281,7 @@ class Decoder:
 
         Returns
         -------
-        List
+        List, StructType, or None
             The decoded schema.
         """
         match df_schema_expr.WhichOneof("sealed_value"):
@@ -326,7 +315,7 @@ class Decoder:
 
     def decode_data_type_expr(
         self, data_type_expr: proto.SpDataType
-    ) -> Union[DataType, StructField, ColumnIdentifier]:
+    ) -> Union[ColumnIdentifier, DataType, StructField]:
         """
         Decode a data type expression to get the data type.
 
@@ -337,7 +326,7 @@ class Decoder:
 
         Returns
         -------
-        DataType, StructField, or ColumnIdentifier
+        ColumnIdentifier, DataType, or StructField
             The decoded data type.
         """
         match data_type_expr.WhichOneof("variant"):
@@ -529,7 +518,7 @@ class Decoder:
                     "Unknown join type: %s" % join_type.WhichOneof("variant")
                 )
 
-    def decode_timezone_expr(self, tz_expr: proto.PythonTimeZone) -> Any:
+    def decode_timezone_expr(self, tz_expr: proto.PythonTimeZone) -> timezone:
         """
         Decode a Python timezone expression to get the timezone.
 
@@ -537,12 +526,19 @@ class Decoder:
         ----------
         tz_expr : proto.PythonTimeZone
             The expression to decode.
+
+        Returns
+        -------
+        datetime.timezone
+            The decoded timezone.
         """
         tz_name = tz_expr.name.value
         offset_seconds = tz_expr.offset_seconds
         return timezone(offset=timedelta(seconds=offset_seconds), name=tz_name)
 
-    def decode_window_spec_expr(self, window_spec_expr: proto.SpWindowSpecExpr) -> Any:
+    def decode_window_spec_expr(
+        self, window_spec_expr: proto.SpWindowSpecExpr
+    ) -> Union[WindowSpec, None]:
         """
         Decode a window specification expression.
 
@@ -553,7 +549,7 @@ class Decoder:
 
         Returns
         -------
-        Any
+        WindowSpec or None
             The decoded window specification.
         """
         match window_spec_expr.WhichOneof("variant"):
@@ -611,8 +607,8 @@ class Decoder:
     ):
         """
         Helper function for AST decoding to fill relative positions for window spec range-between, and rows-between.
-        If the value passed in for start/end is of type WindowRelativePosition encoding will preserve the syntax.
-        (For example, Window.CURRENT_ROW)
+        If the value passed in for start/end is of type WindowRelativePosition encoding will preserve the syntax
+        (for example, Window.CURRENT_ROW).
 
         Parameters
         ----------
@@ -636,15 +632,90 @@ class Decoder:
                     % wnd_relative_position.WhichOneof("variant")
                 )
 
-    def binop(self, ast, fn):
+    def binop(self, ast: proto.Expr, fn: Callable) -> Any:
+        """
+        Helper function to perform binary operations on columns.
+
+        Parameters
+        ----------
+        ast : proto.Expr
+            The expression to perform the binary operation on.
+        fn : Callable
+            The binary operation.
+
+        Returns
+        -------
+        Any
+            The result of the binary operation
+        """
         return fn(self.decode_expr(ast.lhs), self.decode_expr(ast.rhs))
 
-    def bitop(self, ast, fn):
+    def bitop(self, ast: proto.Expr, fn: str) -> Any:
+        """
+        Helper function to perform bitwise operations on columns.
+
+        Parameters
+        ----------
+        ast : proto.Expr
+            The expression to perform the bitwise operation on.
+        fn : str
+            The bitwise operation.
+
+        Returns
+        -------
+        Any
+            The result of the bitwise operation
+        """
         lhs = self.decode_expr(ast.lhs)
         rhs = self.decode_expr(ast.rhs)
         return getattr(lhs, fn)(rhs)
 
-    def get_statement_params(self, d: Dict):
+    def get_dataframe_analytics_function_column_formatter(
+        self, sp_dataframe_analytics_expr: proto.Expr
+    ) -> Callable:
+        """
+        Create a dataframe analytics function column formatter.
+        This is mainly to pass the df_analytics_functions.test.
+
+        Parameters
+        ----------
+        sp_dataframe_analytics_expr : proto.Expr
+            The dataframe analytics expression.
+
+        Returns
+        -------
+        Callable
+            The dataframe analytics function column formatter.
+        """
+        if "formattedColNames" in MessageToDict(sp_dataframe_analytics_expr):
+            formatted_col_names = list(sp_dataframe_analytics_expr.formatted_col_names)
+            w_lambda_pattern = re.compile(r"^(\w+)_W_(\w+)$")
+            xy_lambda_pattern = re.compile(r"^(\w+)_X_(\w+)_Y_(\w+)$")
+            if all(re.match(xy_lambda_pattern, col) for col in formatted_col_names):
+                return (
+                    lambda input, agg, window_size: f"{input}_X_{agg}_Y_{window_size}"
+                )
+            elif all(re.match(w_lambda_pattern, col) for col in formatted_col_names):
+                return lambda input, agg: f"{input}_W_{agg}"
+            else:
+                return lambda input_col, agg, window: f"{agg}_{input_col}_{window}"
+        else:
+            return DataFrameAnalyticsFunctions._default_col_formatter
+
+    def get_statement_params(self, d: Dict) -> Dict:
+        """
+        Helper function to get the statement parameters from a map/dict version of the AST (from MessageToDict).
+
+        Parameters
+        ----------
+        d : Dict
+            The dictionary to get the statement parameters from.
+
+        Returns
+        -------
+        Dict
+            The statement parameters.
+        """
         statement_params = {}
         statement_params_list = d.get("statementParams", [])
         for statement_params_list_map in statement_params_list:
@@ -654,6 +725,19 @@ class Decoder:
         return statement_params
 
     def decode_expr(self, expr: proto.Expr, **kwargs) -> Any:
+        """
+        Heart of the decoder: decode a given protobuf expression.
+
+        Parameters
+        ----------
+        expr : proto.Expr
+            The expression to decode.
+
+        Returns
+        -------
+        Any
+            The decoded expression.
+        """
         match expr.WhichOneof("variant"):
             # COLUMN BINARY OPERATIONS
             case "add":
