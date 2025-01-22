@@ -1599,3 +1599,9 @@ def make_proto_expr() -> "proto.Expr":
     import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
     return proto.Expr()
+
+
+def make_proto_tuple_string_list_string() -> "proto.Tuple_String_List_String":
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+    return proto.Tuple_String_List_String()
