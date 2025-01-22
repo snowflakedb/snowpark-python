@@ -23,6 +23,15 @@ df.count(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -66,7 +75,7 @@ body {
         src {
           end_column: 111
           end_line: 28
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 28
         }
@@ -92,7 +101,7 @@ body {
         src {
           end_column: 18
           end_line: 30
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 30
         }
@@ -124,7 +133,7 @@ body {
         src {
           end_column: 29
           end_line: 32
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 32
         }
@@ -156,7 +165,7 @@ body {
         src {
           end_column: 78
           end_line: 34
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 8
           start_line: 34
         }
