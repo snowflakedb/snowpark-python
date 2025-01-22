@@ -553,7 +553,7 @@ class LambdaFunctionExpression(Expression):
     def __init__(
         self,
         body: Expression,
-        args: list[UnresolvedAttribute],
+        args: List[UnresolvedAttribute],
     ) -> None:
         super().__init__()
         self.body = body

@@ -904,6 +904,34 @@ def create_ast_for_column(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) 
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
+def create_ast_for_callable(  # type: ignore[no-untyped-def]
+    callable: Callable,
+) -> proto.Expr:
+    ast = proto.Expr()
+    _build_callable_ast(ast, callable)
+    return ast
+
+
+# TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
+def _build_callable_ast(  # type: ignore[no-untyped-def]
+    expr_builder: proto.Expr, obj: Callable
+):
+    from snowflake.snowpark.column import Column
+
+    ast = with_src_position(expr_builder.fn_val)
+    parameters = inspect.signature(obj).parameters.values()
+    arg_exprs = [
+        UnresolvedAttribute(arg_name) for arg_name in [p.name for p in parameters]
+    ]
+    arg_cols = [
+        Column(arg_expr, _ast=snowpark_expression_to_ast(arg_expr), _emit_ast=True)
+        for arg_expr in arg_exprs
+    ]
+    ast.params.extend([a.name for a in arg_exprs])
+    build_expr_from_snowpark_column(expr_builder.fn_val.body, obj(*arg_cols))
+
+
+# TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no cover
     """
     Converts Snowpark expression expr to protobuf ast.
