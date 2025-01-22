@@ -7,14 +7,26 @@
 
 import sys
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
+
+from snowflake.connector import ProgrammingError
 
 import snowflake.snowpark
-from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.ast.utils import (
     build_udaf,
     build_udaf_apply,
+    make_proto_expr,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -49,6 +61,9 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
 
 class UserDefinedAggregateFunction:
     """
@@ -73,7 +88,7 @@ class UserDefinedAggregateFunction:
         return_type: DataType,
         input_types: List[DataType],
         packages: Optional[List[Union[str, ModuleType]]] = None,
-        _ast: Optional[proto.Udaf] = None,
+        _ast: Optional["proto.Udaf"] = None,
         _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
@@ -109,7 +124,7 @@ class UserDefinedAggregateFunction:
         udaf_expr = None
         if _emit_ast and self._ast is not None:
             assert self._ast_id is not None, "Need to assign UDAF an ID."
-            udaf_expr = proto.Expr()
+            udaf_expr = make_proto_expr()
             build_udaf_apply(udaf_expr, self._ast_id, *cols)
 
         return Column(self._create_udaf_expression(exprs), _ast=udaf_expr)
