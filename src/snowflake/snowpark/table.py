@@ -5,7 +5,7 @@
 
 import sys
 from logging import getLogger
-from typing import Dict, List, NamedTuple, Optional, Union, overload
+from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.binary_plan_node import create_join_type
@@ -20,13 +20,13 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
 from snowflake.snowpark._internal.ast.utils import (
+    DATAFRAME_AST_PARAMETER,
     build_expr_from_dict_str_str,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_python_val,
+    build_sp_table_name,
     debug_check_missing_ast,
     with_src_position,
-    DATAFRAME_AST_PARAMETER,
-    build_sp_table_name,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
@@ -43,6 +43,11 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
 
 _logger = getLogger(__name__)
 
@@ -286,7 +291,7 @@ class Table(DataFrame):
         table_name: str,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         is_temp_table_for_cleanup: bool = False,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
         _emit_ast: bool = True,
     ) -> None:
         if _ast_stmt is None and session is not None and _emit_ast:
