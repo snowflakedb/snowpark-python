@@ -16,14 +16,16 @@ Refer to :class:`~snowflake.snowpark.udf.UDFRegistration` for sample code on how
 """
 import sys
 from types import ModuleType
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+
+from snowflake.connector import ProgrammingError
 
 import snowflake.snowpark
-from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.ast.utils import (
     build_udf,
     build_udf_apply,
+    make_proto_expr,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -60,6 +62,10 @@ else:
     from collections.abc import Iterable
 
 
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+
 class UserDefinedFunction:
     """
     Encapsulates a user defined lambda or function that is returned by
@@ -84,7 +90,7 @@ class UserDefinedFunction:
         name: str,
         is_return_nullable: bool = False,
         packages: Optional[List[Union[str, ModuleType]]] = None,
-        _ast: Optional[proto.Udf] = None,
+        _ast: Optional["proto.Udf"] = None,
         _ast_id: Optional[int] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
@@ -128,7 +134,7 @@ class UserDefinedFunction:
                 self._ast is not None
             ), "Need to ensure _emit_ast is True when registering UDF."
             assert self._ast_id is not None, "Need to assign UDF an ID."
-            udf_expr = proto.Expr()
+            udf_expr = make_proto_expr()
             build_udf_apply(udf_expr, self._ast_id, *cols)
 
         ans = Column(self._create_udf_expression(exprs), _emit_ast=False)
