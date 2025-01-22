@@ -4,7 +4,7 @@
 
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Literal, Optional, Union, overload
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union, overload
 
 import snowflake.snowpark  # for forward references of type hints
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -14,15 +14,15 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     TableCreationSource,
 )
 from snowflake.snowpark._internal.ast.utils import (
+    DATAFRAME_AST_PARAMETER,
     build_expr_from_snowpark_column_or_col_name,
-    build_expr_from_snowpark_column_or_sql_str,
     build_expr_from_snowpark_column_or_python_val,
+    build_expr_from_snowpark_column_or_sql_str,
+    build_sp_table_name,
     debug_check_missing_ast,
     fill_sp_save_mode,
     fill_sp_write_file,
     with_src_position,
-    DATAFRAME_AST_PARAMETER,
-    build_sp_table_name,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -55,6 +55,11 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+
+if TYPE_CHECKING:
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
+
 WRITER_OPTIONS_ALIAS_MAP = {
     "SEP": "FIELD_DELIMITER",
     "LINESEP": "RECORD_DELIMITER",
@@ -84,7 +89,7 @@ class DataFrameWriter:
     def __init__(
         self,
         dataframe: "snowflake.snowpark.dataframe.DataFrame",
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional["proto.Assign"] = None,
     ) -> None:
         self._dataframe = dataframe
         self._save_mode = SaveMode.ERROR_IF_EXISTS
