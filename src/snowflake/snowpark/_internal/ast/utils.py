@@ -664,7 +664,7 @@ def __intern_string(s: str) -> int:
     return interned_id
 
 
-def fill_interned_value_table(table: proto.InternedValueTable) -> None:
+def fill_interned_value_table(table: "proto.InternedValueTable") -> None:
     """Helper function to fill InternedValueTable table with values of all interned values from this client."""
 
     # Only filenames are interned as part of with_src_position at the moment.
