@@ -623,6 +623,12 @@ def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:  # pragma: no cov
 __STRING_INTERNING_MAP__ = {"": -1}
 
 
+def __reset_interning_map() -> None:
+    """Helper function exclusively used for test purposes, resets interning map to default values."""
+    global __STRING_INTERNING_MAP__
+    __STRING_INTERNING_MAP__ = {"": -1}
+
+
 def __intern_string(s: str) -> int:
     """Helper function to add string to global string interning map and return integer lookup index.
     Empty string will always yield -1 as lookup index.
