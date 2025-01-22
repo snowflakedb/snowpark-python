@@ -194,10 +194,6 @@ class Decoder:
             The decoded function name.
         """
         match fn_ref_expr.WhichOneof("variant"):
-            # case "trait_fn_id_ref_expr":
-            #     pass
-            # case "trait_fn_name_ref_expr":
-            #     pass
             case "builtin_fn":
                 return self.decode_name_expr(fn_ref_expr.builtin_fn.name)
             case "call_table_function_expr":
@@ -214,6 +210,10 @@ class Decoder:
                 return self.symbol_table[fn_ref_expr.sp_fn_ref.id.bitfield1][0]
             case "stored_procedure":
                 return self.decode_name_expr(fn_ref_expr.stored_procedure.name)
+            # case "trait_fn_id_ref_expr":
+            #     pass
+            # case "trait_fn_name_ref_expr":
+            #     pass
             # case "udaf":
             #     pass
             # case "udf":
