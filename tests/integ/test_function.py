@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -15,6 +15,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
+    _concat_ws_ignore_nulls,
     abs,
     array_agg,
     array_append,
@@ -175,7 +176,12 @@ from snowflake.snowpark.types import (
     TimestampType,
     VariantType,
 )
-from tests.utils import TestData, Utils, running_on_jenkins
+from tests.utils import (
+    TestData,
+    Utils,
+    running_on_jenkins,
+    structured_types_enabled_session,
+)
 
 
 def test_order(session):
@@ -306,6 +312,62 @@ def test_concat_ws(session, col_a, col_b, col_c):
     df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
     res = df.select(concat_ws(lit(","), col_a, col_b, col_c)).collect()
     assert res[0][0] == "1,2,3"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="lambda function not supported",
+)
+@pytest.mark.parametrize("structured_type_semantics", [True, False])
+def test__concat_ws_ignore_nulls(session, structured_type_semantics):
+    data = [
+        (["a", "b"], ["c"], "d", "e", 1, 2),  # no nulls column
+        (
+            ["Hello", None, "world"],
+            [None, "!", None],
+            "bye",
+            "world",
+            3,
+            None,
+        ),  # some nulls column
+        ([None, None], ["R", "H"], None, "TD", 4, 5),  # some nulls column
+        (None, [None], None, None, None, None),  # all nulls column
+        (None, None, None, None, None, None),  # all nulls column
+    ]
+    cols = ["arr1", "arr2", "str1", "str2", "int1", "int2"]
+
+    def check_concat_ws_ignore_nulls_output(session):
+        df = session.create_dataframe(data, schema=cols)
+
+        # single character delimiter
+        Utils.check_answer(
+            df.select(_concat_ws_ignore_nulls(",", *cols)),
+            [
+                Row("a,b,c,d,e,1,2"),
+                Row("Hello,world,!,bye,world,3"),
+                Row("R,H,TD,4,5"),
+                Row(""),
+                Row(""),
+            ],
+        )
+
+        # multi-character delimiter
+        Utils.check_answer(
+            df.select(_concat_ws_ignore_nulls(" : ", *cols)),
+            [
+                Row("a : b : c : d : e : 1 : 2"),
+                Row("Hello : world : ! : bye : world : 3"),
+                Row("R : H : TD : 4 : 5"),
+                Row(""),
+                Row(""),
+            ],
+        )
+
+    if structured_type_semantics:
+        with structured_types_enabled_session(session) as session:
+            check_concat_ws_ignore_nulls_output(session)
+    else:
+        check_concat_ws_ignore_nulls_output(session)
 
 
 def test_concat_edge_cases(session):

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -12,10 +12,10 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from google.protobuf.json_format import MessageToDict
 
-from build.lib.snowflake.snowpark.relational_grouped_dataframe import GroupingSets
+from snowflake.snowpark.relational_grouped_dataframe import GroupingSets
 from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
 import snowflake.snowpark.functions
-from snowflake.snowpark.functions import udf, when
+from snowflake.snowpark.functions import udf, when, sproc, call_table_function
 from snowflake.snowpark.types import (
     DataType,
     ArrayType,
@@ -208,16 +208,20 @@ class Decoder:
             #     pass
             case "builtin_fn":
                 return self.decode_name_expr(fn_ref_expr.builtin_fn.name)
-            # case "call_table_function_expr":
-            #     pass
-            # case "indirect_table_fn_id_ref":
-            #     pass
-            # case "indirect_table_fn_name_ref":
-            #     pass
+            case "call_table_function_expr":
+                return self.decode_name_expr(fn_ref_expr.call_table_function_expr.name)
+            case "indirect_table_fn_id_ref":
+                return self.symbol_table[
+                    fn_ref_expr.indirect_table_fn_id_ref.id.bitfield1
+                ][0]
+            case "indirect_table_fn_name_ref":
+                return self.decode_name_expr(
+                    fn_ref_expr.indirect_table_fn_name_ref.name
+                )
             case "sp_fn_ref":
                 return self.symbol_table[fn_ref_expr.sp_fn_ref.id.bitfield1][0]
-            # case "stored_procedure":
-            #     pass
+            case "stored_procedure":
+                return self.decode_name_expr(fn_ref_expr.stored_procedure.name)
             # case "udaf":
             #     pass
             # case "udf":
@@ -259,8 +263,8 @@ class Decoder:
                         ]
                 else:
                     return []
-            case "sp_dataframe_data__pandas":
-                pass
+            # case "sp_dataframe_data__pandas":
+            #     pass
             # case "sp_dataframe_data__tuple":
             #     pass
             case _:
@@ -540,7 +544,7 @@ class Decoder:
             ] = statement_params_list_map["2"]
         return statement_params
 
-    def decode_expr(self, expr: proto.Expr) -> Any:
+    def decode_expr(self, expr: proto.Expr, **kwargs) -> Any:
         match expr.WhichOneof("variant"):
             # COLUMN BINARY OPERATIONS
             case "add":
@@ -550,10 +554,20 @@ class Decoder:
 
             case "apply_expr":
                 fn_name = self.decode_fn_ref_expr(expr.apply_expr.fn)
-                if hasattr(snowflake.snowpark.functions, fn_name):
-                    fn = getattr(snowflake.snowpark.functions, fn_name)
+                if isinstance(fn_name, str):
+                    if hasattr(snowflake.snowpark.functions, fn_name):
+                        fn = getattr(snowflake.snowpark.functions, fn_name)
+                    elif expr.apply_expr.fn.sp_fn_ref.id.bitfield1 in self.symbol_table:
+                        fn = self.symbol_table[
+                            expr.apply_expr.fn.sp_fn_ref.id.bitfield1
+                        ][1]
+                    else:
+                        fn = None
                 else:
-                    fn = self.symbol_table[expr.apply_expr.fn.sp_fn_ref.id.bitfield1][1]
+                    # If fn_name is not a string, it is a collection of table functions. Convert it to a list.
+                    fn_name = [name for name in fn_name]
+                    fn = None
+
                 # The named arguments are stored as a list of Tuple_String_Expr.
                 named_args = self.decode_dsl_map_expr(expr.apply_expr.named_args)
                 # The positional args can be a list of Expr, a single Expr, or [].
@@ -567,6 +581,36 @@ class Decoder:
                         pos_args = [self.decode_expr(expr.apply_expr.pos_args)]
                 else:
                     pos_args = []
+
+                if fn is None:
+                    # Stored procedures, table functions, (and in the future I expect UDTFs maybe) will pass through
+                    # here directly (not through their respective entities) when invoked. Call the right method.
+                    # If a source is provided via kwargs, short-circuit with that.
+                    source = kwargs.get("source", None)
+                    match expr.apply_expr.fn.WhichOneof("variant"):
+                        case "sp_fn_ref":
+                            return self.session.call(fn_name, *pos_args, **named_args)
+                        case "indirect_table_fn_id_ref":
+                            return self.session.table_function(
+                                self.symbol_table[
+                                    expr.apply_expr.fn.indirect_table_fn_id_ref.id.bitfield1
+                                ][1]
+                            )
+                        case "call_table_function_expr" | "indirect_table_fn_name_ref":
+                            if source is "sp_session_table_function":
+                                return self.session.table_function(
+                                    fn_name, *pos_args, **named_args
+                                )
+                            else:
+                                return call_table_function(
+                                    fn_name, *pos_args, **named_args
+                                )
+                        case _:
+                            raise ValueError(
+                                "Unknown function reference type: %s"
+                                % expr.apply_expr.fn.WhichOneof("variant")
+                            )
+
                 result = fn(*pos_args, **named_args)
                 if hasattr(expr, "var_id"):
                     self.symbol_table[expr.var_id.bitfield1] = (
@@ -668,6 +712,9 @@ class Decoder:
                     self.decode_expr(kv.vs[0]): self.decode_expr(kv.vs[1])
                     for kv in expr.seq_map_val.kvs
                 }
+
+            case "sp_datatype_val":
+                return self.decode_data_type_expr(expr.sp_datatype_val.datatype)
 
             case "tuple_val":
                 # vs can be a list of Expr, a single Expr, or ().
@@ -796,7 +843,13 @@ class Decoder:
                 return col.is_null()
 
             case "sp_column_sql_expr":
-                return expr.sp_column_sql_expr.sql
+                sql_expr = expr.sp_column_sql_expr.sql
+                # Need to explicitly specify col("*") because of the way sql_expr AST is encoded.
+                return (
+                    snowflake.snowpark.functions.col(sql_expr)
+                    if sql_expr == "*"
+                    else sql_expr
+                )
 
             case "sp_column_string_like":
                 col = self.decode_expr(expr.sp_column_string_like.col)
@@ -1437,6 +1490,61 @@ class Decoder:
                 else:
                     return df.to_df(col_names)
 
+            case "sp_dataframe_to_local_iterator":
+                df = self.symbol_table[
+                    expr.sp_dataframe_to_local_iterator.id.bitfield1
+                ][1]
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_to_local_iterator)
+                )
+                block = expr.sp_dataframe_to_local_iterator.block
+                case_sensitive = expr.sp_dataframe_to_local_iterator.case_sensitive
+                return df.to_local_iterator(
+                    statement_params=statement_params,
+                    block=block,
+                    case_sensitive=case_sensitive,
+                )
+
+            case "sp_dataframe_to_pandas":
+                df = self.symbol_table[expr.sp_dataframe_to_pandas.id.bitfield1][1]
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_to_pandas)
+                )
+                block = expr.sp_dataframe_to_pandas.block
+                return df.to_pandas(statement_params=statement_params, block=block)
+
+            case "sp_dataframe_to_pandas_batches":
+                df = self.symbol_table[
+                    expr.sp_dataframe_to_pandas_batches.id.bitfield1
+                ][1]
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_dataframe_to_pandas_batches)
+                )
+                block = expr.sp_dataframe_to_pandas_batches.block
+                return df.to_pandas_batches(
+                    statement_params=statement_params, block=block
+                )
+
+            case "sp_dataframe_union":
+                df = self.decode_expr(expr.sp_dataframe_union.df)
+                other = self.decode_expr(expr.sp_dataframe_union.other)
+                return df.union(other)
+
+            case "sp_dataframe_union_all":
+                df = self.decode_expr(expr.sp_dataframe_union_all.df)
+                other = self.decode_expr(expr.sp_dataframe_union_all.other)
+                return df.union_all(other)
+
+            case "sp_dataframe_union_all_by_name":
+                df = self.decode_expr(expr.sp_dataframe_union_all_by_name.df)
+                other = self.decode_expr(expr.sp_dataframe_union_all_by_name.other)
+                return df.union_all_by_name(other)
+
+            case "sp_dataframe_union_by_name":
+                df = self.decode_expr(expr.sp_dataframe_union_by_name.df)
+                other = self.decode_expr(expr.sp_dataframe_union_by_name.other)
+                return df.union_by_name(other)
+
             case "sp_dataframe_unpivot":
                 df = self.decode_expr(expr.sp_dataframe_unpivot.df)
                 column_list = [
@@ -1515,10 +1623,35 @@ class Decoder:
                     expr.sp_relational_grouped_dataframe_ref.id.bitfield1
                 ][1]
 
+            case "sp_session_table_function":
+                # Here, self.decode_expr will most likely run Session.call since Session.call does not have an explicit
+                # AST entity. To prevent Session.call from running, give context to self.decode_expr that the caller is
+                # sp_session_table_function entity via kwargs.
+                kwargs = {"source": "sp_session_table_function"}
+                return self.decode_expr(expr.sp_session_table_function.fn, **kwargs)
+
             case "sp_table":
                 assert expr.sp_table.HasField("name")
                 table_name = self.decode_name_expr(expr.sp_table.name)
                 return self.session.table(table_name)
+
+            case "sp_to_snowpark_pandas":
+                df = self.decode_expr(expr.sp_to_snowpark_pandas.df)
+                d = MessageToDict(expr.sp_to_snowpark_pandas)
+                index_col, columns = None, None
+                if "indexCol" in d:
+                    index_col = [
+                        col for col in expr.sp_to_snowpark_pandas.index_col.list
+                    ]
+                if "columns" in d:
+                    columns = [col for col in expr.sp_to_snowpark_pandas.columns.list]
+                # Returning the result of to_snowpark_pandas causes recursion issues when local_testing_mode is enabled.
+                # When disabled, to_snowpark_pandas will raise an error since df will be an empty Dataframe
+                # (passing non-None values of index_col or columns will make the snowpark_to_pandas_helper complain
+                # about columns that do not exist).
+                # Therefore, silently execute to_snowpark_pandas to record the AST and return None.
+                df.to_snowpark_pandas(index_col, columns)
+                return None
 
             case "udf":
                 return_type = self.decode_data_type_expr(expr.udf.return_type)
@@ -1803,6 +1936,70 @@ class Decoder:
             case "sp_dataframe_write":
                 df = self.decode_expr(expr.sp_dataframe_write.df)
                 return df.write
+
+            case "stored_procedure":
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.stored_procedure.input_types.list
+                ]
+                execute_as = expr.stored_procedure.execute_as
+                comment = expr.stored_procedure.comment.value
+                registered_object_name = self.decode_name_expr(
+                    expr.stored_procedure.func.object_name
+                )
+                return_type = self.decode_data_type_expr(
+                    expr.stored_procedure.return_type
+                )
+                ret_sproc = sproc(
+                    lambda *args: None,
+                    return_type=return_type,
+                    input_types=input_types,
+                    execute_as=execute_as,
+                    comment=comment,
+                    _registered_object_name=registered_object_name,
+                )
+                return ret_sproc
+
+            case "sp_flatten":
+                input = self.decode_expr(expr.sp_flatten.input)
+
+                path = expr.sp_flatten.path.value
+
+                outer = expr.sp_flatten.outer
+
+                recursive = expr.sp_flatten.recursive
+
+                mode = "BOTH"
+                match expr.sp_flatten.mode.WhichOneof("variant"):
+                    case "sp_flatten_mode_both":
+                        mode = "BOTH"
+                    case "sp_flatten_mode_array":
+                        mode = "ARRAY"
+                    case "sp_flatten_mode_object":
+                        mode = "OBJECT"
+
+                if len(path) == 0:
+
+                    return self.session.flatten(
+                        input=input, outer=outer, recursive=recursive, mode=mode
+                    )
+
+                return self.session.flatten(
+                    input=input, path=path, outer=outer, recursive=recursive, mode=mode
+                )
+
+            case "sp_generator":
+                columns = [self.decode_expr(col) for col in expr.sp_generator.columns]
+                row_count = expr.sp_generator.row_count
+                time_limit_seconds = expr.sp_generator.time_limit_seconds
+                if expr.sp_generator.variadic:
+                    return self.session.generator(
+                        *columns, rowcount=row_count, timelimit=time_limit_seconds
+                    )
+                else:
+                    return self.session.generator(
+                        columns, rowcount=row_count, timelimit=time_limit_seconds
+                    )
 
             case "sp_write_pandas":
                 df = self.decode_dataframe_data_expr(expr.sp_write_pandas.df)
