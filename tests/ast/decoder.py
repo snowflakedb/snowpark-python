@@ -15,7 +15,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from google.protobuf.json_format import MessageToDict
 
 from snowflake.snowpark.relational_grouped_dataframe import GroupingSets
-from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions
+from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions, Row
 import snowflake.snowpark.functions
 from snowflake.snowpark.functions import udf, when, sproc, call_table_function
 from snowflake.snowpark.types import (
@@ -277,7 +277,7 @@ class Decoder:
 
     def decode_dataframe_schema_expr(
         self, df_schema_expr: proto.SpDataframeSchema
-    ) -> Union[List, None]:
+    ) -> Union[List, None, StructType]:
         """
         Decode a dataframe schema expression to get the schema.
 
@@ -303,8 +303,17 @@ class Decoder:
                         return [df_schema_expr.sp_dataframe_schema__list.vs]
                 else:
                     return None
-            # case "sp_dataframe_schema__struct":
-            #     pass
+            case "sp_dataframe_schema__struct":
+                struct_field_list = []
+                for field in df_schema_expr.sp_dataframe_schema__struct.v.fields.list:
+                    column_identifier = field.column_identifier.name
+                    datatype = self.decode_data_type_expr(field.data_type)
+                    nullable = field.nullable
+                    struct_field_list.append(
+                        StructField(column_identifier, datatype, nullable)
+                    )
+                structured = df_schema_expr.sp_dataframe_schema__struct.v.structured
+                return StructType(struct_field_list, structured)
             case _:
                 raise ValueError(
                     "Unknown dataframe schema type: %s"
@@ -2108,6 +2117,14 @@ class Decoder:
                     return self.session.generator(
                         columns, rowcount=row_count, timelimit=time_limit_seconds
                     )
+
+            case "sp_row":
+                names = [name for name in expr.sp_row.names.list]
+                values = [self.decode_expr(value) for value in expr.sp_row.vs]
+                if names:
+                    return Row(**dict(zip(names, values)))
+                else:
+                    return Row(*values)
 
             case _:
                 raise NotImplementedError(
