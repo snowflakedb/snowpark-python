@@ -706,7 +706,7 @@ class Decoder:
                                 ][1]
                             )
                         case "call_table_function_expr" | "indirect_table_fn_name_ref":
-                            if source is "sp_session_table_function":
+                            if source == "sp_session_table_function":
                                 return self.session.table_function(
                                     fn_name, *pos_args, **named_args
                                 )
