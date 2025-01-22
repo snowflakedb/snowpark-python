@@ -3,6 +3,7 @@
 #
 
 import uuid
+from datetime import datetime
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
@@ -10,6 +11,7 @@ from unittest import mock
 
 import logging
 import pytest
+import pytz
 
 import snowflake.snowpark.context as context
 from snowflake.connector.options import installed_pandas
@@ -1571,88 +1573,63 @@ def test_cast_structtype_add(structured_type_session, structured_type_support):
     reason="Structured types are not supported in Local Testing",
 )
 def test_cast_timestamp_to_long(session):
-    dates = [("1", "2019-07-01 12:01:19", "2017-07-01 08:01:19")]
+    date1 = [str(datetime(2019, 7, 1, 12, 1, 19))]
+    date2 = [str(datetime(2019, 7, 1, 12, 1, 19, tzinfo=pytz.UTC))]
     schema1 = StructType(
         [
-            StructField("id", IntegerType()),
             StructField(
                 "from_timestamp", TimestampType(timezone=TimestampTimeZone.NTZ)
             ),
-            StructField("to_timestamp", TimestampType(timezone=TimestampTimeZone.NTZ)),
         ]
     )
     schema2 = StructType(
         [
-            StructField("id", IntegerType()),
             StructField(
                 "from_timestamp", TimestampType(timezone=TimestampTimeZone.LTZ)
             ),
-            StructField("to_timestamp", TimestampType(timezone=TimestampTimeZone.LTZ)),
         ]
     )
     schema3 = StructType(
         [
-            StructField("id", IntegerType()),
             StructField("from_timestamp", TimestampType(timezone=TimestampTimeZone.TZ)),
-            StructField("to_timestamp", TimestampType(timezone=TimestampTimeZone.TZ)),
         ]
     )
     schema4 = StructType(
         [
-            StructField("id", IntegerType()),
             StructField(
                 "from_timestamp", TimestampType(timezone=TimestampTimeZone.DEFAULT)
-            ),
-            StructField(
-                "to_timestamp", TimestampType(timezone=TimestampTimeZone.DEFAULT)
             ),
         ]
     )
 
-    df = session.create_dataframe(data=dates, schema=schema1)
+    df = session.create_dataframe(data=date1, schema=schema1)
     Utils.check_answer(
-        df.select(
-            (col("from_timestamp").cast("long") - col("to_timestamp").cast("long")).as_(
-                "RES"
-            )
-        ),
+        df.select(col("from_timestamp").cast("long").as_("RES")),
         [
-            Row(63086400000),
+            Row(1561982479000),
         ],
     )
 
-    df = session.create_dataframe(data=dates, schema=schema2)
+    df = session.create_dataframe(data=date2, schema=schema2)
     Utils.check_answer(
-        df.select(
-            (col("from_timestamp").cast("long") - col("to_timestamp").cast("long")).as_(
-                "RES"
-            )
-        ),
+        df.select(col("from_timestamp").cast("long").as_("RES")),
         [
-            Row(63086400000),
+            Row(1561982479000),
         ],
     )
 
-    df = session.create_dataframe(data=dates, schema=schema3)
+    df = session.create_dataframe(data=date2, schema=schema3)
     Utils.check_answer(
-        df.select(
-            (col("from_timestamp").cast("long") - col("to_timestamp").cast("long")).as_(
-                "RES"
-            )
-        ),
+        df.select(col("from_timestamp").cast("long").as_("RES")),
         [
-            Row(63086400000),
+            Row(1561982479000),
         ],
     )
 
-    df = session.create_dataframe(data=dates, schema=schema4)
+    df = session.create_dataframe(data=date1, schema=schema4)
     Utils.check_answer(
-        df.select(
-            (col("from_timestamp").cast("long") - col("to_timestamp").cast("long")).as_(
-                "RES"
-            )
-        ),
+        df.select(col("from_timestamp").cast("long").as_("RES")),
         [
-            Row(63086400000),
+            Row(1561982479000),
         ],
     )
