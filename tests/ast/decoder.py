@@ -1752,6 +1752,31 @@ class Decoder:
                 table_name = self.decode_name_expr(expr.sp_table.name)
                 return self.session.table(table_name)
 
+            case "sp_table_update":
+                table = self.symbol_table[expr.sp_table_update.id.bitfield1][1]
+                assignments = self.decode_dsl_map_expr(expr.sp_table_update.assignments)
+                block = expr.sp_table_update.block
+                condition = (
+                    self.decode_expr(expr.sp_table_update.condition)
+                    if expr.sp_table_update.HasField("condition")
+                    else None
+                )
+                source = (
+                    self.decode_expr(expr.sp_table_update.source)
+                    if expr.sp_table_update.HasField("source")
+                    else None
+                )
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_table_update)
+                )
+                return table.update(
+                    assignments,
+                    condition,
+                    source,
+                    statement_params=statement_params,
+                    block=block,
+                )
+
             case "sp_to_snowpark_pandas":
                 df = self.decode_expr(expr.sp_to_snowpark_pandas.df)
                 d = MessageToDict(expr.sp_to_snowpark_pandas)
