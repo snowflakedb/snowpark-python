@@ -667,7 +667,6 @@ def test_concurrent_update_on_sensitive_configs(
             not in caplog.text
         )
 
-    caplog.clear()
     with caplog.at_level(logging.WARNING):
         with ThreadPoolExecutor(max_workers=5) as executor:
             for _ in range(5):
