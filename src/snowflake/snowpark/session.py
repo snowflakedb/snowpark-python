@@ -265,6 +265,9 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
     "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
 )
+_PYTHON_SNOWPARK_RESOLVE_CONFLICT_ALIAS_VERSION = (
+    "PYTHON_SNOWPARK_RESOLVE_CONFLICT_ALIAS_VERSION"
+)
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
 # TODO SNOW-1677514: Add server-side flag and initialize value with it. Add telemetry support for flag.
@@ -638,6 +641,10 @@ class Session:
                 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
             ),
         )
+        self._resolve_conflict_alias = True
+        # self._resolve_conflict_alias: bool = self.is_feature_enabled_for_version(
+        #     _PYTHON_SNOWPARK_RESOLVE_CONFLICT_ALIAS_VERSION
+        # )
 
         self._thread_store = threading.local()
         self._lock = RLock()

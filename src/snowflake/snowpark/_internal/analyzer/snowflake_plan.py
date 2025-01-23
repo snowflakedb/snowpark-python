@@ -350,8 +350,6 @@ class SnowflakePlan(LogicalPlan):
     def attributes(self) -> List[Attribute]:
         if self._metadata.attributes is not None:
             return self._metadata.attributes
-        if self.schema_query is None:
-            pass
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
@@ -583,9 +581,22 @@ class SnowflakePlanBuilder:
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
-        new_expr_to_alias = merge_multiple_snowflake_plan_expr_to_alias(
-            [select_left, select_right]
-        )
+        if self.session._resolve_conflict_alias:
+            new_expr_to_alias = merge_multiple_snowflake_plan_expr_to_alias(
+                [select_left, select_right]
+            )
+        else:
+            common_columns = set(select_left.expr_to_alias.keys()).intersection(
+                select_right.expr_to_alias.keys()
+            )
+            new_expr_to_alias = {
+                k: v
+                for k, v in {
+                    **select_left.expr_to_alias,
+                    **select_right.expr_to_alias,
+                }.items()
+                if k not in common_columns
+            }
 
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
