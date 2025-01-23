@@ -1236,6 +1236,7 @@ class SnowflakePlanBuilder:
         transformations: Optional[List[str]] = None,
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
+        use_user_schema: bool = False,
     ):
         format_type_options, copy_options = get_copy_into_table_options(options)
         format_type_options = self._merge_file_format_options(
@@ -1244,11 +1245,11 @@ class SnowflakePlanBuilder:
         pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
-        infer_schema = (
+        schema_available = (
             options.get("INFER_SCHEMA", True)
             if format in INFER_SCHEMA_FORMAT_TYPES
             else False
-        )
+        ) or use_user_schema
         # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
@@ -1292,7 +1293,7 @@ class SnowflakePlanBuilder:
                 )
             )
 
-            if infer_schema:
+            if schema_available:
                 assert schema_to_cast is not None
                 schema_project: List[str] = schema_cast_named(schema_to_cast)
             else:
@@ -1332,7 +1333,7 @@ class SnowflakePlanBuilder:
             # If we have inferred the schema, we want to use those column names
             temp_table_schema = (
                 schema
-                if infer_schema
+                if schema_available
                 else [
                     Attribute(f'"COL{index}"', att.datatype, att.nullable)
                     for index, att in enumerate(schema)
