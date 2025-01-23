@@ -383,7 +383,6 @@ def warn_session_config_update_in_multithreaded_mode(config: str) -> None:
             "You might have more than one threads sharing the Session object trying to update "
             f"{config}. Updating this while other tasks are running can potentially cause "
             "unexpected behavior. Please update the session configuration before starting the threads."
-            f"active threads: {threading.active_count()}"
         )
 
 
