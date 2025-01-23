@@ -1017,7 +1017,6 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         predicates: Optional[List[str]] = None,
         *,
-        use_stored_procedure: bool = False,
         max_workers: Optional[int] = None,
     ) -> DataFrame:
         conn = create_connection()
@@ -1059,12 +1058,20 @@ class DataFrameReader:
                 predicates,
             )
         with tempfile.TemporaryDirectory() as tmp_dir:
+            # create temp table
             snowflake_table_type = "temporary"
             snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
             self._session.create_dataframe(
                 data=[], schema=struct_schema
             ).write.save_as_table(snowflake_table_name, table_type=snowflake_table_type)
             res_df = self.table(snowflake_table_name)
+
+            # create temp stage
+            snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+            sql_create_temp_stage = (
+                f"create temporary stage if not exists {snowflake_stage_name}"
+            )
+            self._session._run_query(sql_create_temp_stage, is_ddl_on_temp_object=True)
 
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
@@ -1091,6 +1098,7 @@ class DataFrameReader:
                     thread_executor.submit(
                         self.upload_and_copy_into_table,
                         f,
+                        snowflake_stage_name,
                         snowflake_table_name,
                     )
                     for f in files
@@ -1200,13 +1208,14 @@ class DataFrameReader:
     def upload_and_copy_into_table(
         self,
         local_file: str,
+        snowflake_stage_name: str,
         snowflake_table_name: Optional[str] = None,
     ) -> Optional[Exception]:
-        snowflake_stage = self._session.get_session_stage()
         file_name = os.path.basename(local_file)
-        put_query = f"put file://{local_file} {snowflake_stage}/ OVERWRITE=TRUE"
-        copy_into_table_query = f"copy into {snowflake_table_name} from {snowflake_stage}/{file_name} file_format=(type=parquet) MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE"
+        put_query = f"put file://{local_file} @{snowflake_stage_name}/ OVERWRITE=TRUE"
+        copy_into_table_query = f"copy into {snowflake_table_name} from @{snowflake_stage_name}/{file_name} file_format=(type=parquet) MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE"
         try:
+            self._session.write_pandas
             self._session.sql(put_query).collect()
             self._session.sql(copy_into_table_query).collect()
             return None
