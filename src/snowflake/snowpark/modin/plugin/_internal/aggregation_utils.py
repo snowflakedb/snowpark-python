@@ -27,8 +27,6 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
 from snowflake.snowpark.functions import (
     Column,
-    array_unique_agg,
-    array_size,
     array_agg,
     array_construct,
     array_construct_compact,
@@ -680,7 +678,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             supported_in_pivot=False,
         ),
         "nunique": _SnowparkPandasAggregation(
-            axis_0_aggregation=lambda col: array_size(array_unique_agg(col)),
+            axis_0_aggregation=count_distinct,
             preserves_snowpark_pandas_types=False,
             supported_in_pivot=False,
         ),
