@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     parse_positional_args_to_list_variadic,
     publicapi,
+    get_temp_type_for_object,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1068,9 +1069,7 @@ class DataFrameReader:
 
             # create temp stage
             snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
-            sql_create_temp_stage = (
-                f"create temporary stage if not exists {snowflake_stage_name}"
-            )
+            sql_create_temp_stage = f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage if not exists {snowflake_stage_name}"
             self._session._run_query(sql_create_temp_stage, is_ddl_on_temp_object=True)
 
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
@@ -1100,6 +1099,7 @@ class DataFrameReader:
                         f,
                         snowflake_stage_name,
                         snowflake_table_name,
+                        "abort_statement",
                     )
                     for f in files
                 ]
@@ -1210,12 +1210,18 @@ class DataFrameReader:
         local_file: str,
         snowflake_stage_name: str,
         snowflake_table_name: Optional[str] = None,
+        on_error: Optional[str] = "abort_statement",
     ) -> Optional[Exception]:
         file_name = os.path.basename(local_file)
         put_query = f"put file://{local_file} @{snowflake_stage_name}/ OVERWRITE=TRUE"
-        copy_into_table_query = f"copy into {snowflake_table_name} from @{snowflake_stage_name}/{file_name} file_format=(type=parquet) MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE"
+        copy_into_table_query = f"""
+        COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
+        FILE_FORMAT = (TYPE = PARQUET)
+        MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
+        PURGE=TRUE
+        ON_ERROR={on_error}
+        """
         try:
-            self._session.write_pandas
             self._session.sql(put_query).collect()
             self._session.sql(copy_into_table_query).collect()
             return None
