@@ -533,10 +533,8 @@ class Index(metaclass=TelemetryMeta):
         # TODO: SNOW-1458146 implement drop
         pass  # pragma: no cover
 
-    @index_not_implemented()
-    def drop_duplicates(self) -> None:
-        # TODO: SNOW-1458147 implement drop_duplicates
-        pass  # pragma: no cover
+    def drop_duplicates(self, keep="first") -> None:
+        return self.to_series().drop_duplicates(keep=keep).index
 
     @index_not_implemented()
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:
