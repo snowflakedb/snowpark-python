@@ -182,6 +182,7 @@ jobs:
         shell: bash
       - if: ${{ !contains('macos', matrix.os.download_name) }}
         name: Run Snowpark pandas API tests (excluding doctests)
+        # User regular github setup for large windows and linux instance
         run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
