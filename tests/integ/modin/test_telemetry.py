@@ -604,7 +604,8 @@ def test_telemetry_interchange_call_count():
 
 
 @sql_count_checker(query_count=4)
-def test_telemetry_func_call_count():
+def test_telemetry_func_call_count(session):
+    session.sql_simplifier_enabled = False
     s = pd.DataFrame([1, 2, np.nan, 4])
     t = pd.DataFrame([5])
 
