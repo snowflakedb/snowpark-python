@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import logging
 import json
 import sys
 from typing import Any, Optional
@@ -617,8 +616,6 @@ def test_telemetry_func_call_count():
 
     def _get_data(call):
         try:
-            call_message = call.to_dict()["message"]
-            logging.warning(f"CALL MESSAGE: {call_message}")
             return call.to_dict()["message"][TelemetryField.KEY_DATA.value]
         except Exception:
             return None
@@ -630,9 +627,6 @@ def test_telemetry_func_call_count():
         and "func_name" in _get_data(call)
         and _get_data(call)["func_name"] == "DataFrame.__repr__"
     ]
-
-    for i in range(len(telemetry_data)):
-        logging.warning(f"telemetry_data[{i}]: {telemetry_data}")
 
     # second to last call from telemetry data
     # s called __repr__() 3 times.
