@@ -1473,6 +1473,8 @@ def test_nested_join_diamond_shape(
     # map. It leaves the other one resolved to "a" instead of the alias.
     df5 = df1.join(df4, df1["a"] == df4["a"])  # (df1) JOIN ((df1 JOIN df2)->df4)
     Utils.check_answer(df5, [Row(1, 1)])
+    # show issues schema query
+    df5.show()
 
 
 def test_nested_join_diamond_shape_workaround(session):
