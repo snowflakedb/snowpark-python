@@ -1064,7 +1064,7 @@ def extract_nullable_keyword(type_str: str) -> Tuple[str, bool]:
     return trimmed, True
 
 
-def parse_struct_field_list(fields_str: str) -> StructType:
+def parse_struct_field_list(fields_str: str) -> Optional[StructType]:
     """
     Parse something like "a: int, b: string, c: array<int>"
     into StructType([StructField('a', IntegerType()), ...]).
@@ -1089,7 +1089,12 @@ def parse_struct_field_list(fields_str: str) -> StructType:
         # 1) Check for trailing "NOT NULL" => sets nullable=False
         base_type_str, nullable = extract_nullable_keyword(type_part)
         # 2) Parse the base type
-        field_type = type_string_to_type_object(base_type_str)
+        try:
+            field_type = type_string_to_type_object(base_type_str)
+        except ValueError as ex:
+            if "is not a supported type" in str(ex):
+                return None
+            raise ex
         fields.append(StructField(field_name, field_type, nullable=nullable))
 
     return StructType(fields)
@@ -1119,18 +1124,25 @@ def split_top_level_comma_fields(s: str) -> List[str]:
 
 def is_likely_struct(s: str) -> bool:
     """
-    Heuristic: If there's a top-level comma or colon outside brackets,
-    treat it like a struct with multiple fields, e.g. "a: int, b: string".
+    Return True if there's a top-level colon, comma, or space.
+    e.g. "arr array<integer>" => top-level space => struct
+         "arr: array<int>" => colon => struct
+         "a: int, b: string" => comma => struct
     """
     bracket_depth = 0
-    for c in s:
-        if c in ["<", "("]:
+    top_level_space_found = False
+    for ch in s:
+        if ch in ("<", "("):
             bracket_depth += 1
-        elif c in [">", ")"]:
+        elif ch in (">", ")"):
             bracket_depth -= 1
-        elif (c in [":", ","]) and bracket_depth == 0:
-            return True
-    return False
+        elif bracket_depth == 0:
+            if ch in [":", ","]:
+                return True
+            elif ch == " ":
+                top_level_space_found = True
+
+    return top_level_space_found
 
 
 def type_string_to_type_object(type_str: str) -> DataType:
@@ -1141,7 +1153,9 @@ def type_string_to_type_object(type_str: str) -> DataType:
     # First check if this might be a top-level multi-field struct
     #    (e.g. "a: int, b: string") even if not written as "struct<...>"
     if is_likely_struct(type_str):
-        return parse_struct_field_list(type_str)
+        result = parse_struct_field_list(type_str)
+        if result is not None:
+            return result
 
     # Check for array<...>
     if ARRAY_RE.match(type_str):
