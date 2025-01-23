@@ -307,7 +307,9 @@ Methods
 |                             |                                 |                                  | ``margins`` is True and ``aggfunc`` is "count"     |
 |                             |                                 |                                  | or "mean" or a dictionary. N if ``index`` is None  |
 |                             |                                 |                                  | and ``aggfunc`` is a dictionary containing         |
-|                             |                                 |                                  | lists of aggfuncs to apply.                        |
+|                             |                                 |                                  | lists of aggfuncs to apply.``N`` if ``aggfunc`` is |
+|                             |                                 |                                  | an `usupported aggregation                         |
+|                             |                                 |                                  | function <agg_supp.html>`_  for pivot.             |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``plot``                    | D                               |                                  | Performed locally on the client                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
