@@ -987,6 +987,11 @@ def select_aliased_col(df2):
     Utils.check_answer(df2, [Row(A1=1), Row(A1=3)])
 
 
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1373887: Support basic diamond shaped joins in Local Testing",
+    run=False,
+)
 @pytest.mark.parametrize(
     "f1,f2", [(create_and_join, join_again), (create_aliased_df, select_aliased_col)]
 )
@@ -999,10 +1004,7 @@ def test_SNOW_1878372(threadsafe_session, f1, f2):
 
         def run(self):
             if self._target is not None:
-                try:
-                    self.result = self._target(*self._args, **self._kwargs)
-                except Exception as e:
-                    print(f"Error: {e}")
+                self.result = self._target(*self._args, **self._kwargs)
 
     t1 = ReturnableThread(target=f1, args=(threadsafe_session,))
     t1.start()
