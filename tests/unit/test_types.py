@@ -1776,6 +1776,10 @@ def test_type_string_to_type_object_implicit_struct_with_spaces():
     ), f"Expected {expected_field_col2}, got {dt.fields[1]}"
 
 
+def test_dsad():
+    print(type_string_to_type_object("arr array<string> not null"))
+
+
 def test_type_string_to_type_object_implicit_struct_error():
     """
     Check a malformed implicit struct that should raise ValueError
@@ -1877,16 +1881,91 @@ def test_parse_struct_field_list_malformed():
         ), f"Unexpected error message: {ex}"
 
 
-def test_is_likely_struct_true():
-    # top-level colon => likely struct
-    s = "a: int, b: string"
-    assert is_likely_struct(s) is True, "Expected True for struct-like string"
+def test_parse_struct_field_list_single_type_with_space():
+    s = "decimal(1, 2)"
+    assert parse_struct_field_list(s) is None, "Expected None for single type"
 
 
-def test_is_likely_struct_false():
-    # No top-level colon or comma => not a struct
-    s = "array<int>"
-    assert is_likely_struct(s) is False, "Expected False for non-struct string"
+def test_is_likely_struct_colon():
+    """
+    Strings with a top-level colon (outside any <...> or (...))
+    should return True.
+    """
+    s = "col: int"
+    assert is_likely_struct(s) is True
+
+
+def test_is_likely_struct_comma():
+    """
+    Strings with a top-level comma (outside brackets)
+    should return True (e.g. multiple fields).
+    """
+    s = "col1: int, col2: string"
+    assert is_likely_struct(s) is True
+
+
+def test_is_likely_struct_top_level_space():
+    """
+    Strings with a top-level space (and no colon/comma)
+    should return True (single field, e.g. 'arr array<int>').
+    """
+    s = "arr array<int>"
+    assert is_likely_struct(s) is True
+
+
+def test_is_likely_struct_no_space_colon_comma():
+    """
+    If there's no top-level space, colon, or comma,
+    we return False (likely a single-type definition like 'decimal(10,2)').
+    """
+    s = "decimal(10,2)"
+    assert is_likely_struct(s) is False
+
+
+def test_is_likely_struct_space_inside_brackets():
+    """
+    Spaces inside <...> should not trigger struct mode.
+    E.g. 'array< int >' has spaces inside brackets,
+    but no top-level space => should return False.
+    """
+    s = "array< int >"
+    assert is_likely_struct(s) is False
+
+
+def test_is_likely_struct_comma_inside_brackets():
+    """
+    Comma inside <...> is not top-level,
+    so it shouldn't make the string 'likely struct'.
+    Example: 'array<int, string>' is not a struct definition,
+    it's a single type definition for an array of multiple types
+    (though typically invalid in Snowpark, but let's test bracket logic).
+    """
+    s = "array<int, string>"
+    assert is_likely_struct(s) is False
+
+
+def test_is_likely_struct_colon_inside_brackets():
+    """
+    If a colon is inside brackets, e.g. 'map<int, struct<x: int>>',
+    that colon is not top-level => should return False.
+    """
+    s = "map<int, struct<x: int>>"
+    assert is_likely_struct(s) is False
+
+
+def test_is_likely_struct_complex_no_top_level_space():
+    """
+    Example: 'struct<x int, y int>' => top-level
+    colon/space are inside <...> => so top-level
+    has none => returns False.
+    But note if you want 'struct<x: int, y: int>',
+    you might parse it differently. This test ensures
+    bracket-depth logic works properly.
+    """
+    s = "struct<x int, y int>"
+    # top-level bracket depth covers entire string
+    # => no top-level space/colon/comma
+    assert is_likely_struct(s) is False
 
 
 def test_extract_nullable_keyword_no_not_null():
