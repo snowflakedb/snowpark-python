@@ -14,7 +14,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
 )
 from tests.integ.utils.sql_counter import SqlCounter
-from conftest import RUNNING_ON_GH
+from tests.utils import RUNNING_ON_GH
 
 
 def assert_empty_snowpark_pandas_equals_to_pandas(snow_df, native_df):
