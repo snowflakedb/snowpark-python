@@ -93,7 +93,6 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
-MAX_WORKER_NUMBER = 10
 
 
 def _validate_stage_path(path: str) -> str:
@@ -1018,12 +1017,9 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         predicates: Optional[List[str]] = None,
         *,
-        snowflake_table_type: str = "temporary",
-        snowflake_table_name: Optional[str] = None,
         use_stored_procedure: bool = False,
         max_workers: Optional[int] = None,
     ) -> DataFrame:
-        num_workers = min(max_workers, MAX_WORKER_NUMBER)
         conn = create_connection()
         struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
         if column is None:
@@ -1063,17 +1059,14 @@ class DataFrameReader:
                 predicates,
             )
         with tempfile.TemporaryDirectory() as tmp_dir:
-
-            if not snowflake_table_name:
-                snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-                self._session.create_dataframe(
-                    data=[], schema=struct_schema
-                ).write.save_as_table(
-                    snowflake_table_name, table_type=snowflake_table_type
-                )
+            snowflake_table_type = "temporary"
+            snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                data=[], schema=struct_schema
+            ).write.save_as_table(snowflake_table_name, table_type=snowflake_table_type)
             res_df = self.table(snowflake_table_name)
 
-            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
                     executor.submit(
                         task_fetch_from_data_source,
@@ -1093,7 +1086,7 @@ class DataFrameReader:
                     raise f.result()
                 else:
                     files.append(f.result())
-            with ThreadPoolExecutor(max_workers=num_workers) as thread_executor:
+            with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
                 futures = [
                     thread_executor.submit(
                         self.upload_and_copy_into_table,
