@@ -26,7 +26,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from conftest import RUNNING_ON_GH
+from tests.utils import RUNNING_ON_GH
 
 # Use the workaround shown below for applying functions that are attributes
 # of this module.

@@ -24,7 +24,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from conftest import RUNNING_ON_GH
+from tests.utils import RUNNING_ON_GH
 
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
 BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
