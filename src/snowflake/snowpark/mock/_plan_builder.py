@@ -33,6 +33,7 @@ class MockSnowflakePlanBuilder(SnowflakePlanBuilder):
         transformations: Optional[List[str]] = None,
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
+        use_user_schema: bool = False,
     ) -> MockExecutionPlan:
         if format.lower() not in SUPPORT_READ_OPTIONS.keys():
             LocalTestOOBTelemetryService.get_instance().log_not_supported_error(
