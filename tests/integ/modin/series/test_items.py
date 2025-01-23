@@ -16,6 +16,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from conftest import RUNNING_ON_GH
 
 # To generate seeded random data.
 rng = np.random.default_rng(12345)
@@ -62,6 +63,7 @@ def test_items(series):
     )
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 def test_items_large_series():
     size = PARTITION_SIZE * 2 + 1
     data = rng.integers(low=-1500, high=1500, size=size)
