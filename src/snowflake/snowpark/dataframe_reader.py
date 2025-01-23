@@ -24,7 +24,11 @@ from snowflake.snowpark._internal.ast.utils import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
+from snowflake.snowpark._internal.type_utils import (
+    ColumnOrName,
+    convert_sf_to_sp_type,
+    convert_sp_to_sf_type,
+)
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
@@ -907,6 +911,31 @@ class DataFrameReader:
 
         return new_schema, schema_to_cast, read_file_transformations, None
 
+    def _get_schema_from_user_input(
+        self, user_schema: StructType
+    ) -> Tuple[List, List, List]:
+        """This function accept a user input structtype and return schemas needed for reading semi-structured file"""
+        schema_to_cast = []
+        transformations = []
+        new_schema = []
+        for field in user_schema.fields:
+            name = quote_name_without_upper_casing(field._name)
+            new_schema.append(
+                Attribute(
+                    name,
+                    field.datatype,
+                    field.nullable,
+                )
+            )
+            identifier = f"$1:{name}::{convert_sp_to_sf_type(field.datatype)}"
+            schema_to_cast.append((identifier, field._name))
+            transformations.append(sql_expr(identifier))
+        self._user_schema = StructType._from_attributes(new_schema)
+        self._infer_schema_transformations = transformations
+        self._infer_schema_target_columns = self._user_schema.names
+        read_file_transformations = [t._expression.sql for t in transformations]
+        return new_schema, schema_to_cast, read_file_transformations
+
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
             if self._session._conn.is_closed():
@@ -922,7 +951,7 @@ class DataFrameReader:
                     raise_error=NotImplementedError,
                 )
 
-        if self._user_schema:
+        if self._user_schema and format.lower() != "json":
             raise ValueError(f"Read {format} does not support user schema")
         path = _validate_stage_path(path)
         self._file_path = path
@@ -931,7 +960,19 @@ class DataFrameReader:
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
-        if self._infer_schema:
+        use_user_schema = False
+
+        if self._user_schema:
+            (
+                new_schema,
+                schema_to_cast,
+                read_file_transformations,
+            ) = self._get_schema_from_user_input(self._user_schema)
+            schema = new_schema
+            self._cur_options["INFER_SCHEMA"] = False
+            use_user_schema = True
+
+        elif self._infer_schema:
             (
                 new_schema,
                 schema_to_cast,
@@ -957,6 +998,7 @@ class DataFrameReader:
                             transformations=read_file_transformations,
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
+                            use_user_schema=use_user_schema,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -975,6 +1017,7 @@ class DataFrameReader:
                     transformations=read_file_transformations,
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
+                    use_user_schema=use_user_schema,
                 ),
             )
         df._reader = self
