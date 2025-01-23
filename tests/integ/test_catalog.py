@@ -21,7 +21,7 @@ pytestmark = [
     ),
     pytest.mark.xfail(
         raises=APIError,
-        reason="SNOW-1787268: Bug in snowflake api functions iter",
+        reason="Failure due to warehouse overload",
     ),
 ]
 
