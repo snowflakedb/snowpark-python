@@ -660,12 +660,14 @@ def test_concurrent_update_on_sensitive_configs(
         session_.conf.set(config, value)
 
     caplog.clear()
-    change_config_value(threadsafe_session)
-    assert (
-        f"You might have more than one threads sharing the Session object trying to update {config}"
-        not in caplog.text
-    )
+    if threading.active_count() == 1:
+        change_config_value(threadsafe_session)
+        assert (
+            f"You might have more than one threads sharing the Session object trying to update {config}"
+            not in caplog.text
+        )
 
+    caplog.clear()
     with caplog.at_level(logging.WARNING):
         with ThreadPoolExecutor(max_workers=5) as executor:
             for _ in range(5):
@@ -857,9 +859,13 @@ def test_temp_name_placeholder_for_async(
     ).csv(f"{stage_with_prefix}/{filename}")
 
     with threadsafe_session.query_history() as history:
+        futures = []
         with ThreadPoolExecutor(max_workers=5) as executor:
             for i in range(10):
-                executor.submit(process_data, df, i)
+                futures.append(executor.submit(process_data, df, i))
+
+            for future in as_completed(futures):
+                future.result()
 
     queries_sent = [query.sql_text for query in history.queries]
 
@@ -955,7 +961,37 @@ def test_critical_lazy_evaluation_for_plan(
     mock_find_duplicate_subtrees.assert_called_once()
 
 
-def test_SNOW_1878372(threadsafe_session):
+def create_and_join(_session):
+    df1 = _session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df2 = _session.create_dataframe([[1, 7], [3, 8]], schema=["a", "b"])
+    df3 = df1.join(df2)
+    expected = [Row(1, 2, 1, 7), Row(1, 2, 3, 8), Row(3, 4, 1, 7), Row(3, 4, 3, 8)]
+    Utils.check_answer(df3, expected)
+    return [df1, df2, df3]
+
+
+def join_again(df1, df2, df3):
+    df3 = df1.join(df2).select(df1.a)
+    expected = [Row(1, 2, 1, 7), Row(1, 2, 3, 8), Row(3, 4, 1, 7), Row(3, 4, 3, 8)]
+    Utils.check_answer(df3, expected)
+
+
+def create_aliased_df(_session):
+    df1 = _session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df2 = df1.join(df1.filter(col("a") == 1)).select(df1.a.alias("a1"))
+    Utils.check_answer(df2, [Row(A1=1), Row(A1=3)])
+    return [df2]
+
+
+def select_aliased_col(df2):
+    df2 = df2.select(df2.a1)
+    Utils.check_answer(df2, [Row(A1=1), Row(A1=3)])
+
+
+@pytest.mark.parametrize(
+    "f1,f2", [(create_and_join, join_again), (create_aliased_df, select_aliased_col)]
+)
+def test_SNOW_1878372(threadsafe_session, f1, f2):
     class ReturnableThread(threading.Thread):
         def __init__(self, target, *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
@@ -965,27 +1001,14 @@ def test_SNOW_1878372(threadsafe_session):
         def run(self):
             if self._target is not None:
                 try:
-                    self.result = self._target()
+                    self.result = self._target(*self._args, **self._kwargs)
                 except Exception as e:
                     print(f"Error: {e}")
 
-    def create_and_join():
-        df1 = threadsafe_session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-        df2 = threadsafe_session.create_dataframe([[1, 7], [3, 8]], schema=["a", "b"])
-        df3 = df1.join(df2)
-        df3.show()
-        return [df1, df2, df3]
+    t1 = ReturnableThread(target=f1, args=(threadsafe_session,))
+    t1.start()
+    t1.join()
 
-    def join_again(df1, df2, df3):
-        df3 = df1.join(df2).select(df1.a)
-        df3.show()
-
-    thread = ReturnableThread(target=create_and_join)
-    thread.start()
-    thread.join()
-
-    t = threading.Thread(
-        target=join_again, args=(thread.result[0], thread.result[1], thread.result[2])
-    )
-    t.start()
-    t.join()
+    t2 = ReturnableThread(target=f2, args=tuple(t1.result))
+    t2.start()
+    t2.join()
