@@ -1615,7 +1615,6 @@ def test_flatten(session, local_testing_mode):
     Utils.check_answer(
         df2.union(df3).select(col("value")),
         [Row("1"), Row("2"), Row("1"), Row("2")],
-        sort=False,
     )
 
 
@@ -1661,7 +1660,6 @@ def test_flatten_in_session(session):
     Utils.check_answer(
         df1.union(df2).select("path"),
         [Row("[0]"), Row("[1]"), Row("a[0]"), Row("a[1]")],
-        sort=False,
     )
 
     # join
@@ -1670,7 +1668,6 @@ def test_flatten_in_session(session):
             df1["path"].as_("path1"), df2["path"].as_("path2")
         ),
         [Row("[0]", "a[0]"), Row("[1]", "a[1]")],
-        sort=False,
     )
 
 
