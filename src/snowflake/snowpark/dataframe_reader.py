@@ -4,6 +4,7 @@
 import datetime
 import decimal
 import os
+import tempfile
 from concurrent.futures import (
     ProcessPoolExecutor,
     wait,
@@ -48,6 +49,7 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     parse_positional_args_to_list_variadic,
     publicapi,
+    get_temp_type_for_object,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -67,6 +69,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DataType,
     _NumericType,
+    TimestampType,
 )
 from pyodbc import Connection
 import pandas as pd
@@ -1059,10 +1062,7 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         predicates: Optional[List[str]] = None,
         *,
-        snowflake_table_type: str = "temporary",
-        snowflake_table_name: Optional[str] = None,
-        snowflake_stage_name: str = None,  # for test purpose should use temp stage in production code
-        use_stored_procedure: bool = False,
+        max_workers: Optional[int] = None,
     ) -> DataFrame:
         conn = create_connection()
         struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
@@ -1102,31 +1102,57 @@ class DataFrameReader:
                 num_partitions,
                 predicates,
             )
-        with ProcessPoolExecutor(
-            max_workers=min(len(partitioned_queries), 10)
-        ) as executor:
-            futures = [
-                executor.submit(
-                    task_fetch_from_data_source, create_connection, query, raw_schema, i
-                )
-                for i, query in enumerate(partitioned_queries)
-            ]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # create temp table
+            snowflake_table_type = "temporary"
+            snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                data=[], schema=struct_schema
+            ).write.save_as_table(snowflake_table_name, table_type=snowflake_table_type)
+            res_df = self.table(snowflake_table_name)
 
-            completed_futures = wait(futures, return_when=ALL_COMPLETED)
-        files = [f.result() for f in completed_futures.done]
-        with ThreadPoolExecutor(max_workers=min(len(files), 10)) as thread_executor:
-            futures = [
-                thread_executor.submit(
-                    self.upload_and_copy_into_table,
-                    f,
-                    snowflake_stage_name,
-                    "temp",
-                    snowflake_table_name,
-                )
-                for f in files
-            ]
+            # create temp stage
+            snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+            sql_create_temp_stage = f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage if not exists {snowflake_stage_name}"
+            self._session._run_query(sql_create_temp_stage, is_ddl_on_temp_object=True)
 
-            _ = wait(futures, return_when=ALL_COMPLETED)
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(
+                        task_fetch_from_data_source,
+                        create_connection,
+                        query,
+                        raw_schema,
+                        i,
+                        tmp_dir,
+                    )
+                    for i, query in enumerate(partitioned_queries)
+                ]
+
+                completed_futures = wait(futures, return_when=ALL_COMPLETED)
+            files = []
+            for f in completed_futures.done:
+                if isinstance(f.result(), Exception):
+                    raise f.result()
+                else:
+                    files.append(f.result())
+            with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
+                futures = [
+                    thread_executor.submit(
+                        self.upload_and_copy_into_table,
+                        f,
+                        snowflake_stage_name,
+                        snowflake_table_name,
+                        "abort_statement",
+                    )
+                    for f in files
+                ]
+
+                completed_futures = wait(futures, return_when=ALL_COMPLETED)
+            for f in completed_futures.done:
+                if f.result() is not None:
+                    raise f.result()
+            return res_df
 
     def _infer_data_source_schema(
         self, conn: Connection, table: str
@@ -1214,7 +1240,7 @@ class DataFrameReader:
             elif column[1] == str:
                 field = StructField(column[0], StringType(), column[6])
             elif column[1] == datetime.datetime:
-                field = StructField(column[0], DateType(), column[6])
+                field = StructField(column[0], TimestampType(), column[6])
             elif column[1] == bool:
                 field = StructField(column[0], BooleanType(), column[6])
             else:
@@ -1223,34 +1249,28 @@ class DataFrameReader:
             fields.append(field)
         return StructType(fields)
 
-    def parallel_ingestion(
-        self,
-        create_connection: Callable[[], "Connection"],
-        table: str,
-        column: Optional[str] = None,
-        lower_bound: Optional[Union[str, int]] = None,
-        upper_bound: Optional[Union[str, int]] = None,
-        num_partitions: Optional[int] = None,
-        predicates: Optional[List[str]] = None,
-        *,
-        snowflake_table_type: str = "temporary",
-        snowflake_table_name: Optional[str] = None,
-        use_stored_procedure: bool = False,
-    ) -> DataFrame:
-        pass
-
     def upload_and_copy_into_table(
         self,
         local_file: str,
-        snowflake_stage: str,
-        snowflake_table_type: str = "temporary",
+        snowflake_stage_name: str,
         snowflake_table_name: Optional[str] = None,
-    ):
+        on_error: Optional[str] = "abort_statement",
+    ) -> Optional[Exception]:
         file_name = os.path.basename(local_file)
-        put_query = f"put file:///Users/yuwang/Desktop/working_repo/snowpark-python/{local_file} @TEST_STAGE/ OVERWRITE=TRUE"
-        copy_into_table_query = f"copy into {snowflake_table_name} from @{snowflake_stage}/{file_name} file_format=(type=parquet) MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE"
-        self._session.sql(put_query).collect()
-        self._session.sql(copy_into_table_query).collect()
+        put_query = f"put file://{local_file} @{snowflake_stage_name}/ OVERWRITE=TRUE"
+        copy_into_table_query = f"""
+        COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
+        FILE_FORMAT = (TYPE = PARQUET)
+        MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
+        PURGE=TRUE
+        ON_ERROR={on_error}
+        """
+        try:
+            self._session.sql(put_query).collect()
+            self._session.sql(copy_into_table_query).collect()
+            return None
+        except Exception as e:
+            return e
 
 
 def task_fetch_from_data_source(
@@ -1258,13 +1278,15 @@ def task_fetch_from_data_source(
     query: str,
     schema: tuple[tuple[str, Any, int, int, int, int, bool]],
     i: int,
-) -> str:
-    conn = create_connection()
-    result = conn.cursor().execute(query).fetchall()
-    columns = [col[0] for col in schema]
-    df = pd.DataFrame.from_records(result, columns=columns)
-    if not os.path.exists("test_res"):
-        os.mkdir("test_res")
-    path = f"test_res/data_{i}.parquet"
-    df.to_parquet(path)
+    tmp_dir: str,
+) -> Union[str, Exception]:
+    try:
+        conn = create_connection()
+        result = conn.cursor().execute(query).fetchall()
+        columns = [col[0] for col in schema]
+        df = pd.DataFrame.from_records(result, columns=columns)
+        path = os.path.join(tmp_dir, f"data_{i}.parquet")
+        df.to_parquet(path)
+    except Exception as e:
+        return e
     return path
