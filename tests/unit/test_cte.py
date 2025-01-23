@@ -84,7 +84,7 @@ def test_find_duplicate_subtrees(test_case):
     assert repeated_node_complexity == expected_repeated_node_complexity
 
 
-def test_encode_node_id_with_query_select_sql(mock_analyzer):
+def test_encode_node_id_with_query_select_sql(mock_session, mock_analyzer):
     sql_text = "select 1 as a, 2 as b"
     select_sql_node = SelectSQL(
         sql=sql_text,
