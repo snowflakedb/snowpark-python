@@ -13,6 +13,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
+# See SNOW-1892612 for why we have this list.
 AGGFUNCS_THAT_CANNOT_PRODUCE_NAN = (
     "median",
     np.median,
@@ -610,9 +611,9 @@ class TestCrosstab:
         We design these test cases so that the aggfuncs do not produce NaN, and
         we can compare with pandas.
 
-        TODO: Once pandas fixes these bugs, merge these test cases with the rest
-        of the test suite by adding these aggfuncs to the lists of aggfuncs
-        that we test in other functions.
+        TODO(SNOW-1892612): Once pandas fixes these bugs, merge these test cases
+        with the rest of the test suite by adding these aggfuncs to the lists
+        of aggfuncs that we test in other functions.
         """
         with SqlCounter(query_count=1, join_count=(2 if dropna else 3)):
             eval_snowpark_pandas_result(
