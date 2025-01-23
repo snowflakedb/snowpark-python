@@ -1474,20 +1474,15 @@ def merge_multiple_snowflake_plan_expr_to_alias(
 ) -> Dict[uuid.UUID, str]:
     """
     Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
-
-    Args:
-        snowflake_plans (List[SnowflakePlan]): List of SnowflakePlan objects.
-
-    Returns:
-        Dict[Any, str]: Merged expression-to-alias mapping.
     """
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+    from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+    from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
 
     # Gather all expression-to-alias mappings
     all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
-
     # Initialize the merged dictionary
     merged_dict = {}
-
     # Collect all unique keys from all dictionaries
     all_keys = set().union(*all_expr_to_alias_dicts)
 
@@ -1502,74 +1497,33 @@ def merge_multiple_snowflake_plan_expr_to_alias(
         else:
             conflicted_keys[key] = values
 
-    if conflicted_keys:
-        # the following approach would issue extra describe query in CTE, can we avoid it by reusing existing
-        # output columns for the node we are trying to replace?
-        # Collect all unique output column names from all plans
-        # all_output_columns = {
-        #     attr.name
-        #     for plan in snowflake_plans
-        #     if plan.schema_query
-        #     for attr in plan.output
-        # }
+    if not conflicted_keys:
+        return merged_dict
 
-        # the following approach assume source_plan is SelectStatement which has projection variable
-        # can we ensure the following case when sql simplifier is enabled?
-        # 1. can we make sure in case there is conflict, the source plan would always be SelectStatement?
-        # 2. can we make sure in case there is conflict, the source plan would always have projection variable?
+    for key in conflicted_keys:
+        candidate = None
+        for plan in [plan for plan in snowflake_plans if plan.source_plan]:
+            projection_list = []
+            if isinstance(plan.source_plan, SelectStatement):
+                projection_list = plan.source_plan.projection or []
+            elif isinstance(plan.source_plan, Project):
+                projection_list = plan.source_plan.project_list or []
+            # We don't have other types of plans that can have projections
 
-        all_output_columns = set()
-        for plan in snowflake_plans:
-            from snowflake.snowpark._internal.analyzer.select_statement import (
-                SelectStatement,
-            )
-
-            if plan.source_plan and isinstance(plan.source_plan, SelectStatement):
-                all_output_columns.update(
-                    {proj.name for proj in plan.source_plan.projection}
-                )
-            else:
-                if plan.schema_query:
-                    all_output_columns.update({attr.name for attr in plan.output})
-
-        # def get_output_attributes_by_sending_schema_query():
-        #     return {
-        #         attr.name
-        #         for plan in snowflake_plans
-        #         if plan.schema_query
-        #         for attr in plan.output
-        #     }
-        #
-        # if sql_simplifier_enabled:
-        #     all_output_columns = {
-        #         proj.name
-        #         for plan in snowflake_plans
-        #         if plan.schema_query
-        #         for proj in plan.source_plan.projection if isinstance(plan.source_plan, SelectStatement)
-        #     }
-        # else:
-        #     all_output_columns = get_output_attributes_by_sending_schema_query()
-
-        for key in conflicted_keys:
-            candidate = None
-            values = conflicted_keys[key]
-            for alias in set(values) & all_output_columns:
-                if alias in all_output_columns:
+            for project in projection_list:
+                if (
+                    isinstance(project, Alias)
+                    and getattr(project.child, "expr_id", None) == key
+                    and project.name in conflicted_keys[key]
+                ):
                     if candidate is None:
-                        candidate = alias
+                        candidate = project.name
                     else:
-                        # Ambiguous case: multiple valid candidates
+                        # the candidate shows up in multiple outputs, so we can't resolve the conflict
                         candidate = None
                         break
-
-            # Add the candidate to the merged dictionary if resolved
-            if candidate is not None:
-                merged_dict[key] = candidate
-            else:
-                # No valid candidate found
-                _logger.debug(
-                    f"Expression '{key}' is associated with multiple aliases across different plans. "
-                    f"Unable to determine which alias to use. Conflicting values: {values}"
-                )
+        # the candidate only shows up in one output, so we can resolve the conflict
+        if candidate:
+            merged_dict[key] = candidate
 
     return merged_dict
