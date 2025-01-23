@@ -1517,12 +1517,39 @@ def merge_multiple_snowflake_plan_expr_to_alias(
         # can we ensure the following case when sql simplifier is enabled?
         # 1. can we make sure in case there is conflict, the source plan would always be SelectStatement?
         # 2. can we make sure in case there is conflict, the source plan would always have projection variable?
-        all_output_columns = {
-            proj.name
-            for plan in snowflake_plans
-            if plan.schema_query
-            for proj in plan.source_plan.projection
-        }
+
+        all_output_columns = set()
+        for plan in snowflake_plans:
+            from snowflake.snowpark._internal.analyzer.select_statement import (
+                SelectStatement,
+            )
+
+            if plan.source_plan and isinstance(plan.source_plan, SelectStatement):
+                all_output_columns.update(
+                    {proj.name for proj in plan.source_plan.projection}
+                )
+            else:
+                if plan.schema_query:
+                    all_output_columns.update({attr.name for attr in plan.output})
+
+        # def get_output_attributes_by_sending_schema_query():
+        #     return {
+        #         attr.name
+        #         for plan in snowflake_plans
+        #         if plan.schema_query
+        #         for attr in plan.output
+        #     }
+        #
+        # if sql_simplifier_enabled:
+        #     all_output_columns = {
+        #         proj.name
+        #         for plan in snowflake_plans
+        #         if plan.schema_query
+        #         for proj in plan.source_plan.projection if isinstance(plan.source_plan, SelectStatement)
+        #     }
+        # else:
+        #     all_output_columns = get_output_attributes_by_sending_schema_query()
+
         for key in conflicted_keys:
             candidate = None
             values = conflicted_keys[key]
