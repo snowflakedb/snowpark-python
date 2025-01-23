@@ -245,7 +245,7 @@ jobs:
         exclude:
           # only run each version on one os
           # daily-precommit does full matrix
-          # macos rusn 3.8 and 3.9
+          # macos runs 3.8 and 3.9
           - os: macos-latest
             python-version: "3.12"
           - os: macos-latest
