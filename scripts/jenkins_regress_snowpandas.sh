@@ -14,8 +14,11 @@ gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/para
 # Install tox, which is by default not present in the environment.
 python -m pip install tox
 
-# Install protoc
-pip install protoc-wheel-0==21.1 mypy-protobuf
-
 # Run snowpandas tests
-python -m tox -c $WORKING_DIR -e snowparkpandasjenkins-modin
+if [[ -z "$MODIN_PANDAS_VERSION" ]]
+    TOX_ENV="snowparkpandasjenkins-modin"
+else
+    # If $MODIN_PANDAS_VERSION env variable is set, tell tox to install it
+    TOX_ENV="modin_pandas_version-snowparkpandasjenkins-modin"
+fi
+python -m tox -c $WORKING_DIR -e $TOX_ENV
