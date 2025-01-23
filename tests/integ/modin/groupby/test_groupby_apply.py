@@ -299,7 +299,7 @@ class TestFuncReturnsDataFrame:
         join_count=JOIN_COUNT,
     )
     def test_group_by_level(
-            self, grouping_dfs_with_multiindexes, level, include_groups
+        self, grouping_dfs_with_multiindexes, level, include_groups
     ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
