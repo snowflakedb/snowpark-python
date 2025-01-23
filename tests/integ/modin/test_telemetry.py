@@ -606,7 +606,7 @@ def test_telemetry_interchange_call_count():
 def test_telemetry_func_call_count(session):
     # TODO (SNOW-1893699): test failing on github with sql simplifier disabled.
     #   Turn this back on once fixed.
-    if session.sql_simpifier_enabbled is False:
+    if session.sql_simplifier_enabled is False:
         return
 
     with SqlCounter(query_count=4):
