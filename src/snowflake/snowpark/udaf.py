@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """User-defined aggregate functions (UDAFs) in Snowpark. Refer to :class:`~snowflake.snowpark.udaf.UDAFRegistration` for details and sample code."""
@@ -37,9 +37,10 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     parse_positional_args_to_list,
     publicapi,
+    warning,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.types import DataType
+from snowflake.snowpark.types import DataType, MapType
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -709,6 +710,14 @@ class UDAFRegistration:
             input_types,
             name,
         )
+
+        if isinstance(return_type, MapType):
+            if return_type.structured:
+                warning(
+                    "_do_register_udaf",
+                    "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object.",
+                )
+                return_type = MapType()
 
         # Capture original parameters.
         if _emit_ast:

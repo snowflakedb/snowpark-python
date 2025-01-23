@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import ast
 import base64
@@ -339,10 +339,21 @@ def build_proto_from_struct_type(
 
     expr.structured = schema.structured
     for field in schema.fields:
-        ast_field = expr.fields.add()
+        ast_field = expr.fields.list.add()
         field.column_identifier._fill_ast(ast_field.column_identifier)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "ColumnIdentifier" has no attribute "_fill_ast"
         field.datatype._fill_ast(ast_field.data_type)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "DataType" has no attribute "_fill_ast"
         ast_field.nullable = field.nullable
+
+
+def build_sp_name(name: Union[str, Iterable[str]], expr: proto.SpName) -> None:
+    if isinstance(name, str):
+        expr.sp_name_flat.name = name
+    elif isinstance(name, Iterable):
+        expr.sp_name_structured.name.extend(name)
+    else:
+        raise ValueError(
+            f"Invalid object name: {name}. The object name must be a string or an iterable of strings."
+        )
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
@@ -358,26 +369,54 @@ def _set_fn_name(
     Raises:
         ValueError: Raised if the function name is not a string or an iterable of strings.
     """
-    if isinstance(name, str):
-        fn.name.fn_name_flat.name = name  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "FnNameRefExpr" has no attribute "name"
-    elif isinstance(name, Iterable):
-        fn.name.fn_name_structured.name.extend(name)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "FnNameRefExpr" has no attribute "name"
-    else:
-        raise ValueError(
-            f"Invalid function name: {name}. The function name must be a string or an iterable of strings."
-        )
+    try:
+        build_sp_name(name, fn.name.name)
+    except ValueError as e:
+        raise ValueError("Invalid function name") from e
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
-def build_sp_table_name(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function is missing a return type annotation
-    expr_builder: proto.SpTableName, name: Union[str, Iterable[str]]
-):  # pragma: no cover
-    if isinstance(name, str):
-        expr_builder.sp_table_name_flat.name = name
-    elif isinstance(name, Iterable):
-        expr_builder.sp_table_name_structured.name.extend(name)
-    else:
-        raise ValueError(f"Invalid name type {type(name)} for SpTableName entity.")
+def build_sp_table_name(
+    expr_builder: proto.SpNameRef, name: Union[str, Iterable[str]]
+) -> None:  # pragma: no cover
+    try:
+        build_sp_name(name, expr_builder.name)
+    except ValueError as e:
+        raise ValueError("Invalid table name") from e
+
+
+def build_sp_view_name(expr: proto.SpNameRef, name: Union[str, Iterable[str]]) -> None:
+    try:
+        build_sp_name(name, expr.name)
+    except ValueError as e:
+        raise ValueError("Invalid view name") from e
+
+
+def build_function_expr(
+    builtin_name: str,
+    args: List[Any],
+    ignore_null_args: bool = False,
+) -> proto.Expr:
+    """
+    Creates AST encoding for the methods in function.py.
+    Args:
+        builtin_name: Name of the builtin function to call.
+        args: Positional arguments to pass to function, in the form of a list.
+        ignore_null_args: If True, null arguments will be ignored.
+    Returns:
+        The AST encoding of the function.
+    """
+    ast = proto.Expr()
+    args_list = [arg for arg in args if arg is not None] if ignore_null_args else args
+    build_builtin_fn_apply(
+        ast,
+        builtin_name,
+        *tuple(
+            snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
+            for arg in args_list
+        ),
+    )
+    return ast
 
 
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
@@ -395,7 +434,6 @@ def build_builtin_fn_apply(
         builtin_name: Name of the builtin function to call.
         *args: Positional arguments to pass to function.
         **kwargs: Keyword arguments to pass to function.
-
     """
     expr = with_src_position(ast.apply_expr)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 1 to "with_src_position" has incompatible type "ApplyExpr"; expected "Expr"
     _set_fn_name(builtin_name, expr.fn.builtin_fn)  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "fn"
@@ -579,6 +617,42 @@ def set_builtin_fn_alias(ast: proto.Expr, alias: str) -> None:  # pragma: no cov
     _set_fn_name(alias, ast.apply_expr.fn.builtin_fn)  # type: ignore[arg-type] # TODO(SNOW-1491199) # Argument 2 to "_set_fn_name" has incompatible type "BuiltinFn"; expected "FnNameRefExpr"
 
 
+# Global string interning map, grows over time.
+# Map is stable along a process, not on a a per-session basis.
+# Initialize with empty string, to allow for simple checks.
+__STRING_INTERNING_MAP__ = {"": -1}
+
+
+def __reset_interning_map() -> None:
+    """Helper function exclusively used for test purposes, resets interning map to default values."""
+    global __STRING_INTERNING_MAP__
+    __STRING_INTERNING_MAP__ = {"": -1}
+
+
+def __intern_string(s: str) -> int:
+    """Helper function to add string to global string interning map and return integer lookup index.
+    Empty string will always yield -1 as lookup index.
+    Args:
+        s: str string to intern
+    """
+    global __STRING_INTERNING_MAP__
+
+    if s in __STRING_INTERNING_MAP__:
+        return __STRING_INTERNING_MAP__[s]
+
+    interned_id = len(__STRING_INTERNING_MAP__) + 1
+    __STRING_INTERNING_MAP__[s] = interned_id
+    return interned_id
+
+
+def fill_interned_value_table(table: proto.InternedValueTable) -> None:
+    """Helper function to fill InternedValueTable table with values of all interned values from this client."""
+
+    # Only filenames are interned as part of with_src_position at the moment.
+    # Reverse key/value here as the lookup map works the other way and is optimized for decoding the message.
+    table.string_values.update({v: k for k, v in __STRING_INTERNING_MAP__.items()})
+
+
 # TODO(SNOW-1491199) - This method is not covered by tests until the end of phase 0. Drop the pragma when it is covered.
 def with_src_position(
     expr_ast: proto.Expr,
@@ -598,6 +672,7 @@ def with_src_position(
                             If this is not provided, the filename for each frame is probed to find the code of interest.
         target_idx: If an integer, tries to extract from an assign statement the {target_idx}th symbol. If None, assumes a single target.
     """
+
     src = expr_ast.src  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "src"
     frame = inspect.currentframe()
 
@@ -609,7 +684,7 @@ def with_src_position(
         # setting src fields for explicit presence of the encapsulating message in the AST.
         # e.g., Null values have no fields, so the assignment to src fields ensures their presence.
         if frame is None:
-            src.file = ""
+            src.file = __intern_string("")
             return expr_ast
 
         # NOTE: The inspect module provides many other APIs to get information about the current frame and its callers.
@@ -648,14 +723,14 @@ def with_src_position(
         # e.g. Jupyter notebooks, REPLs, calls to exec, etc.
         filename = frame.f_code.co_filename if frame is not None else ""
         if frame is None or not Path(filename).is_file():
-            src.file = ""
+            src.file = __intern_string("")
             return expr_ast
 
         # The context argument specifies the number of lines of context to capture around the current line.
         # If IO performance is an issue, this can be set to 0 but this will disable symbol capture. Some
         # potential alternatives to consider here are the linecache and traceback modules.
         frame_info = inspect.getframeinfo(frame, context=1)
-        src.file = (
+        src.file = __intern_string(
             frame_info.filename
             if not SRC_POSITION_TEST_MODE
             else "SRC_POSITION_TEST_MODE"
@@ -1082,7 +1157,7 @@ def build_udf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function i
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpTableName()
+            import_expr = proto.SpNameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1171,7 +1246,7 @@ def build_udaf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         ast.stage_location.value = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpTableName()
+            import_expr = proto.SpNameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1268,7 +1343,7 @@ def build_udtf(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function 
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpTableName()
+            import_expr = proto.SpNameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:
@@ -1380,7 +1455,7 @@ def build_sproc(  # type: ignore[no-untyped-def] # TODO(SNOW-1491199) # Function
         ast.stage_location = stage_location
     if imports is not None and len(imports) != 0:
         for import_ in imports:
-            import_expr = proto.SpTableName()
+            import_expr = proto.SpNameRef()
             build_sp_table_name(import_expr, import_)
             ast.imports.append(import_expr)
     if packages is not None and len(packages) != 0:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import decimal
 import math
@@ -609,4 +609,6 @@ def test_agg_column_naming(session):
 
     assert df2.columns == ['"UPPER(A)"', '"MAX(B)"']
     assert df3.columns == ["UPPER", "MAX"]
-    assert df2.collect() == df3.collect() == [Row("X", 2), Row("Y", 1)]
+    expected = [Row("X", 2), Row("Y", 1)]
+    Utils.check_answer(df2, expected)
+    Utils.check_answer(df3, expected)
