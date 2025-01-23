@@ -31,6 +31,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from conftest import RUNNING_ON_GH
 
 # TODO SNOW-891796: replace native_pd with pd after allowing using snowpandas module/function in UDF
 
@@ -329,6 +330,7 @@ def test_axis_1_return_not_json_serializable_label():
         snow_df.apply(lambda x: native_pd.DataFrame([1, 2]), axis=1).to_pandas()
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 def test_axis_1_apply_args_kwargs():
     def f(x, y, z=1) -> int:
         return x.sum() + y + z

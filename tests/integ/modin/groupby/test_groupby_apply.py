@@ -26,6 +26,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result as _eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from conftest import RUNNING_ON_GH
 
 # Use the workaround shown below for applying functions that are attributes
 # of this module.
@@ -263,11 +264,32 @@ class TestFuncReturnsDataFrame:
         "level",
         [
             0,
+            ["level_1", "level_0"],
+        ],
+    )
+    @sql_count_checker(
+        query_count=QUERY_COUNT_WITHOUT_TRANSFORM_CHECK,
+        udtf_count=UDTF_COUNT,
+        join_count=JOIN_COUNT,
+    )
+    def test_group_by_level_basic(
+        self, grouping_dfs_with_multiindexes, level, include_groups
+    ):
+        eval_snowpark_pandas_result(
+            *grouping_dfs_with_multiindexes,
+            lambda df: df.groupby(level=level).apply(
+                lambda df: df.iloc[::-1, ::-1], include_groups=include_groups
+            ),
+        )
+
+    @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
+    @pytest.mark.parametrize(
+        "level",
+        [
             [0],
             [1, 0],
             "level_0",
             ["level_0"],
-            ["level_1", "level_0"],
             [0, "level_1"],
         ],
     )
@@ -277,7 +299,7 @@ class TestFuncReturnsDataFrame:
         join_count=JOIN_COUNT,
     )
     def test_group_by_level(
-        self, grouping_dfs_with_multiindexes, level, include_groups
+            self, grouping_dfs_with_multiindexes, level, include_groups
     ):
         eval_snowpark_pandas_result(
             *grouping_dfs_with_multiindexes,
