@@ -13,19 +13,30 @@ df = df.select(col("STR"), col("A"))
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 41
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
@@ -52,8 +63,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -63,7 +76,7 @@ body {
                 src {
                   end_column: 39
                   end_line: 27
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 13
                   start_line: 27
                 }
@@ -73,7 +86,7 @@ body {
             src {
               end_column: 39
               end_line: 27
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 13
               start_line: 27
             }
@@ -84,8 +97,10 @@ body {
             fn {
               builtin_fn {
                 name {
-                  fn_name_flat {
-                    name: "col"
+                  name {
+                    sp_name_flat {
+                      name: "col"
+                    }
                   }
                 }
               }
@@ -95,7 +110,7 @@ body {
                 src {
                   end_column: 38
                   end_line: 27
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 30
                   start_line: 27
                 }
@@ -105,7 +120,7 @@ body {
             src {
               end_column: 38
               end_line: 27
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 30
               start_line: 27
             }
@@ -121,7 +136,7 @@ body {
         src {
           end_column: 39
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 27
         }

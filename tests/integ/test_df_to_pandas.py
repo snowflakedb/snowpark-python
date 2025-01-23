@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Iterator
@@ -359,7 +359,7 @@ def test_df_to_pandas_df(session):
                 StructField("n", TimestampType()),
                 StructField("o", TimeType()),
                 StructField("p", VariantType()),
-                StructField("q", MapType(StringType(), StringType())),
+                StructField("q", MapType()),
             ]
         ),
     )

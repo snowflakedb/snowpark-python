@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import uuid
 from collections import Counter, defaultdict
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
+
+from snowflake.connector import IntegrityError
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -659,6 +661,8 @@ class Analyzer:
                 ),
                 expr.to,
                 expr.try_,
+                expr.is_rename,
+                expr.is_add,
             )
         else:
             return unary_expression(
@@ -975,6 +979,8 @@ class Analyzer:
 
             if logical_plan.data:
                 if not logical_plan.is_large_local_data:
+                    if logical_plan.is_contain_illegal_null_value:
+                        raise IntegrityError("NULL result in a non-nullable column")
                     return self.plan_builder.query(
                         values_statement(logical_plan.output, logical_plan.data),
                         logical_plan,

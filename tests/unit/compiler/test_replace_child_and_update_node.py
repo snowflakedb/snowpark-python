@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -87,6 +87,7 @@ def mock_query_generator(mock_session) -> QueryGenerator:
     fake_query_generator.to_selectable = partial(
         QueryGenerator.to_selectable, fake_query_generator
     )
+    fake_query_generator._to_selectable_memo_dict = {}
     return fake_query_generator
 
 

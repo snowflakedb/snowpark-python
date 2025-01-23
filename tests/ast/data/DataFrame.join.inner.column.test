@@ -18,19 +18,30 @@ df3 = df3.select(df1["num"].alias("n1"), df1["str"], df2["str"])
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 42
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 25
         }
@@ -53,14 +64,16 @@ body {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 42
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 27
         }
@@ -87,7 +100,7 @@ body {
             src {
               end_column: 34
               end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 14
               start_line: 29
             }
@@ -114,7 +127,7 @@ body {
         src {
           end_column: 34
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }
@@ -148,7 +161,7 @@ body {
                 src {
                   end_column: 49
                   end_line: 29
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 42
                   start_line: 29
                 }
@@ -161,7 +174,7 @@ body {
             src {
               end_column: 61
               end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 42
               start_line: 29
             }
@@ -180,7 +193,7 @@ body {
             src {
               end_column: 70
               end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 63
               start_line: 29
             }
@@ -199,7 +212,7 @@ body {
             src {
               end_column: 79
               end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 72
               start_line: 29
             }
@@ -215,7 +228,7 @@ body {
         src {
           end_column: 80
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }

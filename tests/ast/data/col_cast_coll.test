@@ -45,19 +45,30 @@ df = df.select(col("A").cast(StructType([StructField("test1", StringType(), null
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 41
           end_line: 25
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 25
         }
@@ -86,8 +97,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -97,7 +110,7 @@ body {
                     src {
                       end_column: 31
                       end_line: 27
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 23
                       start_line: 27
                     }
@@ -107,7 +120,7 @@ body {
                 src {
                   end_column: 31
                   end_line: 27
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 23
                   start_line: 27
                 }
@@ -116,7 +129,7 @@ body {
             src {
               end_column: 50
               end_line: 27
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 23
               start_line: 27
             }
@@ -139,7 +152,7 @@ body {
         src {
           end_column: 51
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 27
         }
@@ -166,8 +179,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -177,7 +192,7 @@ body {
                     src {
                       end_column: 31
                       end_line: 29
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 23
                       start_line: 29
                     }
@@ -187,7 +202,7 @@ body {
                 src {
                   end_column: 31
                   end_line: 29
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 23
                   start_line: 29
                 }
@@ -196,7 +211,7 @@ body {
             src {
               end_column: 74
               end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 23
               start_line: 29
             }
@@ -219,7 +234,7 @@ body {
         src {
           end_column: 75
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 29
         }
@@ -246,8 +261,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -257,7 +274,7 @@ body {
                     src {
                       end_column: 31
                       end_line: 31
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 23
                       start_line: 31
                     }
@@ -267,7 +284,7 @@ body {
                 src {
                   end_column: 31
                   end_line: 31
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 23
                   start_line: 31
                 }
@@ -276,7 +293,7 @@ body {
             src {
               end_column: 74
               end_line: 31
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 23
               start_line: 31
             }
@@ -299,7 +316,7 @@ body {
         src {
           end_column: 75
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 31
         }
@@ -326,8 +343,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -337,7 +356,7 @@ body {
                     src {
                       end_column: 31
                       end_line: 33
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 23
                       start_line: 33
                     }
@@ -347,7 +366,7 @@ body {
                 src {
                   end_column: 31
                   end_line: 33
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 23
                   start_line: 33
                 }
@@ -356,7 +375,7 @@ body {
             src {
               end_column: 73
               end_line: 33
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 23
               start_line: 33
             }
@@ -379,7 +398,7 @@ body {
         src {
           end_column: 74
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 33
         }
@@ -406,8 +425,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -417,7 +438,7 @@ body {
                     src {
                       end_column: 31
                       end_line: 35
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 23
                       start_line: 35
                     }
@@ -427,7 +448,7 @@ body {
                 src {
                   end_column: 31
                   end_line: 35
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 23
                   start_line: 35
                 }
@@ -436,7 +457,7 @@ body {
             src {
               end_column: 80
               end_line: 35
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 23
               start_line: 35
             }
@@ -460,7 +481,7 @@ body {
         src {
           end_column: 81
           end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 35
         }
@@ -487,8 +508,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -498,7 +521,7 @@ body {
                     src {
                       end_column: 31
                       end_line: 37
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 23
                       start_line: 37
                     }
@@ -508,7 +531,7 @@ body {
                 src {
                   end_column: 31
                   end_line: 37
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 23
                   start_line: 37
                 }
@@ -517,7 +540,7 @@ body {
             src {
               end_column: 94
               end_line: 37
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 23
               start_line: 37
             }
@@ -544,7 +567,7 @@ body {
         src {
           end_column: 95
           end_line: 37
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 37
         }
@@ -571,8 +594,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -582,7 +607,7 @@ body {
                     src {
                       end_column: 31
                       end_line: 39
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 23
                       start_line: 39
                     }
@@ -592,7 +617,7 @@ body {
                 src {
                   end_column: 31
                   end_line: 39
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 23
                   start_line: 39
                 }
@@ -601,7 +626,7 @@ body {
             src {
               end_column: 57
               end_line: 39
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 23
               start_line: 39
             }
@@ -625,7 +650,7 @@ body {
         src {
           end_column: 58
           end_line: 39
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 39
         }
@@ -652,8 +677,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -663,7 +690,7 @@ body {
                     src {
                       end_column: 31
                       end_line: 41
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 23
                       start_line: 41
                     }
@@ -673,7 +700,7 @@ body {
                 src {
                   end_column: 31
                   end_line: 41
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 23
                   start_line: 41
                 }
@@ -682,68 +709,70 @@ body {
             src {
               end_column: 28
               end_line: 46
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 23
               start_line: 41
             }
             to {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "test1"
-                  }
-                  data_type {
-                    sp_string_type {
-                      length {
-                      }
+                  list {
+                    column_identifier {
+                      name: "test1"
                     }
-                  }
-                }
-                fields {
-                  column_identifier {
-                    name: "test2"
-                  }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "test3"
-                  }
-                  data_type {
-                    sp_array_type {
-                      ty {
-                        sp_long_type: true
-                      }
-                    }
-                  }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "test4"
-                  }
-                  data_type {
-                    sp_map_type {
-                      key_ty {
-                        sp_decimal_type {
-                          precision: 42
-                          scale: 23
+                    data_type {
+                      sp_string_type {
+                        length {
                         }
                       }
-                      value_ty {
-                        sp_vector_type {
-                          dimension: 64
-                          ty {
-                            sp_float_type: true
+                    }
+                  }
+                  list {
+                    column_identifier {
+                      name: "test2"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
+                  }
+                  list {
+                    column_identifier {
+                      name: "test3"
+                    }
+                    data_type {
+                      sp_array_type {
+                        ty {
+                          sp_long_type: true
+                        }
+                      }
+                    }
+                    nullable: true
+                  }
+                  list {
+                    column_identifier {
+                      name: "test4"
+                    }
+                    data_type {
+                      sp_map_type {
+                        key_ty {
+                          sp_decimal_type {
+                            precision: 42
+                            scale: 23
+                          }
+                        }
+                        value_ty {
+                          sp_vector_type {
+                            dimension: 64
+                            ty {
+                              sp_float_type: true
+                            }
                           }
                         }
                       }
                     }
+                    nullable: true
                   }
-                  nullable: true
                 }
                 structured: true
               }
@@ -760,7 +789,7 @@ body {
         src {
           end_column: 29
           end_line: 46
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 41
         }

@@ -98,7 +98,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest-64-cores
             download_name: windows
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
@@ -134,7 +134,7 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - if: ${{ contains('macos', matrix.os.download_name) }}
+      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.12'}}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -145,13 +145,24 @@ jobs:
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
-      - name: Run tests (excluding doctests)
+      - if: ${{ matrix.python-version != '3.12' }}
+        name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ matrix.python-version == '3.12' }}
+        name: Run tests (excluding doctests and udf tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -217,7 +228,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -249,7 +260,7 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - if: ${{ contains('macos', matrix.os.download_name) }}
+      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.12'}}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -258,13 +269,24 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - name: Run tests (excluding doctests)
+      - if: ${{ matrix.python-version != '3.12' }}
+        name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ matrix.python-version == '3.12' }}
+        name: Run tests (excluding doctests and udf tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
+          TOX_PARALLEL_NO_SPINNER: 1
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -354,7 +376,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -484,7 +506,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -516,7 +538,7 @@ jobs:
         run: python -m pip install -U setuptools pip wheel
       - name: Install tox
         run: python -m pip install tox
-      - if: ${{ contains('macos', matrix.os.download_name) }}
+      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.12'}}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -525,8 +547,18 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - name: Run tests (excluding doctests)
+      - if: ${{ matrix.python-version != '3.12' }}
+        name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ matrix.python-version == '3.12' }}
+        name: Run tests (excluding doctests and udf tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -542,75 +574,6 @@ jobs:
         with:
           include-hidden-files: true
           name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-disable-cte-optimization
-          path: |
-            .tox/.coverage
-            .tox/coverage.xml
-
-  test-snowpark-disable-multithreading-mode:
-    name: Test Snowpark Multithreading Disabled py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
-    needs: build
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest-64-cores]
-        python-version: ["3.9"]
-        cloud-provider: [aws]
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Display Python version
-        run: python -c "import sys; print(sys.version)"
-      - name: Decrypt parameters.py
-        shell: bash
-        run: .github/scripts/decrypt_parameters.sh
-        env:
-          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
-          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
-      - name: Install protoc
-        shell: bash
-        run: .github/scripts/install_protoc.sh
-      - name: Download wheel(s)
-        uses: actions/download-artifact@v4
-        with:
-          name: wheel
-          path: dist
-      - name: Show wheels downloaded
-        run: ls -lh dist
-        shell: bash
-      - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
-      - name: Install tox
-        run: python -m pip install tox
-      - name: Run tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notmultithreaded-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
-          TOX_PARALLEL_NO_SPINNER: 1
-        shell: bash
-      - name: Run local tests
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-localnotmultithreaded-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
-          TOX_PARALLEL_NO_SPINNER: 1
-        shell: bash
-      - name: Combine coverages
-        run: python -m tox -e coverage --skip-missing-interpreters false
-        shell: bash
-        env:
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-      - uses: actions/upload-artifact@v4
-        with:
-          include-hidden-files: true
-          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}-snowpark-multithreading
           path: |
             .tox/.coverage
             .tox/coverage.xml

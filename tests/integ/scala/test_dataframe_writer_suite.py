@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import copy
@@ -8,6 +8,8 @@ import logging
 import pytest
 
 import snowflake.connector.errors
+
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -874,3 +876,93 @@ def test_writer_parquet(session, tmpdir_factory, local_testing_mode):
         Utils.assert_rows_count(data4, ROWS_COUNT)
     finally:
         Utils.drop_stage(session, temp_stage)
+
+
+def test_insert_into(session, local_testing_mode):
+    """
+    Test the insert_into API with positive and negative test cases.
+    """
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    try:
+        # Create a DataFrame with initial data
+        df = session.create_dataframe(
+            [["Alice", "Smith"], ["Bob", "Brown"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        df.write.save_as_table(table_name)
+
+        # Positive Test: Append data to the table
+        df_append = session.create_dataframe(
+            [["Charlie", "White"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        df_append.write.insert_into(table_name)
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row(FIRST_NAME="Alice", LAST_NAME="Smith"),
+                Row(FIRST_NAME="Bob", LAST_NAME="Brown"),
+                Row(FIRST_NAME="Charlie", LAST_NAME="White"),
+            ],
+        )
+
+        # Positive Test: Overwrite data in the table
+        df_overwrite = session.create_dataframe(
+            [["David", "Green"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        df_overwrite.write.insert_into(table_name, overwrite=True)
+        Utils.check_answer(
+            session.table(table_name), [Row(FIRST_NAME="David", LAST_NAME="Green")]
+        )
+
+        # Negative Test: Schema mismatch, more columns
+        df_more_columns = session.create_dataframe(
+            [["Extra", "Column", 123]],
+            schema=["FIRST_NAME", "LAST_NAME", "AGE"],
+        )
+        with pytest.raises(
+            SnowparkSQLException,
+            match="Insert value list does not match column list expecting 2 but got 3"
+            if not local_testing_mode
+            else "Cannot append because incoming data has different schema",
+        ):
+            df_more_columns.write.insert_into(table_name)
+
+        # Negative Test: Schema mismatch, less columns
+        df_less_column = session.create_dataframe(
+            [["Column"]],
+            schema=["FIRST_NAME"],
+        )
+        with pytest.raises(
+            SnowparkSQLException,
+            match="Insert value list does not match column list expecting 2 but got 1"
+            if not local_testing_mode
+            else "Cannot append because incoming data has different schema",
+        ):
+            df_less_column.write.insert_into(table_name)
+
+        # Negative Test: Schema mismatch, type
+        df_not_same_type = session.create_dataframe(
+            [[[1, 2, 3, 4], False]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+
+        if not local_testing_mode:
+            # SNOW-1890315: Local Testing missing type coercion check
+            with pytest.raises(
+                SnowparkSQLException,
+                match="Expression type does not match column data type",
+            ):
+                df_not_same_type.write.insert_into(table_name)
+
+        # Negative Test: Table does not exist
+        with pytest.raises(
+            SnowparkClientException,
+            match="Table non_existent_table does not exist or not authorized.",
+        ):
+            df.write.insert_into("non_existent_table")
+
+    finally:
+        Utils.drop_table(session, table_name)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import json
@@ -433,17 +433,17 @@ def test_stddev(session):
 
 def test_sum(session):
     df = TestData.duplicated_numbers(session).group_by("A").agg(sum(col("A")))
-    assert df.collect() == [Row(3, 6), Row(2, 4), Row(1, 1)]
+    Utils.check_answer(df, [Row(3, 6), Row(2, 4), Row(1, 1)])
 
     df = TestData.duplicated_numbers(session).group_by("A").agg(sum_distinct(col("A")))
-    assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]
+    Utils.check_answer(df, [Row(3, 3), Row(2, 2), Row(1, 1)])
 
     # same as above, but pass str instead of Column
     df = TestData.duplicated_numbers(session).group_by("A").agg(sum("A"))
-    assert df.collect() == [Row(3, 6), Row(2, 4), Row(1, 1)]
+    Utils.check_answer(df, [Row(3, 6), Row(2, 4), Row(1, 1)])
 
     df = TestData.duplicated_numbers(session).group_by("A").agg(sum_distinct("A"))
-    assert df.collect() == [Row(3, 3), Row(2, 2), Row(1, 1)]
+    Utils.check_answer(df, [Row(3, 3), Row(2, 2), Row(1, 1)])
 
 
 @pytest.mark.skipif(
