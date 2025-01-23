@@ -149,6 +149,7 @@ def test_pivot_table_not_implemented_or_supported(df_data):
         snow_df2.pivot_table(index="A", columns="B", values=[baz])
 
 
+@sql_count_checker(query_count=0)
 @pytest.mark.parametrize(
     "aggfunc,name_in_error",
     [
