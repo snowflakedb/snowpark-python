@@ -628,6 +628,8 @@ def test_telemetry_func_call_count():
         and _get_data(call)["func_name"] == "DataFrame.__repr__"
     ]
 
+    print(f"telemetry data {telemetry_data}")
+
     # second to last call from telemetry data
     # s called __repr__() 3 times.
     assert telemetry_data[-2]["call_count"] == 3
