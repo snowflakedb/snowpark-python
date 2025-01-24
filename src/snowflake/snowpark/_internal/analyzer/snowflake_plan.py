@@ -1092,6 +1092,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         is_temp: bool,
         comment: Optional[str],
+        replace: bool,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
@@ -1117,7 +1118,9 @@ class SnowflakePlanBuilder:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         return self.build(
-            lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
+            lambda x: create_or_replace_view_statement(
+                name, x, is_temp, comment, replace
+            ),
             child,
             source_plan,
         )
