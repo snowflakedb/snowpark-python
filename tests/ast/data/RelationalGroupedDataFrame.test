@@ -45,8 +45,6 @@ res8 = df.group_by("a").count()
 
 df = session.create_dataframe([("SF", 21.0), ("SF", 17.5), ("SF", 24.0), ("NY", 30.9), ("NY", 33.6)], schema=["location", "temp_c"])
 
-res10 = udtf("_ApplyInPandas", output_schema=PandasDataFrameType(StringType(), FloatType(), FloatType(), "LOCATION", "TEMP_C", "TEMP_F"), input_types=[StringType(), FloatType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
-
 df.group_by("location").apply_in_pandas(convert, StructType([StructField("location", StringType(), nullable=True), StructField("temp_c", FloatType(), nullable=True), StructField("temp_f", FloatType(), nullable=True)], structured=False), input_types=[StringType(), FloatType()], input_names=["LOCATION", "TEMP_C"]).sort("temp_c", ascending=None).collect()
 
 df = session.create_dataframe([(1, "A", 10000, "JAN"), (1, "B", 400, "JAN"), (1, "B", 5000, "FEB")], schema=["empid", "team", "amount", "month"])
@@ -716,81 +714,8 @@ body {
 body {
   assign {
     expr {
-      udtf {
-        handler {
-          name: "_ApplyInPandas"
-          object_name {
-            sp_table_name_flat {
-              name: "\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx"
-            }
-          }
-        }
-        input_types {
-          list {
-            sp_string_type {
-              length {
-              }
-            }
-          }
-          list {
-            sp_float_type: true
-          }
-        }
-        kwargs {
-          _1: "copy_grants"
-          _2 {
-            bool_val {
-              src {
-                file: "SRC_POSITION_TEST_MODE"
-                start_line: 43
-              }
-            }
-          }
-        }
-        output_schema {
-          udtf_schema__type {
-            return_type {
-              sp_pandas_data_frame_type {
-                col_names: "LOCATION"
-                col_names: "TEMP_C"
-                col_names: "TEMP_F"
-                col_types {
-                  sp_string_type {
-                    length {
-                    }
-                  }
-                }
-                col_types {
-                  sp_float_type: true
-                }
-                col_types {
-                  sp_float_type: true
-                }
-              }
-            }
-          }
-        }
-        parallel: 4
-        src {
-          file: "SRC_POSITION_TEST_MODE"
-          start_line: 43
-        }
-      }
-    }
-    symbol {
-    }
-    uid: 14
-    var_id {
-      bitfield1: 14
-    }
-  }
-}
-body {
-  assign {
-    expr {
       sp_relational_grouped_dataframe_apply_in_pandas {
         func {
-          id: 1
           name: "convert"
         }
         grouped_df {
@@ -867,34 +792,36 @@ body {
         }
         output_schema {
           fields {
-            column_identifier {
-              name: "location"
-            }
-            data_type {
-              sp_string_type {
-                length {
+            list {
+              column_identifier {
+                name: "location"
+              }
+              data_type {
+                sp_string_type {
+                  length {
+                  }
                 }
               }
+              nullable: true
             }
-            nullable: true
-          }
-          fields {
-            column_identifier {
-              name: "temp_c"
+            list {
+              column_identifier {
+                name: "temp_c"
+              }
+              data_type {
+                sp_float_type: true
+              }
+              nullable: true
             }
-            data_type {
-              sp_float_type: true
+            list {
+              column_identifier {
+                name: "temp_f"
+              }
+              data_type {
+                sp_float_type: true
+              }
+              nullable: true
             }
-            nullable: true
-          }
-          fields {
-            column_identifier {
-              name: "temp_f"
-            }
-            data_type {
-              sp_float_type: true
-            }
-            nullable: true
           }
         }
         src {
@@ -905,9 +832,9 @@ body {
     }
     symbol {
     }
-    uid: 15
+    uid: 14
     var_id {
-      bitfield1: 15
+      bitfield1: 14
     }
   }
 }
@@ -936,9 +863,32 @@ body {
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 15
+              bitfield1: 14
             }
           }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 46
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 15
+    var_id {
+      bitfield1: 15
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_collect {
+        block: true
+        case_sensitive: true
+        id {
+          bitfield1: 15
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -955,33 +905,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_collect {
-        block: true
-        case_sensitive: true
-        id {
-          bitfield1: 16
-        }
-        src {
-          file: "SRC_POSITION_TEST_MODE"
-          start_line: 46
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 17
     var_id {
-      bitfield1: 17
-    }
-  }
-}
-body {
-  eval {
-    uid: 18
-    var_id {
-      bitfield1: 17
+      bitfield1: 16
     }
   }
 }
@@ -1142,9 +1069,9 @@ body {
     symbol {
       value: "df"
     }
-    uid: 19
+    uid: 18
     var_id {
-      bitfield1: 19
+      bitfield1: 18
     }
   }
 }
@@ -1167,7 +1094,7 @@ body {
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 19
+              bitfield1: 18
             }
           }
         }
@@ -1179,9 +1106,9 @@ body {
     }
     symbol {
     }
-    uid: 20
+    uid: 19
     var_id {
-      bitfield1: 20
+      bitfield1: 19
     }
   }
 }
@@ -1192,7 +1119,7 @@ body {
         grouped_df {
           sp_relational_grouped_dataframe_ref {
             id {
-              bitfield1: 20
+              bitfield1: 19
             }
           }
         }
@@ -1243,9 +1170,9 @@ body {
     }
     symbol {
     }
-    uid: 21
+    uid: 20
     var_id {
-      bitfield1: 21
+      bitfield1: 20
     }
   }
 }
@@ -1269,13 +1196,30 @@ body {
         grouped_df {
           sp_relational_grouped_dataframe_ref {
             id {
-              bitfield1: 21
+              bitfield1: 20
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 54
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 21
+    var_id {
+      bitfield1: 21
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_show {
+        id {
+          bitfield1: 21
         }
       }
     }
@@ -1288,27 +1232,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_show {
-        id {
-          bitfield1: 22
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 23
     var_id {
-      bitfield1: 23
-    }
-  }
-}
-body {
-  eval {
-    uid: 24
-    var_id {
-      bitfield1: 23
+      bitfield1: 22
     }
   }
 }
@@ -1339,7 +1266,7 @@ body {
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 19
+              bitfield1: 18
             }
           }
         }
@@ -1351,9 +1278,9 @@ body {
     }
     symbol {
     }
-    uid: 25
+    uid: 24
     var_id {
-      bitfield1: 25
+      bitfield1: 24
     }
   }
 }
@@ -1364,7 +1291,7 @@ body {
         grouped_df {
           sp_relational_grouped_dataframe_ref {
             id {
-              bitfield1: 25
+              bitfield1: 24
             }
           }
         }
@@ -1385,9 +1312,9 @@ body {
     }
     symbol {
     }
-    uid: 26
+    uid: 25
     var_id {
-      bitfield1: 26
+      bitfield1: 25
     }
   }
 }
@@ -1411,7 +1338,7 @@ body {
         grouped_df {
           sp_relational_grouped_dataframe_ref {
             id {
-              bitfield1: 26
+              bitfield1: 25
             }
           }
         }
@@ -1423,9 +1350,9 @@ body {
     }
     symbol {
     }
-    uid: 27
+    uid: 26
     var_id {
-      bitfield1: 27
+      bitfield1: 26
     }
   }
 }
@@ -1463,13 +1390,30 @@ body {
         df {
           sp_dataframe_ref {
             id {
-              bitfield1: 27
+              bitfield1: 26
             }
           }
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
           start_line: 56
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 27
+    var_id {
+      bitfield1: 27
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_show {
+        id {
+          bitfield1: 27
         }
       }
     }
@@ -1482,27 +1426,10 @@ body {
   }
 }
 body {
-  assign {
-    expr {
-      sp_dataframe_show {
-        id {
-          bitfield1: 28
-        }
-      }
-    }
-    symbol {
-    }
+  eval {
     uid: 29
     var_id {
-      bitfield1: 29
-    }
-  }
-}
-body {
-  eval {
-    uid: 30
-    var_id {
-      bitfield1: 29
+      bitfield1: 28
     }
   }
 }
