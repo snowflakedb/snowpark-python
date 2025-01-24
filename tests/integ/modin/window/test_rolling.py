@@ -567,7 +567,7 @@ class TestTimedelta:
         ],
     )
     @pytest.mark.parametrize("agg_func", agg_func_supported_for_timedelta)
-    @window
+    @pytest.mark.parametrize("window", [1, 2, 6])
     @min_periods
     @center
     def test_rolling_aggregation_supported(
