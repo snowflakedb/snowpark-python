@@ -47,6 +47,7 @@
 #### Experimental Features
 
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+- Added support for querying json element of a VARIANT column in `functions.col` and `functions.column` with an optional keyword argument `json_element`.
 - Allow user input schema when reading JSON file on stage.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
   - `snowflake.core` is a dependency required for this feature.
