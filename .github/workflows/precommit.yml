@@ -413,7 +413,23 @@ jobs:
       matrix:
         os: [ ubuntu-latest ]
         python-version: [ "3.9", "3.11", "3.12" ]
-        cloud-provider: [ aws ]
+        cloud-provider: [aws, gcp, azure]
+        exclude:
+          # Run 3.9 on aws
+          - python-version: "3.11"
+            cloud-provider: aws
+          - python-version: "3.12"
+            cloud-provider: aws
+          # Run 3.11 on gcp
+          - python-version: "3.9"
+            cloud-provider: gcp
+          - python-version: "3.12"
+            cloud-provider: gcp
+          # Run 3.12 on azure
+          - python-version: "3.9"
+            cloud-provider: azure
+          - python-version: "3.11"
+            cloud-provider: azure
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
