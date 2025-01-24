@@ -4,7 +4,7 @@
 
 import logging
 import re
-from typing import Any, Optional, Iterable, List, Union, Dict, Tuple, Callable
+from typing import Any, Optional, Iterable, List, Union, Dict, Tuple, Callable, Literal
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
@@ -20,7 +20,9 @@ from snowflake.snowpark.relational_grouped_dataframe import GroupingSets
 from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions, Row, Table
 import snowflake.snowpark.functions
 from snowflake.snowpark.functions import (
+    udaf,
     udf,
+    udtf,
     when,
     sproc,
     call_table_function,
@@ -118,6 +120,49 @@ class Decoder:
         else:
             return DataFrameAnalyticsFunctions._default_col_formatter
 
+    def decode_callable_expr(
+        self,
+        callable_expr: proto.SpCallable,
+        callable_type: Optional[Literal["udaf", "udtf"]] = None,
+    ) -> Tuple[Callable, str]:
+        """
+        Decode a callable expression to get the callable.
+
+        Parameters
+        ----------
+        callable_expr : proto.SpCallable
+            The callable expression to decode.
+        callable_type : Optional[Literal["udaf", "udtf"]]
+            The type of callable.
+            If None, it will be treated as a regular function; an empty function will be created and renamed based on
+            the recorded function's name.
+
+        Returns
+        -------
+        Tuple[Callable, str]
+            The decoded callable and its associated name.
+        """
+        id = callable_expr.id
+        name = callable_expr.name
+        object_name = (
+            self.decode_name_expr(callable_expr.object_name)
+            if callable_expr.HasField("object_name")
+            else None
+        )
+        if callable_type == "udtf":
+            handler = self.session._udtf_registration.get_udtf(object_name).handler
+        elif callable_type == "udaf":
+            handler = self.session._udaf_registration.get_udaf(object_name).handler
+        else:
+
+            def __temp_handler_func():
+                pass
+
+            # Set the name of the function to whatever it was originally.
+            __temp_handler_func.__name__ = name
+            handler, object_name = __temp_handler_func, name
+        return handler, object_name
+
     def decode_col_exprs(self, expr: proto.Expr) -> List[Column]:
         """
         Decode a protobuf object to a list of column expressions.
@@ -196,7 +241,7 @@ class Decoder:
         elif table_name.name.HasField("sp_name_structured"):
             return [name for name in table_name.name.sp_name_structured.name]
         else:
-            raise ValueError("Table name not found in proto.SpTableName")
+            raise ValueError("Table name not found in proto.SpName")
 
     def decode_fn_ref_expr(self, fn_ref_expr: proto.FnRefExpr) -> str:
         """
@@ -316,16 +361,9 @@ class Decoder:
                 else:
                     return None
             case "sp_dataframe_schema__struct":
-                struct_field_list = []
-                for field in df_schema_expr.sp_dataframe_schema__struct.v.fields.list:
-                    column_identifier = field.column_identifier.name
-                    datatype = self.decode_data_type_expr(field.data_type)
-                    nullable = field.nullable
-                    struct_field_list.append(
-                        StructField(column_identifier, datatype, nullable)
-                    )
-                structured = df_schema_expr.sp_dataframe_schema__struct.v.structured
-                return StructType(struct_field_list, structured)
+                return self.decode_struct_type_expr(
+                    df_schema_expr.sp_dataframe_schema__struct.v
+                )
             case _:
                 raise ValueError(
                     "Unknown dataframe schema type: %s"
@@ -397,8 +435,8 @@ class Decoder:
                     data_type_expr.sp_pandas_data_frame_type.col_types, Iterable
                 ):
                     col_types = [
-                        col_name
-                        for col_name in data_type_expr.sp_pandas_data_frame_type.col_types
+                        self.decode_data_type_expr(col_type)
+                        for col_type in data_type_expr.sp_pandas_data_frame_type.col_types
                     ]
                 else:
                     col_types = [data_type_expr.sp_pandas_data_frame_type.col_types]
@@ -443,18 +481,12 @@ class Decoder:
                 return StructField(column_identifier, data_type, nullable)
             case "sp_struct_type":
                 # The fields can be a list of Expr, a single Expr, or None.
+                fields = []
                 if hasattr(data_type_expr.sp_struct_type, "fields"):
-                    if isinstance(data_type_expr.sp_struct_type.fields, Iterable):
-                        fields = [
-                            self.decode_data_type_expr(field)
-                            for field in data_type_expr.sp_struct_type.fields
-                        ]
-                    else:
-                        fields = [
-                            self.decode_data_type_expr(
-                                data_type_expr.sp_struct_type.fields
-                            )
-                        ]
+                    for field in data_type_expr.sp_struct_type.fields.list:
+                        column_identifier = field.column_identifier.name
+                        data_type = self.decode_data_type_expr(field.data_type)
+                        fields.append(StructField(column_identifier, data_type))
                 else:
                     fields = None
                 structured = data_type_expr.sp_struct_type.structured
@@ -605,6 +637,56 @@ class Decoder:
                     "Unknown matched clause: %s" % matched_clause.WhichOneof("variant")
                 )
 
+    def decode_pivot_value_expr(self, pivot_value_expr: proto.SpPivotValue) -> Any:
+        """
+        Decode expr to get the pivot value.
+
+        Parameters
+        ----------
+        pivot_value_expr : proto.SpPivotValues
+            The expression to decode.
+
+        Returns
+        -------
+        Any
+            The decoded pivot value.
+        """
+        match pivot_value_expr.WhichOneof("sealed_value"):
+            case "sp_pivot_value__dataframe":
+                return self.decode_expr(pivot_value_expr.sp_pivot_value__dataframe.v)
+            case "sp_pivot_value__expr":
+                return self.decode_expr(pivot_value_expr.sp_pivot_value__expr.v)
+            case _:
+                raise ValueError(
+                    "Unknown pivot value: %s"
+                    % pivot_value_expr.WhichOneof("sealed_value")
+                )
+
+    def decode_struct_type_expr(
+        self, sp_struct_type_expr: proto.SpStructType
+    ) -> StructType:
+        """
+        Decode a struct type expression to get the struct type.
+
+        Parameters
+        ----------
+        struct_type_expr : proto.SpStructType
+            The expression to decode.
+
+        Returns
+        -------
+        StructType
+            The decoded object.
+        """
+        struct_field_list = []
+        for field in sp_struct_type_expr.fields.list:
+            column_identifier = field.column_identifier.name
+            datatype = self.decode_data_type_expr(field.data_type)
+            nullable = field.nullable
+            struct_field_list.append(StructField(column_identifier, datatype, nullable))
+        structured = sp_struct_type_expr.structured
+        return StructType(struct_field_list, structured)
+
     def decode_timezone_expr(self, tz_expr: proto.PythonTimeZone) -> Any:
         """
         Decode a Python timezone expression to get the timezone.
@@ -617,6 +699,35 @@ class Decoder:
         tz_name = tz_expr.name.value
         offset_seconds = tz_expr.offset_seconds
         return timezone(offset=timedelta(seconds=offset_seconds), name=tz_name)
+
+    def decode_udtf_schema(
+        self, udtf_schema: proto.UdtfSchema
+    ) -> Union[List, DataType]:
+        """
+        Decode a UDTF schema expression to get the schema.
+
+        Parameters
+        ----------
+        udtf_schema : proto.UdtfSchema
+            The expression to decode.
+
+        Returns
+        -------
+        List or DataType
+            The decoded schema.
+        """
+        match udtf_schema.WhichOneof("sealed_value"):
+            case "udtf_schema__names":
+                return [s for s in udtf_schema.udtf_schema__names.schema]
+            case "udtf_schema__type":
+                return self.decode_data_type_expr(
+                    udtf_schema.udtf_schema__type.return_type
+                )
+            case _:
+                raise ValueError(
+                    "Unknown UDTF schema type: %s"
+                    % udtf_schema.WhichOneof("sealed_value")
+                )
 
     def decode_window_spec_expr(self, window_spec_expr: proto.SpWindowSpecExpr) -> Any:
         """
@@ -782,7 +893,7 @@ class Decoder:
                                 ][1]
                             )
                         case "call_table_function_expr" | "indirect_table_fn_name_ref":
-                            if source is "sp_session_table_function":
+                            if source == "sp_session_table_function":
                                 return self.session.table_function(
                                     fn_name, *pos_args, **named_args
                                 )
@@ -1523,20 +1634,7 @@ class Decoder:
                 default_on_null = self.decode_expr(
                     expr.sp_dataframe_pivot.default_on_null
                 )
-                match expr.sp_dataframe_pivot.values.WhichOneof("sealed_value"):
-                    case "sp_pivot_value__dataframe":
-                        values = self.decode_expr(
-                            expr.sp_dataframe_pivot.values.sp_pivot_value__dataframe.v
-                        )
-                    case "sp_pivot_value__expr":
-                        values = self.decode_expr(
-                            expr.sp_dataframe_pivot.values.sp_pivot_value__expr.v
-                        )
-                    case _:
-                        raise ValueError(
-                            "Unknown pivot value: %s"
-                            % expr.sp_dataframe_pivot.values.WhichOneof("sealed_value")
-                        )
+                values = self.decode_pivot_value_expr(expr.sp_dataframe_pivot.values)
                 return df.pivot(pivot_col, values, default_on_null)
 
             case "sp_dataframe_random_split":
@@ -1603,9 +1701,7 @@ class Decoder:
                     return df.select_expr(exprs)
 
             case "sp_dataframe_show":
-                df = self.decode_expr(
-                    self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
-                )
+                df = self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
                 return df.show()
 
             case "sp_dataframe_sort":
@@ -1743,8 +1839,8 @@ class Decoder:
                 ]
                 name_column = expr.sp_dataframe_unpivot.name_column
                 value_column = expr.sp_dataframe_unpivot.value_column
-                # TODO SNOW-1866100: add logic for `include_nulls`.
-                return df.unpivot(value_column, name_column, column_list)
+                include_nulls = expr.sp_dataframe_unpivot.include_nulls
+                return df.unpivot(value_column, name_column, column_list, include_nulls)
 
             case "sp_dataframe_with_column":
                 df = self.decode_expr(expr.sp_dataframe_with_column.df)
@@ -1787,14 +1883,19 @@ class Decoder:
                 return self.session.range(start, end, step)
 
             case "sp_relational_grouped_dataframe_apply_in_pandas":
-                # TODO: SNOW-1830603 Flesh out this logic when implementing UDTFs. Need to create a dict to maintain
-                #       all functions registered (here, `func`). Implement `decode_callable_expr`.
-                # func = self.decode_callable_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.func)
-                # grouped_df = self.decode_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.grouped_df)
-                # kwargs = self.decode_dsl_map_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.kwargs)
-                # output_schema = self.decode_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.output_schema)
-                # return grouped_df.apply_in_pandas(func, output_schema, **kwargs)
-                pass
+                func, _ = self.decode_callable_expr(
+                    expr.sp_relational_grouped_dataframe_apply_in_pandas.func
+                )
+                grouped_df = self.decode_expr(
+                    expr.sp_relational_grouped_dataframe_apply_in_pandas.grouped_df
+                )
+                kwargs = self.decode_dsl_map_expr(
+                    expr.sp_relational_grouped_dataframe_apply_in_pandas.kwargs
+                )
+                output_schema = self.decode_struct_type_expr(
+                    expr.sp_relational_grouped_dataframe_apply_in_pandas.output_schema
+                )
+                return grouped_df.apply_in_pandas(func, output_schema, **kwargs)
 
             case "sp_relational_grouped_dataframe_builtin":
                 grouped_df = self.decode_expr(
@@ -1814,6 +1915,31 @@ class Decoder:
                     return getattr(grouped_df, agg_name)(*cols)
                 else:
                     return getattr(grouped_df, agg_name)(cols)
+
+            case "sp_relational_grouped_dataframe_pivot":
+                default_on_null = (
+                    self.decode_expr(
+                        expr.sp_relational_grouped_dataframe_pivot.default_on_null
+                    )
+                    if expr.sp_relational_grouped_dataframe_pivot.HasField(
+                        "default_on_null"
+                    )
+                    else None
+                )
+                grouped_df = self.decode_expr(
+                    expr.sp_relational_grouped_dataframe_pivot.grouped_df
+                )
+                pivot_col = self.decode_expr(
+                    expr.sp_relational_grouped_dataframe_pivot.pivot_col
+                )
+                values = (
+                    self.decode_pivot_value_expr(
+                        expr.sp_relational_grouped_dataframe_pivot.values
+                    )
+                    if expr.sp_relational_grouped_dataframe_pivot.HasField("values")
+                    else None
+                )
+                return grouped_df.pivot(pivot_col, values, default_on_null)
 
             case "sp_relational_grouped_dataframe_ref":
                 return self.symbol_table[
@@ -1952,6 +2078,68 @@ class Decoder:
                 df.to_snowpark_pandas(index_col, columns)
                 return None
 
+            case "udaf":
+                comment = (
+                    expr.udaf.comment.value if expr.udaf.HasField("comment") else None
+                )
+                external_access_integrations = [
+                    eai for eai in expr.udaf.external_access_integrations
+                ]
+                handler, handler_name = self.decode_callable_expr(
+                    expr.udaf.handler, "udaf"
+                )
+                if_not_exists = expr.udaf.if_not_exists
+                immutable = expr.udaf.immutable
+                imports = [
+                    self.decode_name_expr(import_) for import_ in expr.udaf.imports
+                ]
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.udaf.input_types.list
+                ]
+                is_permanent = expr.udaf.is_permanent
+                kwargs = self.decode_dsl_map_expr(expr.udaf.kwargs)
+                if "copy_grants" in kwargs:
+                    kwargs.pop("copy_grants")
+                name = (
+                    self.decode_name_expr(expr.udaf.name)
+                    if expr.udaf.HasField("name")
+                    else None
+                )
+                packages = [package for package in expr.udaf.packages]
+                parallel = expr.udaf.parallel
+                replace = expr.udaf.replace
+                return_type = self.decode_data_type_expr(expr.udaf.return_type)
+                secrets = self.decode_dsl_map_expr(expr.udaf.secrets)
+                stage_location = (
+                    expr.udaf.stage_location.value
+                    if expr.udaf.HasField("stage_location")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(expr.udaf.statement_params)
+                # Run udaf to create the required AST but return the first registered version of the UDAF.
+                _ = udaf(
+                    handler,
+                    return_type=return_type,
+                    input_types=input_types,
+                    name=name,
+                    is_permanent=is_permanent,
+                    stage_location=stage_location,
+                    imports=imports,
+                    packages=packages,
+                    replace=replace,
+                    if_not_exists=if_not_exists,
+                    session=self.session,
+                    parallel=parallel,
+                    statement_params=statement_params,
+                    immutable=immutable,
+                    external_access_integrations=external_access_integrations,
+                    secrets=secrets,
+                    comment=comment,
+                    **kwargs,
+                )
+                return self.session._udaf_registration.get_udaf(handler_name)
+
             case "udf":
                 return_type = self.decode_data_type_expr(expr.udf.return_type)
                 input_types = [
@@ -1963,8 +2151,66 @@ class Decoder:
                 )
 
             case "udtf":
-                # TODO: SNOW-1830603 Implement UDTF decoding.
-                pass
+                comment = (
+                    expr.udtf.comment.value if expr.udtf.HasField("comment") else None
+                )
+                external_access_integrations = [
+                    eai for eai in expr.udtf.external_access_integrations
+                ]
+                handler, handler_name = self.decode_callable_expr(
+                    expr.udtf.handler, "udtf"
+                )
+                if_not_exists = expr.udtf.if_not_exists
+                immutable = expr.udtf.immutable
+                imports = [
+                    self.decode_name_expr(import_) for import_ in expr.udtf.imports
+                ]
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.udtf.input_types.list
+                ]
+                is_permanent = expr.udtf.is_permanent
+                kwargs = self.decode_dsl_map_expr(expr.udtf.kwargs)
+                if "copy_grants" in kwargs:
+                    kwargs.pop("copy_grants")
+                name = (
+                    self.decode_name_expr(expr.udtf.name)
+                    if expr.udtf.HasField("name")
+                    else None
+                )
+                output_schema = self.decode_udtf_schema(expr.udtf.output_schema)
+                packages = [package for package in expr.udtf.packages]
+                parallel = expr.udtf.parallel
+                replace = expr.udtf.replace
+                secrets = self.decode_dsl_map_expr(expr.udtf.secrets)
+                secure = expr.udtf.secure
+                stage_location = expr.udtf.stage_location
+                statement_params = self.decode_dsl_map_expr(expr.udtf.statement_params)
+                strict = expr.udtf.strict
+                # Run udtf to create the required AST but return the first registered version of the UDTF.
+                _ = udtf(
+                    handler,
+                    output_schema=output_schema,
+                    input_types=input_types,
+                    name=name,
+                    is_permanent=is_permanent,
+                    stage_location=stage_location,
+                    imports=imports,
+                    packages=packages,
+                    replace=replace,
+                    if_not_exists=if_not_exists,
+                    session=self.session,
+                    parallel=parallel,
+                    statement_params=statement_params,
+                    strict=strict,
+                    secure=secure,
+                    external_access_integrations=external_access_integrations,
+                    secrets=secrets,
+                    immutable=immutable,
+                    comment=comment,
+                    **kwargs,
+                )
+                return self.session._udtf_registration.get_udtf(handler_name)
 
             case "sp_dataframe_cross_join":
                 lhs = self.decode_expr(expr.sp_dataframe_cross_join.lhs)
