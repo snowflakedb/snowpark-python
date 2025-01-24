@@ -108,7 +108,7 @@ class PlanCompiler:
                 cte_start_time = time.time()
                 if session.cte_optimization_enabled:
                     repeated_subquery_eliminator = RepeatedSubqueryElimination(
-                        logical_plans, query_generator
+                        session, logical_plans, query_generator
                     )
                     elimination_result = repeated_subquery_eliminator.apply()
                     logical_plans = elimination_result.logical_plans
