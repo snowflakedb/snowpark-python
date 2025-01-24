@@ -21,6 +21,7 @@ import string
 import sys
 import threading
 import traceback
+import uuid
 import zipfile
 from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache
@@ -50,12 +51,15 @@ from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
+
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -1469,3 +1473,63 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+
+def merge_multiple_snowflake_plan_expr_to_alias(
+    snowflake_plans: List["SnowflakePlan"],
+) -> Dict[uuid.UUID, str]:
+    """
+    Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
+    from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+    from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+
+    # Gather all expression-to-alias mappings
+    all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
+    # Initialize the merged dictionary
+    merged_dict = {}
+    # Collect all unique keys from all dictionaries
+    all_keys = set().union(*all_expr_to_alias_dicts)
+
+    conflicted_keys = {}
+
+    for key in all_keys:
+        # Gather all aliases for the current key
+        values = [d[key] for d in all_expr_to_alias_dicts if key in d]
+        # Check if all aliases are identical
+        if len(set(values)) == 1:
+            merged_dict[key] = values[0]
+        else:
+            conflicted_keys[key] = values
+
+    if not conflicted_keys:
+        return merged_dict
+
+    for key in conflicted_keys:
+        candidate = None
+        for plan in [plan for plan in snowflake_plans if plan.source_plan]:
+            projection_list = []
+            if isinstance(plan.source_plan, SelectStatement):
+                projection_list = plan.source_plan.projection or []
+            elif isinstance(plan.source_plan, Project):
+                projection_list = plan.source_plan.project_list or []
+            # We don't have other types of plans that can have projections
+
+            for project in projection_list:
+                if (
+                    isinstance(project, Alias)
+                    and getattr(project.child, "expr_id", None) == key
+                    and project.name in conflicted_keys[key]
+                ):
+                    if candidate is None:
+                        candidate = project.name
+                    else:
+                        # the candidate shows up in multiple outputs, so we can't resolve the conflict
+                        candidate = None
+                        break
+        # the candidate only shows up in one output, so we can resolve the conflict
+        if candidate:
+            merged_dict[key] = candidate
+
+    return merged_dict
