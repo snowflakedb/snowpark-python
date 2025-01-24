@@ -138,7 +138,6 @@ from snowflake.snowpark._internal.utils import (
     AstFlagSource,
 )
 from snowflake.snowpark.async_job import AsyncJob
-from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -738,8 +737,10 @@ class Session:
 
     @property
     @experimental(version="1.27.0")
-    def catalog(self) -> Catalog:
-        """Returns the catalog object."""
+    def catalog(self):
+        """Returns a :class:`Catalog` object rooted on current session."""
+        from snowflake.snowpark.catalog import Catalog
+
         if self._catalog is None:
             if isinstance(self._conn, MockServerConnection):
                 self._conn.log_not_supported_error(
