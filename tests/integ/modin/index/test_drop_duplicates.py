@@ -70,6 +70,7 @@ def test_drop_duplicates_default_keep():
 @sql_count_checker(query_count=0, join_count=0)
 def test_drop_duplicates_invalid_keep():
     snow_idx = pd.Index(["a", "b", "b", "c", "a"], name="name")
-    with pytest.raises(ValueError) as ex_info:
+    with pytest.raises(
+        ValueError, match='keep must be either "first", "last" or False'
+    ):
         snow_idx.drop_duplicates(keep="invalid")
-    assert 'keep must be either "first", "last" or False' in str(ex_info)
