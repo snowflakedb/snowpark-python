@@ -189,6 +189,7 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
             "python_version": ANY,
             "operating_system": ANY,
             "type": "test_send_type",
+            "interactive": ANY,
             "data": {
                 "func_name": "test_send_func",
                 "category": "snowpark_pandas",
