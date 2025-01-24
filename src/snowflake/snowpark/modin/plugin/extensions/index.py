@@ -534,7 +534,9 @@ class Index(metaclass=TelemetryMeta):
         pass  # pragma: no cover
 
     def drop_duplicates(self, keep="first") -> None:
-        return self.to_series().drop_duplicates(keep=keep).index
+        if keep not in ("first", "last", False):
+            raise ValueError('keep must be either "first", "last" or False')
+        return self.__constructor__(self.to_series().drop_duplicates(keep=keep))
 
     @index_not_implemented()
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:
