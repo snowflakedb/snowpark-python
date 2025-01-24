@@ -5,8 +5,14 @@
 import decimal
 from _decimal import Decimal
 import datetime
+from unittest import mock
 from unittest.mock import MagicMock
 import pytest
+
+from snowflake.snowpark.dataframe_reader import (
+    task_fetch_from_data_source_with_retry,
+    MAX_RETRY_TIME,
+)
 
 SQL_SERVER_TABLE_NAME = "RandomDataWith100Columns"
 
@@ -694,3 +700,24 @@ def create_connection():
 def test_dbapi_with_temp_table(session):
     df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME, max_workers=4)
     assert df.collect() == rows
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="feature not available in local testing",
+)
+def test_dbapi_retry(session):
+
+    with mock.patch(
+        "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
+        side_effect=Exception("Test error"),
+    ) as mock_task:
+        result = task_fetch_from_data_source_with_retry(
+            create_connection=create_connection,
+            query="SELECT * FROM test_table",
+            schema=(("col1", int, 0, 0, 0, 0, False),),
+            i=0,
+            tmp_dir="/tmp",
+        )
+        assert mock_task.call_count == MAX_RETRY_TIME
+        assert isinstance(result, Exception)
