@@ -232,12 +232,12 @@ def session(
     unparser_jar,
 ):
     set_ast_state(AstFlagSource.TEST, ast_enabled)
-    rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
-    rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
-    key1 = f"key1{Utils.random_alphanumeric_str(10)}"
-    key2 = f"key2{Utils.random_alphanumeric_str(10)}"
-    integration1 = f"integration1_{Utils.random_alphanumeric_str(10)}"
-    integration2 = f"integration2_{Utils.random_alphanumeric_str(10)}"
+    rule1 = f"rule1{Utils.random_alphanumeric_str(1)}"
+    rule2 = f"rule2{Utils.random_alphanumeric_str(1)}"
+    key1 = f"key1{Utils.random_alphanumeric_str(1)}"
+    key2 = f"key2{Utils.random_alphanumeric_str(1)}"
+    integration1 = f"integration1_{Utils.random_alphanumeric_str(1)}"
+    integration2 = f"integration2_{Utils.random_alphanumeric_str(1)}"
 
     session = (
         Session.builder.configs(db_parameters)
@@ -280,12 +280,12 @@ def profiler_session(
     local_testing_mode,
     cte_optimization_enabled,
 ):
-    rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
-    rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
-    key1 = f"key1{Utils.random_alphanumeric_str(10)}"
-    key2 = f"key2{Utils.random_alphanumeric_str(10)}"
-    integration1 = f"integration1_{Utils.random_alphanumeric_str(10)}"
-    integration2 = f"integration2_{Utils.random_alphanumeric_str(10)}"
+    rule1 = f"rule1{Utils.random_alphanumeric_str(1)}"
+    rule2 = f"rule2{Utils.random_alphanumeric_str(1)}"
+    key1 = f"key1{Utils.random_alphanumeric_str(1)}"
+    key2 = f"key2{Utils.random_alphanumeric_str(1)}"
+    integration1 = f"integration1_{Utils.random_alphanumeric_str(1)}"
+    integration2 = f"integration2_{Utils.random_alphanumeric_str(1)}"
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
