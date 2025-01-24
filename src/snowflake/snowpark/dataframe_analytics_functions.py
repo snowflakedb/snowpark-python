@@ -5,9 +5,9 @@
 from typing import Callable, Dict, List, Tuple, Union
 
 import snowflake.snowpark
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
+    make_proto_tuple_string_list_string,
     with_src_position,
 )
 from snowflake.snowpark._internal.utils import experimental, publicapi
@@ -349,7 +349,7 @@ class DataFrameAnalyticsFunctions:
             ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
-                agg_func_tuple_ast = proto.Tuple_String_List_String()
+                agg_func_tuple_ast = make_proto_tuple_string_list_string()
                 agg_func_tuple_ast._1 = col_name
                 agg_func_tuple_ast._2.extend(agg_funcs)
                 ast.aggs.append(agg_func_tuple_ast)
@@ -462,7 +462,7 @@ class DataFrameAnalyticsFunctions:
             )
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
-                agg_func_tuple_ast = proto.Tuple_String_List_String()
+                agg_func_tuple_ast = make_proto_tuple_string_list_string()
                 agg_func_tuple_ast._1 = col_name
                 agg_func_tuple_ast._2.extend(agg_funcs)
                 ast.aggs.append(agg_func_tuple_ast)
@@ -762,7 +762,7 @@ class DataFrameAnalyticsFunctions:
             )
             ast.time_col = time_col
             for col_name, agg_funcs in aggs.items():
-                agg_func_tuple_ast = proto.Tuple_String_List_String()
+                agg_func_tuple_ast = make_proto_tuple_string_list_string()
                 agg_func_tuple_ast._1 = col_name
                 agg_func_tuple_ast._2.extend(agg_funcs)
                 ast.aggs.append(agg_func_tuple_ast)

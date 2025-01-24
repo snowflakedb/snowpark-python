@@ -35,12 +35,11 @@ from typing import (
 
 import cloudpickle
 import pkg_resources
-
-import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.connector.pandas_tools import write_pandas
+
+import snowflake.snowpark.context as context
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
@@ -102,6 +101,7 @@ from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
+    AstFlagSource,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -117,6 +117,7 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     get_version,
     import_or_missing_modin_pandas,
+    is_ast_enabled,
     is_in_stored_procedure,
     normalize_local_file,
     normalize_remote_file_or_dir,
@@ -126,6 +127,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     quote_name,
     random_name_for_temp_object,
+    set_ast_state,
     strip_double_quotes_in_like_statement_in_table_name,
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
@@ -133,9 +135,6 @@ from snowflake.snowpark._internal.utils import (
     warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
-    set_ast_state,
-    is_ast_enabled,
-    AstFlagSource,
 )
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import Column
@@ -214,6 +213,8 @@ from snowflake.snowpark.udtf import UDTFRegistration
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
+
+    import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -657,7 +658,10 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._catalog = None
 
-        self._ast_batch = AstBatch(self)
+        if is_ast_enabled():
+            self._ast_batch = AstBatch(self)
+        else:
+            self._ast_batch = None
 
         _logger.info("Snowpark Session information: %s", self._session_info)
 
@@ -2564,7 +2568,7 @@ class Session:
         self,
         query: str,
         params: Optional[Sequence[Any]] = None,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: "proto.Assign" = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
