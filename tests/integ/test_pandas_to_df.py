@@ -444,7 +444,11 @@ def test_write_pandas_with_timestamps(session, local_testing_mode):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         try:
             session.write_pandas(
-                pd, table_name, auto_create_table=True, table_type="temp"
+                pd,
+                table_name,
+                auto_create_table=True,
+                table_type="temp",
+                use_logical_type=True,
             )
             data = session.sql(f'select * from "{table_name}"').collect()
             assert data[0]["tm_tz"] is not None
@@ -738,10 +742,7 @@ def test_create_from_pandas_datetime_types(session):
             )
         }
     )
-    sp_df = session.create_dataframe(
-        data=pandas_df,
-        schema=StructType([StructField("a", TimestampType(TimestampTimeZone.NTZ))]),
-    )
+    sp_df = session.create_dataframe(data=pandas_df)
     assert (
         str(sp_df.schema)
         == "StructType([StructField('A', TimestampType(tz=ntz), nullable=True)])"
