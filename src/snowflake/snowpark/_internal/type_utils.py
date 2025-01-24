@@ -1092,6 +1092,11 @@ def parse_struct_field_list(fields_str: str) -> Optional[StructType]:
         try:
             field_type = type_string_to_type_object(base_type_str)
         except ValueError as ex:
+            # Spark supports both `x: int` and `x int`. In our original implementation, we don't support x int,
+            # and will raise this error. However, handling space is tricky because we need to handle something like
+            # decimal(10, 2) containing space too, as a valid schema string (without a column name).
+            # Therefore, if this error is raised, we just catch it and return None, then in next step,
+            # we can process it again as a structured schema string (x int).
             if "is not a supported type" in str(ex):
                 return None
             raise ex
