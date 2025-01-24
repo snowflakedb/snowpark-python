@@ -428,6 +428,8 @@ class DataFrameStatFunctions:
                     df_aliased_col_name_to_real_col_name=self._dataframe._plan.df_aliased_col_name_to_real_col_name,
                 )
 
+            # Similar to how `Table.sample` is implemented, because SAMPLE clause does not support subqueries,
+            # we just use session.sql to compile a flat query
             res_df = reduce(
                 lambda x, y: x.union_all(y, _emit_ast=False),
                 [
