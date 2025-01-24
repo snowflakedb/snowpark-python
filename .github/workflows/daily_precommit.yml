@@ -4,7 +4,7 @@ name: Daily precommit test
 on:
   schedule:
     # 9 AM UTC
-    - cron: "0 9 * * *"
+    - cron: "0 10 * * *"
 
   workflow_dispatch:
       inputs:
