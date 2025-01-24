@@ -43,6 +43,7 @@
   - `try_to_binary`
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 - Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
+- Added support for `DataFrame.create_temp_view` to create a temporary view. It will fail if the view already exists.
 
 #### Experimental Features
 
