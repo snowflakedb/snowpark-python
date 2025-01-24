@@ -253,7 +253,7 @@ class Selectable(LogicalPlan, ABC):
     @property
     def analyzer(self) -> "Analyzer":
         """Get the analyzer for used for the current thread"""
-        if self._analyzer is None:
+        return self._analyzer or self._session._analyzer
             return self._session._analyzer
         return self._analyzer
 
