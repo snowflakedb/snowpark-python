@@ -595,6 +595,8 @@ def extract_return_input_types(
                 return True, False, res_return_type, res_input_types
         elif isinstance(
             return_type_from_type_hints, PandasDataFrameType
+        ) and not isinstance(
+            return_type, PandasDataFrameType
         ):  # vectorized UDTF
             return_type = PandasDataFrameType(
                 [x.datatype for x in return_type], [x.name for x in return_type]

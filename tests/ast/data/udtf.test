@@ -81,7 +81,7 @@ twox_udtf = udtf(
     input_types=[IntegerType()],
 )
 
-df.select(twox_udtf("a")).collect()
+df.select(session.table_function(twox_udtf("a"))[0]).collect()
 
 class TwoXSixXUDTF:
     def process(self, n: int):
@@ -95,9 +95,9 @@ twoxsix_udtf = udtf(
     input_types=[IntegerType()],
 )
 
-df.select(df.a, twoxsix_udtf(df.a)).collect()
+df.select(df.a, session.table_function(twoxsix_udtf(df.a))[0]).collect()
 
-df.select("a", twoxsix_udtf("a").alias("double", "six_x"), "c").collect()
+df.select("a", session.table_function(twoxsix_udtf("a"))[0].alias("six_x"), "c").collect()
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -107,7 +107,7 @@ session.table_function(prime_udtf(lit(20))).collect()
 
 df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
 
-df.with_column("total", udtf("sum_udtf", output_schema=StructType([StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"]).show()
+df.with_column("total", udtf("sum_udtf", output_schema=StructType([StructField("number", LongType(), nullable=True)], structured=False), input_types=[LongType(), LongType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")(df["a"], df["b"])).sort(df["a"], ascending=None).show()
 
 generator_udtf = udtf("GeneratorUDTF", output_schema=StructType([StructField("number", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
@@ -121,13 +121,13 @@ df = df.to_df(["a", "b", "c"])
 
 twox_udtf = udtf("TwoXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
-df.select((twox_udtf("a"))).collect()
+df.select(session.table_function(twox_udtf("a"))["TWO_X"]).collect()
 
 twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType([StructField("two_x", IntegerType(), nullable=True), StructField("six_x", IntegerType(), nullable=True)], structured=False), input_types=[IntegerType()], copy_grants=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".SNOWPARK_TEMP_TABLE_FUNCTION_xxx")
 
-df.select(df["a"], (twoxsix_udtf(df["a"]))).collect()
+df.select(df["a"], session.table_function(twoxsix_udtf(df["a"]))["TWO_X"]).collect()
 
-df.select(col("a"), (twoxsix_udtf("a").alias("double", "six_x")), col("c")).collect()
+df.select(col("a"), session.table_function(twoxsix_udtf("a"))["TWO_X"].alias("six_x"), col("c")).collect()
 
 ## EXPECTED ENCODED AST
 
@@ -166,13 +166,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "number"
+                  list {
+                    column_identifier {
+                      name: "number"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -350,13 +352,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "number"
+                  list {
+                    column_identifier {
+                      name: "number"
+                    }
+                    data_type {
+                      sp_long_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_long_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -535,6 +539,14 @@ body {
   assign {
     expr {
       sp_dataframe_sort {
+        ascending {
+          null_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 56
+            }
+          }
+        }
         cols {
           sp_dataframe_col {
             col_name: "a"
@@ -634,13 +646,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "number"
+                  list {
+                    column_identifier {
+                      name: "number"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -858,22 +872,24 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "a"
+                  list {
+                    column_identifier {
+                      name: "a"
+                    }
+                    data_type {
+                      sp_long_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_long_type: true
+                  list {
+                    column_identifier {
+                      name: "b"
+                    }
+                    data_type {
+                      sp_long_type: true
+                    }
+                    nullable: true
                   }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "b"
-                  }
-                  data_type {
-                    sp_long_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -1101,13 +1117,15 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "two_x"
+                  list {
+                    column_identifier {
+                      name: "two_x"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -1166,13 +1184,47 @@ body {
 body {
   assign {
     expr {
-      sp_dataframe_select__columns {
-        cols {
+      sp_session_table_function {
+        fn {
           apply_expr {
             fn {
               indirect_table_fn_id_ref {
                 id {
                   bitfield1: 21
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 106
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 106
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 22
+    var_id {
+      bitfield1: 22
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          sp_dataframe_col {
+            col_name: "TWO_X"
+            df {
+              sp_dataframe_ref {
+                id {
+                  bitfield1: 22
                 }
               }
             }
@@ -1198,9 +1250,9 @@ body {
     }
     symbol {
     }
-    uid: 22
+    uid: 23
     var_id {
-      bitfield1: 22
+      bitfield1: 23
     }
   }
 }
@@ -1211,7 +1263,7 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 22
+          bitfield1: 23
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1221,17 +1273,17 @@ body {
     }
     symbol {
     }
-    uid: 23
+    uid: 24
     var_id {
-      bitfield1: 23
+      bitfield1: 24
     }
   }
 }
 body {
   eval {
-    uid: 24
+    uid: 25
     var_id {
-      bitfield1: 23
+      bitfield1: 24
     }
   }
 }
@@ -1271,22 +1323,24 @@ body {
             return_type {
               sp_struct_type {
                 fields {
-                  column_identifier {
-                    name: "two_x"
+                  list {
+                    column_identifier {
+                      name: "two_x"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  data_type {
-                    sp_integer_type: true
+                  list {
+                    column_identifier {
+                      name: "six_x"
+                    }
+                    data_type {
+                      sp_integer_type: true
+                    }
+                    nullable: true
                   }
-                  nullable: true
-                }
-                fields {
-                  column_identifier {
-                    name: "six_x"
-                  }
-                  data_type {
-                    sp_integer_type: true
-                  }
-                  nullable: true
                 }
               }
             }
@@ -1302,9 +1356,9 @@ body {
     symbol {
       value: "twoxsix_udtf"
     }
-    uid: 25
+    uid: 26
     var_id {
-      bitfield1: 25
+      bitfield1: 26
     }
   }
 }
@@ -1315,7 +1369,7 @@ body {
         fn {
           sp_fn_ref {
             id {
-              bitfield1: 25
+              bitfield1: 26
             }
           }
         }
@@ -1343,9 +1397,42 @@ body {
     }
     symbol {
     }
-    uid: 26
+    uid: 27
     var_id {
-      bitfield1: 26
+      bitfield1: 27
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
+          apply_expr {
+            fn {
+              indirect_table_fn_id_ref {
+                id {
+                  bitfield1: 27
+                }
+              }
+            }
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 120
+            }
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 120
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 28
+    var_id {
+      bitfield1: 28
     }
   }
 }
@@ -1370,11 +1457,12 @@ body {
           }
         }
         cols {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
+          sp_dataframe_col {
+            col_name: "TWO_X"
+            df {
+              sp_dataframe_ref {
                 id {
-                  bitfield1: 26
+                  bitfield1: 28
                 }
               }
             }
@@ -1400,9 +1488,9 @@ body {
     }
     symbol {
     }
-    uid: 27
+    uid: 29
     var_id {
-      bitfield1: 27
+      bitfield1: 29
     }
   }
 }
@@ -1413,7 +1501,7 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 27
+          bitfield1: 29
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1423,61 +1511,65 @@ body {
     }
     symbol {
     }
-    uid: 28
+    uid: 30
     var_id {
-      bitfield1: 28
+      bitfield1: 30
     }
   }
 }
 body {
   eval {
-    uid: 29
+    uid: 31
     var_id {
-      bitfield1: 28
+      bitfield1: 30
     }
   }
 }
 body {
   assign {
     expr {
-      sp_table_fn_call_alias {
-        aliases {
-          args {
-            string_val {
-              src {
-                file: "SRC_POSITION_TEST_MODE"
-                start_line: 122
-              }
-              v: "double"
+      apply_expr {
+        fn {
+          sp_fn_ref {
+            id {
+              bitfield1: 26
             }
           }
-          args {
-            string_val {
-              src {
-                file: "SRC_POSITION_TEST_MODE"
-                start_line: 122
-              }
-              v: "six_x"
-            }
-          }
-          variadic: true
         }
-        lhs {
+        pos_args {
+          string_val {
+            src {
+              file: "SRC_POSITION_TEST_MODE"
+              start_line: 122
+            }
+            v: "a"
+          }
+        }
+        src {
+          file: "SRC_POSITION_TEST_MODE"
+          start_line: 122
+        }
+      }
+    }
+    symbol {
+    }
+    uid: 32
+    var_id {
+      bitfield1: 32
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_session_table_function {
+        fn {
           apply_expr {
             fn {
-              sp_fn_ref {
+              indirect_table_fn_id_ref {
                 id {
-                  bitfield1: 25
+                  bitfield1: 32
                 }
-              }
-            }
-            pos_args {
-              string_val {
-                src {
-                  file: "SRC_POSITION_TEST_MODE"
-                  start_line: 122
-                }
-                v: "a"
               }
             }
             src {
@@ -1494,9 +1586,9 @@ body {
     }
     symbol {
     }
-    uid: 30
+    uid: 33
     var_id {
-      bitfield1: 30
+      bitfield1: 33
     }
   }
 }
@@ -1533,14 +1625,27 @@ body {
           }
         }
         cols {
-          apply_expr {
-            fn {
-              indirect_table_fn_id_ref {
-                id {
-                  bitfield1: 30
+          sp_column_alias {
+            col {
+              sp_dataframe_col {
+                col_name: "TWO_X"
+                df {
+                  sp_dataframe_ref {
+                    id {
+                      bitfield1: 33
+                    }
+                  }
+                }
+                src {
+                  file: "SRC_POSITION_TEST_MODE"
+                  start_line: 122
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_alias: true
+            }
+            name: "six_x"
             src {
               file: "SRC_POSITION_TEST_MODE"
               start_line: 122
@@ -1591,9 +1696,9 @@ body {
     }
     symbol {
     }
-    uid: 31
+    uid: 34
     var_id {
-      bitfield1: 31
+      bitfield1: 34
     }
   }
 }
@@ -1604,7 +1709,7 @@ body {
         block: true
         case_sensitive: true
         id {
-          bitfield1: 31
+          bitfield1: 34
         }
         src {
           file: "SRC_POSITION_TEST_MODE"
@@ -1614,17 +1719,17 @@ body {
     }
     symbol {
     }
-    uid: 32
+    uid: 35
     var_id {
-      bitfield1: 32
+      bitfield1: 35
     }
   }
 }
 body {
   eval {
-    uid: 33
+    uid: 36
     var_id {
-      bitfield1: 32
+      bitfield1: 35
     }
   }
 }
