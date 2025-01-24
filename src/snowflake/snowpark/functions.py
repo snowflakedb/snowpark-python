@@ -7195,8 +7195,8 @@ def map_cat(
         |}                        |
         ---------------------------
         <BLANKLINE>
-        >> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B, {'k3': 'v3'} :: MAP(STRING,STRING) as C")
-        >> df.select(map_cat("A", "B", "C")).show()
+        >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B, {'k3': 'v3'} :: MAP(STRING,STRING) as C")
+        >>> df.select(map_cat("A", "B", "C")).show()
         -------------------------------------------
         |"MAP_CAT(MAP_CAT(""A"", ""B""), ""C"")"  |
         -------------------------------------------
@@ -11248,13 +11248,13 @@ def editdistance(
         ...     schema=["s1", "s2"]
         ... )
         >>> df.select(
-        ...     edit_distance(col("s1"), col("s2")).alias("distance"),
-        ...     edit_distance(col("s1"), col("s2"), 2).alias("max_2_distance")
+        ...     editdistance(col("s1"), col("s2")).alias("distance"),
+        ...     editdistance(col("s1"), col("s2"), 2).alias("max_2_distance")
         ... ).collect()
         [Row(DISTANCE=3, MAX_2_DISTANCE=2), Row(DISTANCE=3, MAX_2_DISTANCE=2), Row(DISTANCE=5, MAX_2_DISTANCE=2)]
     """
-    s1 = _to_col_if_str(string_expr1, "edit_distance")
-    s2 = _to_col_if_str(string_expr2, "edit_distance")
+    s1 = _to_col_if_str(string_expr1, "editdistance")
+    s2 = _to_col_if_str(string_expr2, "editdistance")
 
     args = [s1, s2]
     if max_distance is not None:
