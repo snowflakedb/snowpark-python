@@ -721,3 +721,15 @@ def test_dbapi_retry(session):
         )
         assert mock_task.call_count == MAX_RETRY_TIME
         assert isinstance(result, Exception)
+
+    with mock.patch(
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_rename",
+        side_effect=Exception("Test error"),
+    ) as mock_task:
+        result = session.read.upload_and_copy_into_table_with_rename_with_retry(
+            local_file="fake_file",
+            snowflake_stage_name="fake_stage",
+            snowflake_table_name="fake_table",
+        )
+        assert mock_task.call_count == MAX_RETRY_TIME
+        assert isinstance(result, Exception)
