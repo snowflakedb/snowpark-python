@@ -59,6 +59,7 @@
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
 - Added support for `value_contains_null` parameter to MapType.
+- Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
 
 #### Bug Fixes
 

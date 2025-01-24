@@ -24,6 +24,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import RUNNING_ON_GH
 
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list
 BASIC_DATA_FUNC_PYTHON_RETURN_TYPE_MAP = [
@@ -352,6 +353,7 @@ def test_axis_0_return_list():
     )
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 @pytest.mark.parametrize(
     "apply_func",
     [
@@ -655,6 +657,7 @@ def test_apply_nested_series_negative():
 import scipy.stats  # noqa: E402
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [
