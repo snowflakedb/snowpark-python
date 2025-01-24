@@ -1520,6 +1520,10 @@ def test_type_string_to_type_object_number_decimal():
     assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
     assert dt.precision == 10, f"Expected precision=10, got {dt.precision}"
     assert dt.scale == 2, f"Expected scale=2, got {dt.scale}"
+    dt = type_string_to_type_object("decimal")
+    assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
+    assert dt.precision == 38, f"Expected precision=38, got {dt.precision}"
+    assert dt.scale == 0, f"Expected scale=0, got {dt.scale}"
 
 
 def test_type_string_to_type_object_numeric_decimal():
@@ -1551,6 +1555,21 @@ def test_type_string_to_type_object_text_with_length():
     assert isinstance(dt, StringType), f"Expected StringType, got {dt}"
     if hasattr(dt, "length"):
         assert dt.length == 100, f"Expected length=100, got {dt.length}"
+
+
+def test_type_string_to_type_object_timestamp():
+    dt = type_string_to_type_object("timestamp")
+    assert isinstance(dt, TimestampType)
+    assert dt.tz == TimestampTimeZone.DEFAULT
+    dt = type_string_to_type_object("timestamp_ntz")
+    assert isinstance(dt, TimestampType)
+    assert dt.tz == TimestampTimeZone.NTZ
+    dt = type_string_to_type_object("timestamp_tz")
+    assert isinstance(dt, TimestampType)
+    assert dt.tz == TimestampTimeZone.TZ
+    dt = type_string_to_type_object("timestamp_ltz")
+    assert isinstance(dt, TimestampType)
+    assert dt.tz == TimestampTimeZone.LTZ
 
 
 def test_type_string_to_type_object_array_of_int():
@@ -1776,8 +1795,18 @@ def test_type_string_to_type_object_implicit_struct_with_spaces():
     ), f"Expected {expected_field_col2}, got {dt.fields[1]}"
 
 
-def test_dsad():
-    print(type_string_to_type_object("arr array<string> not null"))
+def test_type_string_to_type_object_implicit_struct_inner_colon():
+    dt = type_string_to_type_object("struct struct<i: integer not null>")
+    assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
+    assert len(dt.fields) == 1, f"Expected 1 field, got {len(dt.fields)}"
+    expected_field_i = StructField(
+        "STRUCT",
+        StructType([StructField("I", IntegerType(), nullable=False)]),
+        nullable=True,
+    )
+    assert (
+        dt.fields[0] == expected_field_i
+    ), f"Expected {expected_field_i}, got {dt.fields[0]}"
 
 
 def test_type_string_to_type_object_implicit_struct_error():

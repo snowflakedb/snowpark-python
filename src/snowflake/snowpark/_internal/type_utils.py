@@ -10,6 +10,7 @@ import ast
 import ctypes
 import datetime
 import decimal
+import functools
 import re
 import sys
 import typing  # noqa: F401
@@ -966,8 +967,18 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["byteint"] = ByteType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["bigint"] = LongType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["number"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["numeric"] = DecimalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["decimal"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["object"] = MapType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["array"] = ArrayType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ntz"] = functools.partial(
+    TimestampType, timezone=TimestampTimeZone.NTZ
+)
+DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_tz"] = functools.partial(
+    TimestampType, timezone=TimestampTimeZone.TZ
+)
+DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
+    TimestampType, timezone=TimestampTimeZone.LTZ
+)
 
 DECIMAL_RE = re.compile(
     r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
@@ -1064,6 +1075,27 @@ def extract_nullable_keyword(type_str: str) -> Tuple[str, bool]:
     return trimmed, True
 
 
+def find_top_level_colon(field_def: str) -> int:
+    """
+    Returns the index of the first top-level colon in 'field_def',
+    or -1 if there is no top-level colon. A colon is considered top-level
+    if it is not enclosed in <...> or (...).
+
+    Example:
+      'a struct<i: integer>' => returns -1 (colon is nested).
+      'x: struct<i: integer>' => returns index of the colon after 'x'.
+    """
+    bracket_depth = 0
+    for i, ch in enumerate(field_def):
+        if ch in ("<", "("):
+            bracket_depth += 1
+        elif ch in (">", ")"):
+            bracket_depth -= 1
+        elif ch == ":" and bracket_depth == 0:
+            return i
+    return -1
+
+
 def parse_struct_field_list(fields_str: str) -> Optional[StructType]:
     """
     Parse something like "a: int, b: string, c: array<int>"
@@ -1072,10 +1104,14 @@ def parse_struct_field_list(fields_str: str) -> Optional[StructType]:
     fields = []
     field_defs = split_top_level_comma_fields(fields_str)
     for field_def in field_defs:
-        # Try splitting on colon first, else whitespace
-        if ":" in field_def:
-            left, right = field_def.split(":", 1)
+        # Find first top-level colon (if any)
+        colon_index = find_top_level_colon(field_def)
+        if colon_index != -1:
+            # We found a top-level colon => split on it
+            left = field_def[:colon_index]
+            right = field_def[colon_index + 1 :]
         else:
+            # No top-level colon => fallback to whitespace-based split
             parts = field_def.split(None, 1)
             if len(parts) != 2:
                 raise ValueError(f"Cannot parse struct field definition: '{field_def}'")
