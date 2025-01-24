@@ -1490,10 +1490,14 @@ def clear_symbols_and_udfs(message: proto.Request) -> None:
     for stmt in message.body:
         if hasattr(stmt, "assign"):
             stmt.assign.ClearField("symbol")
-        if str(stmt.assign.expr.udf):
-            stmt.assign.expr.ClearField("udf")
-        if str(stmt.assign.expr.stored_procedure):
-            stmt.assign.expr.ClearField("stored_procedure")
+            if str(stmt.assign.expr.udf):
+                stmt.assign.expr.ClearField("udf")
+            if str(stmt.assign.expr.stored_procedure):
+                stmt.assign.ClearField("expr")
+            if str(stmt.assign.expr.apply_expr):
+                if str(stmt.assign.expr.apply_expr.fn):
+                    if str(stmt.assign.expr.apply_expr.fn.stored_procedure):
+                        stmt.assign.ClearField("expr")
 
 
 def base64_str_to_request(base64_str: str) -> proto.Request:

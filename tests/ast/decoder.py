@@ -551,8 +551,6 @@ class Decoder:
         return statement_params
 
     def decode_expr(self, expr: proto.Expr, **kwargs) -> Any:
-        if not hasattr(expr, "WhichOneof"):
-            breakpoint()
         match expr.WhichOneof("variant"):
             # COLUMN BINARY OPERATIONS
             case "add":
@@ -614,13 +612,18 @@ class Decoder:
                                     fn_name, *pos_args, **named_args
                                 )
                         case "stored_procedure":
-                            return self.session.call(fn_name, *pos_args, **named_args)
+                            self.session._ast_batch.assign()
+                            return None
+                            # return self.session.call(fn_name, *pos_args, **named_args, _emit_ast=False)
 
                         case _:
                             raise ValueError(
                                 "Unknown function reference type: %s"
                                 % expr.apply_expr.fn.WhichOneof("variant")
                             )
+
+                if isinstance(fn, snowflake.snowpark.stored_procedure.StoredProcedure):
+                    return None
 
                 result = fn(*pos_args, **named_args)
                 if hasattr(expr, "var_id"):
@@ -1646,7 +1649,6 @@ class Decoder:
                 return self.decode_expr(expr.sp_session_table_function.fn, **kwargs)
 
             case "sp_table":
-                breakpoint()
                 assert expr.sp_table.HasField("name")
                 table_name = self.decode_name_expr(expr.sp_table.name)
                 is_temp_table_for_cleanup = expr.sp_table.is_temp_table_for_cleanup
@@ -1957,29 +1959,31 @@ class Decoder:
                 return df.write
 
             case "stored_procedure":
-                input_types = [
-                    self.decode_data_type_expr(input_type)
-                    for input_type in expr.stored_procedure.input_types.list
-                ]
-                execute_as = expr.stored_procedure.execute_as
-                comment = expr.stored_procedure.comment.value
+                self.session._ast_batch.assign()
                 registered_object_name = self.decode_name_expr(
                     expr.stored_procedure.func.object_name
                 )
-                return_type = self.decode_data_type_expr(
-                    expr.stored_procedure.return_type
-                )
-                name = self.decode_name_expr(expr.stored_procedure.name)
-                ret_sproc = sproc(
-                    self.session.sproc._registry[registered_object_name],
-                    name=name,
-                    return_type=return_type,
-                    input_types=input_types,
-                    execute_as=execute_as,
-                    comment=comment,
-                    _registered_object_name=registered_object_name,
-                )
-                return ret_sproc
+                return self.session.sproc._registry[registered_object_name]
+                """input_types = [
+                        self.decode_data_type_expr(input_type)
+                        for input_type in expr.stored_procedure.input_types.list
+                    ]
+                    execute_as = expr.stored_procedure.execute_as
+                    comment = expr.stored_procedure.comment.value
+                    return_type = self.decode_data_type_expr(
+                        expr.stored_procedure.return_type
+                    )
+                    name = self.decode_name_expr(expr.stored_procedure.name)
+                    ret_sproc = sproc(
+                        self.session.sproc._registry[registered_object_name],
+                        name=name,
+                        return_type=return_type,
+                        input_types=input_types,
+                        execute_as=execute_as,
+                        comment=comment,
+                        _registered_object_name=registered_object_name,
+                    )
+                    return ret_sproc"""
 
             case "sp_flatten":
                 input = self.decode_expr(expr.sp_flatten.input)
@@ -2023,7 +2027,7 @@ class Decoder:
                     )
 
             case "sp_sql":
-                params = [self.decode_expr(param) for parm in expr.sp_sql.params]
+                params = [self.decode_expr(param) for param in expr.sp_sql.params]
                 query = expr.sp_sql.query
                 return self.session.sql(query=query, params=params)
 
@@ -2045,8 +2049,8 @@ class Decoder:
                     case "sp_save_mode_error_if_exists":
                         mode = "error_if_exists"
 
-                    case "sp_save_mode_truncate":
-                        mode = "truncate"
+                    case "sp_save_mode_ignore":
+                        mode = "ignore"
 
                     case "_":
                         mode = None
