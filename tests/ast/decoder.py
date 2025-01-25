@@ -188,6 +188,59 @@ class Decoder:
             col_list = [self.decode_expr(arg) for arg in expr]
         return col_list
 
+    def decode_dataframe_reader_expr(self, df_reader_expr: proto.SpDataframeReader):
+        """
+        Decode a dataframe reader expression to get the dataframe.
+
+        Parameters
+        ----------
+        df_reader_expr : proto.SpDataframeReader
+            The expression to decode.
+
+        """
+        match df_reader_expr.WhichOneof("variant"):
+            case "sp_dataframe_reader_init":
+                return self.session.read
+            case "sp_dataframe_reader_option":
+                reader = self.decode_dataframe_reader_expr(
+                    df_reader_expr.sp_dataframe_reader_option.reader
+                )
+                key = df_reader_expr.sp_dataframe_reader_option.key
+                value = self.decode_expr(
+                    df_reader_expr.sp_dataframe_reader_option.value
+                )
+                return reader.option(key, value)
+            case "sp_dataframe_reader_options":
+                reader = self.decode_dataframe_reader_expr(
+                    df_reader_expr.sp_dataframe_reader_options.reader
+                )
+                configs = self.decode_dsl_map_expr(
+                    df_reader_expr.sp_dataframe_reader_options.configs
+                )
+                return reader.options(configs)
+            case "sp_dataframe_reader_schema":
+                reader = self.decode_dataframe_reader_expr(
+                    df_reader_expr.sp_dataframe_reader_schema.reader
+                )
+                schema = self.decode_struct_type_expr(
+                    df_reader_expr.sp_dataframe_reader_schema.schema
+                )
+                return reader.schema(schema)
+            case "sp_dataframe_reader_with_metadata":
+                reader = self.decode_dataframe_reader_expr(
+                    df_reader_expr.sp_dataframe_reader_with_metadata.reader
+                )
+                metadata_columns = [
+                    self.decode_expr(arg)
+                    for arg in df_reader_expr.sp_dataframe_reader_with_metadata.metadata_columns.args
+                ]
+                return reader.with_metadata(*metadata_columns)
+            case _:
+                raise ValueError(
+                    "Unknown dataframe reader type: %s"
+                    % df_reader_expr.WhichOneof("variant")
+                )
+
     def decode_dsl_map_expr(self, map_expr: Iterable) -> dict:
         """
         Given a map expression, return the result as a Python dictionary.
@@ -465,9 +518,8 @@ class Decoder:
                 return ShortType()
             case "sp_string_type":
                 length = (
-                    data_type_expr.sp_string_type.length
+                    data_type_expr.sp_string_type.length.value
                     if data_type_expr.sp_string_type.HasField("length")
-                    and isinstance(data_type_expr.sp_string_type.length, int)
                     else None
                 )
                 return StringType(length)
@@ -487,7 +539,10 @@ class Decoder:
                     for field in data_type_expr.sp_struct_type.fields.list:
                         column_identifier = field.column_identifier.name
                         data_type = self.decode_data_type_expr(field.data_type)
-                        fields.append(StructField(column_identifier, data_type))
+                        nullable = field.nullable
+                        fields.append(
+                            StructField(column_identifier, data_type, nullable)
+                        )
                 else:
                     fields = None
                 structured = data_type_expr.sp_struct_type.structured
@@ -2511,6 +2566,36 @@ class Decoder:
                     statement_params=statement_params,
                     iceberg_config=iceberg_config,
                 )
+
+            case "sp_read_avro":
+                path = expr.sp_read_avro.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_avro.reader)
+                return reader.avro(path)
+
+            case "sp_read_csv":
+                path = expr.sp_read_csv.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_csv.reader)
+                return reader.csv(path)
+
+            case "sp_read_json":
+                path = expr.sp_read_json.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_json.reader)
+                return reader.json(path)
+
+            case "sp_read_orc":
+                path = expr.sp_read_orc.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_orc.reader)
+                return reader.orc(path)
+
+            case "sp_read_parquet":
+                path = expr.sp_read_parquet.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_parquet.reader)
+                return reader.parquet(path)
+
+            case "sp_read_xml":
+                path = expr.sp_read_xml.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_xml.reader)
+                return reader.xml(path)
 
             case "sp_dataframe_write":
                 df = self.decode_expr(expr.sp_dataframe_write.df)
