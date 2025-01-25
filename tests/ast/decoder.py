@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from pandas import DataFrame as PandasDataFrame
 
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark.window import WindowSpec, Window, WindowRelativePosition
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
@@ -319,8 +320,8 @@ class Decoder:
                 else:
                     return []
             case "sp_dataframe_data__pandas":
-                # We don't know what pandas DataFrame was passed in, return an empty one.
-                return PandasDataFrame()
+                # We don't know what pandas DataFrame was passed in, return a non-empty one.
+                return PandasDataFrame({"A": ["1", "2"], "B": [4, 5]})
             # case "sp_dataframe_data__tuple":
             #     pass
             case _:
@@ -588,6 +589,36 @@ class Decoder:
                 raise ValueError(
                     "Unknown pivot value: %s"
                     % pivot_value_expr.WhichOneof("sealed_value")
+                )
+
+    def decode_save_mode(self, save_mode: proto.SpSaveMode) -> str:
+        """
+        Decode a save mode expression to get the save mode.
+
+        Parameters
+        ----------
+        save_mode : proto.SpSaveMode
+            The expression to decode.
+
+        Returns
+        -------
+        str
+            The decoded save mode.
+        """
+        match save_mode.WhichOneof("variant"):
+            case "sp_save_mode_append":
+                return "append"
+            case "sp_save_mode_error_if_exists":
+                return "errorifexists"
+            case "sp_save_mode_ignore":
+                return "ignore"
+            case "sp_save_mode_overwrite":
+                return "overwrite"
+            case "sp_save_mode_truncate":
+                return "truncate"
+            case _:
+                raise ValueError(
+                    "Unknown save mode: %s" % save_mode.WhichOneof("variant")
                 )
 
     def decode_struct_type_expr(
@@ -1047,12 +1078,12 @@ class Decoder:
                 rhs = self.decode_expr(expr.sp_column_equal_null.rhs)
                 return lhs.equal_null(rhs)
 
-            case "sp_column_in__seq":
-                col = self.decode_expr(expr.sp_column_in__seq.col)
-                if isinstance(expr.sp_column_in__seq.values, Iterable):
+            case "sp_column_in":
+                col = self.decode_expr(expr.sp_column_in.col)
+                if isinstance(expr.sp_column_in.values, Iterable):
                     # The values should be passed in as positional arguments and not as a list.
                     return col.in_(
-                        self.decode_expr(v) for v in expr.sp_column_in__seq.values
+                        *[self.decode_expr(v) for v in expr.sp_column_in.values]
                     )
                 else:
                     # The list case should be taken care of in this branch.
@@ -1089,13 +1120,17 @@ class Decoder:
             case "sp_column_string_regexp":
                 col = self.decode_expr(expr.sp_column_string_regexp.col)
                 pattern = self.decode_expr(expr.sp_column_string_regexp.pattern)
-                parameters = self.decode_expr(expr.sp_column_string_regexp.parameters)
+                parameters = (
+                    self.decode_expr(expr.sp_column_string_regexp.parameters)
+                    if expr.sp_column_string_regexp.HasField("parameters")
+                    else None
+                )
                 return col.regexp(pattern, parameters)
 
             case "sp_column_string_starts_with":
                 col = self.decode_expr(expr.sp_column_string_starts_with.col)
                 prefix = self.decode_expr(expr.sp_column_string_starts_with.prefix)
-                return col.starts_with(prefix)
+                return col.startswith(prefix)
 
             case "sp_column_string_substr":
                 col = self.decode_expr(expr.sp_column_string_substr.col)
@@ -1106,7 +1141,7 @@ class Decoder:
             case "sp_column_string_ends_with":
                 col = self.decode_expr(expr.sp_column_string_ends_with.col)
                 suffix = self.decode_expr(expr.sp_column_string_ends_with.suffix)
-                return col.ends_with(suffix)
+                return col.endswith(suffix)
 
             case "sp_column_string_collate":
                 col = self.decode_expr(expr.sp_column_string_collate.col)
@@ -1195,10 +1230,9 @@ class Decoder:
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
                 data = self.decode_dataframe_data_expr(expr.sp_create_dataframe.data)
-                d = MessageToDict(expr.sp_create_dataframe)
                 schema = (
                     self.decode_dataframe_schema_expr(expr.sp_create_dataframe.schema)
-                    if "schema" in d
+                    if expr.sp_create_dataframe.HasField("schema")
                     else None
                 )
                 df = self.session.create_dataframe(data=data, schema=schema)
@@ -1342,10 +1376,10 @@ class Decoder:
                     )
 
             case "sp_dataframe_count":
-                df = self.decode_expr(expr.sp_dataframe_first.df)
+                df = self.symbol_table[expr.sp_dataframe_count.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_count)
                 statement_params = self.get_statement_params(d)
-                block = d["block"]
+                block = d.get("block", False)
                 return df.count(
                     statement_params=statement_params,
                     block=block,
@@ -2311,7 +2345,206 @@ class Decoder:
 
             case "sp_dataframe_write":
                 df = self.decode_expr(expr.sp_dataframe_write.df)
-                return df.write
+                res = df.write
+                if expr.sp_dataframe_write.HasField("partition_by"):
+                    partition_by = self.decode_expr(
+                        expr.sp_dataframe_write.partition_by
+                    )
+                    res = res.partition_by(partition_by)
+                if expr.sp_dataframe_write.HasField("save_mode"):
+                    save_mode = self.decode_save_mode(expr.sp_dataframe_write.save_mode)
+                    res = res.mode(save_mode)
+                options = self.decode_dsl_map_expr(expr.sp_dataframe_write.options)
+                if options:
+                    res = res.options(**options)
+                return res
+
+            case "sp_write_copy_into_location":
+                df = self.symbol_table[expr.sp_write_copy_into_location.id.bitfield1][1]
+                block = expr.sp_write_copy_into_location.block
+                copy_options = self.decode_dsl_map_expr(
+                    expr.sp_write_copy_into_location.copy_options
+                )
+                d = MessageToDict(expr.sp_write_copy_into_location)
+                file_format_name = d.get("fileFormatName", None)
+                file_format_type = d.get("fileFormatType", None)
+                format_type_options = (
+                    self.decode_dsl_map_expr(
+                        expr.sp_write_copy_into_location.format_type_options
+                    )
+                    if "formatTypeOptions" in d
+                    else None
+                )
+                header = expr.sp_write_copy_into_location.header
+                location = expr.sp_write_copy_into_location.location
+                partition_by = (
+                    self.decode_expr(expr.sp_write_copy_into_location.partition_by)
+                    if expr.sp_write_copy_into_location.HasField("partition_by")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_copy_into_location.statement_params
+                )
+                return df.copy_into_location(
+                    location,
+                    partition_by=partition_by,
+                    file_format_name=file_format_name,
+                    file_format_type=file_format_type,
+                    format_type_options=format_type_options,
+                    header=header,
+                    statement_params=statement_params,
+                    block=block,
+                    **copy_options,
+                )
+
+            case "sp_write_csv":
+                df = self.symbol_table[expr.sp_write_csv.id.bitfield1][1]
+                block = expr.sp_write_csv.block
+                copy_options = self.decode_dsl_map_expr(expr.sp_write_csv.copy_options)
+                format_type_options = self.decode_dsl_map_expr(
+                    expr.sp_write_csv.format_type_options
+                )
+                header = expr.sp_write_csv.header
+                location = expr.sp_write_csv.location
+                partition_by = (
+                    self.decode_expr(expr.sp_write_csv.partition_by)
+                    if expr.sp_write_csv.HasField("partition_by")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_csv.statement_params
+                )
+                return df.csv(
+                    location,
+                    partition_by=partition_by,
+                    format_type_options=format_type_options,
+                    header=header,
+                    statement_params=statement_params,
+                    block=block,
+                    **copy_options,
+                )
+
+            case "sp_write_json":
+                df = self.symbol_table[expr.sp_write_json.id.bitfield1][1]
+                block = expr.sp_write_json.block
+                copy_options = self.decode_dsl_map_expr(expr.sp_write_json.copy_options)
+                format_type_options = self.decode_dsl_map_expr(
+                    expr.sp_write_json.format_type_options
+                )
+                header = expr.sp_write_json.header
+                location = expr.sp_write_json.location
+                partition_by = (
+                    self.decode_expr(expr.sp_write_json.partition_by)
+                    if expr.sp_write_json.HasField("partition_by")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_json.statement_params
+                )
+                return df.json(
+                    location,
+                    partition_by=partition_by,
+                    format_type_options=format_type_options,
+                    header=header,
+                    statement_params=statement_params,
+                    block=block,
+                    **copy_options,
+                )
+
+            case "sp_write_parquet":
+                df = self.symbol_table[expr.sp_write_parquet.id.bitfield1][1]
+                block = expr.sp_write_parquet.block
+                copy_options = self.decode_dsl_map_expr(
+                    expr.sp_write_parquet.copy_options
+                )
+                format_type_options = self.decode_dsl_map_expr(
+                    expr.sp_write_parquet.format_type_options
+                )
+                header = expr.sp_write_parquet.header
+                location = expr.sp_write_parquet.location
+                partition_by = (
+                    self.decode_expr(expr.sp_write_parquet.partition_by)
+                    if expr.sp_write_parquet.HasField("partition_by")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_parquet.statement_params
+                )
+                return df.parquet(
+                    location,
+                    partition_by=partition_by,
+                    format_type_options=format_type_options,
+                    header=header,
+                    statement_params=statement_params,
+                    block=block,
+                    **copy_options,
+                )
+
+            case "sp_write_table":
+                df = self.symbol_table[expr.sp_write_table.id.bitfield1][1]
+                block = expr.sp_write_table.block
+                change_tracking = (
+                    expr.sp_write_table.change_tracking.value
+                    if expr.sp_write_table.HasField("change_tracking")
+                    else None
+                )
+                clustering_keys = [
+                    self.decode_expr(ck)
+                    for ck in expr.sp_write_table.clustering_keys.list
+                ]
+                column_order = expr.sp_write_table.column_order
+                comment = (
+                    expr.sp_write_table.comment.value
+                    if expr.sp_write_table.HasField("comment")
+                    else None
+                )
+                copy_grants = expr.sp_write_table.copy_grants
+                create_temp_table = expr.sp_write_table.create_temp_table
+                data_retention_time = (
+                    expr.sp_write_table.data_retention_time.value
+                    if expr.sp_write_table.HasField("data_retention_time")
+                    else None
+                )
+                enable_schema_evolution = (
+                    expr.sp_write_table.enable_schema_evolution.value
+                    if expr.sp_write_table.HasField("enable_schema_evolution")
+                    else None
+                )
+                iceberg_config = self.decode_dsl_map_expr(
+                    expr.sp_write_table.iceberg_config
+                )
+                max_data_extension_time = (
+                    expr.sp_write_table.max_data_extension_time.value
+                    if expr.sp_write_table.HasField("max_data_extension_time")
+                    else None
+                )
+                mode = (
+                    self.decode_save_mode(expr.sp_write_table.mode)
+                    if expr.sp_write_table.HasField("mode")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_table.statement_params
+                )
+                table_name = self.decode_name_expr(expr.sp_write_table.table_name)
+                table_type = expr.sp_write_table.table_type
+                df.save_as_table(
+                    table_name,
+                    mode=mode,
+                    column_order=column_order,
+                    create_temp_table=create_temp_table,
+                    table_type=table_type,
+                    clustering_keys=clustering_keys,
+                    statement_params=statement_params,
+                    block=block,
+                    comment=comment,
+                    enable_schema_evolution=enable_schema_evolution,
+                    data_retention_time=data_retention_time,
+                    max_data_extension_time=max_data_extension_time,
+                    change_tracking=change_tracking,
+                    copy_grants=copy_grants,
+                    iceberg_config=iceberg_config,
+                )
 
             case "stored_procedure":
                 input_types = [
@@ -2426,6 +2659,11 @@ class Decoder:
                     return Row(**dict(zip(names, values)))
                 else:
                     return Row(*values)
+
+            case "sp_sql":
+                params = [self.decode_expr(param) for param in expr.sp_sql.params]
+                query = expr.sp_sql.query
+                return self.session.sql(query, params)
 
             case _:
                 raise NotImplementedError(
