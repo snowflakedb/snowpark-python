@@ -182,7 +182,7 @@ def test_tabular_entity_registry(test_table, mock_server_connection):
         empty_logical_plan = LogicalPlan()
         plan = MockExecutionPlan(empty_logical_plan, None)
 
-        entity_registry.create_or_replace_view(plan, view_name)
+        entity_registry.create_or_replace_view(plan, view_name, True)
 
         optional_view = entity_registry.read_view_if_exists(view_name)
         if optional_view is not None:

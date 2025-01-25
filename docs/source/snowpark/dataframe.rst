@@ -33,8 +33,10 @@ DataFrame
     DataFrame.create_or_replace_dynamic_table
     DataFrame.createOrReplaceTempView
     DataFrame.createOrReplaceView
+    DataFrame.createTempView
     DataFrame.create_or_replace_temp_view
     DataFrame.create_or_replace_view
+    DataFrame.create_temp_view
     DataFrame.crossJoin
     DataFrame.cross_join
     DataFrame.crosstab

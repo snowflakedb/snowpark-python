@@ -1143,13 +1143,12 @@ def order_expression(name: str, direction: str, null_ordering: str) -> str:
 
 
 def create_or_replace_view_statement(
-    name: str, child: str, is_temp: bool, comment: Optional[str]
+    name: str, child: str, is_temp: bool, comment: Optional[str], replace: bool
 ) -> str:
     comment_sql = get_comment_sql(comment)
     return (
         CREATE
-        + OR
-        + REPLACE
+        + f"{OR + REPLACE if replace else EMPTY_STRING}"
         + f"{TEMPORARY if is_temp else EMPTY_STRING}"
         + VIEW
         + name

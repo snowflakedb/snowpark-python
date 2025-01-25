@@ -154,7 +154,7 @@ class NopConnection(MockServerConnection):
             )
         elif isinstance(source_plan, CreateViewCommand):
             result = self.entity_registry.create_or_replace_view(
-                source_plan, source_plan.name
+                source_plan, source_plan.name, source_plan.replace
             )
         else:
             result_meta = []

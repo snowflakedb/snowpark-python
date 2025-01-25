@@ -257,12 +257,17 @@ class MockServerConnection:
                 self.conn.notify_mock_query_record_listener(**kwargs)
 
         def create_or_replace_view(
-            self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
+            self,
+            execution_plan: MockExecutionPlan,
+            name: Union[str, Iterable[str]],
+            replace: bool,
         ):
             with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 name = get_fully_qualified_name(name, current_schema, current_database)
+                if not replace and name in self.view_registry:
+                    raise SnowparkLocalTestingException(f"View {name} already exists")
                 self.view_registry[name] = execution_plan
 
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
