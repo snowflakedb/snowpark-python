@@ -160,7 +160,6 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),
     lambda idx: idx.delete(),
-    lambda idx: idx.drop_duplicates(),
     lambda idx: idx.factorize(),
     lambda idx: idx.insert(),
     lambda idx: idx.is_(),
