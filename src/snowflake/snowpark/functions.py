@@ -11233,7 +11233,7 @@ hex = hex_encode
 def editdistance(
     string_expr1: ColumnOrName,
     string_expr2: ColumnOrName,
-    max_distance: Optional[int] = None,
+    max_distance: Optional[int, ColumnOrName] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """Computes the Levenshtein distance between two input strings.
@@ -11259,9 +11259,9 @@ def editdistance(
     args = [s1, s2]
     if max_distance is not None:
         max_dist = (
-            max_distance
-            if isinstance(max_distance, Column)
-            else lit(max_distance, _emit_ast=_emit_ast)
+            lit(max_distance)
+            if isinstance(max_distance, int)
+            else _to_col_if_str(max_distance, "editdistance")
         )
         args.append(max_dist)
 
