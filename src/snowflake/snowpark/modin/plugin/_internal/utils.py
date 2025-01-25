@@ -8,7 +8,7 @@ import re
 import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import modin.pandas as pd
 import numpy as np
@@ -42,14 +42,9 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
-    count,
     equal_nan,
     floor,
     iff,
-    max as max_,
-    mean,
-    min as min_,
-    sum as sum_,
     to_char,
     to_timestamp_ntz,
     to_timestamp_tz,
@@ -1194,29 +1189,6 @@ def is_snowpark_pandas_dataframe_or_series_type(obj: Any) -> bool:
     # Return True if result is (Snowpark pandas) DataFrame/Series type.
     # Note: Native pandas.DataFrame/Series return False
     return isinstance(obj, (pd.DataFrame, pd.Series))
-
-
-# TODO: (SNOW-853334) Support other agg functions (any, all, prod, median, skew, kurt, sem, var, std, mad, etc)
-snowflake_pivot_agg_func_supported = [
-    count,
-    mean,
-    min_,
-    max_,
-    sum_,
-]
-
-
-def is_supported_snowflake_pivot_agg_func(agg_func: Callable) -> bool:
-    """
-    Check if the aggregation function is supported with snowflake pivot. Current supported
-    aggregation functions are the functions that can be mapped to snowflake builtin function.
-
-    Args:
-        agg_func: str or Callable. the aggregation function to check
-    Returns:
-        Whether it is valid to implement with snowflake or not.
-    """
-    return agg_func in snowflake_pivot_agg_func_supported
 
 
 def convert_snowflake_string_constant_to_python_string(identifier: str) -> str:

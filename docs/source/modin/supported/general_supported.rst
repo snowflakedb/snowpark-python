@@ -18,8 +18,8 @@ Data manipulations
 | ``concat``                  | P                               | ``levels`` is not supported,     |                                                    |
 |                             |                                 | ``copy`` is ignored              |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``crosstab``                | P                               |                                  | ``N`` if ``aggfunc`` is not one of                 |
-|                             |                                 |                                  | "count", "mean", "min", "max", or "sum", or        |
+| ``crosstab``                | P                               |                                  | ``N`` if ``aggfunc`` is not a `supported           |
+|                             |                                 |                                  | aggregation function <agg_supp.html>`_,            |
 |                             |                                 |                                  | margins is True, normalize is "all" or True,       |
 |                             |                                 |                                  | and values is passed.                              |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
@@ -50,8 +50,8 @@ Data manipulations
 | ``pivot``                   | P                               |                                  | See ``pivot_table``                                |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``pivot_table``             | P                               | ``observed``, ``margins``,       | ``N`` if ``index``, ``columns``, or ``values`` is  |
-|                             |                                 | ``sort``                         | not str; or MultiIndex; or any ``argfunc`` is not  |
-|                             |                                 |                                  | "count", "mean", "min", "max", or "sum"            |
+|                             |                                 | ``sort``                         | not str; or MultiIndex; or any ``aggfunc`` is not a|
+|                             |                                 |                                  | `supported aggregation function <agg_supp.html>`_  |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``qcut``                    | P                               |                                  | ``N`` if ``labels!=False`` or ``retbins=True``.    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+

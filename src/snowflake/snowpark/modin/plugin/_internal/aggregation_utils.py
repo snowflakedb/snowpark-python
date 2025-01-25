@@ -265,6 +265,11 @@ class _SnowparkPandasAggregation(NamedTuple):
     # sum would be True.
     preserves_snowpark_pandas_types: bool
 
+    # Whether Snowflake PIVOT supports this aggregation on axis 0. It seems
+    # that Snowflake PIVOT supports any aggregation expressed as as single
+    # function call applied to a single column, e.g. MAX(A), BOOLOR_AND(A)
+    supported_in_pivot: bool
+
     # This callable takes a single Snowpark column as input and aggregates the
     # column on axis=0. If None, Snowpark pandas does not support this
     # aggregation on axis=0.
@@ -304,6 +309,12 @@ class SnowflakeAggFunc(NamedTuple):
     # another timedelta column. Therefore, preserves_snowpark_pandas_types for
     # sum would be True.
     preserves_snowpark_pandas_types: bool
+
+    # Whether Snowflake PIVOT supports this aggregation on axis 0. It seems
+    # that Snowflake PIVOT supports any aggregation expressed as as single
+    # function call applied to a single column, e.g. MAX(A), BOOLOR_AND(A).
+    # This field only makes sense for axis 0 aggregation.
+    supported_in_pivot: bool
 
 
 class AggFuncWithLabel(NamedTuple):
@@ -523,6 +534,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             axis_0_aggregation=count,
             axis_1_aggregation_skipna=_columns_count,
             preserves_snowpark_pandas_types=False,
+            supported_in_pivot=True,
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
             (len, "size"),
@@ -532,6 +544,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
                 axis_1_aggregation_keepna=_columns_count_keep_nulls,
                 axis_1_aggregation_skipna=_columns_count_keep_nulls,
                 preserves_snowpark_pandas_types=False,
+                supported_in_pivot=False,
             ),
         ),
         "first": _SnowparkPandasAggregation(
@@ -539,40 +552,45 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             axis_1_aggregation_keepna=lambda *cols: cols[0],
             axis_1_aggregation_skipna=lambda *cols: coalesce(*cols),
             preserves_snowpark_pandas_types=True,
+            supported_in_pivot=False,
         ),
         "last": _SnowparkPandasAggregation(
             axis_0_aggregation=_column_last_value,
             axis_1_aggregation_keepna=lambda *cols: cols[-1],
             axis_1_aggregation_skipna=lambda *cols: coalesce(*(cols[::-1])),
             preserves_snowpark_pandas_types=True,
+            supported_in_pivot=False,
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
             ("mean", np.mean),
             _SnowparkPandasAggregation(
                 axis_0_aggregation=mean,
                 preserves_snowpark_pandas_types=True,
+                supported_in_pivot=True,
             ),
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
-            ("min", np.min),
+            ("min", np.min, min),
             _SnowparkPandasAggregation(
                 axis_0_aggregation=min_,
                 axis_1_aggregation_keepna=least,
                 axis_1_aggregation_skipna=_columns_coalescing_min,
                 preserves_snowpark_pandas_types=True,
+                supported_in_pivot=True,
             ),
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
-            ("max", np.max),
+            ("max", np.max, max),
             _SnowparkPandasAggregation(
                 axis_0_aggregation=max_,
                 axis_1_aggregation_keepna=greatest,
                 axis_1_aggregation_skipna=_columns_coalescing_max,
                 preserves_snowpark_pandas_types=True,
+                supported_in_pivot=True,
             ),
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
-            ("sum", np.sum),
+            ("sum", np.sum, sum),
             _SnowparkPandasAggregation(
                 axis_0_aggregation=sum_,
                 # IMPORTANT: count and sum use python builtin sum to invoke
@@ -581,6 +599,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
                 axis_1_aggregation_keepna=lambda *cols: sum(cols),
                 axis_1_aggregation_skipna=_columns_coalescing_sum,
                 preserves_snowpark_pandas_types=True,
+                supported_in_pivot=True,
             ),
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
@@ -588,6 +607,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             _SnowparkPandasAggregation(
                 axis_0_aggregation=median,
                 preserves_snowpark_pandas_types=True,
+                supported_in_pivot=True,
             ),
         ),
         "idxmax": _SnowparkPandasAggregation(
@@ -597,6 +617,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             axis_1_aggregation_keepna=_columns_coalescing_idxmax_idxmin_helper,
             axis_1_aggregation_skipna=_columns_coalescing_idxmax_idxmin_helper,
             preserves_snowpark_pandas_types=False,
+            supported_in_pivot=False,
         ),
         "idxmin": _SnowparkPandasAggregation(
             axis_0_aggregation=functools.partial(
@@ -605,10 +626,12 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             axis_1_aggregation_skipna=_columns_coalescing_idxmax_idxmin_helper,
             axis_1_aggregation_keepna=_columns_coalescing_idxmax_idxmin_helper,
             preserves_snowpark_pandas_types=False,
+            supported_in_pivot=False,
         ),
         "skew": _SnowparkPandasAggregation(
             axis_0_aggregation=skew,
             preserves_snowpark_pandas_types=True,
+            supported_in_pivot=True,
         ),
         "all": _SnowparkPandasAggregation(
             # all() for a column with no non-null values is NULL in Snowflake, but True in pandas.
@@ -616,6 +639,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
                 builtin("booland_agg")(col(c)), pandas_lit(True)
             ),
             preserves_snowpark_pandas_types=False,
+            supported_in_pivot=False,
         ),
         "any": _SnowparkPandasAggregation(
             # any() for a column with no non-null values is NULL in Snowflake, but False in pandas.
@@ -623,12 +647,14 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
                 builtin("boolor_agg")(col(c)), pandas_lit(False)
             ),
             preserves_snowpark_pandas_types=False,
+            supported_in_pivot=False,
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
             ("std", np.std),
             _SnowparkPandasAggregation(
                 axis_0_aggregation=stddev,
                 preserves_snowpark_pandas_types=True,
+                supported_in_pivot=True,
             ),
         ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
@@ -638,19 +664,23 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
                 # variance units are the square of the input column units, so
                 # variance does not preserve types.
                 preserves_snowpark_pandas_types=False,
+                supported_in_pivot=True,
             ),
         ),
         "array_agg": _SnowparkPandasAggregation(
             axis_0_aggregation=array_agg,
             preserves_snowpark_pandas_types=False,
+            supported_in_pivot=False,
         ),
         "quantile": _SnowparkPandasAggregation(
             axis_0_aggregation=column_quantile,
             preserves_snowpark_pandas_types=True,
+            supported_in_pivot=False,
         ),
         "nunique": _SnowparkPandasAggregation(
             axis_0_aggregation=count_distinct,
             preserves_snowpark_pandas_types=False,
+            supported_in_pivot=False,
         ),
     }
 )
@@ -762,6 +792,7 @@ def get_snowflake_agg_func(
     return SnowflakeAggFunc(
         snowpark_aggregation=snowpark_aggregation,
         preserves_snowpark_pandas_types=snowpark_pandas_aggregation.preserves_snowpark_pandas_types,
+        supported_in_pivot=snowpark_pandas_aggregation.supported_in_pivot,
     )
 
 
@@ -800,6 +831,7 @@ def _generate_rowwise_aggregation_function(
     return SnowflakeAggFunc(
         snowpark_aggregation,
         preserves_snowpark_pandas_types=snowpark_pandas_aggregation.preserves_snowpark_pandas_types,
+        supported_in_pivot=snowpark_pandas_aggregation.supported_in_pivot,
     )
 
 
