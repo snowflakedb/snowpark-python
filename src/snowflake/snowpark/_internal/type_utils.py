@@ -1242,8 +1242,8 @@ LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
 ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]
 
 class CopyOptions(TypedDict, total=False):
-    overwrite: bool
-    single: bool
-    max_file_size: float
-    include_query_id: bool
-    detailed_output: bool
+    overwrite: Union[bool,str]
+    single: Union[bool,str]
+    max_file_size: Union[float,str]
+    include_query_id: Union[bool,str]
+    detailed_output: Union[bool,str]
