@@ -102,7 +102,7 @@ class NopSelectExecutionPlan(MockSelectExecutionPlan):
 class NopSelectableEntity(MockSelectableEntity):
     @property
     def attributes(self):
-        return resolve_attributes(self.entity_plan, session=self.analyzer.session)
+        return resolve_attributes(self.entity_plan, session=self._session)
 
 
 class NopAnalyzer(MockAnalyzer):

@@ -64,7 +64,7 @@ class MockSelectable(LogicalPlan, ABC):
         analyzer: "Analyzer",
     ) -> None:
         super().__init__()
-        self.analyzer = analyzer
+        self._session = analyzer.session
         self.pre_actions = None
         self.post_actions = None
         self.flatten_disabled: bool = False
@@ -75,6 +75,10 @@ class MockSelectable(LogicalPlan, ABC):
         self.df_aliased_col_name_to_real_col_name: DefaultDict[
             str, Dict[str, str]
         ] = defaultdict(dict)
+
+    @property
+    def analyzer(self) -> "Analyzer":
+        return self._session._analyzer
 
     @property
     def sql_query(self) -> str:
@@ -97,7 +101,7 @@ class MockSelectable(LogicalPlan, ABC):
         from snowflake.snowpark.mock._plan import MockExecutionPlan
 
         if self._execution_plan is None:
-            self._execution_plan = MockExecutionPlan(self, self.analyzer.session)
+            self._execution_plan = MockExecutionPlan(self, self._session)
         return self._execution_plan
 
     @property

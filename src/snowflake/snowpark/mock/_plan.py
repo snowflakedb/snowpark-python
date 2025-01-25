@@ -986,7 +986,7 @@ def execute_mock_plan(
         res_df = execute_mock_plan(
             MockExecutionPlan(
                 first_operand.selectable,
-                source_plan.analyzer.session,
+                source_plan._session,
             ),
             expr_to_alias,
         )
@@ -994,7 +994,7 @@ def execute_mock_plan(
             operand = source_plan.set_operands[i]
             operator = operand.operator
             cur_df = execute_mock_plan(
-                MockExecutionPlan(operand.selectable, source_plan.analyzer.session),
+                MockExecutionPlan(operand.selectable, source_plan._session),
                 expr_to_alias,
             )
             if len(res_df.columns) != len(cur_df.columns):
