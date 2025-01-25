@@ -37,26 +37,28 @@ body {
           sp_dataframe_schema__struct {
             v {
               fields {
-                column_identifier {
-                  name: "\"A\""
-                }
-                data_type {
-                  sp_string_type {
-                    length {
-                      value: 16777216
+                list {
+                  column_identifier {
+                    name: "\"A\""
+                  }
+                  data_type {
+                    sp_string_type {
+                      length {
+                        value: 16777216
+                      }
                     }
                   }
+                  nullable: true
                 }
-                nullable: true
-              }
-              fields {
-                column_identifier {
-                  name: "\"B\""
+                list {
+                  column_identifier {
+                    name: "\"B\""
+                  }
+                  data_type {
+                    sp_long_type: true
+                  }
+                  nullable: true
                 }
-                data_type {
-                  sp_long_type: true
-                }
-                nullable: true
               }
             }
           }
