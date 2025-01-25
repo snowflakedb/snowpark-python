@@ -45,6 +45,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
     WithinGroup,
+    LambdaFunctionExpression,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
@@ -85,6 +86,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     quote_name,
 )
+import inspect
 from snowflake.snowpark.types import (
     DataType,
     IntegerType,
@@ -1444,6 +1446,26 @@ class Column:
             return self._expression
         else:
             return UnresolvedAlias(self._expression)
+
+    @classmethod
+    def _callable_to_expr(
+        cls, expr: typing.Callable, _ast: proto.Expr = None, _emit_ast: bool = True
+    ) -> Expression:
+        parameters = inspect.signature(expr).parameters.values()
+
+        arg_exprs = [
+            UnresolvedAttribute(arg_name) for arg_name in [p.name for p in parameters]
+        ]
+        arg_cols = [
+            Column(arg_expr, _ast=_ast, _emit_ast=_emit_ast) for arg_expr in arg_exprs
+        ]
+
+        result: Column = expr(*arg_cols)
+
+        if not isinstance(result, Column):
+            raise TypeError("Should be column")
+
+        return LambdaFunctionExpression(result._expression, arg_exprs)
 
     @classmethod
     def _to_expr(cls, expr: Union[ColumnOrLiteral, Expression]) -> Expression:

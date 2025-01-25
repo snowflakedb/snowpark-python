@@ -195,6 +195,7 @@ from snowflake.snowpark._internal.ast.utils import (
     snowpark_expression_to_ast,
     with_src_position,
     build_function_expr,
+    create_ast_for_callable,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
@@ -4665,6 +4666,14 @@ def array_distinct(col: ColumnOrName, _emit_ast: bool = True):
     """
     col = _to_col_if_str(col, "array_distinct")
     return builtin("array_distinct", _emit_ast=_emit_ast)(col)
+
+
+@publicapi
+def transform(
+    array: ColumnOrName, fn: Callable[[Column], Column], _emit_ast: bool = True
+) -> Column:
+    arr = _to_col_if_str(array, "transform")
+    return function("transform", _emit_ast=_emit_ast)(arr, fn)
 
 
 @publicapi
@@ -10166,7 +10175,7 @@ def function(
 def _call_function(
     name: str,
     is_distinct: bool = False,
-    *args: ColumnOrLiteral,
+    *args: Union[ColumnOrLiteral, Callable],
     api_call_source: Optional[str] = None,
     is_data_generator: bool = False,
     _ast: proto.Expr = None,
@@ -10175,6 +10184,14 @@ def _call_function(
 
     args_list = parse_positional_args_to_list(*args)
     ast = _ast
+
+    def _arg_to_ast(arg):
+        if isinstance(arg, Expression):
+            return snowpark_expression_to_ast(arg)
+        elif isinstance(arg, Callable):
+            return create_ast_for_callable(arg)
+        return arg
+
     if ast is None and _emit_ast:
         ast = proto.Expr()
         # Note: The type hint says ColumnOrLiteral, but in Snowpark sometimes arbitrary
@@ -10182,13 +10199,15 @@ def _call_function(
         build_builtin_fn_apply(
             ast,
             name,
-            *tuple(
-                snowpark_expression_to_ast(arg) if isinstance(arg, Expression) else arg
-                for arg in args_list
-            ),
+            *tuple(_arg_to_ast(arg) for arg in args_list),
         )
 
-    expressions = [Column._to_expr(arg) for arg in args_list]
+    expressions = [
+        Column._callable_to_expr(arg, _ast=_ast, _emit_ast=_emit_ast)
+        if isinstance(arg, typing.Callable)
+        else Column._to_expr(arg)
+        for arg in args_list
+    ]
     return Column(
         FunctionExpression(
             name,

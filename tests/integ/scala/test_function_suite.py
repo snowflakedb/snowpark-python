@@ -35,6 +35,7 @@ from snowflake.snowpark.functions import (
     array_contains,
     array_insert,
     array_intersection,
+    transform,
     array_position,
     array_prepend,
     array_remove,
@@ -2011,6 +2012,59 @@ def test_array_intersection(session):
     Utils.check_answer(
         TestData.array1(session).select(array_intersection("ARR1", "ARR2")),
         [Row("[\n  3\n]"), Row("[]")],
+        sort=False,
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="test_transform is not yet supported in local testing mode.",
+)
+def test_transform(session):
+    Utils.check_answer(
+        TestData.array1(session).select(
+            transform(col("ARR1"), lambda x: round(sqrt(x), 2))
+        ),
+        [
+            # not sure why it is formatted like that
+            Row(
+                "[\n  1.000000000000000e+00,\n  1.410000000000000e+00,\n  1.730000000000000e+00\n]"
+            ),
+            Row(
+                "[\n  2.450000000000000e+00,\n  2.650000000000000e+00,\n  2.830000000000000e+00\n]"
+            ),
+        ],
+        sort=False,
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="test_transform is not yet supported in local testing mode.",
+)
+def test_transform_nested(session):
+    Utils.check_answer(
+        TestData.array1(session).select(
+            transform(
+                array_construct(transform(col("ARR1"), lambda x: round(sqrt(x), 2))),
+                lambda x: array_size(x),
+            )
+        ),
+        [Row("[\n  3\n]"), Row("[\n  3\n]")],
+        sort=False,
+    )
+
+    Utils.check_answer(
+        TestData.array1(session).select(
+            transform(
+                col("ARR1"),
+                lambda x: array_size(transform(array_construct(x), lambda x: x + 1)),
+            )
+        ),
+        [
+            Row("[\n  1,\n  1,\n  1\n]"),
+            Row("[\n  1,\n  1,\n  1\n]"),
+        ],
         sort=False,
     )
 

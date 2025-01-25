@@ -76,6 +76,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldString,
     UnresolvedAttribute,
     WithinGroup,
+    LambdaFunctionExpression,
 )
 from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
@@ -383,6 +384,9 @@ class Analyzer:
                         expr.df_alias
                     )
             return expr.name
+
+        if isinstance(expr, LambdaFunctionExpression):
+            return f"{', '.join([a.sql for a in expr.args])} -> {self.analyze(expr.body, df_aliased_col_name_to_real_col_name)}"
 
         if isinstance(expr, FunctionExpression):
             if expr.api_call_source is not None:
