@@ -49,7 +49,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.exceptions import (
+    SnowparkSessionException,
+    SnowparkClientException,
+)
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
@@ -1075,39 +1078,44 @@ class DataFrameReader:
             sql_create_temp_stage = f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage if not exists {snowflake_stage_name}"
             self._session._run_query(sql_create_temp_stage, is_ddl_on_temp_object=True)
 
-            with ProcessPoolExecutor(max_workers=max_workers) as process_executor:
-                with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
-                    thread_pool_futures = []
-                    process_pool_futures = [
-                        process_executor.submit(
-                            task_fetch_from_data_source_with_retry,
-                            create_connection,
-                            query,
-                            raw_schema,
-                            i,
-                            tmp_dir,
-                        )
-                        for i, query in enumerate(partitioned_queries)
-                    ]
-                    for future in as_completed(process_pool_futures):
-                        if isinstance(future.result(), Exception):
-                            raise future.result()
-                        else:
-                            thread_pool_futures.append(
-                                thread_executor.submit(
-                                    self.upload_and_copy_into_table_with_rename_with_retry,
-                                    future.result(),
-                                    snowflake_stage_name,
-                                    snowflake_table_name,
-                                    "abort_statement",
-                                )
-                            )
-                    completed_futures = wait(
-                        thread_pool_futures, return_when=ALL_COMPLETED
+            with ProcessPoolExecutor(
+                max_workers=max_workers
+            ) as process_executor, ThreadPoolExecutor(
+                max_workers=max_workers
+            ) as thread_executor:
+                thread_pool_futures = []
+                process_pool_futures = [
+                    process_executor.submit(
+                        task_fetch_from_data_source_with_retry,
+                        create_connection,
+                        query,
+                        raw_schema,
+                        i,
+                        tmp_dir,
                     )
-                    for f in completed_futures.done:
-                        if f.result() is not None:
-                            raise f.result()
+                    for i, query in enumerate(partitioned_queries)
+                ]
+                for future in as_completed(process_pool_futures):
+                    if isinstance(future.result(), Exception):
+                        process_executor.shutdown(wait=False)
+                        thread_executor.shutdown(wait=False)
+                        raise future.result()
+                    else:
+                        thread_pool_futures.append(
+                            thread_executor.submit(
+                                self.upload_and_copy_into_table_with_rename_with_retry,
+                                future.result(),
+                                snowflake_stage_name,
+                                snowflake_table_name,
+                                "abort_statement",
+                            )
+                        )
+                completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
+                for f in completed_futures.done:
+                    if f.result() is not None and isinstance(f.result(), Exception):
+                        process_executor.shutdown(wait=False)
+                        thread_executor.shutdown(wait=False)
+                        raise f.result()
             return res_df
 
     def _infer_data_source_schema(
@@ -1242,6 +1250,9 @@ class DataFrameReader:
             except Exception as e:
                 error = e
                 retry_count += 1
+        error = SnowparkClientException(
+            message=f"failed to load data to snowflake, got {error.__repr__()}"
+        )
         return error
 
 
@@ -1279,4 +1290,7 @@ def task_fetch_from_data_source_with_retry(
         except Exception as e:
             error = e
             retry_count += 1
+    error = SnowparkClientException(
+        message=f"failed to fetch from data source, got {error.__repr__()}"
+    )
     return error

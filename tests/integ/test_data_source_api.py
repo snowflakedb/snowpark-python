@@ -3,6 +3,7 @@
 #
 
 import decimal
+import time
 from _decimal import Decimal
 import datetime
 from unittest import mock
@@ -676,6 +677,7 @@ mock_cursor.fetchall.return_value = rows
 mock_conn.cursor.return_value = mock_cursor
 
 
+# we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
 class FakeConnection:
     def cursor(self):
         return self
@@ -691,6 +693,26 @@ class FakeConnection:
 
 def create_connection():
     return FakeConnection()
+
+
+def fake_task_fetch_from_data_source_with_retry(
+    create_connection,
+    query,
+    schema,
+    i,
+    tmp_dir,
+):
+    time.sleep(2)
+
+
+def upload_and_copy_into_table_with_rename_with_retry(
+    self,
+    local_file,
+    snowflake_stage_name,
+    snowflake_table_name,
+    on_error,
+):
+    time.sleep(2)
 
 
 @pytest.mark.skipif(
@@ -733,3 +755,36 @@ def test_dbapi_retry(session):
         )
         assert mock_task.call_count == MAX_RETRY_TIME
         assert isinstance(result, Exception)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="feature not available in local testing",
+)
+def test_parallel(session):
+    num_partitions = 3
+    # this test meant to test whether ingest is fully parallelized
+    # we cannot mock this function as process pool does not all mock object
+    with mock.patch(
+        "snowflake.snowpark.dataframe_reader.task_fetch_from_data_source_with_retry",
+        new=fake_task_fetch_from_data_source_with_retry,
+    ):
+        with mock.patch(
+            "snowflake.snowpark.dataframe_reader.DataFrameReader.upload_and_copy_into_table_with_rename_with_retry",
+            wrap=upload_and_copy_into_table_with_rename_with_retry,
+        ) as mock_upload_and_copy:
+            start = time.time()
+            session.read.dbapi(
+                create_connection,
+                SQL_SERVER_TABLE_NAME,
+                column="ID",
+                upper_bound=100,
+                lower_bound=0,
+                num_partitions=num_partitions,
+                max_workers=4,
+            )
+            end = time.time()
+            # totally time without parallel is 12 seconds
+            assert end - start < 6
+            # verify that mocked function is called for each partition
+            assert mock_upload_and_copy.call_count == num_partitions
