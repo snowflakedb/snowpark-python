@@ -302,6 +302,16 @@ df304 = df.select(locate("needle", col("expr")), locate("needle", lit("test stri
 
 df305 = df.select(size(col("expr")), size("A"))
 
+df306 = df.select(base64_encode("A"))
+
+df307 = df.select(base64_decode_string("A"))
+
+df308 = df.select(hex_encode("A"))
+
+df309 = df.select(editdistance("A", "B"))
+
+df310 = df.select(map_cat("A", "B"))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
