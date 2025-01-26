@@ -2979,7 +2979,7 @@ def log1p(
         if isinstance(x, (int, float))
         else _to_col_if_str(x, "log")
     )
-    one_plus_x = _to_col_if_str(x, "log1p") + lit(1, _emit_ast=_emit_ast)
+    one_plus_x = _to_col_if_str(x, "log1p") + lit(1, _emit_ast=False)
     return ln(one_plus_x, _emit_ast=_emit_ast)
 
 
@@ -7210,9 +7210,10 @@ def map_cat(
     """
     m1 = _to_col_if_str(col1, "map_cat")
     m2 = _to_col_if_str(col2, "map_cat")
+    ast = build_function_expr("map_cat", [col1, col2, *cols]) if _emit_ast else None
 
     def map_cat_two_maps(first, second):
-        return builtin("map_cat", _emit_ast=_emit_ast)(first, second)
+        return builtin("map_cat", _ast=ast, _emit_ast=_emit_ast)(first, second)
 
     cols_to_concat = [m1, m2]
     for c in cols:
@@ -11166,6 +11167,9 @@ def base64_encode(
         [Row(ENCODED='U25vd2ZsYWtl'), Row(ENCODED='RGF0YQ==')]
     """
     # Convert input to a column if it is not already one.
+    ast = (
+        build_function_expr("base64_encode", [e, max, alphabet]) if _emit_ast else None
+    )
     col_input = _to_col_if_str(e, "base64_encode")
 
     # Prepare arguments for the function call.
@@ -11178,7 +11182,7 @@ def base64_encode(
         args.append(lit(alphabet))
 
     # Call the built-in Base64 encode function.
-    return builtin("base64_encode", _emit_ast=_emit_ast)(*args)
+    return builtin("base64_encode", _ast=ast, _emit_ast=_emit_ast)(*args)
 
 
 base64 = base64_encode
@@ -11197,6 +11201,11 @@ def base64_decode_string(
         [Row(DECODED='Snowflake'), Row(DECODED='HELLO')]
     """
     # Convert input to a column if it is not already one.
+    ast = (
+        build_function_expr("base64_decode_string", [e, alphabet])
+        if _emit_ast
+        else None
+    )
     col_input = _to_col_if_str(e, "base64_decode_string")
 
     # Prepare arguments for the function call.
@@ -11206,7 +11215,7 @@ def base64_decode_string(
         args.append(lit(alphabet))
 
     # Call the built-in Base64 encode function.
-    return builtin("base64_decode_string", _emit_ast=_emit_ast)(*args)
+    return builtin("base64_decode_string", _ast=ast, _emit_ast=_emit_ast)(*args)
 
 
 unbase64 = base64_decode_string
@@ -11222,8 +11231,9 @@ def hex_encode(e: ColumnOrName, case: int = 1, _emit_ast: bool = True):
         >>> df.select(hex_encode(col("input")).alias("hex_encoded")).collect()
         [Row(HEX_ENCODED='536E6F77666C616B65'), Row(HEX_ENCODED='48656C6C6F')]
     """
-    col_input = _to_col_if_str(e, "base64_decode_string")
-    return builtin("hex_encode", _emit_ast=_emit_ast)(col_input, lit(case))
+    ast = build_function_expr("hex_encode", [e, case]) if _emit_ast else None
+    col_input = _to_col_if_str(e, "hex_encode")
+    return builtin("hex_encode", _ast=ast, _emit_ast=_emit_ast)(col_input, lit(case))
 
 
 hex = hex_encode
@@ -11231,8 +11241,8 @@ hex = hex_encode
 
 @publicapi
 def editdistance(
-    string_expr1: ColumnOrName,
-    string_expr2: ColumnOrName,
+    e1: ColumnOrName,
+    e2: ColumnOrName,
     max_distance: Optional[int, ColumnOrName] = None,
     _emit_ast: bool = True,
 ) -> Column:
@@ -11253,8 +11263,9 @@ def editdistance(
         ... ).collect()
         [Row(DISTANCE=3, MAX_2_DISTANCE=2), Row(DISTANCE=3, MAX_2_DISTANCE=2), Row(DISTANCE=5, MAX_2_DISTANCE=2)]
     """
-    s1 = _to_col_if_str(string_expr1, "editdistance")
-    s2 = _to_col_if_str(string_expr2, "editdistance")
+    ast = build_function_expr("editdistance", [e1, e2]) if _emit_ast else None
+    s1 = _to_col_if_str(e1, "editdistance")
+    s2 = _to_col_if_str(e2, "editdistance")
 
     args = [s1, s2]
     if max_distance is not None:
@@ -11265,7 +11276,7 @@ def editdistance(
         )
         args.append(max_dist)
 
-    return builtin("editdistance", _emit_ast=False)(*args)
+    return builtin("editdistance", _ast=ast, _emit_ast=False)(*args)
 
 
 levenshtein = editdistance
