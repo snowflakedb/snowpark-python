@@ -11168,7 +11168,9 @@ def base64_encode(
     """
     # Convert input to a column if it is not already one.
     ast = (
-        build_function_expr("base64_encode", [e, max, alphabet]) if _emit_ast else None
+        build_function_expr("base64_encode", [e, max_line_length, alphabet])
+        if _emit_ast
+        else None
     )
     col_input = _to_col_if_str(e, "base64_encode")
 
@@ -11243,7 +11245,7 @@ hex = hex_encode
 def editdistance(
     e1: ColumnOrName,
     e2: ColumnOrName,
-    max_distance: Optional[int, ColumnOrName] = None,
+    max_distance: Optional[Union[int, ColumnOrName]] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """Computes the Levenshtein distance between two input strings.
@@ -11276,7 +11278,7 @@ def editdistance(
         )
         args.append(max_dist)
 
-    return builtin("editdistance", _ast=ast, _emit_ast=False)(*args)
+    return builtin("editdistance", _ast=ast, _emit_ast=_emit_ast)(*args)
 
 
 levenshtein = editdistance
