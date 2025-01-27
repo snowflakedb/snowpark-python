@@ -14,6 +14,7 @@ from datetime import datetime
 import cloudpickle
 import numpy as np
 import pandas as native_pd
+import snowflake.cortex
 from pandas._typing import AggFuncType
 from pandas.api.types import is_scalar
 
@@ -97,9 +98,12 @@ SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
     sp_func.floor,
     sp_func.trunc,
     sp_func.sqrt,
-    sp_func.snowflake_cortex_summarize,
-    sp_func.snowflake_cortex_sentiment,
-    sp_func.snowflake_cortex_classify_text,
+}
+
+SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = {
+    snowflake.cortex.ClassifyText,
+    snowflake.cortex.Summarize,
+    snowflake.cortex.Sentiment,
 }
 
 
@@ -1530,6 +1534,15 @@ def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
     if func not in SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY:
         ErrorMessage.not_implemented(
             f"Snowpark Python function `{func.__name__}` is not supported yet."
+        )
+    return True
+
+
+def is_supported_snowflake_cortex_function(func: AggFuncType) -> bool:
+    """Return True if the `func` is a supported Snowflake Cortex function."""
+    if func not in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY:
+        ErrorMessage.not_implemented(
+            f"Snowflake Cortex function `{func.__name__}` is not supported yet."
         )
     return True
 
