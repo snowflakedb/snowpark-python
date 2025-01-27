@@ -252,6 +252,7 @@ Functions
     next_day
     not_
     ntile
+    nth_value
     nullifzero
     nvl
     object_agg
