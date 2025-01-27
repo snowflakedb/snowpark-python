@@ -705,7 +705,7 @@ def fake_task_fetch_from_data_source_with_retry(
     time.sleep(2)
 
 
-def upload_and_copy_into_table_with_rename_with_retry(
+def upload_and_copy_into_table_with_retry(
     self,
     local_file,
     snowflake_stage_name,
@@ -745,10 +745,10 @@ def test_dbapi_retry(session):
         assert isinstance(result, Exception)
 
     with mock.patch(
-        "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_rename",
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
         side_effect=Exception("Test error"),
     ) as mock_task:
-        result = session.read.upload_and_copy_into_table_with_rename_with_retry(
+        result = session.read.upload_and_copy_into_table_with_retry(
             local_file="fake_file",
             snowflake_stage_name="fake_stage",
             snowflake_table_name="fake_table",
@@ -770,8 +770,8 @@ def test_parallel(session):
         new=fake_task_fetch_from_data_source_with_retry,
     ):
         with mock.patch(
-            "snowflake.snowpark.dataframe_reader.DataFrameReader.upload_and_copy_into_table_with_rename_with_retry",
-            wrap=upload_and_copy_into_table_with_rename_with_retry,
+            "snowflake.snowpark.dataframe_reader.DataFrameReader.upload_and_copy_into_table_with_retry",
+            wrap=upload_and_copy_into_table_with_retry,
         ) as mock_upload_and_copy:
             start = time.time()
             session.read.dbapi(

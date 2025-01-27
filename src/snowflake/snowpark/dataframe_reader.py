@@ -1022,11 +1022,12 @@ class DataFrameReader:
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
-        predicates: Optional[List[str]] = None,
         *,
         max_workers: Optional[int] = None,
+        query_timeout: Optional[int] = 0,
     ) -> DataFrame:
         conn = create_connection()
+        conn.timeout = query_timeout
         struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
         if column is None:
             if (
@@ -1062,7 +1063,6 @@ class DataFrameReader:
                 lower_bound,
                 upper_bound,
                 num_partitions,
-                predicates,
             )
         with tempfile.TemporaryDirectory() as tmp_dir:
             # create temp table
@@ -1092,18 +1092,22 @@ class DataFrameReader:
                         raw_schema,
                         i,
                         tmp_dir,
+                        query_timeout,
                     )
                     for i, query in enumerate(partitioned_queries)
                 ]
                 for future in as_completed(process_pool_futures):
                     if isinstance(future.result(), Exception):
+                        logger.debug(
+                            "fetch from data source failed, canceling all running tasks"
+                        )
                         process_executor.shutdown(wait=False)
                         thread_executor.shutdown(wait=False)
                         raise future.result()
                     else:
                         thread_pool_futures.append(
                             thread_executor.submit(
-                                self.upload_and_copy_into_table_with_rename_with_retry,
+                                self.upload_and_copy_into_table_with_retry,
                                 future.result(),
                                 snowflake_stage_name,
                                 snowflake_table_name,
@@ -1113,6 +1117,9 @@ class DataFrameReader:
                 completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
                 for f in completed_futures.done:
                     if f.result() is not None and isinstance(f.result(), Exception):
+                        logger.debug(
+                            "upload and copy into table failed, canceling all running tasks"
+                        )
                         process_executor.shutdown(wait=False)
                         thread_executor.shutdown(wait=False)
                         raise f.result()
@@ -1213,7 +1220,7 @@ class DataFrameReader:
             fields.append(field)
         return StructType(fields)
 
-    def _upload_and_copy_into_table_with_rename(
+    def _upload_and_copy_into_table(
         self,
         local_file: str,
         snowflake_stage_name: str,
@@ -1232,26 +1239,32 @@ class DataFrameReader:
         self._session.sql(put_query).collect()
         self._session.sql(copy_into_table_query).collect()
 
-    def upload_and_copy_into_table_with_rename_with_retry(
+    def upload_and_copy_into_table_with_retry(
         self,
         local_file: str,
         snowflake_stage_name: str,
-        snowflake_table_name: Optional[str] = None,
+        snowflake_table_name: str,
         on_error: Optional[str] = "abort_statement",
     ) -> Optional[Exception]:
         retry_count = 0
         error = None
         while retry_count < MAX_RETRY_TIME:
             try:
-                self._upload_and_copy_into_table_with_rename(
+                self._upload_and_copy_into_table(
                     local_file, snowflake_stage_name, snowflake_table_name, on_error
                 )
                 return
             except Exception as e:
                 error = e
                 retry_count += 1
+                logger.debug(
+                    f"upload and copy into table failed with {error.__repr__()}, retry count: {retry_count}, retrying ..."
+                )
         error = SnowparkClientException(
             message=f"failed to load data to snowflake, got {error.__repr__()}"
+        )
+        logger.debug(
+            f"upload and copy into table failed with {error.__repr__()}, exceed max retry time"
         )
         return error
 
@@ -1262,8 +1275,10 @@ def _task_fetch_from_data_source(
     schema: tuple[tuple[str, Any, int, int, int, int, bool]],
     i: int,
     tmp_dir: str,
+    query_timeout: int = 0,
 ) -> str:
     conn = create_connection()
+    conn.timeout = query_timeout
     result = conn.cursor().execute(query).fetchall()
     columns = [col[0] for col in schema]
     df = pd.DataFrame.from_records(result, columns=columns)
@@ -1278,19 +1293,26 @@ def task_fetch_from_data_source_with_retry(
     schema: tuple[tuple[str, Any, int, int, int, int, bool]],
     i: int,
     tmp_dir: str,
+    query_timeout: int = 0,
 ) -> Union[str, Exception]:
     retry_count = 0
     error = None
     while retry_count < MAX_RETRY_TIME:
         try:
             path = _task_fetch_from_data_source(
-                create_connection, query, schema, i, tmp_dir
+                create_connection, query, schema, i, tmp_dir, query_timeout
             )
             return path
         except Exception as e:
             error = e
             retry_count += 1
+            logger.debug(
+                f"fetch from data source failed with {error.__repr__()}, retry count: {retry_count}, retrying ..."
+            )
     error = SnowparkClientException(
         message=f"failed to fetch from data source, got {error.__repr__()}"
+    )
+    logger.debug(
+        f"fetch from data source failed with {error.__repr__()}, exceed max retry time"
     )
     return error
