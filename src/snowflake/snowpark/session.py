@@ -12,7 +12,6 @@ import os
 import re
 import sys
 import tempfile
-import threading
 import warnings
 from array import array
 from functools import reduce
@@ -106,6 +105,8 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     check_flatten_mode,
+    create_rlock,
+    create_thread_local,
     deprecated,
     escape_quotes,
     experimental,
@@ -138,7 +139,6 @@ from snowflake.snowpark._internal.utils import (
     AstFlagSource,
 )
 from snowflake.snowpark.async_job import AsyncJob
-from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -260,6 +260,10 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
 )
 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
     "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND"
+)
+# Flag to controlling multithreading behavior
+_PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
+    "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
 )
 # Flag for controlling the usage of scoped temp read only table.
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
@@ -639,17 +643,19 @@ class Session:
             ),
         )
 
-        self._thread_store = threading.local()
-        self._lock = RLock()
+        self._thread_store = create_thread_local(
+            self._conn._thread_safe_session_enabled
+        )
+        self._lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         # this lock is used to protect _packages. We use introduce a new lock because add_packages
         # launches a query to snowflake to get all version of packages available in snowflake. This
         # query can be slow and prevent other threads from moving on waiting for _lock.
-        self._package_lock = RLock()
+        self._package_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         # this lock is used to protect race-conditions when evaluating critical lazy properties
         # of SnowflakePlan or Selectable objects
-        self._plan_lock = RLock()
+        self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})
@@ -738,8 +744,10 @@ class Session:
 
     @property
     @experimental(version="1.27.0")
-    def catalog(self) -> Catalog:
-        """Returns the catalog object."""
+    def catalog(self):
+        """Returns a :class:`Catalog` object rooted on current session."""
+        from snowflake.snowpark.catalog import Catalog
+
         if self._catalog is None:
             if isinstance(self._conn, MockServerConnection):
                 self._conn.log_not_supported_error(
@@ -4084,42 +4092,44 @@ class Session:
         """ """
         # implementation based upon: https://docs.snowflake.com/en/sql-reference/name-resolution.html
         qualified_table_name = list(raw_table_name)
-        if len(qualified_table_name) == 1:
-            # name in the form of "table"
-            tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
-            )
-        elif len(qualified_table_name) == 2:
-            # name in the form of "schema.table" omitting database
-            # schema: qualified_table_name[0]
-            # table: qualified_table_name[1]
-            tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
-            )
-        elif len(qualified_table_name) == 3:
-            # name in the form of "database.schema.table"
-            # database: qualified_table_name[0]
-            # schema: qualified_table_name[1]
-            # table: qualified_table_name[2]
-            # special case:  (''<database_name>..<object_name>''), by following
-            # https://docs.snowflake.com/en/sql-reference/name-resolution#resolution-when-schema-omitted-double-dot-notation
-            # The two dots indicate that the schema name is not specified.
-            # The PUBLIC default schema is always referenced.
-            condition = (
-                f"schema {qualified_table_name[0]}.PUBLIC"
-                if qualified_table_name[1] == ""
-                else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
-            )
-            tables = self._run_query(
-                f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
-            )
+        if isinstance(self._conn, MockServerConnection):
+            return self._conn.entity_registry.is_existing_table(qualified_table_name)
         else:
-            # we do not support len(qualified_table_name) > 3 for now
-            raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
-                ".".join(raw_table_name)
-            )
-
-        return tables is not None and len(tables) > 0
+            if len(qualified_table_name) == 1:
+                # name in the form of "table"
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[0])}'"
+                )
+            elif len(qualified_table_name) == 2:
+                # name in the form of "schema.table" omitting database
+                # schema: qualified_table_name[0]
+                # table: qualified_table_name[1]
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[1])}' in schema {qualified_table_name[0]}"
+                )
+            elif len(qualified_table_name) == 3:
+                # name in the form of "database.schema.table"
+                # database: qualified_table_name[0]
+                # schema: qualified_table_name[1]
+                # table: qualified_table_name[2]
+                # special case:  (''<database_name>..<object_name>''), by following
+                # https://docs.snowflake.com/en/sql-reference/name-resolution#resolution-when-schema-omitted-double-dot-notation
+                # The two dots indicate that the schema name is not specified.
+                # The PUBLIC default schema is always referenced.
+                condition = (
+                    f"schema {qualified_table_name[0]}.PUBLIC"
+                    if qualified_table_name[1] == ""
+                    else f"schema {qualified_table_name[0]}.{qualified_table_name[1]}"
+                )
+                tables = self._run_query(
+                    f"show tables like '{strip_double_quotes_in_like_statement_in_table_name(qualified_table_name[2])}' in {condition}"
+                )
+            else:
+                # we do not support len(qualified_table_name) > 3 for now
+                raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(
+                    ".".join(raw_table_name)
+                )
+            return tables is not None and len(tables) > 0
 
     def _explain_query(self, query: str) -> Optional[str]:
         try:
