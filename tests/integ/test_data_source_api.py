@@ -793,11 +793,17 @@ def test_parallel(session):
 
 def test_partition_logic(session):
     # same result as spark
-    expected_queries = [
+    expected_queries1 = [
         "SELECT * FROM fake_table WHERE ID < 8 OR ID is null",
         "SELECT * FROM fake_table WHERE ID >= 8 AND ID < 10",
         "SELECT * FROM fake_table WHERE ID >= 10 AND ID < 12",
         "SELECT * FROM fake_table WHERE ID >= 12",
+    ]
+    expected_queries2 = [
+        "SELECT * FROM fake_table WHERE ID < -2 OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= -2 AND ID < 0",
+        "SELECT * FROM fake_table WHERE ID >= 0 AND ID < 2",
+        "SELECT * FROM fake_table WHERE ID >= 2",
     ]
     queries = session.read._generate_partition(
         table="fake_table",
@@ -807,5 +813,16 @@ def test_partition_logic(session):
         upper_bound=15,
         num_partitions=4,
     )
-    for r, expected_r in zip(queries, expected_queries):
+    for r, expected_r in zip(queries, expected_queries1):
+        assert r == expected_r
+
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=-5,
+        upper_bound=5,
+        num_partitions=4,
+    )
+    for r, expected_r in zip(queries, expected_queries2):
         assert r == expected_r
