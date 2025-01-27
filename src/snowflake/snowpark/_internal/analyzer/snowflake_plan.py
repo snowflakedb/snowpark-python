@@ -108,6 +108,7 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_sql_select_statement,
+    random_name_for_temp_object,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
@@ -663,6 +664,12 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str],
     ) -> SnowflakePlan:
+        thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
+        temp_table_name = (
+            f"temp_name_placeholder_{generate_random_alphanumeric()}"
+            if thread_safe_session_enabled
+            else random_name_for_temp_object(TempObjectType.TABLE)
+        )
         temp_table_name = f"temp_name_placeholder_{generate_random_alphanumeric()}"
 
         attributes = [
@@ -691,7 +698,9 @@ class SnowflakePlanBuilder:
             Query(
                 create_table_stmt,
                 is_ddl_on_temp_object=True,
-                temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
+                if thread_safe_session_enabled
+                else None,
             ),
             BatchInsertQuery(insert_stmt, data),
             Query(select_stmt),
@@ -703,7 +712,9 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_table_stmt,
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
+                    if thread_safe_session_enabled
+                    else None,
                 )
             ],
             session=self.session,
@@ -1229,7 +1240,9 @@ class SnowflakePlanBuilder:
         transformations: Optional[List[str]] = None,
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
+        use_user_schema: bool = False,
     ):
+        thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
         format_type_options, copy_options = get_copy_into_table_options(options)
         format_type_options = self._merge_file_format_options(
             format_type_options, options
@@ -1237,11 +1250,11 @@ class SnowflakePlanBuilder:
         pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
-        infer_schema = (
+        schema_available = (
             options.get("INFER_SCHEMA", True)
             if format in INFER_SCHEMA_FORMAT_TYPES
             else False
-        )
+        ) or use_user_schema
         # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
@@ -1259,8 +1272,12 @@ class SnowflakePlanBuilder:
         if not copy_options:  # use select
             queries: List[Query] = []
             post_queries: List[Query] = []
-            format_name = self.session.get_fully_qualified_name_if_possible(
-                f"temp_name_placeholder_{generate_random_alphanumeric()}"
+            format_name = (
+                self.session.get_fully_qualified_name_if_possible(
+                    f"temp_name_placeholder_{generate_random_alphanumeric()}"
+                )
+                if thread_safe_session_enabled
+                else random_name_for_temp_object(TempObjectType.FILE_FORMAT)
             )
             queries.append(
                 Query(
@@ -1274,18 +1291,22 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT),
+                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT)
+                    if thread_safe_session_enabled
+                    else None,
                 )
             )
             post_queries.append(
                 Query(
                     drop_file_format_if_exists_statement(format_name),
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT),
+                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT)
+                    if thread_safe_session_enabled
+                    else None,
                 )
             )
 
-            if infer_schema:
+            if schema_available:
                 assert schema_to_cast is not None
                 schema_project: List[str] = schema_cast_named(schema_to_cast)
             else:
@@ -1325,15 +1346,19 @@ class SnowflakePlanBuilder:
             # If we have inferred the schema, we want to use those column names
             temp_table_schema = (
                 schema
-                if infer_schema
+                if schema_available
                 else [
                     Attribute(f'"COL{index}"', att.datatype, att.nullable)
                     for index, att in enumerate(schema)
                 ]
             )
 
-            temp_table_name = self.session.get_fully_qualified_name_if_possible(
-                f"temp_name_placeholder_{generate_random_alphanumeric()}"
+            temp_table_name = (
+                self.session.get_fully_qualified_name_if_possible(
+                    f"temp_name_placeholder_{generate_random_alphanumeric()}"
+                )
+                if thread_safe_session_enabled
+                else random_name_for_temp_object(TempObjectType.TABLE)
             )
             queries = [
                 Query(
@@ -1346,7 +1371,9 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
+                    if thread_safe_session_enabled
+                    else None,
                 ),
                 Query(
                     copy_into_table(
@@ -1374,7 +1401,9 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_table_if_exists_statement(temp_table_name),
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
+                    if thread_safe_session_enabled
+                    else None,
                 )
             ]
             return SnowflakePlan(

@@ -14,6 +14,10 @@ enum __Version__ {
   MAX_VERSION = 1;
 }
 
+message InternedValueTable {
+  map<int32, string> string_values = 1;
+}
+
 message List_Expr {
   repeated Expr list = 1;
 }
@@ -63,7 +67,7 @@ message Tuple_String_String {
   string _2 = 2;
 }
 
-// ast.ir:15
+// ast.ir:17
 message Language {
   oneof sealed_value {
     JavaLanguage java_language = 1;
@@ -72,17 +76,17 @@ message Language {
   }
 }
 
-// ast.ir:16
+// ast.ir:18
 message PythonLanguage {
   Version version = 1;
 }
 
-// ast.ir:17
+// ast.ir:19
 message ScalaLanguage {
   Version version = 1;
 }
 
-// ast.ir:18
+// ast.ir:20
 message JavaLanguage {
   Version version = 1;
 }
@@ -362,7 +366,7 @@ message SpWindowRelativePosition_Position {
 message SrcPosition {
   int64 end_column = 1;
   int64 end_line = 2;
-  string file = 3;
+  int32 file = 3;
   int64 start_column = 4;
   int64 start_line = 5;
 }
@@ -390,12 +394,12 @@ message UdtfSchema_Names {
   repeated string schema = 1;
 }
 
-// ast.ir:53
+// ast.ir:55
 message VarId {
   uint64 bitfield1 = 1;
 }
 
-// ast.ir:21
+// ast.ir:23
 message Version {
   string label = 1;
   int64 major = 2;
@@ -425,7 +429,7 @@ message ApplyExpr {
   SrcPosition src = 4;
 }
 
-// ast.ir:34
+// ast.ir:36
 message Assign {
   Expr expr = 1;
   google.protobuf.StringValue symbol = 2;
@@ -563,13 +567,13 @@ message Error {
   }
 }
 
-// ast.ir:42
+// ast.ir:44
 message Eval {
   int64 uid = 1;
   VarId var_id = 2;
 }
 
-// ast.ir:64
+// ast.ir:66
 message EvalOk {
   EvalResult data = 1;
   int64 uid = 2;
@@ -1240,15 +1244,17 @@ message Ref {
 
 // ast.ir:4
 message Request {
-  repeated Stmt body = 1;
-  int64 client_ast_version = 2;
-  Language client_language = 3;
-  Version client_version = 4;
+  InternedValueTable interned_value_table = 1;
+  repeated Stmt body = 2;
+  int64 client_ast_version = 3;
+  Language client_language = 4;
+  Version client_version = 5;
 }
 
-// ast.ir:11
+// ast.ir:12
 message Response {
-  repeated Result body = 1;
+  InternedValueTable interned_value_table = 1;
+  repeated Result body = 2;
 }
 
 message Result {
@@ -1265,13 +1271,13 @@ message SeqMapVal {
   SrcPosition src = 2;
 }
 
-// ast.ir:90
+// ast.ir:92
 message SessionResetRequiredError {
   int64 uid = 1;
   VarId var_id = 2;
 }
 
-// ast.ir:79
+// ast.ir:81
 message SfQueryResult {
   string uuid = 1;
 }
