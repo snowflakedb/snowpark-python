@@ -633,7 +633,9 @@ class TestApplyOnly:
     not.
     """
 
-    @pytest.mark.skip("SNOW-1896426 Test run into high failing rate, turn back on once fixed")
+    @pytest.mark.skip(
+        "SNOW-1896426 Test run into high failing rate, turn back on once fixed"
+    )
     def test_args_and_kwargs(self):
         def f(x, y, z=1) -> int:
             return x + y + z
