@@ -5,6 +5,7 @@ import datetime
 import decimal
 import os
 import tempfile
+from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
 from concurrent.futures import (
     ProcessPoolExecutor,
     wait,
@@ -1165,26 +1166,50 @@ class DataFrameReader:
             )
 
         # decide stride length
-        upper_stride = processed_upper_bound / actual_num_partitions
-        lower_stride = processed_lower_bound / actual_num_partitions
-        stride = upper_stride - lower_stride
+        upper_stride = (
+            processed_upper_bound / decimal.Decimal(actual_num_partitions)
+        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        lower_stride = (
+            processed_lower_bound / decimal.Decimal(actual_num_partitions)
+        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        preciseStride = upper_stride - lower_stride
+        stride = int(preciseStride)
+
+        lost_num_of_strides = (
+            (preciseStride - decimal.Decimal(stride))
+            * decimal.Decimal(actual_num_partitions)
+            / decimal.Decimal(stride)
+        )
+        lowerBoundWithStrideAlignment = lower_bound + int(
+            (lost_num_of_strides / 2 * decimal.Decimal(stride)).quantize(
+                decimal.Decimal("1"), rounding=ROUND_HALF_UP
+            )
+        )
+
+        current_value = lowerBoundWithStrideAlignment
 
         partition_queries = []
         for i in range(actual_num_partitions):
-            left = (
-                processed_lower_bound + i * stride
-                if column_type != int
-                else int(processed_lower_bound + i * stride)
+            l_bound = (
+                f"{column} >= {self._to_external_value(current_value, column_type)}"
+                if i != 0
+                else ""
             )
-            right = (
-                min(left + stride, processed_upper_bound)
-                if column_type != int
-                else int(min(left + stride, processed_upper_bound))
+            current_value += stride
+            u_bound = (
+                f"{column} < {self._to_external_value(current_value, column_type)}"
+                if i != actual_num_partitions - 1
+                else ""
             )
-            partition_queries.append(
-                select_query
-                + f" WHERE {column} >= {self._to_external_value(left, column_type)} and {column} {'<=' if right == processed_upper_bound else '<'} {self._to_external_value(right, column_type)}"
-            )
+
+            if u_bound == "":
+                where_clause = l_bound
+            elif l_bound == "":
+                where_clause = f"{u_bound} OR {column} is null"
+            else:
+                where_clause = f"{l_bound} AND {u_bound}"
+
+            partition_queries.append(select_query + f" WHERE {where_clause}")
 
         return partition_queries
 
