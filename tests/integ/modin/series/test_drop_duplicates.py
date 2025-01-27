@@ -73,3 +73,12 @@ def test_drop_duplicates_post_sort_values():
         check_dtype=False,
         check_index_type=False,
     )
+
+
+@sql_count_checker(query_count=0, join_count=0)
+def test_drop_duplicates_invalid_keep():
+    snow_ser = pd.Series(["a", "b", "b", "c", "a"], name="name")
+    with pytest.raises(
+        ValueError, match='keep must be either "first", "last" or False'
+    ):
+        snow_ser.drop_duplicates(keep="invalid")
