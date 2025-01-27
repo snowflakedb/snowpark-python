@@ -29,6 +29,7 @@
   - `max_by`
   - `min_by`
   - `nvl`
+  - `nth_value`
   - `octet_length`
   - `position`
   - `regr_avgx`
