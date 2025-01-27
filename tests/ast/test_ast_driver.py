@@ -240,7 +240,9 @@ def compare_base64_results(
         actual_message = actual_message.SerializeToString(deterministic=True)
         expected_message = expected_message.SerializeToString(deterministic=True)
 
-    assert actual_message == expected_message
+    assert normalize_temp_names(actual_message) == normalize_temp_names(
+        expected_message
+    )
 
 
 @pytest.mark.parametrize("test_case", load_test_cases(), ids=idfn)
@@ -290,6 +292,7 @@ def test_ast(session, tables, test_case):
                 # version of the Snowpark code.
                 decoder = Decoder(session)
                 session._ast_batch.reset_id_gen()  # Reset the entity ID generator.
+                session._ast_batch.reset_callables()  # Reset the callables.
                 session._ast_batch.flush()  # Clear the AST.
                 global_counter.reset()
 

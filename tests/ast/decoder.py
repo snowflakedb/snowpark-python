@@ -4,21 +4,32 @@
 
 import logging
 import re
-from typing import Any, Optional, Iterable, List, Union, Dict, Tuple, Callable
+from typing import Any, Optional, Iterable, List, Union, Dict, Tuple, Callable, Literal
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
 from pandas import DataFrame as PandasDataFrame
 
+from snowflake.snowpark.table import WhenMatchedClause, WhenNotMatchedClause
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark.window import WindowSpec, Window, WindowRelativePosition
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 from google.protobuf.json_format import MessageToDict
 
 from snowflake.snowpark.relational_grouped_dataframe import GroupingSets
-from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions, Row
+from snowflake.snowpark import Session, Column, DataFrameAnalyticsFunctions, Row, Table
 import snowflake.snowpark.functions
-from snowflake.snowpark.functions import udf, when, sproc, call_table_function
+from snowflake.snowpark.functions import (
+    udaf,
+    udf,
+    udtf,
+    when,
+    sproc,
+    call_table_function,
+    when_matched,
+    when_not_matched,
+)
 from snowflake.snowpark.types import (
     DataType,
     ArrayType,
@@ -86,6 +97,49 @@ class Decoder:
         """
         return assign_expr.symbol.value
 
+    def decode_callable_expr(
+        self,
+        callable_expr: proto.SpCallable,
+        callable_type: Optional[Literal["udaf", "udtf"]] = None,
+    ) -> Tuple[Callable, str]:
+        """
+        Decode a callable expression to get the callable.
+
+        Parameters
+        ----------
+        callable_expr : proto.SpCallable
+            The callable expression to decode.
+        callable_type : Optional[Literal["udaf", "udtf"]]
+            The type of callable.
+            If None, it will be treated as a regular function; an empty function will be created and renamed based on
+            the recorded function's name.
+
+        Returns
+        -------
+        Tuple[Callable, str]
+            The decoded callable and its associated name.
+        """
+        id = callable_expr.id
+        name = callable_expr.name
+        object_name = (
+            self.decode_name_expr(callable_expr.object_name)
+            if callable_expr.HasField("object_name")
+            else None
+        )
+        if callable_type == "udtf":
+            handler = self.session._udtf_registration.get_udtf(object_name).handler
+        elif callable_type == "udaf":
+            handler = self.session._udaf_registration.get_udaf(object_name).handler
+        else:
+
+            def __temp_handler_func():
+                pass
+
+            # Set the name of the function to whatever it was originally.
+            __temp_handler_func.__name__ = name
+            handler, object_name = __temp_handler_func, name
+        return handler, object_name
+
     def decode_col_exprs(self, expr: proto.Expr) -> List[Column]:
         """
         Decode a protobuf object to a list of column expressions.
@@ -109,6 +163,59 @@ class Decoder:
         else:
             col_list = [self.decode_expr(arg) for arg in expr]
         return col_list
+
+    def decode_dataframe_reader_expr(self, df_reader_expr: proto.SpDataframeReader):
+        """
+        Decode a dataframe reader expression to get the dataframe.
+
+        Parameters
+        ----------
+        df_reader_expr : proto.SpDataframeReader
+            The expression to decode.
+
+        """
+        match df_reader_expr.WhichOneof("variant"):
+            case "sp_dataframe_reader_init":
+                return self.session.read
+            case "sp_dataframe_reader_option":
+                reader = self.decode_dataframe_reader_expr(
+                    df_reader_expr.sp_dataframe_reader_option.reader
+                )
+                key = df_reader_expr.sp_dataframe_reader_option.key
+                value = self.decode_expr(
+                    df_reader_expr.sp_dataframe_reader_option.value
+                )
+                return reader.option(key, value)
+            case "sp_dataframe_reader_options":
+                reader = self.decode_dataframe_reader_expr(
+                    df_reader_expr.sp_dataframe_reader_options.reader
+                )
+                configs = self.decode_dsl_map_expr(
+                    df_reader_expr.sp_dataframe_reader_options.configs
+                )
+                return reader.options(configs)
+            case "sp_dataframe_reader_schema":
+                reader = self.decode_dataframe_reader_expr(
+                    df_reader_expr.sp_dataframe_reader_schema.reader
+                )
+                schema = self.decode_struct_type_expr(
+                    df_reader_expr.sp_dataframe_reader_schema.schema
+                )
+                return reader.schema(schema)
+            case "sp_dataframe_reader_with_metadata":
+                reader = self.decode_dataframe_reader_expr(
+                    df_reader_expr.sp_dataframe_reader_with_metadata.reader
+                )
+                metadata_columns = [
+                    self.decode_expr(arg)
+                    for arg in df_reader_expr.sp_dataframe_reader_with_metadata.metadata_columns.args
+                ]
+                return reader.with_metadata(*metadata_columns)
+            case _:
+                raise ValueError(
+                    "Unknown dataframe reader type: %s"
+                    % df_reader_expr.WhichOneof("variant")
+                )
 
     def decode_dsl_map_expr(self, map_expr: Iterable) -> dict:
         """
@@ -177,7 +284,7 @@ class Decoder:
         elif table_name.name.HasField("sp_name_structured"):
             return [name for name in table_name.name.sp_name_structured.name]
         else:
-            raise ValueError("Table name not found in proto.SpTableName")
+            raise ValueError("Table name not found in proto.SpName")
 
     def decode_fn_ref_expr(self, fn_ref_expr: proto.FnRefExpr) -> str:
         """
@@ -258,8 +365,8 @@ class Decoder:
                 else:
                     return []
             case "sp_dataframe_data__pandas":
-                # We don't know what pandas DataFrame was passed in, return an empty one.
-                return PandasDataFrame()
+                # We don't know what pandas DataFrame was passed in, return a non-empty one.
+                return PandasDataFrame({"A": ["1", "2"], "B": [4, 5]})
             # case "sp_dataframe_data__tuple":
             #     pass
             case _:
@@ -297,16 +404,9 @@ class Decoder:
                 else:
                     return None
             case "sp_dataframe_schema__struct":
-                struct_field_list = []
-                for field in df_schema_expr.sp_dataframe_schema__struct.v.fields.list:
-                    column_identifier = field.column_identifier.name
-                    datatype = self.decode_data_type_expr(field.data_type)
-                    nullable = field.nullable
-                    struct_field_list.append(
-                        StructField(column_identifier, datatype, nullable)
-                    )
-                structured = df_schema_expr.sp_dataframe_schema__struct.v.structured
-                return StructType(struct_field_list, structured)
+                return self.decode_struct_type_expr(
+                    df_schema_expr.sp_dataframe_schema__struct.v
+                )
             case _:
                 raise ValueError(
                     "Unknown dataframe schema type: %s"
@@ -378,8 +478,8 @@ class Decoder:
                     data_type_expr.sp_pandas_data_frame_type.col_types, Iterable
                 ):
                     col_types = [
-                        col_name
-                        for col_name in data_type_expr.sp_pandas_data_frame_type.col_types
+                        self.decode_data_type_expr(col_type)
+                        for col_type in data_type_expr.sp_pandas_data_frame_type.col_types
                     ]
                 else:
                     col_types = [data_type_expr.sp_pandas_data_frame_type.col_types]
@@ -407,9 +507,8 @@ class Decoder:
                 return ShortType()
             case "sp_string_type":
                 length = (
-                    data_type_expr.sp_string_type.length
+                    data_type_expr.sp_string_type.length.value
                     if data_type_expr.sp_string_type.HasField("length")
-                    and isinstance(data_type_expr.sp_string_type.length, int)
                     else None
                 )
                 return StringType(length)
@@ -424,18 +523,15 @@ class Decoder:
                 return StructField(column_identifier, data_type, nullable)
             case "sp_struct_type":
                 # The fields can be a list of Expr, a single Expr, or None.
+                fields = []
                 if hasattr(data_type_expr.sp_struct_type, "fields"):
-                    if isinstance(data_type_expr.sp_struct_type.fields, Iterable):
-                        fields = [
-                            self.decode_data_type_expr(field)
-                            for field in data_type_expr.sp_struct_type.fields
-                        ]
-                    else:
-                        fields = [
-                            self.decode_data_type_expr(
-                                data_type_expr.sp_struct_type.fields
-                            )
-                        ]
+                    for field in data_type_expr.sp_struct_type.fields.list:
+                        column_identifier = field.column_identifier.name
+                        data_type = self.decode_data_type_expr(field.data_type)
+                        nullable = field.nullable
+                        fields.append(
+                            StructField(column_identifier, data_type, nullable)
+                        )
                 else:
                     fields = None
                 structured = data_type_expr.sp_struct_type.structured
@@ -518,6 +614,154 @@ class Decoder:
                     "Unknown join type: %s" % join_type.WhichOneof("variant")
                 )
 
+    def decode_matched_clause(
+        self, matched_clause: proto.SpMatchedClause
+    ) -> Union[WhenMatchedClause, WhenNotMatchedClause]:
+        """
+        Decode a matched clause expression to get the clause.
+
+        Parameters
+        ----------
+        matched_clause : proto.SpMatchedClause
+            The expression to decode.
+
+        Returns
+        -------
+        WhenMatchedClause or WhenNotMatchedClause
+            The decoded clause.
+        """
+        match matched_clause.WhichOneof("variant"):
+            case "sp_merge_delete_when_matched_clause":
+                condition = (
+                    self.decode_expr(
+                        matched_clause.sp_merge_delete_when_matched_clause.condition
+                    )
+                    if matched_clause.sp_merge_delete_when_matched_clause.HasField(
+                        "condition"
+                    )
+                    else None
+                )
+                return when_matched(condition).delete()
+            case "sp_merge_insert_when_not_matched_clause":
+                condition = (
+                    self.decode_expr(
+                        matched_clause.sp_merge_insert_when_not_matched_clause.condition
+                    )
+                    if matched_clause.sp_merge_insert_when_not_matched_clause.HasField(
+                        "condition"
+                    )
+                    else None
+                )
+                insert_keys = [
+                    self.decode_expr(key)
+                    for key in matched_clause.sp_merge_insert_when_not_matched_clause.insert_keys.list
+                ]
+                insert_values = [
+                    self.decode_expr(value)
+                    for value in matched_clause.sp_merge_insert_when_not_matched_clause.insert_values.list
+                ]
+                return when_not_matched(condition).insert(
+                    dict(zip(insert_keys, insert_values))
+                )
+            case "sp_merge_update_when_matched_clause":
+                condition = (
+                    self.decode_expr(
+                        matched_clause.sp_merge_update_when_matched_clause.condition
+                    )
+                    if matched_clause.sp_merge_update_when_matched_clause.HasField(
+                        "condition"
+                    )
+                    else None
+                )
+                update_assignments = self.decode_dsl_map_expr(
+                    matched_clause.sp_merge_update_when_matched_clause.update_assignments.list
+                )
+                return when_matched(condition).update(update_assignments)
+            case _:
+                raise ValueError(
+                    "Unknown matched clause: %s" % matched_clause.WhichOneof("variant")
+                )
+
+    def decode_pivot_value_expr(self, pivot_value_expr: proto.SpPivotValue) -> Any:
+        """
+        Decode expr to get the pivot value.
+
+        Parameters
+        ----------
+        pivot_value_expr : proto.SpPivotValues
+            The expression to decode.
+
+        Returns
+        -------
+        Any
+            The decoded pivot value.
+        """
+        match pivot_value_expr.WhichOneof("sealed_value"):
+            case "sp_pivot_value__dataframe":
+                return self.decode_expr(pivot_value_expr.sp_pivot_value__dataframe.v)
+            case "sp_pivot_value__expr":
+                return self.decode_expr(pivot_value_expr.sp_pivot_value__expr.v)
+            case _:
+                raise ValueError(
+                    "Unknown pivot value: %s"
+                    % pivot_value_expr.WhichOneof("sealed_value")
+                )
+
+    def decode_save_mode(self, save_mode: proto.SpSaveMode) -> str:
+        """
+        Decode a save mode expression to get the save mode.
+
+        Parameters
+        ----------
+        save_mode : proto.SpSaveMode
+            The expression to decode.
+
+        Returns
+        -------
+        str
+            The decoded save mode.
+        """
+        match save_mode.WhichOneof("variant"):
+            case "sp_save_mode_append":
+                return "append"
+            case "sp_save_mode_error_if_exists":
+                return "errorifexists"
+            case "sp_save_mode_ignore":
+                return "ignore"
+            case "sp_save_mode_overwrite":
+                return "overwrite"
+            case "sp_save_mode_truncate":
+                return "truncate"
+            case _:
+                raise ValueError(
+                    "Unknown save mode: %s" % save_mode.WhichOneof("variant")
+                )
+
+    def decode_struct_type_expr(
+        self, sp_struct_type_expr: proto.SpStructType
+    ) -> StructType:
+        """
+        Decode a struct type expression to get the struct type.
+
+        Parameters
+        ----------
+        struct_type_expr : proto.SpStructType
+            The expression to decode.
+
+        Returns
+        -------
+        StructType
+            The decoded object.
+        """
+        struct_field_list = []
+        for field in sp_struct_type_expr.fields.list:
+            column_identifier = field.column_identifier.name
+            datatype = self.decode_data_type_expr(field.data_type)
+            nullable = field.nullable
+            struct_field_list.append(StructField(column_identifier, datatype, nullable))
+        structured = sp_struct_type_expr.structured
+        return StructType(struct_field_list, structured)
+
     def decode_timezone_expr(self, tz_expr: proto.PythonTimeZone) -> timezone:
         """
         Decode a Python timezone expression to get the timezone.
@@ -535,6 +779,35 @@ class Decoder:
         tz_name = tz_expr.name.value
         offset_seconds = tz_expr.offset_seconds
         return timezone(offset=timedelta(seconds=offset_seconds), name=tz_name)
+
+    def decode_udtf_schema(
+        self, udtf_schema: proto.UdtfSchema
+    ) -> Union[List, DataType]:
+        """
+        Decode a UDTF schema expression to get the schema.
+
+        Parameters
+        ----------
+        udtf_schema : proto.UdtfSchema
+            The expression to decode.
+
+        Returns
+        -------
+        List or DataType
+            The decoded schema.
+        """
+        match udtf_schema.WhichOneof("sealed_value"):
+            case "udtf_schema__names":
+                return [s for s in udtf_schema.udtf_schema__names.schema]
+            case "udtf_schema__type":
+                return self.decode_data_type_expr(
+                    udtf_schema.udtf_schema__type.return_type
+                )
+            case _:
+                raise ValueError(
+                    "Unknown UDTF schema type: %s"
+                    % udtf_schema.WhichOneof("sealed_value")
+                )
 
     def decode_window_spec_expr(
         self, window_spec_expr: proto.SpWindowSpecExpr
@@ -784,7 +1057,7 @@ class Decoder:
                                 ][1]
                             )
                         case "call_table_function_expr" | "indirect_table_fn_name_ref":
-                            if source is "sp_session_table_function":
+                            if source == "sp_session_table_function":
                                 return self.session.table_function(
                                     fn_name, *pos_args, **named_args
                                 )
@@ -1007,12 +1280,12 @@ class Decoder:
                 rhs = self.decode_expr(expr.sp_column_equal_null.rhs)
                 return lhs.equal_null(rhs)
 
-            case "sp_column_in__seq":
-                col = self.decode_expr(expr.sp_column_in__seq.col)
-                if isinstance(expr.sp_column_in__seq.values, Iterable):
+            case "sp_column_in":
+                col = self.decode_expr(expr.sp_column_in.col)
+                if isinstance(expr.sp_column_in.values, Iterable):
                     # The values should be passed in as positional arguments and not as a list.
                     return col.in_(
-                        self.decode_expr(v) for v in expr.sp_column_in__seq.values
+                        *[self.decode_expr(v) for v in expr.sp_column_in.values]
                     )
                 else:
                     # The list case should be taken care of in this branch.
@@ -1041,6 +1314,37 @@ class Decoder:
                     else sql_expr
                 )
 
+            case "sp_column_string_like":
+                col = self.decode_expr(expr.sp_column_string_like.col)
+                pattern = self.decode_expr(expr.sp_column_string_like.pattern)
+                return col.like(pattern)
+
+            case "sp_column_string_regexp":
+                col = self.decode_expr(expr.sp_column_string_regexp.col)
+                pattern = self.decode_expr(expr.sp_column_string_regexp.pattern)
+                parameters = (
+                    self.decode_expr(expr.sp_column_string_regexp.parameters)
+                    if expr.sp_column_string_regexp.HasField("parameters")
+                    else None
+                )
+                return col.regexp(pattern, parameters)
+
+            case "sp_column_string_starts_with":
+                col = self.decode_expr(expr.sp_column_string_starts_with.col)
+                prefix = self.decode_expr(expr.sp_column_string_starts_with.prefix)
+                return col.startswith(prefix)
+
+            case "sp_column_string_substr":
+                col = self.decode_expr(expr.sp_column_string_substr.col)
+                length = self.decode_expr(expr.sp_column_string_substr.len)
+                pos = self.decode_expr(expr.sp_column_string_substr.pos)
+                return col.substr(pos, length)
+
+            case "sp_column_string_ends_with":
+                col = self.decode_expr(expr.sp_column_string_ends_with.col)
+                suffix = self.decode_expr(expr.sp_column_string_ends_with.suffix)
+                return col.endswith(suffix)
+
             case "sp_column_string_collate":
                 col = self.decode_expr(expr.sp_column_string_collate.col)
                 collation_spec = self.decode_expr(
@@ -1052,33 +1356,6 @@ class Decoder:
                 col = self.decode_expr(expr.sp_column_string_contains.col)
                 pattern = self.decode_expr(expr.sp_column_string_contains.pattern)
                 return col.contains(pattern)
-
-            case "sp_column_string_ends_with":
-                col = self.decode_expr(expr.sp_column_string_ends_with.col)
-                suffix = self.decode_expr(expr.sp_column_string_ends_with.suffix)
-                return col.ends_with(suffix)
-
-            case "sp_column_string_like":
-                col = self.decode_expr(expr.sp_column_string_like.col)
-                pattern = self.decode_expr(expr.sp_column_string_like.pattern)
-                return col.like(pattern)
-
-            case "sp_column_string_regexp":
-                col = self.decode_expr(expr.sp_column_string_regexp.col)
-                pattern = self.decode_expr(expr.sp_column_string_regexp.pattern)
-                parameters = self.decode_expr(expr.sp_column_string_regexp.parameters)
-                return col.regexp(pattern, parameters)
-
-            case "sp_column_string_starts_with":
-                col = self.decode_expr(expr.sp_column_string_starts_with.col)
-                prefix = self.decode_expr(expr.sp_column_string_starts_with.prefix)
-                return col.starts_with(prefix)
-
-            case "sp_column_string_substr":
-                col = self.decode_expr(expr.sp_column_string_substr.col)
-                length = self.decode_expr(expr.sp_column_string_substr.len)
-                pos = self.decode_expr(expr.sp_column_string_substr.pos)
-                return col.substr(pos, length)
 
             case "sp_column_try_cast":
                 col = self.decode_expr(expr.sp_column_try_cast.col)
@@ -1158,10 +1435,9 @@ class Decoder:
             # DATAFRAME FUNCTIONS
             case "sp_create_dataframe":
                 data = self.decode_dataframe_data_expr(expr.sp_create_dataframe.data)
-                d = MessageToDict(expr.sp_create_dataframe)
                 schema = (
                     self.decode_dataframe_schema_expr(expr.sp_create_dataframe.schema)
-                    if "schema" in d
+                    if expr.sp_create_dataframe.HasField("schema")
                     else None
                 )
                 df = self.session.create_dataframe(data=data, schema=schema)
@@ -1277,12 +1553,6 @@ class Decoder:
                     time_col, aggs, windows, group_by, sliding_interval, col_formatter
                 )
 
-            case "sp_dataframe_cache_result":
-                df = self.decode_expr(expr.sp_dataframe_cache_result.df)
-                d = MessageToDict(expr.sp_dataframe_cache_result)
-                statement_params = self.get_statement_params(d)
-                return df.cache_result(statement_params=statement_params)
-
             case "sp_dataframe_col":
                 col_name = expr.sp_dataframe_col.col_name
                 df = self.decode_expr(expr.sp_dataframe_col.df)
@@ -1310,250 +1580,14 @@ class Decoder:
                         case_sensitive=case_sensitive,
                     )
 
-            case "sp_dataframe_copy_into_table":
-                df = self.decode_expr(expr.sp_dataframe_copy_into_table.df)
-                name = self.decode_name_expr(
-                    expr.sp_dataframe_copy_into_table.table_name
-                )
-                name = self.convert_name_to_list(name)
-                files = [
-                    file_name for file_name in expr.sp_dataframe_copy_into_table.files
-                ]
-                pattern = expr.sp_dataframe_copy_into_table.pattern.value
-                validation_mode = (
-                    expr.sp_dataframe_copy_into_table.validation_mode.value
-                )
-                target_columns = [
-                    column_name
-                    for column_name in expr.sp_dataframe_copy_into_table.target_columns
-                ]
-                transformations = [
-                    self.decode_expr(transformation)
-                    for transformation in expr.sp_dataframe_copy_into_table.transformations
-                ]
-                format_type_options = None
-                if hasattr(expr.sp_dataframe_copy_into_table, "format_type_options"):
-                    format_type_options = {
-                        expr.sp_dataframe_copy_into_table.format_type_options[
-                            i
-                        ]._1: self.decode_expr(
-                            expr.sp_dataframe_copy_into_table.format_type_options[i]._2
-                        )
-                        for i in range(
-                            len(expr.sp_dataframe_copy_into_table.format_type_options)
-                        )
-                    }
-                statement_params = None
-                if hasattr(expr.sp_dataframe_copy_into_table, "statement_params"):
-                    statement_params = {
-                        expr.sp_dataframe_copy_into_table.statement_params[i]
-                        ._1: expr.sp_dataframe_copy_into_table.statement_params[i]
-                        ._2
-                        for i in range(
-                            len(expr.sp_dataframe_copy_into_table.statement_params)
-                        )
-                    }
-                copy_options = None
-                if hasattr(expr.sp_dataframe_copy_into_table, "copy_options"):
-                    copy_options = {
-                        expr.sp_dataframe_copy_into_table.copy_options[
-                            i
-                        ]._1: self.decode_expr(
-                            expr.sp_dataframe_copy_into_table.copy_options[i]._2
-                        )
-                        for i in range(
-                            len(expr.sp_dataframe_copy_into_table.copy_options)
-                        )
-                    }
-
-                df.copy_into_table(
-                    table_name=name,
-                    files=files,
-                    pattern=pattern,
-                    validation_mode=validation_mode,
-                    target_columns=target_columns,
-                    transformations=transformations,
-                    format_type_options=format_type_options,
-                    statement_params=statement_params,
-                    **copy_options,
-                )
-
             case "sp_dataframe_count":
-                df = self.decode_expr(expr.sp_dataframe_first.df)
+                df = self.symbol_table[expr.sp_dataframe_count.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_count)
                 statement_params = self.get_statement_params(d)
-                block = d["block"]
+                block = d.get("block", False)
                 return df.count(
                     statement_params=statement_params,
                     block=block,
-                )
-
-            case "sp_dataframe_create_or_replace_dynamic_table":
-                df = self.decode_expr(
-                    expr.sp_dataframe_create_or_replace_dynamic_table.df
-                )
-                name = self.decode_name_expr(
-                    expr.sp_dataframe_create_or_replace_dynamic_table.name
-                )
-                if not isinstance(name, str):
-                    name = self.convert_name_to_list(name)
-                warehouse = expr.sp_dataframe_create_or_replace_dynamic_table.warehouse
-                lag = expr.sp_dataframe_create_or_replace_dynamic_table.lag
-                comment = (
-                    expr.sp_dataframe_create_or_replace_dynamic_table.comment.value
-                )
-                mode = "overwrite"
-                match expr.sp_dataframe_create_or_replace_dynamic_table.mode.WhichOneof(
-                    "variant"
-                ):
-                    case "sp_save_mode_append":
-                        mode = "append"
-
-                    case "sp_save_mode_error_if_exists":
-                        mode = "error_if_exists"
-
-                    case "sp_save_mode_ignore":
-                        mode = "ignore"
-
-                    case "sp_save_mode_overwrite":
-                        mode = "overwrite"
-
-                    case "sp_save_mode_truncate":
-                        mode = "truncate"
-
-                refresh_mode = None
-                if (
-                    hasattr(
-                        expr.sp_dataframe_create_or_replace_dynamic_table,
-                        "refresh_mode",
-                    )
-                    and len(
-                        expr.sp_dataframe_create_or_replace_dynamic_table.refresh_mode.value
-                    )
-                    > 0
-                ):
-                    refresh_mode = (
-                        expr.sp_dataframe_create_or_replace_dynamic_table.refresh_mode.value
-                    )
-                initialize = None
-                if (
-                    hasattr(
-                        expr.sp_dataframe_create_or_replace_dynamic_table, "initialize"
-                    )
-                    and len(
-                        expr.sp_dataframe_create_or_replace_dynamic_table.initialize.value
-                    )
-                    > 0
-                ):
-                    initialize = (
-                        expr.sp_dataframe_create_or_replace_dynamic_table.initialize.value
-                    )
-                clustering_keys = None
-                if (
-                    len(
-                        expr.sp_dataframe_create_or_replace_dynamic_table.clustering_keys.list
-                    )
-                    > 0
-                ):
-                    clustering_keys = [
-                        self.decode_expr(clustering_key)
-                        for clustering_key in expr.sp_dataframe_create_or_replace_dynamic_table.clustering_keys.list
-                    ]
-                is_transient = (
-                    expr.sp_dataframe_create_or_replace_dynamic_table.is_transient
-                )
-                data_retention_time = None
-                if (
-                    hasattr(
-                        expr.sp_dataframe_create_or_replace_dynamic_table,
-                        "data_retention_time",
-                    )
-                    and expr.sp_dataframe_create_or_replace_dynamic_table.data_retention_time.value
-                    > 0
-                ):
-                    data_retention_time = (
-                        expr.sp_dataframe_create_or_replace_dynamic_table.data_retention_time.value
-                    )
-                max_data_extension_time = None
-                if (
-                    hasattr(
-                        expr.sp_dataframe_create_or_replace_dynamic_table,
-                        "max_data_extension_time",
-                    )
-                    and expr.sp_dataframe_create_or_replace_dynamic_table.max_data_extension_time.value
-                    > 0
-                ):
-                    max_data_extension_time = (
-                        expr.sp_dataframe_create_or_replace_dynamic_table.max_data_extension_time.value
-                    )
-                d = MessageToDict(expr.sp_dataframe_create_or_replace_dynamic_table)
-                statement_params = self.get_statement_params(d)
-                iceberg_config = None
-                if hasattr(
-                    expr.sp_dataframe_create_or_replace_dynamic_table, "iceberg_config"
-                ):
-                    iceberg_config = (
-                        expr.sp_dataframe_create_or_replace_dynamic_table.iceberg_config
-                    )
-                return df.create_or_replace_dynamic_table(
-                    name=name,
-                    warehouse=warehouse,
-                    lag=lag,
-                    comment=comment,
-                    mode=mode,
-                    refresh_mode=refresh_mode,
-                    initialize=initialize,
-                    clustering_keys=clustering_keys,
-                    is_transient=is_transient,
-                    data_retention_time=data_retention_time,
-                    max_data_extension_time=max_data_extension_time,
-                    statement_params=statement_params,
-                    iceberg_config=iceberg_config,
-                )
-
-            case "sp_dataframe_create_or_replace_view":
-                df = self.decode_expr(expr.sp_dataframe_create_or_replace_view.df)
-                name = self.decode_name_expr(
-                    expr.sp_dataframe_create_or_replace_view.name
-                )
-                if not isinstance(name, str):
-                    name = self.convert_name_to_list(name)
-                statement_params = None
-                if hasattr(
-                    expr.sp_dataframe_create_or_replace_view, "statement_params"
-                ):
-                    d = MessageToDict(expr.sp_dataframe_create_or_replace_view)
-                    statement_params = self.get_statement_params(d)
-
-                comment = None
-                if hasattr(expr.sp_dataframe_create_or_replace_view, "comment"):
-                    comment = expr.sp_dataframe_create_or_replace_view.comment.value
-                is_temp = expr.sp_dataframe_create_or_replace_view.is_temp
-                if is_temp:
-                    if len(comment) > 0:
-                        return df.create_or_replace_temp_view(
-                            name, comment=comment, statement_params=statement_params
-                        )
-                    else:
-                        return df.create_or_replace_temp_view(
-                            name, statement_params=statement_params
-                        )
-                else:
-                    if len(comment) > 0:
-                        return df.create_or_replace_view(
-                            name, comment=comment, statement_params=statement_params
-                        )
-                    return df.create_or_replace_view(
-                        name, statement_params=statement_params
-                    )
-
-            case "sp_dataframe_cross_join":
-                lhs = self.decode_expr(expr.sp_dataframe_cross_join.lhs)
-                rhs = self.decode_expr(expr.sp_dataframe_cross_join.rhs)
-                left_suffix = expr.sp_dataframe_cross_join.lsuffix.value
-                right_suffix = expr.sp_dataframe_cross_join.rsuffix.value
-                return lhs.cross_join(
-                    right=rhs, lsuffix=left_suffix, rsuffix=right_suffix
                 )
 
             case "sp_dataframe_cube":
@@ -1616,30 +1650,6 @@ class Decoder:
                     MessageToDict(expr.sp_dataframe_first)
                 )
                 return df.first(n=num, statement_params=statement_params, block=block)
-
-            case "sp_dataframe_flatten":
-                df = self.decode_expr(expr.sp_dataframe_flatten.df)
-                input = self.decode_expr(expr.sp_dataframe_flatten.input)
-                mode = "BOTH"
-                match expr.sp_dataframe_flatten.mode.WhichOneof("variant"):
-                    case "sp_flatten_mode_both":
-                        mode = "BOTH"
-                    case "sp_flatten_mode_array":
-                        mode = "ARRAY"
-                    case "sp_flatten_mode_object":
-                        mode = "OBJECT"
-
-                path = expr.sp_dataframe_flatten.path.value
-
-                outer = expr.sp_dataframe_flatten.outer
-                recursive = expr.sp_dataframe_flatten.recursive
-                if len(path) == 0:
-                    return df.flatten(
-                        input=input, mode=mode, outer=outer, recursive=recursive
-                    )
-                return df.flatten(
-                    input=input, path=path, mode=mode, outer=outer, recursive=recursive
-                )
 
             case "sp_dataframe_group_by":
                 df = self.decode_expr(expr.sp_dataframe_group_by.df)
@@ -1711,6 +1721,14 @@ class Decoder:
                 offset = expr.sp_dataframe_limit.offset
                 return df.limit(n, offset)
 
+            case "sp_dataframe_natural_join":
+                lhs = self.decode_expr(expr.sp_dataframe_natural_join.lhs)
+                rhs = self.decode_expr(expr.sp_dataframe_natural_join.rhs)
+                join_type = self.decode_join_type(
+                    expr.sp_dataframe_natural_join.join_type
+                )
+                return lhs.natural_join(right=rhs, how=join_type)
+
             case "sp_dataframe_na_drop__python":
                 df = self.decode_expr(expr.sp_dataframe_na_drop__python.df)
                 how = expr.sp_dataframe_na_drop__python.how
@@ -1777,34 +1795,13 @@ class Decoder:
                 )
                 return df.na.replace(to_replace, value, subset)
 
-            case "sp_dataframe_natural_join":
-                lhs = self.decode_expr(expr.sp_dataframe_natural_join.lhs)
-                rhs = self.decode_expr(expr.sp_dataframe_natural_join.rhs)
-                join_type = self.decode_join_type(
-                    expr.sp_dataframe_natural_join.join_type
-                )
-                return lhs.natural_join(right=rhs, how=join_type)
-
             case "sp_dataframe_pivot":
                 df = self.decode_expr(expr.sp_dataframe_pivot.df)
                 pivot_col = self.decode_expr(expr.sp_dataframe_pivot.pivot_col)
                 default_on_null = self.decode_expr(
                     expr.sp_dataframe_pivot.default_on_null
                 )
-                match expr.sp_dataframe_pivot.values.WhichOneof("sealed_value"):
-                    case "sp_pivot_value__dataframe":
-                        values = self.decode_expr(
-                            expr.sp_dataframe_pivot.values.sp_pivot_value__dataframe.v
-                        )
-                    case "sp_pivot_value__expr":
-                        values = self.decode_expr(
-                            expr.sp_dataframe_pivot.values.sp_pivot_value__expr.v
-                        )
-                    case _:
-                        raise ValueError(
-                            "Unknown pivot value: %s"
-                            % expr.sp_dataframe_pivot.values.WhichOneof("sealed_value")
-                        )
+                values = self.decode_pivot_value_expr(expr.sp_dataframe_pivot.values)
                 return df.pivot(pivot_col, values, default_on_null)
 
             case "sp_dataframe_random_split":
@@ -1871,9 +1868,7 @@ class Decoder:
                     return df.select_expr(exprs)
 
             case "sp_dataframe_show":
-                df = self.decode_expr(
-                    self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
-                )
+                df = self.symbol_table[expr.sp_dataframe_show.id.bitfield1][1]
                 return df.show()
 
             case "sp_dataframe_sort":
@@ -2011,8 +2006,8 @@ class Decoder:
                 ]
                 name_column = expr.sp_dataframe_unpivot.name_column
                 value_column = expr.sp_dataframe_unpivot.value_column
-                # TODO SNOW-1866100: add logic for `include_nulls`.
-                return df.unpivot(value_column, name_column, column_list)
+                include_nulls = expr.sp_dataframe_unpivot.include_nulls
+                return df.unpivot(value_column, name_column, column_list, include_nulls)
 
             case "sp_dataframe_with_column":
                 df = self.decode_expr(expr.sp_dataframe_with_column.df)
@@ -2034,10 +2029,6 @@ class Decoder:
                 ]
                 return df.with_columns(col_names, values)
 
-            case "sp_dataframe_write":
-                df = self.decode_expr(expr.sp_dataframe_write.df)
-                return df.write
-
             case "sp_relational_grouped_dataframe_agg":
                 grouped_df = self.decode_expr(
                     expr.sp_relational_grouped_dataframe_agg.grouped_df
@@ -2052,15 +2043,26 @@ class Decoder:
                 else:
                     return grouped_df.agg(exprs)
 
+            case "sp_range":
+                start = expr.sp_range.start
+                end = expr.sp_range.end.value if expr.sp_range.HasField("end") else None
+                step = expr.sp_range.step.value if expr.sp_range.HasField("step") else 1
+                return self.session.range(start, end, step)
+
             case "sp_relational_grouped_dataframe_apply_in_pandas":
-                # TODO: SNOW-1830603 Flesh out this logic when implementing UDTFs. Need to create a dict to maintain
-                #       all functions registered (here, `func`). Implement `decode_callable_expr`.
-                # func = self.decode_callable_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.func)
-                # grouped_df = self.decode_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.grouped_df)
-                # kwargs = self.decode_dsl_map_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.kwargs)
-                # output_schema = self.decode_expr(expr.sp_relational_grouped_dataframe_apply_in_pandas.output_schema)
-                # return grouped_df.apply_in_pandas(func, output_schema, **kwargs)
-                pass
+                func, _ = self.decode_callable_expr(
+                    expr.sp_relational_grouped_dataframe_apply_in_pandas.func
+                )
+                grouped_df = self.decode_expr(
+                    expr.sp_relational_grouped_dataframe_apply_in_pandas.grouped_df
+                )
+                kwargs = self.decode_dsl_map_expr(
+                    expr.sp_relational_grouped_dataframe_apply_in_pandas.kwargs
+                )
+                output_schema = self.decode_struct_type_expr(
+                    expr.sp_relational_grouped_dataframe_apply_in_pandas.output_schema
+                )
+                return grouped_df.apply_in_pandas(func, output_schema, **kwargs)
 
             case "sp_relational_grouped_dataframe_builtin":
                 grouped_df = self.decode_expr(
@@ -2081,10 +2083,149 @@ class Decoder:
                 else:
                     return getattr(grouped_df, agg_name)(cols)
 
+            case "sp_relational_grouped_dataframe_pivot":
+                default_on_null = (
+                    self.decode_expr(
+                        expr.sp_relational_grouped_dataframe_pivot.default_on_null
+                    )
+                    if expr.sp_relational_grouped_dataframe_pivot.HasField(
+                        "default_on_null"
+                    )
+                    else None
+                )
+                grouped_df = self.decode_expr(
+                    expr.sp_relational_grouped_dataframe_pivot.grouped_df
+                )
+                pivot_col = self.decode_expr(
+                    expr.sp_relational_grouped_dataframe_pivot.pivot_col
+                )
+                values = (
+                    self.decode_pivot_value_expr(
+                        expr.sp_relational_grouped_dataframe_pivot.values
+                    )
+                    if expr.sp_relational_grouped_dataframe_pivot.HasField("values")
+                    else None
+                )
+                return grouped_df.pivot(pivot_col, values, default_on_null)
+
             case "sp_relational_grouped_dataframe_ref":
                 return self.symbol_table[
                     expr.sp_relational_grouped_dataframe_ref.id.bitfield1
                 ][1]
+
+            case "sp_session_table_function":
+                # Here, self.decode_expr will most likely run Session.call since Session.call does not have an explicit
+                # AST entity. To prevent Session.call from running, give context to self.decode_expr that the caller is
+                # sp_session_table_function entity via kwargs.
+                kwargs = {"source": "sp_session_table_function"}
+                return self.decode_expr(expr.sp_session_table_function.fn, **kwargs)
+
+            case "sp_table":
+                assert expr.sp_table.HasField("name")
+                table_name = self.decode_name_expr(expr.sp_table.name)
+                is_temp_table = (
+                    expr.sp_table.is_temp_table_for_cleanup
+                    if hasattr(expr.sp_table, "is_temp_table_for_cleanup")
+                    else False
+                )
+                match expr.sp_table.variant.WhichOneof("variant"):
+                    case "sp_session_table":
+                        return self.session.table(
+                            table_name,
+                            is_temp_table_for_cleanup=is_temp_table,
+                        )
+                    case "sp_table_init":
+                        return Table(table_name, self.session, is_temp_table)
+                    case _:
+                        raise ValueError(
+                            "Unknown table type: %s"
+                            % expr.sp_table.WhichOneof("variant")
+                        )
+
+            case "sp_table_delete":
+                table = self.symbol_table[expr.sp_table_delete.id.bitfield1][1]
+                block = expr.sp_table_delete.block
+                condition = (
+                    self.decode_expr(expr.sp_table_delete.condition)
+                    if expr.sp_table_delete.HasField("condition")
+                    else None
+                )
+                source = (
+                    self.decode_expr(expr.sp_table_delete.source)
+                    if expr.sp_table_delete.HasField("source")
+                    else None
+                )
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_table_delete)
+                )
+                return table.delete(
+                    condition=condition,
+                    source=source,
+                    statement_params=statement_params,
+                    block=block,
+                )
+
+            case "sp_table_drop_table":
+                table = self.symbol_table[expr.sp_table_drop_table.id.bitfield1][1]
+                return table.drop_table()
+
+            case "sp_table_merge":
+                table = self.symbol_table[expr.sp_table_merge.id.bitfield1][1]
+                block = expr.sp_table_merge.block
+                clauses = [
+                    self.decode_matched_clause(clause)
+                    for clause in expr.sp_table_merge.clauses
+                ]
+                join_expr = self.decode_expr(expr.sp_table_merge.join_expr)
+                source = self.decode_expr(expr.sp_table_merge.source)
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_table_merge)
+                )
+                return table.merge(
+                    source=source,
+                    join_expr=join_expr,
+                    clauses=clauses,
+                    statement_params=statement_params,
+                    block=block,
+                )
+
+            case "sp_table_sample":
+                df = self.decode_expr(expr.sp_table_sample.df)
+                num = expr.sp_table_sample.num.value
+                probability_fraction = expr.sp_table_sample.probability_fraction.value
+                sampling_method = expr.sp_table_sample.sampling_method.value
+                seed = expr.sp_table_sample.seed.value
+                return df.sample(
+                    frac=probability_fraction,
+                    n=num,
+                    seed=seed,
+                    sampling_method=sampling_method,
+                )
+
+            case "sp_table_update":
+                table = self.symbol_table[expr.sp_table_update.id.bitfield1][1]
+                assignments = self.decode_dsl_map_expr(expr.sp_table_update.assignments)
+                block = expr.sp_table_update.block
+                condition = (
+                    self.decode_expr(expr.sp_table_update.condition)
+                    if expr.sp_table_update.HasField("condition")
+                    else None
+                )
+                source = (
+                    self.decode_expr(expr.sp_table_update.source)
+                    if expr.sp_table_update.HasField("source")
+                    else None
+                )
+                statement_params = self.get_statement_params(
+                    MessageToDict(expr.sp_table_update)
+                )
+                return table.update(
+                    assignments,
+                    condition,
+                    source,
+                    statement_params=statement_params,
+                    block=block,
+                )
 
             case "sp_to_snowpark_pandas":
                 df = self.decode_expr(expr.sp_to_snowpark_pandas.df)
@@ -2104,6 +2245,68 @@ class Decoder:
                 df.to_snowpark_pandas(index_col, columns)
                 return None
 
+            case "udaf":
+                comment = (
+                    expr.udaf.comment.value if expr.udaf.HasField("comment") else None
+                )
+                external_access_integrations = [
+                    eai for eai in expr.udaf.external_access_integrations
+                ]
+                handler, handler_name = self.decode_callable_expr(
+                    expr.udaf.handler, "udaf"
+                )
+                if_not_exists = expr.udaf.if_not_exists
+                immutable = expr.udaf.immutable
+                imports = [
+                    self.decode_name_expr(import_) for import_ in expr.udaf.imports
+                ]
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.udaf.input_types.list
+                ]
+                is_permanent = expr.udaf.is_permanent
+                kwargs = self.decode_dsl_map_expr(expr.udaf.kwargs)
+                if "copy_grants" in kwargs:
+                    kwargs.pop("copy_grants")
+                name = (
+                    self.decode_name_expr(expr.udaf.name)
+                    if expr.udaf.HasField("name")
+                    else None
+                )
+                packages = [package for package in expr.udaf.packages]
+                parallel = expr.udaf.parallel
+                replace = expr.udaf.replace
+                return_type = self.decode_data_type_expr(expr.udaf.return_type)
+                secrets = self.decode_dsl_map_expr(expr.udaf.secrets)
+                stage_location = (
+                    expr.udaf.stage_location.value
+                    if expr.udaf.HasField("stage_location")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(expr.udaf.statement_params)
+                # Run udaf to create the required AST but return the first registered version of the UDAF.
+                _ = udaf(
+                    handler,
+                    return_type=return_type,
+                    input_types=input_types,
+                    name=name,
+                    is_permanent=is_permanent,
+                    stage_location=stage_location,
+                    imports=imports,
+                    packages=packages,
+                    replace=replace,
+                    if_not_exists=if_not_exists,
+                    session=self.session,
+                    parallel=parallel,
+                    statement_params=statement_params,
+                    immutable=immutable,
+                    external_access_integrations=external_access_integrations,
+                    secrets=secrets,
+                    comment=comment,
+                    **kwargs,
+                )
+                return self.session._udaf_registration.get_udaf(handler_name)
+
             case "udf":
                 return_type = self.decode_data_type_expr(expr.udf.return_type)
                 input_types = [
@@ -2115,8 +2318,565 @@ class Decoder:
                 )
 
             case "udtf":
-                # TODO: SNOW-1830603 Implement UDTF decoding.
-                pass
+                comment = (
+                    expr.udtf.comment.value if expr.udtf.HasField("comment") else None
+                )
+                external_access_integrations = [
+                    eai for eai in expr.udtf.external_access_integrations
+                ]
+                handler, handler_name = self.decode_callable_expr(
+                    expr.udtf.handler, "udtf"
+                )
+                if_not_exists = expr.udtf.if_not_exists
+                immutable = expr.udtf.immutable
+                imports = [
+                    self.decode_name_expr(import_) for import_ in expr.udtf.imports
+                ]
+                input_types = [
+                    self.decode_data_type_expr(input_type)
+                    for input_type in expr.udtf.input_types.list
+                ]
+                is_permanent = expr.udtf.is_permanent
+                kwargs = self.decode_dsl_map_expr(expr.udtf.kwargs)
+                if "copy_grants" in kwargs:
+                    kwargs.pop("copy_grants")
+                name = (
+                    self.decode_name_expr(expr.udtf.name)
+                    if expr.udtf.HasField("name")
+                    else None
+                )
+                output_schema = self.decode_udtf_schema(expr.udtf.output_schema)
+                packages = [package for package in expr.udtf.packages]
+                parallel = expr.udtf.parallel
+                replace = expr.udtf.replace
+                secrets = self.decode_dsl_map_expr(expr.udtf.secrets)
+                secure = expr.udtf.secure
+                stage_location = expr.udtf.stage_location
+                statement_params = self.decode_dsl_map_expr(expr.udtf.statement_params)
+                strict = expr.udtf.strict
+                # Run udtf to create the required AST but return the first registered version of the UDTF.
+                _ = udtf(
+                    handler,
+                    output_schema=output_schema,
+                    input_types=input_types,
+                    name=name,
+                    is_permanent=is_permanent,
+                    stage_location=stage_location,
+                    imports=imports,
+                    packages=packages,
+                    replace=replace,
+                    if_not_exists=if_not_exists,
+                    session=self.session,
+                    parallel=parallel,
+                    statement_params=statement_params,
+                    strict=strict,
+                    secure=secure,
+                    external_access_integrations=external_access_integrations,
+                    secrets=secrets,
+                    immutable=immutable,
+                    comment=comment,
+                    **kwargs,
+                )
+                return self.session._udtf_registration.get_udtf(handler_name)
+
+            case "sp_dataframe_cross_join":
+                lhs = self.decode_expr(expr.sp_dataframe_cross_join.lhs)
+                rhs = self.decode_expr(expr.sp_dataframe_cross_join.rhs)
+                left_suffix = expr.sp_dataframe_cross_join.lsuffix.value
+                right_suffix = expr.sp_dataframe_cross_join.rsuffix.value
+                return lhs.cross_join(
+                    right=rhs, lsuffix=left_suffix, rsuffix=right_suffix
+                )
+
+            case "sp_dataframe_flatten":
+                df = self.decode_expr(expr.sp_dataframe_flatten.df)
+                input = self.decode_expr(expr.sp_dataframe_flatten.input)
+                mode = "BOTH"
+                match expr.sp_dataframe_flatten.mode.WhichOneof("variant"):
+                    case "sp_flatten_mode_both":
+                        mode = "BOTH"
+                    case "sp_flatten_mode_array":
+                        mode = "ARRAY"
+                    case "sp_flatten_mode_object":
+                        mode = "OBJECT"
+
+                path = expr.sp_dataframe_flatten.path.value
+
+                outer = expr.sp_dataframe_flatten.outer
+                recursive = expr.sp_dataframe_flatten.recursive
+                if len(path) == 0:
+                    return df.flatten(
+                        input=input, mode=mode, outer=outer, recursive=recursive
+                    )
+                return df.flatten(
+                    input=input, path=path, mode=mode, outer=outer, recursive=recursive
+                )
+
+            case "sp_dataframe_create_or_replace_view":
+                df = self.decode_expr(expr.sp_dataframe_create_or_replace_view.df)
+                name = self.decode_name_expr(
+                    expr.sp_dataframe_create_or_replace_view.name
+                )
+                if not isinstance(name, str):
+                    name = self.convert_name_to_list(name)
+                statement_params = None
+                if hasattr(
+                    expr.sp_dataframe_create_or_replace_view, "statement_params"
+                ):
+                    d = MessageToDict(expr.sp_dataframe_create_or_replace_view)
+                    statement_params = self.get_statement_params(d)
+
+                comment = None
+                if hasattr(expr.sp_dataframe_create_or_replace_view, "comment"):
+                    comment = expr.sp_dataframe_create_or_replace_view.comment.value
+                is_temp = expr.sp_dataframe_create_or_replace_view.is_temp
+                if is_temp:
+                    if len(comment) > 0:
+                        return df.create_or_replace_temp_view(
+                            name, comment=comment, statement_params=statement_params
+                        )
+                    else:
+                        return df.create_or_replace_temp_view(
+                            name, statement_params=statement_params
+                        )
+                else:
+                    if len(comment) > 0:
+                        return df.create_or_replace_view(
+                            name, comment=comment, statement_params=statement_params
+                        )
+                    return df.create_or_replace_view(
+                        name, statement_params=statement_params
+                    )
+
+            case "sp_dataframe_copy_into_table":
+                df = self.decode_expr(expr.sp_dataframe_copy_into_table.df)
+                name = self.decode_name_expr(
+                    expr.sp_dataframe_copy_into_table.table_name
+                )
+                name = self.convert_name_to_list(name)
+                files = [
+                    file_name for file_name in expr.sp_dataframe_copy_into_table.files
+                ]
+                pattern = expr.sp_dataframe_copy_into_table.pattern.value
+                validation_mode = (
+                    expr.sp_dataframe_copy_into_table.validation_mode.value
+                )
+                target_columns = [
+                    column_name
+                    for column_name in expr.sp_dataframe_copy_into_table.target_columns
+                ]
+                transformations = [
+                    self.decode_expr(transformation)
+                    for transformation in expr.sp_dataframe_copy_into_table.transformations
+                ]
+                format_type_options = None
+                if hasattr(expr.sp_dataframe_copy_into_table, "format_type_options"):
+                    format_type_options = {
+                        expr.sp_dataframe_copy_into_table.format_type_options[
+                            i
+                        ]._1: self.decode_expr(
+                            expr.sp_dataframe_copy_into_table.format_type_options[i]._2
+                        )
+                        for i in range(
+                            len(expr.sp_dataframe_copy_into_table.format_type_options)
+                        )
+                    }
+                statement_params = None
+                if hasattr(expr.sp_dataframe_copy_into_table, "statement_params"):
+                    statement_params = {
+                        expr.sp_dataframe_copy_into_table.statement_params[i]
+                        ._1: expr.sp_dataframe_copy_into_table.statement_params[i]
+                        ._2
+                        for i in range(
+                            len(expr.sp_dataframe_copy_into_table.statement_params)
+                        )
+                    }
+                copy_options = None
+                if hasattr(expr.sp_dataframe_copy_into_table, "copy_options"):
+                    copy_options = {
+                        expr.sp_dataframe_copy_into_table.copy_options[
+                            i
+                        ]._1: self.decode_expr(
+                            expr.sp_dataframe_copy_into_table.copy_options[i]._2
+                        )
+                        for i in range(
+                            len(expr.sp_dataframe_copy_into_table.copy_options)
+                        )
+                    }
+
+                df.copy_into_table(
+                    table_name=name,
+                    files=files,
+                    pattern=pattern,
+                    validation_mode=validation_mode,
+                    target_columns=target_columns,
+                    transformations=transformations,
+                    format_type_options=format_type_options,
+                    statement_params=statement_params,
+                    **copy_options,
+                )
+
+            case "sp_dataframe_cache_result":
+                df = self.decode_expr(expr.sp_dataframe_cache_result.df)
+                d = MessageToDict(expr.sp_dataframe_cache_result)
+                statement_params = self.get_statement_params(d)
+                return df.cache_result(statement_params=statement_params)
+
+            case "sp_dataframe_create_or_replace_dynamic_table":
+                df = self.decode_expr(
+                    expr.sp_dataframe_create_or_replace_dynamic_table.df
+                )
+                name = self.decode_name_expr(
+                    expr.sp_dataframe_create_or_replace_dynamic_table.name
+                )
+                if not isinstance(name, str):
+                    name = self.convert_name_to_list(name)
+                warehouse = expr.sp_dataframe_create_or_replace_dynamic_table.warehouse
+                lag = expr.sp_dataframe_create_or_replace_dynamic_table.lag
+                comment = (
+                    expr.sp_dataframe_create_or_replace_dynamic_table.comment.value
+                )
+                mode = "overwrite"
+                match expr.sp_dataframe_create_or_replace_dynamic_table.mode.WhichOneof(
+                    "variant"
+                ):
+                    case "sp_save_mode_append":
+                        mode = "append"
+
+                    case "sp_save_mode_error_if_exists":
+                        mode = "error_if_exists"
+
+                    case "sp_save_mode_ignore":
+                        mode = "ignore"
+
+                    case "sp_save_mode_overwrite":
+                        mode = "overwrite"
+
+                    case "sp_save_mode_truncate":
+                        mode = "truncate"
+
+                refresh_mode = None
+                if (
+                    hasattr(
+                        expr.sp_dataframe_create_or_replace_dynamic_table,
+                        "refresh_mode",
+                    )
+                    and len(
+                        expr.sp_dataframe_create_or_replace_dynamic_table.refresh_mode.value
+                    )
+                    > 0
+                ):
+                    refresh_mode = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.refresh_mode.value
+                    )
+                initialize = None
+                if (
+                    hasattr(
+                        expr.sp_dataframe_create_or_replace_dynamic_table, "initialize"
+                    )
+                    and len(
+                        expr.sp_dataframe_create_or_replace_dynamic_table.initialize.value
+                    )
+                    > 0
+                ):
+                    initialize = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.initialize.value
+                    )
+                clustering_keys = None
+                if (
+                    len(
+                        expr.sp_dataframe_create_or_replace_dynamic_table.clustering_keys.list
+                    )
+                    > 0
+                ):
+                    clustering_keys = [
+                        self.decode_expr(clustering_key)
+                        for clustering_key in expr.sp_dataframe_create_or_replace_dynamic_table.clustering_keys.list
+                    ]
+                is_transient = (
+                    expr.sp_dataframe_create_or_replace_dynamic_table.is_transient
+                )
+                data_retention_time = None
+                if (
+                    hasattr(
+                        expr.sp_dataframe_create_or_replace_dynamic_table,
+                        "data_retention_time",
+                    )
+                    and expr.sp_dataframe_create_or_replace_dynamic_table.data_retention_time.value
+                    > 0
+                ):
+                    data_retention_time = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.data_retention_time.value
+                    )
+                max_data_extension_time = None
+                if (
+                    hasattr(
+                        expr.sp_dataframe_create_or_replace_dynamic_table,
+                        "max_data_extension_time",
+                    )
+                    and expr.sp_dataframe_create_or_replace_dynamic_table.max_data_extension_time.value
+                    > 0
+                ):
+                    max_data_extension_time = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.max_data_extension_time.value
+                    )
+                d = MessageToDict(expr.sp_dataframe_create_or_replace_dynamic_table)
+                statement_params = self.get_statement_params(d)
+                iceberg_config = None
+                if hasattr(
+                    expr.sp_dataframe_create_or_replace_dynamic_table, "iceberg_config"
+                ):
+                    iceberg_config = (
+                        expr.sp_dataframe_create_or_replace_dynamic_table.iceberg_config
+                    )
+                return df.create_or_replace_dynamic_table(
+                    name=name,
+                    warehouse=warehouse,
+                    lag=lag,
+                    comment=comment,
+                    mode=mode,
+                    refresh_mode=refresh_mode,
+                    initialize=initialize,
+                    clustering_keys=clustering_keys,
+                    is_transient=is_transient,
+                    data_retention_time=data_retention_time,
+                    max_data_extension_time=max_data_extension_time,
+                    statement_params=statement_params,
+                    iceberg_config=iceberg_config,
+                )
+
+            case "sp_read_avro":
+                path = expr.sp_read_avro.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_avro.reader)
+                return reader.avro(path)
+
+            case "sp_read_csv":
+                path = expr.sp_read_csv.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_csv.reader)
+                return reader.csv(path)
+
+            case "sp_read_json":
+                path = expr.sp_read_json.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_json.reader)
+                return reader.json(path)
+
+            case "sp_read_orc":
+                path = expr.sp_read_orc.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_orc.reader)
+                return reader.orc(path)
+
+            case "sp_read_parquet":
+                path = expr.sp_read_parquet.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_parquet.reader)
+                return reader.parquet(path)
+
+            case "sp_read_xml":
+                path = expr.sp_read_xml.path
+                reader = self.decode_dataframe_reader_expr(expr.sp_read_xml.reader)
+                return reader.xml(path)
+
+            case "sp_dataframe_write":
+                df = self.decode_expr(expr.sp_dataframe_write.df)
+                res = df.write
+                if expr.sp_dataframe_write.HasField("partition_by"):
+                    partition_by = self.decode_expr(
+                        expr.sp_dataframe_write.partition_by
+                    )
+                    res = res.partition_by(partition_by)
+                if expr.sp_dataframe_write.HasField("save_mode"):
+                    save_mode = self.decode_save_mode(expr.sp_dataframe_write.save_mode)
+                    res = res.mode(save_mode)
+                options = self.decode_dsl_map_expr(expr.sp_dataframe_write.options)
+                if options:
+                    res = res.options(**options)
+                return res
+
+            case "sp_write_copy_into_location":
+                df = self.symbol_table[expr.sp_write_copy_into_location.id.bitfield1][1]
+                block = expr.sp_write_copy_into_location.block
+                copy_options = self.decode_dsl_map_expr(
+                    expr.sp_write_copy_into_location.copy_options
+                )
+                d = MessageToDict(expr.sp_write_copy_into_location)
+                file_format_name = d.get("fileFormatName", None)
+                file_format_type = d.get("fileFormatType", None)
+                format_type_options = (
+                    self.decode_dsl_map_expr(
+                        expr.sp_write_copy_into_location.format_type_options
+                    )
+                    if "formatTypeOptions" in d
+                    else None
+                )
+                header = expr.sp_write_copy_into_location.header
+                location = expr.sp_write_copy_into_location.location
+                partition_by = (
+                    self.decode_expr(expr.sp_write_copy_into_location.partition_by)
+                    if expr.sp_write_copy_into_location.HasField("partition_by")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_copy_into_location.statement_params
+                )
+                return df.copy_into_location(
+                    location,
+                    partition_by=partition_by,
+                    file_format_name=file_format_name,
+                    file_format_type=file_format_type,
+                    format_type_options=format_type_options,
+                    header=header,
+                    statement_params=statement_params,
+                    block=block,
+                    **copy_options,
+                )
+
+            case "sp_write_csv":
+                df = self.symbol_table[expr.sp_write_csv.id.bitfield1][1]
+                block = expr.sp_write_csv.block
+                copy_options = self.decode_dsl_map_expr(expr.sp_write_csv.copy_options)
+                format_type_options = self.decode_dsl_map_expr(
+                    expr.sp_write_csv.format_type_options
+                )
+                header = expr.sp_write_csv.header
+                location = expr.sp_write_csv.location
+                partition_by = (
+                    self.decode_expr(expr.sp_write_csv.partition_by)
+                    if expr.sp_write_csv.HasField("partition_by")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_csv.statement_params
+                )
+                return df.csv(
+                    location,
+                    partition_by=partition_by,
+                    format_type_options=format_type_options,
+                    header=header,
+                    statement_params=statement_params,
+                    block=block,
+                    **copy_options,
+                )
+
+            case "sp_write_json":
+                df = self.symbol_table[expr.sp_write_json.id.bitfield1][1]
+                block = expr.sp_write_json.block
+                copy_options = self.decode_dsl_map_expr(expr.sp_write_json.copy_options)
+                format_type_options = self.decode_dsl_map_expr(
+                    expr.sp_write_json.format_type_options
+                )
+                header = expr.sp_write_json.header
+                location = expr.sp_write_json.location
+                partition_by = (
+                    self.decode_expr(expr.sp_write_json.partition_by)
+                    if expr.sp_write_json.HasField("partition_by")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_json.statement_params
+                )
+                return df.json(
+                    location,
+                    partition_by=partition_by,
+                    format_type_options=format_type_options,
+                    header=header,
+                    statement_params=statement_params,
+                    block=block,
+                    **copy_options,
+                )
+
+            case "sp_write_parquet":
+                df = self.symbol_table[expr.sp_write_parquet.id.bitfield1][1]
+                block = expr.sp_write_parquet.block
+                copy_options = self.decode_dsl_map_expr(
+                    expr.sp_write_parquet.copy_options
+                )
+                format_type_options = self.decode_dsl_map_expr(
+                    expr.sp_write_parquet.format_type_options
+                )
+                header = expr.sp_write_parquet.header
+                location = expr.sp_write_parquet.location
+                partition_by = (
+                    self.decode_expr(expr.sp_write_parquet.partition_by)
+                    if expr.sp_write_parquet.HasField("partition_by")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_parquet.statement_params
+                )
+                return df.parquet(
+                    location,
+                    partition_by=partition_by,
+                    format_type_options=format_type_options,
+                    header=header,
+                    statement_params=statement_params,
+                    block=block,
+                    **copy_options,
+                )
+
+            case "sp_write_table":
+                df = self.symbol_table[expr.sp_write_table.id.bitfield1][1]
+                block = expr.sp_write_table.block
+                change_tracking = (
+                    expr.sp_write_table.change_tracking.value
+                    if expr.sp_write_table.HasField("change_tracking")
+                    else None
+                )
+                clustering_keys = [
+                    self.decode_expr(ck)
+                    for ck in expr.sp_write_table.clustering_keys.list
+                ]
+                column_order = expr.sp_write_table.column_order
+                comment = (
+                    expr.sp_write_table.comment.value
+                    if expr.sp_write_table.HasField("comment")
+                    else None
+                )
+                copy_grants = expr.sp_write_table.copy_grants
+                create_temp_table = expr.sp_write_table.create_temp_table
+                data_retention_time = (
+                    expr.sp_write_table.data_retention_time.value
+                    if expr.sp_write_table.HasField("data_retention_time")
+                    else None
+                )
+                enable_schema_evolution = (
+                    expr.sp_write_table.enable_schema_evolution.value
+                    if expr.sp_write_table.HasField("enable_schema_evolution")
+                    else None
+                )
+                iceberg_config = self.decode_dsl_map_expr(
+                    expr.sp_write_table.iceberg_config
+                )
+                max_data_extension_time = (
+                    expr.sp_write_table.max_data_extension_time.value
+                    if expr.sp_write_table.HasField("max_data_extension_time")
+                    else None
+                )
+                mode = (
+                    self.decode_save_mode(expr.sp_write_table.mode)
+                    if expr.sp_write_table.HasField("mode")
+                    else None
+                )
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_write_table.statement_params
+                )
+                table_name = self.decode_name_expr(expr.sp_write_table.table_name)
+                table_type = expr.sp_write_table.table_type
+                df.save_as_table(
+                    table_name,
+                    mode=mode,
+                    column_order=column_order,
+                    create_temp_table=create_temp_table,
+                    table_type=table_type,
+                    clustering_keys=clustering_keys,
+                    statement_params=statement_params,
+                    block=block,
+                    comment=comment,
+                    enable_schema_evolution=enable_schema_evolution,
+                    data_retention_time=data_retention_time,
+                    max_data_extension_time=max_data_extension_time,
+                    change_tracking=change_tracking,
+                    copy_grants=copy_grants,
+                    iceberg_config=iceberg_config,
+                )
 
             case "stored_procedure":
                 input_types = [
@@ -2183,29 +2943,6 @@ class Decoder:
                         columns, rowcount=row_count, timelimit=time_limit_seconds
                     )
 
-            case "sp_range":
-                start = expr.sp_range.start
-                end = expr.sp_range.end.value if expr.sp_range.HasField("end") else None
-                step = expr.sp_range.step.value if expr.sp_range.HasField("step") else 1
-                return self.session.range(start, end, step)
-
-            case "sp_table":
-                assert expr.sp_table.HasField("name")
-                table_name = self.decode_name_expr(expr.sp_table.name)
-                return self.session.table(
-                    table_name,
-                    is_temp_table_for_cleanup=expr.sp_table.is_temp_table_for_cleanup
-                    if hasattr(expr.sp_table, "is_temp_table_for_cleanup")
-                    else False,
-                )
-
-            case "sp_session_table_function":
-                # Here, self.decode_expr will most likely run Session.call since Session.call does not have an explicit
-                # AST entity. To prevent Session.call from running, give context to self.decode_expr that the caller is
-                # sp_session_table_function entity via kwargs.
-                kwargs = {"source": "sp_session_table_function"}
-                return self.decode_expr(expr.sp_session_table_function.fn, **kwargs)
-
             case "sp_write_pandas":
                 df = self.decode_dataframe_data_expr(expr.sp_write_pandas.df)
                 table_name = self.decode_name_expr(expr.sp_write_pandas.table_name)
@@ -2255,6 +2992,11 @@ class Decoder:
                     return Row(**dict(zip(names, values)))
                 else:
                     return Row(*values)
+
+            case "sp_sql":
+                params = [self.decode_expr(param) for param in expr.sp_sql.params]
+                query = expr.sp_sql.query
+                return self.session.sql(query, params)
 
             case _:
                 raise NotImplementedError(

@@ -72,6 +72,10 @@ class AstBatch:
         """Resets the ID generator."""
         self._id_gen = itertools.count(start=1)
 
+    def reset_callables(self) -> None:
+        """Resets the callables."""
+        self._callables = {}
+
     def assign(self, symbol: Optional[str] = None) -> proto.Assign:
         """
         Creates a new assignment statement.

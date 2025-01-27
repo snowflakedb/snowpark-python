@@ -93,7 +93,7 @@ df = df.select(col("A").cast(MapType(StringType(), StringType(), structured=Fals
 
 df = df.select(col("A").cast(VectorType(FloatType(), 42)))
 
-df = df.select(col("A").cast(StructType([], structured=False)))
+df = df.select(col("A").cast(StructType(structured=False)))
 
 df = df.select(col("A").cast(VariantType()))
 
