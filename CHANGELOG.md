@@ -41,17 +41,26 @@
   - `regr_sxy`
   - `regr_syy`
   - `try_to_binary`
+- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
+- Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
+
+#### Experimental Features
 
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+- Added support for querying json element of a VARIANT column in `functions.col` and `functions.column` with an optional keyword argument `json_element`.
+- Allow user input schema when reading JSON file on stage.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
+  - `snowflake.core` is a dependency required for this feature.
 
 #### Improvements
 
 - Updated README.md to include instructions on how to verify package signatures using `cosign`.
 - Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
+- Added options to column casts that allow renaming or adding fields in StructType columns.
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
 - Added support for `value_contains_null` parameter to MapType.
+- Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
 
 #### Bug Fixes
 
@@ -60,6 +69,7 @@
 - Fixed a bug in function `date_format` that caused an error when the input column was date type or timestamp type.
 - Fixed a bug in dataframe that null value can be inserted in a non-nullable column.
 - Fixed a bug in `replace` and `lit` which raised type hint assertion error when passing `Column` expression objects.
+- Fixed a bug in `pandas_udf` and `pandas_udtf` where `session` parameter was erroneously ignored.
 
 ### Snowpark pandas API Updates
 
@@ -89,6 +99,7 @@
 - Added support for `expand=True` in `Series.str.split`.
 - Added support for `DataFrame.pop` and `Series.pop`.
 - Added support for `first` and `last` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
+- Added support for `Index.drop_duplicates`.
 
 #### Bug Fixes
 
