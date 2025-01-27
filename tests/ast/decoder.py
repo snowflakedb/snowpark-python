@@ -987,6 +987,9 @@ class Decoder:
                                 return call_table_function(
                                     fn_name, *pos_args, **named_args
                                 )
+
+                        case "stored_procedure":
+                            return self.session.call(fn_name, *pos_args, **named_args)
                         case _:
                             raise ValueError(
                                 "Unknown function reference type: %s"
@@ -2813,8 +2816,13 @@ class Decoder:
                 return_type = self.decode_data_type_expr(
                     expr.stored_procedure.return_type
                 )
+                name = None
+                if expr.stored_procedure.HasField("name"):
+                    name = self.decode_name_expr(expr.stored_procedure.name)
+
                 ret_sproc = sproc(
-                    lambda *args: None,
+                    self.session.sproc._registry[registered_object_name],
+                    name=name,
                     return_type=return_type,
                     input_types=input_types,
                     execute_as=execute_as,
