@@ -11281,9 +11281,6 @@ def editdistance(
     return builtin("editdistance", _ast=ast, _emit_ast=_emit_ast)(*args)
 
 
-levenshtein = editdistance
-
-
 @publicapi
 def instr(str: ColumnOrName, substr: str):
     """

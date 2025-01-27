@@ -218,7 +218,6 @@ Functions
     least
     left
     length
-    levenshtein
     listagg
     lit
     ln

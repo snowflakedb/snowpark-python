@@ -48,7 +48,6 @@
   - `hex`
   - `hex_encode`
   - `instr`
-  - `levenshtein`
   - `log1p`
   - `log2`
   - `log10`
