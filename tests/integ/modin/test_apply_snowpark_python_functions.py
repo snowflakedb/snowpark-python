@@ -77,7 +77,7 @@ def test_apply_snowpark_python_function_not_implemented():
     reason="TODO: SNOW-1859087 snowflake.cortex.summarize SSL error",
 )
 def test_apply_snowflake_cortex_summarize(session):
-    from snowflake.snowpark.functions import snowflake_cortex_summarize
+    from snowflake.cortex import Summarize
 
     # TODO: SNOW-1758914 snowflake.cortex.summarize error on GCP
     with SqlCounter(query_count=0):
@@ -95,7 +95,7 @@ def test_apply_snowflake_cortex_summarize(session):
         Python library, which enables scalable data processing of Python code within the Snowflake platform.
         """
         s = pd.Series([content])
-        summary = s.apply(snowflake_cortex_summarize).iloc[0]
+        summary = s.apply(Summarize).iloc[0]
         # this length check is to get around the fact that this function may not be deterministic
         assert 0 < len(summary) < len(content)
 
@@ -105,7 +105,7 @@ def test_apply_snowflake_cortex_summarize(session):
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
 )
 def test_apply_snowflake_cortex_sentiment(session):
-    from snowflake.snowpark.functions import snowflake_cortex_sentiment
+    from snowflake.cortex import Sentiment
 
     # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
     with SqlCounter(query_count=0):
@@ -115,12 +115,16 @@ def test_apply_snowflake_cortex_sentiment(session):
     with SqlCounter(query_count=1):
         content = "A very very bad review!"
         s = pd.Series([content])
-        sentiment = s.apply(snowflake_cortex_sentiment).iloc[0]
+        sentiment = s.apply(Sentiment).iloc[0]
         assert -1 <= sentiment <= 0
 
 
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
 def test_apply_snowflake_cortex_classify_text(session):
-    from snowflake.snowpark.functions import snowflake_cortex_classify_text
+    from snowflake.cortex import ClassifyText
 
     # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
     with SqlCounter(query_count=0):
@@ -131,7 +135,7 @@ def test_apply_snowflake_cortex_classify_text(session):
         content = "One day I will see the world."
         s = pd.Series([content])
         text_class = s.apply(
-            snowflake_cortex_classify_text, list_of_categories=["travel", "cooking"]
+            ClassifyText, list_of_categories=["travel", "cooking"]
         ).iloc[0]
         text_class_label = text_class["label"]
-        assert text_class_label in ["travel", "cooking"]
+        assert text_class_label == "travel"

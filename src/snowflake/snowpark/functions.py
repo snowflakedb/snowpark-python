@@ -10572,52 +10572,6 @@ def make_interval(
     return res
 
 
-def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
-    """
-    Summarizes the given English-language input text.
-
-    Args:
-        text: A string containing the English text from which a summary should be generated.
-
-    Returns:
-        A string containing a summary of the original text.
-    """
-    sql_func_name = "snowflake.cortex.summarize"
-    text_col = _to_col_if_lit(text, sql_func_name)
-    return builtin(sql_func_name)(text_col)
-
-
-def snowflake_cortex_classify_text(input: ColumnOrLiteralStr, list_of_categories):
-    """
-    Classifies free-form text into categories that you provide.
-    Args:
-        input: A string containing the English text from which a summary should be generated.
-        list_of_categories: Array that represents the categories. Must contain at least two and at most 100 unique
-            categories. Categories are case sensitive. If these requirements are not met, the function returns an error.
-    Returns:
-        Returns a string that contains a JSON object. The JSON object contains the category that the input prompt was
-        classified as. If invalid arguments are given, an error is returned.
-    """
-    sql_func_name = "snowflake.cortex.classify_text"
-    input_col = _to_col_if_lit(input, sql_func_name)
-    return builtin(sql_func_name)(input_col, list_of_categories)
-
-
-def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
-    """
-    A string containing the text for which a sentiment score should be calculated.
-
-    Args:
-        text: A string containing the English text from which a summary should be generated.
-    Returns:
-        A floating-point number from -1 to 1 (inclusive) indicating the level of negative or positive sentiment in the
-        text. Values around 0 indicate neutral sentiment.
-    """
-    sql_func_name = "snowflake.cortex.sentiment"
-    text_col = _to_col_if_lit(text, sql_func_name)
-    return builtin(sql_func_name)(text_col)
-
-
 @publicapi
 def acosh(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
