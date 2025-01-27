@@ -18,6 +18,7 @@ import platform
 import random
 import re
 import string
+import sys
 import threading
 import traceback
 import zipfile
@@ -210,8 +211,8 @@ def _pandas_importer():  # noqa: E302
         pandas = importlib.import_module("pandas")
         # since we enable relative imports without dots this import gives us an issues when ran from test directory
         from pandas import DataFrame  # NOQA
-    except ImportError as e:
-        _logger.error(f"pandas is not installed {e}")
+    except ImportError:  # pragma: no cover
+        pass  # pragma: no cover
     return pandas
 
 
@@ -307,6 +308,11 @@ def get_version() -> str:
 @lru_cache
 def get_python_version() -> str:
     return platform.python_version()
+
+
+@lru_cache
+def is_interactive() -> bool:
+    return hasattr(sys, "ps1") or sys.flags.interactive or "snowbook" in sys.modules
 
 
 @lru_cache

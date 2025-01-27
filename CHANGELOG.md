@@ -41,10 +41,16 @@
   - `regr_sxy`
   - `regr_syy`
   - `try_to_binary`
-
-- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 - Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
+
+#### Experimental Features
+
+- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+- Added support for querying json element of a VARIANT column in `functions.col` and `functions.column` with an optional keyword argument `json_element`.
+- Allow user input schema when reading JSON file on stage.
+- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
+  - `snowflake.core` is a dependency required for this feature.
 
 #### Improvements
 
@@ -54,6 +60,7 @@
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
 - Added support for `value_contains_null` parameter to MapType.
+- Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
 
 #### Bug Fixes
 
@@ -92,6 +99,7 @@
 - Added support for `expand=True` in `Series.str.split`.
 - Added support for `DataFrame.pop` and `Series.pop`.
 - Added support for `first` and `last` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
+- Added support for `Index.drop_duplicates`.
 - Added support for aggregations ``"count"``, ``"median"``, ``np.median``,
   ``"skew"``, ``"std"``, ``np.std`` ``"var"``, and ``np.var`` in
   ``pd.pivot_table()``, ``DataFrame.pivot_table()``, and ``pd.crosstab()``.

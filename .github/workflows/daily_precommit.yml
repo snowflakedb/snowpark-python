@@ -3,8 +3,8 @@
 name: Daily precommit test
 on:
   schedule:
-    # 10 AM UTC
-    - cron: "0 10 * * *"
+    # 9 AM UTC
+    - cron: "0 9 * * *"
 
   workflow_dispatch:
       inputs:
@@ -373,9 +373,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - image_name: macos-latest
-            download_name: macos  # it includes doctest
+        os: [macos-latest, windows-latest, ubuntu-latest]
         python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws]
     steps:
