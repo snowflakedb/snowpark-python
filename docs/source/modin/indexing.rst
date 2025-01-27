@@ -53,6 +53,7 @@ Index
     Index.argmin
     Index.argmax
     Index.copy
+    Index.drop_duplicates
     Index.equals
     Index.identical
     Index.is_boolean
