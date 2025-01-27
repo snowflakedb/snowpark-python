@@ -8944,7 +8944,7 @@ def nth_value(
         >>> from snowflake.snowpark.window import Window
         >>> window = Window.partition_by("column1").order_by("column2")
         >>> df = session.create_dataframe([[1, 10], [1, 11], [2, 20], [2, 21]], schema=["column1", "column2"])
-        >>> df.select(df["column1"], df["column2"], snowpark_fn.nth_value(df["column2"], 2).over(window).as_("column2_2nd")).collect()
+        >>> df.select(df["column1"], df["column2"], nth_value(df["column2"], 2).over(window).as_("column2_2nd")).collect()
         [Row(COLUMN1=1, COLUMN2=10, COLUMN2_2ND=11), Row(COLUMN1=1, COLUMN2=11, COLUMN2_2ND=11), Row(COLUMN1=2, COLUMN2=20, COLUMN2_2ND=21), Row(COLUMN1=2, COLUMN2=21, COLUMN2_2ND=21)]
     """
     # AST.
