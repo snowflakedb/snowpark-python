@@ -12,7 +12,6 @@ import os
 import re
 import sys
 import tempfile
-import threading
 import warnings
 from array import array
 from functools import reduce
@@ -106,6 +105,8 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     calculate_checksum,
     check_flatten_mode,
+    create_rlock,
+    create_thread_local,
     deprecated,
     escape_quotes,
     experimental,
@@ -259,6 +260,10 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
 )
 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
     "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND"
+)
+# Flag to controlling multithreading behavior
+_PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
+    "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
 )
 # Flag for controlling the usage of scoped temp read only table.
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
@@ -645,17 +650,19 @@ class Session:
         #     _PYTHON_SNOWPARK_RESOLVE_CONFLICT_ALIAS_VERSION
         # )
 
-        self._thread_store = threading.local()
-        self._lock = RLock()
+        self._thread_store = create_thread_local(
+            self._conn._thread_safe_session_enabled
+        )
+        self._lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         # this lock is used to protect _packages. We use introduce a new lock because add_packages
         # launches a query to snowflake to get all version of packages available in snowflake. This
         # query can be slow and prevent other threads from moving on waiting for _lock.
-        self._package_lock = RLock()
+        self._package_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         # this lock is used to protect race-conditions when evaluating critical lazy properties
         # of SnowflakePlan or Selectable objects
-        self._plan_lock = RLock()
+        self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         self._custom_package_usage_config: Dict = {}
         self._conf = self.RuntimeConfig(self, options or {})

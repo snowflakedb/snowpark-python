@@ -262,20 +262,31 @@ def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
 
 @overload
 @publicapi
-def col(col_name: str, _emit_ast: bool = True) -> Column:
+def col(col_name: str, json_element: bool = False, _emit_ast: bool = True) -> Column:
     """Returns the :class:`~snowflake.snowpark.Column` with the specified name.
+
+    Args:
+        col_name: The name of the column.
+        json_element: Whether the column is a JSON element. If a column is a VARIANT column in Snowflake,
+            you can dot notation `.` to query the nested json element, e.g., "name.firstname" and "name.lastname".
 
     Example::
         >>> df = session.sql("select 1 as a")
         >>> df.select(col("a")).collect()
         [Row(A=1)]
+
+        >>> df = session.sql("select parse_json('{\"firstname\": \"John\", \"lastname\": \"Doe\"}') as name")
+        >>> df.select(col("name.firstname", json_element=True)).collect()
+        [Row(FIRSTNAME='John')]
     """
     ...  # pragma: no cover
 
 
 @overload
 @publicapi
-def col(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
+def col(
+    df_alias: str, col_name: str, json_element: bool = False, _emit_ast: bool = True
+) -> Column:
     """Returns the :class:`~snowflake.snowpark.Column` with the specified dataframe alias and column name.
 
     Example::
@@ -287,7 +298,12 @@ def col(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def col(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Column:
+def col(
+    name1: str,
+    name2: Optional[str] = None,
+    json_element: bool = False,
+    _emit_ast: bool = True,
+) -> Column:
 
     _check_column_parameters(name1, name2)
 
@@ -296,27 +312,38 @@ def col(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Colu
         ast = create_ast_for_column(name1, name2, "col")
 
     if name2 is None:
-        return Column(name1, _ast=ast)
+        return Column(name1, json_element=json_element, _ast=ast)
     else:
-        return Column(name1, name2, _ast=ast)
+        return Column(name1, name2, json_element=json_element, _ast=ast)
 
 
 @overload
 @publicapi
-def column(col_name: str, _emit_ast: bool = True) -> Column:
+def column(col_name: str, json_element: bool = False, _emit_ast: bool = True) -> Column:
     """Returns a :class:`~snowflake.snowpark.Column` with the specified name. Alias for col.
 
+    Args:
+         col_name: The name of the column.
+         json_element: Whether the column is a JSON element. If a column is a VARIANT column in Snowflake,
+             you can dot notation `.` to query the nested json element, e.g., "name.firstname" and "name.lastname".
+
     Example::
-        >>> df = session.sql("select 1 as a")
-        >>> df.select(column("a")).collect()
-        [Row(A=1)]
+         >>> df = session.sql("select 1 as a")
+         >>> df.select(column("a")).collect()
+         [Row(A=1)]
+
+         >>> df = session.sql("select parse_json('{\"firstname\": \"John\", \"lastname\": \"Doe\"}') as name")
+         >>> df.select(column("name.firstname", json_element=True)).collect()
+         [Row(FIRSTNAME='John')]
     """
     ...  # pragma: no cover
 
 
 @overload
 @publicapi
-def column(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
+def column(
+    df_alias: str, col_name: str, json_element: bool = False, _emit_ast: bool = True
+) -> Column:
     """Returns a :class:`~snowflake.snowpark.Column` with the specified name and dataframe alias name. Alias for col.
 
     Example::
@@ -328,15 +355,20 @@ def column(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def column(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Column:
+def column(
+    name1: str,
+    name2: Optional[str] = None,
+    json_element: bool = False,
+    _emit_ast: bool = True,
+) -> Column:
     _check_column_parameters(name1, name2)
 
     ast = create_ast_for_column(name1, name2, "column") if _emit_ast else None
 
     if name2 is None:
-        return Column(name1, _ast=ast)
+        return Column(name1, json_element=json_element, _ast=ast)
     else:
-        return Column(name1, name2, _ast=ast)
+        return Column(name1, name2, json_element=json_element, _ast=ast)
 
 
 @publicapi

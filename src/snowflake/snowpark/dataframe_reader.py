@@ -564,7 +564,7 @@ class DataFrameReader:
                 if isinstance(exception, FileNotFoundError):
                     raise exception
                 # if infer schema query fails, use $1, VariantType as schema
-                logger.warn(
+                logger.warning(
                     f"Could not infer csv schema due to exception: {exception}. "
                     "\nUsing schema (C1, VariantType()) instead. Please use DataFrameReader.schema() "
                     "to specify user schema for the file."
