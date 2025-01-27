@@ -14,6 +14,7 @@ from snowflake.snowpark.dataframe_reader import (
     task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
 )
+from snowflake.snowpark.types import IntegerType
 
 SQL_SERVER_TABLE_NAME = "RandomDataWith100Columns"
 
@@ -788,3 +789,23 @@ def test_parallel(session):
             assert end - start < 6
             # verify that mocked function is called for each partition
             assert mock_upload_and_copy.call_count == num_partitions
+
+
+def test_partition_logic(session):
+    # same result as spark
+    expected_queries = [
+        "SELECT * FROM fake_table WHERE ID < 8 OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= 8 AND ID < 10",
+        "SELECT * FROM fake_table WHERE ID >= 10 AND ID < 12",
+        "SELECT * FROM fake_table WHERE ID >= 12",
+    ]
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=5,
+        upper_bound=15,
+        num_partitions=4,
+    )
+    for r, expected_r in zip(queries, expected_queries):
+        assert r == expected_r
