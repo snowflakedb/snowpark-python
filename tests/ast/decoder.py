@@ -536,7 +536,7 @@ class Decoder:
                 # The fields can be a list of Expr, a single Expr, or None.
                 fields = []
                 if hasattr(data_type_expr.sp_struct_type, "fields"):
-                    for field in data_type_expr.sp_struct_type.fields.list:
+                    for field in data_type_expr.sp_struct_type.fields:
                         column_identifier = field.column_identifier.name
                         data_type = self.decode_data_type_expr(field.data_type)
                         nullable = field.nullable
@@ -765,7 +765,7 @@ class Decoder:
             The decoded object.
         """
         struct_field_list = []
-        for field in sp_struct_type_expr.fields.list:
+        for field in sp_struct_type_expr.fields:
             column_identifier = field.column_identifier.name
             datatype = self.decode_data_type_expr(field.data_type)
             nullable = field.nullable
