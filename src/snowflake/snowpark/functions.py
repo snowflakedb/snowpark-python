@@ -7245,7 +7245,7 @@ def map_cat(
     ast = build_function_expr("map_cat", [col1, col2, *cols]) if _emit_ast else None
 
     def map_cat_two_maps(first, second):
-        return builtin("map_cat", _ast=ast, _emit_ast=_emit_ast)(first, second)
+        return builtin("map_cat", _ast=ast, _emit_ast=False)(first, second)
 
     cols_to_concat = [m1, m2]
     for c in cols:
@@ -11216,7 +11216,7 @@ def base64_encode(
         args.append(lit(alphabet))
 
     # Call the built-in Base64 encode function.
-    return builtin("base64_encode", _ast=ast, _emit_ast=_emit_ast)(*args)
+    return builtin("base64_encode", _ast=ast, _emit_ast=False)(*args)
 
 
 base64 = base64_encode
@@ -11249,7 +11249,7 @@ def base64_decode_string(
         args.append(lit(alphabet))
 
     # Call the built-in Base64 encode function.
-    return builtin("base64_decode_string", _ast=ast, _emit_ast=_emit_ast)(*args)
+    return builtin("base64_decode_string", _ast=ast, _emit_ast=False)(*args)
 
 
 unbase64 = base64_decode_string
@@ -11267,7 +11267,7 @@ def hex_encode(e: ColumnOrName, case: int = 1, _emit_ast: bool = True):
     """
     ast = build_function_expr("hex_encode", [e, case]) if _emit_ast else None
     col_input = _to_col_if_str(e, "hex_encode")
-    return builtin("hex_encode", _ast=ast, _emit_ast=_emit_ast)(col_input, lit(case))
+    return builtin("hex_encode", _ast=ast, _emit_ast=False)(col_input, lit(case))
 
 
 hex = hex_encode
@@ -11310,7 +11310,7 @@ def editdistance(
         )
         args.append(max_dist)
 
-    return builtin("editdistance", _ast=ast, _emit_ast=_emit_ast)(*args)
+    return builtin("editdistance", _ast=ast, _emit_ast=False)(*args)
 
 
 @publicapi
