@@ -173,11 +173,11 @@ res33 = sproc("select_sp", return_type=StructType([StructField("A", IntegerType(
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res37 = sproc("select_sp", return_type=StructType(structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res37 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[IntegerType(), IntegerType()], source_code_display=False, _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
-res41 = sproc("select_sp", return_type=StructType(structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
+res41 = sproc("select_sp", return_type=StructType([], structured=False), input_types=[LongType(), LongType()], _registered_object_name="\"MOCK_DATABASE\".\"MOCK_SCHEMA\".\"SNOWPARK_TEMP_PROCEDURE_xxx\"")(1, 2)
 
 session.sql("SELECT 1 as A, 2 as B").show()
 
@@ -1603,24 +1603,22 @@ body {
         return_type {
           sp_struct_type {
             fields {
-              list {
-                column_identifier {
-                  name: "A"
-                }
-                data_type {
-                  sp_integer_type: true
-                }
-                nullable: true
+              column_identifier {
+                name: "A"
               }
-              list {
-                column_identifier {
-                  name: "B"
-                }
-                data_type {
-                  sp_integer_type: true
-                }
-                nullable: true
+              data_type {
+                sp_integer_type: true
               }
+              nullable: true
+            }
+            fields {
+              column_identifier {
+                name: "B"
+              }
+              data_type {
+                sp_integer_type: true
+              }
+              nullable: true
             }
           }
         }
