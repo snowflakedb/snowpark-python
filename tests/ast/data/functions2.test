@@ -312,6 +312,14 @@ df309 = df.select(editdistance("A", "B"))
 
 df310 = df.select(map_cat("A", "B"))
 
+df311 = df.select(log1p("A"))
+
+df312 = df.select(log10("A"))
+
+df313 = df.select(log2("A"))
+
+df314 = df.select(instr("A", "test_str"))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -623,6 +631,14 @@ df308 = df.select(hex_encode("A", 1))
 df309 = df.select(editdistance("A", "B"))
 
 df310 = df.select(map_cat("A", "B"))
+
+df311 = df.select(log1p("A"))
+
+df312 = df.select(log10("A"))
+
+df313 = df.select(log2("A"))
+
+df314 = df.select(instr("A", "test_str"))
 
 ## EXPECTED ENCODED AST
 
@@ -25756,6 +25772,274 @@ body {
     uid: 155
     var_id {
       bitfield1: 155
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "log1p"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 36
+                  end_line: 337
+                  file: 2
+                  start_column: 26
+                  start_line: 337
+                }
+                v: "A"
+              }
+            }
+            src {
+              end_column: 36
+              end_line: 337
+              file: 2
+              start_column: 26
+              start_line: 337
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 37
+          end_line: 337
+          file: 2
+          start_column: 16
+          start_line: 337
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df311"
+    }
+    uid: 156
+    var_id {
+      bitfield1: 156
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "log10"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 36
+                  end_line: 339
+                  file: 2
+                  start_column: 26
+                  start_line: 339
+                }
+                v: "A"
+              }
+            }
+            src {
+              end_column: 36
+              end_line: 339
+              file: 2
+              start_column: 26
+              start_line: 339
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 37
+          end_line: 339
+          file: 2
+          start_column: 16
+          start_line: 339
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df312"
+    }
+    uid: 157
+    var_id {
+      bitfield1: 157
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "log2"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 35
+                  end_line: 341
+                  file: 2
+                  start_column: 26
+                  start_line: 341
+                }
+                v: "A"
+              }
+            }
+            src {
+              end_column: 35
+              end_line: 341
+              file: 2
+              start_column: 26
+              start_line: 341
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 36
+          end_line: 341
+          file: 2
+          start_column: 16
+          start_line: 341
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df313"
+    }
+    uid: 158
+    var_id {
+      bitfield1: 158
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "instr"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 48
+                  end_line: 343
+                  file: 2
+                  start_column: 26
+                  start_line: 343
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 48
+                  end_line: 343
+                  file: 2
+                  start_column: 26
+                  start_line: 343
+                }
+                v: "test_str"
+              }
+            }
+            src {
+              end_column: 48
+              end_line: 343
+              file: 2
+              start_column: 26
+              start_line: 343
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 49
+          end_line: 343
+          file: 2
+          start_column: 16
+          start_line: 343
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df314"
+    }
+    uid: 159
+    var_id {
+      bitfield1: 159
     }
   }
 }

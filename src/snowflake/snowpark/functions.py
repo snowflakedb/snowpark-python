@@ -2966,6 +2966,7 @@ def log(
     base: Union[ColumnOrName, int, float],
     x: Union[ColumnOrName, int, float],
     _emit_ast: bool = True,
+    _ast: Optional[proto.Expr] = None,
 ) -> Column:
     """
     Returns the logarithm of a numeric expression.
@@ -2978,7 +2979,7 @@ def log(
         [Row(LOG=0), Row(LOG=1)]
     """
     # Build AST here to prevent `base` and `x` from being recorded as a literal instead of int/float.
-    ast = build_function_expr("log", [base, x]) if _emit_ast else None
+    ast = build_function_expr("log", [base, x]) if _emit_ast else _ast
     b = (
         lit(base, _emit_ast=False)
         if isinstance(base, (int, float))
@@ -3006,13 +3007,14 @@ def log1p(
         >>> df.select(log1p(df["a"]).alias("log1p")).collect()
         [Row(LOG1P=0.0), Row(LOG1P=0.6931471805599453)]
     """
+    ast = build_function_expr("log1p", [x]) if _emit_ast else None
     x = (
         lit(x, _emit_ast=False)
         if isinstance(x, (int, float))
         else _to_col_if_str(x, "log")
     )
     one_plus_x = _to_col_if_str(x, "log1p") + lit(1, _emit_ast=False)
-    return ln(one_plus_x, _emit_ast=_emit_ast)
+    return ln(one_plus_x, _emit_ast=False, _ast=ast)
 
 
 @publicapi
@@ -3029,7 +3031,8 @@ def log10(
         >>> df.select(log10(df["a"]).alias("log10")).collect()
         [Row(LOG10=0.0), Row(LOG10=1.0)]
     """
-    return _log10(x, _emit_ast=_emit_ast)
+    ast = build_function_expr("log10", [x]) if _emit_ast else None
+    return _log10(x, _emit_ast=False, _ast=ast)
 
 
 @publicapi
@@ -3046,16 +3049,25 @@ def log2(
         >>> df.select(log2(df["a"]).alias("log2")).collect()
         [Row(LOG2=0.0), Row(LOG2=1.0), Row(LOG2=3.0)]
     """
-    return _log2(x, _emit_ast=_emit_ast)
+    ast = build_function_expr("log2", [x]) if _emit_ast else None
+    return _log2(x, _emit_ast=False, _ast=ast)
 
 
 # Create base 2 and base 10 wrappers for use with the Modin log2 and log10 functions
-def _log2(x: Union[ColumnOrName, int, float], _emit_ast: bool = True) -> Column:
-    return log(2, x, _emit_ast=_emit_ast)
+def _log2(
+    x: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+    _ast: Optional[proto.Expr] = None,
+) -> Column:
+    return log(2, x, _emit_ast=_emit_ast, _ast=_ast)
 
 
-def _log10(x: Union[ColumnOrName, int, float], _emit_ast: bool = True) -> Column:
-    return log(10, x, _emit_ast=_emit_ast)
+def _log10(
+    x: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+    _ast: Optional[proto.Expr] = None,
+) -> Column:
+    return log(10, x, _emit_ast=_emit_ast, _ast=_ast)
 
 
 @publicapi
@@ -7640,7 +7652,9 @@ def vector_inner_product(
 
 
 @publicapi
-def ln(c: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
+def ln(
+    c: ColumnOrLiteral, _emit_ast: bool = True, _ast: Optional[proto.Expr] = None
+) -> Column:
     """Returns the natrual logarithm of given column expression.
 
     Example::
@@ -7657,7 +7671,7 @@ def ln(c: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
     """
 
     # AST.
-    ast = None
+    ast = _ast
     if _emit_ast:
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "ln", c)
@@ -10988,6 +11002,7 @@ def position(
     expr2: ColumnOrName,
     start_pos: int = 1,
     _emit_ast: bool = True,
+    _ast: Optional[proto.Expr] = None,
 ) -> Column:
     """
     Searches for the first occurrence of the first argument in the second argument and, if successful, returns
@@ -11001,7 +11016,7 @@ def position(
     """
     c1 = _to_col_if_str(expr1, "position")
     c2 = _to_col_if_str(expr2, "position")
-    return builtin("position", _emit_ast=_emit_ast)(c1, c2, lit(start_pos))
+    return builtin("position", _ast=_ast, _emit_ast=_emit_ast)(c1, c2, lit(start_pos))
 
 
 @publicapi
@@ -11314,7 +11329,7 @@ def editdistance(
 
 
 @publicapi
-def instr(str: ColumnOrName, substr: str):
+def instr(str: ColumnOrName, substr: str, _emit_ast: bool = True):
     """
     Locate the position of the first occurrence of substr column in the given string. Returns null if either of the arguments are null.
 
@@ -11323,5 +11338,6 @@ def instr(str: ColumnOrName, substr: str):
         >>> df.select(instr(col("text"), "world").alias("position")).collect()
         [Row(POSITION=7), Row(POSITION=1)]
     """
+    ast = build_function_expr("instr", [str, substr]) if _emit_ast else None
     s1 = _to_col_if_str(str, "instr")
-    return position(lit(substr), s1)
+    return position(lit(substr), s1, _emit_ast=False, _ast=ast)
