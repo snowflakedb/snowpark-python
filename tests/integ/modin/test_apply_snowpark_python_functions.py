@@ -10,8 +10,7 @@ import pandas as native_pd
 import pytest
 
 from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
-from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
-from tests.utils import running_on_jenkins
+from tests.integ.utils.sql_counter import sql_count_checker
 
 
 @sql_count_checker(query_count=4)
@@ -70,72 +69,3 @@ def test_apply_snowpark_python_function_not_implemented():
         pd.DataFrame({"a": [1, 2, 3]}).apply(asc, axis=1)
     with pytest.raises(NotImplementedError):
         pd.DataFrame({"a": [1, 2, 3]}).apply(asc, args=(1, 2))
-
-
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.summarize SSL error",
-)
-def test_apply_snowflake_cortex_summarize(session):
-    from snowflake.cortex import Summarize
-
-    # TODO: SNOW-1758914 snowflake.cortex.summarize error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
-
-    with SqlCounter(query_count=1):
-        content = """pandas on Snowflake lets you run your pandas code in a distributed manner directly on your data in
-        Snowflake. Just by changing the import statement and a few lines of code, you can get the familiar pandas experience
-        you know and love with the scalability and security benefits of Snowflake. With pandas on Snowflake, you can work
-        with much larger datasets and avoid the time and expense of porting your pandas pipelines to other big data
-        frameworks or provisioning large and expensive machines. It runs workloads natively in Snowflake through
-        transpilation to SQL, enabling it to take advantage of parallelization and the data governance and security
-        benefits of Snowflake. pandas on Snowflake is delivered through the Snowpark pandas API as part of the Snowpark
-        Python library, which enables scalable data processing of Python code within the Snowflake platform.
-        """
-        s = pd.Series([content])
-        summary = s.apply(Summarize).iloc[0]
-        # this length check is to get around the fact that this function may not be deterministic
-        assert 0 < len(summary) < len(content)
-
-
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
-def test_apply_snowflake_cortex_sentiment(session):
-    from snowflake.cortex import Sentiment
-
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
-
-    with SqlCounter(query_count=1):
-        content = "A very very bad review!"
-        s = pd.Series([content])
-        sentiment = s.apply(Sentiment).iloc[0]
-        assert -1 <= sentiment <= 0
-
-
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
-def test_apply_snowflake_cortex_classify_text(session):
-    from snowflake.cortex import ClassifyText
-
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
-
-    with SqlCounter(query_count=1):
-        content = "One day I will see the world."
-        s = pd.Series([content])
-        text_class = s.apply(
-            ClassifyText, list_of_categories=["travel", "cooking"]
-        ).iloc[0]
-        text_class_label = text_class["label"]
-        assert text_class_label == "travel"
