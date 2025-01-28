@@ -189,48 +189,52 @@ from tests.utils import (
     "config.getoption('local_testing_mode', default=False)",
     reason="querying qualified name is not supported in local testing",
 )
-def test_col_qualified_name(session):
+def test_col_is_qualified_name(session):
     # 2-level deep
     df = session.sql(
         'select parse_json(\'{"firstname": "John", "lastname": "Doe"}\') as name'
     )
     Utils.check_answer(
         df.select(
-            col("name.firstname", is_qualified_name=True),
-            col("name.lastname", is_qualified_name=True),
+            col("name.firstname", _is_qualified_name=True),
+            col("name.lastname", _is_qualified_name=True),
         ),
         [Row('"John"', '"Doe"')],
     )
     Utils.check_answer(
         df.select(
-            col('name."firstname"', is_qualified_name=True),
-            col('NAME."lastname"', is_qualified_name=True),
+            col('name."firstname"', _is_qualified_name=True),
+            col('NAME."lastname"', _is_qualified_name=True),
         ),
         [Row('"John"', '"Doe"')],
     )
     Utils.check_answer(
-        df.select(col("name.FIRSTNAME", is_qualified_name=True)), [Row(None)]
+        df.select(col("name.FIRSTNAME", _is_qualified_name=True)), [Row(None)]
     )
 
     # 3-level deep
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
-        df.select(col("name:firstname", is_qualified_name=True)).collect()
+        df.select(col("name:firstname", _is_qualified_name=True)).collect()
 
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(col("name.firstname")).collect()
 
     df = session.sql('select parse_json(\'{"l1": {"l2": "xyz"}}\') as value')
     Utils.check_answer(
-        df.select(col("value.l1.l2", is_qualified_name=True)), Row('"xyz"')
+        df.select(col("value.l1.l2", _is_qualified_name=True)), Row('"xyz"')
     )
     Utils.check_answer(
-        df.select(col('value."l1"."l2"', is_qualified_name=True)), Row('"xyz"')
+        df.select(col('value."l1"."l2"', _is_qualified_name=True)), Row('"xyz"')
     )
-    Utils.check_answer(df.select(col("value.L1.l2", is_qualified_name=True)), Row(None))
-    Utils.check_answer(df.select(col("value.l1.L2", is_qualified_name=True)), Row(None))
+    Utils.check_answer(
+        df.select(col("value.L1.l2", _is_qualified_name=True)), Row(None)
+    )
+    Utils.check_answer(
+        df.select(col("value.l1.L2", _is_qualified_name=True)), Row(None)
+    )
 
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
-        df.select(col("value:l1.l2", is_qualified_name=True)).collect()
+        df.select(col("value:l1.l2", _is_qualified_name=True)).collect()
 
     with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(col("value.l1.l2")).collect()
