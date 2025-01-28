@@ -81,6 +81,9 @@ def test_frame_with_timedelta_index():
     )
 
 
+@pytest.mark.skip(
+    "SNOW-1896426 Test run into high failing rate, turn back on once fixed"
+)
 def test_applymap_kwargs():
     def f(x, y=1) -> int:
         return x + y
