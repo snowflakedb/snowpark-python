@@ -784,7 +784,7 @@ class StructType(DataType):
     def _fill_ast(self, ast: proto.SpDataType) -> None:
         ast.sp_struct_type.structured = self.structured
         for field in self.fields:
-            field._fill_ast(ast.sp_struct_type.fields.add())
+            field._fill_ast(ast.sp_struct_type.fields.list.add())
 
 
 class VariantType(DataType):
