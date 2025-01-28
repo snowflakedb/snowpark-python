@@ -9127,12 +9127,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not sort:
             raise NotImplementedError("Not implemented not sorted")
 
-        # TODO: (SNOW-853334) Support callable agg functions
-        if aggfunc and callable(aggfunc):
-            raise NotImplementedError(
-                f"Snowpark pandas DataFrame.pivot_table does not yet support the aggregation {repr_aggregate_function(aggfunc, agg_kwargs={})} with the given arguments."
-            )
-
         if columns is not None and isinstance(columns, Hashable):
             columns = [columns]
 
