@@ -202,6 +202,7 @@ setup(
             "scikit-learn",  # Snowpark pandas 3rd party library testing
             # plotly version restricted due to foreseen change in query counts in version 6.0.0+
             "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
+            "snowflake.cortex",
         ],
         "localtest": [
             "pandas",
