@@ -41,13 +41,25 @@
   - `regr_sxy`
   - `regr_syy`
   - `try_to_binary`
+  - `base64`
+  - `base64_decode_string`
+  - `base64_encode`
+  - `editdistance`
+  - `hex`
+  - `hex_encode`
+  - `instr`
+  - `log1p`
+  - `log2`
+  - `log10`
+  - `percentile_approx`
+  - `unbase64`
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 - Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
+- Added support for multiple columns in the functions `map_cat` and `map_concat`.
 
 #### Experimental Features
 
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
-- Added support for querying json element of a VARIANT column in `functions.col` and `functions.column` with an optional keyword argument `json_element`.
 - Allow user input schema when reading JSON file on stage.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
   - `snowflake.core` is a dependency required for this feature.
