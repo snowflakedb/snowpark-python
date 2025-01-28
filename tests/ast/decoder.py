@@ -2821,7 +2821,7 @@ class Decoder:
                     name = self.decode_name_expr(expr.stored_procedure.name)
 
                 ret_sproc = sproc(
-                    self.session.sproc._registry[registered_object_name],
+                    self.session.sproc._registry[registered_object_name].func,
                     name=name,
                     return_type=return_type,
                     input_types=input_types,
@@ -2850,7 +2850,6 @@ class Decoder:
                         mode = "OBJECT"
 
                 if len(path) == 0:
-
                     return self.session.flatten(
                         input=input, outer=outer, recursive=recursive, mode=mode
                     )
