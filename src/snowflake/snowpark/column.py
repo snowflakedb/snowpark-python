@@ -252,13 +252,14 @@ class Column:
         self,
         expr1: Union[str, Expression],
         expr2: Optional[str] = None,
-        json_element: bool = False,
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
+        *,
+        _is_qualified_name: bool = False,
     ) -> None:
         self._ast = _ast
 
-        def derive_json_element_expr(
+        def derive_qualified_name_expr(
             expr: str, df_alias: Optional[str] = None
         ) -> UnresolvedAttribute:
             parts = expr.split(".")
@@ -281,8 +282,8 @@ class Column:
 
             if expr2 == "*":
                 self._expression = Star([], df_alias=expr1)
-            elif json_element:
-                self._expression = derive_json_element_expr(expr2, expr1)
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr2, expr1)
             else:
                 self._expression = UnresolvedAttribute(
                     quote_name(expr2), df_alias=expr1
@@ -297,8 +298,8 @@ class Column:
         elif isinstance(expr1, str):
             if expr1 == "*":
                 self._expression = Star([])
-            elif json_element:
-                self._expression = derive_json_element_expr(expr1)
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr1)
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
@@ -1505,12 +1506,13 @@ class CaseExpr(Column):
     def __init__(
         self,
         expr: CaseWhen,
-        json_element: bool = False,
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
+        *,
+        _is_qualified_name: bool = False,
     ) -> None:
         super().__init__(
-            expr, json_element=json_element, _ast=_ast, _emit_ast=_emit_ast
+            expr, _is_qualified_name=_is_qualified_name, _ast=_ast, _emit_ast=_emit_ast
         )
         self._branches = expr.branches
 
