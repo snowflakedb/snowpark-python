@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
-import decimal
 import os
 import tempfile
 from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
@@ -44,6 +43,7 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
     Connection,
     convert_sp_to_sf_type,
+    infer_type,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -69,15 +69,10 @@ from snowflake.snowpark.types import (
     StructType,
     VariantType,
     StructField,
-    IntegerType,
-    FloatType,
     DecimalType,
-    StringType,
     DateType,
-    BooleanType,
     DataType,
     _NumericType,
-    TimestampType,
 )
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import random_name_for_temp_object
@@ -1246,22 +1241,33 @@ class DataFrameReader:
     def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
         fields = []
         for column in schema:
-            if column[1] == int:
-                field = StructField(column[0], IntegerType(), column[6])
-            elif column[1] == float:
-                field = StructField(column[0], FloatType(), column[6])
-            elif column[1] == decimal.Decimal:
+            datatype = infer_type(column[1])
+            if datatype == DecimalType:
                 field = StructField(
                     column[0], DecimalType(column[4], column[5]), column[6]
                 )
-            elif column[1] == str:
-                field = StructField(column[0], StringType(), column[6])
-            elif column[1] == datetime.datetime:
-                field = StructField(column[0], TimestampType(), column[6])
-            elif column[1] == bool:
-                field = StructField(column[0], BooleanType(), column[6])
             else:
-                raise ValueError("unsupported type")
+                field = StructField(column[0], datatype, column[6])
+            # if column[1] == int:
+            #     field = StructField(column[0], IntegerType(), column[6])
+            # elif column[1] == float:
+            #     field = StructField(column[0], FloatType(), column[6])
+            # elif column[1] == decimal.Decimal:
+            #     field = StructField(
+            #         column[0], DecimalType(column[4], column[5]), column[6]
+            #     )
+            # elif column[1] == str:
+            #     field = StructField(column[0], StringType(), column[6])
+            # elif column[1] == datetime.datetime:
+            #     field = StructField(column[0], TimestampType(), column[6])
+            # elif column[1] == datetime.time:
+            #     field = StructField(column[0], TimeType(), column[6])
+            # elif column[1] == datetime.date:
+            #     field = StructField(column[0], DateType(), column[6])
+            # elif column[1] == bool:
+            #     field = StructField(column[0], BooleanType(), column[6])
+            # else:
+            #     raise ValueError("unsupported type")
 
             fields.append(field)
         return StructType(fields)
