@@ -8849,7 +8849,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with args = '{args}'."
                 )
-            # return self._apply_snowpark_python_function_to_columns(func, kwargs)
             return self._apply_snowflake_cortex_function_to_columns(func, kwargs)
 
         # Check if the function is a known numpy function that can be translated
