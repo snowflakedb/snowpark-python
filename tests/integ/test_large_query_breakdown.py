@@ -218,7 +218,6 @@ def test_breakdown_at_with_query_node(session):
     queries = final_df.queries
     assert len(queries["queries"]) == 2
     assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    # SNOW-1734385: Remove it when the issue is fixed
     assert "WITH SNOWPARK_TEMP_CTE_" not in queries["queries"][0]
     assert len(queries["post_actions"]) == 1
 
