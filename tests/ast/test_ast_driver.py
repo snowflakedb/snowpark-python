@@ -38,6 +38,8 @@ TEST_DIR = pathlib.Path(__file__).parent
 
 DATA_DIR = TEST_DIR / "data"
 
+EXPECTED_FAILING_TEST_CASES = {"sproc.test"}
+
 
 @dataclass
 class TestCase:
@@ -195,7 +197,7 @@ def compare_base64_results(
     actual_message: proto.Request,
     expected_message: proto.Request,
     exclude_symbols_udfs_and_src: bool = False,
-    test_case: TestCase = None,
+    test_case_file_name: str = None,
 ):
     """
     Serialize and deterministically compare two protobuf results.
@@ -245,7 +247,7 @@ def compare_base64_results(
     expected_message_to_compare = normalize_temp_names(expected_message)
 
     if actual_message_to_compare != expected_message_to_compare:
-        if test_case and test_case.filename == "sproc.test":
+        if test_case_file_name and test_case_file_name in EXPECTED_FAILING_TEST_CASES:
             return
     assert actual_message_to_compare == expected_message_to_compare
 
@@ -324,7 +326,7 @@ def test_ast(session, tables, test_case):
                     actual,
                     expected,
                     exclude_symbols_udfs_and_src=True,
-                    test_case=test_case,
+                    test_case_file_name=test_case.filename,
                 )
 
         except AssertionError as e:
