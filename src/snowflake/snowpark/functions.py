@@ -263,7 +263,7 @@ def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
 @overload
 @publicapi
 def col(
-    col_name: str, _emit_ast: bool = True, *, _qualified_name: bool = False
+    col_name: str, _emit_ast: bool = True, *, is_qualified_name: bool = False
 ) -> Column:
     """Returns the :class:`~snowflake.snowpark.Column` with the specified name.
 
@@ -285,7 +285,7 @@ def col(
     col_name: str,
     _emit_ast: bool = True,
     *,
-    _qualified_name: bool = False,
+    is_qualified_name: bool = False,
 ) -> Column:
     """Returns the :class:`~snowflake.snowpark.Column` with the specified dataframe alias and column name.
 
@@ -303,7 +303,7 @@ def col(
     name2: Optional[str] = None,
     _emit_ast: bool = True,
     *,
-    _qualified_name: bool = False,
+    is_qualified_name: bool = False,
 ) -> Column:
 
     _check_column_parameters(name1, name2)
@@ -313,15 +313,15 @@ def col(
         ast = create_ast_for_column(name1, name2, "col")
 
     if name2 is None:
-        return Column(name1, _qualified_name=_qualified_name, _ast=ast)
+        return Column(name1, is_qualified_name=is_qualified_name, _ast=ast)
     else:
-        return Column(name1, name2, _qualified_name=_qualified_name, _ast=ast)
+        return Column(name1, name2, is_qualified_name=is_qualified_name, _ast=ast)
 
 
 @overload
 @publicapi
 def column(
-    col_name: str, _emit_ast: bool = True, *, _qualified_name: bool = False
+    col_name: str, _emit_ast: bool = True, *, is_qualified_name: bool = False
 ) -> Column:
     """Returns a :class:`~snowflake.snowpark.Column` with the specified name. Alias for col.
 
@@ -339,7 +339,11 @@ def column(
 @overload
 @publicapi
 def column(
-    df_alias: str, col_name: str, _qualified_name: bool = False, _emit_ast: bool = True
+    df_alias: str,
+    col_name: str,
+    _emit_ast: bool = True,
+    *,
+    is_qualified_name: bool = False,
 ) -> Column:
     """Returns a :class:`~snowflake.snowpark.Column` with the specified name and dataframe alias name. Alias for col.
 
@@ -355,17 +359,18 @@ def column(
 def column(
     name1: str,
     name2: Optional[str] = None,
-    _qualified_name: bool = False,
     _emit_ast: bool = True,
+    *,
+    is_qualified_name: bool = False,
 ) -> Column:
     _check_column_parameters(name1, name2)
 
     ast = create_ast_for_column(name1, name2, "column") if _emit_ast else None
 
     if name2 is None:
-        return Column(name1, _qualified_name=_qualified_name, _ast=ast)
+        return Column(name1, is_qualified_name=is_qualified_name, _ast=ast)
     else:
-        return Column(name1, name2, _qualified_name=_qualified_name, _ast=ast)
+        return Column(name1, name2, is_qualified_name=is_qualified_name, _ast=ast)
 
 
 @publicapi
