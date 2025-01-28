@@ -356,6 +356,17 @@ def is_active_transaction(session):
     return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
 
 
+def is_with_query_block(node: Optional[LogicalPlan]) -> bool:
+    if isinstance(node, WithQueryBlock):
+        return True
+    if isinstance(node, SnowflakePlan):
+        return is_with_query_block(node.source_plan)
+    if isinstance(node, SelectSnowflakePlan):
+        return is_with_query_block(node.snowflake_plan)
+
+    return False
+
+
 def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
     """A helper function to plot the query plan tree using graphviz useful for debugging.
     It plots the plan if the environment variable ENABLE_SNOWPARK_LOGICAL_PLAN_PLOTTING
@@ -455,16 +466,6 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         sql_preview = sql_text[:50]
 
         return f"{name=}\n{score=}, {ref_ctes=}, {sql_size=}\n{sql_preview=}"
-
-    def is_with_query_block(node: Optional[LogicalPlan]) -> bool:  # pragma: no cover
-        if isinstance(node, WithQueryBlock):
-            return True
-        if isinstance(node, SnowflakePlan):
-            return is_with_query_block(node.source_plan)
-        if isinstance(node, SelectSnowflakePlan):
-            return is_with_query_block(node.snowflake_plan)
-
-        return False
 
     g = graphviz.Graph(format="png")
 
