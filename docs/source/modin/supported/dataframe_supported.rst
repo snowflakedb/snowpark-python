@@ -305,9 +305,9 @@ Methods
 |                             |                                 |                                  | any ``argfunc`` is not "count", "mean", "min",     |
 |                             |                                 |                                  | "max", or "sum". N if ``index`` is None,           | 
 |                             |                                 |                                  | ``margins`` is True and ``aggfunc`` is "count"     |
-|                             |                                 |                                  | or "mean" or a dictionary. N if ``index`` is None  |
-|                             |                                 |                                  | and ``aggfunc`` is a dictionary containing         |
-|                             |                                 |                                  | lists of aggfuncs to apply.``N`` if ``aggfunc`` is |
+|                             |                                 |                                  | or "mean" or a dictionary. ``N`` if ``index`` is   |
+|                             |                                 |                                  | None and ``aggfunc`` is a dictionary containing    |
+|                             |                                 |                                  | lists of aggfuncs to apply. ``N`` if ``aggfunc`` is|
 |                             |                                 |                                  | an `unsupported aggregation                        |
 |                             |                                 |                                  | function <agg_supp.html>`_  for pivot.             |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
