@@ -9,6 +9,7 @@ import pytest
 
 import snowflake.connector
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.ast.ast_test_utils import (
@@ -169,15 +170,22 @@ def connection(db_parameters, local_testing_mode):
         _keys = [
             "user",
             "password",
+            "private_key_file",
             "host",
             "port",
             "database",
+            "schema",
             "account",
             "protocol",
             "role",
+            "warehouse",
         ]
         with snowflake.connector.connect(
-            **{k: db_parameters[k] for k in _keys if k in db_parameters}
+            **{
+                k: db_parameters[k]
+                for k in _keys
+                if k in db_parameters and db_parameters[k] is not None
+            }
         ) as con:
             yield con
 
@@ -223,12 +231,13 @@ def session(
     validate_ast,
     unparser_jar,
 ):
+    set_ast_state(AstFlagSource.TEST, ast_enabled)
     rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
     rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
     key1 = f"key1{Utils.random_alphanumeric_str(10)}"
     key2 = f"key2{Utils.random_alphanumeric_str(10)}"
-    integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
-    integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
+    integration1 = f"integration1_{Utils.random_alphanumeric_str(10)}"
+    integration2 = f"integration2_{Utils.random_alphanumeric_str(10)}"
 
     session = (
         Session.builder.configs(db_parameters)
@@ -239,7 +248,7 @@ def session(
     session._cte_optimization_enabled = cte_optimization_enabled
     session.ast_enabled = ast_enabled
 
-    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+    if RUNNING_ON_GH and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
@@ -249,16 +258,18 @@ def session(
             session, db_parameters, unparser_jar
         )
 
-    yield session
+    try:
+        yield session
 
-    if validate_ast:
-        close_full_ast_validation_mode(full_ast_validation_listener)
+    finally:
+        if validate_ast:
+            close_full_ast_validation_mode(full_ast_validation_listener)
 
-    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
-        clean_up_external_access_integration_resources(
-            session, rule1, rule2, key1, key2, integration1, integration2
-        )
-    session.close()
+        if RUNNING_ON_GH and not local_testing_mode:
+            clean_up_external_access_integration_resources(
+                session, rule1, rule2, key1, key2, integration1, integration2
+            )
+        session.close()
 
 
 @pytest.fixture(scope="function")
@@ -273,8 +284,8 @@ def profiler_session(
     rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
     key1 = f"key1{Utils.random_alphanumeric_str(10)}"
     key2 = f"key2{Utils.random_alphanumeric_str(10)}"
-    integration1 = f"integration1{Utils.random_alphanumeric_str(10)}"
-    integration2 = f"integration2{Utils.random_alphanumeric_str(10)}"
+    integration1 = f"integration1_{Utils.random_alphanumeric_str(10)}"
+    integration2 = f"integration2_{Utils.random_alphanumeric_str(10)}"
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
@@ -282,16 +293,18 @@ def profiler_session(
     )
     session.sql_simplifier_enabled = sql_simplifier_enabled
     session._cte_optimization_enabled = cte_optimization_enabled
-    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
+    if RUNNING_ON_GH and not local_testing_mode:
         set_up_external_access_integration_resources(
             session, rule1, rule2, key1, key2, integration1, integration2
         )
-    yield session
-    if os.getenv("GITHUB_ACTIONS") == "true" and not local_testing_mode:
-        clean_up_external_access_integration_resources(
-            session, rule1, rule2, key1, key2, integration1, integration2
-        )
-    session.close()
+    try:
+        yield session
+    finally:
+        if RUNNING_ON_GH and not local_testing_mode:
+            clean_up_external_access_integration_resources(
+                session, rule1, rule2, key1, key2, integration1, integration2
+            )
+        session.close()
 
 
 @pytest.fixture(scope="function")

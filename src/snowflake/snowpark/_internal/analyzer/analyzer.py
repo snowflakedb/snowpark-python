@@ -4,7 +4,7 @@
 #
 import uuid
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Union
 
 from snowflake.connector import IntegrityError
 
@@ -168,7 +168,7 @@ class Analyzer:
         self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
-        self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
+        self.alias_maps_to_use: Dict[uuid.UUID, str] = {}
 
     def analyze(
         self,
@@ -368,7 +368,6 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Attribute):
-            assert self.alias_maps_to_use is not None
             name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
             return quote_name(name)
 
@@ -661,6 +660,8 @@ class Analyzer:
                 ),
                 expr.to,
                 expr.try_,
+                expr.is_rename,
+                expr.is_add,
             )
         else:
             return unary_expression(

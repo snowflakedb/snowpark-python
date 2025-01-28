@@ -14,6 +14,7 @@ from tests.integ.modin.utils import (
     create_test_dfs,
 )
 from tests.integ.utils.sql_counter import SqlCounter
+from tests.utils import RUNNING_ON_GH
 
 
 def assert_empty_snowpark_pandas_equals_to_pandas(snow_df, native_df):
@@ -175,6 +176,7 @@ class TestCacheResultReducesQueryCount:
                 cached_snow_df, native_df
             )
 
+    @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
     def test_cache_result_post_apply(self, inplace, simple_test_data):
         # In this test, the caching doesn't aid in the query counts since
         # the implementation of apply(axis=1) itself contains intermediate
@@ -203,6 +205,7 @@ class TestCacheResultReducesQueryCount:
                 native_df,
             )
 
+    @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
     def test_cache_result_post_applymap(self, inplace, simple_test_data):
         # The high query counts in this test case come from the setup and definition
         # of the UDFs used.

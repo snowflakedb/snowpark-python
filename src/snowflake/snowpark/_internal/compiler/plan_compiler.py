@@ -204,6 +204,9 @@ class PlanCompiler:
         To prevent this, we generate queries with temp object name placeholders and replace them with actual temp object
         here.
         """
+        session = self._plan.session
+        if not session._conn._thread_safe_session_enabled:
+            return queries
         # This dictionary will store the mapping between placeholder name and actual temp object name.
         placeholders = {}
         # Final execution queries
