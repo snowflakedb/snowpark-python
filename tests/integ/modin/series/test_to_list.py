@@ -31,7 +31,7 @@ def to_list_comparator(snow, native):
     [
         [1, 2, 3],
         ["a", "b", "c"],
-        [1.1, np.NaN],
+        [1.1, np.nan],
         [1.1, 2.2],
         [True, False],
         [True, False, None],
