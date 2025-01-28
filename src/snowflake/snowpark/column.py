@@ -255,7 +255,7 @@ class Column:
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
         *,
-        is_qualified_name: bool = False,
+        _is_qualified_name: bool = False,
     ) -> None:
         self._ast = _ast
 
@@ -282,7 +282,7 @@ class Column:
 
             if expr2 == "*":
                 self._expression = Star([], df_alias=expr1)
-            elif is_qualified_name:
+            elif _is_qualified_name:
                 self._expression = derive_qualified_name_expr(expr2, expr1)
             else:
                 self._expression = UnresolvedAttribute(
@@ -298,7 +298,7 @@ class Column:
         elif isinstance(expr1, str):
             if expr1 == "*":
                 self._expression = Star([])
-            elif is_qualified_name:
+            elif _is_qualified_name:
                 self._expression = derive_qualified_name_expr(expr1)
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
@@ -1509,10 +1509,10 @@ class CaseExpr(Column):
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
         *,
-        is_qualified_name: bool = False,
+        _is_qualified_name: bool = False,
     ) -> None:
         super().__init__(
-            expr, is_qualified_name=is_qualified_name, _ast=_ast, _emit_ast=_emit_ast
+            expr, _is_qualified_name=_is_qualified_name, _ast=_ast, _emit_ast=_emit_ast
         )
         self._branches = expr.branches
 
