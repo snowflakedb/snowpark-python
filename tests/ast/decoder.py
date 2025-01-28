@@ -2850,6 +2850,7 @@ class Decoder:
                         mode = "OBJECT"
 
                 if len(path) == 0:
+
                     return self.session.flatten(
                         input=input, outer=outer, recursive=recursive, mode=mode
                     )
