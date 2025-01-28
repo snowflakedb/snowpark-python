@@ -415,9 +415,10 @@ def handle_function_expression(
     to_pass_args = []
     type_hints = typing.get_type_hints(to_mock_func)
     parameters_except_ast = list(signatures.parameters)
-    if "_emit_ast" in parameters_except_ast:
-        parameters_except_ast.remove("_emit_ast")
-        del type_hints["_emit_ast"]
+    for clean_up_parameter in ["_emit_ast", "_ast"]:
+        if clean_up_parameter in parameters_except_ast:
+            parameters_except_ast.remove(clean_up_parameter)
+            del type_hints[clean_up_parameter]
     for idx, key in enumerate(parameters_except_ast):
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
