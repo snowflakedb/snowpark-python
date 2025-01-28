@@ -1048,10 +1048,6 @@ def test_in_expression_null_cases(session):
     Utils.check_answer(df4, [Row(False), Row(False), Row(False)])
 
 
-def test_in_expression_column(session):
-    pass
-
-
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="Pivot does not support values from subqueries yet.",
