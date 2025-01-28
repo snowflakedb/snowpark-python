@@ -367,7 +367,9 @@ class LargeQueryBreakdown:
         if isinstance(child, SelectSnowflakePlan):
             return self._extract_child_from_with_query_block(child.snowflake_plan)
 
-        raise ValueError(f"Invalid node type {type(child)} for partitioning.")
+        raise ValueError(
+            f"Invalid node type {type(child)} for partitioning."
+        )  # pragma: no cover
 
     def _get_partitioned_plan(self, child: TreeNode) -> SnowflakePlan:
         """This method takes cuts the child out from the root, creates a temp table plan for the
