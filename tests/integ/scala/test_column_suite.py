@@ -869,27 +869,22 @@ def test_in_expression_3_with_all_types(session, local_testing_mode):
     Utils.check_answer(df.filter(col("string").isin(["three"])), [])
 
 
-def test_in_expression_4_negative_test_to_input_column_in_value_list(session):
+def test_in_expression_4_input_column_in_value_list(session):
     df = session.create_dataframe(
-        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
-    ).to_df(["a", "b", "c", "d"])
-
-    with pytest.raises(TypeError) as ex_info:
-        df.filter(col("a").in_([col("c")]))
-
-    assert (
-        "is not supported for the values parameter of the function in(). You must either "
-        "specify a sequence of literals or a DataFrame that represents a subquery."
-        in str(ex_info.value)
+        [[1, "a", 1], [2, "b", 2], [3, "b", 33]], schema=["a", "b", "c"]
     )
 
-    with pytest.raises(TypeError) as ex_info:
-        df.filter(col("a").in_([1, df["c"]]))
-
-    assert (
-        "is not supported for the values parameter of the function in(). You must either "
-        "specify a sequence of literals or a DataFrame that represents a subquery."
-        in str(ex_info.value)
+    Utils.check_answer(
+        df.select(col("a").in_([col("c")])), [Row(True), Row(True), Row(False)]
+    )
+    Utils.check_answer(
+        df.select(col("a").in_(df["c"])), [Row(True), Row(True), Row(False)]
+    )
+    Utils.check_answer(
+        df.select(~in_([col("a")], df["c"])), [Row(False), Row(False), Row(True)]
+    )
+    Utils.check_answer(
+        df.select(col("a").in_([3, df["c"]])), [Row(True), Row(True), Row(True)]
     )
 
     with pytest.raises(TypeError) as ex_info:
@@ -1051,6 +1046,10 @@ def test_in_expression_null_cases(session):
     # select with collect
     df4 = df.select(df["a"].in_(df0.filter(col("a") > 100).collect()).as_("in_result"))
     Utils.check_answer(df4, [Row(False), Row(False), Row(False)])
+
+
+def test_in_expression_column(session):
+    pass
 
 
 @pytest.mark.skipif(
