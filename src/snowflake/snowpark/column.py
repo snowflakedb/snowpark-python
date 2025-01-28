@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldInt,
     SubfieldString,
     UnresolvedAttribute,
+    Attribute,
     WithinGroup,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
@@ -622,6 +623,8 @@ class Column:
         *vals: Union[
             LiteralType,
             Iterable[LiteralType],
+            "Column",
+            Iterable["Column"],
             "snowflake.snowpark.DataFrame",
         ],
         _emit_ast: bool = True,
@@ -657,8 +660,14 @@ class Column:
             >>> df.select(df["a"].in_(lit(1), lit(2), lit(3)).alias("is_in_list")).collect()
             [Row(IS_IN_LIST=True), Row(IS_IN_LIST=True), Row(IS_IN_LIST=False)]
 
+            >>> # Use in with column object
+            >>> df2 = session.create_dataframe([[1, 1], [2, 4] ,[3, 0]], schema=["a", "b"])
+            >>> df2.select(df2["a"].in_(df2["b"]).alias("is_a_in_b")).collect()
+            [Row(IS_A_IN_B=True), Row(IS_A_IN_B=False), Row(IS_A_IN_B=False)]
+
         Args:
-            vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
+            vals: The lteral values, the columns in the same DataFrame, or a :class:`DataFrame` instance to use
+                to check for membership against this column.
         """
 
         cols = parse_positional_args_to_list(*vals)
@@ -704,7 +713,8 @@ class Column:
         if len(cols) != 1 or not isinstance(value_expressions[0], ScalarSubquery):
 
             def validate_value(value_expr: Expression):
-                if isinstance(value_expr, Literal):
+                # literal and column
+                if isinstance(value_expr, (Literal, Attribute, UnresolvedAttribute)):
                     return
                 elif isinstance(value_expr, MultipleExpression):
                     for expr in value_expr.expressions:
