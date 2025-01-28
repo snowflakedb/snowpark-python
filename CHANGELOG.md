@@ -102,7 +102,7 @@
 - Added support for `Index.drop_duplicates`.
 - Added support for aggregations `"count"`, `"median"`, `np.median`,
   `"skew"`, `"std"`, `np.std` `"var"`, and `np.var` in
-  ``pd.pivot_table()``, ``DataFrame.pivot_table()``, and ``pd.crosstab()``.
+  `pd.pivot_table()`, `DataFrame.pivot_table()`, and `pd.crosstab()`.
 
 #### Bug Fixes
 
