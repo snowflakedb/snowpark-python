@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 from collections import namedtuple
 from collections.abc import Generator, Hashable
 from functools import reduce
@@ -44,7 +45,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     extract_pandas_label_from_snowflake_quoted_identifier,
     from_pandas_label,
     get_distinct_rows,
-    is_supported_snowflake_pivot_agg_func,
     pandas_lit,
     random_name_for_temp_object,
     to_pandas_label,
@@ -521,9 +521,7 @@ def single_pivot_helper(
             data_column_pandas_labels: new data column pandas labels for this pivot result
     """
     snowflake_agg_func = get_snowflake_agg_func(pandas_aggr_func_name, {}, axis=0)
-    if snowflake_agg_func is None or not is_supported_snowflake_pivot_agg_func(
-        snowflake_agg_func.snowpark_aggregation
-    ):
+    if snowflake_agg_func is None or not snowflake_agg_func.supported_in_pivot:
         # TODO: (SNOW-853334) Add support for any non-supported snowflake pivot aggregations
         raise ErrorMessage.not_implemented(
             f"Snowpark pandas DataFrame.pivot_table does not yet support the aggregation {repr_aggregate_function(original_aggfunc, agg_kwargs={})} with the given arguments."

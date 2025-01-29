@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import importlib
@@ -135,6 +135,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     CreateViewCommand,
     Pivot,
     Sample,
+    Project,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import (
@@ -414,9 +415,10 @@ def handle_function_expression(
     to_pass_args = []
     type_hints = typing.get_type_hints(to_mock_func)
     parameters_except_ast = list(signatures.parameters)
-    if "_emit_ast" in parameters_except_ast:
-        parameters_except_ast.remove("_emit_ast")
-        del type_hints["_emit_ast"]
+    for clean_up_parameter in ["_emit_ast", "_ast"]:
+        if clean_up_parameter in parameters_except_ast:
+            parameters_except_ast.remove(clean_up_parameter)
+            del type_hints[clean_up_parameter]
     for idx, key in enumerate(parameters_except_ast):
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
@@ -985,7 +987,7 @@ def execute_mock_plan(
         res_df = execute_mock_plan(
             MockExecutionPlan(
                 first_operand.selectable,
-                source_plan.analyzer.session,
+                source_plan._session,
             ),
             expr_to_alias,
         )
@@ -993,7 +995,7 @@ def execute_mock_plan(
             operand = source_plan.set_operands[i]
             operator = operand.operator
             cur_df = execute_mock_plan(
-                MockExecutionPlan(operand.selectable, source_plan.analyzer.session),
+                MockExecutionPlan(operand.selectable, source_plan._session),
                 expr_to_alias,
             )
             if len(res_df.columns) != len(cur_df.columns):
@@ -1289,6 +1291,8 @@ def execute_mock_plan(
             dtype=object,
         )
         return result_df
+    if isinstance(source_plan, Project):
+        return TableEmulator(ColumnEmulator(col) for col in source_plan.project_list)
     if isinstance(source_plan, Join):
         L_expr_to_alias = {}
         R_expr_to_alias = {}
@@ -1450,6 +1454,19 @@ def execute_mock_plan(
 
         obj_name_tuple = parse_table_name(entity_name)
         obj_name = obj_name_tuple[-1]
+
+        # Logic to create a read-only temp table for AST testing purposes.
+        # Functions like to_snowpark_pandas create a clone of an existing table as a read-only table that is referenced
+        # during testing.
+        if "SNOWPARK_TEMP_TABLE" in obj_name and "READONLY" in obj_name:
+            # Create the read-only temp table.
+            entity_registry.write_table(
+                obj_name,
+                TableEmulator({"A": [1], "B": [1], "C": [1]}),
+                SaveMode.IGNORE,
+            )
+            return entity_registry.read_table_if_exists(obj_name)
+
         obj_schema = (
             obj_name_tuple[-2]
             if len(obj_name_tuple) > 1
@@ -1865,9 +1882,9 @@ def execute_mock_plan(
         # This requires us to wrap the aggregation function with extract logic to handle this special case.
         def agg_function(column):
             return (
-                agg_functions[agg_function_name](column.dropna())
-                if column.any()
-                else sentinel
+                sentinel
+                if column.isnull().all()
+                else agg_functions[agg_function_name](column.dropna())
             )
 
         default = (

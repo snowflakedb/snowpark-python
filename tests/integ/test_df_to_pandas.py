@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Iterator
@@ -96,18 +96,18 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
         if to_pandas_api == "to_pandas"
         else next(snowpark_df.to_pandas_batches())
     )
-    assert str(pandas_df.dtypes[0]) == "int8"
-    assert str(pandas_df.dtypes[1]) == "int16"
-    assert str(pandas_df.dtypes[2]) == "int32"
-    assert str(pandas_df.dtypes[3]) == "int64"
+    assert str(pandas_df.dtypes.iloc[0]) == "int8"
+    assert str(pandas_df.dtypes.iloc[1]) == "int16"
+    assert str(pandas_df.dtypes.iloc[2]) == "int32"
+    assert str(pandas_df.dtypes.iloc[3]) == "int64"
     assert (
-        str(pandas_df.dtypes[4]) == "int64"
+        str(pandas_df.dtypes.iloc[4]) == "int64"
     )  # When limits are not explicitly defined, rely on metadata information from GS.
     assert (
-        str(pandas_df.dtypes[5]) == "object"
+        str(pandas_df.dtypes.iloc[5]) == "object"
     )  # No cast so it's a string. dtype is "object".
     assert (
-        str(pandas_df.dtypes[6]) == "float64"
+        str(pandas_df.dtypes.iloc[6]) == "float64"
     )  # A 20-digit number is over int64 max. Convert to float64 in pandas.
 
     # Make sure timestamp is not accidentally converted to int
@@ -130,10 +130,10 @@ def test_to_pandas_cast_integer(session, to_pandas_api, local_testing_mode):
             if pyarrow_major_version >= 13 and pandas_major_version >= 2
             else "datetime64[ns]"
         )
-        assert str(timestamp_pandas_df.dtypes[0]) == expected_dtype
+        assert str(timestamp_pandas_df.dtypes.iloc[0]) == expected_dtype
     else:
         # TODO: mock the non-nanosecond unit pyarrow+pandas behavior in local test
-        assert str(timestamp_pandas_df.dtypes[0]) == "datetime64[ns]"
+        assert str(timestamp_pandas_df.dtypes.iloc[0]) == "datetime64[ns]"
 
 
 def test_to_pandas_precision_for_number_38_0(session):
@@ -359,7 +359,7 @@ def test_df_to_pandas_df(session):
                 StructField("n", TimestampType()),
                 StructField("o", TimeType()),
                 StructField("p", VariantType()),
-                StructField("q", MapType(StringType(), StringType())),
+                StructField("q", MapType()),
             ]
         ),
     )

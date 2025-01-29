@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
+import typing
 from typing import Any, Optional, Union
 
 import snowflake.snowpark
@@ -90,6 +91,9 @@ from snowflake.snowpark.types import (
     StringType,
     TimestampTimeZone,
     TimestampType,
+    ArrayType,
+    MapType,
+    StructType,
 )
 from snowflake.snowpark.window import Window, WindowSpec
 
@@ -250,8 +254,25 @@ class Column:
         expr2: Optional[str] = None,
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
+        *,
+        _is_qualified_name: bool = False,
     ) -> None:
         self._ast = _ast
+
+        def derive_qualified_name_expr(
+            expr: str, df_alias: Optional[str] = None
+        ) -> UnresolvedAttribute:
+            parts = expr.split(".")
+            if len(parts) == 1:
+                return UnresolvedAttribute(quote_name(parts[0]), df_alias=df_alias)
+            else:
+                # According to https://docs.snowflake.com/en/user-guide/querying-semistructured#dot-notation,
+                # the json value on the path should be case-sensitive
+                return UnresolvedAttribute(
+                    f"{quote_name(parts[0])}:{'.'.join(quote_name(part, keep_case=True) for part in parts[1:])}",
+                    is_sql_text=True,
+                    df_alias=df_alias,
+                )
 
         if expr2 is not None:
             if not (isinstance(expr1, str) and isinstance(expr2, str)):
@@ -261,6 +282,8 @@ class Column:
 
             if expr2 == "*":
                 self._expression = Star([], df_alias=expr1)
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr2, expr1)
             else:
                 self._expression = UnresolvedAttribute(
                     quote_name(expr2), df_alias=expr1
@@ -275,6 +298,8 @@ class Column:
         elif isinstance(expr1, str):
             if expr1 == "*":
                 self._expression = Star([])
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr1)
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
@@ -643,7 +668,7 @@ class Column:
             ast = None
             if _emit_ast:
                 ast = proto.Expr()
-                proto_ast = ast.sp_column_in__seq
+                proto_ast = ast.sp_column_in
                 proto_ast.col.CopyFrom(self._ast)
 
             return Column(Literal(False), _ast=ast, _emit_ast=_emit_ast)
@@ -698,7 +723,7 @@ class Column:
         ast = None
         if _emit_ast:
             ast = proto.Expr()
-            proto_ast = ast.sp_column_in__seq
+            proto_ast = ast.sp_column_in
             proto_ast.col.CopyFrom(self._ast)
             for val in vals:
                 val_ast = proto_ast.values.add()
@@ -911,10 +936,22 @@ class Column:
         return Column(Not(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     def _cast(
-        self, to: Union[str, DataType], try_: bool = False, _emit_ast: bool = True
+        self,
+        to: Union[str, DataType],
+        try_: bool = False,
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
     ) -> "Column":
+        if add_fields and rename_fields:
+            raise ValueError(
+                "is_add and is_rename cannot be set to True at the same time"
+            )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
+
+        if isinstance(to, (ArrayType, MapType, StructType)):
+            to = to._as_nested()
 
         if self._ast is None:
             _emit_ast = False
@@ -927,21 +964,49 @@ class Column:
             )
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
-        return Column(Cast(self._expression, to, try_), _ast=expr, _emit_ast=_emit_ast)
+        return Column(
+            Cast(self._expression, to, try_, rename_fields, add_fields),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     @publicapi
-    def cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
+    def cast(
+        self,
+        to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
-        return self._cast(to, False, _emit_ast=_emit_ast)
+        return self._cast(
+            to,
+            False,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
+        )
 
     @publicapi
-    def try_cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
+    def try_cast(
+        self,
+        to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
-        return self._cast(to, True, _emit_ast=_emit_ast)
+        return self._cast(
+            to,
+            True,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
+        )
 
     @publicapi
     def desc(self, _emit_ast: bool = True) -> "Column":
@@ -951,6 +1016,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_desc)
             ast.col.CopyFrom(self._ast)
+            ast.null_order.sp_null_order_default = True
         return Column(
             SortOrder(self._expression, Descending()), _ast=expr, _emit_ast=_emit_ast
         )
@@ -964,7 +1030,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.nulls_first.value = True
+            ast.null_order.sp_null_order_nulls_first = True
         return Column(
             SortOrder(self._expression, Descending(), NullsFirst()),
             _ast=expr,
@@ -980,7 +1046,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_desc)
             ast.col.CopyFrom(self._ast)
-            ast.nulls_first.value = False
+            ast.null_order.sp_null_order_nulls_last = True
         return Column(
             SortOrder(self._expression, Descending(), NullsLast()),
             _ast=expr,
@@ -995,6 +1061,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_asc)
             ast.col.CopyFrom(self._ast)
+            ast.null_order.sp_null_order_default = True
         return Column(
             SortOrder(self._expression, Ascending()), _ast=expr, _emit_ast=_emit_ast
         )
@@ -1008,7 +1075,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.nulls_first.value = True
+            ast.null_order.sp_null_order_nulls_first = True
         return Column(
             SortOrder(self._expression, Ascending(), NullsFirst()),
             _ast=expr,
@@ -1024,7 +1091,7 @@ class Column:
             expr = proto.Expr()
             ast = with_src_position(expr.sp_column_asc)
             ast.col.CopyFrom(self._ast)
-            ast.nulls_first.value = False
+            ast.null_order.sp_null_order_nulls_last = True
         return Column(
             SortOrder(self._expression, Ascending(), NullsLast()),
             _ast=expr,
@@ -1230,30 +1297,37 @@ class Column:
     @publicapi
     def as_(self, alias: str, _emit_ast: bool = True) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias, variant_is_as=True, _emit_ast=_emit_ast)
+        return self.name(alias, variant="as_", _emit_ast=_emit_ast)
 
     @publicapi
     def alias(self, alias: str, _emit_ast: bool = True) -> "Column":
         """Returns a new renamed Column. Alias of :func:`name`."""
-        return self.name(alias, variant_is_as=False, _emit_ast=_emit_ast)
+        return self.name(alias, variant="alias", _emit_ast=_emit_ast)
 
     @publicapi
     def name(
-        self, alias: str, variant_is_as: bool = None, _emit_ast: bool = True
+        self,
+        alias: str,
+        variant: typing.Literal["as_", "alias", "name"] = "name",
+        _emit_ast: bool = True,
     ) -> "Column":
         """Returns a new renamed Column."""
         expr = self._expression  # Snowpark expression
         if isinstance(expr, Alias):
             expr = expr.child
-
         ast_expr = None  # Snowpark IR expression
         if _emit_ast and self._ast is not None:
             ast_expr = proto.Expr()
             ast = with_src_position(ast_expr.sp_column_alias)
             ast.col.CopyFrom(self._ast)
             ast.name = alias
-            if variant_is_as is not None:
-                ast.variant_is_as.value = variant_is_as
+            if variant == "as_":
+                ast.fn.sp_column_alias_fn_as = True
+            elif variant == "alias":
+                ast.fn.sp_column_alias_fn_alias = True
+            elif variant == "name":
+                ast.fn.sp_column_alias_fn_name = True
+
         return Column(
             Alias(expr, quote_name(alias)), _ast=ast_expr, _emit_ast=_emit_ast
         )
@@ -1430,9 +1504,16 @@ class CaseExpr(Column):
     """
 
     def __init__(
-        self, expr: CaseWhen, _ast: Optional[proto.Expr] = None, _emit_ast: bool = True
+        self,
+        expr: CaseWhen,
+        _ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
+        *,
+        _is_qualified_name: bool = False,
     ) -> None:
-        super().__init__(expr, _ast=_ast, _emit_ast=_emit_ast)
+        super().__init__(
+            expr, _is_qualified_name=_is_qualified_name, _ast=_ast, _emit_ast=_emit_ast
+        )
         self._branches = expr.branches
 
     @publicapi

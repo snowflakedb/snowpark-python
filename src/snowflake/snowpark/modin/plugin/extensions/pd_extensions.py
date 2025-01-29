@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -59,7 +59,7 @@ def read_snowflake(
         to write the Snowpark pandas DataFrame back to a Snowpark table.
 
         This API supports table names, SELECT queries (including those that use CTEs), CTEs with anonymous stored procedures
-        and CALL queries, and is read only. To interact with Snowflake objects, e.g., listing tables, deleting tables or appending columns use the
+        and calling stored procedures using CALL, and is read only. To interact with Snowflake objects, e.g., listing tables, deleting tables or appending columns use the
         `Snowflake Python Connector <https://docs.snowflake.com/en/developer-guide/python-connector/python-connector>`_, or Snowpark's
         Session object which can be retrieved via `pd.session`.
 

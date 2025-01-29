@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from types import MappingProxyType
@@ -40,8 +40,11 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
         ("count", {}, 1, True),
         ("size", {}, 0, True),
         ("size", {}, 1, True),
+        (sum, {}, 0, True),
         (len, {}, 0, True),
         (len, {}, 1, True),
+        (min, {}, 0, True),
+        (max, {}, 0, True),
         ("min", {}, 0, True),
         ("min", {}, 1, True),
         ("test", {}, 0, False),
@@ -120,8 +123,13 @@ def test_check_aggregation_snowflake_execution_capability_by_args(
 @pytest.mark.parametrize(
     "agg_func, agg_kwargs, axis, expected",
     [
-        (np.sum, {}, 0, SnowflakeAggFunc(sum_, True)),
-        ("max", {"skipna": False}, 1, SnowflakeAggFunc(greatest, True)),
+        (np.sum, {}, 0, SnowflakeAggFunc(sum_, True, supported_in_pivot=True)),
+        (
+            "max",
+            {"skipna": False},
+            1,
+            SnowflakeAggFunc(greatest, True, supported_in_pivot=True),
+        ),
         ("test", {}, 0, None),
     ],
 )
@@ -147,6 +155,7 @@ def test_get_snowflake_agg_func_with_no_implementation_on_axis_0():
                     preserves_snowpark_pandas_types=True,
                     axis_1_aggregation_keepna=greatest,
                     axis_1_aggregation_skipna=greatest,
+                    supported_in_pivot=True,
                 )
             }
         ),

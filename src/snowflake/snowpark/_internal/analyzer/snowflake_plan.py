@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
 import re
@@ -332,6 +332,7 @@ class SnowflakePlan(LogicalPlan):
             source_plan=self.source_plan,
             api_calls=api_calls,
             df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
+            referenced_ctes=self.referenced_ctes,
         )
 
     @property
@@ -531,11 +532,6 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
-        # Whether propagate the referenced ctes from child to the new plan built.
-        # In general, the referenced should be propagated from child, but for cases
-        # like SnowflakeCreateTable, the CTEs should not be propagated, because
-        # the CTEs are already embedded and consumed in the child.
-        propagate_referenced_ctes: bool = True,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
         queries = select_child.queries[:-1] + [
@@ -565,9 +561,7 @@ class SnowflakePlanBuilder:
             api_calls=select_child.api_calls,
             df_aliased_col_name_to_real_col_name=child.df_aliased_col_name_to_real_col_name,
             session=self.session,
-            referenced_ctes=child.referenced_ctes
-            if propagate_referenced_ctes
-            else None,
+            referenced_ctes=child.referenced_ctes,
         )
 
     @SnowflakePlan.Decorator.wrap_exception
@@ -676,6 +670,8 @@ class SnowflakePlanBuilder:
             if thread_safe_session_enabled
             else random_name_for_temp_object(TempObjectType.TABLE)
         )
+        temp_table_name = f"temp_name_placeholder_{generate_random_alphanumeric()}"
+
         attributes = [
             Attribute(attr.name, attr.datatype, attr.nullable) for attr in output
         ]
@@ -712,7 +708,15 @@ class SnowflakePlanBuilder:
         return SnowflakePlan(
             queries=queries,
             schema_query=schema_query,
-            post_actions=[Query(drop_table_stmt, is_ddl_on_temp_object=True)],
+            post_actions=[
+                Query(
+                    drop_table_stmt,
+                    is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
+                    if thread_safe_session_enabled
+                    else None,
+                )
+            ],
             session=self.session,
             source_plan=source_plan,
         )
@@ -941,7 +945,6 @@ class SnowflakePlanBuilder:
                 child,
                 source_plan,
                 is_ddl_on_temp_object=is_temp_table_type,
-                propagate_referenced_ctes=False,
             )
 
         def get_create_and_insert_plan(child: SnowflakePlan, replace, error):
@@ -989,6 +992,7 @@ class SnowflakePlanBuilder:
                 source_plan,
                 api_calls=child.api_calls,
                 session=self.session,
+                referenced_ctes=child.referenced_ctes,
             )
 
         if mode == SaveMode.APPEND:
@@ -1002,7 +1006,6 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
-                    propagate_referenced_ctes=False,
                 )
             else:
                 return get_create_and_insert_plan(child, replace=False, error=False)
@@ -1016,7 +1019,6 @@ class SnowflakePlanBuilder:
                     ),
                     child,
                     source_plan,
-                    propagate_referenced_ctes=False,
                 )
             else:
                 return get_create_table_as_select_plan(child, replace=True, error=True)
@@ -1104,16 +1106,31 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
-            raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
+            # If creating a temp view, we can't drop any temp object in the post_actions
+            # It's okay to leave these temp objects in the current session for now.
+            if is_temp:
+                temp_object_names = {
+                    query.temp_obj_name_placeholder[0]
+                    for query in child.queries
+                    if query.temp_obj_name_placeholder
+                }
+                child.post_actions = [
+                    post_action
+                    for post_action in child.post_actions
+                    if post_action.temp_obj_name_placeholder
+                    and post_action.temp_obj_name_placeholder[0]
+                    not in temp_object_names
+                ]
+            else:
+                raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEW_FROM_DDL_DML_OPERATIONS()
 
-        if not is_sql_select_statement(child.queries[0].sql.lower().strip()):
+        if not is_sql_select_statement(child.queries[-1].sql.lower().strip()):
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         return self.build(
             lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
             child,
             source_plan,
-            propagate_referenced_ctes=False,
         )
 
     def create_or_replace_dynamic_table(
@@ -1223,6 +1240,7 @@ class SnowflakePlanBuilder:
         transformations: Optional[List[str]] = None,
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
+        use_user_schema: bool = False,
     ):
         thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
         format_type_options, copy_options = get_copy_into_table_options(options)
@@ -1232,11 +1250,11 @@ class SnowflakePlanBuilder:
         pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
-        infer_schema = (
+        schema_available = (
             options.get("INFER_SCHEMA", True)
             if format in INFER_SCHEMA_FORMAT_TYPES
             else False
-        )
+        ) or use_user_schema
         # tracking usage of pattern, will refactor this function in future
         if pattern:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
@@ -1254,8 +1272,10 @@ class SnowflakePlanBuilder:
         if not copy_options:  # use select
             queries: List[Query] = []
             post_queries: List[Query] = []
-            format_name = self.session.get_fully_qualified_name_if_possible(
-                f"temp_name_placeholder_{generate_random_alphanumeric()}"
+            format_name = (
+                self.session.get_fully_qualified_name_if_possible(
+                    f"temp_name_placeholder_{generate_random_alphanumeric()}"
+                )
                 if thread_safe_session_enabled
                 else random_name_for_temp_object(TempObjectType.FILE_FORMAT)
             )
@@ -1280,10 +1300,13 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_file_format_if_exists_statement(format_name),
                     is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT)
+                    if thread_safe_session_enabled
+                    else None,
                 )
             )
 
-            if infer_schema:
+            if schema_available:
                 assert schema_to_cast is not None
                 schema_project: List[str] = schema_cast_named(schema_to_cast)
             else:
@@ -1323,15 +1346,17 @@ class SnowflakePlanBuilder:
             # If we have inferred the schema, we want to use those column names
             temp_table_schema = (
                 schema
-                if infer_schema
+                if schema_available
                 else [
                     Attribute(f'"COL{index}"', att.datatype, att.nullable)
                     for index, att in enumerate(schema)
                 ]
             )
 
-            temp_table_name = self.session.get_fully_qualified_name_if_possible(
-                f"temp_name_placeholder_{generate_random_alphanumeric()}"
+            temp_table_name = (
+                self.session.get_fully_qualified_name_if_possible(
+                    f"temp_name_placeholder_{generate_random_alphanumeric()}"
+                )
                 if thread_safe_session_enabled
                 else random_name_for_temp_object(TempObjectType.TABLE)
             )
@@ -1376,6 +1401,9 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_table_if_exists_statement(temp_table_name),
                     is_ddl_on_temp_object=True,
+                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE)
+                    if thread_safe_session_enabled
+                    else None,
                 )
             ]
             return SnowflakePlan(
@@ -1480,7 +1508,6 @@ class SnowflakePlanBuilder:
             query,
             source_plan,
             query.schema_query,
-            propagate_referenced_ctes=False,
         )
 
     def update(
@@ -1501,7 +1528,6 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
-                propagate_referenced_ctes=False,
             )
         else:
             return self.query(
@@ -1530,7 +1556,6 @@ class SnowflakePlanBuilder:
                 ),
                 source_data,
                 source_plan,
-                propagate_referenced_ctes=False,
             )
         else:
             return self.query(
@@ -1554,7 +1579,6 @@ class SnowflakePlanBuilder:
             lambda x: merge_statement(table_name, x, join_expr, clauses),
             source_data,
             source_plan,
-            propagate_referenced_ctes=False,
         )
 
     def lateral(

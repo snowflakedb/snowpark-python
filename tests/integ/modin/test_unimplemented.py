@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 from collections.abc import Generator
 from typing import Callable, Union
 
@@ -159,7 +160,6 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),
     lambda idx: idx.delete(),
-    lambda idx: idx.drop_duplicates(),
     lambda idx: idx.factorize(),
     lambda idx: idx.insert(),
     lambda idx: idx.is_(),

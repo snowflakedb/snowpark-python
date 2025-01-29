@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import logging
@@ -515,6 +515,12 @@ def test_save_as_table(session, mode):
             )
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    if mode == "append":
+        assert query.startswith("INSERT  INTO")
+    elif mode in ("truncate", "overwrite"):
+        assert query.startswith("CREATE  OR  REPLACE  TEMPORARY  TABLE")
+    else:
+        assert query.startswith("CREATE  TEMPORARY  TABLE")
     assert count_number_of_ctes(query) == 1
     if mode in ["append", "truncate"]:
         assert sum("show" in q.sql_text for q in query_history.queries) == 1
@@ -529,6 +535,7 @@ def test_create_or_replace_view(session):
         )
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("CREATE  OR  REPLACE  TEMPORARY  VIEW")
     assert count_number_of_ctes(query) == 1
 
 
@@ -545,6 +552,7 @@ def test_table_update_delete_merge(session):
         t.update({"b": 0}, t.a == source_df.a, source_df)
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("UPDATE")
     assert count_number_of_ctes(query) == 1
 
     # delete
@@ -552,6 +560,7 @@ def test_table_update_delete_merge(session):
         t.delete(t.a == source_df.a, source_df)
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("DELETE  FROM")
     assert count_number_of_ctes(query) == 1
 
     # merge
@@ -561,6 +570,7 @@ def test_table_update_delete_merge(session):
         )
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("MERGE  INTO")
     assert count_number_of_ctes(query) == 1
 
 
@@ -579,6 +589,7 @@ def test_copy_into_location(session):
         )
     query = query_history.queries[-1].sql_text
     assert query.count(WITH) == 1
+    assert query.startswith("COPY  INTO")
     assert count_number_of_ctes(query) == 1
 
 
@@ -970,40 +981,34 @@ def test_select_with_column_expr_alias(session):
     )
 
 
-@pytest.mark.parametrize("enable_sql_simplifier", [True, False])
-def test_time_series_aggregation_grouping(session, enable_sql_simplifier):
-    original_sql_simplifier_enabled = session.sql_simplifier_enabled
-    try:
-        session.sql_simplifier_enabled = enable_sql_simplifier
-        data = [
-            ["2024-02-01 00:00:00", "product_A", "transaction_1", 10],
-            ["2024-02-15 00:00:00", "product_A", "transaction_2", 15],
-            ["2024-02-15 08:00:00", "product_A", "transaction_3", 7],
-            ["2024-02-17 00:00:00", "product_A", "transaction_4", 3],
-        ]
-        df = session.create_dataframe(data).to_df(
-            "TS", "PRODUCT_ID", "TRANSACTION_ID", "QUANTITY"
-        )
+def test_time_series_aggregation_grouping(session):
+    data = [
+        ["2024-02-01 00:00:00", "product_A", "transaction_1", 10],
+        ["2024-02-15 00:00:00", "product_A", "transaction_2", 15],
+        ["2024-02-15 08:00:00", "product_A", "transaction_3", 7],
+        ["2024-02-17 00:00:00", "product_A", "transaction_4", 3],
+    ]
+    df = session.create_dataframe(data).to_df(
+        "TS", "PRODUCT_ID", "TRANSACTION_ID", "QUANTITY"
+    )
 
-        res = df.analytics.time_series_agg(
-            time_col="TS",
-            group_by=["PRODUCT_ID"],
-            aggs={"QUANTITY": ["SUM"]},
-            windows=["-1D", "-7D"],
-            sliding_interval="1D",
-        )
-        check_result(
-            session,
-            res,
-            expect_cte_optimized=True,
-            query_count=1,
-            describe_count=0,
-            union_count=0,
-            join_count=8,
-            cte_join_count=4,
-        )
-    finally:
-        session.sql_simplifier_enabled = original_sql_simplifier_enabled
+    res = df.analytics.time_series_agg(
+        time_col="TS",
+        group_by=["PRODUCT_ID"],
+        aggs={"QUANTITY": ["SUM"]},
+        windows=["-1D", "-7D"],
+        sliding_interval="1D",
+    )
+    check_result(
+        session,
+        res,
+        expect_cte_optimized=True,
+        query_count=1,
+        describe_count=0,
+        union_count=0,
+        join_count=8,
+        cte_join_count=4,
+    )
 
 
 def test_table_select_cte(session):
@@ -1017,7 +1022,7 @@ def test_table_select_cte(session):
     check_result(
         session,
         df_result,
-        expect_cte_optimized=False if session.sql_simplifier_enabled else True,
+        expect_cte_optimized=False,
         query_count=1,
         describe_count=0,
         union_count=1,
