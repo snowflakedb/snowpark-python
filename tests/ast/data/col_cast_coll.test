@@ -66,10 +66,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: 2
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -108,29 +105,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 27
                       file: 2
-                      start_column: 23
                       start_line: 27
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 27
                   file: 2
-                  start_column: 23
                   start_line: 27
                 }
               }
             }
             src {
-              end_column: 50
-              end_line: 27
               file: 2
-              start_column: 23
               start_line: 27
             }
             to {
@@ -150,10 +138,7 @@ body {
           }
         }
         src {
-          end_column: 51
-          end_line: 27
           file: 2
-          start_column: 13
           start_line: 27
         }
         variadic: true
@@ -190,29 +175,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 29
                       file: 2
-                      start_column: 23
                       start_line: 29
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 29
                   file: 2
-                  start_column: 23
                   start_line: 29
                 }
               }
             }
             src {
-              end_column: 74
-              end_line: 29
               file: 2
-              start_column: 23
               start_line: 29
             }
             to {
@@ -232,10 +208,7 @@ body {
           }
         }
         src {
-          end_column: 75
-          end_line: 29
           file: 2
-          start_column: 13
           start_line: 29
         }
         variadic: true
@@ -272,29 +245,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 31
                       file: 2
-                      start_column: 23
                       start_line: 31
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 31
                   file: 2
-                  start_column: 23
                   start_line: 31
                 }
               }
             }
             src {
-              end_column: 74
-              end_line: 31
               file: 2
-              start_column: 23
               start_line: 31
             }
             to {
@@ -314,10 +278,7 @@ body {
           }
         }
         src {
-          end_column: 75
-          end_line: 31
           file: 2
-          start_column: 13
           start_line: 31
         }
         variadic: true
@@ -354,29 +315,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 33
                       file: 2
-                      start_column: 23
                       start_line: 33
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 33
                   file: 2
-                  start_column: 23
                   start_line: 33
                 }
               }
             }
             src {
-              end_column: 73
-              end_line: 33
               file: 2
-              start_column: 23
               start_line: 33
             }
             to {
@@ -396,10 +348,7 @@ body {
           }
         }
         src {
-          end_column: 74
-          end_line: 33
           file: 2
-          start_column: 13
           start_line: 33
         }
         variadic: true
@@ -436,29 +385,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 35
                       file: 2
-                      start_column: 23
                       start_line: 35
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 35
                   file: 2
-                  start_column: 23
                   start_line: 35
                 }
               }
             }
             src {
-              end_column: 80
-              end_line: 35
               file: 2
-              start_column: 23
               start_line: 35
             }
             to {
@@ -479,10 +419,7 @@ body {
           }
         }
         src {
-          end_column: 81
-          end_line: 35
           file: 2
-          start_column: 13
           start_line: 35
         }
         variadic: true
@@ -519,29 +456,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 37
                       file: 2
-                      start_column: 23
                       start_line: 37
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 37
                   file: 2
-                  start_column: 23
                   start_line: 37
                 }
               }
             }
             src {
-              end_column: 94
-              end_line: 37
               file: 2
-              start_column: 23
               start_line: 37
             }
             to {
@@ -565,10 +493,7 @@ body {
           }
         }
         src {
-          end_column: 95
-          end_line: 37
           file: 2
-          start_column: 13
           start_line: 37
         }
         variadic: true
@@ -605,29 +530,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 39
                       file: 2
-                      start_column: 23
                       start_line: 39
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 39
                   file: 2
-                  start_column: 23
                   start_line: 39
                 }
               }
             }
             src {
-              end_column: 57
-              end_line: 39
               file: 2
-              start_column: 23
               start_line: 39
             }
             to {
@@ -648,10 +564,7 @@ body {
           }
         }
         src {
-          end_column: 58
-          end_line: 39
           file: 2
-          start_column: 13
           start_line: 39
         }
         variadic: true
@@ -688,29 +601,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 31
-                      end_line: 41
                       file: 2
-                      start_column: 23
                       start_line: 41
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 31
-                  end_line: 41
                   file: 2
-                  start_column: 23
                   start_line: 41
                 }
               }
             }
             src {
-              end_column: 28
-              end_line: 46
               file: 2
-              start_column: 23
               start_line: 41
             }
             to {
@@ -787,10 +691,7 @@ body {
           }
         }
         src {
-          end_column: 29
-          end_line: 46
           file: 2
-          start_column: 13
           start_line: 41
         }
         variadic: true

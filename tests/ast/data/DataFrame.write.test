@@ -105,10 +105,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 27
           file: 2
-          start_column: 13
           start_line: 27
         }
         variant {
@@ -137,10 +134,7 @@ body {
           }
         }
         src {
-          end_column: 16
-          end_line: 29
           file: 2
-          start_column: 8
           start_line: 29
         }
       }
@@ -163,10 +157,7 @@ body {
           bitfield1: 2
         }
         src {
-          end_column: 45
-          end_line: 29
           file: 2
-          start_column: 8
           start_line: 29
         }
         table_name {
@@ -209,10 +200,7 @@ body {
           sp_save_mode_overwrite: true
         }
         src {
-          end_column: 16
-          end_line: 31
           file: 2
-          start_column: 8
           start_line: 31
         }
       }
@@ -235,10 +223,7 @@ body {
           bitfield1: 5
         }
         src {
-          end_column: 87
-          end_line: 31
           file: 2
-          start_column: 8
           start_line: 31
         }
         table_name {
@@ -282,10 +267,7 @@ body {
           sp_save_mode_overwrite: true
         }
         src {
-          end_column: 16
-          end_line: 33
           file: 2
-          start_column: 8
           start_line: 33
         }
       }
@@ -311,10 +293,7 @@ body {
           sp_save_mode_ignore: true
         }
         src {
-          end_column: 102
-          end_line: 33
           file: 2
-          start_column: 8
           start_line: 33
         }
         table_name {
@@ -358,10 +337,7 @@ body {
           sp_save_mode_truncate: true
         }
         src {
-          end_column: 16
-          end_line: 35
           file: 2
-          start_column: 8
           start_line: 35
         }
       }
@@ -383,10 +359,7 @@ body {
           list {
             string_val {
               src {
-                end_column: 231
-                end_line: 35
                 file: 2
-                start_column: 8
                 start_line: 35
               }
               v: "STR"
@@ -408,20 +381,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 173
-                    end_line: 35
                     file: 2
-                    start_column: 162
                     start_line: 35
                   }
                   v: "num1"
                 }
               }
               src {
-                end_column: 173
-                end_line: 35
                 file: 2
-                start_column: 162
                 start_line: 35
               }
             }
@@ -435,10 +402,7 @@ body {
           bitfield1: 11
         }
         src {
-          end_column: 231
-          end_line: 35
           file: 2
-          start_column: 8
           start_line: 35
         }
         statement_params {
@@ -486,10 +450,7 @@ body {
           sp_column_sql_expr {
             sql: "value"
             src {
-              end_column: 38
-              end_line: 37
               file: 2
-              start_column: 8
               start_line: 37
             }
           }
@@ -498,10 +459,7 @@ body {
           sp_save_mode_overwrite: true
         }
         src {
-          end_column: 16
-          end_line: 37
           file: 2
-          start_column: 8
           start_line: 37
         }
       }
@@ -524,10 +482,7 @@ body {
           bitfield1: 14
         }
         src {
-          end_column: 109
-          end_line: 37
           file: 2
-          start_column: 8
           start_line: 37
         }
         table_name {
@@ -583,20 +538,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 42
-                  end_line: 39
                   file: 2
-                  start_column: 30
                   start_line: 39
                 }
                 v: "value"
               }
             }
             src {
-              end_column: 42
-              end_line: 39
               file: 2
-              start_column: 30
               start_line: 39
             }
           }
@@ -605,10 +554,7 @@ body {
           sp_save_mode_overwrite: true
         }
         src {
-          end_column: 16
-          end_line: 39
           file: 2
-          start_column: 8
           start_line: 39
         }
       }
@@ -631,10 +577,7 @@ body {
           bitfield1: 17
         }
         src {
-          end_column: 114
-          end_line: 39
           file: 2
-          start_column: 8
           start_line: 39
         }
         table_name {
@@ -679,10 +622,7 @@ body {
           _2 {
             string_val {
               src {
-                end_column: 53
-                end_line: 41
                 file: 2
-                start_column: 8
                 start_line: 41
               }
               v: "abcd"
@@ -705,20 +645,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 79
-                  end_line: 41
                   file: 2
-                  start_column: 67
                   start_line: 41
                 }
                 v: "value"
               }
             }
             src {
-              end_column: 79
-              end_line: 41
               file: 2
-              start_column: 67
               start_line: 41
             }
           }
@@ -727,10 +661,7 @@ body {
           sp_save_mode_overwrite: true
         }
         src {
-          end_column: 16
-          end_line: 41
           file: 2
-          start_column: 8
           start_line: 41
         }
       }
@@ -753,10 +684,7 @@ body {
           bitfield1: 20
         }
         src {
-          end_column: 151
-          end_line: 41
           file: 2
-          start_column: 8
           start_line: 41
         }
         table_name {
@@ -801,10 +729,7 @@ body {
           _2 {
             string_val {
               src {
-                end_column: 53
-                end_line: 43
                 file: 2
-                start_column: 8
                 start_line: 43
               }
               v: "abcd"
@@ -816,10 +741,7 @@ body {
           _2 {
             string_val {
               src {
-                end_column: 90
-                end_line: 43
                 file: 2
-                start_column: 8
                 start_line: 43
               }
               v: "pqrs"
@@ -831,10 +753,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 116
-                end_line: 43
                 file: 2
-                start_column: 8
                 start_line: 43
               }
               v: true
@@ -846,10 +765,7 @@ body {
           _2 {
             string_val {
               src {
-                end_column: 141
-                end_line: 43
                 file: 2
-                start_column: 8
                 start_line: 43
               }
               v: "append"
@@ -872,20 +788,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 167
-                  end_line: 43
                   file: 2
-                  start_column: 155
                   start_line: 43
                 }
                 v: "value"
               }
             }
             src {
-              end_column: 167
-              end_line: 43
               file: 2
-              start_column: 155
               start_line: 43
             }
           }
@@ -894,10 +804,7 @@ body {
           sp_save_mode_overwrite: true
         }
         src {
-          end_column: 16
-          end_line: 43
           file: 2
-          start_column: 8
           start_line: 43
         }
       }
@@ -920,10 +827,7 @@ body {
           bitfield1: 23
         }
         src {
-          end_column: 239
-          end_line: 43
           file: 2
-          start_column: 8
           start_line: 43
         }
         table_name {
@@ -958,10 +862,7 @@ body {
       sp_sql {
         query: "create temp stage if not exists test_stage"
         src {
-          end_column: 88
-          end_line: 45
           file: 2
-          start_column: 31
           start_line: 45
         }
       }
@@ -985,10 +886,7 @@ body {
           bitfield1: 26
         }
         src {
-          end_column: 98
-          end_line: 45
           file: 2
-          start_column: 31
           start_line: 45
         }
       }
@@ -1021,10 +919,7 @@ body {
           }
         }
         src {
-          end_column: 16
-          end_line: 47
           file: 2
-          start_column: 8
           start_line: 47
         }
       }
@@ -1047,10 +942,7 @@ body {
         }
         location: "@test_stage/copied_from_dataframe"
         src {
-          end_column: 72
-          end_line: 47
           file: 2
-          start_column: 8
           start_line: 47
         }
       }
@@ -1083,10 +975,7 @@ body {
           }
         }
         src {
-          end_column: 16
-          end_line: 51
           file: 2
-          start_column: 8
           start_line: 51
         }
       }
@@ -1109,10 +998,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 123
-                end_line: 51
                 file: 2
-                start_column: 8
                 start_line: 51
               }
               v: true
@@ -1124,10 +1010,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 123
-                end_line: 51
                 file: 2
-                start_column: 8
                 start_line: 51
               }
               v: true
@@ -1143,10 +1026,7 @@ body {
         }
         location: "@test_stage/copied_from_dataframe"
         src {
-          end_column: 123
-          end_line: 51
           file: 2
-          start_column: 8
           start_line: 51
         }
       }
@@ -1179,10 +1059,7 @@ body {
           }
         }
         src {
-          end_column: 16
-          end_line: 53
           file: 2
-          start_column: 8
           start_line: 53
         }
       }
@@ -1204,10 +1081,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 181
-                end_line: 53
                 file: 2
-                start_column: 8
                 start_line: 53
               }
               v: true
@@ -1219,10 +1093,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 181
-                end_line: 53
                 file: 2
-                start_column: 8
                 start_line: 53
               }
             }
@@ -1240,10 +1111,7 @@ body {
         }
         location: "@test_stage/copied_from_dataframe"
         src {
-          end_column: 181
-          end_line: 53
           file: 2
-          start_column: 8
           start_line: 53
         }
       }
@@ -1276,10 +1144,7 @@ body {
           }
         }
         src {
-          end_column: 16
-          end_line: 55
           file: 2
-          start_column: 8
           start_line: 55
         }
       }
@@ -1301,10 +1166,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 207
-                end_line: 55
                 file: 2
-                start_column: 8
                 start_line: 55
               }
               v: true
@@ -1316,10 +1178,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 207
-                end_line: 55
                 file: 2
-                start_column: 8
                 start_line: 55
               }
             }
@@ -1341,10 +1200,7 @@ body {
         }
         location: "@test_stage/copied_from_dataframe"
         src {
-          end_column: 207
-          end_line: 55
           file: 2
-          start_column: 8
           start_line: 55
         }
       }
@@ -1377,10 +1233,7 @@ body {
           }
         }
         src {
-          end_column: 16
-          end_line: 59
           file: 2
-          start_column: 8
           start_line: 59
         }
       }
@@ -1403,10 +1256,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 125
-                end_line: 59
                 file: 2
-                start_column: 8
                 start_line: 59
               }
               v: true
@@ -1418,10 +1268,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 125
-                end_line: 59
                 file: 2
-                start_column: 8
                 start_line: 59
               }
               v: true
@@ -1438,10 +1285,7 @@ body {
         }
         location: "@test_stage/test.csv"
         src {
-          end_column: 125
-          end_line: 59
           file: 2
-          start_column: 8
           start_line: 59
         }
       }
@@ -1474,10 +1318,7 @@ body {
           }
         }
         src {
-          end_column: 16
-          end_line: 63
           file: 2
-          start_column: 8
           start_line: 63
         }
       }
@@ -1500,10 +1341,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 114
-                end_line: 63
                 file: 2
-                start_column: 8
                 start_line: 63
               }
               v: true
@@ -1515,10 +1353,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 114
-                end_line: 63
                 file: 2
-                start_column: 8
                 start_line: 63
               }
               v: true
@@ -1534,10 +1369,7 @@ body {
         }
         location: "@test_stage/test.json"
         src {
-          end_column: 114
-          end_line: 63
           file: 2
-          start_column: 8
           start_line: 63
         }
       }
@@ -1570,10 +1402,7 @@ body {
           }
         }
         src {
-          end_column: 16
-          end_line: 67
           file: 2
-          start_column: 8
           start_line: 67
         }
       }
@@ -1596,10 +1425,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 130
-                end_line: 67
                 file: 2
-                start_column: 8
                 start_line: 67
               }
               v: true
@@ -1611,10 +1437,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 130
-                end_line: 67
                 file: 2
-                start_column: 8
                 start_line: 67
               }
               v: true
@@ -1630,10 +1453,7 @@ body {
         }
         location: "@test_stage/test.parquet"
         src {
-          end_column: 130
-          end_line: 67
           file: 2
-          start_column: 8
           start_line: 67
         }
       }

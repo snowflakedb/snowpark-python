@@ -41,10 +41,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: 2
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -70,10 +67,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 18
-          end_line: 27
           file: 2
-          start_column: 8
           start_line: 27
         }
       }
@@ -102,10 +96,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 29
-          end_line: 29
           file: 2
-          start_column: 8
           start_line: 29
         }
       }
@@ -134,10 +125,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 78
-          end_line: 31
           file: 2
-          start_column: 8
           start_line: 31
         }
         statement_params {

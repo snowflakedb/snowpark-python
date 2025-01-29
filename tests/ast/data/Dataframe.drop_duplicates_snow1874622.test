@@ -52,10 +52,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "id"
@@ -64,10 +61,7 @@ body {
                   vs {
                     int64_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: 1
@@ -78,10 +72,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "name"
@@ -90,10 +81,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "Alice"
@@ -104,10 +92,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "age"
@@ -116,10 +101,7 @@ body {
                   vs {
                     int64_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: 30
@@ -127,10 +109,7 @@ body {
                   }
                 }
                 src {
-                  end_column: 51
-                  end_line: 43
                   file: 2
-                  start_column: 13
                   start_line: 43
                 }
               }
@@ -141,10 +120,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "id"
@@ -153,10 +129,7 @@ body {
                   vs {
                     int64_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: 2
@@ -167,10 +140,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "name"
@@ -179,10 +149,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "Bob"
@@ -193,10 +160,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "age"
@@ -205,10 +169,7 @@ body {
                   vs {
                     int64_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: 25
@@ -216,10 +177,7 @@ body {
                   }
                 }
                 src {
-                  end_column: 51
-                  end_line: 43
                   file: 2
-                  start_column: 13
                   start_line: 43
                 }
               }
@@ -230,10 +188,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "id"
@@ -242,10 +197,7 @@ body {
                   vs {
                     int64_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: 3
@@ -256,10 +208,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "name"
@@ -268,10 +217,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "Alice"
@@ -282,10 +228,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "age"
@@ -294,10 +237,7 @@ body {
                   vs {
                     int64_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: 30
@@ -305,10 +245,7 @@ body {
                   }
                 }
                 src {
-                  end_column: 51
-                  end_line: 43
                   file: 2
-                  start_column: 13
                   start_line: 43
                 }
               }
@@ -319,10 +256,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "id"
@@ -331,10 +265,7 @@ body {
                   vs {
                     int64_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: 4
@@ -345,10 +276,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "name"
@@ -357,10 +285,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "Charlie"
@@ -371,10 +296,7 @@ body {
                   vs {
                     string_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: "age"
@@ -383,10 +305,7 @@ body {
                   vs {
                     int64_val {
                       src {
-                        end_column: 51
-                        end_line: 43
                         file: 2
-                        start_column: 13
                         start_line: 43
                       }
                       v: 35
@@ -394,10 +313,7 @@ body {
                   }
                 }
                 src {
-                  end_column: 51
-                  end_line: 43
                   file: 2
-                  start_column: 13
                   start_line: 43
                 }
               }
@@ -442,10 +358,7 @@ body {
           }
         }
         src {
-          end_column: 51
-          end_line: 43
           file: 2
-          start_column: 13
           start_line: 43
         }
       }
@@ -473,10 +386,7 @@ body {
           }
         }
         src {
-          end_column: 55
-          end_line: 46
           file: 2
-          start_column: 20
           start_line: 46
         }
       }

@@ -110,10 +110,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 122
-          end_line: 33
           file: 2
-          start_column: 22
           start_line: 33
         }
       }
@@ -176,10 +173,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 102
-          end_line: 35
           file: 2
-          start_column: 23
           start_line: 35
         }
       }
@@ -226,20 +220,14 @@ body {
                 pos_args {
                   int64_val {
                     src {
-                      end_column: 53
-                      end_line: 37
                       file: 2
-                      start_column: 47
                       start_line: 37
                     }
                     v: 1
                   }
                 }
                 src {
-                  end_column: 53
-                  end_line: 37
                   file: 2
-                  start_column: 47
                   start_line: 37
                 }
               }
@@ -260,20 +248,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 65
-                      end_line: 37
                       file: 2
-                      start_column: 55
                       start_line: 37
                     }
                     v: "two"
                   }
                 }
                 src {
-                  end_column: 65
-                  end_line: 37
                   file: 2
-                  start_column: 55
                   start_line: 37
                 }
               }
@@ -294,38 +276,26 @@ body {
                 pos_args {
                   bool_val {
                     src {
-                      end_column: 76
-                      end_line: 37
                       file: 2
-                      start_column: 67
                       start_line: 37
                     }
                     v: true
                   }
                 }
                 src {
-                  end_column: 76
-                  end_line: 37
                   file: 2
-                  start_column: 67
                   start_line: 37
                 }
               }
             }
             src {
-              end_column: 77
-              end_line: 37
               file: 2
-              start_column: 14
               start_line: 37
             }
           }
         }
         src {
-          end_column: 77
-          end_line: 37
           file: 2
-          start_column: 14
           start_line: 37
         }
       }
@@ -372,38 +342,26 @@ body {
                 pos_args {
                   int64_val {
                     src {
-                      end_column: 54
-                      end_line: 39
                       file: 2
-                      start_column: 47
                       start_line: 39
                     }
                     v: 20
                   }
                 }
                 src {
-                  end_column: 54
-                  end_line: 39
                   file: 2
-                  start_column: 47
                   start_line: 39
                 }
               }
             }
             src {
-              end_column: 55
-              end_line: 39
               file: 2
-              start_column: 14
               start_line: 39
             }
           }
         }
         src {
-          end_column: 55
-          end_line: 39
           file: 2
-          start_column: 14
           start_line: 39
         }
       }
@@ -436,19 +394,13 @@ body {
               }
             }
             src {
-              end_column: 58
-              end_line: 41
               file: 2
-              start_column: 14
               start_line: 41
             }
           }
         }
         src {
-          end_column: 58
-          end_line: 41
           file: 2
-          start_column: 14
           start_line: 41
         }
       }
@@ -493,20 +445,14 @@ body {
             pos_args {
               int64_val {
                 src {
-                  end_column: 47
-                  end_line: 44
                   file: 2
-                  start_column: 41
                   start_line: 44
                 }
                 v: 1
               }
             }
             src {
-              end_column: 47
-              end_line: 44
               file: 2
-              start_column: 41
               start_line: 44
             }
           }
@@ -527,20 +473,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 57
-                  end_line: 44
                   file: 2
-                  start_column: 49
                   start_line: 44
                 }
                 v: "V"
               }
             }
             src {
-              end_column: 57
-              end_line: 44
               file: 2
-              start_column: 49
               start_line: 44
             }
           }
@@ -561,29 +501,20 @@ body {
             pos_args {
               bool_val {
                 src {
-                  end_column: 68
-                  end_line: 44
                   file: 2
-                  start_column: 59
                   start_line: 44
                 }
                 v: true
               }
             }
             src {
-              end_column: 68
-              end_line: 44
               file: 2
-              start_column: 59
               start_line: 44
             }
           }
         }
         src {
-          end_column: 69
-          end_line: 44
           file: 2
-          start_column: 37
           start_line: 44
         }
       }
@@ -610,19 +541,13 @@ body {
               }
             }
             src {
-              end_column: 70
-              end_line: 44
               file: 2
-              start_column: 14
               start_line: 44
             }
           }
         }
         src {
-          end_column: 70
-          end_line: 44
           file: 2
-          start_column: 14
           start_line: 44
         }
       }
@@ -667,29 +592,20 @@ body {
             pos_args {
               int64_val {
                 src {
-                  end_column: 48
-                  end_line: 47
                   file: 2
-                  start_column: 41
                   start_line: 47
                 }
                 v: 12
               }
             }
             src {
-              end_column: 48
-              end_line: 47
               file: 2
-              start_column: 41
               start_line: 47
             }
           }
         }
         src {
-          end_column: 49
-          end_line: 47
           file: 2
-          start_column: 37
           start_line: 47
         }
       }
@@ -716,19 +632,13 @@ body {
               }
             }
             src {
-              end_column: 50
-              end_line: 47
               file: 2
-              start_column: 14
               start_line: 47
             }
           }
         }
         src {
-          end_column: 50
-          end_line: 47
           file: 2
-          start_column: 14
           start_line: 47
         }
       }
@@ -773,20 +683,14 @@ body {
             pos_args {
               int64_val {
                 src {
-                  end_column: 50
-                  end_line: 49
                   file: 2
-                  start_column: 44
                   start_line: 49
                 }
                 v: 5
               }
             }
             src {
-              end_column: 50
-              end_line: 49
               file: 2
-              start_column: 44
               start_line: 49
             }
           }
@@ -807,20 +711,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 60
-                  end_line: 49
                   file: 2
-                  start_column: 52
                   start_line: 49
                 }
                 v: "A"
               }
             }
             src {
-              end_column: 60
-              end_line: 49
               file: 2
-              start_column: 52
               start_line: 49
             }
           }
@@ -841,28 +739,19 @@ body {
             pos_args {
               bool_val {
                 src {
-                  end_column: 72
-                  end_line: 49
                   file: 2
-                  start_column: 62
                   start_line: 49
                 }
               }
             }
             src {
-              end_column: 72
-              end_line: 49
               file: 2
-              start_column: 62
               start_line: 49
             }
           }
         }
         src {
-          end_column: 73
-          end_line: 49
           file: 2
-          start_column: 14
           start_line: 49
         }
       }
@@ -889,19 +778,13 @@ body {
               }
             }
             src {
-              end_column: 41
-              end_line: 50
               file: 2
-              start_column: 14
               start_line: 50
             }
           }
         }
         src {
-          end_column: 41
-          end_line: 50
           file: 2
-          start_column: 14
           start_line: 50
         }
       }
@@ -931,10 +814,7 @@ body {
           }
         }
         src {
-          end_column: 43
-          end_line: 52
           file: 2
-          start_column: 14
           start_line: 52
         }
       }
@@ -961,19 +841,13 @@ body {
               }
             }
             src {
-              end_column: 41
-              end_line: 53
               file: 2
-              start_column: 14
               start_line: 53
             }
           }
         }
         src {
-          end_column: 41
-          end_line: 53
           file: 2
-          start_column: 14
           start_line: 53
         }
       }

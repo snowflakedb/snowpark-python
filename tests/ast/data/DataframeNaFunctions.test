@@ -81,10 +81,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: 2
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -114,10 +111,7 @@ body {
         }
         how: "any"
         src {
-          end_column: 28
-          end_line: 27
           file: 2
-          start_column: 16
           start_line: 27
         }
       }
@@ -144,10 +138,7 @@ body {
         }
         how: "all"
         src {
-          end_column: 37
-          end_line: 29
           file: 2
-          start_column: 16
           start_line: 29
         }
       }
@@ -174,10 +165,7 @@ body {
         }
         how: "any"
         src {
-          end_column: 48
-          end_line: 31
           file: 2
-          start_column: 16
           start_line: 31
         }
         thresh {
@@ -207,10 +195,7 @@ body {
         }
         how: "any"
         src {
-          end_column: 40
-          end_line: 33
           file: 2
-          start_column: 16
           start_line: 33
         }
         subset {
@@ -240,10 +225,7 @@ body {
         }
         how: "all"
         src {
-          end_column: 60
-          end_line: 35
           file: 2
-          start_column: 16
           start_line: 35
         }
         subset {
@@ -274,10 +256,7 @@ body {
         }
         how: "any"
         src {
-          end_column: 64
-          end_line: 37
           file: 2
-          start_column: 16
           start_line: 37
         }
         subset {
@@ -309,19 +288,13 @@ body {
           }
         }
         src {
-          end_column: 30
-          end_line: 39
           file: 2
-          start_column: 16
           start_line: 39
         }
         value {
           int64_val {
             src {
-              end_column: 30
-              end_line: 39
               file: 2
-              start_column: 16
               start_line: 39
             }
             v: 42
@@ -350,10 +323,7 @@ body {
           }
         }
         src {
-          end_column: 53
-          end_line: 41
           file: 2
-          start_column: 16
           start_line: 41
         }
         value_map {
@@ -362,10 +332,7 @@ body {
             _2 {
               int64_val {
                 src {
-                  end_column: 53
-                  end_line: 41
                   file: 2
-                  start_column: 16
                   start_line: 41
                 }
                 v: 42
@@ -377,10 +344,7 @@ body {
             _2 {
               string_val {
                 src {
-                  end_column: 53
-                  end_line: 41
                   file: 2
-                  start_column: 16
                   start_line: 41
                 }
                 v: "abc"
@@ -411,10 +375,7 @@ body {
           }
         }
         src {
-          end_column: 44
-          end_line: 43
           file: 2
-          start_column: 16
           start_line: 43
         }
         subset {
@@ -423,10 +384,7 @@ body {
         value {
           int64_val {
             src {
-              end_column: 44
-              end_line: 43
               file: 2
-              start_column: 16
               start_line: 43
             }
             v: 42
@@ -455,10 +413,7 @@ body {
           }
         }
         src {
-          end_column: 49
-          end_line: 45
           file: 2
-          start_column: 16
           start_line: 45
         }
         subset {
@@ -467,10 +422,7 @@ body {
         value {
           string_val {
             src {
-              end_column: 49
-              end_line: 45
               file: 2
-              start_column: 16
               start_line: 45
             }
             v: "def"
@@ -503,10 +455,7 @@ body {
             _1 {
               int64_val {
                 src {
-                  end_column: 58
-                  end_line: 47
                   file: 2
-                  start_column: 19
                   start_line: 47
                 }
                 v: 1
@@ -515,10 +464,7 @@ body {
             _2 {
               int64_val {
                 src {
-                  end_column: 58
-                  end_line: 47
                   file: 2
-                  start_column: 19
                   start_line: 47
                 }
                 v: 10
@@ -529,10 +475,7 @@ body {
             _1 {
               string_val {
                 src {
-                  end_column: 58
-                  end_line: 47
                   file: 2
-                  start_column: 19
                   start_line: 47
                 }
                 v: "three"
@@ -541,10 +484,7 @@ body {
             _2 {
               string_val {
                 src {
-                  end_column: 58
-                  end_line: 47
                   file: 2
-                  start_column: 19
                   start_line: 47
                 }
                 v: "trzy"
@@ -553,19 +493,13 @@ body {
           }
         }
         src {
-          end_column: 58
-          end_line: 47
           file: 2
-          start_column: 19
           start_line: 47
         }
         value {
           null_val {
             src {
-              end_column: 58
-              end_line: 47
               file: 2
-              start_column: 19
               start_line: 47
             }
           }
@@ -593,20 +527,14 @@ body {
           }
         }
         src {
-          end_column: 50
-          end_line: 49
           file: 2
-          start_column: 19
           start_line: 49
         }
         to_replace_list {
           list {
             int64_val {
               src {
-                end_column: 50
-                end_line: 49
                 file: 2
-                start_column: 19
                 start_line: 49
               }
               v: 1
@@ -615,10 +543,7 @@ body {
           list {
             int64_val {
               src {
-                end_column: 50
-                end_line: 49
                 file: 2
-                start_column: 19
                 start_line: 49
               }
               v: 2
@@ -629,10 +554,7 @@ body {
           list {
             int64_val {
               src {
-                end_column: 50
-                end_line: 49
                 file: 2
-                start_column: 19
                 start_line: 49
               }
               v: 10
@@ -641,10 +563,7 @@ body {
           list {
             int64_val {
               src {
-                end_column: 50
-                end_line: 49
                 file: 2
-                start_column: 19
                 start_line: 49
               }
               v: 20
@@ -674,10 +593,7 @@ body {
           }
         }
         src {
-          end_column: 55
-          end_line: 51
           file: 2
-          start_column: 19
           start_line: 51
         }
         subset {
@@ -686,10 +602,7 @@ body {
         to_replace_value {
           int64_val {
             src {
-              end_column: 55
-              end_line: 51
               file: 2
-              start_column: 19
               start_line: 51
             }
             v: 1
@@ -698,10 +611,7 @@ body {
         value {
           int64_val {
             src {
-              end_column: 55
-              end_line: 51
               file: 2
-              start_column: 19
               start_line: 51
             }
             v: 10

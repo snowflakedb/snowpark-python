@@ -47,10 +47,7 @@ body {
         parallel: 4
         quote_identifiers: true
         src {
-          end_column: 53
-          end_line: 29
           file: 2
-          start_column: 14
           start_line: 29
         }
         table_name {
@@ -99,10 +96,7 @@ body {
           _2 {
             int64_val {
               src {
-                end_column: 260
-                end_line: 31
                 file: 2
-                start_column: 15
                 start_line: 31
               }
               v: 90
@@ -113,10 +107,7 @@ body {
         overwrite: true
         parallel: 10
         src {
-          end_column: 260
-          end_line: 31
           file: 2
-          start_column: 15
           start_line: 31
         }
         table_name {

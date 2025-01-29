@@ -37,10 +37,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: 2
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -71,10 +68,7 @@ body {
         input {
           string_val {
             src {
-              end_column: 52
-              end_line: 27
               file: 2
-              start_column: 14
               start_line: 27
             }
             v: "STR"
@@ -88,10 +82,7 @@ body {
           value: "path"
         }
         src {
-          end_column: 52
-          end_line: 27
           file: 2
-          start_column: 14
           start_line: 27
         }
       }
@@ -132,20 +123,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 35
-                  end_line: 29
                   file: 2
-                  start_column: 25
                   start_line: 29
                 }
                 v: "NUM"
               }
             }
             src {
-              end_column: 35
-              end_line: 29
               file: 2
-              start_column: 25
               start_line: 29
             }
           }
@@ -155,10 +140,7 @@ body {
         }
         recursive: true
         src {
-          end_column: 66
-          end_line: 29
           file: 2
-          start_column: 14
           start_line: 29
         }
       }

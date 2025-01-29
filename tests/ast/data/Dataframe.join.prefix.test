@@ -46,19 +46,13 @@ body {
             vs {
               list_val {
                 src {
-                  end_column: 140
-                  end_line: 25
                   file: 2
-                  start_column: 14
                   start_line: 25
                 }
                 vs {
                   int64_val {
                     src {
-                      end_column: 140
-                      end_line: 25
                       file: 2
-                      start_column: 14
                       start_line: 25
                     }
                     v: 1
@@ -67,10 +61,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 140
-                      end_line: 25
                       file: 2
-                      start_column: 14
                       start_line: 25
                     }
                     v: 2
@@ -79,10 +70,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 140
-                      end_line: 25
                       file: 2
-                      start_column: 14
                       start_line: 25
                     }
                     v: 3
@@ -91,10 +79,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 140
-                      end_line: 25
                       file: 2
-                      start_column: 14
                       start_line: 25
                     }
                     v: 4
@@ -103,10 +88,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 140
-                      end_line: 25
                       file: 2
-                      start_column: 14
                       start_line: 25
                     }
                     v: 5
@@ -115,10 +97,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 140
-                      end_line: 25
                       file: 2
-                      start_column: 14
                       start_line: 25
                     }
                     v: 6
@@ -139,10 +118,7 @@ body {
           }
         }
         src {
-          end_column: 140
-          end_line: 25
           file: 2
-          start_column: 14
           start_line: 25
         }
       }
@@ -165,19 +141,13 @@ body {
             vs {
               list_val {
                 src {
-                  end_column: 122
-                  end_line: 27
                   file: 2
-                  start_column: 14
                   start_line: 27
                 }
                 vs {
                   int64_val {
                     src {
-                      end_column: 122
-                      end_line: 27
                       file: 2
-                      start_column: 14
                       start_line: 27
                     }
                     v: 1
@@ -186,10 +156,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 122
-                      end_line: 27
                       file: 2
-                      start_column: 14
                       start_line: 27
                     }
                     v: 2
@@ -198,10 +165,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 122
-                      end_line: 27
                       file: 2
-                      start_column: 14
                       start_line: 27
                     }
                     v: 3
@@ -210,10 +174,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 122
-                      end_line: 27
                       file: 2
-                      start_column: 14
                       start_line: 27
                     }
                     v: 4
@@ -222,10 +183,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 122
-                      end_line: 27
                       file: 2
-                      start_column: 14
                       start_line: 27
                     }
                     v: 5
@@ -245,10 +203,7 @@ body {
           }
         }
         src {
-          end_column: 122
-          end_line: 27
           file: 2
-          start_column: 14
           start_line: 27
         }
       }
@@ -284,20 +239,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 37
-                      end_line: 29
                       file: 2
-                      start_column: 25
                       start_line: 29
                     }
                     v: "\"A\""
                   }
                 }
                 src {
-                  end_column: 37
-                  end_line: 29
                   file: 2
-                  start_column: 25
                   start_line: 29
                 }
               }
@@ -305,20 +254,14 @@ body {
             rhs {
               int64_val {
                 src {
-                  end_column: 42
-                  end_line: 29
                   file: 2
-                  start_column: 25
                   start_line: 29
                 }
                 v: 1
               }
             }
             src {
-              end_column: 42
-              end_line: 29
               file: 2
-              start_column: 25
               start_line: 29
             }
           }
@@ -331,10 +274,7 @@ body {
           }
         }
         src {
-          end_column: 43
-          end_line: 29
           file: 2
-          start_column: 14
           start_line: 29
         }
       }
@@ -372,20 +312,14 @@ body {
                     pos_args {
                       string_val {
                         src {
-                          end_column: 73
-                          end_line: 29
                           file: 2
-                          start_column: 61
                           start_line: 29
                         }
                         v: "\"A\""
                       }
                     }
                     src {
-                      end_column: 73
-                      end_line: 29
                       file: 2
-                      start_column: 61
                       start_line: 29
                     }
                   }
@@ -393,20 +327,14 @@ body {
                 rhs {
                   int64_val {
                     src {
-                      end_column: 77
-                      end_line: 29
                       file: 2
-                      start_column: 61
                       start_line: 29
                     }
                     v: 1
                   }
                 }
                 src {
-                  end_column: 77
-                  end_line: 29
                   file: 2
-                  start_column: 61
                   start_line: 29
                 }
               }
@@ -416,10 +344,7 @@ body {
             }
             name: "\"A\""
             src {
-              end_column: 91
-              end_line: 29
               file: 2
-              start_column: 60
               start_line: 29
             }
           }
@@ -440,20 +365,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 105
-                  end_line: 29
                   file: 2
-                  start_column: 93
                   start_line: 29
                 }
                 v: "\"B\""
               }
             }
             src {
-              end_column: 105
-              end_line: 29
               file: 2
-              start_column: 93
               start_line: 29
             }
           }
@@ -474,20 +393,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 119
-                  end_line: 29
                   file: 2
-                  start_column: 107
                   start_line: 29
                 }
                 v: "\"C\""
               }
             }
             src {
-              end_column: 119
-              end_line: 29
               file: 2
-              start_column: 107
               start_line: 29
             }
           }
@@ -508,20 +421,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 140
-                  end_line: 29
                   file: 2
-                  start_column: 121
                   start_line: 29
                 }
                 v: "\"l_0001_C\""
               }
             }
             src {
-              end_column: 140
-              end_line: 29
               file: 2
-              start_column: 121
               start_line: 29
             }
           }
@@ -542,20 +449,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  end_column: 161
-                  end_line: 29
                   file: 2
-                  start_column: 142
                   start_line: 29
                 }
                 v: "\"l_0003_B\""
               }
             }
             src {
-              end_column: 161
-              end_line: 29
               file: 2
-              start_column: 142
               start_line: 29
             }
           }
@@ -568,10 +469,7 @@ body {
           }
         }
         src {
-          end_column: 162
-          end_line: 29
           file: 2
-          start_column: 49
           start_line: 29
         }
         variadic: true
@@ -608,10 +506,7 @@ body {
           }
         }
         src {
-          end_column: 163
-          end_line: 29
           file: 2
-          start_column: 14
           start_line: 29
         }
       }
@@ -632,7 +527,7 @@ body {
         ascending {
           null_val {
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_line: 31
             }
           }
@@ -640,10 +535,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"l_0004_A\""
@@ -652,10 +544,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"l_0004_B\""
@@ -664,10 +553,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"l_0004_C\""
@@ -676,10 +562,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"r_0000_A\""
@@ -688,10 +571,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"l_0000_A\""
@@ -700,10 +580,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"l_0002_A\""
@@ -712,10 +589,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"r_0006_A\""
@@ -724,10 +598,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"r_0006_B\""
@@ -736,10 +607,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"r_0006_C\""
@@ -748,10 +616,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"l_0001_C\""
@@ -760,10 +625,7 @@ body {
         cols {
           string_val {
             src {
-              end_column: 35
-              end_line: 31
               file: 2
-              start_column: 14
               start_line: 31
             }
             v: "\"l_0003_B\""
@@ -777,10 +639,7 @@ body {
           }
         }
         src {
-          end_column: 35
-          end_line: 31
           file: 2
-          start_column: 14
           start_line: 31
         }
       }
@@ -804,10 +663,7 @@ body {
           bitfield1: 6
         }
         src {
-          end_column: 21
-          end_line: 33
           file: 2
-          start_column: 8
           start_line: 33
         }
       }

@@ -46,10 +46,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: 2
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -78,10 +75,7 @@ body {
           }
         }
         src {
-          end_column: 52
-          end_line: 27
           file: 2
-          start_column: 29
           start_line: 27
         }
       }
@@ -110,10 +104,7 @@ body {
           list: "A"
         }
         src {
-          end_column: 65
-          end_line: 29
           file: 2
-          start_column: 29
           start_line: 29
         }
       }
@@ -143,10 +134,7 @@ body {
           }
         }
         src {
-          end_column: 70
-          end_line: 31
           file: 2
-          start_column: 29
           start_line: 31
         }
       }
@@ -179,10 +167,7 @@ body {
           list: "A"
         }
         src {
-          end_column: 87
-          end_line: 33
           file: 2
-          start_column: 29
           start_line: 33
         }
       }

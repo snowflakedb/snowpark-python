@@ -61,10 +61,7 @@ body {
           }
         }
         src {
-          end_column: 42
-          end_line: 25
           file: 2
-          start_column: 14
           start_line: 25
         }
         variant {
@@ -96,10 +93,7 @@ body {
           }
         }
         src {
-          end_column: 24
-          end_line: 27
           file: 2
-          start_column: 14
           start_line: 27
         }
       }
@@ -121,10 +115,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 29
-                end_line: 29
                 file: 2
-                start_column: 14
                 start_line: 29
               }
               v: "num"
@@ -140,10 +131,7 @@ body {
           }
         }
         src {
-          end_column: 29
-          end_line: 29
           file: 2
-          start_column: 14
           start_line: 29
         }
       }
@@ -165,10 +153,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 31
-                end_line: 31
                 file: 2
-                start_column: 14
                 start_line: 31
               }
               v: "num"
@@ -183,10 +168,7 @@ body {
           }
         }
         src {
-          end_column: 31
-          end_line: 31
           file: 2
-          start_column: 14
           start_line: 31
         }
       }
@@ -208,10 +190,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 38
-                end_line: 33
                 file: 2
-                start_column: 14
                 start_line: 33
               }
               v: "num"
@@ -220,10 +199,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 38
-                end_line: 33
                 file: 2
-                start_column: 14
                 start_line: 33
               }
               v: "str"
@@ -238,10 +214,7 @@ body {
           }
         }
         src {
-          end_column: 38
-          end_line: 33
           file: 2
-          start_column: 14
           start_line: 33
         }
       }
@@ -276,20 +249,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 33
-                    end_line: 35
                     file: 2
-                    start_column: 23
                     start_line: 35
                   }
                   v: "num"
                 }
               }
               src {
-                end_column: 33
-                end_line: 35
                 file: 2
-                start_column: 23
                 start_line: 35
               }
             }
@@ -304,10 +271,7 @@ body {
           }
         }
         src {
-          end_column: 34
-          end_line: 35
           file: 2
-          start_column: 14
           start_line: 35
         }
       }
@@ -342,20 +306,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 34
-                    end_line: 37
                     file: 2
-                    start_column: 24
                     start_line: 37
                   }
                   v: "num"
                 }
               }
               src {
-                end_column: 34
-                end_line: 37
                 file: 2
-                start_column: 24
                 start_line: 37
               }
             }
@@ -369,10 +327,7 @@ body {
           }
         }
         src {
-          end_column: 36
-          end_line: 37
           file: 2
-          start_column: 14
           start_line: 37
         }
       }
@@ -407,20 +362,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 33
-                    end_line: 39
                     file: 2
-                    start_column: 23
                     start_line: 39
                   }
                   v: "num"
                 }
               }
               src {
-                end_column: 33
-                end_line: 39
                 file: 2
-                start_column: 23
                 start_line: 39
               }
             }
@@ -428,10 +377,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 41
-                end_line: 39
                 file: 2
-                start_column: 14
                 start_line: 39
               }
               v: "str"
@@ -447,10 +393,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 39
           file: 2
-          start_column: 14
           start_line: 39
         }
       }
@@ -485,20 +428,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 34
-                    end_line: 41
                     file: 2
-                    start_column: 24
                     start_line: 41
                   }
                   v: "num"
                 }
               }
               src {
-                end_column: 34
-                end_line: 41
                 file: 2
-                start_column: 24
                 start_line: 41
               }
             }
@@ -506,10 +443,7 @@ body {
           args {
             string_val {
               src {
-                end_column: 43
-                end_line: 41
                 file: 2
-                start_column: 14
                 start_line: 41
               }
               v: "str"
@@ -524,10 +458,7 @@ body {
           }
         }
         src {
-          end_column: 43
-          end_line: 41
           file: 2
-          start_column: 14
           start_line: 41
         }
       }

@@ -32,19 +32,13 @@ body {
             vs {
               tuple_val {
                 src {
-                  end_column: 9
-                  end_line: 28
                   file: 2
-                  start_column: 13
                   start_line: 25
                 }
                 vs {
                   int64_val {
                     src {
-                      end_column: 9
-                      end_line: 28
                       file: 2
-                      start_column: 13
                       start_line: 25
                     }
                     v: 1
@@ -53,10 +47,7 @@ body {
                 vs {
                   string_val {
                     src {
-                      end_column: 9
-                      end_line: 28
                       file: 2
-                      start_column: 13
                       start_line: 25
                     }
                     v: "electronics"
@@ -65,10 +56,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 9
-                      end_line: 28
                       file: 2
-                      start_column: 13
                       start_line: 25
                     }
                     v: 100
@@ -77,10 +65,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 9
-                      end_line: 28
                       file: 2
-                      start_column: 13
                       start_line: 25
                     }
                     v: 200
@@ -91,19 +76,13 @@ body {
             vs {
               tuple_val {
                 src {
-                  end_column: 9
-                  end_line: 28
                   file: 2
-                  start_column: 13
                   start_line: 25
                 }
                 vs {
                   int64_val {
                     src {
-                      end_column: 9
-                      end_line: 28
                       file: 2
-                      start_column: 13
                       start_line: 25
                     }
                     v: 2
@@ -112,10 +91,7 @@ body {
                 vs {
                   string_val {
                     src {
-                      end_column: 9
-                      end_line: 28
                       file: 2
-                      start_column: 13
                       start_line: 25
                     }
                     v: "clothes"
@@ -124,10 +100,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 9
-                      end_line: 28
                       file: 2
-                      start_column: 13
                       start_line: 25
                     }
                     v: 100
@@ -136,10 +109,7 @@ body {
                 vs {
                   int64_val {
                     src {
-                      end_column: 9
-                      end_line: 28
                       file: 2
-                      start_column: 13
                       start_line: 25
                     }
                     v: 300
@@ -158,10 +128,7 @@ body {
           }
         }
         src {
-          end_column: 9
-          end_line: 28
           file: 2
-          start_column: 13
           start_line: 25
         }
       }
@@ -182,10 +149,7 @@ body {
         column_list {
           string_val {
             src {
-              end_column: 57
-              end_line: 29
               file: 2
-              start_column: 13
               start_line: 29
             }
             v: "jan"
@@ -194,10 +158,7 @@ body {
         column_list {
           string_val {
             src {
-              end_column: 57
-              end_line: 29
               file: 2
-              start_column: 13
               start_line: 29
             }
             v: "feb"
@@ -212,10 +173,7 @@ body {
         }
         name_column: "month"
         src {
-          end_column: 57
-          end_line: 29
           file: 2
-          start_column: 13
           start_line: 29
         }
         value_column: "sales"

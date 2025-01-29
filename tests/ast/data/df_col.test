@@ -34,10 +34,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: 2
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -69,10 +66,7 @@ body {
               }
             }
             src {
-              end_column: 36
-              end_line: 27
               file: 2
-              start_column: 23
               start_line: 27
             }
           }
@@ -88,10 +82,7 @@ body {
               }
             }
             src {
-              end_column: 44
-              end_line: 27
               file: 2
-              start_column: 38
               start_line: 27
             }
           }
@@ -107,10 +98,7 @@ body {
               }
             }
             src {
-              end_column: 55
-              end_line: 27
               file: 2
-              start_column: 46
               start_line: 27
             }
           }
@@ -123,10 +111,7 @@ body {
           }
         }
         src {
-          end_column: 56
-          end_line: 27
           file: 2
-          start_column: 13
           start_line: 27
         }
         variadic: true

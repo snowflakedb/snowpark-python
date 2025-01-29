@@ -85,10 +85,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 94
-          end_line: 29
           file: 2
-          start_column: 18
           start_line: 29
         }
       }
@@ -111,10 +108,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 62
-                  end_line: 31
                   file: 2
-                  start_column: 13
                   start_line: 31
                 }
                 v: 1
@@ -123,10 +117,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 62
-                  end_line: 31
                   file: 2
-                  start_column: 13
                   start_line: 31
                 }
                 v: 2
@@ -135,10 +126,7 @@ body {
             vs {
               int64_val {
                 src {
-                  end_column: 62
-                  end_line: 31
                   file: 2
-                  start_column: 13
                   start_line: 31
                 }
                 v: 3
@@ -152,10 +140,7 @@ body {
           }
         }
         src {
-          end_column: 62
-          end_line: 31
           file: 2
-          start_column: 13
           start_line: 31
         }
       }
@@ -200,29 +185,20 @@ body {
                     pos_args {
                       string_val {
                         src {
-                          end_column: 34
-                          end_line: 33
                           file: 2
-                          start_column: 26
                           start_line: 33
                         }
                         v: "a"
                       }
                     }
                     src {
-                      end_column: 34
-                      end_line: 33
                       file: 2
-                      start_column: 26
                       start_line: 33
                     }
                   }
                 }
                 src {
-                  end_column: 35
-                  end_line: 33
                   file: 2
-                  start_column: 18
                   start_line: 33
                 }
               }
@@ -232,10 +208,7 @@ body {
             }
             name: "ans"
             src {
-              end_column: 46
-              end_line: 33
               file: 2
-              start_column: 18
               start_line: 33
             }
           }
@@ -248,10 +221,7 @@ body {
           }
         }
         src {
-          end_column: 47
-          end_line: 33
           file: 2
-          start_column: 8
           start_line: 33
         }
         variadic: true
@@ -275,10 +245,7 @@ body {
           bitfield1: 3
         }
         src {
-          end_column: 57
-          end_line: 33
           file: 2
-          start_column: 8
           start_line: 33
         }
       }
@@ -333,10 +300,7 @@ body {
         }
         source_code_display: true
         src {
-          end_column: 124
-          end_line: 37
           file: 2
-          start_column: 18
           start_line: 37
         }
       }
@@ -372,10 +336,7 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 47
-                      end_line: 39
                       file: 2
-                      start_column: 18
                       start_line: 39
                     }
                     v: "add_two"
@@ -397,29 +358,20 @@ body {
                     pos_args {
                       string_val {
                         src {
-                          end_column: 46
-                          end_line: 39
                           file: 2
-                          start_column: 38
                           start_line: 39
                         }
                         v: "A"
                       }
                     }
                     src {
-                      end_column: 46
-                      end_line: 39
                       file: 2
-                      start_column: 38
                       start_line: 39
                     }
                   }
                 }
                 src {
-                  end_column: 47
-                  end_line: 39
                   file: 2
-                  start_column: 18
                   start_line: 39
                 }
               }
@@ -429,10 +381,7 @@ body {
             }
             name: "a_Ans"
             src {
-              end_column: 60
-              end_line: 39
               file: 2
-              start_column: 18
               start_line: 39
             }
           }
@@ -445,10 +394,7 @@ body {
           }
         }
         src {
-          end_column: 61
-          end_line: 39
           file: 2
-          start_column: 8
           start_line: 39
         }
         variadic: true
@@ -472,10 +418,7 @@ body {
           bitfield1: 7
         }
         src {
-          end_column: 71
-          end_line: 39
           file: 2
-          start_column: 8
           start_line: 39
         }
       }
@@ -537,10 +480,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 83
-                end_line: 45
                 file: 2
-                start_column: 20
                 start_line: 41
               }
               v: true
@@ -573,10 +513,7 @@ body {
         }
         secure: true
         src {
-          end_column: 83
-          end_line: 45
           file: 2
-          start_column: 20
           start_line: 41
         }
         stage_location: "@"
@@ -634,10 +571,7 @@ body {
           _2 {
             bool_val {
               src {
-                end_column: 84
-                end_line: 52
                 file: 2
-                start_column: 21
                 start_line: 48
               }
               v: true
@@ -669,10 +603,7 @@ body {
         }
         secure: true
         src {
-          end_column: 84
-          end_line: 52
           file: 2
-          start_column: 21
           start_line: 48
         }
         stage_location: "@"
@@ -717,20 +648,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 36
-                      end_line: 54
                       file: 2
-                      start_column: 28
                       start_line: 54
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 36
-                  end_line: 54
                   file: 2
-                  start_column: 28
                   start_line: 54
                 }
               }
@@ -751,29 +676,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 46
-                      end_line: 54
                       file: 2
-                      start_column: 38
                       start_line: 54
                     }
                     v: "A"
                   }
                 }
                 src {
-                  end_column: 46
-                  end_line: 54
                   file: 2
-                  start_column: 38
                   start_line: 54
                 }
               }
             }
             src {
-              end_column: 47
-              end_line: 54
               file: 2
-              start_column: 18
               start_line: 54
             }
           }
@@ -786,10 +702,7 @@ body {
           }
         }
         src {
-          end_column: 48
-          end_line: 54
           file: 2
-          start_column: 8
           start_line: 54
         }
         variadic: true

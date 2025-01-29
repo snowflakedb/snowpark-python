@@ -58,10 +58,7 @@ body {
           }
         }
         src {
-          end_column: 41
-          end_line: 25
           file: 2
-          start_column: 13
           start_line: 25
         }
         variant {
@@ -88,10 +85,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 53
-          end_line: 27
           file: 2
-          start_column: 31
           start_line: 27
         }
       }
@@ -121,10 +115,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 64
-          end_line: 29
           file: 2
-          start_column: 31
           start_line: 29
         }
       }
@@ -153,10 +144,7 @@ body {
           sp_column_sql_expr {
             sql: "*"
             src {
-              end_column: 45
-              end_line: 31
               file: 2
-              start_column: 31
               start_line: 31
             }
           }
@@ -169,10 +157,7 @@ body {
           }
         }
         src {
-          end_column: 45
-          end_line: 31
           file: 2
-          start_column: 31
           start_line: 31
         }
         variadic: true
@@ -197,10 +182,7 @@ body {
           bitfield1: 6
         }
         src {
-          end_column: 65
-          end_line: 31
           file: 2
-          start_column: 31
           start_line: 31
         }
       }
@@ -231,10 +213,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 100
-          end_line: 33
           file: 2
-          start_column: 31
           start_line: 33
         }
         statement_params {
@@ -276,10 +255,7 @@ body {
                   }
                 }
                 src {
-                  end_column: 50
-                  end_line: 35
                   file: 2
-                  start_column: 41
                   start_line: 35
                 }
               }
@@ -287,20 +263,14 @@ body {
             rhs {
               int64_val {
                 src {
-                  end_column: 54
-                  end_line: 35
                   file: 2
-                  start_column: 41
                   start_line: 35
                 }
                 v: 1
               }
             }
             src {
-              end_column: 54
-              end_line: 35
               file: 2
-              start_column: 41
               start_line: 35
             }
           }
@@ -313,10 +283,7 @@ body {
           }
         }
         src {
-          end_column: 55
-          end_line: 35
           file: 2
-          start_column: 31
           start_line: 35
         }
       }
@@ -339,10 +306,7 @@ body {
           bitfield1: 11
         }
         src {
-          end_column: 86
-          end_line: 35
           file: 2
-          start_column: 31
           start_line: 35
         }
       }
@@ -372,10 +336,7 @@ body {
           bitfield1: 1
         }
         src {
-          end_column: 122
-          end_line: 37
           file: 2
-          start_column: 31
           start_line: 37
         }
         statement_params {
