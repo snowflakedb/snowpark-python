@@ -48,6 +48,15 @@ df.delete(condition=source_df["a"] == ["num"], source=source_df)
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -60,7 +69,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 25
         }
         variant {
@@ -86,7 +95,7 @@ body {
           bitfield1: 1
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 27
         }
       }
@@ -119,7 +128,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 29
         }
         variant {
@@ -144,7 +153,7 @@ body {
           bitfield1: 4
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 31
         }
       }
@@ -177,7 +186,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 33
         }
         variant {
@@ -202,7 +211,7 @@ body {
           bitfield1: 7
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 35
         }
         statement_params {
@@ -239,7 +248,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 37
         }
         variant {
@@ -274,7 +283,7 @@ body {
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 39
                 }
               }
@@ -282,14 +291,14 @@ body {
             rhs {
               int64_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 39
                 }
                 v: 1
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_line: 39
             }
           }
@@ -298,7 +307,7 @@ body {
           bitfield1: 10
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 39
         }
       }
@@ -331,7 +340,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 41
         }
         variant {
@@ -357,7 +366,7 @@ body {
             vs {
               int64_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 43
                 }
                 v: 2
@@ -366,7 +375,7 @@ body {
             vs {
               int64_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 43
                 }
                 v: 3
@@ -375,7 +384,7 @@ body {
             vs {
               int64_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 43
                 }
                 v: 4
@@ -384,7 +393,7 @@ body {
             vs {
               int64_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 43
                 }
                 v: 5
@@ -398,7 +407,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 43
         }
       }
@@ -430,7 +439,7 @@ body {
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 45
                 }
               }
@@ -438,13 +447,13 @@ body {
             rhs {
               list_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 45
                 }
                 vs {
                   string_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_line: 45
                     }
                     v: "num"
@@ -453,7 +462,7 @@ body {
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_line: 45
             }
           }
@@ -469,7 +478,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 45
         }
       }

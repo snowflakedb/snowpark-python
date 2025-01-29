@@ -197,7 +197,7 @@ def cache_metadata_if_select_statement(
 
     if (
         isinstance(source_plan, SelectStatement)
-        and source_plan.analyzer.session.reduce_describe_query_enabled
+        and source_plan._session.reduce_describe_query_enabled
     ):
         source_plan._attributes = metadata.attributes
         # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,

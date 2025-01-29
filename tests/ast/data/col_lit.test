@@ -1,20 +1,16 @@
 ## TEST CASE
 
-from snowflake.snowpark.functions import seq1, seq8, uniform
+import datetime
 
-df1 = session.generator(col("A"), col("B"))
+df = session.table(tables.table1)
 
-df2 = session.generator(seq1(1), uniform(1, 10, 2), rowcount=3)
-
-df3 = session.generator(seq8(0), uniform(1, 10, 2), timelimit=1)
+df2 = df.select(lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}), lit(lit(1)), lit(column("A")))
 
 ## EXPECTED UNPARSER OUTPUT
 
-df1 = session.generator(col("A"), col("B"), rowcount=0, timelimit=0)
+df = session.table("table1")
 
-df2 = session.generator(seq1(1), uniform(lit(1), lit(10), lit(2)), rowcount=3, timelimit=0)
-
-df3 = session.generator(seq8(0), uniform(lit(1), lit(10), lit(2)), rowcount=0, timelimit=1)
+df2 = df.select(lit(1), lit("1"), lit(1.0), lit(True), lit(bytes("snow", "utf-8")), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}), lit(lit(1)), lit(column("A")))
 
 ## EXPECTED ENCODED AST
 
@@ -30,60 +26,11 @@ interned_value_table {
 body {
   assign {
     expr {
-      sp_generator {
-        columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "col"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              string_val {
-                src {
-                  file: 2
-                  start_line: 27
-                }
-                v: "A"
-              }
-            }
-            src {
-              file: 2
-              start_line: 27
-            }
-          }
-        }
-        columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "col"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              string_val {
-                src {
-                  file: 2
-                  start_line: 27
-                }
-                v: "B"
-              }
-            }
-            src {
-              file: 2
-              start_line: 27
+      sp_table {
+        name {
+          name {
+            sp_name_flat {
+              name: "table1"
             }
           }
         }
@@ -91,11 +38,13 @@ body {
           file: 2
           start_line: 27
         }
-        variadic: true
+        variant {
+          sp_session_table: true
+        }
       }
     }
     symbol {
-      value: "df1"
+      value: "df"
     }
     uid: 1
     var_id {
@@ -106,15 +55,15 @@ body {
 body {
   assign {
     expr {
-      sp_generator {
-        columns {
+      sp_dataframe_select__columns {
+        cols {
           apply_expr {
             fn {
               builtin_fn {
                 name {
                   name {
                     sp_name_flat {
-                      name: "seq1"
+                      name: "lit"
                     }
                   }
                 }
@@ -135,33 +84,168 @@ body {
             }
           }
         }
-        columns {
+        cols {
           apply_expr {
             fn {
               builtin_fn {
                 name {
                   name {
                     sp_name_flat {
-                      name: "uniform"
+                      name: "lit"
                     }
                   }
                 }
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "lit"
-                        }
-                      }
+              string_val {
+                src {
+                  file: 2
+                  start_line: 29
+                }
+                v: "1"
+              }
+            }
+            src {
+              file: 2
+              start_line: 29
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "lit"
                     }
                   }
                 }
-                pos_args {
+              }
+            }
+            pos_args {
+              float64_val {
+                src {
+                  file: 2
+                  start_line: 29
+                }
+                v: 1.0
+              }
+            }
+            src {
+              file: 2
+              start_line: 29
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              bool_val {
+                src {
+                  file: 2
+                  start_line: 29
+                }
+                v: true
+              }
+            }
+            src {
+              file: 2
+              start_line: 29
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              binary_val {
+                src {
+                  file: 2
+                  start_line: 29
+                }
+                v: "snow"
+              }
+            }
+            src {
+              file: 2
+              start_line: 29
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              python_date_val {
+                day: 2
+                month: 2
+                src {
+                  file: 2
+                  start_line: 29
+                }
+                year: 2023
+              }
+            }
+            src {
+              file: 2
+              start_line: 29
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              list_val {
+                src {
+                  file: 2
+                  start_line: 29
+                }
+                vs {
                   int64_val {
                     src {
                       file: 2
@@ -170,60 +254,56 @@ body {
                     v: 1
                   }
                 }
-                src {
-                  file: 2
-                  start_line: 29
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "lit"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: 2
-                      start_line: 29
-                    }
-                    v: 10
-                  }
-                }
-                src {
-                  file: 2
-                  start_line: 29
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "lit"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
+                vs {
                   int64_val {
                     src {
                       file: 2
                       start_line: 29
                     }
                     v: 2
+                  }
+                }
+              }
+            }
+            src {
+              file: 2
+              start_line: 29
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              seq_map_val {
+                kvs {
+                  vs {
+                    string_val {
+                      src {
+                        file: 2
+                        start_line: 29
+                      }
+                      v: "snow"
+                    }
+                  }
+                  vs {
+                    string_val {
+                      src {
+                        file: 2
+                        start_line: 29
+                      }
+                      v: "flake"
+                    }
                   }
                 }
                 src {
@@ -238,7 +318,107 @@ body {
             }
           }
         }
-        row_count: 3
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "lit"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  int64_val {
+                    src {
+                      file: 2
+                      start_line: 29
+                    }
+                    v: 1
+                  }
+                }
+                src {
+                  file: 2
+                  start_line: 29
+                }
+              }
+            }
+            src {
+              file: 2
+              start_line: 29
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "lit"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "column"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      file: 2
+                      start_line: 29
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  file: 2
+                  start_line: 29
+                }
+              }
+            }
+            src {
+              file: 2
+              start_line: 29
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
         src {
           file: 2
           start_line: 29
@@ -252,157 +432,6 @@ body {
     uid: 2
     var_id {
       bitfield1: 2
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_generator {
-        columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "seq8"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              int64_val {
-                src {
-                  file: 2
-                  start_line: 31
-                }
-              }
-            }
-            src {
-              file: 2
-              start_line: 31
-            }
-          }
-        }
-        columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "uniform"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "lit"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: 2
-                      start_line: 31
-                    }
-                    v: 1
-                  }
-                }
-                src {
-                  file: 2
-                  start_line: 31
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "lit"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: 2
-                      start_line: 31
-                    }
-                    v: 10
-                  }
-                }
-                src {
-                  file: 2
-                  start_line: 31
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "lit"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      file: 2
-                      start_line: 31
-                    }
-                    v: 2
-                  }
-                }
-                src {
-                  file: 2
-                  start_line: 31
-                }
-              }
-            }
-            src {
-              file: 2
-              start_line: 31
-            }
-          }
-        }
-        src {
-          file: 2
-          start_line: 31
-        }
-        time_limit_seconds: 1
-        variadic: true
-      }
-    }
-    symbol {
-      value: "df3"
-    }
-    uid: 3
-    var_id {
-      bitfield1: 3
     }
   }
 }

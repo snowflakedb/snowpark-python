@@ -16,6 +16,15 @@ ans2 = session.write_pandas(pandas.DataFrame(<not shown>)), "test", database="b"
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -38,7 +47,7 @@ body {
         parallel: 4
         quote_identifiers: true
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 29
         }
         table_name {
@@ -87,7 +96,7 @@ body {
           _2 {
             int64_val {
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 31
               }
               v: 90
@@ -98,7 +107,7 @@ body {
         overwrite: true
         parallel: 10
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 31
         }
         table_name {

@@ -40,6 +40,15 @@ df9 = df1.group_by([col("num"), "str"])
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -52,7 +61,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 25
         }
         variant {
@@ -84,7 +93,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 27
         }
       }
@@ -106,7 +115,7 @@ body {
           args {
             string_val {
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 29
               }
               v: "num"
@@ -122,7 +131,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 29
         }
       }
@@ -144,7 +153,7 @@ body {
           args {
             string_val {
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 31
               }
               v: "num"
@@ -159,7 +168,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 31
         }
       }
@@ -181,7 +190,7 @@ body {
           args {
             string_val {
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 33
               }
               v: "num"
@@ -190,7 +199,7 @@ body {
           args {
             string_val {
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 33
               }
               v: "str"
@@ -205,7 +214,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 33
         }
       }
@@ -240,14 +249,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_line: 35
                   }
                   v: "num"
                 }
               }
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 35
               }
             }
@@ -262,7 +271,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 35
         }
       }
@@ -297,14 +306,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_line: 37
                   }
                   v: "num"
                 }
               }
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 37
               }
             }
@@ -318,7 +327,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 37
         }
       }
@@ -353,14 +362,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_line: 39
                   }
                   v: "num"
                 }
               }
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 39
               }
             }
@@ -368,7 +377,7 @@ body {
           args {
             string_val {
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 39
               }
               v: "str"
@@ -384,7 +393,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 39
         }
       }
@@ -419,14 +428,14 @@ body {
               pos_args {
                 string_val {
                   src {
-                    file: "SRC_POSITION_TEST_MODE"
+                    file: 2
                     start_line: 41
                   }
                   v: "num"
                 }
               }
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 41
               }
             }
@@ -434,7 +443,7 @@ body {
           args {
             string_val {
               src {
-                file: "SRC_POSITION_TEST_MODE"
+                file: 2
                 start_line: 41
               }
               v: "str"
@@ -449,7 +458,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 41
         }
       }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import os
 import shutil
@@ -29,7 +29,6 @@ INSTALL_REQ_LIST = [
     "protobuf>=3.20, <6",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
-    "snowflake.core>=1.0.0, <2",  # Catalog
 ]
 REQUIRED_PYTHON_VERSION = ">=3.8, <3.13"
 
@@ -60,6 +59,7 @@ DEVELOPMENT_REQUIREMENTS = [
     "decorator",  # sql counter check
     "lxml",  # used in read_xml tests
     "tox",  # used for setting up testing environments
+    "snowflake.core>=1.0.0, <2",  # Catalog
 ]
 
 # read the version
