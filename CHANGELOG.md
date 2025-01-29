@@ -64,6 +64,8 @@
 - Allow user input schema when reading JSON file on stage.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
   - `snowflake.core` is a dependency required for this feature.
+- Added support for converting Snowpark DataFrames to pyarrow Tables.
+- Added support for writing pyarrow Tables to Snowflake tables.
 
 #### Improvements
 
