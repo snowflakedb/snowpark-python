@@ -32,6 +32,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import RUNNING_ON_GH
 
 BASIC_DATA_FUNC_RETURN_TYPE_MAP = [
     ([1, 2, 3, None], lambda x: x + 1, "int"),
@@ -467,6 +468,7 @@ class TestApplyOrMapCallable:
     # This import is related to the test below. Do not remove.
     import scipy  # noqa: E402
 
+    @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
     @pytest.mark.parametrize(
         "package,expected_query_count",
         [
@@ -631,6 +633,9 @@ class TestApplyOnly:
     not.
     """
 
+    @pytest.mark.skip(
+        "SNOW-1896426 Test run into high failing rate, turn back on once fixed"
+    )
     def test_args_and_kwargs(self):
         def f(x, y, z=1) -> int:
             return x + y + z

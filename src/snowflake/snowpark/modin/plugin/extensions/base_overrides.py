@@ -1607,6 +1607,8 @@ def drop_duplicates(
     """
     Return `BasePandasDataset` with duplicate rows removed.
     """
+    if keep not in ("first", "last", False):
+        raise ValueError('keep must be either "first", "last" or False')
     inplace = validate_bool_kwarg(inplace, "inplace")
     ignore_index = kwargs.get("ignore_index", False)
     subset = kwargs.get("subset", None)

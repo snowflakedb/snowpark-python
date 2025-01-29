@@ -42,6 +42,15 @@ df9 = session.read.with_metadata(col("METADATA$FILE_ROW_NUMBER"), "METADATA$FILE
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -50,13 +59,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 26
+              end_line: 25
+              file: 2
+              start_column: 14
               start_line: 25
             }
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 53
+          end_line: 25
+          file: 2
+          start_column: 14
           start_line: 25
         }
       }
@@ -78,13 +93,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 26
+              end_line: 27
+              file: 2
+              start_column: 14
               start_line: 27
             }
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 59
+          end_line: 27
+          file: 2
+          start_column: 14
           start_line: 27
         }
       }
@@ -106,13 +127,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 26
+              end_line: 29
+              file: 2
+              start_column: 14
               start_line: 29
             }
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 55
+          end_line: 29
+          file: 2
+          start_column: 14
           start_line: 29
         }
       }
@@ -134,13 +161,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 26
+              end_line: 31
+              file: 2
+              start_column: 14
               start_line: 31
             }
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 61
+          end_line: 31
+          file: 2
+          start_column: 14
           start_line: 31
         }
       }
@@ -162,13 +195,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 26
+              end_line: 33
+              file: 2
+              start_column: 14
               start_line: 33
             }
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 53
+          end_line: 33
+          file: 2
+          start_column: 14
           start_line: 33
         }
       }
@@ -190,13 +229,19 @@ body {
         reader {
           sp_dataframe_reader_init {
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 26
+              end_line: 35
+              file: 2
+              start_column: 14
               start_line: 35
             }
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 53
+          end_line: 35
+          file: 2
+          start_column: 14
           start_line: 35
         }
       }
@@ -224,19 +269,28 @@ body {
                 reader {
                   sp_dataframe_reader_init {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      end_column: 26
+                      end_line: 37
+                      file: 2
+                      start_column: 14
                       start_line: 37
                     }
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  end_column: 55
+                  end_line: 37
+                  file: 2
+                  start_column: 14
                   start_line: 37
                 }
                 value {
                   bool_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      end_column: 55
+                      end_line: 37
+                      file: 2
+                      start_column: 14
                       start_line: 37
                     }
                     v: true
@@ -245,13 +299,19 @@ body {
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 84
+              end_line: 37
+              file: 2
+              start_column: 14
               start_line: 37
             }
             value {
               bool_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  end_column: 84
+                  end_line: 37
+                  file: 2
+                  start_column: 14
                   start_line: 37
                 }
                 v: true
@@ -260,7 +320,10 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 110
+          end_line: 37
+          file: 2
+          start_column: 14
           start_line: 37
         }
       }
@@ -286,7 +349,10 @@ body {
               _2 {
                 bool_val {
                   src {
-                    file: "SRC_POSITION_TEST_MODE"
+                    end_column: 80
+                    end_line: 39
+                    file: 2
+                    start_column: 14
                     start_line: 39
                   }
                   v: true
@@ -298,7 +364,10 @@ body {
               _2 {
                 bool_val {
                   src {
-                    file: "SRC_POSITION_TEST_MODE"
+                    end_column: 80
+                    end_line: 39
+                    file: 2
+                    start_column: 14
                     start_line: 39
                   }
                   v: true
@@ -308,19 +377,28 @@ body {
             reader {
               sp_dataframe_reader_init {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  end_column: 26
+                  end_line: 39
+                  file: 2
+                  start_column: 14
                   start_line: 39
                 }
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 80
+              end_line: 39
+              file: 2
+              start_column: 14
               start_line: 39
             }
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 106
+          end_line: 39
+          file: 2
+          start_column: 14
           start_line: 39
         }
       }
@@ -360,14 +438,20 @@ body {
                       pos_args {
                         string_val {
                           src {
-                            file: "SRC_POSITION_TEST_MODE"
+                            end_column: 72
+                            end_line: 43
+                            file: 2
+                            start_column: 41
                             start_line: 43
                           }
                           v: "METADATA$FILE_ROW_NUMBER"
                         }
                       }
                       src {
-                        file: "SRC_POSITION_TEST_MODE"
+                        end_column: 72
+                        end_line: 43
+                        file: 2
+                        start_column: 41
                         start_line: 43
                       }
                     }
@@ -375,7 +459,10 @@ body {
                   args {
                     string_val {
                       src {
-                        file: "SRC_POSITION_TEST_MODE"
+                        end_column: 104
+                        end_line: 43
+                        file: 2
+                        start_column: 14
                         start_line: 43
                       }
                       v: "METADATA$FILE_LAST_MODIFIED"
@@ -386,13 +473,19 @@ body {
                 reader {
                   sp_dataframe_reader_init {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      end_column: 26
+                      end_line: 43
+                      file: 2
+                      start_column: 14
                       start_line: 43
                     }
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  end_column: 104
+                  end_line: 43
+                  file: 2
+                  start_column: 14
                   start_line: 43
                 }
               }
@@ -432,13 +525,19 @@ body {
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 124
+              end_line: 43
+              file: 2
+              start_column: 14
               start_line: 43
             }
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 150
+          end_line: 43
+          file: 2
+          start_column: 14
           start_line: 43
         }
       }

@@ -176,6 +176,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     get_agg_func_to_col_map,
     get_pandas_aggr_func_name,
     get_snowflake_agg_func,
+    is_first_last_in_agg_funcs,
     repr_aggregate_function,
     using_named_aggregations_for_func,
 )
@@ -3801,9 +3802,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             internal_frame.index_column_snowflake_quoted_identifiers
         )
 
+        # We need to check if `first` or `last` are in the aggregation functions,
+        # as we need to ensure a row position column and pass it in as an agg_kwarg
+        # if it is (for the min_by/max_by function).
+        first_last_present = is_first_last_in_agg_funcs(column_to_agg_func)
+        if first_last_present:
+            internal_frame = internal_frame.ensure_row_position_column()
+            agg_kwargs[
+                "_first_last_row_pos_col"
+            ] = internal_frame.row_position_snowflake_quoted_identifier
         agg_col_ops, new_data_column_index_names = generate_column_agg_info(
             internal_frame, column_to_agg_func, agg_kwargs, is_series_groupby
         )
+        if first_last_present:
+            agg_kwargs.pop("_first_last_row_pos_col")
         # the pandas label and quoted identifier generated for each result column
         # after aggregation will be used as new pandas label and quoted identifiers.
         new_data_column_pandas_labels = []
@@ -6048,7 +6060,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # by snowflake engine.
         # If we are using Named Aggregations, we need to do our supported check slightly differently.
         uses_named_aggs = using_named_aggregations_for_func(func)
-        if not check_is_aggregation_supported_in_snowflake(func, kwargs, axis):
+        if not check_is_aggregation_supported_in_snowflake(
+            func, kwargs, axis, _is_df_agg=True
+        ):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas aggregate does not yet support the aggregation {repr_aggregate_function(func, kwargs)} with the given arguments."
             )
@@ -9079,12 +9093,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO: SNOW-838819 sort/order by
         if not sort:
             raise NotImplementedError("Not implemented not sorted")
-
-        # TODO: (SNOW-853334) Support callable agg functions
-        if aggfunc and callable(aggfunc):
-            raise NotImplementedError(
-                f"Snowpark pandas DataFrame.pivot_table does not yet support the aggregation {repr_aggregate_function(aggfunc, agg_kwargs={})} with the given arguments."
-            )
 
         if columns is not None and isinstance(columns, Hashable):
             columns = [columns]
@@ -13544,8 +13552,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 axis=0,
             )
             # Compute top (the mode of each column) + freq (the number of times this mode appears).
-            top_freq_identifiers = padded_qc._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-                pandas_labels=["top", "freq"]
+            # Also create a new identifier to track min(__row_position__) of each group to ensure stability
+            (
+                top_identifier,
+                freq_identifier,
+                min_row_position_identifier,
+            ) = padded_qc._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=["top", "freq", "min_row_position"]
+            )
+            top_freq_identifiers = (top_identifier, freq_identifier)
+            row_position_identifier = (
+                padded_qc._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
             )
             # To accommodate multi-level columns in the source frame, we generate a new index column
             # in the top/freq frame for each level. We transpose this frame later, so the columns
@@ -13559,7 +13576,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             def count_freqs(
-                col_labels: Union[str, tuple[str, ...]], col_ident: str
+                col_labels: Union[str, tuple[str, ...]], col_identifier: str
             ) -> OrderedDataFrame:
                 """
                 Helper function to compute the mode ("top") and frequency with which the mode
@@ -13581,7 +13598,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 QC.value_counts(dropna=False) would correctly report NULL as the `top` item, but
                 reports `freq` as the number of times NULL appears, which we do not want.
                 """
-                top_ident, freq_ident = top_freq_identifiers
                 col_labels_tuple = (
                     col_labels if is_list_like(col_labels) else (col_labels,)
                 )
@@ -13594,7 +13610,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 #        IFF(a IS NULL, NULL, COUNT(a)) AS freq
                 # FROM df
                 # GROUP BY a
-                # ORDER BY freq DESC NULLS LAST
+                # ORDER BY freq DESC, MIN(__row_position__) ASC NULLS LAST
                 # LIMIT 1
                 #
                 # The resulting 1-row frame for column "a": [1, 1, 2] will have the form
@@ -13635,30 +13651,38 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # +------+---+
                 return (
                     padded_qc._modin_frame.ordered_dataframe.group_by(
-                        [col_ident],
+                        [col_identifier],
                         [
                             iff(
-                                col(col_ident).is_null(),
+                                col(col_identifier).is_null(),
                                 pandas_lit(None),
-                                count(col(col_ident)),
-                            ).as_(freq_ident),
+                                count(col(col_identifier)),
+                            ).as_(freq_identifier),
+                            min_(row_position_identifier).as_(
+                                min_row_position_identifier
+                            ),
                         ],
                     )
-                    .sort(OrderingColumn(freq_ident, ascending=False, na_last=True))
+                    .sort(
+                        OrderingColumn(freq_identifier, ascending=False, na_last=True),
+                        OrderingColumn(min_row_position_identifier, ascending=True),
+                    )
                     .limit(1)
                     .select(
                         *(
                             # If the original frame had multi-level columns, we must create
                             # a multi-level index to transpose this frame later.
                             [
-                                pandas_lit(col_label).as_(index_ident)
-                                for col_label, index_ident in zip(
+                                pandas_lit(col_label).as_(index_identifier)
+                                for col_label, index_identifier in zip(
                                     col_labels_tuple, new_index_identifiers
                                 )
                             ]
                             + [
-                                col(col_ident).cast(VariantType()).as_(top_ident),
-                                freq_ident,
+                                col(col_identifier)
+                                .cast(VariantType())
+                                .as_(top_identifier),
+                                freq_identifier,
                             ]
                         )
                     )
