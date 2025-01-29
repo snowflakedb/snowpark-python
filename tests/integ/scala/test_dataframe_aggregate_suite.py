@@ -15,7 +15,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import (
-    SnowparkDataframeException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
@@ -52,16 +51,6 @@ def test_pivot(session):
         .sort(col("empid")),
         [Row(1, 10400, 8000, 11000, 18000), Row(2, 39500, 90700, 12000, 5300)],
         sort=False,
-    )
-
-    with pytest.raises(SnowparkDataframeException) as ex_info:
-        TestData.monthly_sales(session).pivot(
-            "month", ["JAN", "FEB", "MAR", "APR"]
-        ).agg([sum(col("amount")), avg(col("amount"))]).sort(col("empid"))
-
-    assert (
-        "You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot() method."
-        in str(ex_info)
     )
 
 
@@ -186,13 +175,6 @@ def test_group_by_pivot(session):
         ],
         sort=False,
     )
-    with pytest.raises(
-        SnowparkDataframeException,
-        match="You can apply only one aggregate expression to a RelationalGroupedDataFrame returned by the pivot()",
-    ):
-        TestData.monthly_sales_with_team(session).group_by("empid").pivot(
-            "month", ["JAN", "FEB", "MAR", "APR"]
-        ).agg([sum(col("amount")), avg(col("amount"))])
 
 
 @multithreaded_run()
