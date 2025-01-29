@@ -65,9 +65,13 @@ _logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
+RELATIVE_PATH_PREFIX = "/"
 SNOWFLAKE_PATH_PREFIXES = [
     STAGE_PREFIX,
     SNOWURL_PREFIX,
+]
+SNOWFLAKE_PATH_PREFIXES_FOR_GET = SNOWFLAKE_PATH_PREFIXES + [
+    RELATIVE_PATH_PREFIX,
 ]
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
@@ -372,7 +376,7 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
-    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES
+    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES_FOR_GET
     if is_single_quoted(path):
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
@@ -408,7 +412,7 @@ def split_path(path: str) -> Tuple[str, str]:
 
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
-    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
+    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES_FOR_GET):
         return new_name
     return f"{STAGE_PREFIX}{new_name}"
 
@@ -805,6 +809,47 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     if name not in warning_dict:
         warning_dict[name] = WarningHelper(warning_times)
     warning_dict[name].warning(text)
+
+
+# TODO: SNOW-1720855: Remove DummyRLock and DummyThreadLocal after the rollout
+class DummyRLock:
+    """This is a dummy lock that is used in place of threading.Rlock when multithreading is
+    disabled."""
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def acquire(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+    def release(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+
+class DummyThreadLocal:
+    """This is a dummy thread local class that is used in place of threading.local when
+    multithreading is disabled."""
+
+    pass
+
+
+def create_thread_local(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.local, DummyThreadLocal]:
+    if thread_safe_session_enabled:
+        return threading.local()
+    return DummyThreadLocal()
+
+
+def create_rlock(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.RLock, DummyRLock]:
+    if thread_safe_session_enabled:
+        return threading.RLock()
+    return DummyRLock()
 
 
 @unique

@@ -68,7 +68,7 @@ def set_up_external_access_integration_resources(
         # prepare external access resource
         session.sql(
             f"""
-    CREATE OR REPLACE NETWORK RULE {rule1}
+    CREATE IF NOT EXISTS NETWORK RULE {rule1}
       MODE = EGRESS
       TYPE = HOST_PORT
       VALUE_LIST = ('www.google.com');
@@ -76,7 +76,7 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE NETWORK RULE {rule2}
+    CREATE IF NOT EXISTS NETWORK RULE {rule2}
       MODE = EGRESS
       TYPE = HOST_PORT
       VALUE_LIST = ('www.microsoft.com');
@@ -84,21 +84,21 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE SECRET {key1}
+    CREATE IF NOT EXISTS SECRET {key1}
       TYPE = GENERIC_STRING
       SECRET_STRING = 'replace-with-your-api-key';
     """
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE SECRET {key2}
+    CREATE IF NOT EXISTS SECRET {key2}
       TYPE = GENERIC_STRING
       SECRET_STRING = 'replace-with-your-api-key_2';
     """
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION {integration1}
+    CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration1}
       ALLOWED_NETWORK_RULES = ({rule1})
       ALLOWED_AUTHENTICATION_SECRETS = ({key1})
       ENABLED = true;
@@ -106,7 +106,7 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
-    CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION {integration2}
+    CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration2}
       ALLOWED_NETWORK_RULES = ({rule2})
       ALLOWED_AUTHENTICATION_SECRETS = ({key2})
       ENABLED = true;
@@ -124,15 +124,7 @@ def set_up_external_access_integration_resources(
         pass
 
 
-def clean_up_external_access_integration_resources(
-    session, rule1, rule2, key1, key2, integration1, integration2
-):
-    session.sql(f"drop network rule if exists {rule1}").collect()
-    session.sql(f"drop network rule if exists {rule2}").collect()
-    session.sql(f"drop secret if exists {key1}").collect()
-    session.sql(f"drop secret if exists {key2}").collect()
-    session.sql(f"drop integration if exists {integration1}").collect()
-    session.sql(f"drop integration if exists {integration2}").collect()
+def clean_up_external_access_integration_resources():
     CONNECTION_PARAMETERS.pop("external_access_rule1", None)
     CONNECTION_PARAMETERS.pop("external_access_rule2", None)
     CONNECTION_PARAMETERS.pop("external_access_key1", None)
@@ -232,12 +224,12 @@ def session(
     unparser_jar,
 ):
     set_ast_state(AstFlagSource.TEST, ast_enabled)
-    rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
-    rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
-    key1 = f"key1{Utils.random_alphanumeric_str(10)}"
-    key2 = f"key2{Utils.random_alphanumeric_str(10)}"
-    integration1 = f"integration1_{Utils.random_alphanumeric_str(10)}"
-    integration2 = f"integration2_{Utils.random_alphanumeric_str(10)}"
+    rule1 = "snowpark_python_test_rule1"
+    rule2 = "snowpark_python_test_rule2"
+    key1 = "snowpark_python_test_key1"
+    key2 = "snowpark_python_test_key2"
+    integration1 = "snowpark_python_test_integration1"
+    integration2 = "snowpark_python_test_integration2"
 
     session = (
         Session.builder.configs(db_parameters)
@@ -266,9 +258,7 @@ def session(
             close_full_ast_validation_mode(full_ast_validation_listener)
 
         if RUNNING_ON_GH and not local_testing_mode:
-            clean_up_external_access_integration_resources(
-                session, rule1, rule2, key1, key2, integration1, integration2
-            )
+            clean_up_external_access_integration_resources()
         session.close()
 
 
@@ -280,12 +270,12 @@ def profiler_session(
     local_testing_mode,
     cte_optimization_enabled,
 ):
-    rule1 = f"rule1{Utils.random_alphanumeric_str(10)}"
-    rule2 = f"rule2{Utils.random_alphanumeric_str(10)}"
-    key1 = f"key1{Utils.random_alphanumeric_str(10)}"
-    key2 = f"key2{Utils.random_alphanumeric_str(10)}"
-    integration1 = f"integration1_{Utils.random_alphanumeric_str(10)}"
-    integration2 = f"integration2_{Utils.random_alphanumeric_str(10)}"
+    rule1 = "snowpark_python_profiler_test_rule1"
+    rule2 = "snowpark_python_profiler_test_rule2"
+    key1 = "snowpark_python_profiler_test_key1"
+    key2 = "snowpark_python_profiler_test_key2"
+    integration1 = "snowpark_python_profiler_test_integration1"
+    integration2 = "snowpark_python_profiler_test_integration2"
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
@@ -301,9 +291,7 @@ def profiler_session(
         yield session
     finally:
         if RUNNING_ON_GH and not local_testing_mode:
-            clean_up_external_access_integration_resources(
-                session, rule1, rule2, key1, key2, integration1, integration2
-            )
+            clean_up_external_access_integration_resources()
         session.close()
 
 

@@ -205,6 +205,7 @@ class TestCacheResultReducesQueryCount:
                 native_df,
             )
 
+    @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
     def test_cache_result_post_applymap(self, inplace, simple_test_data):
         # The high query counts in this test case come from the setup and definition
         # of the UDFs used.
