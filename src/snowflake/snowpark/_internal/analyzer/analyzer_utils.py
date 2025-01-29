@@ -1685,12 +1685,12 @@ def write_arrow(
     use_logical_type: Optional[bool] = None,
     use_scoped_temp_object: bool = False,
     **kwargs: Any,
-) -> tuple[
+) -> Tuple[
     bool,
     int,
     int,
     Sequence[
-        tuple[
+        Tuple[
             str,
             str,
             int,
