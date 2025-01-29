@@ -251,8 +251,8 @@ Functions
     negate
     next_day
     not_
-    ntile
     nth_value
+    ntile
     nullifzero
     nvl
     object_agg
