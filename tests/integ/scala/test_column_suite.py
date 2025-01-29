@@ -869,6 +869,10 @@ def test_in_expression_3_with_all_types(session, local_testing_mode):
     Utils.check_answer(df.filter(col("string").isin(["three"])), [])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="in_() with Column object as input is not supported in local testing mode.",
+)
 def test_in_expression_4_input_column_in_value_list(session):
     df = session.create_dataframe(
         [[1, "a", 1], [2, "b", 2], [3, "b", 33]], schema=["a", "b", "c"]
@@ -885,6 +889,10 @@ def test_in_expression_4_input_column_in_value_list(session):
     )
     Utils.check_answer(
         df.select(col("a").in_([3, df["c"]])), [Row(True), Row(True), Row(True)]
+    )
+    Utils.check_answer(
+        df.select(in_([col("a"), col("b")], [[1, "a"], [col("c"), "b"]])),
+        [Row(True), Row(False), Row(True)],
     )
 
     with pytest.raises(TypeError) as ex_info:
@@ -955,21 +963,6 @@ def test_in_expression_7_multiple_columns_with_sub_query(session):
     # select with NOT
     df4 = df.select(~in_([col("a"), col("b")], df0).as_("in_result"))
     Utils.check_answer(df4, [Row(False), Row(False), Row(True)])
-
-
-def test_in_expression_8_negative_test_to_input_column_in_value_list(session):
-    df = session.create_dataframe(
-        [[1, "a", 1, 1], [2, "b", 2, 2], [3, "b", 33, 33]]
-    ).to_df("a", "b", "c", "d")
-
-    with pytest.raises(TypeError) as ex_info:
-        df.filter(in_([col("a"), col("b")], [[1, "a"], [col("c"), "b"]]))
-
-    assert (
-        "is not supported for the values parameter of the function in(). You must either "
-        "specify a sequence of literals or a DataFrame that represents a subquery."
-        in str(ex_info.value)
-    )
 
 
 def test_in_expression_9_negative_test_for_the_column_count_doesnt_match_the_value_list(
