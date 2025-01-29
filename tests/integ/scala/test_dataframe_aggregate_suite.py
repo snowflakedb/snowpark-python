@@ -432,6 +432,10 @@ def test_pivot_default_on_none(session, caplog):
         )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Multiple aggregations are not supported in local testing mode",
+)
 def test_pivot_multiple_aggs(session):
     # 1) SUM and AVG
     Utils.check_answer(
