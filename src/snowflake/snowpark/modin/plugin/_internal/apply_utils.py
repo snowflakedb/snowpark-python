@@ -1540,12 +1540,14 @@ def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
 
 def is_supported_snowflake_cortex_function(func: AggFuncType) -> bool:
     """Return True if the `func` is a supported Snowflake Cortex function."""
-    if func in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY:
-        return True
-    # ErrorMessage.not_implemented(
-    #     f"Snowflake Cortex function `{func.__name__}` is not supported yet."
-    # )
-    return False
+    func_module = inspect.getmodule(func)
+    if func_module is None or "snowflake.cortex" not in func_module.__name__:
+        return False
+    if func not in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY:
+        ErrorMessage.not_implemented(
+            f"Snowflake Cortex function `{func.__name__}` is not supported yet."
+        )
+    return True
 
 
 def make_series_map_snowpark_function(
