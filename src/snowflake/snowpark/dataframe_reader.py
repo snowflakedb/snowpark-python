@@ -36,7 +36,11 @@ from snowflake.snowpark._internal.ast.utils import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
+from snowflake.snowpark._internal.type_utils import (
+    ColumnOrName,
+    convert_sf_to_sp_type,
+    Connection,
+)
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
@@ -70,8 +74,7 @@ from snowflake.snowpark.types import (
     _NumericType,
     TimestampType,
 )
-from pyodbc import Connection
-import pandas as pd
+from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import random_name_for_temp_object
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1018,15 +1021,16 @@ class DataFrameReader:
         self,
         create_connection: Callable[[], "Connection"],
         table: str,
+        *,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
-        *,
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
     ) -> DataFrame:
         conn = create_connection()
+        # this is specified to pyodbc, need other way to manage timeout on other drivers
         conn.timeout = query_timeout
         struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
         if column is None:
@@ -1139,7 +1143,6 @@ class DataFrameReader:
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
-        predicates: Optional[List[str]] = None,
     ) -> List[str]:
         select_query = f"SELECT * FROM {table}"
 
@@ -1278,6 +1281,7 @@ def _task_fetch_from_data_source(
     query_timeout: int = 0,
 ) -> str:
     conn = create_connection()
+    # this is specified to pyodbc, need other way to manage timeout on other drivers
     conn.timeout = query_timeout
     result = conn.cursor().execute(query).fetchall()
     columns = [col[0] for col in schema]
