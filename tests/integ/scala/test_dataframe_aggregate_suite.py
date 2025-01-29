@@ -432,6 +432,44 @@ def test_pivot_default_on_none(session, caplog):
         )
 
 
+def test_pivot_multiple_aggs(session):
+    # 1) SUM and AVG
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg([sum(col("amount")), avg(col("amount"))])
+        .sort(col("empid")),
+        [
+            Row(1, 10400, 8000, 11000, 18000),
+            Row(2, 39500, 90700, 12000, 5300),
+        ],
+    )
+
+    # 2) MIN and MAX
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg([min(col("amount")), max(col("amount"))])
+        .sort(col("empid")),
+        [
+            Row(1, 400, 3000, 5000, 8000),
+            Row(2, 4500, 200, 2500, 800),
+        ],
+    )
+
+    # 3) AVG and COUNT_DISTINCT
+    Utils.check_answer(
+        TestData.monthly_sales(session)
+        .pivot("month", ["JAN", "FEB", "MAR", "APR"])
+        .agg([avg(col("amount")), count_distinct(col("amount"))])
+        .sort(col("empid")),
+        [
+            Row(1, 5200, 4000, 5500, 9000),
+            Row(2, 19750, 45350, 6000, 2650),
+        ],
+    )
+
+
 def test_rel_grouped_dataframe_agg(session):
     df = (
         session.create_dataframe([[1, "One"], [2, "Two"], [3, "Three"]])
