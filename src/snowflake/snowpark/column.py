@@ -254,8 +254,25 @@ class Column:
         expr2: Optional[str] = None,
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
+        *,
+        _is_qualified_name: bool = False,
     ) -> None:
         self._ast = _ast
+
+        def derive_qualified_name_expr(
+            expr: str, df_alias: Optional[str] = None
+        ) -> UnresolvedAttribute:
+            parts = expr.split(".")
+            if len(parts) == 1:
+                return UnresolvedAttribute(quote_name(parts[0]), df_alias=df_alias)
+            else:
+                # According to https://docs.snowflake.com/en/user-guide/querying-semistructured#dot-notation,
+                # the json value on the path should be case-sensitive
+                return UnresolvedAttribute(
+                    f"{quote_name(parts[0])}:{'.'.join(quote_name(part, keep_case=True) for part in parts[1:])}",
+                    is_sql_text=True,
+                    df_alias=df_alias,
+                )
 
         if expr2 is not None:
             if not (isinstance(expr1, str) and isinstance(expr2, str)):
@@ -265,6 +282,8 @@ class Column:
 
             if expr2 == "*":
                 self._expression = Star([], df_alias=expr1)
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr2, expr1)
             else:
                 self._expression = UnresolvedAttribute(
                     quote_name(expr2), df_alias=expr1
@@ -279,6 +298,8 @@ class Column:
         elif isinstance(expr1, str):
             if expr1 == "*":
                 self._expression = Star([])
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr1)
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
@@ -915,8 +936,17 @@ class Column:
         return Column(Not(self._expression), _ast=expr, _emit_ast=_emit_ast)
 
     def _cast(
-        self, to: Union[str, DataType], try_: bool = False, _emit_ast: bool = True
+        self,
+        to: Union[str, DataType],
+        try_: bool = False,
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
     ) -> "Column":
+        if add_fields and rename_fields:
+            raise ValueError(
+                "is_add and is_rename cannot be set to True at the same time"
+            )
         if isinstance(to, str):
             to = type_string_to_type_object(to)
 
@@ -934,21 +964,49 @@ class Column:
             )
             ast.col.CopyFrom(self._ast)
             to._fill_ast(ast.to)
-        return Column(Cast(self._expression, to, try_), _ast=expr, _emit_ast=_emit_ast)
+        return Column(
+            Cast(self._expression, to, try_, rename_fields, add_fields),
+            _ast=expr,
+            _emit_ast=_emit_ast,
+        )
 
     @publicapi
-    def cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
+    def cast(
+        self,
+        to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
         """Casts the value of the Column to the specified data type.
         It raises an error when  the conversion can not be performed.
         """
-        return self._cast(to, False, _emit_ast=_emit_ast)
+        return self._cast(
+            to,
+            False,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
+        )
 
     @publicapi
-    def try_cast(self, to: Union[str, DataType], _emit_ast: bool = True) -> "Column":
+    def try_cast(
+        self,
+        to: Union[str, DataType],
+        rename_fields: bool = False,
+        add_fields: bool = False,
+        _emit_ast: bool = True,
+    ) -> "Column":
         """Tries to cast the value of the Column to the specified data type.
         It returns a NULL value instead of raising an error when the conversion can not be performed.
         """
-        return self._cast(to, True, _emit_ast=_emit_ast)
+        return self._cast(
+            to,
+            True,
+            rename_fields=rename_fields,
+            add_fields=add_fields,
+            _emit_ast=_emit_ast,
+        )
 
     @publicapi
     def desc(self, _emit_ast: bool = True) -> "Column":
@@ -1446,9 +1504,16 @@ class CaseExpr(Column):
     """
 
     def __init__(
-        self, expr: CaseWhen, _ast: Optional[proto.Expr] = None, _emit_ast: bool = True
+        self,
+        expr: CaseWhen,
+        _ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
+        *,
+        _is_qualified_name: bool = False,
     ) -> None:
-        super().__init__(expr, _ast=_ast, _emit_ast=_emit_ast)
+        super().__init__(
+            expr, _is_qualified_name=_is_qualified_name, _ast=_ast, _emit_ast=_emit_ast
+        )
         self._branches = expr.branches
 
     @publicapi

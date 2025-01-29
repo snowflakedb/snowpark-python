@@ -28,6 +28,7 @@ from tests.integ.modin.utils import (
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_public_ci
+from tests.utils import RUNNING_ON_GH
 
 # default_index_snowpark_pandas_df and default_index_native_df have size of axis_len x axis_len
 AXIS_LEN = 7
@@ -2747,6 +2748,7 @@ def test_df_iloc_set_with_multiindex(
         eval_snowpark_pandas_result(snow_df, native_df, helper_iloc, inplace=True)
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 @pytest.mark.parametrize("axis", ILOC_GET_KEY_AXIS)
 def test_df_iloc_get_series_with_multiindex(
     axis,

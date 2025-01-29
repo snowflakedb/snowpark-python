@@ -12,6 +12,15 @@ df2 = session.flatten(col("NUM"), None, False, True, "ARRAY")
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -45,20 +54,29 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      end_column: 60
+                      end_line: 25
+                      file: 2
+                      start_column: 41
                       start_line: 25
                     }
                     v: "{\"a\": [1,2]}"
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  end_column: 60
+                  end_line: 25
+                  file: 2
+                  start_column: 41
                   start_line: 25
                 }
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 61
+              end_line: 25
+              file: 2
+              start_column: 30
               start_line: 25
             }
           }
@@ -70,7 +88,10 @@ body {
           value: "a"
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 89
+          end_line: 25
+          file: 2
+          start_column: 14
           start_line: 25
         }
       }
@@ -104,14 +125,20 @@ body {
             pos_args {
               string_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  end_column: 40
+                  end_line: 27
+                  file: 2
+                  start_column: 30
                   start_line: 27
                 }
                 v: "NUM"
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              end_column: 40
+              end_line: 27
+              file: 2
+              start_column: 30
               start_line: 27
             }
           }
@@ -121,7 +148,10 @@ body {
         }
         recursive: true
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          end_column: 71
+          end_line: 27
+          file: 2
+          start_column: 14
           start_line: 27
         }
       }
