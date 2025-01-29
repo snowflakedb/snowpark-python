@@ -28,6 +28,7 @@
   - `localtimestamp`
   - `max_by`
   - `min_by`
+  - `nth_value`
   - `nvl`
   - `octet_length`
   - `position`
