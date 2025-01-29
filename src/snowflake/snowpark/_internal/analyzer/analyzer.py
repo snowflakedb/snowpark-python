@@ -1135,6 +1135,7 @@ class Analyzer:
                         plan, pivot_plan, union_plan.sql, union_plan
                     )
 
+            assert plan is not None
             return plan
 
         if isinstance(logical_plan, Unpivot):
