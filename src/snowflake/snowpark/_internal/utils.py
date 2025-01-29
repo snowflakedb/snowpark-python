@@ -65,9 +65,13 @@ _logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
+RELATIVE_PATH_PREFIX = "/"
 SNOWFLAKE_PATH_PREFIXES = [
     STAGE_PREFIX,
     SNOWURL_PREFIX,
+]
+SNOWFLAKE_PATH_PREFIXES_FOR_GET = SNOWFLAKE_PATH_PREFIXES + [
+    RELATIVE_PATH_PREFIX,
 ]
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
@@ -372,7 +376,7 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
-    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES
+    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES_FOR_GET
     if is_single_quoted(path):
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
@@ -408,7 +412,7 @@ def split_path(path: str) -> Tuple[str, str]:
 
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
-    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
+    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES_FOR_GET):
         return new_name
     return f"{STAGE_PREFIX}{new_name}"
 
