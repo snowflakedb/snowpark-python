@@ -251,6 +251,7 @@ Functions
     negate
     next_day
     not_
+    nth_value
     ntile
     nullifzero
     nvl
