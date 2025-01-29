@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import json
 import logging
@@ -203,8 +203,8 @@ def test_resolve_package_current_database(has_current_database):
         return result
 
     fake_connection = mock.create_autospec(ServerConnection)
-    fake_connection._conn = mock.Mock()
     fake_connection._thread_safe_session_enabled = True
+    fake_connection._conn = mock.Mock()
     fake_connection._get_current_parameter = mock_get_current_parameter
     session = Session(fake_connection)
     session.table = MagicMock(name="session.table")

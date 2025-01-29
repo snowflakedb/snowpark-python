@@ -26,19 +26,30 @@ df4 = df.select((col("A") + 1).name("test"))
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
       sp_table {
         name {
-          sp_table_name_flat {
-            name: "table1"
+          name {
+            sp_name_flat {
+              name: "table1"
+            }
           }
         }
         src {
           end_column: 41
           end_line: 27
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 13
           start_line: 27
         }
@@ -67,8 +78,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -78,7 +91,7 @@ body {
                     src {
                       end_column: 32
                       end_line: 29
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 24
                       start_line: 29
                     }
@@ -88,22 +101,22 @@ body {
                 src {
                   end_column: 32
                   end_line: 29
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 24
                   start_line: 29
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_as: true
+            }
             name: "test"
             src {
               end_column: 44
               end_line: 29
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 24
               start_line: 29
-            }
-            variant_is_as {
-              value: true
             }
           }
         }
@@ -117,7 +130,7 @@ body {
         src {
           end_column: 45
           end_line: 29
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 29
         }
@@ -144,8 +157,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -155,7 +170,7 @@ body {
                     src {
                       end_column: 32
                       end_line: 31
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 24
                       start_line: 31
                     }
@@ -165,21 +180,22 @@ body {
                 src {
                   end_column: 32
                   end_line: 31
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 24
                   start_line: 31
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_alias: true
+            }
             name: "test"
             src {
               end_column: 46
               end_line: 31
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 24
               start_line: 31
-            }
-            variant_is_as {
             }
           }
         }
@@ -193,7 +209,7 @@ body {
         src {
           end_column: 47
           end_line: 31
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 31
         }
@@ -220,8 +236,10 @@ body {
                 fn {
                   builtin_fn {
                     name {
-                      fn_name_flat {
-                        name: "col"
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
                       }
                     }
                   }
@@ -231,7 +249,7 @@ body {
                     src {
                       end_column: 32
                       end_line: 33
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 24
                       start_line: 33
                     }
@@ -241,17 +259,20 @@ body {
                 src {
                   end_column: 32
                   end_line: 33
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 24
                   start_line: 33
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_name: true
+            }
             name: "test"
             src {
               end_column: 45
               end_line: 33
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 24
               start_line: 33
             }
@@ -267,7 +288,7 @@ body {
         src {
           end_column: 46
           end_line: 33
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 33
         }
@@ -296,8 +317,10 @@ body {
                     fn {
                       builtin_fn {
                         name {
-                          fn_name_flat {
-                            name: "col"
+                          name {
+                            sp_name_flat {
+                              name: "col"
+                            }
                           }
                         }
                       }
@@ -307,7 +330,7 @@ body {
                         src {
                           end_column: 33
                           end_line: 35
-                          file: "SRC_POSITION_TEST_MODE"
+                          file: 2
                           start_column: 25
                           start_line: 35
                         }
@@ -317,7 +340,7 @@ body {
                     src {
                       end_column: 33
                       end_line: 35
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 25
                       start_line: 35
                     }
@@ -328,7 +351,7 @@ body {
                     src {
                       end_column: 37
                       end_line: 35
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_column: 25
                       start_line: 35
                     }
@@ -338,17 +361,20 @@ body {
                 src {
                   end_column: 37
                   end_line: 35
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_column: 25
                   start_line: 35
                 }
               }
             }
+            fn {
+              sp_column_alias_fn_name: true
+            }
             name: "test"
             src {
               end_column: 51
               end_line: 35
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_column: 24
               start_line: 35
             }
@@ -364,7 +390,7 @@ body {
         src {
           end_column: 52
           end_line: 35
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_column: 14
           start_line: 35
         }
@@ -393,5 +419,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 25
+  minor: 26
 }

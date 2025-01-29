@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -94,6 +94,11 @@ def load_test_cases():
     Returns: a list of test cases.
     """
     test_files = DATA_DIR.glob("*.test")
+    if sys.version_info[0] == 3 and sys.version_info[1] < 9:
+        # Remove the `to_snowpark_pandas` test since Snowpark pandas is only supported in Python 3.9+.
+        test_files = filter(
+            lambda file: "to_snowpark_pandas" not in file.name, test_files
+        )
     return [parse_file(file) for file in test_files]
 
 
@@ -186,6 +191,15 @@ def run_test(session, tables):
 def test_ast(session, tables, test_case):
     _logger.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
 
+    # Reset string interning (avoids issues for testing).
+    from snowflake.snowpark._internal.ast.utils import (
+        __intern_string,
+        __reset_interning_map,
+    )
+
+    __reset_interning_map()
+    assert __intern_string("SRC_POSITION_TEST_MODE") == 2
+
     actual, base64_str = run_test(
         session, tables, test_case.filename.replace(".", "_"), test_case.source
     )
@@ -193,7 +207,7 @@ def test_ast(session, tables, test_case):
     if pytest.update_expectations:
         assert pytest.unparser_jar, (
             "Can only update expectations with unparser jar set. Either run the test with --unparser-jar=<path> or"
-            " update the environment variable SNOWPARK_UNPARSER_JAR."
+            " update the environment variable MONOREPO_DIR."
         )
         with open(DATA_DIR / test_case.filename, "w", encoding="utf-8") as f:
             f.writelines(

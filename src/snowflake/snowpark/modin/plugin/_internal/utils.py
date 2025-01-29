@@ -1,13 +1,14 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import json
 import logging
 import re
 import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Callable, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import modin.pandas as pd
 import numpy as np
@@ -41,14 +42,9 @@ from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
     col,
-    count,
     equal_nan,
     floor,
     iff,
-    max as max_,
-    mean,
-    min as min_,
-    sum as sum_,
     to_char,
     to_timestamp_ntz,
     to_timestamp_tz,
@@ -313,8 +309,9 @@ def _create_read_only_table(
     )
     # TODO (SNOW-1669224): pushing read only table creation down to snowpark for general usage
     session.sql(
-        f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} READ ONLY TABLE {readonly_table_name} CLONE {table_name}"
-    ).collect(statement_params=statement_params)
+        f"CREATE OR REPLACE {get_temp_type_for_object(use_scoped_temp_objects=use_scoped_temp_table, is_generated=True)} READ ONLY TABLE {readonly_table_name} CLONE {table_name}",
+        _emit_ast=False,
+    ).collect(statement_params=statement_params, _emit_ast=False)
 
     return readonly_table_name
 
@@ -389,7 +386,7 @@ def create_ordered_dataframe_with_readonly_temp_table(
                     error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
                 ) from ex
         initial_ordered_dataframe = OrderedDataFrame(
-            DataFrameReference(session.table(readonly_table_name))
+            DataFrameReference(session.table(readonly_table_name, _emit_ast=False))
         )
         # generate a snowflake quoted identifier for row position column that can be used for aliasing
         snowflake_quoted_identifiers = (
@@ -415,7 +412,7 @@ def create_ordered_dataframe_with_readonly_temp_table(
         # with the created snowpark dataframe. In order to get the metadata column access in the created
         # dataframe, we create dataframe through sql which access the corresponding metadata column.
         dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
-        snowpark_df = session.sql(dataframe_sql)
+        snowpark_df = session.sql(dataframe_sql, _emit_ast=False)
 
         result_columns_quoted_identifiers = [
             row_position_snowflake_quoted_identifier
@@ -1192,29 +1189,6 @@ def is_snowpark_pandas_dataframe_or_series_type(obj: Any) -> bool:
     # Return True if result is (Snowpark pandas) DataFrame/Series type.
     # Note: Native pandas.DataFrame/Series return False
     return isinstance(obj, (pd.DataFrame, pd.Series))
-
-
-# TODO: (SNOW-853334) Support other agg functions (any, all, prod, median, skew, kurt, sem, var, std, mad, etc)
-snowflake_pivot_agg_func_supported = [
-    count,
-    mean,
-    min_,
-    max_,
-    sum_,
-]
-
-
-def is_supported_snowflake_pivot_agg_func(agg_func: Callable) -> bool:
-    """
-    Check if the aggregation function is supported with snowflake pivot. Current supported
-    aggregation functions are the functions that can be mapped to snowflake builtin function.
-
-    Args:
-        agg_func: str or Callable. the aggregation function to check
-    Returns:
-        Whether it is valid to implement with snowflake or not.
-    """
-    return agg_func in snowflake_pivot_agg_func_supported
 
 
 def convert_snowflake_string_constant_to_python_string(identifier: str) -> str:

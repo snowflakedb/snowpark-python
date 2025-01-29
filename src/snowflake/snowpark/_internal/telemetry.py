@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.utils import (
     get_python_version,
     get_version,
     is_in_stored_procedure,
+    is_interactive,
 )
 
 
@@ -63,6 +64,7 @@ class TelemetryField(Enum):
     KEY_PYTHON_VERSION = "python_version"
     KEY_CLIENT_LANGUAGE = "client_language"
     KEY_OS = "operating_system"
+    KEY_IS_INTERACTIVE = "interactive"
     KEY_DATA = "data"
     KEY_CATEGORY = "category"
     KEY_CREATED_BY_SNOWPARK = "created_by_snowpark"
@@ -87,9 +89,6 @@ class TelemetryField(Enum):
     NUM_TEMP_TABLES_CLEANED = "num_temp_tables_cleaned"
     NUM_TEMP_TABLES_CREATED = "num_temp_tables_created"
     TEMP_TABLE_CLEANER_ENABLED = "temp_table_cleaner_enabled"
-    TYPE_TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION = (
-        "snowpark_temp_table_cleanup_abnormal_exception"
-    )
     TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION_TABLE_NAME = (
         "temp_table_cleanup_abnormal_exception_table_name"
     )
@@ -311,6 +310,7 @@ class TelemetryClient:
         self.version: str = get_version()
         self.python_version: str = get_python_version()
         self.os: str = get_os_name()
+        self.is_interactive = is_interactive()
 
     def send(self, msg: Dict, timestamp: Optional[int] = None):
         if self.telemetry:
@@ -326,6 +326,9 @@ class TelemetryClient:
             TelemetryField.KEY_PYTHON_VERSION.value: self.python_version,
             TelemetryField.KEY_OS.value: self.os,
             PCTelemetryField.KEY_TYPE.value: telemetry_type,
+            TelemetryField.KEY_IS_INTERACTIVE.value: PCTelemetryData.TRUE
+            if self.is_interactive
+            else PCTelemetryData.FALSE,
         }
         return message
 
@@ -487,7 +490,7 @@ class TelemetryClient:
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_FAILED.value
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
@@ -526,7 +529,7 @@ class TelemetryClient:
     ) -> None:
         message = {
             **self._create_basic_telemetry_data(
-                TelemetryField.TYPE_TEMP_TABLE_CLEANUP_ABNORMAL_EXCEPTION.value
+                TelemetryField.TYPE_TEMP_TABLE_CLEANUP.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,

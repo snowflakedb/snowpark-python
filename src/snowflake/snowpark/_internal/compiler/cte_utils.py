@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import hashlib
@@ -10,7 +10,10 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     get_complexity_score,
 )
-from snowflake.snowpark._internal.analyzer.snowflake_plan_node import WithQueryBlock
+from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
+    SnowflakeTable,
+    WithQueryBlock,
+)
 from snowflake.snowpark._internal.utils import is_sql_select_statement
 
 if TYPE_CHECKING:
@@ -58,8 +61,9 @@ def find_duplicate_subtrees(
 
     def is_simple_select_entity(node: "TreeNode") -> bool:
         """
-        Check if the current node is a simple select on top of a SelectEntity, for example:
-        select * from TABLE. This check only works with selectable when sql simplifier is enabled.
+        Check if the current node is a simple select on top of a SelectEntity or a
+        SnowflakeTable, for example:
+            select * from TABLE.
         """
         if isinstance(node, SelectableEntity):
             return True
@@ -69,12 +73,13 @@ def find_duplicate_subtrees(
             and isinstance(node.from_, SelectableEntity)
         ):
             return True
-        if (
-            isinstance(node, SnowflakePlan)
-            and (node.source_plan is not None)
-            and isinstance(node.source_plan, (SnowflakePlan, Selectable))
-        ):
-            return is_simple_select_entity(node.source_plan)
+
+        if isinstance(node, SnowflakePlan) and (node.source_plan is not None):
+            if isinstance(node.source_plan, SnowflakeTable):
+                return True
+
+            if isinstance(node.source_plan, (SnowflakePlan, Selectable)):
+                return is_simple_select_entity(node.source_plan)
 
         if isinstance(node, SelectSnowflakePlan):
             return is_simple_select_entity(node.snowflake_plan)

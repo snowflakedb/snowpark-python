@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import List, Union
@@ -102,7 +102,7 @@ class NopSelectExecutionPlan(MockSelectExecutionPlan):
 class NopSelectableEntity(MockSelectableEntity):
     @property
     def attributes(self):
-        return resolve_attributes(self.entity_plan, session=self.analyzer.session)
+        return resolve_attributes(self.entity_plan, session=self._session)
 
 
 class NopAnalyzer(MockAnalyzer):
