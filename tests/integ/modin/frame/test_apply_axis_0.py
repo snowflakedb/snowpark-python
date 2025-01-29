@@ -382,6 +382,7 @@ def test_axis_0_multi_index_column_labels(apply_func):
     )
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 @sql_count_checker(
     query_count=21,
     join_count=7,
@@ -504,6 +505,7 @@ def test_axis_0_raw():
     )
 
 
+@pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 def test_axis_0_apply_args_kwargs():
     def f(x, y, z=1) -> int:
         return x.sum() + y + z
