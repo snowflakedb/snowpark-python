@@ -122,6 +122,7 @@ def test_copy_into_format_name_syntax(format_type, sql_simplifier_enabled):
     fake_session._cte_optimization_enabled = False
     fake_session._query_compilation_stage_enabled = False
     fake_session._conn = mock.create_autospec(ServerConnection)
+    fake_session._conn._thread_safe_session_enabled = True
     fake_session._plan_builder = SnowflakePlanBuilder(fake_session)
     fake_session._analyzer = Analyzer(fake_session)
     fake_session._use_scoped_temp_objects = True
@@ -283,6 +284,7 @@ def test_same_joins_should_generate_same_queries(join_type, mock_server_connecti
 def test_statement_params():
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
+    mock_connection._thread_safe_session_enabled = True
     session = snowflake.snowpark.session.Session(mock_connection)
     session._conn._telemetry_client = mock.MagicMock()
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
@@ -327,6 +329,7 @@ def test_session():
 def test_table_source_plan(sql_simplifier_enabled):
     mock_connection = mock.create_autospec(ServerConnection)
     mock_connection._conn = mock.MagicMock()
+    mock_connection._thread_safe_session_enabled = True
     session = snowflake.snowpark.session.Session(mock_connection)
     session._sql_simplifier_enabled = sql_simplifier_enabled
     t = session.table("table")
