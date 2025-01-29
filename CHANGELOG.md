@@ -13,7 +13,6 @@
   - `map_contains_key`
   - `map_keys`
   - `nullifzero`
-  - `snowflake_cortex_sentiment`
   - `acosh`
   - `asinh`
   - `atanh`
@@ -84,14 +83,21 @@
 - Fixed a bug in `replace` and `lit` which raised type hint assertion error when passing `Column` expression objects.
 - Fixed a bug in `pandas_udf` and `pandas_udtf` where `session` parameter was erroneously ignored.
 
+#### Deprecations
+
+- Deprecated Snowpark Python function `snowflake_cortex_summarize`.
+
 ### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Added a test dependency for `snowflake-ml-python`.
 
 #### New Features
 
 - Added support for `Series.str.ljust` and `Series.str.rjust`.
 - Added support for `Series.str.center`.
 - Added support for `Series.str.pad`.
-- Added support for applying Snowpark Python function `snowflake_cortex_sentiment`.
 - Added support for `DataFrame.map`.
 - Added support for `DataFrame.from_dict` and `DataFrame.from_records`.
 - Added support for mixed case field names in struct type columns.
@@ -116,6 +122,7 @@
 - Added support for aggregations `"count"`, `"median"`, `np.median`,
   `"skew"`, `"std"`, `np.std` `"var"`, and `np.var` in
   `pd.pivot_table()`, `DataFrame.pivot_table()`, and `pd.crosstab()`.
+- Added support for applying Snowflake Cortex functions `Summarize`, `Sentiment`, and `ClassifyText`.
 
 #### Bug Fixes
 
