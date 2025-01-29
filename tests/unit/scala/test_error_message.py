@@ -139,17 +139,6 @@ def test_df_dataframe_is_not_qualified_for_scalar_query():
     )
 
 
-def test_df_pivot_only_support_one_agg_expr():
-    ex = SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
-    assert type(ex) == SnowparkDataframeException
-    assert ex.error_code == "1109"
-    assert (
-        ex.message
-        == "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
-        "returned by the pivot() method."
-    )
-
-
 def test_df_join_invalid_join_type():
     type1 = "inner"
     types = "outer, left, right"
