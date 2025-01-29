@@ -422,7 +422,7 @@ def test_multiple_plan_query_generation(session):
             clustering_exprs=None,
             comment=None,
         ),
-        lambda df, name: CreateViewCommand(name, PersistedView(), None, df._plan),
+        lambda df, name: CreateViewCommand(name, PersistedView(), None, True, df._plan),
         lambda df, name: CopyIntoLocationNode(
             df._plan,
             name,

@@ -2078,6 +2078,18 @@ def test_create_or_replace_temporary_view(session, db_parameters, local_testing_
                 assert "does not exist or not authorized" in str(ex_info)
 
 
+def test_create_temp_view(session):
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
+    df.create_temp_view(view_name)
+    Utils.check_answer(session.table(view_name), [Row(1), Row(2), Row(3)])
+
+    # create again will fail
+    with pytest.raises(SnowparkSQLException, match="already exists"):
+        df.create_temp_view(view_name)
+
+
 def test_createDataFrame_with_schema_inference(session):
     df1 = session.create_dataframe([1, 2, 3]).to_df("int")
     Utils.check_answer(df1, [Row(1), Row(2), Row(3)])

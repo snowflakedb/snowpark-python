@@ -1155,6 +1155,7 @@ class Analyzer:
                 resolved_children[logical_plan.child],
                 is_temp,
                 logical_plan.comment,
+                logical_plan.replace,
                 logical_plan,
             )
 
