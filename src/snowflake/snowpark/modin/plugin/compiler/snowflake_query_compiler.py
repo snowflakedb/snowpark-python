@@ -13584,8 +13584,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 axis=0,
             )
             # Compute top (the mode of each column) + freq (the number of times this mode appears).
-            top_freq_identifiers = padded_qc._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-                pandas_labels=["top", "freq"]
+            # Also create a new identifier to track min(__row_position__) of each group to ensure stability
+            (
+                top_identifier,
+                freq_identifier,
+                min_row_position_identifier,
+            ) = padded_qc._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=["top", "freq", "min_row_position"]
+            )
+            top_freq_identifiers = (top_identifier, freq_identifier)
+            row_position_identifier = (
+                padded_qc._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
             )
             # To accommodate multi-level columns in the source frame, we generate a new index column
             # in the top/freq frame for each level. We transpose this frame later, so the columns
@@ -13599,7 +13608,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             def count_freqs(
-                col_labels: Union[str, tuple[str, ...]], col_ident: str
+                col_labels: Union[str, tuple[str, ...]], col_identifier: str
             ) -> OrderedDataFrame:
                 """
                 Helper function to compute the mode ("top") and frequency with which the mode
@@ -13621,7 +13630,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 QC.value_counts(dropna=False) would correctly report NULL as the `top` item, but
                 reports `freq` as the number of times NULL appears, which we do not want.
                 """
-                top_ident, freq_ident = top_freq_identifiers
                 col_labels_tuple = (
                     col_labels if is_list_like(col_labels) else (col_labels,)
                 )
@@ -13634,7 +13642,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 #        IFF(a IS NULL, NULL, COUNT(a)) AS freq
                 # FROM df
                 # GROUP BY a
-                # ORDER BY freq DESC NULLS LAST
+                # ORDER BY freq DESC, MIN(__row_position__) ASC NULLS LAST
                 # LIMIT 1
                 #
                 # The resulting 1-row frame for column "a": [1, 1, 2] will have the form
@@ -13675,30 +13683,38 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # +------+---+
                 return (
                     padded_qc._modin_frame.ordered_dataframe.group_by(
-                        [col_ident],
+                        [col_identifier],
                         [
                             iff(
-                                col(col_ident).is_null(),
+                                col(col_identifier).is_null(),
                                 pandas_lit(None),
-                                count(col(col_ident)),
-                            ).as_(freq_ident),
+                                count(col(col_identifier)),
+                            ).as_(freq_identifier),
+                            min_(row_position_identifier).as_(
+                                min_row_position_identifier
+                            ),
                         ],
                     )
-                    .sort(OrderingColumn(freq_ident, ascending=False, na_last=True))
+                    .sort(
+                        OrderingColumn(freq_identifier, ascending=False, na_last=True),
+                        OrderingColumn(min_row_position_identifier, ascending=True),
+                    )
                     .limit(1)
                     .select(
                         *(
                             # If the original frame had multi-level columns, we must create
                             # a multi-level index to transpose this frame later.
                             [
-                                pandas_lit(col_label).as_(index_ident)
-                                for col_label, index_ident in zip(
+                                pandas_lit(col_label).as_(index_identifier)
+                                for col_label, index_identifier in zip(
                                     col_labels_tuple, new_index_identifiers
                                 )
                             ]
                             + [
-                                col(col_ident).cast(VariantType()).as_(top_ident),
-                                freq_ident,
+                                col(col_identifier)
+                                .cast(VariantType())
+                                .as_(top_identifier),
+                                freq_identifier,
                             ]
                         )
                     )
