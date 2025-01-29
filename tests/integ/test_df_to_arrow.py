@@ -43,6 +43,10 @@ def arrow_table():
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
 @pytest.mark.parametrize(
     "example,expected",
     [
@@ -101,6 +105,10 @@ def test_to_arrow(session, example, expected):
     assert df.to_arrow().to_pydict() == expected
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
 def test_to_arrow_decimal_precision(session):
     data = [
         [1111111111111111111, 222222222222222222],
@@ -124,7 +132,11 @@ def test_to_arrow_decimal_precision(session):
     assert [[int(x) for x in y.values()] for y in padf.to_pylist()] == data
 
 
-def test_to_pandas_batches(session):
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
+def test_to_arrow_batches(session):
     df = session.range(100000).cache_result()
     iterator = df.to_arrow_batches()
     assert isinstance(iterator, Iterator)
@@ -149,6 +161,10 @@ def test_create_dataframe_round_trip(session):
     Utils.check_answer(df, df2)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
 def test_write_arrow_overwrite_auto_create(session, basic_arrow_table):
     table_name = Utils.random_table_name()
     try:
@@ -172,6 +188,10 @@ def test_write_arrow_overwrite_auto_create(session, basic_arrow_table):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
 @pytest.mark.parametrize("table_type", ["", "TEMPORARY", "TRANSIENT"])
 def test_write_arrow_table_type(session, arrow_table, table_type):
     table_name = Utils.random_table_name()
@@ -186,6 +206,10 @@ def test_write_arrow_table_type(session, arrow_table, table_type):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
 def test_write_arrow_chunk_size(session):
     table_name = Utils.random_table_name()
     try:
@@ -208,6 +232,10 @@ def test_write_arrow_chunk_size(session):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
 @pytest.mark.parametrize("quote_identifiers", [True, False])
 def test_write_arrow_alternate_schema(session, basic_arrow_table, quote_identifiers):
     db = session.get_current_database().strip('"')

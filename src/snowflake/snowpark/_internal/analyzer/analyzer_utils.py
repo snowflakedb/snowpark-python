@@ -1740,7 +1740,7 @@ def write_arrow(
     """
     # This function mostly copies the functionality of snowflake.connector.pandas_utils.write_pandas.
     # It should be pushed down into the connector, but would require a minimum required version bump.
-    import pyarrow.parquet
+    import pyarrow.parquet  # type: ignore
 
     if database is not None and schema is None:
         raise ProgrammingError(
@@ -1822,9 +1822,9 @@ def write_arrow(
             use_scoped_temp_object,
         )
         infer_schema_sql = f"SELECT COLUMN_NAME, TYPE FROM table(infer_schema(location=>'@{stage_location}', file_format=>'{file_format_location}'))"
-        column_type_mapping = dict(
-            cursor.execute(infer_schema_sql, _is_internal=True).fetchall()
-        )
+        infer_result = cursor.execute(infer_schema_sql, _is_internal=True)
+        assert infer_result is not None
+        column_type_mapping = dict(infer_result.fetchall())  # pyright: ignore
         create_table_columns = ", ".join(
             [
                 f"{quote}{snowflake_col}{quote} {column_type_mapping[col]}"
@@ -1881,7 +1881,9 @@ def write_arrow(
             f") "
             f"PURGE=TRUE ON_ERROR={on_error}"
         )
-        copy_results = cursor.execute(copy_into_sql, _is_internal=True).fetchall()
+        copy_result = cursor.execute(copy_into_sql, _is_internal=True)
+        assert copy_result is not None
+        copy_results = copy_result.fetchall()
 
         if overwrite and auto_create_table:
             original_table_location = build_location_helper(
@@ -1905,5 +1907,5 @@ def write_arrow(
         all(e[1] == "LOADED" for e in copy_results),
         len(copy_results),
         sum(int(e[3]) for e in copy_results),
-        copy_results,
+        copy_results,  # pyright: ignore
     )
