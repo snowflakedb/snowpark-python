@@ -24,6 +24,7 @@
   - `bitmap_construct_agg`
   - `cbrt`
   - `equal_null`
+  - `from_json`
   - `ifnull`
   - `localtimestamp`
   - `max_by`
@@ -41,26 +42,54 @@
   - `regr_sxy`
   - `regr_syy`
   - `try_to_binary`
+  - `base64`
+  - `base64_decode_string`
+  - `base64_encode`
+  - `editdistance`
+  - `hex`
+  - `hex_encode`
+  - `instr`
+  - `log1p`
+  - `log2`
+  - `log10`
+  - `percentile_approx`
+  - `unbase64`
+- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
+- Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
+- Added support for multiple columns in the functions `map_cat` and `map_concat`.
+
+#### Experimental Features
 
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+  - `snowflake.core` is a dependency required for this feature.
 - Added new methods in class `DataFrame`:
   - `col_regex`: Select columns that match with provided regex.
   - `map` and its alias `foreach`: A method to apply user function on each row with 1-1 mapping.
   - `flat_map`: A method to apply user function on each row with one to many mapping.
   - `toJSON` and its alias `to_json`: Convert each row of dataframe into json string.
   - `transform`: Chain multiple transformations on dataframe.
+- Allow user input schema when reading JSON file on stage.
+- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 
 #### Improvements
 
 - Updated README.md to include instructions on how to verify package signatures using `cosign`.
 - Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
+- Added options to column casts that allow renaming or adding fields in StructType columns.
+- Added support for `contains_null` parameter to ArrayType.
+- Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
+- Added support for `value_contains_null` parameter to MapType.
+- Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
+- Allow `session.file.get` in a Native App to read file paths starting with `/` from the current version 
 
 #### Bug Fixes
 
 - Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
 - Fixed a bug in `StructField.from_json` that prevented TimestampTypes with `tzinfo` from being parsed correctly.
 - Fixed a bug in function `date_format` that caused an error when the input column was date type or timestamp type.
-- Fixed a bug in `replace` when passing `Column` expression objects.
+- Fixed a bug in dataframe that null value can be inserted in a non-nullable column.
+- Fixed a bug in `replace` and `lit` which raised type hint assertion error when passing `Column` expression objects.
+- Fixed a bug in `pandas_udf` and `pandas_udtf` where `session` parameter was erroneously ignored.
 
 ### Snowpark pandas API Updates
 
@@ -89,6 +118,11 @@
 - Added support for `include_groups=False` in `DataFrameGroupBy.apply`.
 - Added support for `expand=True` in `Series.str.split`.
 - Added support for `DataFrame.pop` and `Series.pop`.
+- Added support for `first` and `last` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
+- Added support for `Index.drop_duplicates`.
+- Added support for aggregations `"count"`, `"median"`, `np.median`,
+  `"skew"`, `"std"`, `np.std` `"var"`, and `np.var` in
+  `pd.pivot_table()`, `DataFrame.pivot_table()`, and `pd.crosstab()`.
 
 #### Bug Fixes
 

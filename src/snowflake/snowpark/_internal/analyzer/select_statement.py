@@ -230,7 +230,14 @@ class Selectable(LogicalPlan, ABC):
         ] = None,  # Use Any because it's recursive.
     ) -> None:
         super().__init__()
-        self.analyzer = analyzer
+        # With multi-threading support, each thread has its own analyzer which can be
+        # accessed through session object. Therefore, we need to store the session in
+        # the Selectable object and use the session to access the appropriate analyzer
+        # for current thread.
+        self._session = analyzer.session
+        # We create this internal object to be used for setting query generator during
+        # the optimization stage
+        self._analyzer = None
         self.pre_actions: Optional[List["Query"]] = None
         self.post_actions: Optional[List["Query"]] = None
         self.flatten_disabled: bool = False
@@ -243,6 +250,23 @@ class Selectable(LogicalPlan, ABC):
         self._api_calls = api_calls.copy() if api_calls is not None else None
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         self._encoded_node_id_with_query: Optional[str] = None
+
+    @property
+    def analyzer(self) -> "Analyzer":
+        """Get the analyzer for used for the current thread"""
+        return self._analyzer or self._session._analyzer
+
+    @analyzer.setter
+    def analyzer(self, value: "Analyzer") -> None:
+        """For query optimization stage, we need to replace the analyzer with a query generator which
+        is aware of schema for the final plan and can compile WithQueryBlocks. Therefore we update the
+        setter to allow the analyzer to be set externally."""
+        if not self._is_valid_for_replacement:
+            raise ValueError(
+                "Cannot set analyzer for a Selectable that is not valid for replacement"
+            )
+
+        self._analyzer = value
 
     @property
     @abstractmethod
@@ -259,7 +283,7 @@ class Selectable(LogicalPlan, ABC):
         two selectable node with same queries. This is currently used by repeated subquery
         elimination to detect two nodes with same query, please use it with careful.
         """
-        with self.analyzer.session._plan_lock:
+        with self._session._plan_lock:
             if self._encoded_node_id_with_query is None:
                 self._encoded_node_id_with_query = encode_node_id_with_query(self)
             return self._encoded_node_id_with_query
@@ -311,7 +335,7 @@ class Selectable(LogicalPlan, ABC):
                 queries,
                 schema_query,
                 post_actions=self.post_actions,
-                session=self.analyzer.session,
+                session=self._session,
                 expr_to_alias=self.expr_to_alias,
                 df_aliased_col_name_to_real_col_name=self.df_aliased_col_name_to_real_col_name,
                 source_plan=self,
@@ -329,7 +353,7 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        with self.analyzer.session._plan_lock:
+        with self._session._plan_lock:
             if self._cumulative_node_complexity is None:
                 self._cumulative_node_complexity = sum_node_complexities(
                     self.individual_node_complexity,
@@ -362,7 +386,7 @@ class Selectable(LogicalPlan, ABC):
         Refer to class ColumnStateDict.
         """
         if self._column_states is None:
-            if self.analyzer.session.reduce_describe_query_enabled:
+            if self._session.reduce_describe_query_enabled:
                 # data types are not needed in SQL simplifier, so we
                 # just create dummy data types here.
                 column_attrs = [
@@ -513,7 +537,7 @@ class SelectSQL(Selectable):
                 self.pre_actions[0].query_id_place_holder
             )
             self._schema_query = analyzer_utils.schema_value_statement(
-                analyze_attributes(sql, self.analyzer.session)
+                analyze_attributes(sql, self._session)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
             self._query_param = None
         else:
@@ -1166,7 +1190,7 @@ class SelectStatement(Selectable):
             new = SelectStatement(
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
-        if self.analyzer.session.reduce_describe_query_enabled:
+        if self._session.reduce_describe_query_enabled:
             new._attributes = self._attributes
 
         return new
@@ -1201,7 +1225,7 @@ class SelectStatement(Selectable):
                 order_by=cols,
                 analyzer=self.analyzer,
             )
-        if self.analyzer.session.reduce_describe_query_enabled:
+        if self._session.reduce_describe_query_enabled:
             new._attributes = self._attributes
 
         return new
@@ -1285,7 +1309,7 @@ class SelectStatement(Selectable):
             new.pre_actions = new.from_.pre_actions
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
-        if self.analyzer.session.reduce_describe_query_enabled:
+        if self._session.reduce_describe_query_enabled:
             new._attributes = self._attributes
 
         return new
@@ -1605,7 +1629,7 @@ def can_select_projection_complexity_be_merged(
             on top of subquery.
         subquery: the subquery where the current select is performed on top of
     """
-    if not subquery.analyzer.session._large_query_breakdown_enabled:
+    if not subquery._session._large_query_breakdown_enabled:
         return False
 
     # only merge of nested select statement is supported, and subquery must be
