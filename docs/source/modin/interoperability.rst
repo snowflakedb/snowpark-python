@@ -83,7 +83,7 @@ Classification
 | Fitting a ``LinearDiscriminantAnalysis``   |
 | classifier with the ``fit()`` method and   |
 | classifying data with the ``predict()``    |
-| method.                                    |
+| method                                     |
 +--------------------------------------------+
 
 
@@ -95,7 +95,7 @@ Regression
 +--------------------------------------------+
 | Fitting a ``LogisticRegression``  model    |
 | with the ``fit()`` method and predicting   |
-| results with the ``predict()`` method.     |
+| results with the ``predict()`` method      |
 +--------------------------------------------+
 
 Clustering
@@ -115,7 +115,7 @@ Dimensionality reduction
 | Operation                                  |
 +--------------------------------------------+
 | Getting the principal components of a      |
-| numerical dataset with ``PCA.fit()``.      |
+| numerical dataset with ``PCA.fit()``       |
 +--------------------------------------------+
 
 
@@ -127,7 +127,7 @@ Model selection
 +-------------------------------------------------+
 | Choosing parameters for a                       |
 | ``LogisticRegression`` model with               |
-| ``RandomizedSearchCV.fit()``.                   |
+| ``RandomizedSearchCV.fit()``                    |
 +-------------------------------------------------+
 
 .. note::
@@ -141,5 +141,5 @@ Preprocessing
 | Operation                                  |
 +--------------------------------------------+
 | Scaling training data with                 |
-| ``MaxAbsScaler.fit_transform()``.          |
+| ``MaxAbsScaler.fit_transform()``           |
 +--------------------------------------------+
