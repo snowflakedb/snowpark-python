@@ -6,9 +6,9 @@ import modin.pandas as pd
 import pytest
 
 
-from tests.integ.utils.sql_counter import SqlCounter
+from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_jenkins
-from snowflake.cortex import Sentiment, ClassifyText, Summarize
+from snowflake.cortex import Sentiment, ClassifyText, Summarize, Translate
 
 
 @pytest.mark.skipif(
@@ -75,3 +75,23 @@ def test_apply_snowflake_cortex_classify_text(session):
         ).iloc[0]
         text_class_label = text_class["label"]
         assert text_class_label == "travel"
+
+
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
+)
+@sql_count_checker(query_count=0)
+def test_apply_snowflake_cortex_negative(session):
+
+    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
+    if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+        return
+
+    content = "One day I will see the world."
+    s = pd.Series([content])
+    with pytest.raises(
+        NotImplementedError,
+        match="Snowflake Cortex function `Translate` is not supported yet.",
+    ):
+        return s.apply(Translate, source_language="en", target_language="de").iloc[0]
