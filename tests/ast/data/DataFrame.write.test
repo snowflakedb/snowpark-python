@@ -18,7 +18,10 @@ df.write.partition_by(col("value")).mode("overwrite").save_as_table("saved_table
 
 df.write.option("copy_into_location", "abcd").partition_by(col("value")).mode("overwrite").save_as_table("saved_table", table_type="temporary")
 
-df.write.option("copy_into_location", "abcd").option("copy_into_location", "pqrs").option("overwrite", True).option("mode", "append").partition_by(col("value")).mode("overwrite").save_as_table("saved_table", table_type="temporary")
+# Commented out for decoder tests since the decoder will not record options that "overwrite" each other.
+# df.write.option("copy_into_location", "abcd").option("copy_into_location", "pqrs").option("overwrite", True).option("mode", "append").partition_by(col("value")).mode("overwrite").save_as_table("saved_table", table_type="temporary")
+
+df.write.option("copy_into_location", "pqrs").option("overwrite", True).option("mode", "append").partition_by(col("value")).mode("overwrite").save_as_table("saved_table", table_type="temporary")
 
 stage_created_result = session.sql("create temp stage if not exists test_stage").collect()
 
@@ -62,7 +65,7 @@ df.write.mode("overwrite").partition_by(col("value")).save_as_table("saved_table
 
 df.write.mode("overwrite").partition_by(col("value")).options({"COPY_INTO_LOCATION": "abcd"}).save_as_table("saved_table", table_type="temporary")
 
-df.write.mode("overwrite").partition_by(col("value")).options({"COPY_INTO_LOCATION": "abcd", "COPY_INTO_LOCATION": "pqrs", "OVERWRITE": True, "MODE": "append"}).save_as_table("saved_table", table_type="temporary")
+df.write.mode("overwrite").partition_by(col("value")).options({"COPY_INTO_LOCATION": "pqrs", "OVERWRITE": True, "MODE": "append"}).save_as_table("saved_table", table_type="temporary")
 
 stage_created_result = session.sql("create temp stage if not exists test_stage")
 
@@ -730,19 +733,7 @@ body {
             string_val {
               src {
                 file: 2
-                start_line: 43
-              }
-              v: "abcd"
-            }
-          }
-        }
-        options {
-          _1: "COPY_INTO_LOCATION"
-          _2 {
-            string_val {
-              src {
-                file: 2
-                start_line: 43
+                start_line: 46
               }
               v: "pqrs"
             }
@@ -754,7 +745,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 43
+                start_line: 46
               }
               v: true
             }
@@ -766,7 +757,7 @@ body {
             string_val {
               src {
                 file: 2
-                start_line: 43
+                start_line: 46
               }
               v: "append"
             }
@@ -789,14 +780,14 @@ body {
               string_val {
                 src {
                   file: 2
-                  start_line: 43
+                  start_line: 46
                 }
                 v: "value"
               }
             }
             src {
               file: 2
-              start_line: 43
+              start_line: 46
             }
           }
         }
@@ -805,7 +796,7 @@ body {
         }
         src {
           file: 2
-          start_line: 43
+          start_line: 46
         }
       }
     }
@@ -828,7 +819,7 @@ body {
         }
         src {
           file: 2
-          start_line: 43
+          start_line: 46
         }
         table_name {
           name {
@@ -863,7 +854,7 @@ body {
         query: "create temp stage if not exists test_stage"
         src {
           file: 2
-          start_line: 45
+          start_line: 48
         }
       }
     }
@@ -887,7 +878,7 @@ body {
         }
         src {
           file: 2
-          start_line: 45
+          start_line: 48
         }
       }
     }
@@ -920,7 +911,7 @@ body {
         }
         src {
           file: 2
-          start_line: 47
+          start_line: 50
         }
       }
     }
@@ -943,7 +934,7 @@ body {
         location: "@test_stage/copied_from_dataframe"
         src {
           file: 2
-          start_line: 47
+          start_line: 50
         }
       }
     }
@@ -976,7 +967,7 @@ body {
         }
         src {
           file: 2
-          start_line: 51
+          start_line: 54
         }
       }
     }
@@ -999,7 +990,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 51
+                start_line: 54
               }
               v: true
             }
@@ -1011,7 +1002,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 51
+                start_line: 54
               }
               v: true
             }
@@ -1027,7 +1018,7 @@ body {
         location: "@test_stage/copied_from_dataframe"
         src {
           file: 2
-          start_line: 51
+          start_line: 54
         }
       }
     }
@@ -1060,7 +1051,7 @@ body {
         }
         src {
           file: 2
-          start_line: 53
+          start_line: 56
         }
       }
     }
@@ -1082,7 +1073,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 53
+                start_line: 56
               }
               v: true
             }
@@ -1094,7 +1085,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 53
+                start_line: 56
               }
             }
           }
@@ -1112,7 +1103,7 @@ body {
         location: "@test_stage/copied_from_dataframe"
         src {
           file: 2
-          start_line: 53
+          start_line: 56
         }
       }
     }
@@ -1145,7 +1136,7 @@ body {
         }
         src {
           file: 2
-          start_line: 55
+          start_line: 58
         }
       }
     }
@@ -1167,7 +1158,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 55
+                start_line: 58
               }
               v: true
             }
@@ -1179,7 +1170,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 55
+                start_line: 58
               }
             }
           }
@@ -1201,7 +1192,7 @@ body {
         location: "@test_stage/copied_from_dataframe"
         src {
           file: 2
-          start_line: 55
+          start_line: 58
         }
       }
     }
@@ -1234,7 +1225,7 @@ body {
         }
         src {
           file: 2
-          start_line: 59
+          start_line: 62
         }
       }
     }
@@ -1257,7 +1248,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 59
+                start_line: 62
               }
               v: true
             }
@@ -1269,7 +1260,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 59
+                start_line: 62
               }
               v: true
             }
@@ -1286,7 +1277,7 @@ body {
         location: "@test_stage/test.csv"
         src {
           file: 2
-          start_line: 59
+          start_line: 62
         }
       }
     }
@@ -1319,7 +1310,7 @@ body {
         }
         src {
           file: 2
-          start_line: 63
+          start_line: 66
         }
       }
     }
@@ -1342,7 +1333,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 63
+                start_line: 66
               }
               v: true
             }
@@ -1354,7 +1345,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 63
+                start_line: 66
               }
               v: true
             }
@@ -1370,7 +1361,7 @@ body {
         location: "@test_stage/test.json"
         src {
           file: 2
-          start_line: 63
+          start_line: 66
         }
       }
     }
@@ -1403,7 +1394,7 @@ body {
         }
         src {
           file: 2
-          start_line: 67
+          start_line: 70
         }
       }
     }
@@ -1426,7 +1417,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 67
+                start_line: 70
               }
               v: true
             }
@@ -1438,7 +1429,7 @@ body {
             bool_val {
               src {
                 file: 2
-                start_line: 67
+                start_line: 70
               }
               v: true
             }
@@ -1454,7 +1445,7 @@ body {
         location: "@test_stage/test.parquet"
         src {
           file: 2
-          start_line: 67
+          start_line: 70
         }
       }
     }

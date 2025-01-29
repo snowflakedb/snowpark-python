@@ -522,8 +522,9 @@ class Decoder:
                 return StructField(column_identifier, data_type, nullable)
             case "sp_struct_type":
                 # The fields can be a list of Expr, a single Expr, or None.
-                fields = []
-                if hasattr(data_type_expr.sp_struct_type, "fields"):
+                structured = data_type_expr.sp_struct_type.structured
+                if data_type_expr.sp_struct_type.HasField("fields"):
+                    fields = []
                     for field in data_type_expr.sp_struct_type.fields.list:
                         column_identifier = field.column_identifier.name
                         data_type = self.decode_data_type_expr(field.data_type)
@@ -531,10 +532,13 @@ class Decoder:
                         fields.append(
                             StructField(column_identifier, data_type, nullable)
                         )
+                    return StructType(fields, structured)
                 else:
-                    fields = None
-                structured = data_type_expr.sp_struct_type.structured
-                return StructType(fields, structured)
+                    res = StructType(None, structured)
+                    res.fields = (
+                        None  # need to explicitly set it to None to match the AST
+                    )
+                    return res
             case "sp_time_type":
                 return TimeType()
             case "sp_timestamp_type":
@@ -752,14 +756,21 @@ class Decoder:
         StructType
             The decoded object.
         """
-        struct_field_list = []
-        for field in sp_struct_type_expr.fields.list:
-            column_identifier = field.column_identifier.name
-            datatype = self.decode_data_type_expr(field.data_type)
-            nullable = field.nullable
-            struct_field_list.append(StructField(column_identifier, datatype, nullable))
         structured = sp_struct_type_expr.structured
-        return StructType(struct_field_list, structured)
+        if sp_struct_type_expr.HasField("fields"):
+            struct_field_list = []
+            for field in sp_struct_type_expr.fields.list:
+                column_identifier = field.column_identifier.name
+                datatype = self.decode_data_type_expr(field.data_type)
+                nullable = field.nullable
+                struct_field_list.append(
+                    StructField(column_identifier, datatype, nullable)
+                )
+            return StructType(struct_field_list, structured)
+        else:
+            res = StructType(None, structured)
+            res.fields = None  # need to explicitly set it to None to match the AST
+            return res
 
     def decode_timezone_expr(self, tz_expr: proto.PythonTimeZone) -> timezone:
         """
@@ -1042,19 +1053,24 @@ class Decoder:
                     pos_args = []
 
                 if fn is None:
-                    # Stored procedures, table functions, (and in the future I expect UDTFs maybe) will pass through
-                    # here directly (not through their respective entities) when invoked. Call the right method.
-                    # If a source is provided via kwargs, short-circuit with that.
+                    # If no source is provided, the expr is either a stored procedure or a TableFunctionCall.
+                    # This is because calls to sprocs, UDxFs, and "placeholders" for invocations to UDxFs (they return
+                    # TableFunctionCall) are all encoded as `apply_expr`.
+                    # We should be able to distinguish them based on the source.
+                    # call_udf, call_udaf, and call_udtf should be filtered out since they are builtin functions.
+                    # If session.table_function calls a UDxF, we are expected to retrieve the results.
                     source = kwargs.get("source", None)
                     match expr.apply_expr.fn.WhichOneof("variant"):
                         case "sp_fn_ref":
                             return self.session.call(fn_name, *pos_args, **named_args)
                         case "indirect_table_fn_id_ref":
-                            return self.session.table_function(
-                                self.symbol_table[
-                                    expr.apply_expr.fn.indirect_table_fn_id_ref.id.bitfield1
-                                ][1]
-                            )
+                            fn = self.symbol_table[
+                                expr.apply_expr.fn.indirect_table_fn_id_ref.id.bitfield1
+                            ][1]
+                            if source == "sp_session_table_function":
+                                return self.session.table_function(fn)
+                            else:
+                                return fn
                         case "call_table_function_expr" | "indirect_table_fn_name_ref":
                             if source == "sp_session_table_function":
                                 return self.session.table_function(
@@ -2433,6 +2449,17 @@ class Decoder:
             case "sp_table_drop_table":
                 table = self.symbol_table[expr.sp_table_drop_table.id.bitfield1][1]
                 return table.drop_table()
+
+            case "sp_table_fn_call_alias":
+                lhs = self.decode_expr(expr.sp_table_fn_call_alias.lhs)
+                aliases = [
+                    self.decode_expr(arg)
+                    for arg in expr.sp_table_fn_call_alias.aliases.args
+                ]
+                if expr.sp_table_fn_call_alias.aliases.variadic:
+                    return lhs.alias(*aliases)
+                else:
+                    return lhs.alias(aliases)
 
             case "sp_table_merge":
                 table = self.symbol_table[expr.sp_table_merge.id.bitfield1][1]
