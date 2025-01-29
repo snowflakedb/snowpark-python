@@ -12,6 +12,15 @@ df2 = session.flatten(col("NUM"), None, False, True, "ARRAY")
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -45,20 +54,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_line: 25
                     }
                     v: "{\"a\": [1,2]}"
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 25
                 }
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_line: 25
             }
           }
@@ -70,7 +79,7 @@ body {
           value: "a"
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 25
         }
       }
@@ -104,14 +113,14 @@ body {
             pos_args {
               string_val {
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 27
                 }
                 v: "NUM"
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_line: 27
             }
           }
@@ -121,7 +130,7 @@ body {
         }
         recursive: true
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 27
         }
       }

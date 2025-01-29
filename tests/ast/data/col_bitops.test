@@ -21,6 +21,15 @@ df = df.select(col("A").bitxor(col("B")))
 
 ## EXPECTED ENCODED AST
 
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
 body {
   assign {
     expr {
@@ -33,7 +42,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 25
         }
         variant {
@@ -72,14 +81,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_line: 27
                     }
                     v: "A"
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 27
                 }
               }
@@ -100,20 +109,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_line: 27
                     }
                     v: "B"
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 27
                 }
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_line: 27
             }
           }
@@ -126,7 +135,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 27
         }
         variadic: true
@@ -163,14 +172,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_line: 29
                     }
                     v: "A"
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 29
                 }
               }
@@ -191,20 +200,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_line: 29
                     }
                     v: "B"
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 29
                 }
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_line: 29
             }
           }
@@ -217,7 +226,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 29
         }
         variadic: true
@@ -254,14 +263,14 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_line: 31
                     }
                     v: "A"
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 31
                 }
               }
@@ -282,20 +291,20 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      file: "SRC_POSITION_TEST_MODE"
+                      file: 2
                       start_line: 31
                     }
                     v: "B"
                   }
                 }
                 src {
-                  file: "SRC_POSITION_TEST_MODE"
+                  file: 2
                   start_line: 31
                 }
               }
             }
             src {
-              file: "SRC_POSITION_TEST_MODE"
+              file: 2
               start_line: 31
             }
           }
@@ -308,7 +317,7 @@ body {
           }
         }
         src {
-          file: "SRC_POSITION_TEST_MODE"
+          file: 2
           start_line: 31
         }
         variadic: true

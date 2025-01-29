@@ -18,6 +18,10 @@ build:
     - SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1
 {% if noarch_build %}
   noarch: python
+  string: "py39_0"  # [py==39]
+  string: "py310_0"  # [py==310]
+  string: "py311_0"  # [py==311]
+  string: "py312_0"  # [py==312]
 {% endif %}
 
 requirements:
@@ -43,7 +47,6 @@ requirements:
     - protobuf >=3.20,<6
     - python-dateutil
     - tzlocal
-    - snowflake.core >=1.0.0,<2
 
 test:
   imports:

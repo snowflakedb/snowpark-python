@@ -249,6 +249,15 @@ def compare_base64_results(
 def test_ast(session, tables, test_case):
     _logger.info(f"Testing AST encoding with protobuf {google.protobuf.__version__}.")
 
+    # Reset string interning (avoids issues for testing).
+    from snowflake.snowpark._internal.ast.utils import (
+        __intern_string,
+        __reset_interning_map,
+    )
+
+    __reset_interning_map()
+    assert __intern_string("SRC_POSITION_TEST_MODE") == 2
+
     actual, base64_str = run_test(
         session, tables, test_case.filename.replace(".", "_"), test_case.source
     )
