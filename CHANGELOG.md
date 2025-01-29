@@ -28,8 +28,8 @@
   - `localtimestamp`
   - `max_by`
   - `min_by`
-  - `nvl`
   - `nth_value`
+  - `nvl`
   - `octet_length`
   - `position`
   - `regr_avgx`
