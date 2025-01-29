@@ -10,6 +10,7 @@ import ast
 import ctypes
 import datetime
 import decimal
+import functools
 import re
 import sys
 import typing  # noqa: F401
@@ -966,8 +967,18 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["byteint"] = ByteType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["bigint"] = LongType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["number"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["numeric"] = DecimalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["decimal"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["object"] = MapType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["array"] = ArrayType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ntz"] = functools.partial(
+    TimestampType, timezone=TimestampTimeZone.NTZ
+)
+DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_tz"] = functools.partial(
+    TimestampType, timezone=TimestampTimeZone.TZ
+)
+DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
+    TimestampType, timezone=TimestampTimeZone.LTZ
+)
 
 DECIMAL_RE = re.compile(
     r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
@@ -1064,7 +1075,28 @@ def extract_nullable_keyword(type_str: str) -> Tuple[str, bool]:
     return trimmed, True
 
 
-def parse_struct_field_list(fields_str: str) -> StructType:
+def find_top_level_colon(field_def: str) -> int:
+    """
+    Returns the index of the first top-level colon in 'field_def',
+    or -1 if there is no top-level colon. A colon is considered top-level
+    if it is not enclosed in <...> or (...).
+
+    Example:
+      'a struct<i: integer>' => returns -1 (colon is nested).
+      'x: struct<i: integer>' => returns index of the colon after 'x'.
+    """
+    bracket_depth = 0
+    for i, ch in enumerate(field_def):
+        if ch in ("<", "("):
+            bracket_depth += 1
+        elif ch in (">", ")"):
+            bracket_depth -= 1
+        elif ch == ":" and bracket_depth == 0:
+            return i
+    return -1
+
+
+def parse_struct_field_list(fields_str: str) -> Optional[StructType]:
     """
     Parse something like "a: int, b: string, c: array<int>"
     into StructType([StructField('a', IntegerType()), ...]).
@@ -1072,10 +1104,14 @@ def parse_struct_field_list(fields_str: str) -> StructType:
     fields = []
     field_defs = split_top_level_comma_fields(fields_str)
     for field_def in field_defs:
-        # Try splitting on colon first, else whitespace
-        if ":" in field_def:
-            left, right = field_def.split(":", 1)
+        # Find first top-level colon (if any)
+        colon_index = find_top_level_colon(field_def)
+        if colon_index != -1:
+            # We found a top-level colon => split on it
+            left = field_def[:colon_index]
+            right = field_def[colon_index + 1 :]
         else:
+            # No top-level colon => fallback to whitespace-based split
             parts = field_def.split(None, 1)
             if len(parts) != 2:
                 raise ValueError(f"Cannot parse struct field definition: '{field_def}'")
@@ -1089,7 +1125,17 @@ def parse_struct_field_list(fields_str: str) -> StructType:
         # 1) Check for trailing "NOT NULL" => sets nullable=False
         base_type_str, nullable = extract_nullable_keyword(type_part)
         # 2) Parse the base type
-        field_type = type_string_to_type_object(base_type_str)
+        try:
+            field_type = type_string_to_type_object(base_type_str)
+        except ValueError as ex:
+            # Spark supports both `x: int` and `x int`. In our original implementation, we don't support x int,
+            # and will raise this error. However, handling space is tricky because we need to handle something like
+            # decimal(10, 2) containing space too, as a valid schema string (without a column name).
+            # Therefore, if this error is raised, we just catch it and return None, then in next step,
+            # we can process it again as a structured schema string (x int).
+            if "is not a supported type" in str(ex):
+                return None
+            raise ex
         fields.append(StructField(field_name, field_type, nullable=nullable))
 
     return StructType(fields)
@@ -1119,18 +1165,25 @@ def split_top_level_comma_fields(s: str) -> List[str]:
 
 def is_likely_struct(s: str) -> bool:
     """
-    Heuristic: If there's a top-level comma or colon outside brackets,
-    treat it like a struct with multiple fields, e.g. "a: int, b: string".
+    Return True if there's a top-level colon, comma, or space.
+    e.g. "arr array<integer>" => top-level space => struct
+         "arr: array<int>" => colon => struct
+         "a: int, b: string" => comma => struct
     """
     bracket_depth = 0
-    for c in s:
-        if c in ["<", "("]:
+    top_level_space_found = False
+    for ch in s:
+        if ch in ("<", "("):
             bracket_depth += 1
-        elif c in [">", ")"]:
+        elif ch in (">", ")"):
             bracket_depth -= 1
-        elif (c in [":", ","]) and bracket_depth == 0:
-            return True
-    return False
+        elif bracket_depth == 0:
+            if ch in [":", ","]:
+                return True
+            elif ch == " ":
+                top_level_space_found = True
+
+    return top_level_space_found
 
 
 def type_string_to_type_object(type_str: str) -> DataType:
@@ -1141,7 +1194,9 @@ def type_string_to_type_object(type_str: str) -> DataType:
     # First check if this might be a top-level multi-field struct
     #    (e.g. "a: int, b: string") even if not written as "struct<...>"
     if is_likely_struct(type_str):
-        return parse_struct_field_list(type_str)
+        result = parse_struct_field_list(type_str)
+        if result is not None:
+            return result
 
     # Check for array<...>
     if ARRAY_RE.match(type_str):
