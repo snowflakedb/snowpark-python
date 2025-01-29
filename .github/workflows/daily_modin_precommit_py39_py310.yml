@@ -1,6 +1,6 @@
 # This is copied from original daily_precommit.yml with one change: only run Snowpark pandas tests
 
-name: Daily Snowpark pandas API test
+name: Daily Snowpark pandas API test with Py3.9 and Py3.10
 on:
   push
 #  schedule:
