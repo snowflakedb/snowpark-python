@@ -75,6 +75,7 @@ def test__pandas_importer():
     imported_pandas = _pandas_importer()
     try:
         import pandas
+
         assert imported_pandas == pandas
     except ImportError:
         assert isinstance(imported_pandas, MissingPandas)
