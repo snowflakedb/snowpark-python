@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.compiler.telemetry_constants import (
 )
 from snowflake.snowpark._internal.compiler.utils import (
     TreeNode,
+    extract_child_from_with_query_block,
     is_active_transaction,
     is_with_query_block,
     replace_child,
@@ -357,20 +358,6 @@ class LargeQueryBreakdown:
             current_node_validity_statistics,
         )
 
-    def _extract_child_from_with_query_block(
-        self, child: Optional[LogicalPlan]
-    ) -> TreeNode:
-        if isinstance(child, WithQueryBlock):
-            return child.children[0]
-        if isinstance(child, SnowflakePlan):
-            return self._extract_child_from_with_query_block(child.source_plan)
-        if isinstance(child, SelectSnowflakePlan):
-            return self._extract_child_from_with_query_block(child.snowflake_plan)
-
-        raise ValueError(
-            f"Invalid node type {type(child)} for partitioning."
-        )  # pragma: no cover
-
     def _get_partitioned_plan(self, child: TreeNode) -> SnowflakePlan:
         """This method takes cuts the child out from the root, creates a temp table plan for the
         partitioned child and returns the plan. The steps involved are:
@@ -390,7 +377,7 @@ class LargeQueryBreakdown:
                 [temp_table_name],
                 None,
                 SaveMode.ERROR_IF_EXISTS,
-                self._extract_child_from_with_query_block(child)
+                extract_child_from_with_query_block(child)
                 if is_with_query_block(child)
                 else child,
                 table_type="temp",

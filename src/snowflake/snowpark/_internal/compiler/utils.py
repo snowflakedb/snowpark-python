@@ -356,10 +356,27 @@ def is_active_transaction(session):
     return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
 
 
-def is_with_query_block(node: Optional[LogicalPlan]) -> bool:
+def extract_child_from_with_query_block(child: LogicalPlan) -> TreeNode:
+    """Given a WithQueryBlock node, or a node that contains a WithQueryBlock node, this method
+    extracts the child node from the WithQueryBlock node and returns it."""
+    if isinstance(child, WithQueryBlock):
+        return child.children[0]
+    if isinstance(child, SnowflakePlan) and child.source_plan is not None:
+        return extract_child_from_with_query_block(child.source_plan)
+    if isinstance(child, SelectSnowflakePlan):
+        return extract_child_from_with_query_block(child.snowflake_plan)
+
+    raise ValueError(
+        f"Invalid node type {type(child)} for partitioning."
+    )  # pragma: no cover
+
+
+def is_with_query_block(node: LogicalPlan) -> bool:
+    """Given a node, this method checks if the node is a WithQueryBlock node or contains a
+    WithQueryBlock node."""
     if isinstance(node, WithQueryBlock):
         return True
-    if isinstance(node, SnowflakePlan):
+    if isinstance(node, SnowflakePlan) and node.source_plan is not None:
         return is_with_query_block(node.source_plan)
     if isinstance(node, SelectSnowflakePlan):
         return is_with_query_block(node.snowflake_plan)
