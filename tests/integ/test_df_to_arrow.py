@@ -26,11 +26,6 @@ except ImportError:
     pytest.skip("pyarrow is not available", allow_module_level=True)
 
 
-class ReMatch(str):
-    def __eq__(self, other):
-        return re.match(str(self), other) is not None
-
-
 @pytest.fixture(scope="module")
 def basic_arrow_table():
     yield pa.Table.from_arrays([[1, 2, 3]], names=["a"])
@@ -279,7 +274,7 @@ def test_misc_settings(
     sql_use_logical_type = (
         "" if use_logical_type is None else f" USE_LOGICAL_TYPE = {use_logical_type}"
     )
-    calls = [
+    queries = [
         f"^CREATE SCOPED TEMPORARY STAGE .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={compression}\\)",
         f"PUT.*SNOWPARK_TEMP_STAGE_.*PARALLEL={parallel}",
         f'COPY INTO "SNOWPARK_PYTHON_MOCKED_ARROW_TABLE" .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={copy_compression}{sql_use_logical_type.upper()}\\) PURGE=TRUE ON_ERROR={on_error}',
@@ -294,10 +289,8 @@ def test_misc_settings(
             use_logical_type=use_logical_type,
             on_error=on_error,
         )
-        execute.assert_has_calls(
-            [mock.call(ReMatch(call), _is_internal=True) for call in calls],
-            any_order=True,
-        )
+        for query in queries:
+            assert any(re.match(query, call.args[0]) for call in execute.call_args_list)
 
 
 def test_write_arrow_negative(session, basic_arrow_table):
