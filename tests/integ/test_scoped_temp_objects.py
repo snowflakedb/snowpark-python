@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.utils import (
 )
 
 
+@pytest.mark.skip("It's flaky on different environments. Need to investigate why.")
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",

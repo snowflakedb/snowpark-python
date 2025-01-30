@@ -184,6 +184,7 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     Lag,
     LastValue,
     Lead,
+    NthValue,
 )
 from snowflake.snowpark._internal.ast.utils import (
     build_builtin_fn_apply,
@@ -8924,9 +8925,37 @@ def first_value(
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "first_value", e, ignore_nulls)
 
-    c = _to_col_if_str(e, "last_value")
+    c = _to_col_if_str(e, "first_value")
 
     ans = Column(FirstValue(c._expression, None, None, ignore_nulls), _emit_ast=False)
+    ans._ast = ast
+    return ans
+
+
+@publicapi
+def nth_value(
+    e: ColumnOrName, n: int, ignore_nulls: bool = False, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the nth value within an ordered group of values.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> window = Window.partition_by("column1").order_by("column2")
+        >>> df = session.create_dataframe([[1, 10], [1, 11], [2, 20], [2, 21]], schema=["column1", "column2"])
+        >>> df.select(df["column1"], df["column2"], nth_value(df["column2"], 2).over(window).as_("column2_2nd")).collect()
+        [Row(COLUMN1=1, COLUMN2=10, COLUMN2_2ND=11), Row(COLUMN1=1, COLUMN2=11, COLUMN2_2ND=11), Row(COLUMN1=2, COLUMN2=20, COLUMN2_2ND=21), Row(COLUMN1=2, COLUMN2=21, COLUMN2_2ND=21)]
+    """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "nth_value", e, n, ignore_nulls)
+
+    c = _to_col_if_str(e, "nth_value")
+
+    ans = Column(NthValue(c._expression, n, None, ignore_nulls), _emit_ast=False)
     ans._ast = ast
     return ans
 

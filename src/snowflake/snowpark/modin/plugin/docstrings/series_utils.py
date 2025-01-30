@@ -101,6 +101,14 @@ class StringMethods:
         1    [https:, , docs.python.org, 3, tutorial, index...
         2                                                 None
         dtype: object
+
+        When using expand=True, the split elements will expand out into separate columns. If NaN is present, it is propagated throughout the columns during the split.
+
+        >>> s.str.split(expand=True)
+                                                       0     1     2        3         4
+        0                                           this    is     a  regular  sentence
+        1  https://docs.python.org/3/tutorial/index.html  None  None     None      None
+        2                                           None  None  None     None      None
         """
 
     def rsplit():

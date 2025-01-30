@@ -231,3 +231,7 @@ class LastValue(RankRelatedFunctionExpression):
 
 class FirstValue(RankRelatedFunctionExpression):
     sql = "FIRST_VALUE"
+
+
+class NthValue(RankRelatedFunctionExpression):
+    sql = "NTH_VALUE"
