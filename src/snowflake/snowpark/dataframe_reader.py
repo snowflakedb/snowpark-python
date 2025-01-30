@@ -1180,13 +1180,13 @@ class DataFrameReader:
             * decimal.Decimal(actual_num_partitions)
             / decimal.Decimal(stride)
         )
-        lowerBoundWithStrideAlignment = lower_bound + int(
+        lower_bound_with_stride_alignment = processed_lower_bound + int(
             (lost_num_of_strides / 2 * decimal.Decimal(stride)).quantize(
                 decimal.Decimal("1"), rounding=ROUND_HALF_UP
             )
         )
 
-        current_value = lowerBoundWithStrideAlignment
+        current_value = lower_bound_with_stride_alignment
 
         partition_queries = []
         for i in range(actual_num_partitions):
