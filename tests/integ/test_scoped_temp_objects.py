@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.utils import (
 )
 
 
+# @pytest.mark.skip("Need to investigate why `create scoped temporary table` sometimes doens't throw an exception.")
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
@@ -43,16 +44,14 @@ def test_create_scoped_temp_objects_syntax(session):
         )
     assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
 
-    # temp_table_name = "temp_table"
+    temp_table_name = "temp_table"
     # with pytest.raises(ProgrammingError) as exc:
-    #     session._run_query(f"create scoped temporary table {temp_table_name} (col int)")
+    session._run_query(f"create scoped temporary table {temp_table_name} (col int)")
     # assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
-    # TODO: Investigate why the above doesn't raise ProgrammingError in Ubuntu and Windows. It raises the error in MacOS.
-    #  But this isn't related to the Snowpark Python client code. Maybe related to Python Connector.
-    # with pytest.raises(ProgrammingError) as exc:
-    #     session._run_query(
-    #         f"create scoped temporary view temp_view as select * from {temp_table_name}"
-    #     )
+    with pytest.raises(ProgrammingError) as exc:
+        session._run_query(
+            f"create scoped temporary view temp_view as select * from {temp_table_name}"
+        )
     assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
     with pytest.raises(ProgrammingError) as exc:
         session._run_query("create scoped temporary stage temp_stage")
