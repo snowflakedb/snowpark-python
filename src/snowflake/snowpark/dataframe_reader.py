@@ -10,6 +10,7 @@ from concurrent.futures import (
     wait,
     ALL_COMPLETED,
     ThreadPoolExecutor,
+    as_completed,
 )
 
 from dateutil import parser
@@ -35,7 +36,11 @@ from snowflake.snowpark._internal.ast.utils import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
-from snowflake.snowpark._internal.type_utils import ColumnOrName, convert_sf_to_sp_type
+from snowflake.snowpark._internal.type_utils import (
+    ColumnOrName,
+    convert_sf_to_sp_type,
+    Connection,
+)
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
@@ -48,7 +53,10 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.exceptions import (
+    SnowparkSessionException,
+    SnowparkClientException,
+)
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
@@ -66,8 +74,7 @@ from snowflake.snowpark.types import (
     _NumericType,
     TimestampType,
 )
-from pyodbc import Connection
-import pandas as pd
+from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import random_name_for_temp_object
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -94,6 +101,8 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
+
+MAX_RETRY_TIME = 3
 
 
 def _validate_stage_path(path: str) -> str:
@@ -1012,15 +1021,17 @@ class DataFrameReader:
         self,
         create_connection: Callable[[], "Connection"],
         table: str,
+        *,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
-        predicates: Optional[List[str]] = None,
-        *,
         max_workers: Optional[int] = None,
+        query_timeout: Optional[int] = 0,
     ) -> DataFrame:
         conn = create_connection()
+        # this is specified to pyodbc, need other way to manage timeout on other drivers
+        conn.timeout = query_timeout
         struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
         if column is None:
             if (
@@ -1056,7 +1067,6 @@ class DataFrameReader:
                 lower_bound,
                 upper_bound,
                 num_partitions,
-                predicates,
             )
         with tempfile.TemporaryDirectory() as tmp_dir:
             # create temp table
@@ -1072,42 +1082,51 @@ class DataFrameReader:
             sql_create_temp_stage = f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage if not exists {snowflake_stage_name}"
             self._session._run_query(sql_create_temp_stage, is_ddl_on_temp_object=True)
 
-            with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                futures = [
-                    executor.submit(
-                        task_fetch_from_data_source,
+            with ProcessPoolExecutor(
+                max_workers=max_workers
+            ) as process_executor, ThreadPoolExecutor(
+                max_workers=max_workers
+            ) as thread_executor:
+                thread_pool_futures = []
+                process_pool_futures = [
+                    process_executor.submit(
+                        task_fetch_from_data_source_with_retry,
                         create_connection,
                         query,
                         raw_schema,
                         i,
                         tmp_dir,
+                        query_timeout,
                     )
                     for i, query in enumerate(partitioned_queries)
                 ]
-
-                completed_futures = wait(futures, return_when=ALL_COMPLETED)
-            files = []
-            for f in completed_futures.done:
-                if isinstance(f.result(), Exception):
-                    raise f.result()
-                else:
-                    files.append(f.result())
-            with ThreadPoolExecutor(max_workers=max_workers) as thread_executor:
-                futures = [
-                    thread_executor.submit(
-                        self.upload_and_copy_into_table,
-                        f,
-                        snowflake_stage_name,
-                        snowflake_table_name,
-                        "abort_statement",
-                    )
-                    for f in files
-                ]
-
-                completed_futures = wait(futures, return_when=ALL_COMPLETED)
-            for f in completed_futures.done:
-                if f.result() is not None:
-                    raise f.result()
+                for future in as_completed(process_pool_futures):
+                    if isinstance(future.result(), Exception):
+                        logger.debug(
+                            "fetch from data source failed, canceling all running tasks"
+                        )
+                        process_executor.shutdown(wait=False)
+                        thread_executor.shutdown(wait=False)
+                        raise future.result()
+                    else:
+                        thread_pool_futures.append(
+                            thread_executor.submit(
+                                self.upload_and_copy_into_table_with_retry,
+                                future.result(),
+                                snowflake_stage_name,
+                                snowflake_table_name,
+                                "abort_statement",
+                            )
+                        )
+                completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
+                for f in completed_futures.done:
+                    if f.result() is not None and isinstance(f.result(), Exception):
+                        logger.debug(
+                            "upload and copy into table failed, canceling all running tasks"
+                        )
+                        process_executor.shutdown(wait=False)
+                        thread_executor.shutdown(wait=False)
+                        raise f.result()
             return res_df
 
     def _infer_data_source_schema(
@@ -1124,7 +1143,6 @@ class DataFrameReader:
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
-        predicates: Optional[List[str]] = None,
     ) -> List[str]:
         select_query = f"SELECT * FROM {table}"
 
@@ -1205,13 +1223,13 @@ class DataFrameReader:
             fields.append(field)
         return StructType(fields)
 
-    def upload_and_copy_into_table(
+    def _upload_and_copy_into_table(
         self,
         local_file: str,
         snowflake_stage_name: str,
         snowflake_table_name: Optional[str] = None,
         on_error: Optional[str] = "abort_statement",
-    ) -> Optional[Exception]:
+    ):
         file_name = os.path.basename(local_file)
         put_query = f"put file://{local_file} @{snowflake_stage_name}/ OVERWRITE=TRUE"
         copy_into_table_query = f"""
@@ -1221,28 +1239,84 @@ class DataFrameReader:
         PURGE=TRUE
         ON_ERROR={on_error}
         """
-        try:
-            self._session.sql(put_query).collect()
-            self._session.sql(copy_into_table_query).collect()
-            return None
-        except Exception as e:
-            return e
+        self._session.sql(put_query).collect()
+        self._session.sql(copy_into_table_query).collect()
+
+    def upload_and_copy_into_table_with_retry(
+        self,
+        local_file: str,
+        snowflake_stage_name: str,
+        snowflake_table_name: str,
+        on_error: Optional[str] = "abort_statement",
+    ) -> Optional[Exception]:
+        retry_count = 0
+        error = None
+        while retry_count < MAX_RETRY_TIME:
+            try:
+                self._upload_and_copy_into_table(
+                    local_file, snowflake_stage_name, snowflake_table_name, on_error
+                )
+                return
+            except Exception as e:
+                error = e
+                retry_count += 1
+                logger.debug(
+                    f"upload and copy into table failed with {error.__repr__()}, retry count: {retry_count}, retrying ..."
+                )
+        error = SnowparkClientException(
+            message=f"failed to load data to snowflake, got {error.__repr__()}"
+        )
+        logger.debug(
+            f"upload and copy into table failed with {error.__repr__()}, exceed max retry time"
+        )
+        return error
 
 
-def task_fetch_from_data_source(
+def _task_fetch_from_data_source(
     create_connection: Callable[[], "Connection"],
     query: str,
     schema: tuple[tuple[str, Any, int, int, int, int, bool]],
     i: int,
     tmp_dir: str,
-) -> Union[str, Exception]:
-    try:
-        conn = create_connection()
-        result = conn.cursor().execute(query).fetchall()
-        columns = [col[0] for col in schema]
-        df = pd.DataFrame.from_records(result, columns=columns)
-        path = os.path.join(tmp_dir, f"data_{i}.parquet")
-        df.to_parquet(path)
-    except Exception as e:
-        return e
+    query_timeout: int = 0,
+) -> str:
+    conn = create_connection()
+    # this is specified to pyodbc, need other way to manage timeout on other drivers
+    conn.timeout = query_timeout
+    result = conn.cursor().execute(query).fetchall()
+    columns = [col[0] for col in schema]
+    df = pd.DataFrame.from_records(result, columns=columns)
+    path = os.path.join(tmp_dir, f"data_{i}.parquet")
+    df.to_parquet(path)
     return path
+
+
+def task_fetch_from_data_source_with_retry(
+    create_connection: Callable[[], "Connection"],
+    query: str,
+    schema: tuple[tuple[str, Any, int, int, int, int, bool]],
+    i: int,
+    tmp_dir: str,
+    query_timeout: int = 0,
+) -> Union[str, Exception]:
+    retry_count = 0
+    error = None
+    while retry_count < MAX_RETRY_TIME:
+        try:
+            path = _task_fetch_from_data_source(
+                create_connection, query, schema, i, tmp_dir, query_timeout
+            )
+            return path
+        except Exception as e:
+            error = e
+            retry_count += 1
+            logger.debug(
+                f"fetch from data source failed with {error.__repr__()}, retry count: {retry_count}, retrying ..."
+            )
+    error = SnowparkClientException(
+        message=f"failed to fetch from data source, got {error.__repr__()}"
+    )
+    logger.debug(
+        f"fetch from data source failed with {error.__repr__()}, exceed max retry time"
+    )
+    return error
