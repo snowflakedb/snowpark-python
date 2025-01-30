@@ -28,6 +28,7 @@ from typing import (  # noqa: F401
     Union,
     get_args,
     get_origin,
+    Protocol,
 )
 
 import snowflake.snowpark.context as context
@@ -986,6 +987,38 @@ def type_string_to_type_object(type_str: str) -> DataType:
         return DATA_TYPE_STRING_OBJECT_MAPPINGS[type_str]()
     except KeyError:
         raise ValueError(f"'{type_str}' is not a supported type")
+
+
+class Connection(Protocol):
+    """External datasource connection created from user-input create_connection function."""
+
+    def cursor(self) -> "Cursor":
+        pass
+
+    def close(self) -> None:
+        pass
+
+    def commit(self) -> None:
+        pass
+
+    def rollback(self) -> None:
+        pass
+
+
+class Cursor(Protocol):
+    """Cursor created from external datasource connection"""
+
+    def execute(self, sql: str, *params: Any) -> "Cursor":
+        pass
+
+    def fetchall(self) -> list[Any]:
+        pass
+
+    def fetchone(self) -> Any:
+        pass
+
+    def close(self) -> None:
+        pass
 
 
 # Type hints
