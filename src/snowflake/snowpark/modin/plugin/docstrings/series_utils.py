@@ -109,14 +109,6 @@ class StringMethods:
         0                                           this    is     a  regular  sentence
         1  https://docs.python.org/3/tutorial/index.html  None  None     None      None
         2                                           None  None  None     None      None
-
-        For slightly more complex use cases like splitting the html document name from a url, a combination of parameter settings can be used.
-
-        >>> s.str.rsplit("/", n=1, expand=True)
-                                            0           1
-        0          this is a regular sentence        None
-        1  https://docs.python.org/3/tutorial  index.html
-        2                                None        None
         """
 
     def rsplit():
