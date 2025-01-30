@@ -2,18 +2,17 @@
 
 name: Daily Snowpark pandas API test with Py3.11 and Py3.12
 on:
-  push
-#  schedule:
-#    # 8 AM UTC
-#    - cron: "0 8 * * *"
-#  workflow_dispatch:
-#      inputs:
-#        logLevel:
-#          default: warning
-#          description: "Log level"
-#          required: true
-#        tags:
-#          description: "Test scenario tags"
+  schedule:
+    # 8 AM UTC
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+      inputs:
+        logLevel:
+          default: warning
+          description: "Log level"
+          required: true
+        tags:
+          description: "Test scenario tags"
 
 jobs:
   lint:
