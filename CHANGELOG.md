@@ -1,6 +1,6 @@
 # Release History
 
-## 1.27.0 (1/30/2025)
+## 1.27.0 (2025-01-30)
 
 ### Snowpark Python API Updates
 
@@ -60,9 +60,9 @@
 #### Experimental Features
 
 - Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+  - `snowflake.core` is a dependency required for this feature.
 - Allow user input schema when reading JSON file on stage.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
-  - `snowflake.core` is a dependency required for this feature.
 
 #### Improvements
 
@@ -77,12 +77,13 @@
 
 #### Bug Fixes
 
-- Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
+- Fixed a bug in local testing mode that caused a column to contain None when it should contain 0.
 - Fixed a bug in `StructField.from_json` that prevented TimestampTypes with `tzinfo` from being parsed correctly.
 - Fixed a bug in function `date_format` that caused an error when the input column was date type or timestamp type.
 - Fixed a bug in dataframe that null value can be inserted in a non-nullable column.
 - Fixed a bug in `replace` and `lit` which raised type hint assertion error when passing `Column` expression objects.
 - Fixed a bug in `pandas_udf` and `pandas_udtf` where `session` parameter was erroneously ignored.
+- Fixed a bug that raised incorrect type conversion error for system function called through `session.call`.
 
 ### Snowpark pandas API Updates
 
@@ -116,10 +117,6 @@
 - Added support for aggregations `"count"`, `"median"`, `np.median`,
   `"skew"`, `"std"`, `np.std` `"var"`, and `np.var` in
   `pd.pivot_table()`, `DataFrame.pivot_table()`, and `pd.crosstab()`.
-
-#### Bug Fixes
-
-- Fixed a bug that system function called through `session.call` have incorrect type conversion.
 
 #### Improvements
 - Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
