@@ -1566,3 +1566,32 @@ def test_cast_structtype_add(structured_type_session, structured_type_support):
             .as_("new_name"),
             col("dob"),
         )
+
+
+def test_non_nullable_schema(structured_type_session, structured_type_support):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    schema = StructType(
+        [
+            StructField(
+                "struct",
+                StructType(
+                    [
+                        StructField("name", StringType(), True),
+                        StructField("age", IntegerType(), True),
+                    ]
+                ),
+                False,
+            )
+        ]
+    )
+    df = structured_type_session.createDataFrame(
+        [({"name": "Alice", "age": 2},), ({"name": "Bob", "age": 5},)], schema
+    )
+    assert df._format_schema() == (
+        "root\n"
+        ' |-- "STRUCT": StructType (nullable = True)\n'
+        ' |   |-- "name": StringType() (nullable = True)\n'
+        ' |   |-- "age": LongType() (nullable = True)'
+    )
