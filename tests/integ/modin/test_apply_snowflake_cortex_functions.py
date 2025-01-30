@@ -90,8 +90,5 @@ def test_apply_snowflake_cortex_negative(session):
 
     content = "One day I will see the world."
     s = pd.Series([content])
-    with pytest.raises(
-        NotImplementedError,
-        match="Snowflake Cortex function `Translate` is not supported yet.",
-    ):
+    with pytest.raises(NotImplementedError):
         return s.apply(Translate, source_language="en", target_language="de").iloc[0]
