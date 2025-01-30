@@ -1125,6 +1125,8 @@ class DataFrame:
 
         When the data is too large to fit into memory, you can use :meth:`to_arrow_batches`.
 
+        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
+
         Args:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             block: A bool value indicating whether this function will wait until the result is available.

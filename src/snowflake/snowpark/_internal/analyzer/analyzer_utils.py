@@ -1737,7 +1737,7 @@ def write_arrow(
             set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
             https://docs.snowflake.com/en/sql-reference/sql/create-file-format
     """
-    # This function mostly copies the functionality of snowflake.connector.pandas_utils.write_pandas.
+    # SNOW-1904593: This function mostly copies the functionality of snowflake.connector.pandas_utils.write_pandas.
     # It should be pushed down into the connector, but would require a minimum required version bump.
     import pyarrow.parquet  # type: ignore
 
