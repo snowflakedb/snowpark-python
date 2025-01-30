@@ -5837,11 +5837,19 @@ Query List:
                 if isinstance(self._session._conn, MockServerConnection):
                     self.schema  # to execute the plan and populate expr_to_alias
 
-                names.append(
-                    self._plan.expr_to_alias.get(
-                        c._expression.expr_id, c._expression.name
+                if not self._session._resolve_conflict_alias:
+                    names.append(
+                        self._plan.expr_to_alias.get(
+                            c._expression.expr_id, c._expression.name
+                        )
                     )
-                )
+                else:
+                    names.append(
+                        self._plan.expr_to_alias.get(
+                            c._expression.expr_id, (c._expression.name, False)
+                        )[0]
+                    )
+
             elif (
                 isinstance(c, Column)
                 and isinstance(c._expression, UnresolvedAttribute)
@@ -5857,8 +5865,8 @@ Query List:
                     names.append(
                         self._plan.df_aliased_col_name_to_real_col_name.get(
                             c._expression.name, (c._expression.name, False)
-                        )
-                    )[0]
+                        )[0]
+                    )
             elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
                 names.append(c._expression.name)
             else:
