@@ -159,13 +159,24 @@ class SnowflakePlan(LogicalPlan):
                         children = [
                             arg for arg in args if isinstance(arg, SnowflakePlan)
                         ]
-                        remapped = [
-                            SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
-                                "", val
-                            )
-                            for child in children
-                            for val in child.expr_to_alias.values()
-                        ]
+                        remapped = []
+                        if children:
+                            if not children[0].session._resolve_conflict_alias:
+                                remapped = [
+                                    SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
+                                        "", val
+                                    )
+                                    for child in children
+                                    for val in child.expr_to_alias.values()
+                                ]
+                            else:
+                                remapped = [
+                                    SnowflakePlan.Decorator.__wrap_exception_regex_sub.sub(
+                                        "", val[0]
+                                    )
+                                    for child in children
+                                    for val in child.expr_to_alias.values()
+                                ]
                         if col in remapped:
                             unaliased_cols = (
                                 snowflake.snowpark.dataframe._get_unaliased(col)

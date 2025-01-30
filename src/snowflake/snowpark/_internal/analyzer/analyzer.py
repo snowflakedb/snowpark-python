@@ -4,7 +4,7 @@
 #
 import uuid
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Union
 from logging import getLogger
 
 from snowflake.connector import IntegrityError
@@ -375,15 +375,23 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Attribute):
-            name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            if not self.session._resolve_conflict_alias:
+                name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
+            else:
+                name = self.alias_maps_to_use.get(expr.expr_id, (expr.name, False))[0]
             return quote_name(name)
 
         if isinstance(expr, UnresolvedAttribute):
             if expr.df_alias:
                 if expr.df_alias in df_aliased_col_name_to_real_col_name:
-                    return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
-                        expr.name, expr.name
-                    )
+                    if not self.session._resolve_conflict_alias:
+                        return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
+                            expr.name, expr.name
+                        )
+                    else:
+                        return df_aliased_col_name_to_real_col_name[expr.df_alias].get(
+                            expr.name, (expr.name, False)
+                        )[0]
                 else:
                     raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
                         expr.df_alias
@@ -413,7 +421,11 @@ class Analyzer:
                         expr.df_alias
                     )
                 columns = df_aliased_col_name_to_real_col_name[expr.df_alias]
-                return ",".join(columns.values())
+                if not self.session._resolve_conflict_alias:
+                    ret = ",".join(columns.values())
+                else:
+                    ret = ",".join([v[0] for v in columns.values()])
+                return ",".join(ret)
             if not expr.expressions:
                 return "*"
             else:
@@ -637,16 +649,28 @@ class Analyzer:
         if isinstance(expr, Alias):
             quoted_name = quote_name(expr.name)
             if isinstance(expr.child, Attribute):
-                self.generated_alias_maps[expr.child.expr_id] = quoted_name
-                assert self.alias_maps_to_use is not None
-                for k, v in self.alias_maps_to_use.items():
-                    if v == expr.child.name:
-                        self.generated_alias_maps[k] = quoted_name
-
-                for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
-                    for k, v in df_alias_dict.items():
+                if not self.session._resolve_conflict_alias:
+                    self.generated_alias_maps[expr.child.expr_id] = quoted_name
+                    assert self.alias_maps_to_use is not None
+                    for k, v in self.alias_maps_to_use.items():
                         if v == expr.child.name:
-                            df_alias_dict[k] = quoted_name
+                            self.generated_alias_maps[k] = quoted_name
+
+                    for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
+                        for k, v in df_alias_dict.items():
+                            if v == expr.child.name:
+                                df_alias_dict[k] = quoted_name
+                else:
+                    self.generated_alias_maps[expr.child.expr_id] = (quoted_name, False)
+                    assert self.alias_maps_to_use is not None
+                    for k, v in self.alias_maps_to_use.items():
+                        if v[0] == expr.child.name:
+                            self.generated_alias_maps[k] = (quoted_name, True)
+
+                    for df_alias_dict in df_aliased_col_name_to_real_col_name.values():
+                        for k, v in df_alias_dict.items():
+                            if v[0] == expr.child.name:
+                                df_alias_dict[k] = (quoted_name, True)
             return alias_expression(
                 self.analyze(
                     expr.child, df_aliased_col_name_to_real_col_name, parse_local_name
