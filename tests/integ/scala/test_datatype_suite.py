@@ -1568,6 +1568,10 @@ def test_cast_structtype_add(structured_type_session, structured_type_support):
         )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
 def test_non_nullable_schema(structured_type_session, structured_type_support):
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
