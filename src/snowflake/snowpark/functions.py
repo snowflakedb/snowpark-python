@@ -1906,6 +1906,59 @@ def uniform(
 
 
 @publicapi
+def slice(
+    col: ColumnOrName, start: Union[int, ColumnOrName], end: Union[int, ColumnOrName]
+) -> Column:
+    """Returns an array containing all the elements in `col` from index `start` with the specified `length`.
+    Array indices start from 0. Both of 'start' and 'end' can be negative, which indicate index from the end
+    of the array.
+
+    Args:
+        col: Column containing arrays want to slice.
+        start: Start index of the slice.
+        end: End index of the slice.
+
+
+    Example::
+        >>> df = session.createDataFrame([[1, [1, 2, 3, 4, 5]]], ["id", "array"])
+        >>> df.select(slice("array", 0, 2)).show()
+        ----------------------------------
+        |"ARRAY_SLICE(""ARRAY"", 0, 2)"  |
+        ----------------------------------
+        |[                               |
+        |  1,                            |
+        |  2                             |
+        |]                               |
+        ----------------------------------
+        <BLANKLINE>
+
+        >>> df.select(slice("array", -2, -1)).show()
+        ------------------------------------
+        |"ARRAY_SLICE(""ARRAY"", -2, -1)"  |
+        ------------------------------------
+        |[                                 |
+        |  4                               |
+        |]                                 |
+        ------------------------------------
+        <BLANKLINE>
+
+        >>> df.select(slice("array", 0, "id")).show()
+        ---------------------------------------
+        |"ARRAY_SLICE(""ARRAY"", 0, ""ID"")"  |
+        ---------------------------------------
+        |[                                    |
+        |  1                                  |
+        |]                                    |
+        ---------------------------------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(col, "array_slice")
+    start = start if isinstance(start, int) else _to_col_if_str(start, "array_slice")
+    end = end if isinstance(end, int) else _to_col_if_str(end, "array_slice")
+    return _call_function("array_slice", False, c, start, end)
+
+
+@publicapi
 def seq1(sign: int = 0, _emit_ast: bool = True) -> Column:
     """Returns a sequence of monotonically increasing integers, with wrap-around
     which happens after largest representable integer of integer width 1 byte.
