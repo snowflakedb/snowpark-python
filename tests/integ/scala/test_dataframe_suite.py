@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 import copy
 import math
 import os
@@ -835,6 +836,34 @@ def test_df_stat_sampleBy(session):
         and schema_names[2] == "MONTH"
     )
     assert len(sample_by_3.collect()) == 0
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in local testing",
+)
+def test_df_stat_sampleBy_seed(session, caplog):
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    TestData.monthly_sales(session).write.save_as_table(
+        temp_table_name, table_type="temp", mode="overwrite"
+    )
+    df = session.table(temp_table_name)
+
+    # with seed, the result is deterministic and should be the same
+    sample_by_action = (
+        lambda df: df.stat.sample_by(col("empid"), {1: 0.5, 2: 0.5}, seed=1)
+        .sort(df.columns)
+        .collect()
+    )
+    result = sample_by_action(df)
+    for _ in range(3):
+        Utils.check_answer(sample_by_action(df), result)
+
+    # DataFrame doesn't work with seed
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        sample_by_action(TestData.monthly_sales(session))
+    assert "`seed` argument is ignored on `DataFrame` object" in caplog.text
 
 
 @pytest.mark.skipif(
@@ -2076,6 +2105,18 @@ def test_create_or_replace_temporary_view(session, db_parameters, local_testing_
             with pytest.raises(SnowparkSQLException) as ex_info:
                 session2.table(view_name).collect()
                 assert "does not exist or not authorized" in str(ex_info)
+
+
+def test_create_temp_view(session):
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+
+    df = session.create_dataframe([1, 2, 3]).to_df("a")
+    df.create_temp_view(view_name)
+    Utils.check_answer(session.table(view_name), [Row(1), Row(2), Row(3)])
+
+    # create again will fail
+    with pytest.raises(SnowparkSQLException, match="already exists"):
+        df.create_temp_view(view_name)
 
 
 def test_createDataFrame_with_schema_inference(session):
