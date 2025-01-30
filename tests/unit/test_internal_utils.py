@@ -78,4 +78,4 @@ def test__pandas_importer():
 
         assert imported_pandas == pandas
     except ImportError:
-        assert imported_pandas == MissingPandas
+        assert isinstance(imported_pandas, MissingPandas)
