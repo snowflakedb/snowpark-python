@@ -1216,14 +1216,18 @@ class DataFrameReader:
     def _to_internal_value(self, value, column_type):
         if isinstance(column_type, _NumericType):
             return int(value)
-        else:
+        elif isinstance(column_type, (datetime.time, datetime.date, datetime.datetime)):
             return int(parser.parse(value).timestamp())
+        else:
+            raise ValueError(f"unsupported column type for partition: {column_type}")
 
     def _to_external_value(self, value, column_type):
         if isinstance(column_type, _NumericType):
             return value
-        else:
+        elif isinstance(column_type, (datetime.time, datetime.date, datetime.datetime)):
             return datetime.datetime.fromtimestamp(value)
+        else:
+            raise ValueError(f"unsupported column type for partition: {column_type}")
 
     def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
         fields = []

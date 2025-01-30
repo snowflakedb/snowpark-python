@@ -14,7 +14,7 @@ from snowflake.snowpark.dataframe_reader import (
     task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
 )
-from snowflake.snowpark.types import IntegerType, DateType
+from snowflake.snowpark.types import IntegerType, DateType, MapType
 
 SQL_SERVER_TABLE_NAME = "RandomDataWith100Columns"
 
@@ -864,3 +864,15 @@ def test_partition_date_timestamp(session):
 
     for r, expected_r in zip(queries, expected_queries2):
         assert r == expected_r
+
+
+def test_partition_unsupported_type(session):
+    with pytest.raises(ValueError, match="unsupported column type for partition:"):
+        session.read._generate_partition(
+            table="fake_table",
+            column_type=MapType(),
+            column="DATE",
+            lower_bound=0,
+            upper_bound=1,
+            num_partitions=4,
+        )
