@@ -320,6 +320,8 @@ df313 = df.select(log2("A"))
 
 df314 = df.select(instr("A", "test_str"))
 
+df315 = df.select(nth_value("A", 2), nth_value("A", 2, True), nth_value(col("B"), 2, False))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -639,6 +641,8 @@ df312 = df.select(log10("A"))
 df313 = df.select(log2("A"))
 
 df314 = df.select(instr("A", "test_str"))
+
+df315 = df.select(nth_value("A", 2, False), nth_value("A", 2, True), nth_value(col("B"), 2, False))
 
 ## EXPECTED ENCODED AST
 
@@ -26040,6 +26044,230 @@ body {
     uid: 159
     var_id {
       bitfield1: 159
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "nth_value"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 43
+                  end_line: 345
+                  file: 2
+                  start_column: 26
+                  start_line: 345
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 43
+                  end_line: 345
+                  file: 2
+                  start_column: 26
+                  start_line: 345
+                }
+                v: 2
+              }
+            }
+            pos_args {
+              bool_val {
+                src {
+                  end_column: 43
+                  end_line: 345
+                  file: 2
+                  start_column: 26
+                  start_line: 345
+                }
+              }
+            }
+            src {
+              end_column: 43
+              end_line: 345
+              file: 2
+              start_column: 26
+              start_line: 345
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "nth_value"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 68
+                  end_line: 345
+                  file: 2
+                  start_column: 45
+                  start_line: 345
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 68
+                  end_line: 345
+                  file: 2
+                  start_column: 45
+                  start_line: 345
+                }
+                v: 2
+              }
+            }
+            pos_args {
+              bool_val {
+                src {
+                  end_column: 68
+                  end_line: 345
+                  file: 2
+                  start_column: 45
+                  start_line: 345
+                }
+                v: true
+              }
+            }
+            src {
+              end_column: 68
+              end_line: 345
+              file: 2
+              start_column: 45
+              start_line: 345
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "nth_value"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 88
+                      end_line: 345
+                      file: 2
+                      start_column: 80
+                      start_line: 345
+                    }
+                    v: "B"
+                  }
+                }
+                src {
+                  end_column: 88
+                  end_line: 345
+                  file: 2
+                  start_column: 80
+                  start_line: 345
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 99
+                  end_line: 345
+                  file: 2
+                  start_column: 70
+                  start_line: 345
+                }
+                v: 2
+              }
+            }
+            pos_args {
+              bool_val {
+                src {
+                  end_column: 99
+                  end_line: 345
+                  file: 2
+                  start_column: 70
+                  start_line: 345
+                }
+              }
+            }
+            src {
+              end_column: 99
+              end_line: 345
+              file: 2
+              start_column: 70
+              start_line: 345
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 100
+          end_line: 345
+          file: 2
+          start_column: 16
+          start_line: 345
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df315"
+    }
+    uid: 160
+    var_id {
+      bitfield1: 160
     }
   }
 }

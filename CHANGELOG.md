@@ -28,6 +28,7 @@
   - `localtimestamp`
   - `max_by`
   - `min_by`
+  - `nth_value`
   - `nvl`
   - `octet_length`
   - `position`
@@ -55,6 +56,7 @@
   - `unbase64`
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 - Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
+- Added support for `DataFrame.create_temp_view` to create a temporary view. It will fail if the view already exists.
 - Added support for multiple columns in the functions `map_cat` and `map_concat`.
 
 #### Experimental Features
@@ -73,7 +75,8 @@
 - Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
 - Added support for `value_contains_null` parameter to MapType.
 - Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
-- Allow `session.file.get` in a Native App to read file paths starting with `/` from the current version 
+- Allow `session.file.get` in a Native App to read file paths starting with `/` from the current version
+- Added support for multiple aggregation functions after `DataFrame.pivot`.
 
 #### Bug Fixes
 

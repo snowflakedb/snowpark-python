@@ -354,6 +354,7 @@ def test_create_or_replace_view(session):
         random_name_for_temp_object(TempObjectType.VIEW),
         LocalTempView(),
         None,
+        True,
         df._plan,
     )
 
