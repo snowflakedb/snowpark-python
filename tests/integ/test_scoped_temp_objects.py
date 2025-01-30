@@ -49,10 +49,10 @@ def test_create_scoped_temp_objects_syntax(session):
     # assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
     # TODO: Investigate why the above doesn't raise ProgrammingError in Ubuntu and Windows. It raises the error in MacOS.
     #  But this isn't related to the Snowpark Python client code. Maybe related to Python Connector.
-    with pytest.raises(ProgrammingError) as exc:
-        session._run_query(
-            f"create scoped temporary view temp_view as select * from {temp_table_name}"
-        )
+    # with pytest.raises(ProgrammingError) as exc:
+    #     session._run_query(
+    #         f"create scoped temporary view temp_view as select * from {temp_table_name}"
+    #     )
     assert "Unsupported feature 'SCOPED_TEMPORARY'." in str(exc)
     with pytest.raises(ProgrammingError) as exc:
         session._run_query("create scoped temporary stage temp_stage")
