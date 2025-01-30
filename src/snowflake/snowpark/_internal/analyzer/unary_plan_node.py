@@ -260,12 +260,14 @@ class CreateViewCommand(UnaryNode):
         name: str,
         view_type: ViewType,
         comment: Optional[str],
+        replace: bool,
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
         self.name = name
         self.view_type = view_type
         self.comment = comment
+        self.replace = replace
 
 
 class CreateDynamicTableCommand(UnaryNode):
