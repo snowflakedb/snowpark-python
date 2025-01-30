@@ -301,6 +301,10 @@ def test_misc_settings(
             assert any(re.match(query, call.args[0]) for call in execute.call_args_list)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
 def test_write_arrow_negative(session, basic_arrow_table):
     with pytest.raises(
         ProgrammingError,
