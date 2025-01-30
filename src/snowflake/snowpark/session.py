@@ -2739,6 +2739,8 @@ class Session:
 
         The pyarrow Table is written out to temporary files, uploaded to a temporary stage, and then copied into the final location.
 
+        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
+
         Returns a Snowpark Table that references the table referenced by table_name.
 
         Args:
