@@ -189,7 +189,6 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 from snowflake.snowpark._internal.ast.utils import (
     build_builtin_fn_apply,
     build_call_table_function_apply,
-    build_expr_from_python_val,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
     create_ast_for_column,
@@ -8631,7 +8630,7 @@ def in_(
             if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
                 val._set_ast_ref(val_ast)
             else:
-                build_expr_from_python_val(val_ast, val)
+                build_expr_from_snowpark_column_or_python_val(val_ast, val)
             values_args.append(val_ast)
 
         ast = proto.Expr()
