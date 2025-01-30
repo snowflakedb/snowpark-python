@@ -14,7 +14,7 @@ from snowflake.snowpark.dataframe_reader import (
     task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
 )
-from snowflake.snowpark.types import IntegerType
+from snowflake.snowpark.types import IntegerType, DateType
 
 SQL_SERVER_TABLE_NAME = "RandomDataWith100Columns"
 
@@ -824,5 +824,43 @@ def test_partition_logic(session):
         upper_bound=5,
         num_partitions=4,
     )
+    for r, expected_r in zip(queries, expected_queries2):
+        assert r == expected_r
+
+
+def test_partition_date_timestamp(session):
+    expected_queries1 = [
+        "SELECT * FROM fake_table WHERE DATE < 2020-07-30 18:15:00 OR DATE is null",
+        "SELECT * FROM fake_table WHERE DATE >= 2020-07-30 18:15:00 AND DATE < 2020-09-14 12:30:00",
+        "SELECT * FROM fake_table WHERE DATE >= 2020-09-14 12:30:00 AND DATE < 2020-10-30 06:45:00",
+        "SELECT * FROM fake_table WHERE DATE >= 2020-10-30 06:45:00",
+    ]
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=DateType(),
+        column="DATE",
+        lower_bound=str(datetime.date(2020, 6, 15)),
+        upper_bound=str(datetime.date(2020, 12, 15)),
+        num_partitions=4,
+    )
+
+    for r, expected_r in zip(queries, expected_queries1):
+        assert r == expected_r
+
+    expected_queries2 = [
+        "SELECT * FROM fake_table WHERE DATE < 2020-07-31 05:21:13 OR DATE is null",
+        "SELECT * FROM fake_table WHERE DATE >= 2020-07-31 05:21:13 AND DATE < 2020-09-14 22:16:55",
+        "SELECT * FROM fake_table WHERE DATE >= 2020-09-14 22:16:55 AND DATE < 2020-10-30 15:12:37",
+        "SELECT * FROM fake_table WHERE DATE >= 2020-10-30 15:12:37",
+    ]
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=DateType(),
+        column="DATE",
+        lower_bound=str(datetime.datetime(2020, 6, 15, 12, 25, 30)),
+        upper_bound=str(datetime.datetime(2020, 12, 15, 7, 8, 20)),
+        num_partitions=4,
+    )
+
     for r, expected_r in zip(queries, expected_queries2):
         assert r == expected_r
