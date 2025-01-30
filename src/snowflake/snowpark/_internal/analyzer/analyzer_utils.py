@@ -1752,7 +1752,7 @@ def write_arrow(
         )
 
     if table_type and table_type.lower() not in ["temp", "temporary", "transient"]:
-        raise ValueError(
+        raise ProgrammingError(
             "Unsupported table type. Expected table types: temp/temporary, transient"
         )
 
