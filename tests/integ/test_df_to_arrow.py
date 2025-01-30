@@ -14,6 +14,7 @@ from unittest import mock
 from snowflake.connector.errors import ProgrammingError
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import write_arrow
+from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DecimalType
@@ -179,6 +180,13 @@ def test_write_arrow_overwrite_auto_create(session, basic_arrow_table):
         )
         table3 = session.table(table_name)
         Utils.check_answer(table3, [Row(1), Row(2), Row(3)])
+
+        # Overwriting without autocreate should replace rows as well
+        session.write_arrow(
+            basic_arrow_table, table_name, auto_create_table=False, overwrite=True
+        )
+        table4 = session.table(table_name)
+        Utils.check_answer(table4, [Row(1), Row(2), Row(3)])
     finally:
         Utils.drop_table(session, table_name)
 
@@ -299,3 +307,33 @@ def test_write_arrow_negative(session, basic_arrow_table):
         match="Schema has to be provided to write_arrow when a database is provided",
     ):
         session.write_arrow(basic_arrow_table, "temp_table", database="foo")
+
+    with pytest.raises(
+        ProgrammingError,
+        match="Invalid compression",
+    ):
+        session.write_arrow(basic_arrow_table, "temp_table", compression="invalid")
+
+    with pytest.raises(
+        ProgrammingError,
+        match="Unsupported table type.",
+    ):
+        session.write_arrow(basic_arrow_table, "temp_table", table_type="picnic")
+
+    # Table name does not exist and is not auto-created
+    table_name = Utils.random_table_name()
+    with pytest.raises(
+        ProgrammingError,
+        match="^.*SQL compilation error:\nTable .* does not exist",
+    ):
+        session.write_arrow(basic_arrow_table, table_name)
+
+    with mock.patch(
+        "snowflake.snowpark.session.write_arrow",
+        return_value=(False, 0, 0, "<output here>"),
+    ):
+        with pytest.raises(
+            SnowparkSessionException,
+            match="Failed to write arrow table to Snowflake. COPY INTO output <output here>",
+        ):
+            session.write_arrow(basic_arrow_table, "temp_table")
