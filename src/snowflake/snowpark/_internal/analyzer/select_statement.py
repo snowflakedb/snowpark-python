@@ -1745,9 +1745,17 @@ def derive_column_states_from_subquery(
                     raise SnowparkClientExceptionMessages.DF_ALIAS_NOT_RECOGNIZED(
                         c.child.df_alias
                     )
-                aliased_cols = from_.df_aliased_col_name_to_real_col_name[
-                    c.child.df_alias
-                ].values()
+                if not analyzer.session._resolve_conflict_alias:
+                    aliased_cols = from_.df_aliased_col_name_to_real_col_name[
+                        c.child.df_alias
+                    ].values()
+                else:
+                    aliased_cols = [
+                        v[0]
+                        for v in from_.df_aliased_col_name_to_real_col_name[
+                            c.child.df_alias
+                        ].values()
+                    ]
                 columns_from_star = [
                     copy(e)
                     for e in from_.column_states.projection

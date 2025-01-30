@@ -1521,15 +1521,20 @@ def merge_multiple_snowflake_plan_expr_to_alias(
 ) -> Dict[uuid.UUID, str]:
     """
     Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
+
+    Args:
+        snowflake_plans (List[SnowflakePlan]): List of SnowflakePlan objects.
+
+    Returns:
+        Dict[Any, str]: Merged expression-to-alias mapping.
     """
-    from snowflake.snowpark._internal.analyzer.select_statement import SelectStatement
-    from snowflake.snowpark._internal.analyzer.unary_expression import Alias
-    from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
 
     # Gather all expression-to-alias mappings
     all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
+
     # Initialize the merged dictionary
     merged_dict = {}
+
     # Collect all unique keys from all dictionaries
     all_keys = set().union(*all_expr_to_alias_dicts)
 
@@ -1537,10 +1542,13 @@ def merge_multiple_snowflake_plan_expr_to_alias(
 
     for key in all_keys:
         # Gather all aliases for the current key
-        values = [d[key] for d in all_expr_to_alias_dicts if key in d]
+        values = list({d[key] for d in all_expr_to_alias_dicts if key in d})
         # Check if all aliases are identical
-        if len(set(values)) == 1:
+        if len(values) == 1:
             merged_dict[key] = values[0]
+        elif len(values) == 2 and values[0][0] == values[1][0]:
+            # alias_name is equal, is_back_propagated is different, we pick the not back propagated bool
+            merged_dict[key] = (values[0][0], values[0][1] or values[1][1])
         else:
             conflicted_keys[key] = values
 
@@ -1549,28 +1557,34 @@ def merge_multiple_snowflake_plan_expr_to_alias(
 
     for key in conflicted_keys:
         candidate = None
-        for plan in [plan for plan in snowflake_plans if plan.source_plan]:
-            projection_list = []
-            if isinstance(plan.source_plan, SelectStatement):
-                projection_list = plan.source_plan.projection or []
-            elif isinstance(plan.source_plan, Project):
-                projection_list = plan.source_plan.project_list or []
-            # We don't have other types of plans that can have projections
-
-            for project in projection_list:
-                if (
-                    isinstance(project, Alias)
-                    and getattr(project.child, "expr_id", None) == key
-                    and project.name in conflicted_keys[key]
-                ):
-                    if candidate is None:
-                        candidate = project.name
-                    else:
-                        # the candidate shows up in multiple outputs, so we can't resolve the conflict
-                        candidate = None
-                        break
-        # the candidate only shows up in one output, so we can resolve the conflict
-        if candidate:
-            merged_dict[key] = candidate
+        candidate_is_back_propagated = False
+        for plan in snowflake_plans:
+            output_columns = [attr.name for attr in plan.output if plan.schema_query]
+            tmp_alias_name, tmp_is_back_propagated = plan.expr_to_alias[key]
+            if tmp_alias_name not in output_columns or tmp_is_back_propagated:
+                # back propagated columns are not considered as they are not used in the output
+                # check Analyzer.unary_expression_extractor functions
+                continue
+            if not candidate:
+                candidate = tmp_alias_name
+                candidate_is_back_propagated = tmp_is_back_propagated
+            else:
+                if candidate == tmp_alias_name:
+                    # The candidate is the same as the current alias
+                    candidate_is_back_propagated = (
+                        candidate_is_back_propagated or tmp_is_back_propagated
+                    )
+                else:
+                    # The candidate is different from the current alias, ambiguous
+                    candidate = None
+        # Add the candidate to the merged dictionary if resolved
+        if candidate is not None:
+            merged_dict[key] = (candidate, candidate_is_back_propagated)
+        else:
+            # No valid candidate found
+            _logger.debug(
+                f"Expression '{key}' is associated with multiple aliases across different plans. "
+                f"Unable to determine which alias to use. Conflicting values: {conflicted_keys[key]}"
+            )
 
     return merged_dict

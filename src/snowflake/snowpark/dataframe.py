@@ -1632,21 +1632,35 @@ class DataFrame:
                 if isinstance(self._session._conn, MockServerConnection):
                     self.schema  # to execute the plan and populate expr_to_alias
 
-                names.append(
-                    self._plan.expr_to_alias.get(
-                        c._expression.expr_id, c._expression.name
+                if not self._session._resolve_conflict_alias:
+                    names.append(
+                        self._plan.expr_to_alias.get(
+                            c._expression.expr_id, c._expression.name
+                        )
                     )
-                )
+                else:
+                    names.append(
+                        self._plan.expr_to_alias.get(
+                            c._expression.expr_id, (c._expression.name, False)
+                        )[0]
+                    )
             elif (
                 isinstance(c, Column)
                 and isinstance(c._expression, UnresolvedAttribute)
                 and c._expression.df_alias
             ):
-                names.append(
-                    self._plan.df_aliased_col_name_to_real_col_name.get(
-                        c._expression.name, c._expression.name
+                if not self._session._resolve_conflict_alias:
+                    names.append(
+                        self._plan.df_aliased_col_name_to_real_col_name.get(
+                            c._expression.name, c._expression.name
+                        )
                     )
-                )
+                else:
+                    names.append(
+                        self._plan.df_aliased_col_name_to_real_col_name.get(
+                            c._expression.name, (c._expression.name, False)
+                        )[0]
+                    )
             elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
                 names.append(c._expression.name)
             else:
@@ -1916,13 +1930,26 @@ class DataFrame:
         _copy = copy.copy(self)
         _copy._alias = name
         for attr in self._plan.attributes:
-            if _copy._select_statement:
-                _copy._select_statement.df_aliased_col_name_to_real_col_name[name][
+            if not self._session._resolve_conflict_alias:
+                if _copy._select_statement:
+                    _copy._select_statement.df_aliased_col_name_to_real_col_name[name][
+                        attr.name
+                    ] = attr.name  # attr is quoted already
+                _copy._plan.df_aliased_col_name_to_real_col_name[name][
                     attr.name
-                ] = attr.name  # attr is quoted already
-            _copy._plan.df_aliased_col_name_to_real_col_name[name][
-                attr.name
-            ] = attr.name
+                ] = attr.name
+            else:
+                if _copy._select_statement:
+                    _copy._select_statement.df_aliased_col_name_to_real_col_name[name][
+                        attr.name
+                    ] = (
+                        attr.name,
+                        False,
+                    )  # attr is quoted already
+                _copy._plan.df_aliased_col_name_to_real_col_name[name][attr.name] = (
+                    attr.name,
+                    False,
+                )
 
         if _emit_ast:
             _copy._ast_id = stmt.var_id.bitfield1
@@ -5403,14 +5430,24 @@ class DataFrame:
                     self.schema
 
                 att = existing._expression
-                old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
+                if not self._session._resolve_conflict_alias:
+                    old_name = self._plan.expr_to_alias.get(att.expr_id, att.name)
+                else:
+                    old_name = self._plan.expr_to_alias.get(
+                        att.expr_id, (att.name, False)
+                    )[0]
             elif (
                 isinstance(existing._expression, UnresolvedAttribute)
                 and existing._expression.df_alias
             ):
-                old_name = self._plan.df_aliased_col_name_to_real_col_name.get(
-                    existing._expression.name, existing._expression.name
-                )
+                if not self._session._resolve_conflict_alias:
+                    old_name = self._plan.df_aliased_col_name_to_real_col_name.get(
+                        existing._expression.name, existing._expression.name
+                    )
+                else:
+                    old_name = self._plan.df_aliased_col_name_to_real_col_name.get(
+                        existing._expression.name, (existing._expression.name, False)
+                    )[0]
             elif isinstance(existing._expression, NamedExpression):
                 old_name = existing._expression.name
             else:
@@ -5810,11 +5847,18 @@ Query List:
                 and isinstance(c._expression, UnresolvedAttribute)
                 and c._expression.df_alias
             ):
-                names.append(
-                    self._plan.df_aliased_col_name_to_real_col_name.get(
-                        c._expression.name, c._expression.name
+                if not self._session._resolve_conflict_alias:
+                    names.append(
+                        self._plan.df_aliased_col_name_to_real_col_name.get(
+                            c._expression.name, c._expression.name
+                        )
                     )
-                )
+                else:
+                    names.append(
+                        self._plan.df_aliased_col_name_to_real_col_name.get(
+                            c._expression.name, (c._expression.name, False)
+                        )
+                    )[0]
             elif isinstance(c, Column) and isinstance(c._expression, NamedExpression):
                 names.append(c._expression.name)
             else:
