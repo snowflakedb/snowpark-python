@@ -6635,6 +6635,18 @@ def check_xml(col: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def json_tuple(
+    col: ColumnOrName,
+    *fields: str,
+) -> List[Column]:
+    c = _to_col_if_str(col, "json_tuple")
+    return [
+        json_extract_path_text(parse_json(c), lit(field)).as_(f"c{i}")
+        for i, field in enumerate(fields)
+    ]
+
+
+@publicapi
 def json_extract_path_text(
     col: ColumnOrName, path: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
