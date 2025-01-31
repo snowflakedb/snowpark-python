@@ -11421,7 +11421,7 @@ def randn(
     """
     ast = build_function_expr("randn", [seed]) if _emit_ast else None
     if seed is None:
-        seed = random()
+        seed = random(_emit_ast=False)
     return normal(
         lit(0, _emit_ast=False),
         lit(1, _emit_ast=False),
