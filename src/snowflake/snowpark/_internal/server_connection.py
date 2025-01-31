@@ -36,6 +36,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 from snowflake.snowpark._internal.analyzer.schema_utils import (
     convert_result_meta_to_attribute,
     get_new_description,
@@ -48,6 +49,9 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
 )
 from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
+from snowflake.snowpark._internal.compiler.telemetry_constants import (
+    CompilationStageTelemetryField,
+)
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 from snowflake.snowpark._internal.utils import (
@@ -661,6 +665,7 @@ class ServerConnection:
         statement_params = kwargs.get("_statement_params", None) or {}
         statement_params["_PLAN_UUID"] = plan.uuid
         kwargs["_statement_params"] = statement_params
+        self.send_plan_metrics_telemetry(plan)
         try:
             main_queries = plan_queries[PlanQueryType.QUERIES]
             post_actions = plan_queries[PlanQueryType.POST_ACTIONS]
@@ -764,6 +769,39 @@ class ServerConnection:
             raise SnowparkClientExceptionMessages.SQL_LAST_QUERY_RETURN_RESULTSET()
 
         return result, result_meta
+
+    def send_plan_metrics_telemetry(self, plan: SnowflakePlan) -> None:
+        try:
+            data = {}
+            plan_state = plan.plan_state
+            data[CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value] = plan_state[
+                PlanState.PLAN_HEIGHT
+            ]
+            data[
+                CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
+            ] = plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
+            data[
+                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
+            ] = plan_state[PlanState.NUM_CTE_NODES]
+            data[
+                CompilationStageTelemetryField.QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION.value
+            ] = plan_state[PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION]
+
+            # The uuid for df._select_statement can be different from df._plan. Since plan
+            # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
+            # to track the queries.
+            uuid = plan.uuid
+            data[CompilationStageTelemetryField.PLAN_UUID.value] = uuid
+            data[CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
+                key.value: value
+                for key, value in plan.cumulative_node_complexity.items()
+            }
+
+            self._telemetry_client.send_plan_metrics_telemetry(
+                session_id=self.get_session_id(), data=data
+            )
+        except Exception:
+            pass
 
     def get_result_and_metadata(
         self, plan: SnowflakePlan, **kwargs
