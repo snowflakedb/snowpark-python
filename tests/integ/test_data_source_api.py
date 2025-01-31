@@ -867,7 +867,7 @@ def test_partition_date_timestamp(session):
 
 
 def test_partition_unsupported_type(session):
-    with pytest.raises(ValueError, match="unsupported column type for partition:"):
+    with pytest.raises(TypeError, match="unsupported column type for partition:"):
         session.read._generate_partition(
             table="fake_table",
             column_type=MapType(),
