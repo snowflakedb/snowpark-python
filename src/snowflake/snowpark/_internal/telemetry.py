@@ -15,7 +15,6 @@ from snowflake.connector.telemetry import (
     TelemetryField as PCTelemetryField,
 )
 from snowflake.connector.time_util import get_time_millis
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
 )
@@ -184,33 +183,7 @@ def df_collect_api_telemetry(func):
         api_calls[0][TelemetryField.SQL_SIMPLIFIER_ENABLED.value] = args[
             0
         ]._session.sql_simplifier_enabled
-        try:
-            plan_state = plan.plan_state
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value
-            ] = plan_state[PlanState.PLAN_HEIGHT]
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
-            ] = plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
-            ] = plan_state[PlanState.NUM_CTE_NODES]
-            api_calls[0][
-                CompilationStageTelemetryField.QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION.value
-            ] = plan_state[PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION]
-
-            # The uuid for df._select_statement can be different from df._plan. Since plan
-            # can take both values, we cannot use plan.uuid. We always use df._plan.uuid
-            # to track the queries.
-            uuid = args[0]._plan.uuid
-            api_calls[0][CompilationStageTelemetryField.PLAN_UUID.value] = uuid
-            api_calls[0][CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
-                key.value: value
-                for key, value in plan.cumulative_node_complexity.items()
-            }
-            api_calls[0][TelemetryField.THREAD_IDENTIFIER.value] = threading.get_ident()
-        except Exception:
-            pass
+        api_calls[0][TelemetryField.THREAD_IDENTIFIER.value] = threading.get_ident()
         args[0]._session._conn._telemetry_client.send_function_usage_telemetry(
             f"action_{func.__name__}",
             TelemetryField.FUNC_CAT_ACTION.value,
@@ -497,6 +470,18 @@ class TelemetryClient:
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
                 CompilationStageTelemetryField.ERROR_TYPE.value: error_type,
                 CompilationStageTelemetryField.ERROR_MESSAGE.value: error_message,
+            },
+        }
+        self.send(message)
+
+    def send_plan_metrics_telemetry(self, session_id: int, data) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                **data,
             },
         }
         self.send(message)

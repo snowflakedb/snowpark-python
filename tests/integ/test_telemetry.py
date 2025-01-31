@@ -589,30 +589,13 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
 
     df.collect()
     # API calls don't change after query is executed
-    query_plan_height = 2 if sql_simplifier_enabled else 3
-    filter = 1 if sql_simplifier_enabled else 2
-    low_impact = 3 if sql_simplifier_enabled else 2
     thread_ident = threading.get_ident()
 
     assert df._plan.api_calls == [
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -624,21 +607,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -650,21 +619,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -676,21 +631,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -702,21 +643,7 @@ def test_execute_queries_api_calls(session, sql_simplifier_enabled):
         {
             "name": "Session.range",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": df._plan.uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": query_plan_height,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {
-                "filter": filter,
-                "low_impact": low_impact,
-                "function": 3,
-                "column": 3,
-                "literal": 5,
-                "window": 1,
-                "order_by": 1,
-            },
         },
         {"name": "DataFrame.filter"},
         {"name": "DataFrame.filter"},
@@ -846,24 +773,16 @@ def test_dataframe_stat_functions_api_calls(session):
     # check to make sure that the original DF is unchanged
     assert df._plan.api_calls == [{"name": "Session.create_dataframe[values]"}]
 
-    column = 6 if session.sql_simplifier_enabled else 9
     crosstab = df.stat.crosstab("empid", "month")
     # uuid here is generated by an intermediate dataframe in crosstab implementation
     # therefore we can't predict it. We check that the uuid for crosstab is same as
     # that for df.
-    uuid = df._plan.api_calls[0]["plan_uuid"]
     thread_ident = threading.get_ident()
     assert crosstab._plan.api_calls == [
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": 4,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         },
         {
             "name": "DataFrameStatFunctions.crosstab",
@@ -880,13 +799,7 @@ def test_dataframe_stat_functions_api_calls(session):
         {
             "name": "Session.create_dataframe[values]",
             "sql_simplifier_enabled": session.sql_simplifier_enabled,
-            "plan_uuid": uuid,
             "thread_ident": thread_ident,
-            "query_plan_height": 4,
-            "query_plan_num_duplicate_nodes": 0,
-            "query_plan_num_selects_with_complexity_merged": 0,
-            "query_plan_duplicated_node_complexity_distribution": [0, 0, 0, 0, 0, 0, 0],
-            "query_plan_complexity": {"group_by": 1, "column": column, "literal": 48},
         }
     ]
 
@@ -1309,3 +1222,34 @@ def test_describe_query_details(session):
     data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
     assert data == expected_data
     assert type_ == "snowpark_describe_query_details"
+
+
+def test_plan_metrics_telemetry(session):
+    client = session._conn._telemetry_client
+    telemetry_data = {
+        "plan_uuid": "plan_uuid_placeholder",
+        "query_plan_height": 10,
+        "query_plan_num_duplicate_nodes": 5,
+        "query_plan_num_selects_with_complexity_merged": 3,
+        "query_plan_duplicated_node_complexity_distribution": [1, 2, 3],
+        "query_plan_complexity": {
+            "filter": 1,
+            "low_impact": 2,
+            "function": 3,
+            "column": 4,
+            "literal": 5,
+            "window": 6,
+            "order_by": 7,
+        },
+    }
+
+    def send_telemetry():
+        client.send_plan_metrics_telemetry(session.session_id, data=telemetry_data)
+
+    telemetry_tracker = TelemetryDataTracker(session)
+
+    expected_data = {"session_id": session.session_id, **telemetry_data}
+
+    data, type_, _ = telemetry_tracker.extract_telemetry_log_data(-1, send_telemetry)
+    assert data == expected_data
+    assert type_ == "snowpark_compilation_stage_statistics"
