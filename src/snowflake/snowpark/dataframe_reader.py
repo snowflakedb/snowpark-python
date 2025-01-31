@@ -5,6 +5,7 @@ import datetime
 import decimal
 import os
 import tempfile
+from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
 from concurrent.futures import (
     ProcessPoolExecutor,
     wait,
@@ -1131,7 +1132,7 @@ class DataFrameReader:
 
     def _infer_data_source_schema(
         self, conn: Connection, table: str
-    ) -> tuple[StructType, tuple[tuple[str, Any, int, int, int, int, bool]]]:
+    ) -> Tuple[StructType, Tuple[Tuple[str, Any, int, int, int, int, bool]]]:
         raw_schema = conn.execute(f"SELECT * FROM {table} WHERE 1 = 0").description
         return self._to_snowpark_type(raw_schema), raw_schema
 
@@ -1165,14 +1166,24 @@ class DataFrameReader:
             )
 
         # decide stride length
-        upper_stride = processed_upper_bound / actual_num_partitions
-        lower_stride = processed_lower_bound / actual_num_partitions
+        upper_stride = (
+            processed_upper_bound / decimal.Decimal(actual_num_partitions)
+        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        lower_stride = (
+            processed_lower_bound / decimal.Decimal(actual_num_partitions)
+        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
         preciseStride = upper_stride - lower_stride
         stride = int(preciseStride)
 
-        lost_num_of_strides = (preciseStride - stride) * actual_num_partitions / stride
+        lost_num_of_strides = (
+            (preciseStride - decimal.Decimal(stride))
+            * decimal.Decimal(actual_num_partitions)
+            / decimal.Decimal(stride)
+        )
         lower_bound_with_stride_alignment = processed_lower_bound + int(
-            lost_num_of_strides / 2 * stride
+            (lost_num_of_strides / 2 * decimal.Decimal(stride)).quantize(
+                decimal.Decimal("1"), rounding=ROUND_HALF_UP
+            )
         )
 
         current_value = lower_bound_with_stride_alignment
@@ -1206,7 +1217,7 @@ class DataFrameReader:
         if isinstance(column_type, _NumericType):
             return int(value)
         elif isinstance(column_type, (TimestampType, DateType)):
-            return int(parser.parse(value).timestamp())
+            return int(parser.parse(value, tzinfos=None).timestamp())
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
 
@@ -1214,7 +1225,7 @@ class DataFrameReader:
         if isinstance(column_type, _NumericType):
             return value
         elif isinstance(column_type, (TimestampType, DateType)):
-            return datetime.datetime.fromtimestamp(value)
+            return datetime.datetime.fromtimestamp(value, tz=None)
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
 
