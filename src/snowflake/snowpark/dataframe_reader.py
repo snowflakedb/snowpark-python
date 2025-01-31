@@ -1304,7 +1304,7 @@ class DataFrameReader:
 def _task_fetch_from_data_source(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: tuple[tuple[str, Any, int, int, int, int, bool]],
+    schema: Tuple[Tuple[str, Any, int, int, int, int, bool]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
@@ -1323,7 +1323,7 @@ def _task_fetch_from_data_source(
 def task_fetch_from_data_source_with_retry(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: tuple[tuple[str, Any, int, int, int, int, bool]],
+    schema: Tuple[Tuple[str, Any, int, int, int, int, bool]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
