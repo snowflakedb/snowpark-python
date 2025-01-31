@@ -14,6 +14,7 @@ from concurrent.futures import (
     as_completed,
 )
 
+import pytz
 from dateutil import parser
 import sys
 from logging import getLogger
@@ -1191,13 +1192,13 @@ class DataFrameReader:
         partition_queries = []
         for i in range(actual_num_partitions):
             l_bound = (
-                f"{column} >= {self._to_external_value(current_value, column_type)}"
+                f"{column} >= '{self._to_external_value(current_value, column_type)}'"
                 if i != 0
                 else ""
             )
             current_value += stride
             u_bound = (
-                f"{column} < {self._to_external_value(current_value, column_type)}"
+                f"{column} < '{self._to_external_value(current_value, column_type)}'"
                 if i != actual_num_partitions - 1
                 else ""
             )
@@ -1217,7 +1218,8 @@ class DataFrameReader:
         if isinstance(column_type, _NumericType):
             return int(value)
         elif isinstance(column_type, (TimestampType, DateType)):
-            return int(parser.parse(value, tzinfos=None).timestamp())
+            dt = parser.parse(value)
+            return int(dt.replace(tzinfo=pytz.UTC).timestamp())
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
 
@@ -1225,7 +1227,7 @@ class DataFrameReader:
         if isinstance(column_type, _NumericType):
             return value
         elif isinstance(column_type, (TimestampType, DateType)):
-            return datetime.datetime.fromtimestamp(value, tz=None)
+            return datetime.datetime.fromtimestamp(value, tz=pytz.UTC)
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
 

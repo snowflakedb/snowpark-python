@@ -697,11 +697,7 @@ def create_connection():
 
 
 def fake_task_fetch_from_data_source_with_retry(
-    create_connection,
-    query,
-    schema,
-    i,
-    tmp_dir,
+    create_connection, query, schema, i, tmp_dir, query_timeout
 ):
     time.sleep(2)
 
@@ -794,16 +790,16 @@ def test_parallel(session):
 def test_partition_logic(session):
     # same result as spark
     expected_queries1 = [
-        "SELECT * FROM fake_table WHERE ID < 8 OR ID is null",
-        "SELECT * FROM fake_table WHERE ID >= 8 AND ID < 10",
-        "SELECT * FROM fake_table WHERE ID >= 10 AND ID < 12",
-        "SELECT * FROM fake_table WHERE ID >= 12",
+        "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '10'",
+        "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '12'",
+        "SELECT * FROM fake_table WHERE ID >= '12'",
     ]
     expected_queries2 = [
-        "SELECT * FROM fake_table WHERE ID < -2 OR ID is null",
-        "SELECT * FROM fake_table WHERE ID >= -2 AND ID < 0",
-        "SELECT * FROM fake_table WHERE ID >= 0 AND ID < 2",
-        "SELECT * FROM fake_table WHERE ID >= 2",
+        "SELECT * FROM fake_table WHERE ID < '-2' OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= '-2' AND ID < '0'",
+        "SELECT * FROM fake_table WHERE ID >= '0' AND ID < '2'",
+        "SELECT * FROM fake_table WHERE ID >= '2'",
     ]
     queries = session.read._generate_partition(
         table="fake_table",
@@ -830,10 +826,10 @@ def test_partition_logic(session):
 
 def test_partition_date_timestamp(session):
     expected_queries1 = [
-        "SELECT * FROM fake_table WHERE DATE < 2020-07-30 18:15:00 OR DATE is null",
-        "SELECT * FROM fake_table WHERE DATE >= 2020-07-30 18:15:00 AND DATE < 2020-09-14 12:30:00",
-        "SELECT * FROM fake_table WHERE DATE >= 2020-09-14 12:30:00 AND DATE < 2020-10-30 06:45:00",
-        "SELECT * FROM fake_table WHERE DATE >= 2020-10-30 06:45:00",
+        "SELECT * FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
     ]
     queries = session.read._generate_partition(
         table="fake_table",
@@ -848,10 +844,10 @@ def test_partition_date_timestamp(session):
         assert r == expected_r
 
     expected_queries2 = [
-        "SELECT * FROM fake_table WHERE DATE < 2020-07-31 05:21:13 OR DATE is null",
-        "SELECT * FROM fake_table WHERE DATE >= 2020-07-31 05:21:13 AND DATE < 2020-09-14 22:16:55",
-        "SELECT * FROM fake_table WHERE DATE >= 2020-09-14 22:16:55 AND DATE < 2020-10-30 15:12:37",
-        "SELECT * FROM fake_table WHERE DATE >= 2020-10-30 15:12:37",
+        "SELECT * FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
     ]
     queries = session.read._generate_partition(
         table="fake_table",
