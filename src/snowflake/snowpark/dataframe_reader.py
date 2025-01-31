@@ -1213,21 +1213,21 @@ class DataFrameReader:
 
         return partition_queries
 
-    def _to_internal_value(self, value, column_type):
+    def _to_internal_value(self, value: Union[int, str, float], column_type: DataType):
         if isinstance(column_type, _NumericType):
             return int(value)
-        elif isinstance(column_type, (datetime.time, datetime.date, datetime.datetime)):
+        elif isinstance(column_type, (TimestampType, DataType)):
             return int(parser.parse(value).timestamp())
         else:
-            raise ValueError(f"unsupported column type for partition: {column_type}")
+            raise TypeError(f"unsupported column type for partition: {column_type}")
 
-    def _to_external_value(self, value, column_type):
+    def _to_external_value(self, value: Union[int, str, float], column_type: DataType):
         if isinstance(column_type, _NumericType):
             return value
-        elif isinstance(column_type, (datetime.time, datetime.date, datetime.datetime)):
+        elif isinstance(column_type, (TimestampType, DataType)):
             return datetime.datetime.fromtimestamp(value)
         else:
-            raise ValueError(f"unsupported column type for partition: {column_type}")
+            raise TypeError(f"unsupported column type for partition: {column_type}")
 
     def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
         fields = []
