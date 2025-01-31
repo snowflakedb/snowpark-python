@@ -685,7 +685,7 @@ def bitshiftleft(
 
 
 @publicapi
-def bitshiftrightunsigned(
+def bit_shift_right_unsigned(
     to_shift_column: ColumnOrName, n: Union[Column, int], _emit_ast: bool = True
 ) -> Column:
     """Returns the bitwise negation of a numeric expression.

@@ -21,10 +21,12 @@
   - `bitmap_bit_position`
   - `bitmap_bucket_number`
   - `bitmap_construct_agg`
+  - `bit_shift_right_unsigned`
   - `cbrt`
   - `equal_null`
   - `from_json`
   - `ifnull`
+  - `json_tuple`
   - `localtimestamp`
   - `max_by`
   - `min_by`
@@ -41,6 +43,7 @@
   - `regr_sxx`
   - `regr_sxy`
   - `regr_syy`
+  - `slice`
   - `try_to_binary`
   - `base64`
   - `base64_decode_string`
