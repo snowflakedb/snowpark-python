@@ -56,6 +56,27 @@ def test_apply_snowflake_cortex_sentiment(session):
         assert -1 <= sentiment <= 0
 
 
+def test_apply_snowflake_cortex_sentiment_df(session):
+
+    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
+    with SqlCounter(query_count=0):
+        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
+            return
+    text_list = [
+        "A first row of text.",
+        "This is a very bad test.",
+        "This is the best test ever.",
+    ]
+
+    content_frame = pd.DataFrame(text_list, columns=["content"])
+    with SqlCounter(query_count=4):
+        res = content_frame.apply(Sentiment)
+        sent_row_2 = res["content"][1]
+        sent_row_3 = res["content"][2]
+        assert -1 <= sent_row_2 <= 0
+        assert 0 <= sent_row_3 <= 1
+
+
 @pytest.mark.skipif(
     running_on_jenkins(),
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
@@ -90,5 +111,16 @@ def test_apply_snowflake_cortex_negative(session):
 
     content = "One day I will see the world."
     s = pd.Series([content])
+    df = pd.DataFrame([content])
     with pytest.raises(NotImplementedError):
-        return s.apply(Translate, source_language="en", target_language="de").iloc[0]
+        s.apply(Translate, source_language="en", target_language="de")
+    with pytest.raises(NotImplementedError):
+        s.apply(ClassifyText, args=(["travel", "cooking"]))
+    with pytest.raises(NotImplementedError):
+        s.apply(Sentiment, na_action="ignore")
+    with pytest.raises(NotImplementedError):
+        df.apply(Sentiment, raw=True)
+    with pytest.raises(NotImplementedError):
+        df.apply(Sentiment, axis=1)
+    with pytest.raises(NotImplementedError):
+        df.apply(ClassifyText, args=(["travel", "cooking"]))

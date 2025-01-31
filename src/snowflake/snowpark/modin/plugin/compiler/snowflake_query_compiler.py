@@ -8472,6 +8472,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._apply_snowpark_python_function_to_columns(func, kwargs)
 
+        if is_supported_snowflake_cortex_function(func):
+            if axis != 0:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with with axis = {axis}.'"
+                )
+            if raw is not False:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`with raw = {raw}."
+                )
+            if args:
+                ErrorMessage.not_implemented(
+                    f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with args = '{args}'."
+                )
+            return self._apply_snowflake_cortex_function_to_columns(func, kwargs)
+
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
         if sf_func is not None:
             return self._apply_snowpark_python_function_to_columns(sf_func, kwargs)
