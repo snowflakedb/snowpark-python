@@ -685,7 +685,7 @@ def bitshiftleft(
 
 
 @publicapi
-def bit_shift_right_unsigned(
+def bitshiftright_unsigned(
     to_shift_column: ColumnOrName, n: Union[Column, int], _emit_ast: bool = True
 ) -> Column:
     """Returns the bitwise negation of a numeric expression.
@@ -1928,59 +1928,6 @@ def uniform(
         is_data_generator=True,
         _emit_ast=_emit_ast,
     )
-
-
-@publicapi
-def slice(
-    col: ColumnOrName, start: Union[int, ColumnOrName], end: Union[int, ColumnOrName]
-) -> Column:
-    """Returns an array containing all the elements in `col` from index `start` with the specified `length`.
-    Array indices start from 0. Both of 'start' and 'end' can be negative, which indicate index from the end
-    of the array.
-
-    Args:
-        col: Column containing arrays want to slice.
-        start: Start index of the slice.
-        end: End index of the slice.
-
-
-    Example::
-        >>> df = session.createDataFrame([[1, [1, 2, 3, 4, 5]]], ["id", "array"])
-        >>> df.select(slice("array", 0, 2)).show()
-        ----------------------------------
-        |"ARRAY_SLICE(""ARRAY"", 0, 2)"  |
-        ----------------------------------
-        |[                               |
-        |  1,                            |
-        |  2                             |
-        |]                               |
-        ----------------------------------
-        <BLANKLINE>
-
-        >>> df.select(slice("array", -2, -1)).show()
-        ------------------------------------
-        |"ARRAY_SLICE(""ARRAY"", -2, -1)"  |
-        ------------------------------------
-        |[                                 |
-        |  4                               |
-        |]                                 |
-        ------------------------------------
-        <BLANKLINE>
-
-        >>> df.select(slice("array", 0, "id")).show()
-        ---------------------------------------
-        |"ARRAY_SLICE(""ARRAY"", 0, ""ID"")"  |
-        ---------------------------------------
-        |[                                    |
-        |  1                                  |
-        |]                                    |
-        ---------------------------------------
-        <BLANKLINE>
-    """
-    c = _to_col_if_str(col, "array_slice")
-    start = start if isinstance(start, int) else _to_col_if_str(start, "array_slice")
-    end = end if isinstance(end, int) else _to_col_if_str(end, "array_slice")
-    return _call_function("array_slice", False, c, start, end)
 
 
 @publicapi
