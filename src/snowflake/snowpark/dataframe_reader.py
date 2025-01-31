@@ -5,7 +5,6 @@ import datetime
 import decimal
 import os
 import tempfile
-from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
 from concurrent.futures import (
     ProcessPoolExecutor,
     wait,
@@ -1166,24 +1165,14 @@ class DataFrameReader:
             )
 
         # decide stride length
-        upper_stride = (
-            processed_upper_bound / decimal.Decimal(actual_num_partitions)
-        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
-        lower_stride = (
-            processed_lower_bound / decimal.Decimal(actual_num_partitions)
-        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        upper_stride = processed_upper_bound / actual_num_partitions
+        lower_stride = processed_lower_bound / actual_num_partitions
         preciseStride = upper_stride - lower_stride
         stride = int(preciseStride)
 
-        lost_num_of_strides = (
-            (preciseStride - decimal.Decimal(stride))
-            * decimal.Decimal(actual_num_partitions)
-            / decimal.Decimal(stride)
-        )
+        lost_num_of_strides = (preciseStride - stride) * actual_num_partitions / stride
         lower_bound_with_stride_alignment = processed_lower_bound + int(
-            (lost_num_of_strides / 2 * decimal.Decimal(stride)).quantize(
-                decimal.Decimal("1"), rounding=ROUND_HALF_UP
-            )
+            lost_num_of_strides / 2 * stride
         )
 
         current_value = lower_bound_with_stride_alignment
