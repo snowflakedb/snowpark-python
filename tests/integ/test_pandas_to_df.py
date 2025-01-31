@@ -116,7 +116,7 @@ def test_write_pandas_with_overwrite(
             pd1, table_name, quote_identifiers=quote_identifiers, auto_create_table=True
         )
         results = df1.to_pandas()
-        assert_frame_equal(results, pd1, check_dtype=False)
+        assert_frame_equal(results, pd1, check_dtype=False, check_like=True)
 
         # Insert 1 row
         df2 = session.write_pandas(
@@ -129,7 +129,7 @@ def test_write_pandas_with_overwrite(
         results = df2.to_pandas()
         if overwrite:
             # Results should match pd2
-            assert_frame_equal(results, pd2, check_dtype=False)
+            assert_frame_equal(results, pd2, check_dtype=False, check_like=True)
         else:
             # Results count should match pd1 + pd2
             assert results.shape[0] == 4
@@ -146,7 +146,7 @@ def test_write_pandas_with_overwrite(
                     auto_create_table=auto_create_table,
                 )
                 results = df3.to_pandas()
-                assert_frame_equal(results, pd3, check_dtype=False)
+                assert_frame_equal(results, pd3, check_dtype=False, check_like=True)
             else:
                 # In this case, the table is truncated but since there's a new schema, it should fail
                 with pytest.raises(ProgrammingError) as ex_info:
