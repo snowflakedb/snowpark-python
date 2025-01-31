@@ -1216,7 +1216,7 @@ class DataFrameReader:
     def _to_internal_value(self, value: Union[int, str, float], column_type: DataType):
         if isinstance(column_type, _NumericType):
             return int(value)
-        elif isinstance(column_type, (TimestampType, DataType)):
+        elif isinstance(column_type, (TimestampType, DateType)):
             return int(parser.parse(value).timestamp())
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
@@ -1224,7 +1224,7 @@ class DataFrameReader:
     def _to_external_value(self, value: Union[int, str, float], column_type: DataType):
         if isinstance(column_type, _NumericType):
             return value
-        elif isinstance(column_type, (TimestampType, DataType)):
+        elif isinstance(column_type, (TimestampType, DateType)):
             return datetime.datetime.fromtimestamp(value)
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
