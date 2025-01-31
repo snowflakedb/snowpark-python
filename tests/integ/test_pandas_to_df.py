@@ -116,7 +116,11 @@ def test_write_pandas_with_overwrite(
             pd1, table_name, quote_identifiers=quote_identifiers, auto_create_table=True
         )
         results = df1.to_pandas()
-        assert_frame_equal(results, pd1, check_dtype=False, check_like=True)
+        assert_frame_equal(
+            results.sort_values(by=list(results.columns)).reset_index(drop=True),
+            pd1.sort_values(by=list(pd1.columns)).reset_index(drop=True),
+            check_dtype=False,
+        )
 
         # Insert 1 row
         df2 = session.write_pandas(
@@ -129,7 +133,11 @@ def test_write_pandas_with_overwrite(
         results = df2.to_pandas()
         if overwrite:
             # Results should match pd2
-            assert_frame_equal(results, pd2, check_dtype=False, check_like=True)
+            assert_frame_equal(
+                results.sort_values(by=list(results.columns)).reset_index(drop=True),
+                pd2.sort_values(by=list(pd2.columns)).reset_index(drop=True),
+                check_dtype=False,
+            )
         else:
             # Results count should match pd1 + pd2
             assert results.shape[0] == 4
@@ -146,7 +154,13 @@ def test_write_pandas_with_overwrite(
                     auto_create_table=auto_create_table,
                 )
                 results = df3.to_pandas()
-                assert_frame_equal(results, pd3, check_dtype=False, check_like=True)
+                assert_frame_equal(
+                    results.sort_values(by=list(results.columns)).reset_index(
+                        drop=True
+                    ),
+                    pd3.sort_values(by=list(pd3.columns)).reset_index(drop=True),
+                    check_dtype=False,
+                )
             else:
                 # In this case, the table is truncated but since there's a new schema, it should fail
                 with pytest.raises(ProgrammingError) as ex_info:
