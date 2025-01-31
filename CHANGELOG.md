@@ -1,6 +1,6 @@
 # Release History
 
-## 1.27.0 (2025-01-30)
+## 1.27.0 (2025-02-03)
 
 ### Snowpark Python API Updates
 
@@ -58,6 +58,14 @@
 - Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
 - Added support for `DataFrame.create_temp_view` to create a temporary view. It will fail if the view already exists.
 - Added support for multiple columns in the functions `map_cat` and `map_concat`.
+- Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
+- Added options to column casts that allow renaming or adding fields in StructType columns.
+- Added support for `contains_null` parameter to ArrayType.
+- Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
+- Added support for `value_contains_null` parameter to MapType.
+- Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
+- Allow `session.file.get` in a Native App to read file paths starting with `/` from the current version
+- Added support for multiple aggregation functions after `DataFrame.pivot`.
 
 #### Experimental Features
 
@@ -69,14 +77,6 @@
 #### Improvements
 
 - Updated README.md to include instructions on how to verify package signatures using `cosign`.
-- Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
-- Added options to column casts that allow renaming or adding fields in StructType columns.
-- Added support for `contains_null` parameter to ArrayType.
-- Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
-- Added support for `value_contains_null` parameter to MapType.
-- Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
-- Allow `session.file.get` in a Native App to read file paths starting with `/` from the current version
-- Added support for multiple aggregation functions after `DataFrame.pivot`.
 
 #### Bug Fixes
 
@@ -123,7 +123,6 @@
 
 #### Improvements
 - Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
-- Updated integration testing for `session.lineage.trace` to exclude deleted objects
 - Added documentation for `DataFrame.map`.
 - Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
 - Added documentation on the extent of Snowpark pandas interoperability with scikit-learn.
