@@ -36,7 +36,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
-from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState
+from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import PlanState, get_complexity_score
 from snowflake.snowpark._internal.analyzer.schema_utils import (
     convert_result_meta_to_attribute,
     get_new_description,
@@ -771,6 +771,9 @@ class ServerConnection:
         return result, result_meta
 
     def send_plan_metrics_telemetry(self, plan: SnowflakePlan) -> None:
+        """Extract the SnowflakePlan's metrics and including plan_state, uuid identifiers, complexity
+        classification breakdown, and complexity score.
+        """
         try:
             data = {}
             plan_state = plan.plan_state
@@ -796,6 +799,7 @@ class ServerConnection:
                 key.value: value
                 for key, value in plan.cumulative_node_complexity.items()
             }
+            data[CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value] = get_complexity_score(plan)
 
             self._telemetry_client.send_plan_metrics_telemetry(
                 session_id=self.get_session_id(), data=data

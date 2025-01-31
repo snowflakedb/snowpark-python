@@ -474,7 +474,7 @@ class TelemetryClient:
         }
         self.send(message)
 
-    def send_plan_metrics_telemetry(self, session_id: int, data) -> None:
+    def send_plan_metrics_telemetry(self, session_id: int, data: Dict[str, Any]) -> None:
         message = {
             **self._create_basic_telemetry_data(
                 CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
