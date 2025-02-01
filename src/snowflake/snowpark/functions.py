@@ -11392,7 +11392,7 @@ def normal(
 
     Example::
         >>> df = session.create_dataframe([1,2,3], schema=["a"])
-        >>> df.select(normal(0, 1, "a")).collect()
+        >>> df.select(normal(0, 1, "a").alias("normal")).collect()
         [Row(NORMAL=-1.143416214223267), Row(NORMAL=-0.78469958830255), Row(NORMAL=-0.365971322006404)]
     """
     # SNOW-1906511: normal function does not support passing mean and stddev as column name in the following way:
