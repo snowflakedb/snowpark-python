@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_file_format_if_exists_statement,
     infer_schema_statement,
     quote_name_without_upper_casing,
+    TEMPORARY_STRING_SET,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
@@ -42,6 +43,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
     Connection,
+    convert_sp_to_sf_type,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -1074,9 +1076,14 @@ class DataFrameReader:
             # create temp table
             snowflake_table_type = "temporary"
             snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-            self._session.create_dataframe(
-                data=[], schema=struct_schema
-            ).write.save_as_table(snowflake_table_name, table_type=snowflake_table_type)
+            create_table_sql = (
+                "CREATE "
+                + f"{get_temp_type_for_object(self._session._use_scoped_temp_objects, True) if snowflake_table_type.lower() in TEMPORARY_STRING_SET else snowflake_table_type} "
+                + "TABLE "
+                + f"{snowflake_table_name} "
+                + f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+            )
+            self._session.sql(create_table_sql).collect()
             res_df = self.table(snowflake_table_name)
 
             # create temp stage
@@ -1317,6 +1324,11 @@ def _task_fetch_from_data_source(
     result = conn.cursor().execute(query).fetchall()
     columns = [col[0] for col in schema]
     df = pd.DataFrame.from_records(result, columns=columns)
+    df = df.map(
+        lambda x: x.isoformat()
+        if isinstance(x, (datetime.datetime, datetime.date))
+        else x
+    )
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
     return path

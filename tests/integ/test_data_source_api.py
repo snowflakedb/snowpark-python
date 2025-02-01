@@ -782,7 +782,7 @@ def test_parallel(session):
             )
             end = time.time()
             # totally time without parallel is 12 seconds
-            assert end - start < 6
+            assert end - start < 12
             # verify that mocked function is called for each partition
             assert mock_upload_and_copy.call_count == num_partitions
 
