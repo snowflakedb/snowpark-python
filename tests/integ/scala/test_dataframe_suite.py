@@ -1431,17 +1431,19 @@ def test_groupby(session):
     ).to_df(["country", "state", "value"])
 
     # group_by without column
-    assert df.group_by().agg(max(col("value"))).collect() == [Row(100)]
-    assert df.group_by([]).agg(sum_(col("value"))).collect() == [Row(330)]
-    assert df.group_by().agg([sum_(col("value"))]).collect() == [Row(330)]
+    Utils.check_answer(df.group_by().agg(max(col("value"))), [Row(100)])
+    Utils.check_answer(df.group_by([]).agg(sum_(col("value"))), [Row(330)])
+    Utils.check_answer(df.group_by().agg([sum_(col("value"))]), [Row(330)])
 
     # group_by() on 1 column
     expected_res = [Row("country A", 110), Row("country B", 220)]
-    assert df.group_by("country").agg(sum_(col("value"))).collect() == expected_res
-    assert df.group_by(["country"]).agg(sum_(col("value"))).collect() == expected_res
-    assert df.group_by(col("country")).agg(sum_(col("value"))).collect() == expected_res
-    assert (
-        df.group_by([col("country")]).agg(sum_(col("value"))).collect() == expected_res
+    Utils.check_answer(df.group_by("country").agg(sum_(col("value"))), expected_res)
+    Utils.check_answer(df.group_by(["country"]).agg(sum_(col("value"))), expected_res)
+    Utils.check_answer(
+        df.group_by(col("country")).agg(sum_(col("value"))), expected_res
+    )
+    Utils.check_answer(
+        df.group_by([col("country")]).agg(sum_(col("value"))), expected_res
     )
 
     # group_by() on 2 columns
