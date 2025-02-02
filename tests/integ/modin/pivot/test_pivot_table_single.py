@@ -56,6 +56,7 @@ def test_pivot_table_no_index_single_column_single_value(df_data):
         np.var,
     ),
 )
+@pytest.mark.modin_sp_precommit
 @sql_count_checker(query_count=1)
 def test_pivot_table_single_index_single_column_single_value(df_data, aggfunc):
     pivot_table_test_helper(
