@@ -1240,13 +1240,13 @@ class Connection(Protocol):
     def cursor(self) -> "Cursor":
         pass
 
-    def close(self) -> None:
+    def close(self):
         pass
 
-    def commit(self) -> None:
+    def commit(self):
         pass
 
-    def rollback(self) -> None:
+    def rollback(self):
         pass
 
 
@@ -1256,13 +1256,13 @@ class Cursor(Protocol):
     def execute(self, sql: str, *params: Any) -> "Cursor":
         pass
 
-    def fetchall(self) -> list[Any]:
+    def fetchall(self):
         pass
 
-    def fetchone(self) -> Any:
+    def fetchone(self):
         pass
 
-    def close(self) -> None:
+    def close(self):
         pass
 
 
