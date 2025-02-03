@@ -1389,6 +1389,10 @@ class DataFrame:
             -----------------------------------------------
             <BLANKLINE>
 
+        Example 6::
+
+            >>> df_selected = df.select(df.col1, [df.col2, df.col3])
+
         Note:
             A `TableFunctionCall` can be added in `select` when the dataframe results from another join. This is possible because we know
             the hierarchy in which the joins are applied.
@@ -1414,7 +1418,7 @@ class DataFrame:
                 names.append(e._named())
                 if _emit_ast and _ast_stmt is None:
                     ast_cols.append(e._ast)
-            elif isinstance(e, (list, tuple, set)):
+            elif isinstance(e, (list, tuple)):
                 for sub_e in e:
                     names.append(sub_e._named())
                     if _emit_ast and _ast_stmt is None:
