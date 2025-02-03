@@ -35,6 +35,7 @@ ssh $1 'cd ~/Snowflake/trunk && bazel build //Snowpark/ast:ast_proto && bazel bu
 scp $1:"$REMOTE_HOME/Snowflake/trunk/bazel-bin/Snowpark/ast/ast.proto" $SNOWPARK_ROOT/src/snowflake/snowpark/_internal/proto/ast.proto
 
 # (2) Copy over fat unparser_deploy.jar and rename to unparser.jar.
+mkdir -p $MONOREPO_DIR/bazel-bin/Snowpark/unparser/
 scp $1:$REMOTE_HOME/Snowflake/trunk/bazel-bin/Snowpark/unparser/unparser_deploy.jar $MONOREPO_DIR/bazel-bin/Snowpark/unparser/unparser.jar
 
 pushd $SNOWPARK_ROOT

@@ -160,6 +160,7 @@ The return type is always ``Column``. The input types tell you the acceptable va
 import functools
 import sys
 import typing
+from functools import reduce
 from random import randint
 from types import ModuleType
 from typing import Callable, Dict, List, Optional, Tuple, Union, overload
@@ -183,11 +184,11 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
     Lag,
     LastValue,
     Lead,
+    NthValue,
 )
 from snowflake.snowpark._internal.ast.utils import (
     build_builtin_fn_apply,
     build_call_table_function_apply,
-    build_expr_from_python_val,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
     create_ast_for_column,
@@ -262,8 +263,13 @@ def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
 
 @overload
 @publicapi
-def col(col_name: str, _emit_ast: bool = True) -> Column:
+def col(
+    col_name: str, _emit_ast: bool = True, *, _is_qualified_name: bool = False
+) -> Column:
     """Returns the :class:`~snowflake.snowpark.Column` with the specified name.
+
+    Args:
+        col_name: The name of the column.
 
     Example::
         >>> df = session.sql("select 1 as a")
@@ -275,7 +281,13 @@ def col(col_name: str, _emit_ast: bool = True) -> Column:
 
 @overload
 @publicapi
-def col(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
+def col(
+    df_alias: str,
+    col_name: str,
+    _emit_ast: bool = True,
+    *,
+    _is_qualified_name: bool = False,
+) -> Column:
     """Returns the :class:`~snowflake.snowpark.Column` with the specified dataframe alias and column name.
 
     Example::
@@ -287,7 +299,13 @@ def col(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def col(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Column:
+def col(
+    name1: str,
+    name2: Optional[str] = None,
+    _emit_ast: bool = True,
+    *,
+    _is_qualified_name: bool = False,
+) -> Column:
 
     _check_column_parameters(name1, name2)
 
@@ -296,27 +314,38 @@ def col(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Colu
         ast = create_ast_for_column(name1, name2, "col")
 
     if name2 is None:
-        return Column(name1, _ast=ast)
+        return Column(name1, _is_qualified_name=_is_qualified_name, _ast=ast)
     else:
-        return Column(name1, name2, _ast=ast)
+        return Column(name1, name2, _is_qualified_name=_is_qualified_name, _ast=ast)
 
 
 @overload
 @publicapi
-def column(col_name: str, _emit_ast: bool = True) -> Column:
+def column(
+    col_name: str, _emit_ast: bool = True, *, _is_qualified_name: bool = False
+) -> Column:
     """Returns a :class:`~snowflake.snowpark.Column` with the specified name. Alias for col.
 
+    Args:
+         col_name: The name of the column.
+
     Example::
-        >>> df = session.sql("select 1 as a")
-        >>> df.select(column("a")).collect()
-        [Row(A=1)]
+         >>> df = session.sql("select 1 as a")
+         >>> df.select(column("a")).collect()
+         [Row(A=1)]
     """
     ...  # pragma: no cover
 
 
 @overload
 @publicapi
-def column(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
+def column(
+    df_alias: str,
+    col_name: str,
+    _emit_ast: bool = True,
+    *,
+    _is_qualified_name: bool = False,
+) -> Column:
     """Returns a :class:`~snowflake.snowpark.Column` with the specified name and dataframe alias name. Alias for col.
 
     Example::
@@ -328,15 +357,21 @@ def column(df_alias: str, col_name: str, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def column(name1: str, name2: Optional[str] = None, _emit_ast: bool = True) -> Column:
+def column(
+    name1: str,
+    name2: Optional[str] = None,
+    _emit_ast: bool = True,
+    *,
+    _is_qualified_name: bool = False,
+) -> Column:
     _check_column_parameters(name1, name2)
 
     ast = create_ast_for_column(name1, name2, "column") if _emit_ast else None
 
     if name2 is None:
-        return Column(name1, _ast=ast)
+        return Column(name1, _is_qualified_name=_is_qualified_name, _ast=ast)
     else:
-        return Column(name1, name2, _ast=ast)
+        return Column(name1, name2, _is_qualified_name=_is_qualified_name, _ast=ast)
 
 
 @publicapi
@@ -1343,6 +1378,9 @@ def approx_percentile(
     return builtin("approx_percentile", _ast=ast, _emit_ast=False)(
         c, lit(percentile, _emit_ast=False)
     )
+
+
+percentile_approx = approx_percentile
 
 
 @publicapi
@@ -2930,6 +2968,7 @@ def log(
     base: Union[ColumnOrName, int, float],
     x: Union[ColumnOrName, int, float],
     _emit_ast: bool = True,
+    _ast: Optional[proto.Expr] = None,
 ) -> Column:
     """
     Returns the logarithm of a numeric expression.
@@ -2942,7 +2981,7 @@ def log(
         [Row(LOG=0), Row(LOG=1)]
     """
     # Build AST here to prevent `base` and `x` from being recorded as a literal instead of int/float.
-    ast = build_function_expr("log", [base, x]) if _emit_ast else None
+    ast = build_function_expr("log", [base, x]) if _emit_ast else _ast
     b = (
         lit(base, _emit_ast=False)
         if isinstance(base, (int, float))
@@ -2956,13 +2995,81 @@ def log(
     return builtin("log", _ast=ast, _emit_ast=False)(b, arg)
 
 
+@publicapi
+def log1p(
+    x: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the natural logarithm of (1 + x).
+
+    Example::
+
+        >>> df = session.create_dataframe([0, 1], schema=["a"])
+        >>> df.select(log1p(df["a"]).alias("log1p")).collect()
+        [Row(LOG1P=0.0), Row(LOG1P=0.6931471805599453)]
+    """
+    ast = build_function_expr("log1p", [x]) if _emit_ast else None
+    x = (
+        lit(x, _emit_ast=False)
+        if isinstance(x, (int, float))
+        else _to_col_if_str(x, "log")
+    )
+    one_plus_x = _to_col_if_str(x, "log1p") + lit(1, _emit_ast=False)
+    return ln(one_plus_x, _emit_ast=False, _ast=ast)
+
+
+@publicapi
+def log10(
+    x: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the base-10 logarithm of x.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 10], schema=["a"])
+        >>> df.select(log10(df["a"]).alias("log10")).collect()
+        [Row(LOG10=0.0), Row(LOG10=1.0)]
+    """
+    ast = build_function_expr("log10", [x]) if _emit_ast else None
+    return _log10(x, _emit_ast=False, _ast=ast)
+
+
+@publicapi
+def log2(
+    x: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the base-2 logarithm of x.
+
+    Example::
+
+        >>> df = session.create_dataframe([1, 2, 8], schema=["a"])
+        >>> df.select(log2(df["a"]).alias("log2")).collect()
+        [Row(LOG2=0.0), Row(LOG2=1.0), Row(LOG2=3.0)]
+    """
+    ast = build_function_expr("log2", [x]) if _emit_ast else None
+    return _log2(x, _emit_ast=False, _ast=ast)
+
+
 # Create base 2 and base 10 wrappers for use with the Modin log2 and log10 functions
-def _log2(x: Union[ColumnOrName, int, float], _emit_ast: bool = True) -> Column:
-    return log(2, x, _emit_ast=_emit_ast)
+def _log2(
+    x: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+    _ast: Optional[proto.Expr] = None,
+) -> Column:
+    return log(2, x, _emit_ast=_emit_ast, _ast=_ast)
 
 
-def _log10(x: Union[ColumnOrName, int, float], _emit_ast: bool = True) -> Column:
-    return log(10, x, _emit_ast=_emit_ast)
+def _log10(
+    x: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+    _ast: Optional[proto.Expr] = None,
+) -> Column:
+    return log(10, x, _emit_ast=_emit_ast, _ast=_ast)
 
 
 @publicapi
@@ -7112,12 +7219,15 @@ def array_unique_agg(col: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def map_cat(col1: ColumnOrName, col2: ColumnOrName, _emit_ast: bool = True):
-    """Returns the concatenatation of two MAPs.
+def map_cat(
+    col1: ColumnOrName, col2: ColumnOrName, *cols: ColumnOrName, _emit_ast: bool = True
+):
+    """Returns the concatenatation of two or more MAPs.
 
     Args:
         col1: The source map
         col2: The map to be appended to col1
+        cols: More maps to be appended
 
     Example::
         >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B")
@@ -7131,10 +7241,31 @@ def map_cat(col1: ColumnOrName, col2: ColumnOrName, _emit_ast: bool = True):
         |}                        |
         ---------------------------
         <BLANKLINE>
+        >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B, {'k3': 'v3'} :: MAP(STRING,STRING) as C")
+        >>> df.select(map_cat("A", "B", "C")).show()
+        -------------------------------------------
+        |"MAP_CAT(MAP_CAT(""A"", ""B""), ""C"")"  |
+        -------------------------------------------
+        |{                                        |
+        |  "k1": "v1",                            |
+        |  "k2": "v2",                            |
+        |  "k3": "v3"                             |
+        |}                                        |
+        -------------------------------------------
+        <BLANKLINE>
     """
     m1 = _to_col_if_str(col1, "map_cat")
     m2 = _to_col_if_str(col2, "map_cat")
-    return builtin("map_cat", _emit_ast=_emit_ast)(m1, m2)
+    ast = build_function_expr("map_cat", [col1, col2, *cols]) if _emit_ast else None
+
+    def map_cat_two_maps(first, second):
+        return builtin("map_cat", _ast=ast, _emit_ast=False)(first, second)
+
+    cols_to_concat = [m1, m2]
+    for c in cols:
+        cols_to_concat.append(_to_col_if_str(c, "map_cat"))
+
+    return reduce(map_cat_two_maps, cols_to_concat)
 
 
 @publicapi
@@ -7523,7 +7654,9 @@ def vector_inner_product(
 
 
 @publicapi
-def ln(c: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
+def ln(
+    c: ColumnOrLiteral, _emit_ast: bool = True, _ast: Optional[proto.Expr] = None
+) -> Column:
     """Returns the natrual logarithm of given column expression.
 
     Example::
@@ -7540,7 +7673,7 @@ def ln(c: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
     """
 
     # AST.
-    ast = None
+    ast = _ast
     if _emit_ast:
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "ln", c)
@@ -8418,7 +8551,13 @@ def iff(
 @publicapi
 def in_(
     cols: List[ColumnOrName],
-    *vals: Union["snowflake.snowpark.DataFrame", LiteralType, Iterable[LiteralType]],
+    *vals: Union[
+        "snowflake.snowpark.DataFrame",
+        LiteralType,
+        Column,
+        Iterable[LiteralType],
+        Iterable[Column],
+    ],
     _emit_ast: bool = True,
 ) -> Column:
     """Returns a conditional expression that you can pass to the filter or where methods to
@@ -8464,7 +8603,7 @@ def in_(
 
     Args::
         cols: A list of the columns to compare for the IN operation.
-        vals: A list containing the values to compare for the IN operation.
+        vals: A list containing the values or columns, or a Snowpark DataFrame to compare for the IN operation.
     """
 
     # AST.
@@ -8491,7 +8630,7 @@ def in_(
             if isinstance(val, snowflake.snowpark.dataframe.DataFrame):
                 val._set_ast_ref(val_ast)
             else:
-                build_expr_from_python_val(val_ast, val)
+                build_expr_from_snowpark_column_or_python_val(val_ast, val)
             values_args.append(val_ast)
 
         ast = proto.Expr()
@@ -8791,9 +8930,37 @@ def first_value(
         ast = proto.Expr()
         build_builtin_fn_apply(ast, "first_value", e, ignore_nulls)
 
-    c = _to_col_if_str(e, "last_value")
+    c = _to_col_if_str(e, "first_value")
 
     ans = Column(FirstValue(c._expression, None, None, ignore_nulls), _emit_ast=False)
+    ans._ast = ast
+    return ans
+
+
+@publicapi
+def nth_value(
+    e: ColumnOrName, n: int, ignore_nulls: bool = False, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the nth value within an ordered group of values.
+
+    Example::
+
+        >>> from snowflake.snowpark.window import Window
+        >>> window = Window.partition_by("column1").order_by("column2")
+        >>> df = session.create_dataframe([[1, 10], [1, 11], [2, 20], [2, 21]], schema=["column1", "column2"])
+        >>> df.select(df["column1"], df["column2"], nth_value(df["column2"], 2).over(window).as_("column2_2nd")).collect()
+        [Row(COLUMN1=1, COLUMN2=10, COLUMN2_2ND=11), Row(COLUMN1=1, COLUMN2=11, COLUMN2_2ND=11), Row(COLUMN1=2, COLUMN2=20, COLUMN2_2ND=21), Row(COLUMN1=2, COLUMN2=21, COLUMN2_2ND=21)]
+    """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "nth_value", e, n, ignore_nulls)
+
+    c = _to_col_if_str(e, "nth_value")
+
+    ans = Column(NthValue(c._expression, n, None, ignore_nulls), _emit_ast=False)
     ans._ast = ast
     return ans
 
@@ -10871,6 +11038,7 @@ def position(
     expr2: ColumnOrName,
     start_pos: int = 1,
     _emit_ast: bool = True,
+    _ast: Optional[proto.Expr] = None,
 ) -> Column:
     """
     Searches for the first occurrence of the first argument in the second argument and, if successful, returns
@@ -10884,7 +11052,7 @@ def position(
     """
     c1 = _to_col_if_str(expr1, "position")
     c2 = _to_col_if_str(expr2, "position")
-    return builtin("position", _emit_ast=_emit_ast)(c1, c2, lit(start_pos))
+    return builtin("position", _ast=_ast, _emit_ast=_emit_ast)(c1, c2, lit(start_pos))
 
 
 @publicapi
@@ -11064,3 +11232,148 @@ def try_to_binary(
         if fmt
         else builtin("try_to_binary", _emit_ast=_emit_ast)(c)
     )
+
+
+@publicapi
+def base64_encode(
+    e: ColumnOrName,
+    max_line_length: Optional[int] = 0,
+    alphabet: Optional[str] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Encodes the input (string or binary) using Base64 encoding.
+
+    Example:
+        >>> df = session.create_dataframe(["Snowflake", "Data"], schema=["input"])
+        >>> df.select(base64_encode(col("input")).alias("encoded")).collect()
+        [Row(ENCODED='U25vd2ZsYWtl'), Row(ENCODED='RGF0YQ==')]
+    """
+    # Convert input to a column if it is not already one.
+    ast = (
+        build_function_expr("base64_encode", [e, max_line_length, alphabet])
+        if _emit_ast
+        else None
+    )
+    col_input = _to_col_if_str(e, "base64_encode")
+
+    # Prepare arguments for the function call.
+    args = [col_input]
+
+    if max_line_length:
+        args.append(lit(max_line_length))
+
+    if alphabet:
+        args.append(lit(alphabet))
+
+    # Call the built-in Base64 encode function.
+    return builtin("base64_encode", _ast=ast, _emit_ast=False)(*args)
+
+
+base64 = base64_encode
+
+
+@publicapi
+def base64_decode_string(
+    e: ColumnOrName, alphabet: Optional[str] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Decodes a Base64-encoded string to a string.
+
+    Example:
+        >>> df = session.create_dataframe(["U25vd2ZsYWtl", "SEVMTE8="], schema=["input"])
+        >>> df.select(base64_decode_string(col("input")).alias("decoded")).collect()
+        [Row(DECODED='Snowflake'), Row(DECODED='HELLO')]
+    """
+    # Convert input to a column if it is not already one.
+    ast = (
+        build_function_expr("base64_decode_string", [e, alphabet])
+        if _emit_ast
+        else None
+    )
+    col_input = _to_col_if_str(e, "base64_decode_string")
+
+    # Prepare arguments for the function call.
+    args = [col_input]
+
+    if alphabet:
+        args.append(lit(alphabet))
+
+    # Call the built-in Base64 encode function.
+    return builtin("base64_decode_string", _ast=ast, _emit_ast=False)(*args)
+
+
+unbase64 = base64_decode_string
+
+
+@publicapi
+def hex_encode(e: ColumnOrName, case: int = 1, _emit_ast: bool = True):
+    """
+    Encodes the input using hexadecimal (also ‘hex’ or ‘base16’) encoding.
+
+    Example:
+        >>> df = session.create_dataframe(["Snowflake", "Hello"], schema=["input"])
+        >>> df.select(hex_encode(col("input")).alias("hex_encoded")).collect()
+        [Row(HEX_ENCODED='536E6F77666C616B65'), Row(HEX_ENCODED='48656C6C6F')]
+    """
+    ast = build_function_expr("hex_encode", [e, case]) if _emit_ast else None
+    col_input = _to_col_if_str(e, "hex_encode")
+    return builtin("hex_encode", _ast=ast, _emit_ast=False)(col_input, lit(case))
+
+
+hex = hex_encode
+
+
+@publicapi
+def editdistance(
+    e1: ColumnOrName,
+    e2: ColumnOrName,
+    max_distance: Optional[Union[int, ColumnOrName]] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """Computes the Levenshtein distance between two input strings.
+
+    Optionally, a maximum distance can be specified. If the distance exceeds this value,
+    the computation halts and returns the maximum distance.
+
+    Example::
+
+        >>> df = session.create_dataframe(
+        ...     [["abc", "def"], ["abcdef", "abc"], ["snow", "flake"]],
+        ...     schema=["s1", "s2"]
+        ... )
+        >>> df.select(
+        ...     editdistance(col("s1"), col("s2")).alias("distance"),
+        ...     editdistance(col("s1"), col("s2"), 2).alias("max_2_distance")
+        ... ).collect()
+        [Row(DISTANCE=3, MAX_2_DISTANCE=2), Row(DISTANCE=3, MAX_2_DISTANCE=2), Row(DISTANCE=5, MAX_2_DISTANCE=2)]
+    """
+    ast = build_function_expr("editdistance", [e1, e2]) if _emit_ast else None
+    s1 = _to_col_if_str(e1, "editdistance")
+    s2 = _to_col_if_str(e2, "editdistance")
+
+    args = [s1, s2]
+    if max_distance is not None:
+        max_dist = (
+            lit(max_distance)
+            if isinstance(max_distance, int)
+            else _to_col_if_str(max_distance, "editdistance")
+        )
+        args.append(max_dist)
+
+    return builtin("editdistance", _ast=ast, _emit_ast=False)(*args)
+
+
+@publicapi
+def instr(str: ColumnOrName, substr: str, _emit_ast: bool = True):
+    """
+    Locate the position of the first occurrence of substr column in the given string. Returns null if either of the arguments are null.
+
+    Example::
+        >>> df = session.create_dataframe([["hello world"], ["world hello"]], schema=["text"])
+        >>> df.select(instr(col("text"), "world").alias("position")).collect()
+        [Row(POSITION=7), Row(POSITION=1)]
+    """
+    ast = build_function_expr("instr", [str, substr]) if _emit_ast else None
+    s1 = _to_col_if_str(str, "instr")
+    return position(lit(substr), s1, _emit_ast=False, _ast=ast)
