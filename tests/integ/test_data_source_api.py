@@ -31,7 +31,8 @@ all_type_schema = (
     ("BinaryCol", bytearray, None, 5, 5, 0, True),
     ("BitCol", bool, None, 1, 1, 0, True),
 )
-
+test_type = (("BinaryCol", bytearray, None, 5, 5, 0, True),)
+test_data = [(b"\x01\x02\x03\x04\x05",)]
 all_type_data = [
     (
         31301,
