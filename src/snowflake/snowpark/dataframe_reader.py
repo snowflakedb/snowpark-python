@@ -54,6 +54,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list_variadic,
     publicapi,
     get_temp_type_for_object,
+    normalize_local_file,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1273,7 +1274,7 @@ class DataFrameReader:
         on_error: Optional[str] = "abort_statement",
     ):
         file_name = os.path.basename(local_file)
-        put_query = f"put file://{local_file} @{snowflake_stage_name}/ OVERWRITE=TRUE"
+        put_query = f"PUT {normalize_local_file(local_file)} @{snowflake_stage_name} OVERWRITE=TRUE"
         copy_into_table_query = f"""
         COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
         FILE_FORMAT = (TYPE = PARQUET)
