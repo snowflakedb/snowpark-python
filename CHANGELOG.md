@@ -43,7 +43,6 @@
   - `regr_sxx`
   - `regr_sxy`
   - `regr_syy`
-  - `array_slice`
   - `try_to_binary`
   - `base64`
   - `base64_decode_string`
