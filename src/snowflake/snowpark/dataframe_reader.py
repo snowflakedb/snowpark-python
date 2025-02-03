@@ -42,9 +42,10 @@ from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
-    Connection,
+    # Connection,
     convert_sp_to_sf_type,
 )
+from pyodbc import Connection
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
@@ -1033,6 +1034,7 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
+        fetch_size: Optional[int] = 0,
     ) -> DataFrame:
         conn = create_connection()
         # this is specified to pyodbc, need other way to manage timeout on other drivers
@@ -1107,6 +1109,7 @@ class DataFrameReader:
                         i,
                         tmp_dir,
                         query_timeout,
+                        fetch_size,
                     )
                     for i, query in enumerate(partitioned_queries)
                 ]
@@ -1322,11 +1325,24 @@ def _task_fetch_from_data_source(
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
+    fetch_size: int = 0,
 ) -> str:
     conn = create_connection()
     # this is specified to pyodbc, need other way to manage timeout on other drivers
     conn.timeout = query_timeout
-    result = conn.cursor().execute(query).fetchall()
+    result = []
+    if fetch_size == 0:
+        result = conn.cursor().execute(query).fetchall()
+    elif fetch_size > 0:
+        cursor = conn.cursor()
+        cursor.arraysize = fetch_size
+        rows = cursor.execute(query).fetchmany(cursor.arraysize)
+        while rows:
+            result.extend(rows)
+            rows = cursor.execute(query).fetchmany(cursor.arraysize)
+    else:
+        raise ValueError("fetch size cannot be smaller than 0")
+
     columns = [col[0] for col in schema]
     df = pd.DataFrame.from_records(result, columns=columns)
     df = df.map(
@@ -1346,6 +1362,7 @@ def task_fetch_from_data_source_with_retry(
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
+    fetch_size: int = 0,
 ) -> Union[str, Exception]:
     retry_count = 0
     error = None
