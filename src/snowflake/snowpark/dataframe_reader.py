@@ -1221,19 +1221,23 @@ class DataFrameReader:
 
         return partition_queries
 
+    # this function is only used in data source API for SQL server
     def _to_internal_value(self, value: Union[int, str, float], column_type: DataType):
         if isinstance(column_type, _NumericType):
             return int(value)
         elif isinstance(column_type, (TimestampType, DateType)):
+            # TODO: SNOW-1909315: support timezone
             dt = parser.parse(value)
             return int(dt.replace(tzinfo=pytz.UTC).timestamp())
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
 
+    # this function is only used in data source API for SQL server
     def _to_external_value(self, value: Union[int, str, float], column_type: DataType):
         if isinstance(column_type, _NumericType):
             return value
         elif isinstance(column_type, (TimestampType, DateType)):
+            # TODO: SNOW-1909315: support timezone
             return datetime.datetime.fromtimestamp(value, tz=pytz.UTC)
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
