@@ -863,6 +863,23 @@ def test_partition_logic(session):
     for r, expected_r in zip(queries, expected_queries4):
         assert r == expected_r
 
+    expected_queries5 = [
+        "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '11'",
+        "SELECT * FROM fake_table WHERE ID >= '11'",
+    ]
+
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=5,
+        upper_bound=15,
+        num_partitions=3,
+    )
+    for r, expected_r in zip(queries, expected_queries5):
+        assert r == expected_r
+
 
 def test_partition_date_timestamp(session):
     expected_queries1 = [
