@@ -5,6 +5,7 @@ import datetime
 import decimal
 import os
 import tempfile
+from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
 from concurrent.futures import (
     ProcessPoolExecutor,
     wait,
@@ -13,6 +14,7 @@ from concurrent.futures import (
     as_completed,
 )
 
+import pytz
 from dateutil import parser
 import sys
 from logging import getLogger
@@ -26,6 +28,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_file_format_if_exists_statement,
     infer_schema_statement,
     quote_name_without_upper_casing,
+    TEMPORARY_STRING_SET,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
@@ -42,6 +45,7 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
     Connection,
+    convert_sp_to_sf_type,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -52,6 +56,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list_variadic,
     publicapi,
     get_temp_type_for_object,
+    normalize_local_file,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1113,9 +1118,14 @@ class DataFrameReader:
             # create temp table
             snowflake_table_type = "temporary"
             snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-            self._session.create_dataframe(
-                data=[], schema=struct_schema
-            ).write.save_as_table(snowflake_table_name, table_type=snowflake_table_type)
+            create_table_sql = (
+                "CREATE "
+                + f"{get_temp_type_for_object(self._session._use_scoped_temp_objects, True) if snowflake_table_type.lower() in TEMPORARY_STRING_SET else snowflake_table_type} "
+                + "TABLE "
+                + f"{snowflake_table_name} "
+                + f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+            )
+            self._session.sql(create_table_sql).collect()
             res_df = self.table(snowflake_table_name)
 
             # create temp stage
@@ -1172,7 +1182,7 @@ class DataFrameReader:
 
     def _infer_data_source_schema(
         self, conn: Connection, table: str
-    ) -> tuple[StructType, tuple[tuple[str, Any, int, int, int, int, bool]]]:
+    ) -> Tuple[StructType, Tuple[Tuple[str, Any, int, int, int, int, bool]]]:
         raw_schema = conn.execute(f"SELECT * FROM {table} WHERE 1 = 0").description
         return self._to_snowpark_type(raw_schema), raw_schema
 
@@ -1206,40 +1216,73 @@ class DataFrameReader:
             )
 
         # decide stride length
-        upper_stride = processed_upper_bound / actual_num_partitions
-        lower_stride = processed_lower_bound / actual_num_partitions
-        stride = upper_stride - lower_stride
+        upper_stride = (
+            processed_upper_bound / decimal.Decimal(actual_num_partitions)
+        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        lower_stride = (
+            processed_lower_bound / decimal.Decimal(actual_num_partitions)
+        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        preciseStride = upper_stride - lower_stride
+        stride = int(preciseStride)
+
+        lost_num_of_strides = (
+            (preciseStride - decimal.Decimal(stride))
+            * decimal.Decimal(actual_num_partitions)
+            / decimal.Decimal(stride)
+        )
+        lower_bound_with_stride_alignment = processed_lower_bound + int(
+            (lost_num_of_strides / 2 * decimal.Decimal(stride)).quantize(
+                decimal.Decimal("1"), rounding=ROUND_HALF_UP
+            )
+        )
+
+        current_value = lower_bound_with_stride_alignment
 
         partition_queries = []
         for i in range(actual_num_partitions):
-            left = (
-                processed_lower_bound + i * stride
-                if column_type != int
-                else int(processed_lower_bound + i * stride)
+            l_bound = (
+                f"{column} >= '{self._to_external_value(current_value, column_type)}'"
+                if i != 0
+                else ""
             )
-            right = (
-                min(left + stride, processed_upper_bound)
-                if column_type != int
-                else int(min(left + stride, processed_upper_bound))
+            current_value += stride
+            u_bound = (
+                f"{column} < '{self._to_external_value(current_value, column_type)}'"
+                if i != actual_num_partitions - 1
+                else ""
             )
-            partition_queries.append(
-                select_query
-                + f" WHERE {column} >= {self._to_external_value(left, column_type)} and {column} {'<=' if right == processed_upper_bound else '<'} {self._to_external_value(right, column_type)}"
-            )
+
+            if u_bound == "":
+                where_clause = l_bound
+            elif l_bound == "":
+                where_clause = f"{u_bound} OR {column} is null"
+            else:
+                where_clause = f"{l_bound} AND {u_bound}"
+
+            partition_queries.append(select_query + f" WHERE {where_clause}")
 
         return partition_queries
 
-    def _to_internal_value(self, value, column_type):
+    # this function is only used in data source API for SQL server
+    def _to_internal_value(self, value: Union[int, str, float], column_type: DataType):
         if isinstance(column_type, _NumericType):
             return int(value)
+        elif isinstance(column_type, (TimestampType, DateType)):
+            # TODO: SNOW-1909315: support timezone
+            dt = parser.parse(value)
+            return int(dt.replace(tzinfo=pytz.UTC).timestamp())
         else:
-            return int(parser.parse(value).timestamp())
+            raise TypeError(f"unsupported column type for partition: {column_type}")
 
-    def _to_external_value(self, value, column_type):
+    # this function is only used in data source API for SQL server
+    def _to_external_value(self, value: Union[int, str, float], column_type: DataType):
         if isinstance(column_type, _NumericType):
             return value
+        elif isinstance(column_type, (TimestampType, DateType)):
+            # TODO: SNOW-1909315: support timezone
+            return datetime.datetime.fromtimestamp(value, tz=pytz.UTC)
         else:
-            return datetime.datetime.fromtimestamp(value)
+            raise TypeError(f"unsupported column type for partition: {column_type}")
 
     def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
         fields = []
@@ -1272,7 +1315,7 @@ class DataFrameReader:
         on_error: Optional[str] = "abort_statement",
     ):
         file_name = os.path.basename(local_file)
-        put_query = f"put file://{local_file} @{snowflake_stage_name}/ OVERWRITE=TRUE"
+        put_query = f"PUT {normalize_local_file(local_file)} @{snowflake_stage_name} OVERWRITE=TRUE"
         copy_into_table_query = f"""
         COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
         FILE_FORMAT = (TYPE = PARQUET)
@@ -1316,7 +1359,7 @@ class DataFrameReader:
 def _task_fetch_from_data_source(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: tuple[tuple[str, Any, int, int, int, int, bool]],
+    schema: Tuple[Tuple[str, Any, int, int, int, int, bool]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
@@ -1327,6 +1370,11 @@ def _task_fetch_from_data_source(
     result = conn.cursor().execute(query).fetchall()
     columns = [col[0] for col in schema]
     df = pd.DataFrame.from_records(result, columns=columns)
+    df = df.map(
+        lambda x: x.isoformat()
+        if isinstance(x, (datetime.datetime, datetime.date))
+        else x
+    )
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
     return path
@@ -1335,7 +1383,7 @@ def _task_fetch_from_data_source(
 def task_fetch_from_data_source_with_retry(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: tuple[tuple[str, Any, int, int, int, int, bool]],
+    schema: Tuple[Tuple[str, Any, int, int, int, int, bool]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
