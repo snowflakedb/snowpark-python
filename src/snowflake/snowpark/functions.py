@@ -11423,6 +11423,8 @@ def randn(
         >>> df = session.create_dataframe([1,2,3], schema=["seed"])
         >>> df.select(randn("seed").alias("randn")).collect()
         [Row(RANDN=-1.143416214223267), Row(RANDN=-0.78469958830255), Row(RANDN=-0.365971322006404)]
+        >>> df.select(randn().alias("randn")).collect()
+        [Row(RANDN=1.634677622707524), Row(RANDN=-0.2710580587390637), Row(RANDN=-0.035450456326278176)]
     """
     ast = build_function_expr("randn", [seed]) if _emit_ast else None
     if seed is None:
