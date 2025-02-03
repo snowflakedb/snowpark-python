@@ -788,19 +788,13 @@ def test_parallel(session):
 
 
 def test_partition_logic(session):
-    # same result as spark
     expected_queries1 = [
         "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
         "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '10'",
         "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '12'",
         "SELECT * FROM fake_table WHERE ID >= '12'",
     ]
-    expected_queries2 = [
-        "SELECT * FROM fake_table WHERE ID < '-2' OR ID is null",
-        "SELECT * FROM fake_table WHERE ID >= '-2' AND ID < '0'",
-        "SELECT * FROM fake_table WHERE ID >= '0' AND ID < '2'",
-        "SELECT * FROM fake_table WHERE ID >= '2'",
-    ]
+
     queries = session.read._generate_partition(
         table="fake_table",
         column_type=IntegerType(),
@@ -812,6 +806,13 @@ def test_partition_logic(session):
     for r, expected_r in zip(queries, expected_queries1):
         assert r == expected_r
 
+    expected_queries2 = [
+        "SELECT * FROM fake_table WHERE ID < '-2' OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= '-2' AND ID < '0'",
+        "SELECT * FROM fake_table WHERE ID >= '0' AND ID < '2'",
+        "SELECT * FROM fake_table WHERE ID >= '2'",
+    ]
+
     queries = session.read._generate_partition(
         table="fake_table",
         column_type=IntegerType(),
@@ -821,6 +822,45 @@ def test_partition_logic(session):
         num_partitions=4,
     )
     for r, expected_r in zip(queries, expected_queries2):
+        assert r == expected_r
+
+    expected_queries3 = [
+        "SELECT * FROM fake_table",
+    ]
+
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=5,
+        upper_bound=15,
+        num_partitions=1,
+    )
+    for r, expected_r in zip(queries, expected_queries3):
+        assert r == expected_r
+
+    expected_queries4 = [
+        "SELECT * FROM fake_table WHERE ID < '6' OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= '6' AND ID < '7'",
+        "SELECT * FROM fake_table WHERE ID >= '7' AND ID < '8'",
+        "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '9'",
+        "SELECT * FROM fake_table WHERE ID >= '9' AND ID < '10'",
+        "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '11'",
+        "SELECT * FROM fake_table WHERE ID >= '11' AND ID < '12'",
+        "SELECT * FROM fake_table WHERE ID >= '12' AND ID < '13'",
+        "SELECT * FROM fake_table WHERE ID >= '13' AND ID < '14'",
+        "SELECT * FROM fake_table WHERE ID >= '14'",
+    ]
+
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=5,
+        upper_bound=15,
+        num_partitions=10,
+    )
+    for r, expected_r in zip(queries, expected_queries4):
         assert r == expected_r
 
 
