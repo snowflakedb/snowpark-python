@@ -6611,6 +6611,22 @@ def json_tuple(
     col: ColumnOrName,
     *fields: str,
 ) -> List[Column]:
+    """Create new rows for a json column according to given json field.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import json_tuple
+        >>> data = [("1", '''{"key1": "value1", "key2": "value2"}'''), ("2", '''{"key1": "value2"}''')]
+        >>> df = session.createDataFrame(data, ("id", "jstring"))
+        >>> df.select(df.id, json_tuple(df.jstring, 'key1', 'key2')).show()
+        --------------------------
+        |"ID"  |"C0"    |"C1"    |
+        --------------------------
+        |1     |value1  |value2  |
+        |2     |value2  |NULL    |
+        --------------------------
+        <BLANKLINE>
+    """
     c = _to_col_if_str(col, "json_tuple")
     return [
         json_extract_path_text(parse_json(c), lit(field)).as_(f"c{i}")
