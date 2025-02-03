@@ -1316,11 +1316,17 @@ def _task_fetch_from_data_source(
     result = conn.cursor().execute(query).fetchall()
     columns = [col[0] for col in schema]
     df = pd.DataFrame.from_records(result, columns=columns)
+
+    # convert timestamp and date to string to avoid but in SQL
     df = df.map(
         lambda x: x.isoformat()
         if isinstance(x, (datetime.datetime, datetime.date))
         else x
     )
+    # convert binary type to object type to avoid pandas store it as string
+    for col in schema:
+        if col[1] == bytearray:
+            df[col[0]] = df[col[0]].astype("object")
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
     return path
