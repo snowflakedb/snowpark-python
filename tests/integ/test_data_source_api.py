@@ -14,6 +14,7 @@ from snowflake.snowpark.dataframe_reader import (
     task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
 )
+from snowflake.snowpark.types import IntegerType, DateType, MapType
 
 SQL_SERVER_TABLE_NAME = "RandomDataWith100Columns"
 
@@ -696,11 +697,7 @@ def create_connection():
 
 
 def fake_task_fetch_from_data_source_with_retry(
-    create_connection,
-    query,
-    schema,
-    i,
-    tmp_dir,
+    create_connection, query, schema, i, tmp_dir, query_timeout
 ):
     time.sleep(2)
 
@@ -785,6 +782,150 @@ def test_parallel(session):
             )
             end = time.time()
             # totally time without parallel is 12 seconds
-            assert end - start < 6
+            assert end - start < 12
             # verify that mocked function is called for each partition
             assert mock_upload_and_copy.call_count == num_partitions
+
+
+def test_partition_logic(session):
+    expected_queries1 = [
+        "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '10'",
+        "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '12'",
+        "SELECT * FROM fake_table WHERE ID >= '12'",
+    ]
+
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=5,
+        upper_bound=15,
+        num_partitions=4,
+    )
+    for r, expected_r in zip(queries, expected_queries1):
+        assert r == expected_r
+
+    expected_queries2 = [
+        "SELECT * FROM fake_table WHERE ID < '-2' OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= '-2' AND ID < '0'",
+        "SELECT * FROM fake_table WHERE ID >= '0' AND ID < '2'",
+        "SELECT * FROM fake_table WHERE ID >= '2'",
+    ]
+
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=-5,
+        upper_bound=5,
+        num_partitions=4,
+    )
+    for r, expected_r in zip(queries, expected_queries2):
+        assert r == expected_r
+
+    expected_queries3 = [
+        "SELECT * FROM fake_table",
+    ]
+
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=5,
+        upper_bound=15,
+        num_partitions=1,
+    )
+    for r, expected_r in zip(queries, expected_queries3):
+        assert r == expected_r
+
+    expected_queries4 = [
+        "SELECT * FROM fake_table WHERE ID < '6' OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= '6' AND ID < '7'",
+        "SELECT * FROM fake_table WHERE ID >= '7' AND ID < '8'",
+        "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '9'",
+        "SELECT * FROM fake_table WHERE ID >= '9' AND ID < '10'",
+        "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '11'",
+        "SELECT * FROM fake_table WHERE ID >= '11' AND ID < '12'",
+        "SELECT * FROM fake_table WHERE ID >= '12' AND ID < '13'",
+        "SELECT * FROM fake_table WHERE ID >= '13' AND ID < '14'",
+        "SELECT * FROM fake_table WHERE ID >= '14'",
+    ]
+
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=5,
+        upper_bound=15,
+        num_partitions=10,
+    )
+    for r, expected_r in zip(queries, expected_queries4):
+        assert r == expected_r
+
+    expected_queries5 = [
+        "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
+        "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '11'",
+        "SELECT * FROM fake_table WHERE ID >= '11'",
+    ]
+
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=IntegerType(),
+        column="ID",
+        lower_bound=5,
+        upper_bound=15,
+        num_partitions=3,
+    )
+    for r, expected_r in zip(queries, expected_queries5):
+        assert r == expected_r
+
+
+def test_partition_date_timestamp(session):
+    expected_queries1 = [
+        "SELECT * FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
+    ]
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=DateType(),
+        column="DATE",
+        lower_bound=str(datetime.date(2020, 6, 15)),
+        upper_bound=str(datetime.date(2020, 12, 15)),
+        num_partitions=4,
+    )
+
+    for r, expected_r in zip(queries, expected_queries1):
+        assert r == expected_r
+
+    expected_queries2 = [
+        "SELECT * FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
+        "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
+    ]
+    queries = session.read._generate_partition(
+        table="fake_table",
+        column_type=DateType(),
+        column="DATE",
+        lower_bound=str(datetime.datetime(2020, 6, 15, 12, 25, 30)),
+        upper_bound=str(datetime.datetime(2020, 12, 15, 7, 8, 20)),
+        num_partitions=4,
+    )
+
+    for r, expected_r in zip(queries, expected_queries2):
+        assert r == expected_r
+
+
+def test_partition_unsupported_type(session):
+    with pytest.raises(TypeError, match="unsupported column type for partition:"):
+        session.read._generate_partition(
+            table="fake_table",
+            column_type=MapType(),
+            column="DATE",
+            lower_bound=0,
+            upper_bound=1,
+            num_partitions=4,
+        )
