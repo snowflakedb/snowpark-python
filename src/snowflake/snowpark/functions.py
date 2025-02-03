@@ -692,18 +692,18 @@ def bitshiftright_unsigned(
 
     Example:
         >>> df = session.createDataFrame([(-1999)], ['a'])
-        >>> df.select(bitshiftrightunsigned('a', 1)).collect()[0][0]
+        >>> df.select(bitshiftright_unsigned('a', 1)).collect()[0][0]
         9223372036854774808
 
         >>> df = session.createDataFrame([(42)], ['a'])
-        >>> df.select(bitshiftrightunsigned('a', 1)).collect()[0][0]
+        >>> df.select(bitshiftright_unsigned('a', 1)).collect()[0][0]
         21
 
         >>> df = session.createDataFrame([(-21)], ['a'])
-        >>> df.select(bitshiftrightunsigned('a', 1)).collect()[0][0]
+        >>> df.select(bitshiftright_unsigned('a', 1)).collect()[0][0]
         9223372036854775797
     """
-    c = _to_col_if_str(to_shift_column, "bitshiftrightunsigned")
+    c = _to_col_if_str(to_shift_column, "bitshiftright_unsigned")
     max_bit = bitshiftleft(lit(1), 64)
     unsigned_c = iff(c < 0, bitshiftright(c + max_bit, n), bitshiftright(c, n))
     return call_builtin("bitand", unsigned_c, max_bit - 1, _emit_ast=_emit_ast)
