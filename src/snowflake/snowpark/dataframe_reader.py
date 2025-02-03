@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
+import decimal
 import os
 import tempfile
 from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
@@ -43,7 +44,6 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
     Connection,
     convert_sp_to_sf_type,
-    infer_type,
     python_type_to_snow_type,
 )
 from snowflake.snowpark._internal.utils import (
@@ -74,6 +74,7 @@ from snowflake.snowpark.types import (
     DateType,
     DataType,
     _NumericType,
+    TimestampType,
 )
 from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import random_name_for_temp_object

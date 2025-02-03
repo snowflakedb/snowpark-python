@@ -7,7 +7,6 @@ import time
 from _decimal import Decimal
 import datetime
 from unittest import mock
-from unittest.mock import MagicMock
 import pytest
 
 from snowflake.snowpark.dataframe_reader import (
@@ -357,7 +356,7 @@ def upload_and_copy_into_table_with_retry(
 )
 def test_dbapi_with_temp_table(session):
     df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME, max_workers=4)
-    assert df.collect() == rows
+    assert df.collect() == all_type_data
 
 
 @pytest.mark.skipif(
@@ -568,4 +567,3 @@ def test_partition_unsupported_type(session):
             upper_bound=1,
             num_partitions=4,
         )
-    assert df.collect() == all_type_data
