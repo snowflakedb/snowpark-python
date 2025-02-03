@@ -44,6 +44,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     SubfieldInt,
     SubfieldString,
     UnresolvedAttribute,
+    Attribute,
     WithinGroup,
 )
 from snowflake.snowpark._internal.analyzer.sort_expression import (
@@ -254,8 +255,25 @@ class Column:
         expr2: Optional[str] = None,
         _ast: Optional[proto.Expr] = None,
         _emit_ast: bool = True,
+        *,
+        _is_qualified_name: bool = False,
     ) -> None:
         self._ast = _ast
+
+        def derive_qualified_name_expr(
+            expr: str, df_alias: Optional[str] = None
+        ) -> UnresolvedAttribute:
+            parts = expr.split(".")
+            if len(parts) == 1:
+                return UnresolvedAttribute(quote_name(parts[0]), df_alias=df_alias)
+            else:
+                # According to https://docs.snowflake.com/en/user-guide/querying-semistructured#dot-notation,
+                # the json value on the path should be case-sensitive
+                return UnresolvedAttribute(
+                    f"{quote_name(parts[0])}:{'.'.join(quote_name(part, keep_case=True) for part in parts[1:])}",
+                    is_sql_text=True,
+                    df_alias=df_alias,
+                )
 
         if expr2 is not None:
             if not (isinstance(expr1, str) and isinstance(expr2, str)):
@@ -265,6 +283,8 @@ class Column:
 
             if expr2 == "*":
                 self._expression = Star([], df_alias=expr1)
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr2, expr1)
             else:
                 self._expression = UnresolvedAttribute(
                     quote_name(expr2), df_alias=expr1
@@ -279,6 +299,8 @@ class Column:
         elif isinstance(expr1, str):
             if expr1 == "*":
                 self._expression = Star([])
+            elif _is_qualified_name:
+                self._expression = derive_qualified_name_expr(expr1)
             else:
                 self._expression = UnresolvedAttribute(quote_name(expr1))
 
@@ -601,6 +623,8 @@ class Column:
         *vals: Union[
             LiteralType,
             Iterable[LiteralType],
+            "Column",
+            Iterable["Column"],
             "snowflake.snowpark.DataFrame",
         ],
         _emit_ast: bool = True,
@@ -636,8 +660,14 @@ class Column:
             >>> df.select(df["a"].in_(lit(1), lit(2), lit(3)).alias("is_in_list")).collect()
             [Row(IS_IN_LIST=True), Row(IS_IN_LIST=True), Row(IS_IN_LIST=False)]
 
+            >>> # Use in with column object
+            >>> df2 = session.create_dataframe([[1, 1], [2, 4] ,[3, 0]], schema=["a", "b"])
+            >>> df2.select(df2["a"].in_(df2["b"]).alias("is_a_in_b")).collect()
+            [Row(IS_A_IN_B=True), Row(IS_A_IN_B=False), Row(IS_A_IN_B=False)]
+
         Args:
-            vals: The values, or a :class:`DataFrame` instance to use to check for membership against this column.
+            vals: The lteral values, the columns in the same DataFrame, or a :class:`DataFrame` instance to use
+                to check for membership against this column.
         """
 
         cols = parse_positional_args_to_list(*vals)
@@ -683,7 +713,8 @@ class Column:
         if len(cols) != 1 or not isinstance(value_expressions[0], ScalarSubquery):
 
             def validate_value(value_expr: Expression):
-                if isinstance(value_expr, Literal):
+                # literal and column
+                if isinstance(value_expr, (Literal, Attribute, UnresolvedAttribute)):
                     return
                 elif isinstance(value_expr, MultipleExpression):
                     for expr in value_expr.expressions:
@@ -1483,9 +1514,16 @@ class CaseExpr(Column):
     """
 
     def __init__(
-        self, expr: CaseWhen, _ast: Optional[proto.Expr] = None, _emit_ast: bool = True
+        self,
+        expr: CaseWhen,
+        _ast: Optional[proto.Expr] = None,
+        _emit_ast: bool = True,
+        *,
+        _is_qualified_name: bool = False,
     ) -> None:
-        super().__init__(expr, _ast=_ast, _emit_ast=_emit_ast)
+        super().__init__(
+            expr, _is_qualified_name=_is_qualified_name, _ast=_ast, _emit_ast=_emit_ast
+        )
         self._branches = expr.branches
 
     @publicapi

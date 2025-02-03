@@ -70,6 +70,7 @@ def reset_node(node: LogicalPlan, query_generator: QueryGenerator) -> None:
     def reset_selectable(selectable_node: Selectable) -> None:
         # reset the analyzer to use the current query generator instance to
         # ensure the new query generator is used during the resolve process
+        selectable_node._is_valid_for_replacement = True
         selectable_node.analyzer = query_generator
         if not isinstance(selectable_node, (SelectSnowflakePlan, SelectSQL)):
             selectable_node._snowflake_plan = None
@@ -421,7 +422,7 @@ def test_multiple_plan_query_generation(session):
             clustering_exprs=None,
             comment=None,
         ),
-        lambda df, name: CreateViewCommand(name, PersistedView(), None, df._plan),
+        lambda df, name: CreateViewCommand(name, PersistedView(), None, True, df._plan),
         lambda df, name: CopyIntoLocationNode(
             df._plan,
             name,
