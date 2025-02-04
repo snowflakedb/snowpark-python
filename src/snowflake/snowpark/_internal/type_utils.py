@@ -681,10 +681,8 @@ def python_type_to_snow_type(
             else None
         )
         if (
-            key_type is None
-            or value_type is None
-            and context._should_use_structured_type_semantics()
-        ):
+            key_type is None or value_type is None
+        ) and context._should_use_structured_type_semantics():
             return StructType(), False
         return MapType(key_type, value_type), False
 
