@@ -465,12 +465,14 @@ def test_agg_double_column(session):
 
 def test_agg_function_multiple_parameters(session):
     origin_df = session.create_dataframe(["k1", "k1", "k3", "k4", [None]], schema=["v"])
-    assert origin_df.select(listagg("v", delimiter='~!1,."')).collect() == [
-        Row('k1~!1,."k1~!1,."k3~!1,."k4')
-    ]
+    assert origin_df.select(
+        listagg("v", delimiter='~!1,."').within_group(origin_df.v.asc())
+    ).collect() == [Row('k1~!1,."k1~!1,."k3~!1,."k4')]
 
     assert origin_df.select(
-        listagg("v", delimiter='~!1,."', is_distinct=True)
+        listagg("v", delimiter='~!1,."', is_distinct=True).within_group(
+            origin_df.v.asc()
+        )
     ).collect() == [Row('k1~!1,."k3~!1,."k4')]
 
 
