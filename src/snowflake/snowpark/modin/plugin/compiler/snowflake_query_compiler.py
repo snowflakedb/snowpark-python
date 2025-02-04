@@ -8481,7 +8481,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`with raw = {raw}."
                 )
-            if args:
+            if len(args) > 0:
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with args = '{args}'."
                 )
@@ -8810,8 +8810,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """Apply Snowflake Cortex function to columns."""
 
         def sf_function(col: SnowparkColumn) -> SnowparkColumn:
-            if not kwargs:
-                return snowflake_function(col)
+            # if not kwargs:
+            #     return snowflake_function(col)
             resolved_positional = []
             resolved_positional.append(col)
             for arg in kwargs:
@@ -8860,7 +8860,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with na_action == '{na_action}'"
                 )
-            if args:
+            if len(args) > 0:
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with args = '{args}'."
                 )

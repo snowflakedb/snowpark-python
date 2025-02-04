@@ -88,9 +88,9 @@
 - Fixed a bug in `replace` and `lit` which raised type hint assertion error when passing `Column` expression objects.
 - Fixed a bug in `pandas_udf` and `pandas_udtf` where `session` parameter was erroneously ignored.
 
-#### Deprecations
+#### Removed Features
 
-- Deprecated Snowpark Python function `snowflake_cortex_summarize`.
+- Removed support for Snowpark Python function `snowflake_cortex_summarize`. Users can use the Summarize function from Snowflake.Cortex instead.
 
 ### Snowpark pandas API Updates
 
