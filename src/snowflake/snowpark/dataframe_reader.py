@@ -1324,9 +1324,7 @@ def _task_fetch_from_data_source(
         else x
     )
     # convert binary type to object type to avoid pandas store it as string
-    for col in schema:
-        if col[1] == bytearray:
-            df[col[0]] = df[col[0]].astype("object")
+    df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
     return path
