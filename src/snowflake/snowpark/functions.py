@@ -6612,10 +6612,7 @@ def check_xml(col: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def json_tuple(
-    col: ColumnOrName,
-    *fields: str,
-) -> List[Column]:
+def json_tuple(col: ColumnOrName, *fields: str, _emit_ast: bool = True) -> List[Column]:
     """Create new rows for a json column according to given json field.
 
     Example::
@@ -6635,7 +6632,9 @@ def json_tuple(
     c = _to_col_if_str(col, "json_tuple")
     return [
         json_extract_path_text(
-            parse_json(c, _emit_ast=False), lit(field, _emit_ast=False), _emit_ast=False
+            parse_json(c, _emit_ast=False),
+            lit(field, _emit_ast=False),
+            _emit_ast=_emit_ast,
         ).as_(f"c{i}")
         for i, field in enumerate(fields)
     ]
