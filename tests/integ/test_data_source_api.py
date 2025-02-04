@@ -13,7 +13,11 @@ from snowflake.snowpark.dataframe_reader import (
     task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
 )
-from snowflake.snowpark.types import IntegerType, DateType, MapType
+from snowflake.snowpark.types import (
+    IntegerType,
+    DateType,
+    MapType,
+)
 
 SQL_SERVER_TABLE_NAME = "RandomDataWith100Columns"
 
@@ -32,7 +36,7 @@ all_type_schema = (
     ("BitCol", bool, None, 1, 1, 0, True),
 )
 test_type = (("BinaryCol", bytearray, None, 5, 5, 0, True),)
-test_data = [(b"\x01\x02\x03\x04\x05",)]
+test_data = [(b"\x68\x65\x6c\x6c\x6f",)]
 all_type_data = [
     (
         31301,
@@ -326,9 +330,9 @@ class FakeConnection:
         return self
 
     def fetchall(self):
-        return all_type_data
+        return test_data
 
-    description = all_type_schema
+    description = test_type
 
 
 def create_connection():
@@ -357,7 +361,7 @@ def upload_and_copy_into_table_with_retry(
 )
 def test_dbapi_with_temp_table(session):
     df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME, max_workers=4)
-    assert df.collect() == all_type_data
+    assert df.collect() == test_data
 
 
 @pytest.mark.skipif(
