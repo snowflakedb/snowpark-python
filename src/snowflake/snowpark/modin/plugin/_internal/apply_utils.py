@@ -1538,19 +1538,6 @@ def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
     return True
 
 
-def is_supported_snowflake_cortex_function(func: AggFuncType) -> bool:
-    """Return True if the `func` is a supported Snowflake Cortex function."""
-    cortex_func_names = [i[0] for i in inspect.getmembers(snowflake.cortex)]
-    if func.__name__ not in cortex_func_names:
-        return False
-    elif func in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY:
-        return True
-    else:
-        raise ErrorMessage.not_implemented(
-            f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`"
-        )
-
-
 def make_series_map_snowpark_function(
     mapping: Union[Mapping, native_pd.Series], self_type: DataType
 ) -> Callable[[SnowparkColumn], SnowparkColumn]:

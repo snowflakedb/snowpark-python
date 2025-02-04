@@ -4,6 +4,7 @@
 
 import modin.pandas as pd
 import pytest
+from pytest import param
 
 
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
@@ -103,26 +104,57 @@ def test_apply_snowflake_cortex_classify_text(session):
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
 )
 @sql_count_checker(query_count=0)
-def test_apply_snowflake_cortex_negative(session):
+@pytest.mark.parametrize(
+    "is_series, operation",
+    [
+        param(
+            True,
+            (lambda s: s.apply(Translate, source_language="en", target_language="de")),
+            id="series_cortex_unsupported_function_translate",
+        ),
+        param(
+            False,
+            (
+                lambda df: df.apply(
+                    Translate, source_language="en", target_language="de"
+                )
+            ),
+            id="df_cortex_unsupported_function_translate",
+        ),
+        param(
+            True,
+            (lambda s: s.apply(s.apply(ClassifyText, args=(["travel", "cooking"])))),
+            id="series_cortex_unsupported_args",
+        ),
+        param(
+            False,
+            (lambda df: df.apply(df.apply(ClassifyText, args=(["travel", "cooking"])))),
+            id="df_cortex_unsupported_args",
+        ),
+        param(
+            True,
+            (lambda s: s.apply(Sentiment, na_action="ignore")),
+            id="series_cortex_unsupported_na_action",
+        ),
+        param(
+            False,
+            (lambda df: df.apply(Sentiment, raw=True)),
+            id="df_cortex_unsupported_raw",
+        ),
+        param(
+            False,
+            (lambda df: df.apply(Sentiment, axis=1)),
+            id="df_cortex_unsupported_axis_1",
+        ),
+    ],
+)
+def test_apply_snowflake_cortex_negative(session, is_series, operation):
 
     # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
     if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
         return
 
     content = "One day I will see the world."
-    s = pd.Series([content])
-    df = pd.DataFrame([content])
     with pytest.raises(NotImplementedError):
-        s.apply(Translate, source_language="en", target_language="de")
-    with pytest.raises(NotImplementedError):
-        df.apply(Translate, source_language="en", target_language="de")
-    with pytest.raises(NotImplementedError):
-        s.apply(ClassifyText, args=(["travel", "cooking"]))
-    with pytest.raises(NotImplementedError):
-        df.apply(ClassifyText, args=(["travel", "cooking"]))
-    with pytest.raises(NotImplementedError):
-        s.apply(Sentiment, na_action="ignore")
-    with pytest.raises(NotImplementedError):
-        df.apply(Sentiment, raw=True)
-    with pytest.raises(NotImplementedError):
-        df.apply(Sentiment, axis=1)
+        modin_input = (pd.Series if is_series else pd.DataFrame)([content])
+        operation(modin_input)
