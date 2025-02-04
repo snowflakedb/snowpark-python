@@ -530,8 +530,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     this class is best explained by looking at https://github.com/modin-project/modin/blob/a8be482e644519f2823668210cec5cf1564deb7e/modin/experimental/core/storage_formats/hdk/query_compiler.py
     """
 
-    # When lazy_execution=True, upstream Modin elides some length checks that would incur queries.
-    lazy_execution = True
+    # When these laziness flags are set, upstream Modin elides some length checks that would incur queries.
+    lazy_row_labels = True
+    lazy_row_count = True
+    lazy_column_types = False
+    lazy_column_labels = False
+    lazy_column_count = False
 
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
