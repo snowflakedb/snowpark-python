@@ -704,8 +704,13 @@ def bitshiftright_unsigned(
         9223372036854775797
     """
     c = _to_col_if_str(to_shift_column, "bitshiftright_unsigned")
-    max_bit = bitshiftleft(lit(1), 64)
-    unsigned_c = iff(c < 0, bitshiftright(c + max_bit, n), bitshiftright(c, n))
+    max_bit = bitshiftleft(lit(1, _emit_ast=False), 64, _emit_ast=False)
+    unsigned_c = iff(
+        c < 0,
+        bitshiftright(c + max_bit, n, _emit_ast=False),
+        bitshiftright(c, n, _emit_ast=False),
+        _emit_ast=False,
+    )
     return call_builtin("bitand", unsigned_c, max_bit - 1, _emit_ast=_emit_ast)
 
 
@@ -6629,7 +6634,9 @@ def json_tuple(
     """
     c = _to_col_if_str(col, "json_tuple")
     return [
-        json_extract_path_text(parse_json(c), lit(field)).as_(f"c{i}")
+        json_extract_path_text(
+            parse_json(c, _emit_ast=False), lit(field, _emit_ast=False), _emit_ast=False
+        ).as_(f"c{i}")
         for i, field in enumerate(fields)
     ]
 
