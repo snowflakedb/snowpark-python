@@ -3196,30 +3196,10 @@ class Session:
                     f"Invalid schema string: {schema}. "
                     f"You should provide a valid schema string representing a struct type."
                 )
+        create_temp_table = False
         if isinstance(schema, StructType):
             new_schema = schema
-            # SELECT query has an undefined behavior for nullability, so if the schema requires non-nullable column and
-            # all columns are primitive type columns, we use a temp table to lock in the nullabilities.
-            # TODO(SNOW-1015527): Support non-primitive type
-            if (
-                not isinstance(self._conn, MockServerConnection)
-                and any([field.nullable is False for field in schema.fields])
-                and all([field.datatype.is_primitive() for field in schema.fields])
-            ):
-                temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-                schema_string = analyzer_utils.attribute_to_schema_string(
-                    schema._to_attributes()
-                )
-                try:
-                    self._run_query(
-                        f"CREATE SCOPED TEMP TABLE {temp_table_name} ({schema_string})"
-                    )
-                    schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
-                except ProgrammingError as e:
-                    _logger.debug(
-                        f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
-                        f"string from select query. Exception: {str(e)}"
-                    )
+            create_temp_table = True
         else:
             if not data:
                 raise ValueError("Cannot infer schema from empty data")
@@ -3295,6 +3275,28 @@ class Session:
             )
             attrs.append(Attribute(quoted_name, sf_type, field.nullable))
             data_types.append(field.datatype)
+
+        if create_temp_table:
+            # SELECT query has an undefined behavior for nullability, so if the schema requires non-nullable column and
+            # all columns are primitive type columns, we use a temp table to lock in the nullabilities.
+            # TODO(SNOW-1015527): Support non-primitive type
+            if (
+                not isinstance(self._conn, MockServerConnection)
+                and any([field.nullable is False for field in schema.fields])
+                and all([field.datatype.is_primitive() for field in schema.fields])
+            ):
+                temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+                schema_string = analyzer_utils.attribute_to_schema_string(attrs)
+                try:
+                    self._run_query(
+                        f"CREATE SCOPED TEMP TABLE {temp_table_name} ({schema_string})"
+                    )
+                    schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
+                except ProgrammingError as e:
+                    _logger.debug(
+                        f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
+                        f"string from select query. Exception: {str(e)}"
+                    )
 
         # convert all variant/time/geospatial/array/map data to string
         converted = []
