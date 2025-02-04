@@ -316,16 +316,6 @@ class Decoder:
                 return self.symbol_table[fn_ref_expr.sp_fn_ref.id.bitfield1][0]
             case "stored_procedure":
                 return self.decode_name_expr(fn_ref_expr.stored_procedure.name)
-            # case "trait_fn_id_ref_expr":
-            #     pass
-            # case "trait_fn_name_ref_expr":
-            #     pass
-            # case "udaf":
-            #     pass
-            # case "udf":
-            #     pass
-            # case "udtf":
-            #     pass
             case _:
                 raise ValueError(
                     "Unknown function reference type: %s"
@@ -985,28 +975,6 @@ class Decoder:
         else:
             return DataFrameAnalyticsFunctions._default_col_formatter
 
-    def get_statement_params(self, d: Dict) -> Dict:
-        """
-        Helper function to get the statement parameters from a map/dict version of the AST (from MessageToDict).
-
-        Parameters
-        ----------
-        d : Dict
-            The dictionary to get the statement parameters from.
-
-        Returns
-        -------
-        Dict
-            The statement parameters.
-        """
-        statement_params = {}
-        statement_params_list = d.get("statementParams", [])
-        for statement_params_list_map in statement_params_list:
-            statement_params[
-                statement_params_list_map["1"]
-            ] = statement_params_list_map["2"]
-        return statement_params
-
     def decode_expr(self, expr: proto.Expr, **kwargs) -> Any:
         """
         Heart of the decoder: decode a given protobuf expression.
@@ -1558,8 +1526,9 @@ class Decoder:
 
             case "sp_dataframe_cache_result":
                 df = self.decode_expr(expr.sp_dataframe_cache_result.df)
-                d = MessageToDict(expr.sp_dataframe_cache_result)
-                statement_params = self.get_statement_params(d)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_cache_result.statement_params
+                )
                 return df.cache_result(statement_params=statement_params)
 
             case "sp_dataframe_col":
@@ -1570,7 +1539,9 @@ class Decoder:
             case "sp_dataframe_collect":
                 df = self.symbol_table[expr.sp_dataframe_collect.id.bitfield1][1]
                 d = MessageToDict(expr.sp_dataframe_collect)
-                statement_params = self.get_statement_params(d)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_collect.statement_params
+                )
                 log_on_exception = d.get("logOnException", False)
                 block = d.get("block", False)
                 case_sensitive = d.get("caseSensitive", False)
@@ -1659,9 +1630,10 @@ class Decoder:
 
             case "sp_dataframe_count":
                 df = self.symbol_table[expr.sp_dataframe_count.id.bitfield1][1]
-                d = MessageToDict(expr.sp_dataframe_count)
-                statement_params = self.get_statement_params(d)
-                block = d.get("block", False)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_count.statement_params
+                )
+                block = MessageToDict(expr.sp_dataframe_count).get("block", False)
                 return df.count(
                     statement_params=statement_params,
                     block=block,
@@ -1765,8 +1737,9 @@ class Decoder:
                     max_data_extension_time = (
                         expr.sp_dataframe_create_or_replace_dynamic_table.max_data_extension_time.value
                     )
-                d = MessageToDict(expr.sp_dataframe_create_or_replace_dynamic_table)
-                statement_params = self.get_statement_params(d)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_create_or_replace_dynamic_table.statement_params
+                )
                 iceberg_config = None
                 if hasattr(
                     expr.sp_dataframe_create_or_replace_dynamic_table, "iceberg_config"
@@ -1801,8 +1774,9 @@ class Decoder:
                 if hasattr(
                     expr.sp_dataframe_create_or_replace_view, "statement_params"
                 ):
-                    d = MessageToDict(expr.sp_dataframe_create_or_replace_view)
-                    statement_params = self.get_statement_params(d)
+                    statement_params = self.decode_dsl_map_expr(
+                        expr.sp_dataframe_create_or_replace_view.statement_params
+                    )
 
                 comment = None
                 if hasattr(expr.sp_dataframe_create_or_replace_view, "comment"):
@@ -1864,7 +1838,10 @@ class Decoder:
             case "sp_dataframe_drop":
                 df = self.decode_expr(expr.sp_dataframe_drop.df)
                 cols = self.decode_col_exprs(expr.sp_dataframe_drop.cols.args)
-                if MessageToDict(expr.sp_dataframe_drop.cols).get("variadic", False):
+                if (
+                    hasattr(expr.sp_dataframe_drop.cols, "variadic")
+                    and expr.sp_dataframe_drop.cols.variadic
+                ):
                     return df.drop(*cols)
                 else:
                     return df.drop(cols)
@@ -1891,8 +1868,8 @@ class Decoder:
                 df = self.decode_expr(expr.sp_dataframe_first.df)
                 block = expr.sp_dataframe_first.block
                 num = expr.sp_dataframe_first.num
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_dataframe_first)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_first.statement_params
                 )
                 return df.first(n=num, statement_params=statement_params, block=block)
 
@@ -1907,24 +1884,28 @@ class Decoder:
                         mode = "ARRAY"
                     case "sp_flatten_mode_object":
                         mode = "OBJECT"
-
                 path = expr.sp_dataframe_flatten.path.value
-
                 outer = expr.sp_dataframe_flatten.outer
                 recursive = expr.sp_dataframe_flatten.recursive
                 if len(path) == 0:
                     return df.flatten(
                         input=input, mode=mode, outer=outer, recursive=recursive
                     )
-                return df.flatten(
-                    input=input, path=path, mode=mode, outer=outer, recursive=recursive
-                )
+                else:
+                    return df.flatten(
+                        input=input,
+                        path=path,
+                        mode=mode,
+                        outer=outer,
+                        recursive=recursive,
+                    )
 
             case "sp_dataframe_group_by":
                 df = self.decode_expr(expr.sp_dataframe_group_by.df)
                 cols = self.decode_col_exprs(expr.sp_dataframe_group_by.cols.args)
-                if MessageToDict(expr.sp_dataframe_group_by.cols).get(
-                    "variadic", False
+                if (
+                    hasattr(expr.sp_dataframe_group_by.cols, "variadic")
+                    and expr.sp_dataframe_group_by.cols.variadic
                 ):
                     return df.group_by(*cols)
                 else:
@@ -1935,12 +1916,13 @@ class Decoder:
                 grouping_sets = []
                 for set in expr.sp_dataframe_group_by_grouping_sets.grouping_sets:
                     grouping_set = self.decode_col_exprs(set.sets.args)
-                    if MessageToDict(set.sets).get("variadic", False):
+                    if hasattr(set.sets, "variadic") and set.sets.variadic:
                         grouping_sets.append(GroupingSets(*grouping_set))
                     else:
                         grouping_sets.append(GroupingSets(grouping_set))
-                if MessageToDict(expr.sp_dataframe_group_by_grouping_sets).get(
-                    "variadic", False
+                if (
+                    hasattr(expr.sp_dataframe_group_by_grouping_sets, "variadic")
+                    and expr.sp_dataframe_group_by_grouping_sets.variadic
                 ):
                     return df.group_by_grouping_sets(*grouping_sets)
                 else:
@@ -1953,26 +1935,23 @@ class Decoder:
 
             case "sp_dataframe_join":
                 d = MessageToDict(expr.sp_dataframe_join)
-                join_expr = d.get("joinExpr", None)
                 join_expr = (
                     self.decode_expr(expr.sp_dataframe_join.join_expr)
-                    if join_expr
+                    if "joinExpr" in d
                     else None
                 )
-                join_type = d.get("joinType", None)
                 join_type = (
                     self.decode_join_type(expr.sp_dataframe_join.join_type)
-                    if join_type
+                    if "joinType" in d
                     else None
                 )
                 lhs = self.decode_expr(expr.sp_dataframe_join.lhs)
                 rhs = self.decode_expr(expr.sp_dataframe_join.rhs)
                 lsuffix = d.get("lsuffix", "")
                 rsuffix = d.get("rsuffix", "")
-                match_condition = d.get("matchCondition", None)
                 match_condition = (
                     self.decode_expr(expr.sp_dataframe_join.match_condition)
-                    if match_condition
+                    if "matchCondition" in d
                     else None
                 )
                 return lhs.join(
@@ -1996,11 +1975,10 @@ class Decoder:
                 d = MessageToDict(expr.sp_dataframe_na_drop__python)
                 thresh = d.get("thresh", None)
                 thresh = int(thresh) if thresh is not None else thresh
-                subset = d.get("subset", None)
                 subset = (
                     list(expr.sp_dataframe_na_drop__python.subset.list)
-                    if subset is not None
-                    else subset
+                    if "subset" in d
+                    else None
                 )
                 return df.na.drop(how, thresh, subset)
 
@@ -2008,17 +1986,17 @@ class Decoder:
                 df = self.decode_expr(expr.sp_dataframe_na_fill.df)
                 # Either value or value_map contains the `value` to fill.
                 d = MessageToDict(expr.sp_dataframe_na_fill)
-                if "value" in d:
-                    value = self.decode_expr(expr.sp_dataframe_na_fill.value)
-                else:
-                    value = self.decode_dsl_map_expr(
+                value = (
+                    self.decode_expr(expr.sp_dataframe_na_fill.value)
+                    if "value" in d
+                    else self.decode_dsl_map_expr(
                         expr.sp_dataframe_na_fill.value_map.list
                     )
-                subset = d.get("subset", None)
+                )
                 subset = (
                     list(expr.sp_dataframe_na_fill.subset.list)
-                    if subset is not None
-                    else subset
+                    if "subset" in d
+                    else None
                 )
                 return df.na.fill(value, subset)
 
@@ -2026,13 +2004,14 @@ class Decoder:
                 df = self.decode_expr(expr.sp_dataframe_na_replace.df)
                 d = MessageToDict(expr.sp_dataframe_na_replace)
                 # Either value or values contains the `value` to fill.
-                if "value" in d:
-                    value = self.decode_expr(expr.sp_dataframe_na_replace.value)
-                else:
-                    value = [
+                value = (
+                    self.decode_expr(expr.sp_dataframe_na_replace.value)
+                    if "value" in d
+                    else [
                         self.decode_expr(e)
                         for e in expr.sp_dataframe_na_replace.values.list
                     ]
+                )
                 # The parameter `replace` can be populated by to_replace_value (single value), to_replace_list,
                 # or replacement_map.
                 if "toReplaceValue" in d:
@@ -2048,11 +2027,10 @@ class Decoder:
                     to_replace = self.decode_dsl_map_expr(
                         expr.sp_dataframe_na_replace.replacement_map.list
                     )
-                subset = d.get("subset", None)
                 subset = (
                     list(expr.sp_dataframe_na_replace.subset.list)
-                    if subset is not None
-                    else subset
+                    if "subset" in d
+                    else None
                 )
                 return df.na.replace(to_replace, value, subset)
 
@@ -2077,8 +2055,8 @@ class Decoder:
                 df = self.decode_expr(expr.sp_dataframe_random_split.df)
                 weights = list(expr.sp_dataframe_random_split.weights)
                 seed = expr.sp_dataframe_random_split.seed.value
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_dataframe_random_split)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_random_split.statement_params
                 )
                 return df.random_split(weights, seed, statement_params=statement_params)
 
@@ -2096,7 +2074,10 @@ class Decoder:
             case "sp_dataframe_rollup":
                 df = self.decode_expr(expr.sp_dataframe_rollup.df)
                 cols = self.decode_col_exprs(expr.sp_dataframe_rollup.cols.args)
-                if MessageToDict(expr.sp_dataframe_rollup.cols).get("variadic", False):
+                if (
+                    hasattr(expr.sp_dataframe_rollup.cols, "variadic")
+                    and expr.sp_dataframe_rollup.cols.variadic
+                ):
                     return df.rollup(*cols)
                 else:
                     return df.rollup(cols)
@@ -2113,8 +2094,9 @@ class Decoder:
                 df = self.decode_expr(expr.sp_dataframe_select__columns.df)
                 # The columns can be a list of Expr or a single Expr.
                 cols = self.decode_col_exprs(expr.sp_dataframe_select__columns.cols)
-                if MessageToDict(expr.sp_dataframe_select__columns).get(
-                    "variadic", False
+                if (
+                    hasattr(expr.sp_dataframe_select__columns, "variadic")
+                    and expr.sp_dataframe_select__columns.variadic
                 ):
                     val = df.select(*cols)
                 else:
@@ -2129,8 +2111,9 @@ class Decoder:
             case "sp_dataframe_select__exprs":
                 df = self.decode_expr(expr.sp_dataframe_select__exprs.df)
                 exprs = list(expr.sp_dataframe_select__exprs.exprs)
-                if MessageToDict(expr.sp_dataframe_select__exprs).get(
-                    "variadic", False
+                if (
+                    hasattr(expr.sp_dataframe_select__exprs, "variadic")
+                    and expr.sp_dataframe_select__exprs.variadic
                 ):
                     return df.select_expr(*exprs)
                 else:
@@ -2146,26 +2129,26 @@ class Decoder:
                     self.decode_expr(col) for col in expr.sp_dataframe_sort.cols
                 )
                 ascending = self.decode_expr(expr.sp_dataframe_sort.ascending)
-
-                if MessageToDict(expr.sp_dataframe_sort).get("colsVariadic", False):
+                if (
+                    hasattr(expr.sp_dataframe_sort, "cols_variadic")
+                    and expr.sp_dataframe_sort.cols_variadic
+                ):
                     return df.sort(*cols, ascending=ascending)
                 else:
                     return df.sort(cols, ascending=ascending)
 
             case "sp_dataframe_stat_approx_quantile":
-                d = MessageToDict(expr.sp_dataframe_stat_approx_quantile)
-                if "df" in d:
-                    df = self.decode_expr(expr.sp_dataframe_stat_approx_quantile.df)
-                else:
-                    df = self.symbol_table[
-                        expr.sp_dataframe_stat_approx_quantile.id.bitfield1
-                    ][1]
+                df = self.symbol_table[
+                    expr.sp_dataframe_stat_approx_quantile.id.bitfield1
+                ][1]
                 cols = [
                     self.decode_expr(col)
                     for col in expr.sp_dataframe_stat_approx_quantile.cols
                 ]
                 percentile = list(expr.sp_dataframe_stat_approx_quantile.percentile)
-                statement_params = self.get_statement_params(d)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_stat_approx_quantile.statement_params
+                )
                 return df._stat.approx_quantile(
                     cols, percentile, statement_params=statement_params
                 )
@@ -2174,8 +2157,8 @@ class Decoder:
                 df = self.symbol_table[expr.sp_dataframe_stat_corr.id.bitfield1][1]
                 col1 = self.decode_expr(expr.sp_dataframe_stat_corr.col1)
                 col2 = self.decode_expr(expr.sp_dataframe_stat_corr.col2)
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_dataframe_stat_corr)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_stat_corr.statement_params
                 )
                 return df._stat.corr(col1, col2, statement_params=statement_params)
 
@@ -2183,8 +2166,8 @@ class Decoder:
                 df = self.symbol_table[expr.sp_dataframe_stat_cov.id.bitfield1][1]
                 col1 = self.decode_expr(expr.sp_dataframe_stat_cov.col1)
                 col2 = self.decode_expr(expr.sp_dataframe_stat_cov.col2)
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_dataframe_stat_cov)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_stat_cov.statement_params
                 )
                 return df._stat.cov(col1, col2, statement_params=statement_params)
 
@@ -2192,8 +2175,8 @@ class Decoder:
                 df = self.symbol_table[expr.sp_dataframe_stat_cross_tab.id.bitfield1][1]
                 col1 = self.decode_expr(expr.sp_dataframe_stat_cross_tab.col1)
                 col2 = self.decode_expr(expr.sp_dataframe_stat_cross_tab.col2)
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_dataframe_stat_cross_tab)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_stat_cross_tab.statement_params
                 )
                 return df._stat.crosstab(col1, col2, statement_params=statement_params)
 
@@ -2217,8 +2200,8 @@ class Decoder:
                 df = self.symbol_table[
                     expr.sp_dataframe_to_local_iterator.id.bitfield1
                 ][1]
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_dataframe_to_local_iterator)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_to_local_iterator.statement_params
                 )
                 block = expr.sp_dataframe_to_local_iterator.block
                 case_sensitive = expr.sp_dataframe_to_local_iterator.case_sensitive
@@ -2230,8 +2213,8 @@ class Decoder:
 
             case "sp_dataframe_to_pandas":
                 df = self.symbol_table[expr.sp_dataframe_to_pandas.id.bitfield1][1]
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_dataframe_to_pandas)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_to_pandas.statement_params
                 )
                 block = expr.sp_dataframe_to_pandas.block
                 return df.to_pandas(statement_params=statement_params, block=block)
@@ -2240,8 +2223,8 @@ class Decoder:
                 df = self.symbol_table[
                     expr.sp_dataframe_to_pandas_batches.id.bitfield1
                 ][1]
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_dataframe_to_pandas_batches)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_dataframe_to_pandas_batches.statement_params
                 )
                 block = expr.sp_dataframe_to_pandas_batches.block
                 return df.to_pandas_batches(
@@ -2305,8 +2288,9 @@ class Decoder:
                 exprs = self.decode_col_exprs(
                     expr.sp_relational_grouped_dataframe_agg.exprs.args
                 )
-                if MessageToDict(expr.sp_relational_grouped_dataframe_agg.exprs).get(
-                    "variadic", False
+                if (
+                    hasattr(expr.sp_relational_grouped_dataframe_agg.exprs, "variadic")
+                    and expr.sp_relational_grouped_dataframe_agg.exprs.variadic
                 ):
                     return grouped_df.agg(*exprs)
                 else:
@@ -2338,15 +2322,16 @@ class Decoder:
                     expr.sp_relational_grouped_dataframe_builtin.grouped_df
                 )
                 agg_name = expr.sp_relational_grouped_dataframe_builtin.agg_name
-                if "cols" not in MessageToDict(
-                    expr.sp_relational_grouped_dataframe_builtin
-                ):
+                if not expr.sp_relational_grouped_dataframe_builtin.HasField("cols"):
                     return getattr(grouped_df, agg_name)()
                 cols = self.decode_col_exprs(
                     expr.sp_relational_grouped_dataframe_builtin.cols.args
                 )
-                if MessageToDict(expr.sp_relational_grouped_dataframe_builtin.cols).get(
-                    "variadic", False
+                if (
+                    hasattr(
+                        expr.sp_relational_grouped_dataframe_builtin.cols, "variadic"
+                    )
+                    and expr.sp_relational_grouped_dataframe_builtin.cols.variadic
                 ):
                     return getattr(grouped_df, agg_name)(*cols)
                 else:
@@ -2384,13 +2369,12 @@ class Decoder:
 
             case "sp_to_snowpark_pandas":
                 df = self.decode_expr(expr.sp_to_snowpark_pandas.df)
-                d = MessageToDict(expr.sp_to_snowpark_pandas)
                 index_col, columns = None, None
-                if "indexCol" in d:
+                if expr.sp_to_snowpark_pandas.HasField("index_col"):
                     index_col = [
                         col for col in expr.sp_to_snowpark_pandas.index_col.list
                     ]
-                if "columns" in d:
+                if expr.sp_to_snowpark_pandas.HasField("columns"):
                     columns = [col for col in expr.sp_to_snowpark_pandas.columns.list]
                 # Returning the result of to_snowpark_pandas causes recursion issues when local_testing_mode is enabled.
                 # When disabled, to_snowpark_pandas will raise an error since df will be an empty Dataframe
@@ -2436,8 +2420,8 @@ class Decoder:
                     if expr.sp_table_delete.HasField("source")
                     else None
                 )
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_table_delete)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_table_delete.statement_params
                 )
                 return table.delete(
                     condition=condition,
@@ -2470,8 +2454,8 @@ class Decoder:
                 ]
                 join_expr = self.decode_expr(expr.sp_table_merge.join_expr)
                 source = self.decode_expr(expr.sp_table_merge.source)
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_table_merge)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_table_merge.statement_params
                 )
                 return table.merge(
                     source=source,
@@ -2508,8 +2492,8 @@ class Decoder:
                     if expr.sp_table_update.HasField("source")
                     else None
                 )
-                statement_params = self.get_statement_params(
-                    MessageToDict(expr.sp_table_update)
+                statement_params = self.decode_dsl_map_expr(
+                    expr.sp_table_update.statement_params
                 )
                 return table.update(
                     assignments,
