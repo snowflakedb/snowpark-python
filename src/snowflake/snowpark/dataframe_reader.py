@@ -44,7 +44,7 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
     Connection,
     convert_sp_to_sf_type,
-    python_type_to_snow_type,
+    sql_server_type_to_snow_type,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -70,7 +70,6 @@ from snowflake.snowpark.types import (
     StructType,
     VariantType,
     StructField,
-    DecimalType,
     DateType,
     DataType,
     _NumericType,
@@ -1138,8 +1137,13 @@ class DataFrameReader:
 
     def _infer_data_source_schema(
         self, conn: Connection, table: str
-    ) -> Tuple[StructType, Tuple[Tuple[str, Any, int, int, int, int, bool]]]:
-        raw_schema = conn.execute(f"SELECT * FROM {table} WHERE 1 = 0").description
+    ) -> Tuple[StructType, Tuple[Tuple[str, Any, int, int, int, bool]]]:
+        query = f"""
+            SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = '{table}'
+            """
+        raw_schema = conn.execute(query).fetchall()
         return self._to_snowpark_type(raw_schema), raw_schema
 
     def _generate_partition(
@@ -1243,13 +1247,10 @@ class DataFrameReader:
     def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
         fields = []
         for column in schema:
-            datatype, _ = python_type_to_snow_type(column[1])
-            if datatype == DecimalType:
-                field = StructField(
-                    column[0], DecimalType(column[4], column[5]), column[6]
-                )
-            else:
-                field = StructField(column[0], datatype, column[6])
+            datatype = sql_server_type_to_snow_type(column)
+            field = StructField(
+                column[0], datatype, True if column[5].lower == "yes" else False
+            )
             fields.append(field)
         return StructType(fields)
 
@@ -1305,7 +1306,7 @@ class DataFrameReader:
 def _task_fetch_from_data_source(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Tuple[str, Any, int, int, int, int, bool]],
+    schema: Tuple[Tuple[str, Any, int, int, int, bool]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
@@ -1333,7 +1334,7 @@ def _task_fetch_from_data_source(
 def task_fetch_from_data_source_with_retry(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Tuple[str, Any, int, int, int, int, bool]],
+    schema: Tuple[Tuple[str, Any, int, int, int, bool]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
