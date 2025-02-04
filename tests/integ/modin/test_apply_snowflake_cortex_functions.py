@@ -42,7 +42,7 @@ def test_apply_snowflake_cortex_summarize(session):
     running_on_jenkins(),
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
 )
-def test_apply_snowflake_cortex_sentiment(session):
+def test_apply_snowflake_cortex_sentiment_series(session):
 
     # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
     with SqlCounter(query_count=0):
@@ -115,12 +115,14 @@ def test_apply_snowflake_cortex_negative(session):
     with pytest.raises(NotImplementedError):
         s.apply(Translate, source_language="en", target_language="de")
     with pytest.raises(NotImplementedError):
+        df.apply(Translate, source_language="en", target_language="de")
+    with pytest.raises(NotImplementedError):
         s.apply(ClassifyText, args=(["travel", "cooking"]))
+    with pytest.raises(NotImplementedError):
+        df.apply(ClassifyText, args=(["travel", "cooking"]))
     with pytest.raises(NotImplementedError):
         s.apply(Sentiment, na_action="ignore")
     with pytest.raises(NotImplementedError):
         df.apply(Sentiment, raw=True)
     with pytest.raises(NotImplementedError):
         df.apply(Sentiment, axis=1)
-    with pytest.raises(NotImplementedError):
-        df.apply(ClassifyText, args=(["travel", "cooking"]))
