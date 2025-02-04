@@ -35,8 +35,7 @@ all_type_schema = (
     ("BinaryCol", bytearray, None, 5, 5, 0, True),
     ("BitCol", bool, None, 1, 1, 0, True),
 )
-test_type = (("BinaryCol", bytearray, None, 5, 5, 0, True),)
-test_data = [(b"\x68\x65\x6c\x6c\x6f",)]
+
 all_type_data = [
     (
         31301,
@@ -330,9 +329,9 @@ class FakeConnection:
         return self
 
     def fetchall(self):
-        return test_data
+        return all_type_data
 
-    description = test_type
+    description = all_type_schema
 
 
 def create_connection():
@@ -361,7 +360,7 @@ def upload_and_copy_into_table_with_retry(
 )
 def test_dbapi_with_temp_table(session):
     df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME, max_workers=4)
-    assert df.collect() == test_data
+    assert df.collect() == all_type_data
 
 
 @pytest.mark.skipif(
@@ -417,7 +416,7 @@ def test_parallel(session):
             session.read.dbapi(
                 create_connection,
                 SQL_SERVER_TABLE_NAME,
-                column="ID",
+                column="Id",
                 upper_bound=100,
                 lower_bound=0,
                 num_partitions=num_partitions,

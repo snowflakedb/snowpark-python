@@ -1053,7 +1053,7 @@ class DataFrameReader:
 
             column_type = None
             for field in struct_schema.fields:
-                if field.name == column:
+                if field.name.lower() == column.lower():
                     column_type = field.datatype
             if column_type is None:
                 raise ValueError("Column does not exist")
