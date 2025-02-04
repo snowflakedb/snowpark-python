@@ -6634,8 +6634,8 @@ def json_tuple(col: ColumnOrName, *fields: str, _emit_ast: bool = True) -> List[
         json_extract_path_text(
             parse_json(c, _emit_ast=False),
             lit(field, _emit_ast=False),
-            _emit_ast=_emit_ast,
-        ).as_(f"c{i}")
+            _emit_ast=False,
+        ).as_(f"c{i}", _emit_ast=False)
         for i, field in enumerate(fields)
     ]
 
