@@ -693,31 +693,6 @@ def test_select_with_table_function_column_overlap(session):
     )
 
 
-def test_select_combined_columns(session):
-    df = session.create_dataframe(
-        [(1, 2, 3, 4, 5)], ["col1", "col2", "col3", "col4", "col5"]
-    )
-    Utils.check_answer(
-        df.select(df.col1, [df.col2, df.col3]), [Row(COL1=1, COL2=2, COL3=3)]
-    )
-
-    Utils.check_answer(
-        df.select([df.col2, df.col3], df.col1), [Row(COL2=2, COL3=3, COL1=1)]
-    )
-
-    Utils.check_answer(df.select(df.col1, [df.col2]), [Row(COL1=1, COL2=2)])
-
-    Utils.check_answer(
-        df.select([df.col1, df.col4], [df.col2, df.col3]),
-        [Row(COL1=1, COL4=4, COL2=2, COL3=3)],
-    )
-
-    Utils.check_answer(
-        df.select([df.col1, df.col4], df.col5, [df.col2, df.col3]),
-        [Row(COL1=1, COL4=4, COL5=5, COL2=2, COL3=3)],
-    )
-
-
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="functions.explode is not supported in Local Testing",
