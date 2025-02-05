@@ -1138,6 +1138,7 @@ class DataFrameReader:
     def _infer_data_source_schema(
         self, conn: Connection, table: str
     ) -> Tuple[StructType, Tuple[Tuple[str, Any, int, int, int, bool]]]:
+        # TODO: SNOW-1893781 change implementation if oracle has different way of infer schema
         query = f"""
             SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
@@ -1249,7 +1250,7 @@ class DataFrameReader:
         for column in schema:
             datatype = sql_server_type_to_snow_type(column)
             field = StructField(
-                column[0], datatype, True if column[5].lower == "yes" else False
+                column[0], datatype, True if column[5].lower() == "yes" else False
             )
             fields.append(field)
         return StructType(fields)
@@ -1318,13 +1319,13 @@ def _task_fetch_from_data_source(
     columns = [col[0] for col in schema]
     df = pd.DataFrame.from_records(result, columns=columns)
 
-    # convert timestamp and date to string to avoid but in SQL
+    # convert timestamp and date to string to work around SNOW-1911989
     df = df.map(
         lambda x: x.isoformat()
         if isinstance(x, (datetime.datetime, datetime.date))
         else x
     )
-    # convert binary type to object type to avoid pandas store it as string
+    # convert binary type to object type to work around SNOW-1912094
     df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
