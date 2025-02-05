@@ -26,7 +26,6 @@
   - `equal_null`
   - `from_json`
   - `ifnull`
-  - `json_tuple`
   - `localtimestamp`
   - `max_by`
   - `min_by`

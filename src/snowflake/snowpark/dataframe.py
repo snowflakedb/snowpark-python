@@ -1418,11 +1418,6 @@ class DataFrame:
                 names.append(e._named())
                 if _emit_ast and _ast_stmt is None:
                     ast_cols.append(e._ast)
-            elif isinstance(e, (list, tuple)):
-                for sub_e in e:
-                    names.append(sub_e._named())
-                    if _emit_ast and _ast_stmt is None:
-                        ast_cols.append(sub_e._ast)
 
             elif isinstance(e, str):
                 col_expr_ast = None

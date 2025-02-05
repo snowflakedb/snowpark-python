@@ -703,6 +703,12 @@ def bitshiftright_unsigned(
         >>> df.select(bitshiftright_unsigned('a', 1)).collect()[0][0]
         9223372036854775797
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "bround", to_shift_column, n)
+
     c = _to_col_if_str(to_shift_column, "bitshiftright_unsigned")
     max_bit = bitshiftleft(lit(1, _emit_ast=False), 64, _emit_ast=False)
     unsigned_c = iff(
@@ -711,7 +717,9 @@ def bitshiftright_unsigned(
         bitshiftright(c, n, _emit_ast=False),
         _emit_ast=False,
     )
-    return call_builtin("bitand", unsigned_c, max_bit - 1, _emit_ast=_emit_ast)
+    col = call_builtin("bitand", unsigned_c, max_bit - 1, _emit_ast=_emit_ast)
+    col._ast = ast
+    return col
 
 
 @publicapi
@@ -6609,35 +6617,6 @@ def check_xml(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(col, "check_xml")
     return builtin("check_xml", _emit_ast=_emit_ast)(c)
-
-
-@publicapi
-def json_tuple(col: ColumnOrName, *fields: str, _emit_ast: bool = True) -> List[Column]:
-    """Create new rows for a json column according to given json field.
-
-    Example::
-
-        >>> from snowflake.snowpark.functions import json_tuple
-        >>> data = [("1", '''{"key1": "value1", "key2": "value2"}'''), ("2", '''{"key1": "value2"}''')]
-        >>> df = session.createDataFrame(data, ("id", "jstring"))
-        >>> df.select(df.id, json_tuple(df.jstring, 'key1', 'key2')).show()
-        --------------------------
-        |"ID"  |"C0"    |"C1"    |
-        --------------------------
-        |1     |value1  |value2  |
-        |2     |value2  |NULL    |
-        --------------------------
-        <BLANKLINE>
-    """
-    c = _to_col_if_str(col, "json_tuple")
-    return [
-        json_extract_path_text(
-            parse_json(c, _emit_ast=False),
-            lit(field, _emit_ast=False),
-            _emit_ast=False,
-        ).as_(f"c{i}", _emit_ast=False)
-        for i, field in enumerate(fields)
-    ]
 
 
 @publicapi
