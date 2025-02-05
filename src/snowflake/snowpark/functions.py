@@ -707,7 +707,7 @@ def bitshiftright_unsigned(
     ast = None
     if _emit_ast:
         ast = proto.Expr()
-        build_builtin_fn_apply(ast, "bround", to_shift_column, n)
+        build_builtin_fn_apply(ast, "bitshiftright_unsigned", to_shift_column, n)
 
     c = _to_col_if_str(to_shift_column, "bitshiftright_unsigned")
     max_bit = bitshiftleft(lit(1, _emit_ast=False), 64, _emit_ast=False)
