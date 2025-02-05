@@ -45,6 +45,7 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
     Connection,
     convert_sp_to_sf_type,
+    sql_server_type_to_snow_type,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -70,12 +71,7 @@ from snowflake.snowpark.types import (
     StructType,
     VariantType,
     StructField,
-    IntegerType,
-    FloatType,
-    DecimalType,
-    StringType,
     DateType,
-    BooleanType,
     DataType,
     _NumericType,
     TimestampType,
@@ -1096,7 +1092,7 @@ class DataFrameReader:
 
             column_type = None
             for field in struct_schema.fields:
-                if field.name == column:
+                if field.name.lower() == column.lower():
                     column_type = field.datatype
             if column_type is None:
                 raise ValueError("Column does not exist")
@@ -1181,8 +1177,14 @@ class DataFrameReader:
 
     def _infer_data_source_schema(
         self, conn: Connection, table: str
-    ) -> Tuple[StructType, Tuple[Tuple[str, Any, int, int, int, int, bool]]]:
-        raw_schema = conn.execute(f"SELECT * FROM {table} WHERE 1 = 0").description
+    ) -> Tuple[StructType, Tuple[Tuple[str, Any, int, int, int, bool]]]:
+        # TODO: SNOW-1893781 change implementation if oracle has different way of infer schema
+        query = f"""
+            SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = '{table}'
+            """
+        raw_schema = conn.execute(query).fetchall()
         return self._to_snowpark_type(raw_schema), raw_schema
 
     def _generate_partition(
@@ -1286,23 +1288,10 @@ class DataFrameReader:
     def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
         fields = []
         for column in schema:
-            if column[1] == int:
-                field = StructField(column[0], IntegerType(), column[6])
-            elif column[1] == float:
-                field = StructField(column[0], FloatType(), column[6])
-            elif column[1] == decimal.Decimal:
-                field = StructField(
-                    column[0], DecimalType(column[4], column[5]), column[6]
-                )
-            elif column[1] == str:
-                field = StructField(column[0], StringType(), column[6])
-            elif column[1] == datetime.datetime:
-                field = StructField(column[0], TimestampType(), column[6])
-            elif column[1] == bool:
-                field = StructField(column[0], BooleanType(), column[6])
-            else:
-                raise ValueError("unsupported type")
-
+            datatype = sql_server_type_to_snow_type(column)
+            field = StructField(
+                column[0], datatype, True if column[5].lower() == "yes" else False
+            )
             fields.append(field)
         return StructType(fields)
 
@@ -1358,7 +1347,7 @@ class DataFrameReader:
 def _task_fetch_from_data_source(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Tuple[str, Any, int, int, int, int, bool]],
+    schema: Tuple[Tuple[str, Any, int, int, int, bool]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
@@ -1369,11 +1358,15 @@ def _task_fetch_from_data_source(
     result = conn.cursor().execute(query).fetchall()
     columns = [col[0] for col in schema]
     df = pd.DataFrame.from_records(result, columns=columns)
+
+    # convert timestamp and date to string to work around SNOW-1911989
     df = df.map(
         lambda x: x.isoformat()
         if isinstance(x, (datetime.datetime, datetime.date))
         else x
     )
+    # convert binary type to object type to work around SNOW-1912094
+    df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
     return path
@@ -1382,7 +1375,7 @@ def _task_fetch_from_data_source(
 def task_fetch_from_data_source_with_retry(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Tuple[str, Any, int, int, int, int, bool]],
+    schema: Tuple[Tuple[str, Any, int, int, int, bool]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
