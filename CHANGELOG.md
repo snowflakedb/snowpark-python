@@ -1,5 +1,24 @@
 # Release History
 
+## 1.28.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Removed Features
+
+- Removed support for Snowpark Python function `snowflake_cortex_summarize`. Users can use the Summarize function from Snowflake.Cortex instead.
+- Removed support for Snowpark Python function `snowflake_cortex_sentiment`. Users can use the Sentiment function from Snowflake.Cortex instead.
+
+### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Added a test dependency for `snowflake-ml-python`.
+
+#### New Features
+
+- Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
+
 ## 1.27.0 (2025-02-03)
 
 ### Snowpark Python API Updates

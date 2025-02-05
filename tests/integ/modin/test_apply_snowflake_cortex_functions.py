@@ -9,7 +9,7 @@ from pytest import param
 
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import running_on_jenkins
-from snowflake.cortex import Sentiment, ClassifyText, Summarize, Translate
+from snowflake.cortex import Sentiment, Summarize, Translate
 
 
 @pytest.mark.skipif(
@@ -82,60 +82,6 @@ def test_apply_snowflake_cortex_sentiment_df(session):
     running_on_jenkins(),
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
 )
-@pytest.mark.parametrize(
-    "is_series, operation, query_count",
-    [
-        param(
-            True,
-            (lambda s: s.apply(ClassifyText, categories=["travel", "cooking"])),
-            1,
-            id="series_cortex_classify_text_kwargs",
-        ),
-        param(
-            False,
-            (lambda df: df.apply(ClassifyText, categories=["travel", "cooking"])),
-            2,
-            id="df_cortex_classify_text_kwargs",
-        ),
-        param(
-            True,
-            (lambda s: s.apply(ClassifyText, args=(["travel", "cooking"],))),
-            1,
-            id="series_cortex_classify_text_args",
-        ),
-        param(
-            False,
-            (lambda df: df.apply(ClassifyText, args=(["travel", "cooking"],))),
-            2,
-            id="df_cortex_classify_text_args",
-        ),
-    ],
-)
-def test_apply_snowflake_cortex_classify_text(
-    session, is_series, operation, query_count
-):
-
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
-
-    with SqlCounter(query_count=query_count):
-        content = "One day I will see the world."
-
-        modin_input = (pd.Series if is_series else pd.DataFrame)([content])
-        text_class = operation(modin_input)
-        if is_series:
-            text_class_label = text_class.iloc[0]["label"]
-        else:
-            text_class_label = text_class[0][0]["label"]
-        assert text_class_label == "travel"
-
-
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize(
     "is_series, operation",
@@ -153,6 +99,26 @@ def test_apply_snowflake_cortex_classify_text(
                 )
             ),
             id="df_cortex_unsupported_function_translate",
+        ),
+        param(
+            True,
+            (lambda s: s.apply(Sentiment, args=("hello"))),
+            id="series_cortex_unsupported_args",
+        ),
+        param(
+            False,
+            (lambda df: df.apply(Sentiment, args=("hello"))),
+            id="df_cortex_unsupported_args",
+        ),
+        param(
+            True,
+            (lambda s: s.apply(Sentiment, extra="hello")),
+            id="series_cortex_unsupported_kwargs",
+        ),
+        param(
+            False,
+            (lambda df: df.apply(Sentiment, extra="hello")),
+            id="df_cortex_unsupported_kwargs",
         ),
         param(
             True,
