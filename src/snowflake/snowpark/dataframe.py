@@ -1389,10 +1389,6 @@ class DataFrame:
             -----------------------------------------------
             <BLANKLINE>
 
-        Example 6::
-
-            >>> df_selected = df.select(df.col1, [df.col2, df.col3])
-
         Note:
             A `TableFunctionCall` can be added in `select` when the dataframe results from another join. This is possible because we know
             the hierarchy in which the joins are applied.
