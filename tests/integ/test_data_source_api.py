@@ -186,7 +186,6 @@ class FakeConnection:
     def __init__(self) -> None:
         self.sql = ""
         self.start_index = 0
-        self.fetchmany_call_count = 0
 
     def cursor(self):
         return self
@@ -203,7 +202,6 @@ class FakeConnection:
 
     def fetchmany(self, row_count: int):
         end_index = self.start_index + row_count
-        self.fetchmany_call_count += 1
         res = (
             all_type_data[self.start_index : end_index]
             if end_index < len(all_type_data)
