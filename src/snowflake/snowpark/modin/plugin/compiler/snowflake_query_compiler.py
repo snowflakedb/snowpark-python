@@ -203,6 +203,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     sort_apply_udtf_result_columns_by_pandas_positions,
     make_series_map_snowpark_function,
     SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY,
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS,
 )
 from collections import defaultdict
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
@@ -455,32 +456,6 @@ _RESET_ATTRS_METHODS = [
 
 
 T = TypeVar("T", bound=Callable[..., Any])
-
-_CORTEX_FUNC_NAMES = [
-    "ClassifyText",
-    "Complete",
-    "CompleteOptions",
-    "EmbedText1024",
-    "EmbedText768",
-    "ExtractAnswer",
-    "Finetune",
-    "FinetuneJob",
-    "FinetuneStatus",
-    "Sentiment",
-    "Summarize",
-    "Translate",
-    "_classify_text",
-    "_complete",
-    "_embed_text_1024",
-    "_embed_text_768",
-    "_extract_answer",
-    "_finetune",
-    "_sentiment",
-    "_sse_client",
-    "_summarize",
-    "_translate",
-    "_util",
-]
 
 
 def _propagate_attrs_on_methods(cls):  # type: ignore
@@ -8508,11 +8483,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`with raw = {raw}."
                 )
             return self._apply_snowflake_cortex_function_to_columns(func, args, kwargs)
-        else:
-            if func.__name__ in _CORTEX_FUNC_NAMES:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`"
-                )
+        elif func in ALL_SNOWFLAKE_CORTEX_FUNCTIONS:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`"
+            )
 
         sf_func = NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION.get(func)
         if sf_func is not None:
@@ -8891,11 +8865,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with na_action == '{na_action}'"
                 )
             return self._apply_snowflake_cortex_function_to_columns(func, args, kwargs)
-        else:
-            if func.__name__ in _CORTEX_FUNC_NAMES:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`"
-                )
+        elif func in ALL_SNOWFLAKE_CORTEX_FUNCTIONS:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`"
+            )
 
         # Check if the function is a known numpy function that can be translated
         # to Snowflake function.

@@ -99,13 +99,13 @@ def test_apply_snowflake_cortex_sentiment_df(session):
         ),
         param(
             True,
-            (lambda s: s.apply(ClassifyText, args=(["travel", "cooking"]))),
+            (lambda s: s.apply(ClassifyText, args=(["travel", "cooking"],))),
             1,
             id="series_cortex_classify_text_args",
         ),
         param(
             False,
-            (lambda df: df.apply(ClassifyText, args=(["travel", "cooking"]))),
+            (lambda df: df.apply(ClassifyText, args=(["travel", "cooking"],))),
             2,
             id="df_cortex_classify_text_args",
         ),
@@ -128,7 +128,6 @@ def test_apply_snowflake_cortex_classify_text(
         if is_series:
             text_class_label = text_class.iloc[0]["label"]
         else:
-            # text_class_label = text_class["label"][0]
             text_class_label = text_class[0][0]["label"]
         assert text_class_label == "travel"
 
@@ -179,6 +178,6 @@ def test_apply_snowflake_cortex_negative(session, is_series, operation):
         return
 
     content = "One day I will see the world."
+    modin_input = (pd.Series if is_series else pd.DataFrame)([content])
     with pytest.raises(NotImplementedError):
-        modin_input = (pd.Series if is_series else pd.DataFrame)([content])
         operation(modin_input)
