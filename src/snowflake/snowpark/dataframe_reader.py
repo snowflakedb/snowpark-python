@@ -5,6 +5,7 @@ import datetime
 import decimal
 import os
 import tempfile
+import time
 from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
 from concurrent.futures import (
     ProcessPoolExecutor,
@@ -76,7 +77,11 @@ from snowflake.snowpark.types import (
     TimestampType,
 )
 from snowflake.connector.options import pandas as pd
-from snowflake.snowpark._internal.utils import random_name_for_temp_object
+from snowflake.snowpark._internal.utils import (
+    random_name_for_temp_object,
+    STATEMENT_PARAMS_DATA_SOURCE,
+    DATA_SOURCE_SQL_COMMENT,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -1018,6 +1023,7 @@ class DataFrameReader:
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
 
+    @publicapi
     def dbapi(
         self,
         create_connection: Callable[[], "Connection"],
@@ -1030,6 +1036,9 @@ class DataFrameReader:
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
     ) -> DataFrame:
+        """Reads data from a database table using a DBAPI connection."""
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
+        start_time = time.perf_counter()
         conn = create_connection()
         # this is specified to pyodbc, need other way to manage timeout on other drivers
         conn.timeout = query_timeout
@@ -1075,19 +1084,26 @@ class DataFrameReader:
             snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
             create_table_sql = (
                 "CREATE "
-                + f"{get_temp_type_for_object(self._session._use_scoped_temp_objects, True) if snowflake_table_type.lower() in TEMPORARY_STRING_SET else snowflake_table_type} "
-                + "TABLE "
-                + f"{snowflake_table_name} "
-                + f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"{get_temp_type_for_object(self._session._use_scoped_temp_objects, True) if snowflake_table_type.lower() in TEMPORARY_STRING_SET else snowflake_table_type} "
+                "TABLE "
+                f"{snowflake_table_name} "
+                f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
-            self._session.sql(create_table_sql).collect()
+            self._session.sql(create_table_sql).collect(
+                statement_params=statements_params_for_telemetry
+            )
             res_df = self.table(snowflake_table_name)
 
             # create temp stage
             snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
-            sql_create_temp_stage = f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage if not exists {snowflake_stage_name}"
-            self._session._run_query(sql_create_temp_stage, is_ddl_on_temp_object=True)
-
+            sql_create_temp_stage = (
+                f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
+                f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+            )
+            self._session.sql(sql_create_temp_stage).collect(
+                statement_params=statements_params_for_telemetry
+            )
             with ProcessPoolExecutor(
                 max_workers=max_workers
             ) as process_executor, ThreadPoolExecutor(
@@ -1122,6 +1138,7 @@ class DataFrameReader:
                                 snowflake_stage_name,
                                 snowflake_table_name,
                                 "abort_statement",
+                                statements_params_for_telemetry,
                             )
                         )
                 completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
@@ -1133,6 +1150,10 @@ class DataFrameReader:
                         process_executor.shutdown(wait=False)
                         thread_executor.shutdown(wait=False)
                         raise f.result()
+            self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+                "DataFrameReader.dbapi", time.perf_counter() - start_time
+            )
+            set_api_call_source(res_df, "DataFrameReader.dbapi")
             return res_df
 
     def _infer_data_source_schema(
@@ -1261,18 +1282,25 @@ class DataFrameReader:
         snowflake_stage_name: str,
         snowflake_table_name: Optional[str] = None,
         on_error: Optional[str] = "abort_statement",
+        statements_params: Optional[Dict[str, str]] = None,
     ):
         file_name = os.path.basename(local_file)
-        put_query = f"PUT {normalize_local_file(local_file)} @{snowflake_stage_name} OVERWRITE=TRUE"
+        put_query = (
+            f"PUT {normalize_local_file(local_file)} "
+            f"@{snowflake_stage_name} OVERWRITE=TRUE {DATA_SOURCE_SQL_COMMENT}"
+        )
         copy_into_table_query = f"""
         COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
         FILE_FORMAT = (TYPE = PARQUET)
         MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
         PURGE=TRUE
         ON_ERROR={on_error}
+        {DATA_SOURCE_SQL_COMMENT}
         """
-        self._session.sql(put_query).collect()
-        self._session.sql(copy_into_table_query).collect()
+        self._session.sql(put_query).collect(statement_params=statements_params)
+        self._session.sql(copy_into_table_query).collect(
+            statement_params=statements_params
+        )
 
     def upload_and_copy_into_table_with_retry(
         self,
@@ -1280,13 +1308,18 @@ class DataFrameReader:
         snowflake_stage_name: str,
         snowflake_table_name: str,
         on_error: Optional[str] = "abort_statement",
+        statements_params: Optional[Dict[str, str]] = None,
     ) -> Optional[Exception]:
         retry_count = 0
         error = None
         while retry_count < MAX_RETRY_TIME:
             try:
                 self._upload_and_copy_into_table(
-                    local_file, snowflake_stage_name, snowflake_table_name, on_error
+                    local_file,
+                    snowflake_stage_name,
+                    snowflake_table_name,
+                    on_error,
+                    statements_params,
                 )
                 return
             except Exception as e:
