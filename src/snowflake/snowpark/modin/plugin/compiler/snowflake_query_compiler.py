@@ -8507,11 +8507,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}`with raw = {raw}."
                 )
-            if len(args) > 0:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas apply API doesn't yet support Snowflake Cortex function `{func.__name__}` with args = '{args}'."
-                )
-            return self._apply_snowflake_cortex_function_to_columns(func, kwargs)
+            return self._apply_snowflake_cortex_function_to_columns(func, args, kwargs)
         else:
             if func.__name__ in _CORTEX_FUNC_NAMES:
                 ErrorMessage.not_implemented(
@@ -8836,6 +8832,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _apply_snowflake_cortex_function_to_columns(
         self,
         snowflake_function: Callable,
+        args: tuple[Any, ...],
         kwargs: dict[str, Any],  # possible named arguments which need to be added
     ) -> "SnowflakeQueryCompiler":
         """Apply Snowflake Cortex function to columns."""
@@ -8843,8 +8840,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         def sf_function(col: SnowparkColumn) -> SnowparkColumn:
             resolved_positional = []
             resolved_positional.append(col)
-            for arg in kwargs:
-                resolved_positional.append(kwargs[arg])
+            if args:
+                resolved_positional.append(args)
+            elif kwargs:
+                for arg in kwargs:
+                    resolved_positional.append(kwargs[arg])
 
             return snowflake_function(*resolved_positional)
 
@@ -8890,11 +8890,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ErrorMessage.not_implemented(
                     f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with na_action == '{na_action}'"
                 )
-            if len(args) > 0:
-                ErrorMessage.not_implemented(
-                    f"Snowpark pandas applymap API doesn't yet support Snowflake Cortex function `{func.__name__}` with args = '{args}'."
-                )
-            return self._apply_snowflake_cortex_function_to_columns(func, kwargs)
+            return self._apply_snowflake_cortex_function_to_columns(func, args, kwargs)
         else:
             if func.__name__ in _CORTEX_FUNC_NAMES:
                 ErrorMessage.not_implemented(

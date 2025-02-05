@@ -82,20 +82,54 @@ def test_apply_snowflake_cortex_sentiment_df(session):
     running_on_jenkins(),
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
 )
-def test_apply_snowflake_cortex_classify_text(session):
+@pytest.mark.parametrize(
+    "is_series, operation, query_count",
+    [
+        param(
+            True,
+            (lambda s: s.apply(ClassifyText, categories=["travel", "cooking"])),
+            1,
+            id="series_cortex_classify_text_kwargs",
+        ),
+        param(
+            False,
+            (lambda df: df.apply(ClassifyText, categories=["travel", "cooking"])),
+            2,
+            id="df_cortex_classify_text_kwargs",
+        ),
+        param(
+            True,
+            (lambda s: s.apply(ClassifyText, args=(["travel", "cooking"]))),
+            1,
+            id="series_cortex_classify_text_args",
+        ),
+        param(
+            False,
+            (lambda df: df.apply(ClassifyText, args=(["travel", "cooking"]))),
+            2,
+            id="df_cortex_classify_text_args",
+        ),
+    ],
+)
+def test_apply_snowflake_cortex_classify_text(
+    session, is_series, operation, query_count
+):
 
     # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
     with SqlCounter(query_count=0):
         if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
             return
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=query_count):
         content = "One day I will see the world."
-        s = pd.Series([content])
-        text_class = s.apply(
-            ClassifyText, list_of_categories=["travel", "cooking"]
-        ).iloc[0]
-        text_class_label = text_class["label"]
+
+        modin_input = (pd.Series if is_series else pd.DataFrame)([content])
+        text_class = operation(modin_input)
+        if is_series:
+            text_class_label = text_class.iloc[0]["label"]
+        else:
+            # text_class_label = text_class["label"][0]
+            text_class_label = text_class[0][0]["label"]
         assert text_class_label == "travel"
 
 
@@ -120,16 +154,6 @@ def test_apply_snowflake_cortex_classify_text(session):
                 )
             ),
             id="df_cortex_unsupported_function_translate",
-        ),
-        param(
-            True,
-            (lambda s: s.apply(s.apply(ClassifyText, args=(["travel", "cooking"])))),
-            id="series_cortex_unsupported_args",
-        ),
-        param(
-            False,
-            (lambda df: df.apply(df.apply(ClassifyText, args=(["travel", "cooking"])))),
-            id="df_cortex_unsupported_args",
         ),
         param(
             True,
