@@ -42,11 +42,10 @@ from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
-    # Connection,
+    Connection,
     convert_sp_to_sf_type,
     sql_server_type_to_snow_type,
 )
-from pyodbc import Connection
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
     SNOWFLAKE_PATH_PREFIXES,
