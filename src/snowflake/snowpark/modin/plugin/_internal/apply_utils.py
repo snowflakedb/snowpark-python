@@ -101,7 +101,6 @@ SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
 }
 
 SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = {
-    snowflake.cortex.ClassifyText,
     snowflake.cortex.Summarize,
     snowflake.cortex.Sentiment,
 }
