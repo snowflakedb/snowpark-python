@@ -329,6 +329,42 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     datetime.time: TimeType,
     bytes: BinaryType,
 }
+
+SQL_SERVER_TYPE_TO_SNOW_TYPE = {
+    "bigint": LongType,
+    "bit": BooleanType,
+    "decimal": DecimalType,
+    "float": FloatType,
+    "int": IntegerType,
+    "money": DecimalType,
+    "real": FloatType,
+    "smallint": ShortType,
+    "smallmoney": DecimalType,
+    "tinyint": ByteType,
+    "numeric": DecimalType,
+    "date": DateType,
+    "datetime2": TimestampType,
+    "datetime": TimestampType,
+    "datetimeoffset": TimestampType,
+    "smalldatetime": TimestampType,
+    "time": TimeType,
+    "timestamp": TimestampType,
+    "char": StringType,
+    "text": StringType,
+    "varchar": StringType,
+    "nchar": StringType,
+    "ntext": StringType,
+    "nvarchar": StringType,
+    "binary": BinaryType,
+    "varbinary": BinaryType,
+    "image": BinaryType,
+    "sql_variant": VariantType,
+    "geography": GeographyType,
+    "geometry": GeometryType,
+    "uniqueidentifier": StringType,
+    "xml": StringType,
+    "sysname": StringType,
+}
 if installed_pandas:
     import numpy
 
@@ -606,6 +642,23 @@ def python_type_str_to_object(
         return pandas.DataFrame
     else:
         return eval(tp_str)
+
+
+def sql_server_type_to_snow_type(
+    tp: Tuple[Tuple[str, str, int, int, int, int, str]],
+) -> DataType:
+    snow_type = SQL_SERVER_TYPE_TO_SNOW_TYPE.get(tp[1].lower(), None)
+    if snow_type is None:
+        # TODO: SNOW-1912068 support types that we don't have now
+        raise NotImplementedError(f"sql server type not supported: {tp}")
+    if tp[1].lower() in ["datetime2", "datetime", "smalldatetime"]:
+        return snow_type(TimestampTimeZone.NTZ)
+    elif tp[1].lower() == "datetimeoffset":
+        return snow_type(TimestampTimeZone.LTZ)
+    elif snow_type == DecimalType:
+        return snow_type(tp[3], tp[4])
+    else:
+        return snow_type()
 
 
 def python_type_to_snow_type(
