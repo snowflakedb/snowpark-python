@@ -1325,10 +1325,11 @@ def _task_fetch_from_data_source(
     elif fetch_size > 0:
         cursor = conn.cursor()
         cursor.arraysize = fetch_size
-        rows = cursor.execute(query).fetchmany(cursor.arraysize)
+        cursor = cursor.execute(query)
+        rows = cursor.fetchmany(cursor.arraysize)
         while rows:
             result.extend(rows)
-            rows = cursor.execute(query).fetchmany(cursor.arraysize)
+            rows = cursor.fetchmany(cursor.arraysize)
     else:
         raise ValueError("fetch size cannot be smaller than 0")
 
@@ -1362,7 +1363,7 @@ def task_fetch_from_data_source_with_retry(
     while retry_count < MAX_RETRY_TIME:
         try:
             path = _task_fetch_from_data_source(
-                create_connection, query, schema, i, tmp_dir, query_timeout
+                create_connection, query, schema, i, tmp_dir, query_timeout, fetch_size
             )
             return path
         except Exception as e:

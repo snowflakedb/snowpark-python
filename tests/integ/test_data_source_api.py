@@ -185,6 +185,8 @@ all_type_data = [
 class FakeConnection:
     def __init__(self) -> None:
         self.sql = ""
+        self.start_index = 0
+        self.fetchmany_call_count = 0
 
     def cursor(self):
         return self
@@ -198,6 +200,17 @@ class FakeConnection:
             return all_type_schema
         else:
             return all_type_data
+
+    def fetchmany(self, row_count: int):
+        end_index = self.start_index + row_count
+        self.fetchmany_call_count += 1
+        res = (
+            all_type_data[self.start_index : end_index]
+            if end_index < len(all_type_data)
+            else all_type_data[self.start_index :]
+        )
+        self.start_index = end_index
+        return res
 
 
 def create_connection():
@@ -226,6 +239,17 @@ def upload_and_copy_into_table_with_retry(
 )
 def test_dbapi_with_temp_table(session):
     df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME, max_workers=4)
+    assert df.collect() == all_type_data
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="feature not available in local testing",
+)
+def test_dbapi_batch_fetch(session):
+    df = session.read.dbapi(
+        create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=1
+    )
     assert df.collect() == all_type_data
 
 
