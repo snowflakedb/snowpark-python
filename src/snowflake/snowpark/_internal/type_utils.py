@@ -649,7 +649,8 @@ def sql_server_type_to_snow_type(
 ) -> DataType:
     snow_type = SQL_SERVER_TYPE_TO_SNOW_TYPE.get(tp[1].lower(), None)
     if snow_type is None:
-        raise ValueError(f"sql server type not supported: {tp}")
+        # TODO: SNOW-1912068 support types that we don't have now
+        raise NotImplementedError(f"sql server type not supported: {tp}")
     if tp[1].lower() in ["datetime2", "datetime", "smalldatetime"]:
         return snow_type(TimestampTimeZone.NTZ)
     elif tp[1].lower() == "datetimeoffset":
