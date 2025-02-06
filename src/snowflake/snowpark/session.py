@@ -2171,6 +2171,13 @@ class Session:
             query to the Snowflake Database is called. For example, :meth:`DataFrame.collect`,
             :meth:`DataFrame.show`, :meth:`DataFrame.create_or_replace_view` and
             :meth:`DataFrame.create_or_replace_temp_view` will push down the SQL query.
+
+        Note:
+            The setter calls ``ALTER SESSION SET QUERY_TAG = <tag>`` which may be restricted
+            in some environments such as Owner's rights stored procedures. Refer to
+            `Owner's rights stored procedures <https://docs.snowflake.com/en/developer-guide/stored-procedure/stored-procedures-rights#owner-s-rights-stored-procedures>`_.
+            for more details.
+
         """
         return self._query_tag
 

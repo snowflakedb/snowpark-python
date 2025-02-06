@@ -216,7 +216,7 @@ def test_binary(session, type, action):
         session,
         df3,
         expect_cte_optimized=True,
-        query_count=6,
+        query_count=4,
         describe_count=0,
         union_count=union_count,
         join_count=join_count,

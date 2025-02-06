@@ -11,37 +11,15 @@ from snowflake.snowpark._internal.utils import (
 
 def test_create_or_update_statement_with_query_tag():
     statement_params = create_or_update_statement_params_with_query_tag(None, None)
-    assert len(statement_params) == 1
-    assert (
-        "test_query_tag" in statement_params[QUERY_TAG_STRING]
-    )  # file name in query tag
-    assert (
-        "test_create_or_update_statement_with_query_tag"
-        in statement_params[QUERY_TAG_STRING]
-    )  # calling function name in query tag
+    assert len(statement_params) == 0
 
     statement_params = create_or_update_statement_params_with_query_tag({}, None)
-    assert len(statement_params) == 1
-    assert (
-        "test_query_tag" in statement_params[QUERY_TAG_STRING]
-    )  # file name in query tag
-    assert (
-        "test_create_or_update_statement_with_query_tag"
-        in statement_params[QUERY_TAG_STRING]
-    )  # calling function name in query tag
+    assert len(statement_params) == 0
 
     statement_params = create_or_update_statement_params_with_query_tag(
         {"KEY": "VALUE"}, None
     )
-    assert len(statement_params) == 2
-    assert statement_params["KEY"] == "VALUE"
-    assert (
-        "test_query_tag" in statement_params[QUERY_TAG_STRING]
-    )  # file name in query tag
-    assert (
-        "test_create_or_update_statement_with_query_tag"
-        in statement_params[QUERY_TAG_STRING]
-    )  # calling function name in query tag
+    assert len(statement_params) == 1
 
     # session has an existing query tag
     fake_session_query_tag = "FAKE_SESSION_QUERY_TAG"
@@ -71,28 +49,3 @@ def test_create_or_update_statement_with_query_tag():
         input_statement_params, fake_session_query_tag
     )
     assert statement_params == input_statement_params
-
-    # test passing skip levels
-    statement_params = create_or_update_statement_params_with_query_tag(
-        None, None, skip_levels=1
-    )
-    assert statement_params[QUERY_TAG_STRING]
-    assert (
-        "test_query_tag" in statement_params[QUERY_TAG_STRING]
-    )  # file name in query tag
-    assert (
-        "test_create_or_update_statement_with_query_tag"
-        in statement_params[QUERY_TAG_STRING]
-    )  # calling function name in query tag
-
-    statement_params = create_or_update_statement_params_with_query_tag(
-        None, None, skip_levels=2
-    )
-    assert statement_params[QUERY_TAG_STRING]
-    assert (
-        "test_query_tag" not in statement_params[QUERY_TAG_STRING]
-    )  # skipped last call stack
-    assert (
-        "test_create_or_update_statement_with_query_tag"
-        not in statement_params[QUERY_TAG_STRING]
-    )  # skipped last call stack
