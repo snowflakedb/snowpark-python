@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
 import os
 
 from pyspark.sql.connect.session import SparkSession
@@ -15,25 +19,19 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 cities_df = (
     spark.read.option("header", "true")
     .option("inferSchema", "true")
-    .csv(
-        f"{current_dir}/resources/artificial_cities_data.csv"
-    )
+    .csv(f"{current_dir}/resources/artificial_cities_data.csv")
 )
 
 distributors_df = (
     spark.read.option("header", "true")
     .option("inferSchema", "true")
-    .csv(
-        f"{current_dir}/resources/artificial_distributors_data.csv"
-    )
+    .csv(f"{current_dir}/resources/artificial_distributors_data.csv")
 )
 
 orders_df = (
     spark.read.option("header", "true")
     .option("inferSchema", "true")
-    .csv(
-        f"{current_dir}/resources/artificial_distributor_order_statistics.csv"
-    )
+    .csv(f"{current_dir}/resources/artificial_distributor_order_statistics.csv")
 )
 
 # Data Cleaning and Preparation
@@ -57,9 +55,8 @@ distributors_clean = (
 #    .withColumn("registration_date", to_date(col("registration date"), "yyyy-MM-dd"))\
 
 # Clean orders data - handle dates and boolean values
-orders_clean = (
-    orders_df.withColumn("amount", col("amount").cast("double"))
-    .withColumn("completed", col("completed").cast("boolean"))
+orders_clean = orders_df.withColumn("amount", col("amount").cast("double")).withColumn(
+    "completed", col("completed").cast("boolean")
 )
 
 #    .withColumn("date", to_date(col("date"), "yyyy-MM-dd"))\
