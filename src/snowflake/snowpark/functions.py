@@ -212,6 +212,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     validate_object_name,
     check_create_map_parameter,
+    warning,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -10739,6 +10740,41 @@ def make_interval(
 
     res._ast = ast
     return res
+
+
+def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
+    """
+    Summarizes the given English-language input text.
+    Args:
+        text: A string containing the English text from which a summary should be generated.
+    Returns:
+        A string containing a summary of the original text.
+    """
+    warning(
+        "snowflake_cortex_summarize",
+        "snowflake_cortex_summarize is deprecated. Please consider using snowflake.cortex.Summarize instead.",
+    )
+    sql_func_name = "snowflake.cortex.summarize"
+    text_col = _to_col_if_lit(text, sql_func_name)
+    return builtin(sql_func_name)(text_col)
+
+
+def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
+    """
+    A string containing the text for which a sentiment score should be calculated.
+    Args:
+        text: A string containing the English text from which a summary should be generated.
+    Returns:
+        A floating-point number from -1 to 1 (inclusive) indicating the level of negative or positive sentiment in the
+        text. Values around 0 indicate neutral sentiment.
+    """
+    warning(
+        "snowflake_cortex_sentiment",
+        "snowflake_cortex_sentiment is deprecated. Please consider using snowflake.cortex.Sentiment instead.",
+    )
+    sql_func_name = "snowflake.cortex.sentiment"
+    text_col = _to_col_if_lit(text, sql_func_name)
+    return builtin(sql_func_name)(text_col)
 
 
 @publicapi

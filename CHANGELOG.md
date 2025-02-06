@@ -4,10 +4,10 @@
 
 ### Snowpark Python API Updates
 
-#### Removed Features
+#### Deprecations:
 
-- Removed support for Snowpark Python function `snowflake_cortex_summarize`. Users can use the Summarize function from Snowflake.Cortex instead.
-- Removed support for Snowpark Python function `snowflake_cortex_sentiment`. Users can use the Sentiment function from Snowflake.Cortex instead.
+- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can use the Summarize function from Snowflake.Cortex instead.
+- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can use the Sentiment function from Snowflake.Cortex instead.
 
 ### Snowpark pandas API Updates
 
