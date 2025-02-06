@@ -212,7 +212,6 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     validate_object_name,
     check_create_map_parameter,
-    # warning,
     deprecated,
 )
 from snowflake.snowpark.column import (
