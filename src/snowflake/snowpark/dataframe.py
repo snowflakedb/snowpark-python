@@ -210,7 +210,7 @@ else:
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
-    from table import Table  # pragma: no cover
+    from snowflake.snowpark.table import Table  # pragma: no cover
 
 _logger = getLogger(__name__)
 
