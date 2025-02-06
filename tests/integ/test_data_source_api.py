@@ -3,7 +3,6 @@
 #
 
 import time
-from _decimal import Decimal
 import datetime
 from unittest import mock
 import pytest
@@ -17,206 +16,18 @@ from snowflake.snowpark.types import (
     DateType,
     MapType,
 )
+from tests.resources.test_data_source_dir.test_data_source_data import (
+    sql_server_all_type_data,
+    sql_server_all_type_small_data,
+    sql_server_create_connection,
+    sql_server_create_connection_small_data,
+)
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 
-all_type_schema = (
-    ("Id", "int", None, 10, 0, "NO"),
-    ("SmallIntCol", "smallint", None, 5, 0, "YES"),
-    ("TinyIntCol", "tinyint", None, 3, 0, "YES"),
-    ("BigIntCol", "bigint", None, 19, 0, "YES"),
-    ("DecimalCol", "decimal", None, 10, 2, "YES"),
-    ("FloatCol", "float", None, 53, None, "YES"),
-    ("RealCol", "real", None, 24, None, "YES"),
-    ("MoneyCol", "money", None, 19, 4, "YES"),
-    ("SmallMoneyCol", "smallmoney", None, 10, 4, "YES"),
-    ("CharCol", "char", 10, None, None, "YES"),
-    ("VarCharCol", "varchar", 50, None, None, "YES"),
-    ("TextCol", "text", 2147483647, None, None, "YES"),
-    ("NCharCol", "nchar", 10, None, None, "YES"),
-    ("NVarCharCol", "nvarchar", 50, None, None, "YES"),
-    ("NTextCol", "ntext", 1073741823, None, None, "YES"),
-    ("DateCol", "date", None, None, None, "YES"),
-    ("TimeCol", "time", None, None, None, "YES"),
-    ("DateTimeCol", "datetime", None, None, None, "YES"),
-    ("DateTime2Col", "datetime2", None, None, None, "YES"),
-    ("SmallDateTimeCol", "smalldatetime", None, None, None, "YES"),
-    ("BinaryCol", "binary", 5, None, None, "YES"),
-    ("VarBinaryCol", "varbinary", 50, None, None, "YES"),
-    ("BitCol", "bit", None, None, None, "YES"),
-    ("UniqueIdentifierCol", "uniqueidentifier", None, None, None, "YES"),
-)
-
-all_type_data = [
-    (
-        1,
-        100,
-        10,
-        100000,
-        Decimal("12345.67"),
-        1.23,
-        0.4560000002384186,
-        Decimal("1234.5600"),
-        Decimal("12.3400"),
-        "FixedStr1 ",
-        "VarStr1",
-        "Text1",
-        "UniFix1   ",
-        "UniVar1",
-        "UniText1",
-        datetime.date(2023, 1, 1),
-        datetime.time(12, 0),
-        datetime.datetime(2023, 1, 1, 12, 0),
-        datetime.datetime(2023, 1, 1, 12, 0, 0, 123000),
-        datetime.datetime(2023, 1, 1, 12, 0),
-        b"\x01\x02\x03\x04\x05",
-        b"\x01\x02\x03\x04",
-        True,
-        "06D48351-6EA7-4E64-81A2-9921F0EC42A5",
-    ),
-    (
-        2,
-        200,
-        20,
-        200000,
-        Decimal("23456.78"),
-        2.34,
-        1.5670000314712524,
-        Decimal("2345.6700"),
-        Decimal("23.4500"),
-        "FixedStr2 ",
-        "VarStr2",
-        "Text2",
-        "UniFix2   ",
-        "UniVar2",
-        "UniText2",
-        datetime.date(2023, 2, 1),
-        datetime.time(13, 0),
-        datetime.datetime(2023, 2, 1, 13, 0),
-        datetime.datetime(2023, 2, 1, 13, 0, 0, 234000),
-        datetime.datetime(2023, 2, 1, 13, 0),
-        b"\x02\x03\x04\x05\x06",
-        b"\x02\x03\x04\x05",
-        False,
-        "41B116E8-7D42-420B-A28A-98D53C782C79",
-    ),
-    (
-        3,
-        300,
-        30,
-        300000,
-        Decimal("34567.89"),
-        3.45,
-        2.677999973297119,
-        Decimal("3456.7800"),
-        Decimal("34.5600"),
-        "FixedStr3 ",
-        "VarStr3",
-        "Text3",
-        "UniFix3   ",
-        "UniVar3",
-        "UniText3",
-        datetime.date(2023, 3, 1),
-        datetime.time(14, 0),
-        datetime.datetime(2023, 3, 1, 14, 0),
-        datetime.datetime(2023, 3, 1, 14, 0, 0, 345000),
-        datetime.datetime(2023, 3, 1, 14, 0),
-        b"\x03\x04\x05\x06\x07",
-        b"\x03\x04\x05\x06",
-        True,
-        "F418999E-15F9-4FB0-9161-3383E0BC1B3E",
-    ),
-    (
-        4,
-        400,
-        40,
-        400000,
-        Decimal("45678.90"),
-        4.56,
-        3.7890000343322754,
-        Decimal("4567.8900"),
-        Decimal("45.6700"),
-        "FixedStr4 ",
-        "VarStr4",
-        "Text4",
-        "UniFix4   ",
-        "UniVar4",
-        "UniText4",
-        datetime.date(2023, 4, 1),
-        datetime.time(15, 0),
-        datetime.datetime(2023, 4, 1, 15, 0),
-        datetime.datetime(2023, 4, 1, 15, 0, 0, 456000),
-        datetime.datetime(2023, 4, 1, 15, 0),
-        b"\x04\x05\x06\x07\x08",
-        b"\x04\x05\x06\x07",
-        False,
-        "13DF4C45-682A-4C17-81BA-7B00C77E3F9C",
-    ),
-    (
-        5,
-        500,
-        50,
-        500000,
-        Decimal("56789.01"),
-        5.67,
-        4.889999866485596,
-        Decimal("5678.9000"),
-        Decimal("56.7800"),
-        "FixedStr5 ",
-        "VarStr5",
-        "Text5",
-        "UniFix5   ",
-        "UniVar5",
-        "UniText5",
-        datetime.date(2023, 5, 1),
-        datetime.time(16, 0),
-        datetime.datetime(2023, 5, 1, 16, 0),
-        datetime.datetime(2023, 5, 1, 16, 0, 0, 567000),
-        datetime.datetime(2023, 5, 1, 16, 0),
-        b"\x05\x06\x07\x08\t",
-        b"\x05\x06\x07\x08",
-        True,
-        "16592D8F-D876-4629-B8E5-C9C882A23C9D",
-    ),
-]
-
-
-# we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
-class FakeConnection:
-    def __init__(self) -> None:
-        self.sql = ""
-        self.start_index = 0
-
-    def cursor(self):
-        return self
-
-    def execute(self, sql: str):
-        self.sql = sql
-        return self
-
-    def fetchall(self):
-        if "INFORMATION_SCHEMA" in self.sql:
-            return all_type_schema
-        else:
-            return all_type_data
-
-    def fetchmany(self, row_count: int):
-        end_index = self.start_index + row_count
-        res = (
-            all_type_data[self.start_index : end_index]
-            if end_index < len(all_type_data)
-            else all_type_data[self.start_index :]
-        )
-        self.start_index = end_index
-        return res
-
-
-def create_connection():
-    return FakeConnection()
-
 
 def fake_task_fetch_from_data_source_with_retry(
-    create_connection, query, schema, i, tmp_dir, query_timeout
+    create_connection, query, schema, i, tmp_dir, query_timeout, fetch_size
 ):
     time.sleep(2)
 
@@ -236,8 +47,10 @@ def upload_and_copy_into_table_with_retry(
     reason="feature not available in local testing",
 )
 def test_dbapi_with_temp_table(session):
-    df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME, max_workers=4)
-    assert df.collect() == all_type_data
+    df = session.read.dbapi(
+        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
+    )
+    assert df.collect() == sql_server_all_type_data
 
 
 @pytest.mark.skipif(
@@ -246,9 +59,30 @@ def test_dbapi_with_temp_table(session):
 )
 def test_dbapi_batch_fetch(session):
     df = session.read.dbapi(
-        create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=1
+        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=1
     )
-    assert df.collect() == all_type_data
+    assert df.collect() == sql_server_all_type_data
+
+    df = session.read.dbapi(
+        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=3
+    )
+    assert df.collect() == sql_server_all_type_data
+
+    df = session.read.dbapi(
+        sql_server_create_connection_small_data,
+        SQL_SERVER_TABLE_NAME,
+        max_workers=4,
+        fetch_size=1,
+    )
+    assert df.collect() == sql_server_all_type_small_data
+
+    df = session.read.dbapi(
+        sql_server_create_connection_small_data,
+        SQL_SERVER_TABLE_NAME,
+        max_workers=4,
+        fetch_size=3,
+    )
+    assert df.collect() == sql_server_all_type_small_data
 
 
 @pytest.mark.skipif(
@@ -262,9 +96,9 @@ def test_dbapi_retry(session):
         side_effect=Exception("Test error"),
     ) as mock_task:
         result = task_fetch_from_data_source_with_retry(
-            create_connection=create_connection,
+            create_connection=sql_server_create_connection,
             query="SELECT * FROM test_table",
-            schema=(("col1", int, 0, 0, 0, 0, False),),
+            schema=(("col1", int, 0, 0, 0, False),),
             i=0,
             tmp_dir="/tmp",
         )
@@ -302,7 +136,7 @@ def test_parallel(session):
         ) as mock_upload_and_copy:
             start = time.time()
             session.read.dbapi(
-                create_connection,
+                sql_server_create_connection,
                 SQL_SERVER_TABLE_NAME,
                 column="Id",
                 upper_bound=100,

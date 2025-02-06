@@ -1323,12 +1323,11 @@ def _task_fetch_from_data_source(
         result = conn.cursor().execute(query).fetchall()
     elif fetch_size > 0:
         cursor = conn.cursor()
-        cursor.arraysize = fetch_size
         cursor = cursor.execute(query)
-        rows = cursor.fetchmany(cursor.arraysize)
+        rows = cursor.fetchmany(fetch_size)
         while rows:
             result.extend(rows)
-            rows = cursor.fetchmany(cursor.arraysize)
+            rows = cursor.fetchmany(fetch_size)
     else:
         raise ValueError("fetch size cannot be smaller than 0")
 
