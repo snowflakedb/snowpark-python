@@ -212,7 +212,8 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     validate_object_name,
     check_create_map_parameter,
-    warning,
+    # warning,
+    deprecated,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -10742,6 +10743,11 @@ def make_interval(
     return res
 
 
+@deprecated(
+    version="1.28.0",
+    extra_warning_text="Please consider installing snowflake-ml-python and using `snowflake.cortex.summarize` instead.",
+    extra_doc_string="Use :meth:`snowflake.cortex.summarize` instead.",
+)
 def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     """
     Summarizes the given English-language input text.
@@ -10750,15 +10756,16 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     Returns:
         A string containing a summary of the original text.
     """
-    warning(
-        "snowflake_cortex_summarize",
-        "snowflake_cortex_summarize is deprecated. Please consider using snowflake.cortex.Summarize instead.",
-    )
     sql_func_name = "snowflake.cortex.summarize"
     text_col = _to_col_if_lit(text, sql_func_name)
     return builtin(sql_func_name)(text_col)
 
 
+@deprecated(
+    version="1.28.0",
+    extra_warning_text="Please consider installing snowflake-ml-python and using `snowflake.cortex.sentiment` instead.",
+    extra_doc_string="Use :meth:`snowflake.cortex.sentiment` instead.",
+)
 def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
     """
     A string containing the text for which a sentiment score should be calculated.
@@ -10768,10 +10775,6 @@ def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
         A floating-point number from -1 to 1 (inclusive) indicating the level of negative or positive sentiment in the
         text. Values around 0 indicate neutral sentiment.
     """
-    warning(
-        "snowflake_cortex_sentiment",
-        "snowflake_cortex_sentiment is deprecated. Please consider using snowflake.cortex.Sentiment instead.",
-    )
     sql_func_name = "snowflake.cortex.sentiment"
     text_col = _to_col_if_lit(text, sql_func_name)
     return builtin(sql_func_name)(text_col)
