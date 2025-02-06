@@ -102,12 +102,12 @@ def test_apply_snowflake_cortex_sentiment_df(session):
         ),
         param(
             True,
-            (lambda s: s.apply(Sentiment, args=("hello"))),
+            (lambda s: s.apply(Sentiment, args=("hello",))),
             id="series_cortex_unsupported_args",
         ),
         param(
             False,
-            (lambda df: df.apply(Sentiment, args=("hello"))),
+            (lambda df: df.apply(Sentiment, args=("hello",))),
             id="df_cortex_unsupported_args",
         ),
         param(
