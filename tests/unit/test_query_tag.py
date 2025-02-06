@@ -6,30 +6,7 @@
 from snowflake.snowpark._internal.utils import (
     QUERY_TAG_STRING,
     create_or_update_statement_params_with_query_tag,
-    create_statement_query_tag,
 )
-
-
-def test_generate_query_tag():
-    query_tag = create_statement_query_tag()
-    assert "test_query_tag" in query_tag  # file name in query tag
-    assert "test_generate_query_tag" in query_tag  # calling function name in query tag
-
-
-def test_generate_query_tag_skip_1_level():
-    query_tag = create_statement_query_tag(skip_levels=1)
-    assert "test_query_tag" in query_tag  # file name in query tag
-    assert (
-        "test_generate_query_tag_skip_1_level" in query_tag
-    )  # calling function name in query tag
-
-
-def test_generate_query_tag_skip_2_levels():
-    query_tag = create_statement_query_tag(skip_levels=2)
-    assert "test_query_tag" not in query_tag  # skipped last call stack
-    assert (
-        "test_generate_query_tag_skip_2_level" not in query_tag
-    )  # skipped last call stack
 
 
 def test_create_or_update_statement_with_query_tag():

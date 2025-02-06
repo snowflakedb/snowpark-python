@@ -545,9 +545,7 @@ class Session:
         if len(_active_sessions) >= 1 and is_in_stored_procedure():
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
-        # It is possible for a stored procedure child job to create a session with
-        # pre-existing query tag.
-        self._query_tag = self._get_remote_query_tag(ignore_error=True)
+        self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
         self._session_id = self._conn.get_session_id()
@@ -2185,26 +2183,21 @@ class Session:
                 self._conn.run_query("alter session unset query_tag")
             self._query_tag = tag
 
-    def _get_remote_query_tag(self, ignore_error: bool = False) -> str:
+    def _get_remote_query_tag(self) -> str:
         """
         Fetches the current sessions query tag.
         """
-        try:
-            remote_tag_rows = self.sql(
-                "SHOW PARAMETERS LIKE 'QUERY_TAG'"
-            )._internal_collect_with_tag_no_telemetry()
+        remote_tag_rows = self.sql(
+            "SHOW PARAMETERS LIKE 'QUERY_TAG'"
+        )._internal_collect_with_tag_no_telemetry()
 
-            # Check if the result has the expected schema
-            # https://docs.snowflake.com/en/sql-reference/sql/show-parameters#examples
-            if len(remote_tag_rows) != 1 or not hasattr(remote_tag_rows[0], "value"):
-                raise ValueError(
-                    "Snowflake server side query tag parameter has unexpected schema."
-                )
-            return remote_tag_rows[0].value
-        except Exception as e:
-            if ignore_error:
-                return ""
-            raise e
+        # Check if the result has the expected schema
+        # https://docs.snowflake.com/en/sql-reference/sql/show-parameters#examples
+        if len(remote_tag_rows) != 1 or not hasattr(remote_tag_rows[0], "value"):
+            raise ValueError(
+                "Snowflake server side query tag parameter has unexpected schema."
+            )
+        return remote_tag_rows[0].value
 
     def append_query_tag(self, tag: str, separator: str = ",") -> None:
         """

@@ -20,7 +20,6 @@ import re
 import string
 import sys
 import threading
-import traceback
 import zipfile
 from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache
@@ -194,12 +193,6 @@ NON_FORMAT_TYPE_OPTIONS = {
 }
 
 QUERY_TAG_STRING = "QUERY_TAG"
-SKIP_LEVELS_TWO = (
-    2  # limit traceback to return up to 2 stack trace entries from traceback object tb
-)
-SKIP_LEVELS_THREE = (
-    3  # limit traceback to return up to 3 stack trace entries from traceback object tb
-)
 TEMPORARY_STRING = "TEMPORARY"
 SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
@@ -624,25 +617,15 @@ def str_to_enum(value: str, enum_class: Type[Enum], except_str: str) -> Enum:
         )
 
 
-def create_statement_query_tag(skip_levels: int = 0) -> str:
-    stack = traceback.format_stack(limit=QUERY_TAG_TRACEBACK_LIMIT + skip_levels)
-    return "".join(stack[:-skip_levels] if skip_levels else stack)
-
-
 def create_or_update_statement_params_with_query_tag(
     statement_params: Optional[Dict[str, str]] = None,
     exists_session_query_tag: Optional[str] = None,
-    skip_levels: int = 0,
 ) -> Dict[str, str]:
     if exists_session_query_tag or (
         statement_params and QUERY_TAG_STRING in statement_params
     ):
         return statement_params
-
-    ret = statement_params or {}
-    # as create_statement_query_tag is called by the method, skip_levels needs to +1 to skip the current call
-    ret[QUERY_TAG_STRING] = create_statement_query_tag(skip_levels + 1)
-    return ret
+    return {}
 
 
 def get_stage_file_prefix_length(stage_location: str) -> int:
