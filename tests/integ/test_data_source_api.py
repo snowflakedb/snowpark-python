@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-import logging
 import time
 import unittest.mock
 from _decimal import Decimal
@@ -25,6 +24,11 @@ from snowflake.snowpark.types import (
     MapType,
 )
 from tests.utils import Utils
+
+pytestmark = pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="feature not available in local testing",
+)
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 
@@ -228,19 +232,11 @@ def upload_and_copy_into_table_with_retry(
     time.sleep(2)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
 def test_dbapi_with_temp_table(session):
     df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME, max_workers=4)
     assert df.collect() == all_type_data
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
 def test_dbapi_retry(session):
 
     with mock.patch(
@@ -270,10 +266,6 @@ def test_dbapi_retry(session):
         assert isinstance(result, Exception)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
 def test_parallel(session):
     num_partitions = 3
     # this test meant to test whether ingest is fully parallelized
@@ -449,37 +441,34 @@ def test_partition_unsupported_type(session):
 
 def test_telemetry_tracking(caplog, session):
     original_func = session._conn.run_query
-    called = 0
+    called, comment_showed = 0, 0
 
     def assert_datasource_statement_params_run_query(*args, **kwargs):
         # assert we set statement_parameters to track datasourcee api usage
+        nonlocal comment_showed
         statement_parameters = kwargs.get("_statement_params")
+        query = args[0]
         assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
+        if "select" not in query.lower():
+            assert DATA_SOURCE_SQL_COMMENT in query
+            comment_showed += 1
         nonlocal called
         called += 1
         return original_func(*args, **kwargs)
 
-    with caplog.at_level(
-        logging.DEBUG,
-        logger="snowflake.snowpark._internal.server_connection:server_connection",
-    ):
-        with mock.patch(
-            "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
-            side_effect=assert_datasource_statement_params_run_query,
-        ), unittest.mock.patch(
-            "snowflake.snowpark._internal.telemetry.TelemetryClient.send_performance_telemetry"
-        ) as mock_telemetry:
-            df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME)
-        assert df._plan.api_calls == [{"name": DATA_SOURCE_DBAPI_SIGNATURE}]
-        assert called == 4  # 4 queries: create table, create stage, put file, copy into
-        assert mock_telemetry.called
-        assert df.collect() == all_type_data
-        for record in caplog.records:
-            # we create temp stage, temp table, put files, and copy into
-            # apart from the table() call which uses select, all other calls should have the comment
-            if "select" not in record.message.lower():
-                assert DATA_SOURCE_SQL_COMMENT in record.message
-        caplog.clear()
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=assert_datasource_statement_params_run_query,
+    ), unittest.mock.patch(
+        "snowflake.snowpark._internal.telemetry.TelemetryClient.send_performance_telemetry"
+    ) as mock_telemetry:
+        df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME)
+    assert df._plan.api_calls == [{"name": DATA_SOURCE_DBAPI_SIGNATURE}]
+    assert (
+        called == 4 and comment_showed == 4
+    )  # 4 queries: create table, create stage, put file, copy into
+    assert mock_telemetry.called
+    assert df.collect() == all_type_data
 
     # assert when we save/copy, the statement_params is added
     temp_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
