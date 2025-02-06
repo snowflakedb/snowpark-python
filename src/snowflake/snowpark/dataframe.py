@@ -132,8 +132,6 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import add_package_to_existing_packages
 from snowflake.snowpark._internal.utils import (
-    SKIP_LEVELS_THREE,
-    SKIP_LEVELS_TWO,
     TempObjectType,
     check_agg_exprs,
     check_flatten_mode,
@@ -788,7 +786,6 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
-                SKIP_LEVELS_THREE,
             ),
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
@@ -810,7 +807,6 @@ class DataFrame:
                 _statement_params=create_or_update_statement_params_with_query_tag(
                     statement_params or self._statement_params,
                     self._session.query_tag,
-                    SKIP_LEVELS_THREE,
                 ),
             )
 
@@ -898,7 +894,6 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
-                SKIP_LEVELS_THREE,
             ),
             case_sensitive=case_sensitive,
             **kwargs,
@@ -1004,7 +999,6 @@ class DataFrame:
                 _statement_params=create_or_update_statement_params_with_query_tag(
                     statement_params or self._statement_params,
                     self._session.query_tag,
-                    SKIP_LEVELS_TWO,
                 ),
                 **kwargs,
             )
@@ -1105,7 +1099,6 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
-                SKIP_LEVELS_TWO,
             ),
             **kwargs,
         )
@@ -4267,7 +4260,6 @@ class DataFrame:
                     _statement_params=create_or_update_statement_params_with_query_tag(
                         statement_params or self._statement_params,
                         self._session.query_tag,
-                        SKIP_LEVELS_TWO,
                     ),
                     _emit_ast=_emit_ast,
                 )
@@ -4722,7 +4714,6 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
-                SKIP_LEVELS_TWO,
             ),
             _ast_stmt=stmt,
         )
@@ -4869,7 +4860,7 @@ class DataFrame:
             data_retention_time=data_retention_time,
             max_data_extension_time=max_data_extension_time,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params, self._session.query_tag
             ),
             iceberg_config=iceberg_config,
         )
@@ -4928,7 +4919,6 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
-                SKIP_LEVELS_TWO,
             ),
             _ast_stmt=stmt,
         )
@@ -4989,7 +4979,6 @@ class DataFrame:
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
-                SKIP_LEVELS_TWO,
             ),
             _ast_stmt=stmt,
         )
@@ -5628,7 +5617,6 @@ class DataFrame:
                 _statement_params=create_or_update_statement_params_with_query_tag(
                     statement_params_for_cache_result,
                     self._session.query_tag,
-                    SKIP_LEVELS_TWO,
                 ),
             )
         cached_df = snowflake.snowpark.table.Table(
