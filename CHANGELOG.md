@@ -6,14 +6,10 @@
 
 #### Deprecations:
 
-- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can use the Summarize function from Snowflake.Cortex instead.
-- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can use the Sentiment function from Snowflake.Cortex instead.
+- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 ### Snowpark pandas API Updates
-
-#### Dependency Updates
-
-- Added a test dependency for `snowflake-ml-python`.
 
 #### New Features
 
