@@ -40,6 +40,7 @@
   - `bitmap_bit_position`
   - `bitmap_bucket_number`
   - `bitmap_construct_agg`
+  - `bitshiftright_unsigned`
   - `cbrt`
   - `equal_null`
   - `from_json`
