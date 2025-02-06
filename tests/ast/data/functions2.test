@@ -322,9 +322,11 @@ df314 = df.select(instr("A", "test_str"))
 
 df315 = df.select(nth_value("A", 2), nth_value("A", 2, True), nth_value(col("B"), 2, False))
 
-df316 = df.select(normal(1, 2, "A"))
+df316 = df.select(bitshiftright_unsigned("A", 2), bitshiftright_unsigned("A", col("B")))
 
-df317 = df.select(randn(1))
+df317 = df.select(normal(1, 2, "A"))
+
+df318 = df.select(randn(1))
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -648,9 +650,11 @@ df314 = df.select(instr("A", "test_str"))
 
 df315 = df.select(nth_value("A", 2, False), nth_value("A", 2, True), nth_value(col("B"), 2, False))
 
-df316 = df.select(normal(1, 2, "A"))
+df316 = df.select(bitshiftright_unsigned("A", 2), bitshiftright_unsigned("A", col("B")))
 
-df317 = df.select(randn(1))
+df317 = df.select(normal(1, 2, "A"))
+
+df318 = df.select(randn(1))
 
 ## EXPECTED ENCODED AST
 
@@ -26290,6 +26294,150 @@ body {
                 name {
                   name {
                     sp_name_flat {
+                      name: "bitshiftright_unsigned"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 56
+                  end_line: 347
+                  file: 2
+                  start_column: 26
+                  start_line: 347
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 56
+                  end_line: 347
+                  file: 2
+                  start_column: 26
+                  start_line: 347
+                }
+                v: 2
+              }
+            }
+            src {
+              end_column: 56
+              end_line: 347
+              file: 2
+              start_column: 26
+              start_line: 347
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "bitshiftright_unsigned"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 95
+                  end_line: 347
+                  file: 2
+                  start_column: 58
+                  start_line: 347
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 94
+                      end_line: 347
+                      file: 2
+                      start_column: 86
+                      start_line: 347
+                    }
+                    v: "B"
+                  }
+                }
+                src {
+                  end_column: 94
+                  end_line: 347
+                  file: 2
+                  start_column: 86
+                  start_line: 347
+                }
+              }
+            }
+            src {
+              end_column: 95
+              end_line: 347
+              file: 2
+              start_column: 58
+              start_line: 347
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 347
+          file: 2
+          start_column: 16
+          start_line: 347
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df316"
+    }
+    uid: 161
+    var_id {
+      bitfield1: 161
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
                       name: "normal"
                     }
                   }
@@ -26444,5 +26592,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }
