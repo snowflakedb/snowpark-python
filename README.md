@@ -11,6 +11,20 @@ Using this library, you can build applications that process data in Snowflake wi
 
 [Source code][source code] | [Snowpark Python developer guide][Snowpark Python developer guide] | [Snowpark Python API reference][Snowpark Python api references] | [Snowpark pandas developer guide][Snowpark pandas developer guide] | [Snowpark pandas API reference][Snowpark pandas api references] | [Product documentation][snowpark] | [Samples][samples]
 
+## Table of Contents
+
+1. [Getting Started](#getting-started)
+   - [Have your Snowflake Account Ready](#have-your-snowflake-account-ready)
+   - [Create a Python Virtual Environment](#create-a-python-virtual-environment)
+   - [Install the Library](#install-the-library-to-the-python-virtual-environment)
+2. [Using the Snowpark Python API](#create-a-session-and-use-the-snowpark-python-api)
+3. [Using the Snowpark pandas API](#create-a-session-and-use-the-snowpark-pandas-api)
+4. [Samples](#samples)
+5. [Logging](#logging)
+6. [Reading and Writing to pandas DataFrame](#reading-and-writing-to-pandas-dataframe)
+7. [Verifying Package Signatures](#verifying-package-signatures)
+8. [Contributing](#contributing)
+
 ## Getting started
 
 ### Have your Snowflake account ready
