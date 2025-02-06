@@ -685,6 +685,44 @@ def bitshiftleft(
 
 
 @publicapi
+def bitshiftright_unsigned(
+    to_shift_column: ColumnOrName, n: Union[Column, int], _emit_ast: bool = True
+) -> Column:
+    """Returns the bitwise negation of a numeric expression.
+
+    Example:
+        >>> df = session.createDataFrame([(-1999)], ['a'])
+        >>> df.select(bitshiftright_unsigned('a', 1)).collect()[0][0]
+        9223372036854774808
+
+        >>> df = session.createDataFrame([(42)], ['a'])
+        >>> df.select(bitshiftright_unsigned('a', 1)).collect()[0][0]
+        21
+
+        >>> df = session.createDataFrame([(-21)], ['a'])
+        >>> df.select(bitshiftright_unsigned('a', 1)).collect()[0][0]
+        9223372036854775797
+    """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "bitshiftright_unsigned", to_shift_column, n)
+
+    c = _to_col_if_str(to_shift_column, "bitshiftright_unsigned")
+    max_bit = bitshiftleft(lit(1, _emit_ast=False), 64, _emit_ast=False)
+    unsigned_c = iff(
+        c < 0,
+        bitshiftright(c + max_bit, n, _emit_ast=False),
+        bitshiftright(c, n, _emit_ast=False),
+        _emit_ast=False,
+    )
+    col = call_builtin("bitand", unsigned_c, max_bit - 1, _emit_ast=False)
+    col._ast = ast
+    return col
+
+
+@publicapi
 def bitshiftright(
     to_shift_column: ColumnOrName, n: Union[Column, int], _emit_ast: bool = True
 ) -> Column:
