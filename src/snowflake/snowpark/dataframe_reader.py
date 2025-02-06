@@ -57,6 +57,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     get_temp_type_for_object,
     normalize_local_file,
+    DATA_SOURCE_DBAPI_SIGNATURE,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1151,9 +1152,9 @@ class DataFrameReader:
                         thread_executor.shutdown(wait=False)
                         raise f.result()
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
-                "DataFrameReader.dbapi", time.perf_counter() - start_time
+                DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
             )
-            set_api_call_source(res_df, "DataFrameReader.dbapi")
+            set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df
 
     def _infer_data_source_schema(

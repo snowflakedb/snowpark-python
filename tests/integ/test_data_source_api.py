@@ -1,13 +1,20 @@
 #
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
-
+import logging
 import time
+import unittest.mock
 from _decimal import Decimal
 import datetime
 from unittest import mock
 import pytest
 
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    DATA_SOURCE_SQL_COMMENT,
+    STATEMENT_PARAMS_DATA_SOURCE,
+)
 from snowflake.snowpark.dataframe_reader import (
     task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
@@ -17,6 +24,7 @@ from snowflake.snowpark.types import (
     DateType,
     MapType,
 )
+from tests.utils import Utils
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
 
@@ -437,3 +445,57 @@ def test_partition_unsupported_type(session):
             upper_bound=1,
             num_partitions=4,
         )
+
+
+def test_telemetry_tracking(caplog, session):
+    original_func = session._conn.run_query
+    called = 0
+
+    def assert_datasource_statement_params_run_query(*args, **kwargs):
+        # assert we set statement_parameters to track datasourcee api usage
+        statement_parameters = kwargs.get("_statement_params")
+        assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
+        nonlocal called
+        called += 1
+        return original_func(*args, **kwargs)
+
+    with caplog.at_level(
+        logging.DEBUG,
+        logger="snowflake.snowpark._internal.server_connection:server_connection",
+    ):
+        with mock.patch(
+            "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+            side_effect=assert_datasource_statement_params_run_query,
+        ), unittest.mock.patch(
+            "snowflake.snowpark._internal.telemetry.TelemetryClient.send_performance_telemetry"
+        ) as mock_telemetry:
+            df = session.read.dbapi(create_connection, SQL_SERVER_TABLE_NAME)
+        assert df._plan.api_calls == [{"name": DATA_SOURCE_DBAPI_SIGNATURE}]
+        assert called == 4  # 4 queries: create table, create stage, put file, copy into
+        assert mock_telemetry.called
+        assert df.collect() == all_type_data
+        for record in caplog.records:
+            # we create temp stage, temp table, put files, and copy into
+            # apart from the table() call which uses select, all other calls should have the comment
+            if "select" not in record.message.lower():
+                assert DATA_SOURCE_SQL_COMMENT in record.message
+        caplog.clear()
+
+    # assert when we save/copy, the statement_params is added
+    temp_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    called = 0
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=assert_datasource_statement_params_run_query,
+    ):
+        df.write.save_as_table(temp_table)
+        df.write.copy_into_location(
+            f"{temp_stage}/test.parquet",
+            file_format_type="parquet",
+            header=True,
+            overwrite=True,
+            single=True,
+        )
+        assert called == 2
