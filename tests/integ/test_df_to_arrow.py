@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import os
 import pytest
 import re
 
@@ -19,7 +20,7 @@ from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DecimalType
 
-from tests.utils import TestData, Utils
+from tests.utils import TestData, Utils, TestFiles
 
 try:
     import pyarrow as pa
@@ -341,3 +342,25 @@ def test_write_arrow_negative(session, basic_arrow_table):
             match="Failed to write arrow table to Snowflake. COPY INTO output <output here>",
         ):
             session.write_arrow(basic_arrow_table, "temp_table")
+
+
+def test_to_arrow_from_stage(session, resources_path):
+    stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+    table = pa.Table.from_arrays(
+        [[1, 2], ["one", "two"], [1.2, 2.2]], names=["c1", "c2", "c3"]
+    ).to_pylist()
+
+    try:
+        Utils.create_stage(session, stage_name)
+        Utils.upload_to_stage(
+            session, stage_name, test_files.test_file_csv, compress=False
+        )
+        df = session.read.csv(
+            f"@{stage_name}/{os.path.basename(test_files.test_file_csv)}"
+        )
+        assert df.to_arrow().to_pylist() == table
+        for t in df.to_arrow_batches():
+            assert t.to_pylist() == table
+    finally:
+        Utils.drop_stage(session, stage_name)
