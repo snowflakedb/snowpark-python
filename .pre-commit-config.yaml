@@ -82,6 +82,10 @@ repos:
           - flake8-print
         args:
           - --per-file-ignores=tests/*.py:T201 # prints are allowed in test files
+          # Artificial workloads will become expectation tests. These relaxations make it easy
+          # to move them later without code changes.
+          - --per-file-ignores=tests/artificial-workloads/*.py:F403
+          - --per-file-ignores=tests/artificial-workloads/*.py:F405
           # Ignore errors for generated protocol buffer stubs
           - --exclude=src/snowflake/snowpark/_internal/proto/generated/ast_pb2.py
     # Use mypy for static type checking.
