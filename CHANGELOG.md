@@ -1,5 +1,15 @@
 # Release History
 
+# 1.28.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following functions in `functions.py`
+  - `normal`
+  - `randn`
+
 ## 1.27.0 (2025-02-03)
 
 ### Snowpark Python API Updates
@@ -55,8 +65,6 @@
   - `log10`
   - `percentile_approx`
   - `unbase64`
-  - `normal`
-  - `randn`
 - Added support for `seed` argument in `DataFrame.stat.sample_by`. Note that it only supports a `Table` object, and will be ignored for a `DataFrame` object.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 - Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
