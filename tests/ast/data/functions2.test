@@ -644,6 +644,8 @@ df314 = df.select(instr("A", "test_str"))
 
 df315 = df.select(nth_value("A", 2, False), nth_value("A", 2, True), nth_value(col("B"), 2, False))
 
+df316 = df.select(bitshiftright_unsigned("A", 2), bitshiftright_unsigned("A", col("B")))
+
 ## EXPECTED ENCODED AST
 
 interned_value_table {

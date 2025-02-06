@@ -717,7 +717,7 @@ def bitshiftright_unsigned(
         bitshiftright(c, n, _emit_ast=False),
         _emit_ast=False,
     )
-    col = call_builtin("bitand", unsigned_c, max_bit - 1, _emit_ast=_emit_ast)
+    col = call_builtin("bitand", unsigned_c, max_bit - 1, _emit_ast=False)
     col._ast = ast
     return col
 
