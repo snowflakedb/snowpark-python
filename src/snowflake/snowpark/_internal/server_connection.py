@@ -739,10 +739,11 @@ class ServerConnection:
                             final_query = final_query.replace(holder, id_)
                         if i == len(main_queries) - 1 and dataframe_ast:
                             kwargs[DATAFRAME_AST_PARAMETER] = dataframe_ast
+                        is_final_query = i == len(main_queries) - 1
                         result = self.run_query(
                             final_query,
                             to_pandas,
-                            to_iter and (i == len(main_queries) - 1),
+                            to_iter and is_final_query,
                             is_ddl_on_temp_object=query.is_ddl_on_temp_object,
                             block=not is_last,
                             data_type=data_type,
@@ -752,7 +753,7 @@ class ServerConnection:
                             params=query.params,
                             ignore_results=ignore_results,
                             async_post_actions=post_actions,
-                            to_arrow=to_arrow,
+                            to_arrow=to_arrow and is_final_query,
                             **kwargs,
                         )
                         placeholders[query.query_id_place_holder] = (
