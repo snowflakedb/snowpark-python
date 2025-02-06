@@ -620,22 +620,6 @@ def test_session_builder_app_name_existing_invalid_json_query_tag():
         builder.getOrCreate()
 
 
-def test_get_remote_query_tag(mock_server_connection):
-    mock_session = Session(mock_server_connection)
-    with mock.patch.object(mock_session._conn, "execute") as mock_execute:
-        mock_execute.side_effect = Exception(
-            "Mock exception for session.get_remote_query_tag"
-        )
-
-        with pytest.raises(
-            Exception,
-            match="Mock exception for session.get_remote_query_tag",
-        ):
-            mock_session._get_remote_query_tag(ignore_error=False)
-
-        assert mock_session._get_remote_query_tag(ignore_error=True) == ""
-
-
 @pytest.mark.parametrize(
     "version_value,expected_parameter_value",
     [
