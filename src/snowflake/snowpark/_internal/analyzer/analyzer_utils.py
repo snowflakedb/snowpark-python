@@ -1824,14 +1824,6 @@ def write_arrow(
         infer_result = cursor.execute(infer_schema_sql, _is_internal=True)
         assert infer_result is not None
         column_type_mapping = dict(infer_result.fetchall())  # pyright: ignore
-        create_table_columns = ", ".join(
-            [
-                f"{quote}{snowflake_col}{quote} {column_type_mapping[col]}"
-                for snowflake_col, col in zip(
-                    snowflake_column_names, table.schema.names
-                )
-            ]
-        )
 
         target_table_location = build_location_helper(
             database,
@@ -1842,16 +1834,26 @@ def write_arrow(
             quote_identifiers,
         )
 
-        create_table_sql = (
-            f"CREATE {table_type.upper()} TABLE IF NOT EXISTS {target_table_location} "
-            f"({create_table_columns})"
-            f" /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
-        )
-        cursor.execute(create_table_sql, _is_internal=True)
         parquet_columns = "$1:" + ",$1:".join(
             f"{quote}{snowflake_col}{quote}::{column_type_mapping[col]}"
             for snowflake_col, col in zip(snowflake_column_names, table.schema.names)
         )
+
+        if auto_create_table:
+            create_table_columns = ", ".join(
+                [
+                    f"{quote}{snowflake_col}{quote} {column_type_mapping[col]}"
+                    for snowflake_col, col in zip(
+                        snowflake_column_names, table.schema.names
+                    )
+                ]
+            )
+            create_table_sql = (
+                f"CREATE {table_type.upper()} TABLE IF NOT EXISTS {target_table_location} "
+                f"({create_table_columns})"
+                f" /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
+            )
+            cursor.execute(create_table_sql, _is_internal=True)
     else:
         target_table_location = build_location_helper(
             database=database,

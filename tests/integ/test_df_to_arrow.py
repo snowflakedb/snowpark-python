@@ -335,6 +335,14 @@ def test_write_arrow_negative(session, basic_arrow_table):
     ):
         session.write_arrow(basic_arrow_table, table_name)
 
+    # Truncate does not cause a table to be auto-generated
+    table_name = Utils.random_table_name()
+    with pytest.raises(
+        ProgrammingError,
+        match="^.*SQL compilation error:\nTable .* does not exist",
+    ):
+        session.write_arrow(basic_arrow_table, table_name, overwrite=True)
+
     with mock.patch(
         "snowflake.snowpark.session.write_arrow",
         return_value=(False, 0, 0, "<output here>"),
