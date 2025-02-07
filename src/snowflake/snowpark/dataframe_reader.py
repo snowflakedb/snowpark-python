@@ -42,9 +42,12 @@ from snowflake.snowpark._internal.telemetry import set_api_call_source
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
-    Connection,
     convert_sp_to_sf_type,
-    sql_server_type_to_snow_type,
+)
+from snowflake.snowpark._internal.data_source_utils import (
+    data_source_data_to_pandas_df,
+    Connection,
+    infer_data_source_schema,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -69,13 +72,11 @@ from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     StructType,
     VariantType,
-    StructField,
     DateType,
     DataType,
     _NumericType,
     TimestampType,
 )
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import random_name_for_temp_object
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1034,7 +1035,9 @@ class DataFrameReader:
         conn = create_connection()
         # this is specified to pyodbc, need other way to manage timeout on other drivers
         conn.timeout = query_timeout
-        struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
+        struct_schema, raw_schema = infer_data_source_schema(
+            conn, table, type(conn).__module__
+        )
         if column is None:
             if (
                 lower_bound is not None
@@ -1137,18 +1140,6 @@ class DataFrameReader:
                         raise f.result()
             return res_df
 
-    def _infer_data_source_schema(
-        self, conn: Connection, table: str
-    ) -> Tuple[StructType, Tuple[Tuple[str, Any, int, int, int, bool]]]:
-        # TODO: SNOW-1893781 change implementation if oracle has different way of infer schema
-        query = f"""
-            SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_NAME = '{table}'
-            """
-        raw_schema = conn.execute(query).fetchall()
-        return self._to_snowpark_type(raw_schema), raw_schema
-
     def _generate_partition(
         self,
         table: str,
@@ -1247,16 +1238,6 @@ class DataFrameReader:
         else:
             raise TypeError(f"unsupported column type for partition: {column_type}")
 
-    def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
-        fields = []
-        for column in schema:
-            datatype = sql_server_type_to_snow_type(column)
-            field = StructField(
-                column[0], datatype, True if column[5].lower() == "yes" else False
-            )
-            fields.append(field)
-        return StructType(fields)
-
     def _upload_and_copy_into_table(
         self,
         local_file: str,
@@ -1309,7 +1290,7 @@ class DataFrameReader:
 def _task_fetch_from_data_source(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Tuple[str, Any, int, int, int, bool]],
+    schema: List[Tuple[str, str, int, int, Union[str, bool]]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
@@ -1319,10 +1300,11 @@ def _task_fetch_from_data_source(
     # this is specified to pyodbc, need other way to manage timeout on other drivers
     conn.timeout = query_timeout
     result = []
+    cursor = conn.cursor()
     if fetch_size == 0:
-        result = conn.cursor().execute(query).fetchall()
+        cursor.execute(query)
+        result = cursor.fetchall()
     elif fetch_size > 0:
-        cursor = conn.cursor()
         cursor = cursor.execute(query)
         rows = cursor.fetchmany(fetch_size)
         while rows:
@@ -1331,17 +1313,8 @@ def _task_fetch_from_data_source(
     else:
         raise ValueError("fetch size cannot be smaller than 0")
 
-    columns = [col[0] for col in schema]
-    df = pd.DataFrame.from_records(result, columns=columns)
+    df = data_source_data_to_pandas_df(result, schema, type(conn).__module__)
 
-    # convert timestamp and date to string to work around SNOW-1911989
-    df = df.map(
-        lambda x: x.isoformat()
-        if isinstance(x, (datetime.datetime, datetime.date))
-        else x
-    )
-    # convert binary type to object type to work around SNOW-1912094
-    df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
     return path
@@ -1350,7 +1323,7 @@ def _task_fetch_from_data_source(
 def task_fetch_from_data_source_with_retry(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Tuple[str, Any, int, int, int, bool]],
+    schema: List[Tuple[str, str, int, int, Union[str, bool]]],
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
