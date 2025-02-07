@@ -46,7 +46,6 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
     Connection,
-    convert_sp_to_sf_type,
     sql_server_type_to_snow_type,
 )
 from snowflake.snowpark._internal.utils import (
@@ -1155,7 +1154,7 @@ class DataFrameReader:
                 thread_pool_futures = []
                 process_pool_futures = [
                     process_executor.submit(
-                        task_fetch_from_data_source_with_retry,
+                        _task_fetch_from_data_source_with_retry,
                         create_connection,
                         query,
                         raw_schema,
@@ -1177,7 +1176,7 @@ class DataFrameReader:
                     else:
                         thread_pool_futures.append(
                             thread_executor.submit(
-                                self.upload_and_copy_into_table_with_retry,
+                                self._upload_and_copy_into_table_with_retry,
                                 future.result(),
                                 snowflake_stage_name,
                                 snowflake_table_name,
@@ -1209,7 +1208,7 @@ class DataFrameReader:
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = '{table}'
             """
-        raw_schema = conn.execute(query).fetchall()
+        raw_schema = conn.cursor().execute(query).fetchall()
         return self._to_snowpark_type(raw_schema), raw_schema
 
     def _generate_partition(
@@ -1346,7 +1345,7 @@ class DataFrameReader:
             statement_params=statements_params
         )
 
-    def upload_and_copy_into_table_with_retry(
+    def _upload_and_copy_into_table_with_retry(
         self,
         local_file: str,
         snowflake_stage_name: str,
@@ -1422,7 +1421,7 @@ def _task_fetch_from_data_source(
     return path
 
 
-def task_fetch_from_data_source_with_retry(
+def _task_fetch_from_data_source_with_retry(
     create_connection: Callable[[], "Connection"],
     query: str,
     schema: Tuple[Tuple[str, Any, int, int, int, bool]],
