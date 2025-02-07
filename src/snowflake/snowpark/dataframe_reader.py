@@ -1069,6 +1069,7 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
+        fetch_size: Optional[int] = 0,
     ) -> DataFrame:
         conn = create_connection()
         # this is specified to pyodbc, need other way to manage timeout on other drivers
@@ -1143,6 +1144,7 @@ class DataFrameReader:
                         i,
                         tmp_dir,
                         query_timeout,
+                        fetch_size,
                     )
                     for i, query in enumerate(partitioned_queries)
                 ]
@@ -1351,11 +1353,24 @@ def _task_fetch_from_data_source(
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
+    fetch_size: int = 0,
 ) -> str:
     conn = create_connection()
     # this is specified to pyodbc, need other way to manage timeout on other drivers
     conn.timeout = query_timeout
-    result = conn.cursor().execute(query).fetchall()
+    result = []
+    if fetch_size == 0:
+        result = conn.cursor().execute(query).fetchall()
+    elif fetch_size > 0:
+        cursor = conn.cursor()
+        cursor = cursor.execute(query)
+        rows = cursor.fetchmany(fetch_size)
+        while rows:
+            result.extend(rows)
+            rows = cursor.fetchmany(fetch_size)
+    else:
+        raise ValueError("fetch size cannot be smaller than 0")
+
     columns = [col[0] for col in schema]
     df = pd.DataFrame.from_records(result, columns=columns)
 
@@ -1379,13 +1394,14 @@ def task_fetch_from_data_source_with_retry(
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
+    fetch_size: int = 0,
 ) -> Union[str, Exception]:
     retry_count = 0
     error = None
     while retry_count < MAX_RETRY_TIME:
         try:
             path = _task_fetch_from_data_source(
-                create_connection, query, schema, i, tmp_dir, query_timeout
+                create_connection, query, schema, i, tmp_dir, query_timeout, fetch_size
             )
             return path
         except Exception as e:
