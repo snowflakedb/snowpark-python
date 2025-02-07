@@ -617,22 +617,6 @@ def str_to_enum(value: str, enum_class: Type[Enum], except_str: str) -> Enum:
         )
 
 
-def create_or_update_statement_params_with_query_tag(
-    statement_params: Optional[Dict[str, str]] = None,
-    exists_session_query_tag: Optional[str] = None,
-) -> Dict[str, str]:
-    """
-    Add existing session query tag to statement params if it exists and the statement
-    params do not have a query tag, otherwise return the statement params unchanged.
-    """
-    if exists_session_query_tag or (
-        statement_params and QUERY_TAG_STRING in statement_params
-    ):
-        return statement_params
-
-    return statement_params or {}
-
-
 def get_stage_file_prefix_length(stage_location: str) -> int:
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
