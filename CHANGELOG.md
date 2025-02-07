@@ -1,5 +1,15 @@
 # Release History
 
+# 1.28.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following functions in `functions.py`
+  - `normal`
+  - `randn`
+
 ## 1.27.0 (2025-02-03)
 
 ### Snowpark Python API Updates
