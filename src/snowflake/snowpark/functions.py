@@ -212,6 +212,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     validate_object_name,
     check_create_map_parameter,
+    deprecated,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -10779,13 +10780,16 @@ def make_interval(
     return res
 
 
+@deprecated(
+    version="1.28.0",
+    extra_warning_text="Please consider installing snowflake-ml-python and using `snowflake.cortex.summarize` instead.",
+    extra_doc_string="Use :meth:`snowflake.cortex.summarize` instead.",
+)
 def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     """
     Summarizes the given English-language input text.
-
     Args:
         text: A string containing the English text from which a summary should be generated.
-
     Returns:
         A string containing a summary of the original text.
     """
@@ -10794,10 +10798,14 @@ def snowflake_cortex_summarize(text: ColumnOrLiteralStr):
     return builtin(sql_func_name)(text_col)
 
 
+@deprecated(
+    version="1.28.0",
+    extra_warning_text="Please consider installing snowflake-ml-python and using `snowflake.cortex.sentiment` instead.",
+    extra_doc_string="Use :meth:`snowflake.cortex.sentiment` instead.",
+)
 def snowflake_cortex_sentiment(text: ColumnOrLiteralStr):
     """
     A string containing the text for which a sentiment score should be calculated.
-
     Args:
         text: A string containing the English text from which a summary should be generated.
     Returns:
