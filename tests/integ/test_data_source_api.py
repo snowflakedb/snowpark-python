@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import time
@@ -14,7 +14,7 @@ from snowflake.snowpark._internal.utils import (
     STATEMENT_PARAMS_DATA_SOURCE,
 )
 from snowflake.snowpark.dataframe_reader import (
-    task_fetch_from_data_source_with_retry,
+    _task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
 )
 from snowflake.snowpark.types import (
@@ -99,7 +99,7 @@ def test_dbapi_retry(session):
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
         side_effect=Exception("Test error"),
     ) as mock_task:
-        result = task_fetch_from_data_source_with_retry(
+        result = _task_fetch_from_data_source_with_retry(
             create_connection=sql_server_create_connection,
             query="SELECT * FROM test_table",
             schema=(("col1", int, 0, 0, 0, False),),
@@ -113,7 +113,7 @@ def test_dbapi_retry(session):
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
         side_effect=Exception("Test error"),
     ) as mock_task:
-        result = session.read.upload_and_copy_into_table_with_retry(
+        result = session.read._upload_and_copy_into_table_with_retry(
             local_file="fake_file",
             snowflake_stage_name="fake_stage",
             snowflake_table_name="fake_table",
@@ -131,11 +131,11 @@ def test_parallel(session):
     # this test meant to test whether ingest is fully parallelized
     # we cannot mock this function as process pool does not all mock object
     with mock.patch(
-        "snowflake.snowpark.dataframe_reader.task_fetch_from_data_source_with_retry",
+        "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source_with_retry",
         new=fake_task_fetch_from_data_source_with_retry,
     ):
         with mock.patch(
-            "snowflake.snowpark.dataframe_reader.DataFrameReader.upload_and_copy_into_table_with_retry",
+            "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
             wrap=upload_and_copy_into_table_with_retry,
         ) as mock_upload_and_copy:
             start = time.time()
