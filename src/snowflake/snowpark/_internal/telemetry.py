@@ -345,6 +345,7 @@ class TelemetryClient:
         }
         self.send(message)
 
+    @safe_telemetry
     def send_performance_telemetry(
         self, category: str, func_name: str, duration: float, sfqid: str = None
     ):
