@@ -942,7 +942,7 @@ def test_in_with_subquery_multiple_query(session):
             session,
             df_result,
             expect_cte_optimized=True,
-            query_count=11,
+            query_count=7,
             describe_count=0,
             union_count=1,
             join_count=0,
