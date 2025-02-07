@@ -1816,8 +1816,16 @@ def equal_nan(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(equal_nan(df["a"]).alias("equal_nan")).collect()
         [Row(EQUAL_NAN=False), Row(EQUAL_NAN=True), Row(EQUAL_NAN=False)]
     """
+    # AST.
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "equal_nan", e)
+
     c = _to_col_if_str(e, "equal_nan")
-    return c.equal_nan(_emit_ast=_emit_ast)
+    ans = c.equal_nan(_emit_ast=False)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -1832,8 +1840,16 @@ def is_null(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(is_null("a").as_("a")).collect()
         [Row(A=False), Row(A=False), Row(A=True), Row(A=False)]
     """
+    # AST
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "is_null", e)
+
     c = _to_col_if_str(e, "is_null")
-    return c.is_null(_emit_ast=_emit_ast)
+    ans = c.is_null(_emit_ast=False)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -1851,9 +1867,16 @@ def negate(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         ------------
         <BLANKLINE>
     """
+    # AST
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "negate", e)
 
     c = _to_col_if_str(e, "negate")
-    return -c
+    ans = -c
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -1871,9 +1894,16 @@ def not_(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         ------------
         <BLANKLINE>
     """
+    # AST
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_builtin_fn_apply(ast, "not_", e)
 
     c = _to_col_if_str(e, "not_")
-    return ~c
+    ans = ~c
+    ans._ast = ast
+    return ans
 
 
 @publicapi
