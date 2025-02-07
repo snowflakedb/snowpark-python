@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 # Code in this file may constitute partial or total reimplementation, or modification of
@@ -10,6 +10,7 @@ import ast
 import ctypes
 import datetime
 import decimal
+import functools
 import re
 import sys
 import typing  # noqa: F401
@@ -37,6 +38,7 @@ from snowflake.connector.constants import FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata
 from snowflake.connector.options import installed_pandas, pandas
 from snowflake.snowpark._internal.utils import quote_name
+from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     LTZ,
     NTZ,
@@ -142,6 +144,7 @@ def convert_metadata_to_sp_type(
             return ArrayType(
                 convert_metadata_to_sp_type(metadata.fields[0], max_string_size),
                 structured=True,
+                contains_null=metadata.fields[0]._is_nullable,
             )
         elif column_type_name == "MAP":
             assert (
@@ -151,6 +154,7 @@ def convert_metadata_to_sp_type(
                 convert_metadata_to_sp_type(metadata.fields[0], max_string_size),
                 convert_metadata_to_sp_type(metadata.fields[1], max_string_size),
                 structured=True,
+                value_contains_null=metadata.fields[1]._is_nullable,
             )
         else:
             assert all(
@@ -160,7 +164,7 @@ def convert_metadata_to_sp_type(
                 [
                     StructField(
                         field.name
-                        if context._should_use_structured_type_semantics
+                        if context._should_use_structured_type_semantics()
                         else quote_name(field.name, keep_case=True),
                         convert_metadata_to_sp_type(field, max_string_size),
                         nullable=field.is_nullable,
@@ -188,12 +192,15 @@ def convert_sf_to_sp_type(
     max_string_size: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
+    semi_structured_fill = (
+        None if context._should_use_structured_type_semantics() else StringType()
+    )
     if column_type_name == "ARRAY":
-        return ArrayType(StringType())
+        return ArrayType(semi_structured_fill)
     if column_type_name == "VARIANT":
         return VariantType()
     if column_type_name in {"OBJECT", "MAP"}:
-        return MapType(StringType(), StringType())
+        return MapType(semi_structured_fill, semi_structured_fill)
     if column_type_name == "GEOGRAPHY":
         return GeographyType()
     if column_type_name == "GEOMETRY":
@@ -244,7 +251,7 @@ def convert_sf_to_sp_type(
     )
 
 
-def convert_sp_to_sf_type(datatype: DataType) -> str:
+def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, DecimalType):
         return f"NUMBER({datatype.precision}, {datatype.scale})"
     if isinstance(datatype, IntegerType):
@@ -286,12 +293,18 @@ def convert_sp_to_sf_type(datatype: DataType) -> str:
         return "BINARY"
     if isinstance(datatype, ArrayType):
         if datatype.structured:
-            return f"ARRAY({convert_sp_to_sf_type(datatype.element_type)})"
+            nullable = (
+                "" if datatype.contains_null or nullable_override else " NOT NULL"
+            )
+            return f"ARRAY({convert_sp_to_sf_type(datatype.element_type)}{nullable})"
         else:
             return "ARRAY"
     if isinstance(datatype, MapType):
         if datatype.structured:
-            return f"MAP({convert_sp_to_sf_type(datatype.key_type)}, {convert_sp_to_sf_type(datatype.value_type)})"
+            nullable = (
+                "" if datatype.value_contains_null or nullable_override else " NOT NULL"
+            )
+            return f"MAP({convert_sp_to_sf_type(datatype.key_type)}, {convert_sp_to_sf_type(datatype.value_type)}{nullable})"
         else:
             return "OBJECT"
     if isinstance(datatype, StructType):
@@ -440,6 +453,8 @@ def infer_type(obj: Any) -> DataType:
             if key is not None and value is not None:
                 return MapType(infer_type(key), infer_type(value))
         return MapType(NullType(), NullType())
+    elif isinstance(obj, Row) and context._should_use_structured_type_semantics():
+        return infer_schema(obj)
     elif isinstance(obj, (list, tuple)):
         for v in obj:
             if v is not None:
@@ -536,7 +551,10 @@ def merge_type(a: DataType, b: DataType, name: Optional[str] = None) -> DataType
         return a
 
 
-def python_value_str_to_object(value, tp: DataType) -> Any:
+def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
+    if tp is None:
+        return None
+
     if isinstance(tp, StringType):
         return value
 
@@ -609,6 +627,23 @@ def python_type_str_to_object(
         return eval(tp_str)
 
 
+def sql_server_type_to_snow_type(
+    tp: Tuple[Tuple[str, str, int, int, int, int, str]],
+) -> DataType:
+    snow_type = SQL_SERVER_TYPE_TO_SNOW_TYPE.get(tp[1].lower(), None)
+    if snow_type is None:
+        # TODO: SNOW-1912068 support types that we don't have now
+        raise NotImplementedError(f"sql server type not supported: {tp}")
+    if tp[1].lower() in ["datetime2", "datetime", "smalldatetime"]:
+        return snow_type(TimestampTimeZone.NTZ)
+    elif tp[1].lower() == "datetimeoffset":
+        return snow_type(TimestampTimeZone.LTZ)
+    elif snow_type == DecimalType:
+        return snow_type(tp[3], tp[4])
+    else:
+        return snow_type()
+
+
 def python_type_to_snow_type(
     tp: Union[str, Type], is_return_type_of_sproc: bool = False
 ) -> Tuple[DataType, bool]:
@@ -645,7 +680,7 @@ def python_type_to_snow_type(
         element_type = (
             python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
             if tp_args
-            else StringType()
+            else None
         )
         return ArrayType(element_type), False
 
@@ -655,12 +690,12 @@ def python_type_to_snow_type(
         key_type = (
             python_type_to_snow_type(tp_args[0], is_return_type_of_sproc)[0]
             if tp_args
-            else StringType()
+            else None
         )
         value_type = (
             python_type_to_snow_type(tp_args[1], is_return_type_of_sproc)[0]
             if tp_args
-            else StringType()
+            else None
         )
         return MapType(key_type, value_type), False
 
@@ -951,8 +986,18 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["byteint"] = ByteType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["bigint"] = LongType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["number"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["numeric"] = DecimalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["decimal"] = DecimalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["object"] = MapType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["array"] = ArrayType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ntz"] = functools.partial(
+    TimestampType, timezone=TimestampTimeZone.NTZ
+)
+DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_tz"] = functools.partial(
+    TimestampType, timezone=TimestampTimeZone.TZ
+)
+DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
+    TimestampType, timezone=TimestampTimeZone.LTZ
+)
 
 DECIMAL_RE = re.compile(
     r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
@@ -961,6 +1006,17 @@ DECIMAL_RE = re.compile(
 
 STRING_RE = re.compile(r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
 # support type string format like "  string  (  23  )  "
+
+ARRAY_RE = re.compile(r"(?i)^\s*array\s*<")
+# support type string format like starting with "array<..."
+
+MAP_RE = re.compile(r"(?i)^\s*map\s*<")
+# support type string format like starting with "map<..."
+
+STRUCT_RE = re.compile(r"(?i)^\s*struct\s*<")
+# support type string format like starting with "struct<..."
+
+_NOT_NULL_PATTERN = re.compile(r"^(?P<base>.*?)\s+not\s+null\s*$", re.IGNORECASE)
 
 
 def get_number_precision_scale(type_str: str) -> Optional[Tuple[int, int]]:
@@ -975,7 +1031,213 @@ def get_string_length(type_str: str) -> Optional[int]:
         return int(string_matches.group(2))
 
 
+def extract_bracket_content(type_str: str, keyword: str) -> str:
+    """
+    Given a string that starts with e.g. "array<", returns the content inside the top-level <...>.
+    e.g., "array<int>" => "int". It also parses the nested array like "array<array<...>>".
+    Raises ValueError on mismatched or missing bracket.
+    """
+    type_str = type_str.strip()
+    prefix_pattern = rf"(?i)^\s*{keyword}\s*<"
+    match = re.match(prefix_pattern, type_str)
+    if not match:
+        raise ValueError(
+            f"'{type_str}' does not match expected '{keyword}<...>' syntax."
+        )
+
+    start_index = match.end() - 1  # position at '<'
+    bracket_depth = 0
+    inside_chars: List[str] = []
+    i = start_index
+    while i < len(type_str):
+        c = type_str[i]
+        if c == "<":
+            bracket_depth += 1
+            # we don't store the opening bracket in 'inside_chars'
+            # if bracket_depth was 0 -> 1, to skip the outer bracket
+            if bracket_depth > 1:
+                inside_chars.append(c)
+        elif c == ">":
+            bracket_depth -= 1
+            if bracket_depth < 0:
+                raise ValueError(f"Mismatched '>' in '{type_str}'")
+            if bracket_depth == 0:
+                if i != len(type_str) - 1:
+                    raise ValueError(
+                        f"Unexpected characters after closing '>' in '{type_str}'"
+                    )
+                # done
+                return "".join(inside_chars).strip()
+            inside_chars.append(c)
+        else:
+            inside_chars.append(c)
+        i += 1
+
+    raise ValueError(f"Missing closing '>' in '{type_str}'.")
+
+
+def extract_nullable_keyword(type_str: str) -> Tuple[str, bool]:
+    """
+    Checks if `type_str` ends with something like 'NOT NULL' (ignoring
+    case and allowing arbitrary space between NOT and NULL). If found,
+    return the type substring minus that part, along with nullable=False.
+    Otherwise, return (type_str, True).
+    """
+    trimmed = type_str.strip()
+    match = _NOT_NULL_PATTERN.match(trimmed)
+    if match:
+        # Group 'base' is everything before 'not null'
+        base_type_str = match.group("base").strip()
+        return base_type_str, False
+
+    # By default, the field is nullable
+    return trimmed, True
+
+
+def find_top_level_colon(field_def: str) -> int:
+    """
+    Returns the index of the first top-level colon in 'field_def',
+    or -1 if there is no top-level colon. A colon is considered top-level
+    if it is not enclosed in <...> or (...).
+
+    Example:
+      'a struct<i: integer>' => returns -1 (colon is nested).
+      'x: struct<i: integer>' => returns index of the colon after 'x'.
+    """
+    bracket_depth = 0
+    for i, ch in enumerate(field_def):
+        if ch in ("<", "("):
+            bracket_depth += 1
+        elif ch in (">", ")"):
+            bracket_depth -= 1
+        elif ch == ":" and bracket_depth == 0:
+            return i
+    return -1
+
+
+def parse_struct_field_list(fields_str: str) -> Optional[StructType]:
+    """
+    Parse something like "a: int, b: string, c: array<int>"
+    into StructType([StructField('a', IntegerType()), ...]).
+    """
+    fields = []
+    field_defs = split_top_level_comma_fields(fields_str)
+    for field_def in field_defs:
+        # Find first top-level colon (if any)
+        colon_index = find_top_level_colon(field_def)
+        if colon_index != -1:
+            # We found a top-level colon => split on it
+            left = field_def[:colon_index]
+            right = field_def[colon_index + 1 :]
+        else:
+            # No top-level colon => fallback to whitespace-based split
+            parts = field_def.split(None, 1)
+            if len(parts) != 2:
+                raise ValueError(f"Cannot parse struct field definition: '{field_def}'")
+            left, right = parts[0], parts[1]
+
+        field_name = left.strip()
+        type_part = right.strip()
+        if not field_name:
+            raise ValueError(f"Struct field missing name in '{field_def}'")
+
+        # 1) Check for trailing "NOT NULL" => sets nullable=False
+        base_type_str, nullable = extract_nullable_keyword(type_part)
+        # 2) Parse the base type
+        try:
+            field_type = type_string_to_type_object(base_type_str)
+        except ValueError as ex:
+            # Spark supports both `x: int` and `x int`. In our original implementation, we don't support x int,
+            # and will raise this error. However, handling space is tricky because we need to handle something like
+            # decimal(10, 2) containing space too, as a valid schema string (without a column name).
+            # Therefore, if this error is raised, we just catch it and return None, then in next step,
+            # we can process it again as a structured schema string (x int).
+            if "is not a supported type" in str(ex):
+                return None
+            raise ex
+        fields.append(StructField(field_name, field_type, nullable=nullable))
+
+    return StructType(fields)
+
+
+def split_top_level_comma_fields(s: str) -> List[str]:
+    """
+    Splits 's' by commas not enclosed in matching brackets.
+    Example: "int, array<long>, decimal(10,2)" => ["int", "array<long>", "decimal(10,2)"].
+    """
+    parts = []
+    bracket_depth = 0
+    start_idx = 0
+    for i, c in enumerate(s):
+        if c in ["<", "("]:
+            bracket_depth += 1
+        elif c in [">", ")"]:
+            bracket_depth -= 1
+            if bracket_depth < 0:
+                raise ValueError(f"Mismatched bracket in '{s}'.")
+        elif c == "," and bracket_depth == 0:
+            parts.append(s[start_idx:i].strip())
+            start_idx = i + 1
+    parts.append(s[start_idx:].strip())
+    return parts
+
+
+def is_likely_struct(s: str) -> bool:
+    """
+    Return True if there's a top-level colon, comma, or space.
+    e.g. "arr array<integer>" => top-level space => struct
+         "arr: array<int>" => colon => struct
+         "a: int, b: string" => comma => struct
+    """
+    bracket_depth = 0
+    top_level_space_found = False
+    for ch in s:
+        if ch in ("<", "("):
+            bracket_depth += 1
+        elif ch in (">", ")"):
+            bracket_depth -= 1
+        elif bracket_depth == 0:
+            if ch in [":", ","]:
+                return True
+            elif ch == " ":
+                top_level_space_found = True
+
+    return top_level_space_found
+
+
 def type_string_to_type_object(type_str: str) -> DataType:
+    type_str = type_str.strip()
+    if not type_str:
+        raise ValueError("Empty type string")
+
+    # First check if this might be a top-level multi-field struct
+    #    (e.g. "a: int, b: string") even if not written as "struct<...>"
+    if is_likely_struct(type_str):
+        result = parse_struct_field_list(type_str)
+        if result is not None:
+            return result
+
+    # Check for array<...>
+    if ARRAY_RE.match(type_str):
+        inner = extract_bracket_content(type_str, "array")
+        element_type = type_string_to_type_object(inner)
+        return ArrayType(element_type)
+
+    # Check for map<key, value>
+    if MAP_RE.match(type_str):
+        inner = extract_bracket_content(type_str, "map")
+        parts = split_top_level_comma_fields(inner)
+        if len(parts) != 2:
+            raise ValueError(f"Invalid map type definition: '{type_str}'")
+        key_type = type_string_to_type_object(parts[0])
+        val_type = type_string_to_type_object(parts[1])
+        return MapType(key_type, val_type)
+
+    # Check for explicit struct<...>
+    if STRUCT_RE.match(type_str):
+        inner = extract_bracket_content(type_str, "struct")
+        return parse_struct_field_list(inner)
+
     precision_scale = get_number_precision_scale(type_str)
     if precision_scale:
         return DecimalType(*precision_scale)
@@ -988,6 +1250,38 @@ def type_string_to_type_object(type_str: str) -> DataType:
         return DATA_TYPE_STRING_OBJECT_MAPPINGS[type_str]()
     except KeyError:
         raise ValueError(f"'{type_str}' is not a supported type")
+
+
+class Connection(Protocol):
+    """External datasource connection created from user-input create_connection function."""
+
+    def cursor(self) -> "Cursor":
+        pass
+
+    def close(self):
+        pass
+
+    def commit(self):
+        pass
+
+    def rollback(self):
+        pass
+
+
+class Cursor(Protocol):
+    """Cursor created from external datasource connection"""
+
+    def execute(self, sql: str, *params: Any) -> "Cursor":
+        pass
+
+    def fetchall(self):
+        pass
+
+    def fetchone(self):
+        pass
+
+    def close(self):
+        pass
 
 
 # Type hints

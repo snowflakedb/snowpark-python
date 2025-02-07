@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import uuid
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Union
+
+from snowflake.connector import IntegrityError
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -46,7 +48,11 @@ from snowflake.snowpark._internal.analyzer.binary_expression import (
     BinaryArithmeticExpression,
     BinaryExpression,
 )
-from snowflake.snowpark._internal.analyzer.binary_plan_node import Join, SetOperation
+from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    Join,
+    SetOperation,
+    Union as UnionPlan,
+)
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     numeric_to_sql_without_cast,
     str_to_sql,
@@ -166,7 +172,7 @@ class Analyzer:
         self.plan_builder = SnowflakePlanBuilder(self.session)
         self.generated_alias_maps = {}
         self.subquery_plans = []
-        self.alias_maps_to_use: Optional[Dict[uuid.UUID, str]] = None
+        self.alias_maps_to_use: Dict[uuid.UUID, str] = {}
 
     def analyze(
         self,
@@ -366,7 +372,6 @@ class Analyzer:
             return expr.sql
 
         if isinstance(expr, Attribute):
-            assert self.alias_maps_to_use is not None
             name = self.alias_maps_to_use.get(expr.expr_id, expr.name)
             return quote_name(name)
 
@@ -659,6 +664,8 @@ class Analyzer:
                 ),
                 expr.to,
                 expr.try_,
+                expr.is_rename,
+                expr.is_add,
             )
         else:
             return unary_expression(
@@ -975,6 +982,8 @@ class Analyzer:
 
             if logical_plan.data:
                 if not logical_plan.is_large_local_data:
+                    if logical_plan.is_contain_illegal_null_value:
+                        raise IntegrityError("NULL result in a non-nullable column")
                     return self.plan_builder.query(
                         values_statement(logical_plan.output, logical_plan.data),
                         logical_plan,
@@ -1040,35 +1049,6 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Pivot):
-            if (
-                len(logical_plan.grouping_columns) != 0
-                and logical_plan.aggregates[0].children is not None
-            ):
-                # Currently snowflake pivot creates a group by from all columns outside of
-                # pivot column and aggregate column. In order to implement df.group_by().pivot(),
-                # we need to first select only the columns that need to be involved in this
-                # operation, and then apply pivot operation. Here, we will first use project
-                # plan to select group_by, pivot and aggregate column and then apply the pivot
-                # logic.
-                #     project_cols = grouping_cols + pivot_col + aggregate_col
-                project_exprs = [
-                    *logical_plan.grouping_columns,
-                    logical_plan.aggregates[0].children[
-                        0
-                    ],  # aggregate column is first child in logical_plan.aggregates
-                    logical_plan.pivot_column,
-                ]
-                child = self.plan_builder.project(
-                    [
-                        self.analyze(col, df_aliased_col_name_to_real_col_name)
-                        for col in project_exprs
-                    ],
-                    resolved_children[logical_plan.child],
-                    logical_plan,
-                )
-            else:
-                child = resolved_children[logical_plan.child]
-
             # We retrieve the pivot_values for generating SQL using types:
             # List[str] => explicit list of pivot values
             # ScalarSubquery => dynamic pivot subquery
@@ -1086,34 +1066,77 @@ class Analyzer:
             else:
                 pivot_values = None
 
-            pivot_plan = self.plan_builder.pivot(
-                self.analyze(
-                    logical_plan.pivot_column, df_aliased_col_name_to_real_col_name
-                ),
-                pivot_values,
-                self.analyze(
-                    logical_plan.aggregates[0], df_aliased_col_name_to_real_col_name
-                ),
-                self.analyze(
-                    logical_plan.default_on_null, df_aliased_col_name_to_real_col_name
+            plan = None
+            for agg_expr in logical_plan.aggregates:
+                if (
+                    len(logical_plan.grouping_columns) != 0
+                    and agg_expr.children is not None
+                ):
+                    # Currently snowflake pivot creates a group by from all columns outside of
+                    # pivot column and aggregate column. In order to implement df.group_by().pivot(),
+                    # we need to first select only the columns that need to be involved in this
+                    # operation, and then apply pivot operation. Here, we will first use project
+                    # plan to select group_by, pivot and aggregate column and then apply the pivot
+                    # logic.
+                    #     project_cols = grouping_cols + pivot_col + aggregate_col
+                    project_exprs = [
+                        *logical_plan.grouping_columns,
+                        agg_expr.children[
+                            0
+                        ],  # aggregate column is first child in logical_plan.aggregates
+                        logical_plan.pivot_column,
+                    ]
+                    child = self.plan_builder.project(
+                        [
+                            self.analyze(col, df_aliased_col_name_to_real_col_name)
+                            for col in project_exprs
+                        ],
+                        resolved_children[logical_plan.child],
+                        logical_plan,
+                    )
+                else:
+                    child = resolved_children[logical_plan.child]
+
+                pivot_plan = self.plan_builder.pivot(
+                    self.analyze(
+                        logical_plan.pivot_column, df_aliased_col_name_to_real_col_name
+                    ),
+                    pivot_values,
+                    self.analyze(
+                        logical_plan.aggregates[0], df_aliased_col_name_to_real_col_name
+                    ),
+                    self.analyze(
+                        logical_plan.default_on_null,
+                        df_aliased_col_name_to_real_col_name,
+                    )
+                    if logical_plan.default_on_null
+                    else None,
+                    child,
+                    logical_plan,
                 )
-                if logical_plan.default_on_null
-                else None,
-                child,
-                logical_plan,
-            )
 
-            # If this is a dynamic pivot, then we can't use child.schema_query which is used in the schema_query
-            # sql generator by default because it is simplified and won't fetch the output columns from the underlying
-            # source.  So in this case we use the actual pivot query as the schema query.
-            if logical_plan.pivot_values is None or isinstance(
-                logical_plan.pivot_values, ScalarSubquery
-            ):
-                # TODO (SNOW-916744): Using the original query here does not work if the query depends on a temp
-                # table as it may not exist at later point in time when dataframe.schema is called.
-                pivot_plan.schema_query = pivot_plan.queries[-1].sql
+                # If this is a dynamic pivot, then we can't use child.schema_query which is used in the schema_query
+                # sql generator by default because it is simplified and won't fetch the output columns from the underlying
+                # source.  So in this case we use the actual pivot query as the schema query.
+                if logical_plan.pivot_values is None or isinstance(
+                    logical_plan.pivot_values, ScalarSubquery
+                ):
+                    # TODO (SNOW-916744): Using the original query here does not work if the query depends on a temp
+                    # table as it may not exist at later point in time when dataframe.schema is called.
+                    pivot_plan.schema_query = pivot_plan.queries[-1].sql
 
-            return pivot_plan
+                # union multiple aggregations
+                # https://docs.snowflake.com/en/sql-reference/constructs/pivot#dynamic-pivot-with-multiple-aggregations-using-union
+                if plan is None:
+                    plan = pivot_plan
+                else:
+                    union_plan = UnionPlan(plan, pivot_plan, is_all=False)
+                    plan = self.plan_builder.set_operator(
+                        plan, pivot_plan, union_plan.sql, union_plan
+                    )
+
+            assert plan is not None
+            return plan
 
         if isinstance(logical_plan, Unpivot):
             return self.plan_builder.unpivot(
@@ -1150,6 +1173,7 @@ class Analyzer:
                 resolved_children[logical_plan.child],
                 is_temp,
                 logical_plan.comment,
+                logical_plan.replace,
                 logical_plan,
             )
 

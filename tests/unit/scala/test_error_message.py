@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -136,17 +136,6 @@ def test_df_dataframe_is_not_qualified_for_scalar_query():
         ex.message
         == f"The DataFrame passed in to this function must have only one output column. "
         f"This DataFrame has {count} output columns: {columns}"
-    )
-
-
-def test_df_pivot_only_support_one_agg_expr():
-    ex = SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
-    assert type(ex) == SnowparkDataframeException
-    assert ex.error_code == "1109"
-    assert (
-        ex.message
-        == "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
-        "returned by the pivot() method."
     )
 
 

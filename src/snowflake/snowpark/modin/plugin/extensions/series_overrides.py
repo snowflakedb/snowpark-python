@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """
@@ -146,11 +146,6 @@ def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
 
 @register_series_not_implemented()
 def autocorr(self, lag=1):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_series_not_implemented()
-def between(self, left, right, inclusive: str = "both"):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 

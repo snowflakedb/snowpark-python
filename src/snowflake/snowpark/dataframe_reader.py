@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import datetime
 import decimal
@@ -59,6 +59,8 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     get_temp_type_for_object,
     normalize_local_file,
+
+    DATA_SOURCE_DBAPI_SIGNATURE,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -77,7 +79,12 @@ from snowflake.snowpark.types import (
     _NumericType,
     TimestampType,
 )
-from snowflake.snowpark._internal.utils import random_name_for_temp_object
+from snowflake.connector.options import pandas as pd
+from snowflake.snowpark._internal.utils import (
+    random_name_for_temp_object,
+    STATEMENT_PARAMS_DATA_SOURCE,
+    DATA_SOURCE_SQL_COMMENT,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -598,7 +605,7 @@ class DataFrameReader:
                 if isinstance(exception, FileNotFoundError):
                     raise exception
                 # if infer schema query fails, use $1, VariantType as schema
-                logger.warn(
+                logger.warning(
                     f"Could not infer csv schema due to exception: {exception}. "
                     "\nUsing schema (C1, VariantType()) instead. Please use DataFrameReader.schema() "
                     "to specify user schema for the file."
@@ -945,6 +952,31 @@ class DataFrameReader:
 
         return new_schema, schema_to_cast, read_file_transformations, None
 
+    def _get_schema_from_user_input(
+        self, user_schema: StructType
+    ) -> Tuple[List, List, List]:
+        """This function accept a user input structtype and return schemas needed for reading semi-structured file"""
+        schema_to_cast = []
+        transformations = []
+        new_schema = []
+        for field in user_schema.fields:
+            name = quote_name_without_upper_casing(field._name)
+            new_schema.append(
+                Attribute(
+                    name,
+                    field.datatype,
+                    field.nullable,
+                )
+            )
+            identifier = f"$1:{name}::{convert_sp_to_sf_type(field.datatype)}"
+            schema_to_cast.append((identifier, field._name))
+            transformations.append(sql_expr(identifier))
+        self._user_schema = StructType._from_attributes(new_schema)
+        self._infer_schema_transformations = transformations
+        self._infer_schema_target_columns = self._user_schema.names
+        read_file_transformations = [t._expression.sql for t in transformations]
+        return new_schema, schema_to_cast, read_file_transformations
+
     def _read_semi_structured_file(self, path: str, format: str) -> DataFrame:
         if isinstance(self._session._conn, MockServerConnection):
             if self._session._conn.is_closed():
@@ -960,7 +992,7 @@ class DataFrameReader:
                     raise_error=NotImplementedError,
                 )
 
-        if self._user_schema:
+        if self._user_schema and format.lower() != "json":
             raise ValueError(f"Read {format} does not support user schema")
         path = _validate_stage_path(path)
         self._file_path = path
@@ -969,7 +1001,19 @@ class DataFrameReader:
         schema = [Attribute('"$1"', VariantType())]
         read_file_transformations = None
         schema_to_cast = None
-        if self._infer_schema:
+        use_user_schema = False
+
+        if self._user_schema:
+            (
+                new_schema,
+                schema_to_cast,
+                read_file_transformations,
+            ) = self._get_schema_from_user_input(self._user_schema)
+            schema = new_schema
+            self._cur_options["INFER_SCHEMA"] = False
+            use_user_schema = True
+
+        elif self._infer_schema:
             (
                 new_schema,
                 schema_to_cast,
@@ -995,6 +1039,7 @@ class DataFrameReader:
                             transformations=read_file_transformations,
                             metadata_project=metadata_project,
                             metadata_schema=metadata_schema,
+                            use_user_schema=use_user_schema,
                         ),
                         analyzer=self._session._analyzer,
                     ),
@@ -1013,12 +1058,14 @@ class DataFrameReader:
                     transformations=read_file_transformations,
                     metadata_project=metadata_project,
                     metadata_schema=metadata_schema,
+                    use_user_schema=use_user_schema,
                 ),
             )
         df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
 
+    @publicapi
     def dbapi(
         self,
         create_connection: Callable[[], "Connection"],
@@ -1032,6 +1079,9 @@ class DataFrameReader:
         query_timeout: Optional[int] = 0,
         fetch_size: Optional[int] = 0,
     ) -> DataFrame:
+        """Reads data from a database table using a DBAPI connection."""
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
+        start_time = time.perf_counter()
         conn = create_connection()
         # this is specified to pyodbc, need other way to manage timeout on other drivers
         conn.timeout = query_timeout
@@ -1079,19 +1129,26 @@ class DataFrameReader:
             snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
             create_table_sql = (
                 "CREATE "
-                + f"{get_temp_type_for_object(self._session._use_scoped_temp_objects, True) if snowflake_table_type.lower() in TEMPORARY_STRING_SET else snowflake_table_type} "
-                + "TABLE "
-                + f"{snowflake_table_name} "
-                + f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"{get_temp_type_for_object(self._session._use_scoped_temp_objects, True) if snowflake_table_type.lower() in TEMPORARY_STRING_SET else snowflake_table_type} "
+                "TABLE "
+                f"{snowflake_table_name} "
+                f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"""{DATA_SOURCE_SQL_COMMENT}"""
             )
-            self._session.sql(create_table_sql).collect()
+            self._session.sql(create_table_sql).collect(
+                statement_params=statements_params_for_telemetry
+            )
             res_df = self.table(snowflake_table_name)
 
             # create temp stage
             snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
-            sql_create_temp_stage = f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage if not exists {snowflake_stage_name}"
-            self._session._run_query(sql_create_temp_stage, is_ddl_on_temp_object=True)
-
+            sql_create_temp_stage = (
+                f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
+                f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+            )
+            self._session.sql(sql_create_temp_stage).collect(
+                statement_params=statements_params_for_telemetry
+            )
             with ProcessPoolExecutor(
                 max_workers=max_workers
             ) as process_executor, ThreadPoolExecutor(
@@ -1122,11 +1179,12 @@ class DataFrameReader:
                     else:
                         thread_pool_futures.append(
                             thread_executor.submit(
-                                self.upload_and_copy_into_table_with_retry,
+                                self._upload_and_copy_into_table_with_retry,
                                 future.result(),
                                 snowflake_stage_name,
                                 snowflake_table_name,
                                 "abort_statement",
+                                statements_params_for_telemetry,
                             )
                         )
                 completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
@@ -1138,6 +1196,10 @@ class DataFrameReader:
                         process_executor.shutdown(wait=False)
                         thread_executor.shutdown(wait=False)
                         raise f.result()
+            self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+                DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
+            )
+            set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df
 
     def _generate_partition(
@@ -1244,32 +1306,44 @@ class DataFrameReader:
         snowflake_stage_name: str,
         snowflake_table_name: Optional[str] = None,
         on_error: Optional[str] = "abort_statement",
+        statements_params: Optional[Dict[str, str]] = None,
     ):
         file_name = os.path.basename(local_file)
-        put_query = f"PUT {normalize_local_file(local_file)} @{snowflake_stage_name} OVERWRITE=TRUE"
+        put_query = (
+            f"PUT {normalize_local_file(local_file)} "
+            f"@{snowflake_stage_name} OVERWRITE=TRUE {DATA_SOURCE_SQL_COMMENT}"
+        )
         copy_into_table_query = f"""
         COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
         FILE_FORMAT = (TYPE = PARQUET)
         MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
         PURGE=TRUE
         ON_ERROR={on_error}
+        {DATA_SOURCE_SQL_COMMENT}
         """
-        self._session.sql(put_query).collect()
-        self._session.sql(copy_into_table_query).collect()
+        self._session.sql(put_query).collect(statement_params=statements_params)
+        self._session.sql(copy_into_table_query).collect(
+            statement_params=statements_params
+        )
 
-    def upload_and_copy_into_table_with_retry(
+    def _upload_and_copy_into_table_with_retry(
         self,
         local_file: str,
         snowflake_stage_name: str,
         snowflake_table_name: str,
         on_error: Optional[str] = "abort_statement",
+        statements_params: Optional[Dict[str, str]] = None,
     ) -> Optional[Exception]:
         retry_count = 0
         error = None
         while retry_count < MAX_RETRY_TIME:
             try:
                 self._upload_and_copy_into_table(
-                    local_file, snowflake_stage_name, snowflake_table_name, on_error
+                    local_file,
+                    snowflake_stage_name,
+                    snowflake_table_name,
+                    on_error,
+                    statements_params,
                 )
                 return
             except Exception as e:
@@ -1314,13 +1388,12 @@ def _task_fetch_from_data_source(
         raise ValueError("fetch size cannot be smaller than 0")
 
     df = data_source_data_to_pandas_df(result, schema, type(conn).__module__)
-
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
     return path
 
 
-def task_fetch_from_data_source_with_retry(
+def _task_fetch_from_data_source_with_retry(
     create_connection: Callable[[], "Connection"],
     query: str,
     schema: List[Tuple[str, str, int, int, Union[str, bool]]],

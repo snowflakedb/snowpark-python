@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import functools
 import json
 import logging
+import threading
 import uuid
 from copy import copy
 from decimal import Decimal
@@ -30,7 +31,6 @@ from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
-    create_rlock,
     is_in_stored_procedure,
     result_set_to_rows,
 )
@@ -257,12 +257,17 @@ class MockServerConnection:
                 self.conn.notify_mock_query_record_listener(**kwargs)
 
         def create_or_replace_view(
-            self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
+            self,
+            execution_plan: MockExecutionPlan,
+            name: Union[str, Iterable[str]],
+            replace: bool,
         ):
             with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 name = get_fully_qualified_name(name, current_schema, current_database)
+                if not replace and name in self.view_registry:
+                    raise SnowparkLocalTestingException(f"View {name} already exists")
                 self.view_registry[name] = execution_plan
 
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
@@ -297,11 +302,8 @@ class MockServerConnection:
         self._cursor = Mock()
         self._options = options or {}
         session_params = self._options.get("session_parameters", {})
-        # thread safe param protection
-        self._thread_safe_session_enabled = session_params.get(
-            "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION", False
-        )
-        self._lock = create_rlock(self._thread_safe_session_enabled)
+        self._thread_safe_session_enabled = True
+        self._lock = threading.RLock()
         self._lower_case_parameters = {}
         self._query_listeners = set()
         self._telemetry_client = Mock()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
@@ -15,6 +15,7 @@ import pytest
 from snowflake.snowpark import Row
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import (
+    _concat_ws_ignore_nulls,
     abs,
     array_agg,
     array_append,
@@ -175,7 +176,69 @@ from snowflake.snowpark.types import (
     TimestampType,
     VariantType,
 )
-from tests.utils import TestData, Utils, running_on_jenkins
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    TestData,
+    Utils,
+    running_on_jenkins,
+    structured_types_enabled_session,
+    structured_types_supported,
+)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="querying qualified name is not supported in local testing",
+)
+def test_col_is_qualified_name(session):
+    # 2-level deep
+    df = session.sql(
+        'select parse_json(\'{"firstname": "John", "lastname": "Doe"}\') as name'
+    )
+    Utils.check_answer(
+        df.select(
+            col("name.firstname", _is_qualified_name=True),
+            col("name.lastname", _is_qualified_name=True),
+        ),
+        [Row('"John"', '"Doe"')],
+    )
+    Utils.check_answer(
+        df.select(
+            col('name."firstname"', _is_qualified_name=True),
+            col('NAME."lastname"', _is_qualified_name=True),
+        ),
+        [Row('"John"', '"Doe"')],
+    )
+    Utils.check_answer(
+        df.select(col("name.FIRSTNAME", _is_qualified_name=True)), [Row(None)]
+    )
+
+    # 3-level deep
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.select(col("name:firstname", _is_qualified_name=True)).collect()
+
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.select(col("name.firstname")).collect()
+
+    df = session.sql('select parse_json(\'{"l1": {"l2": "xyz"}}\') as value')
+    Utils.check_answer(
+        df.select(col("value.l1.l2", _is_qualified_name=True)), Row('"xyz"')
+    )
+    Utils.check_answer(
+        df.select(col('value."l1"."l2"', _is_qualified_name=True)), Row('"xyz"')
+    )
+    Utils.check_answer(
+        df.select(col("value.L1.l2", _is_qualified_name=True)), Row(None)
+    )
+    Utils.check_answer(
+        df.select(col("value.l1.L2", _is_qualified_name=True)), Row(None)
+    )
+
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.select(col("value:l1.l2", _is_qualified_name=True)).collect()
+
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.select(col("value.l1.l2")).collect()
 
 
 def test_order(session):
@@ -306,6 +369,64 @@ def test_concat_ws(session, col_a, col_b, col_c):
     df = session.create_dataframe([["1", "2", "3"]], schema=["a", "b", "c"])
     res = df.select(concat_ws(lit(","), col_a, col_b, col_c)).collect()
     assert res[0][0] == "1,2,3"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="lambda function not supported",
+)
+@pytest.mark.parametrize("structured_type_semantics", [True, False])
+def test__concat_ws_ignore_nulls(session, structured_type_semantics):
+    data = [
+        (["a", "b"], ["c"], "d", "e", 1, 2),  # no nulls column
+        (
+            ["Hello", None, "world"],
+            [None, "!", None],
+            "bye",
+            "world",
+            3,
+            None,
+        ),  # some nulls column
+        ([None, None], ["R", "H"], None, "TD", 4, 5),  # some nulls column
+        (None, [None], None, None, None, None),  # all nulls column
+        (None, None, None, None, None, None),  # all nulls column
+    ]
+    cols = ["arr1", "arr2", "str1", "str2", "int1", "int2"]
+
+    def check_concat_ws_ignore_nulls_output(session):
+        df = session.create_dataframe(data, schema=cols)
+
+        # single character delimiter
+        Utils.check_answer(
+            df.select(_concat_ws_ignore_nulls(",", *cols)),
+            [
+                Row("a,b,c,d,e,1,2"),
+                Row("Hello,world,!,bye,world,3"),
+                Row("R,H,TD,4,5"),
+                Row(""),
+                Row(""),
+            ],
+        )
+
+        # multi-character delimiter
+        Utils.check_answer(
+            df.select(_concat_ws_ignore_nulls(" : ", *cols)),
+            [
+                Row("a : b : c : d : e : 1 : 2"),
+                Row("Hello : world : ! : bye : world : 3"),
+                Row("R : H : TD : 4 : 5"),
+                Row(""),
+                Row(""),
+            ],
+        )
+
+    if structured_type_semantics:
+        if not structured_types_supported(session, False):
+            pytest.skip("Structured type support required.")
+        with structured_types_enabled_session(session) as session:
+            check_concat_ws_ignore_nulls_output(session)
+    else:
+        check_concat_ws_ignore_nulls_output(session)
 
 
 def test_concat_edge_cases(session):
@@ -1291,9 +1412,9 @@ def test_to_date_to_array_to_variant_to_object(session, local_testing_mode):
     Utils.assert_rows(res1, expected)
 
     assert df1.schema.fields[0].datatype == DateType()
-    assert df1.schema.fields[1].datatype == ArrayType(StringType())
+    assert df1.schema.fields[1].datatype == ArrayType()
     assert df1.schema.fields[2].datatype == VariantType()
-    assert df1.schema.fields[3].datatype == MapType(StringType(), StringType())
+    assert df1.schema.fields[3].datatype == MapType()
 
 
 def test_to_binary(session):
@@ -2270,6 +2391,9 @@ def test_ln(session):
 
 
 @pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Snowflake Cortex functions not supported in SP"
+)
+@pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
 )
@@ -2312,6 +2436,9 @@ The next sections explain these steps in more detail.
     assert 0 < len(summary_from_str) < len(content)
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Snowflake Cortex functions not supported in SP"
+)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",

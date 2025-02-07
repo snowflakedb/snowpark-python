@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import re
 
 import modin.pandas as pd
@@ -566,7 +567,7 @@ class TestTimedelta:
         ],
     )
     @pytest.mark.parametrize("agg_func", agg_func_supported_for_timedelta)
-    @window
+    @pytest.mark.parametrize("window", [1, 2, 6])
     @min_periods
     @center
     def test_rolling_aggregation_supported(

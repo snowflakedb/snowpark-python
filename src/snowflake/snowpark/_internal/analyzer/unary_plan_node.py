@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Dict, Iterable, List, Optional, Union
@@ -260,12 +260,14 @@ class CreateViewCommand(UnaryNode):
         name: str,
         view_type: ViewType,
         comment: Optional[str],
+        replace: bool,
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
         self.name = name
         self.view_type = view_type
         self.comment = comment
+        self.replace = replace
 
 
 class CreateDynamicTableCommand(UnaryNode):

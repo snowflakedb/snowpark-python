@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from unittest import mock
@@ -35,7 +35,6 @@ def mock_query_compiler_for_dt_series() -> SnowflakeQueryCompiler:
     [
         (lambda s: s.dt.timetz, "timetz"),
         (lambda s: s.dt.to_period(), "to_period"),
-        (lambda s: s.dt.strftime(date_format="YY/MM/DD"), "strftime"),
         (lambda s: s.dt.qyear, "qyear"),
         (lambda s: s.dt.start_time, "start_time"),
         (lambda s: s.dt.end_time, "end_time"),

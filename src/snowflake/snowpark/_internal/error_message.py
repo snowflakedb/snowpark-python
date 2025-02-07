@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 from typing import Optional
@@ -133,14 +133,6 @@ class SnowparkClientExceptionMessages:
             f"The DataFrame passed in to this function must have only one output column. "
             f"This DataFrame has {count} output columns: {columns}",
             error_code="1108",
-        )
-
-    @staticmethod
-    def DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR() -> SnowparkDataframeException:
-        return SnowparkDataframeException(
-            "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
-            "returned by the pivot() method.",
-            error_code="1109",
         )
 
     @staticmethod

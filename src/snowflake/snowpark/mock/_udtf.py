@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 # TODO SNOW-1800512: Implement mock udtf for local testing.
@@ -78,7 +78,7 @@ class MockUDTFRegistration(UDTFRegistration):
                 ast = with_src_position(stmt.expr.udtf, stmt)
                 ast_id = stmt.var_id.bitfield1
 
-            object_name = kwargs["_registrated_object_name"]
+            object_name = kwargs["_registered_object_name"]
             udtf = MockUserDefinedTableFunction(
                 handler,
                 output_schema,

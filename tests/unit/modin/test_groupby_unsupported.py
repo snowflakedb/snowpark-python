@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import pytest
 
 
@@ -24,7 +25,6 @@ import pytest
         (lambda se: se.groupby("A").nlargest(4), "nlargest"),
         (lambda se: se.groupby("A").nsmallest(4), "nsmallest"),
         (lambda se: se.groupby("A").nth(5), "nth"),
-        (lambda se: se.groupby("A").unique(), "unique"),
         (lambda se: se.groupby("A").ohlc(), "ohlc"),
         (lambda se: se.groupby("A").prod(), "prod"),
         (lambda se: se.groupby("A").resample("3T"), "resample"),

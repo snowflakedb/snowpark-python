@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.26.0" %}
+{% set version = "1.27.0" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 
 package:
@@ -18,6 +18,10 @@ build:
     - SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1
 {% if noarch_build %}
   noarch: python
+  string: "py39_0"  # [py==39]
+  string: "py310_0"  # [py==310]
+  string: "py311_0"  # [py==311]
+  string: "py312_0"  # [py==312]
 {% endif %}
 
 requirements:
