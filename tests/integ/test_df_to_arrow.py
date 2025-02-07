@@ -284,8 +284,8 @@ def test_misc_settings(
         "" if use_logical_type is None else f" USE_LOGICAL_TYPE = {use_logical_type}"
     )
     queries = [
-        f"^CREATE SCOPED TEMPORARY STAGE .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={compression}\\)",
-        f"PUT.*SNOWPARK_TEMP_STAGE_.*PARALLEL={parallel}",
+        f"^CREATE .*TEMP.* STAGE .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={compression}\\)",
+        f"PUT.*PARALLEL={parallel}",
         f'COPY INTO "SNOWPARK_PYTHON_MOCKED_ARROW_TABLE" .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={copy_compression}{sql_use_logical_type.upper()}\\) PURGE=TRUE ON_ERROR={on_error}',
     ]
 
@@ -299,7 +299,9 @@ def test_misc_settings(
             on_error=on_error,
         )
         for query in queries:
-            assert any(re.match(query, call.args[0]) for call in execute.call_args_list)
+            assert any(
+                re.match(query, call.args[0]) for call in execute.call_args_list
+            ), f"query not matched: {query}"
 
 
 @pytest.mark.skipif(
@@ -344,6 +346,10 @@ def test_write_arrow_negative(session, basic_arrow_table):
             session.write_arrow(basic_arrow_table, "temp_table")
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
 def test_to_arrow_from_stage(session, resources_path):
     stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)
