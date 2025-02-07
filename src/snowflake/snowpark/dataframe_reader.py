@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
     Connection,
     sql_server_type_to_snow_type,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -58,12 +59,15 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     normalize_local_file,
     DATA_SOURCE_DBAPI_SIGNATURE,
+    detect_dbms,
+    DBMS_TYPE,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
     SnowparkClientException,
+    SnowparkDataframeReaderException,
 )
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -1076,14 +1080,26 @@ class DataFrameReader:
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
         fetch_size: Optional[int] = 0,
+        custom_schema: Optional[Union[str, StructType]] = None,
     ) -> DataFrame:
         """Reads data from a database table using a DBAPI connection."""
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         conn = create_connection()
-        # this is specified to pyodbc, need other way to manage timeout on other drivers
-        conn.timeout = query_timeout
-        struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
+        if custom_schema is None:
+            struct_schema = self._infer_data_source_schema(conn, table)
+        else:
+            if isinstance(custom_schema, str):
+                struct_schema = type_string_to_type_object(custom_schema)
+                if not isinstance(struct_schema, StructType):
+                    raise ValueError(
+                        f"Invalid schema string: {custom_schema}. "
+                        f"You should provide a valid schema string representing a struct type."
+                    )
+            elif isinstance(custom_schema, StructType):
+                struct_schema = custom_schema
+            else:
+                raise TypeError(f"Invalid schema type: {type(custom_schema)}. ")
         if column is None:
             if (
                 lower_bound is not None
@@ -1156,7 +1172,7 @@ class DataFrameReader:
                         _task_fetch_from_data_source_with_retry,
                         create_connection,
                         query,
-                        raw_schema,
+                        struct_schema,
                         i,
                         tmp_dir,
                         query_timeout,
@@ -1198,17 +1214,20 @@ class DataFrameReader:
             set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
             return res_df
 
-    def _infer_data_source_schema(
-        self, conn: Connection, table: str
-    ) -> Tuple[StructType, Tuple[Tuple[str, Any, int, int, int, bool]]]:
+    def _infer_data_source_schema(self, conn: Connection, table: str) -> StructType:
         # TODO: SNOW-1893781 change implementation if oracle has different way of infer schema
-        query = f"""
-            SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_NAME = '{table}'
-            """
-        raw_schema = conn.cursor().execute(query).fetchall()
-        return self._to_snowpark_type(raw_schema), raw_schema
+        try:
+            query = f"""
+                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = '{table}'
+                """
+            raw_schema = conn.cursor().execute(query).fetchall()
+            return self._to_snowpark_type(raw_schema)
+        except Exception as exc:
+            raise SnowparkDataframeReaderException(
+                f"Unable to infer schema from table {table}"
+            ) from exc
 
     def _generate_partition(
         self,
@@ -1382,7 +1401,7 @@ class DataFrameReader:
 def _task_fetch_from_data_source(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Tuple[str, Any, int, int, int, bool]],
+    schema: StructType,
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
@@ -1390,7 +1409,9 @@ def _task_fetch_from_data_source(
 ) -> str:
     conn = create_connection()
     # this is specified to pyodbc, need other way to manage timeout on other drivers
-    conn.timeout = query_timeout
+    dbms = detect_dbms(conn)
+    if dbms == DBMS_TYPE.SQL_SERVER_DB:
+        conn.timeout = query_timeout
     result = []
     if fetch_size == 0:
         result = conn.cursor().execute(query).fetchall()
@@ -1404,7 +1425,7 @@ def _task_fetch_from_data_source(
     else:
         raise ValueError("fetch size cannot be smaller than 0")
 
-    columns = [col[0] for col in schema]
+    columns = [field.name for field in schema.fields]
     df = pd.DataFrame.from_records(result, columns=columns)
 
     # convert timestamp and date to string to work around SNOW-1911989
@@ -1423,7 +1444,7 @@ def _task_fetch_from_data_source(
 def _task_fetch_from_data_source_with_retry(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Tuple[str, Any, int, int, int, bool]],
+    schema: StructType,
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,

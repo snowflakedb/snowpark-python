@@ -1,4 +1,6 @@
 import datetime
+import sqlite3
+import contextlib
 from _decimal import Decimal
 
 sql_server_all_type_schema = (
@@ -358,3 +360,50 @@ def sql_server_create_connection():
 
 def sql_server_create_connection_small_data():
     return FakeConnection(sql_server_all_type_small_data, sql_server_all_type_schema)
+
+
+@contextlib.contextmanager
+def sqlite3_db(db_path):
+    conn = create_connection_to_sqlite3_db(db_path)
+    cursor = conn.cursor()
+    table_name = "PrimitiveTypes"
+    columns = [
+        "id",
+        "int_col",
+        "real_col",
+        "text_col",
+        "blob_col",
+        "bool_col",
+        "null_col",
+    ]
+    # Create a table with different primitive types
+    cursor.execute(
+        f"""
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        id INTEGER PRIMARY KEY,   -- Auto-incrementing primary key
+        int_col INTEGER,          -- Integer column
+        real_col REAL,            -- Floating point column
+        text_col TEXT,            -- String column
+        blob_col BLOB,            -- Binary data column
+        null_col NULL             -- Explicit NULL type (for testing purposes)
+    )
+    """
+    )
+    example_data = [
+        (1, 42, 3.14, "Hello, world!", b"\x00\x01\x02\x03", None),
+        (2, -10, 2.718, "SQLite", b"\x04\x05\x06\x07", None),
+        (3, 9999, -0.99, "Python", b"\x08\x09\x0A\x0B", None),
+        (4, 0, 123.456, "Data", b"\x0C\x0D\x0E\x0F", None),
+    ]
+    cursor.executemany(
+        f"INSERT INTO {table_name} VALUES (?, ?, ?, ?, ?, ?)", example_data
+    )
+    conn.commit()
+    try:
+        yield conn, table_name, columns, example_data
+    finally:
+        conn.close()
+
+
+def create_connection_to_sqlite3_db(db_path):
+    return sqlite3.connect(db_path)
