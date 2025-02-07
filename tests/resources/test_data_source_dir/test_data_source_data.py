@@ -373,7 +373,6 @@ def sqlite3_db(db_path):
         "real_col",
         "text_col",
         "blob_col",
-        "bool_col",
         "null_col",
     ]
     # Create a table with different primitive types

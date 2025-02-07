@@ -386,7 +386,7 @@ def test_custom_schema(session, custom_schema):
                 table_name,
                 custom_schema=custom_schema,
             )
-
+            assert df.columns == [col.upper() for col in columns]
             assert df.collect() == example_data
 
             with pytest.raises(
