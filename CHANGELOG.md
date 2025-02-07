@@ -1,12 +1,29 @@
 # Release History
 
-## 1.28.0 (TBD)
+# 1.28.0 (TBD)
 
 ### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following functions in `functions.py`
+  - `normal`
+  - `randn`
+
+#### Deprecations:
+
+- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 #### Bug Fixes
 
 - Fixed a bug where query_tag was overwritten to a stacktrace when it was set using any method other than `Session.query_tag`.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
 
 ## 1.27.0 (2025-02-03)
 
@@ -29,6 +46,7 @@
   - `bitmap_bit_position`
   - `bitmap_bucket_number`
   - `bitmap_construct_agg`
+  - `bitshiftright_unsigned`
   - `cbrt`
   - `equal_null`
   - `from_json`
