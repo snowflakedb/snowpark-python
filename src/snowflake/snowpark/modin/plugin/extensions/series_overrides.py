@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
 
+import matplotlib.pyplot as plt
 import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
@@ -181,21 +182,63 @@ def factorize(
     pass  # pragma: no cover
 
 
-@register_series_not_implemented()
+# @register_series_not_implemented()
+@register_series_accessor("hist")
 def hist(
     self,
     by=None,
     ax=None,
-    grid=True,
-    xlabelsize=None,
-    xrot=None,
-    ylabelsize=None,
-    yrot=None,
-    figsize=None,
-    bins=10,
-    **kwds,
+    grid: bool = True,
+    xlabelsize: int | None = None,
+    xrot: float | None = None,
+    ylabelsize: int | None = None,
+    yrot: float | None = None,
+    figsize: tuple[int, int] | None = None,
+    bins: int | Sequence[int] = 10,
+    backend: str | None = None,
+    legend: bool = False,
+    **kwargs,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    if bins is None:
+        bins = 10
+
+    (
+        new_query_compiler,
+        min_val,
+        max_val,
+        bin_size,
+    ) = self._query_compiler.hist_on_series(
+        by=by,
+        ax=ax,
+        grid=grid,
+        xlabelsize=xlabelsize,
+        xrot=xrot,
+        ylabelsize=ylabelsize,
+        yrot=yrot,
+        figsize=figsize,
+        bins=bins,
+        backend=backend,
+        legend=legend,
+        **kwargs,
+    )
+
+    native_ser = self.__constructor__(query_compiler=new_query_compiler)._to_pandas()
+    native_ser_reindexed = native_ser.reindex(
+        native_pd.Index([i for i in np.linspace(min_val, max_val, bins + 1)]),
+        method="nearest",
+        tolerance=bin_size / 3,
+    ).fillna(0)
+    fig = kwargs.pop(
+        "figure", plt.gcf() if plt.get_fignums() else plt.figure(figsize=figsize)
+    )
+    if ax is None:
+        ax = fig.gca()
+    ax.grid(grid)
+    counts = native_ser_reindexed.to_list()[0:-1]
+    vals = native_ser_reindexed.index.to_list()[0:-1]
+    bar_labels = vals
+    ax.bar(vals, counts, label=bar_labels, width=bin_size, align="edge")
+    return ax
 
 
 @register_series_not_implemented()

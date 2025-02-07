@@ -1,5 +1,15 @@
 # Release History
 
+## 1.28.0 (TBD)
+
+### Snowpark Python API Updates
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `Series.hist`.
+
 ## 1.27.0 (2025-02-03)
 
 ### Snowpark Python API Updates
