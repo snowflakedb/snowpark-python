@@ -41,7 +41,6 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     f"modin{MODIN_DEPENDENCY_VERSION}",
-    "snowflake-ml-python",
 ]
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
@@ -203,6 +202,7 @@ setup(
             "scikit-learn",  # Snowpark pandas 3rd party library testing
             # plotly version restricted due to foreseen change in query counts in version 6.0.0+
             "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
+            "snowflake-ml-python",
         ],
         "localtest": [
             "pandas",

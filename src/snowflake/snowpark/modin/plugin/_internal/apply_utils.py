@@ -14,7 +14,6 @@ from datetime import datetime
 import cloudpickle
 import numpy as np
 import pandas as native_pd
-import snowflake.cortex
 from pandas._typing import AggFuncType
 from pandas.api.types import is_scalar
 
@@ -100,14 +99,20 @@ SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
     sp_func.sqrt,
 }
 
-SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = {
-    snowflake.cortex.Summarize,
-    snowflake.cortex.Sentiment,
-}
+try:
+    import snowflake.cortex
 
-ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple(
-    i[1] for i in inspect.getmembers(snowflake.cortex)
-)
+    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = {
+        snowflake.cortex.Summarize,
+        snowflake.cortex.Sentiment,
+    }
+
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple(
+        i[1] for i in inspect.getmembers(snowflake.cortex)
+    )
+except ImportError:
+    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = set()
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple()
 
 
 class GroupbyApplySortMethod(Enum):

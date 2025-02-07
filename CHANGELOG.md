@@ -11,10 +11,6 @@
 
 ### Snowpark pandas API Updates
 
-#### Dependency Updates
-
-- Added a dependency for `snowflake-ml-python`.
-
 #### New Features
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
