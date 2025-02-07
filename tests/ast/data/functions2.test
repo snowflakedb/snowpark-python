@@ -26448,10 +26448,10 @@ body {
               int64_val {
                 src {
                   end_column: 43
-                  end_line: 347
+                  end_line: 349
                   file: 2
                   start_column: 26
-                  start_line: 347
+                  start_line: 349
                 }
                 v: 1
               }
@@ -26460,10 +26460,10 @@ body {
               int64_val {
                 src {
                   end_column: 43
-                  end_line: 347
+                  end_line: 349
                   file: 2
                   start_column: 26
-                  start_line: 347
+                  start_line: 349
                 }
                 v: 2
               }
@@ -26472,20 +26472,20 @@ body {
               string_val {
                 src {
                   end_column: 43
-                  end_line: 347
+                  end_line: 349
                   file: 2
                   start_column: 26
-                  start_line: 347
+                  start_line: 349
                 }
                 v: "A"
               }
             }
             src {
               end_column: 43
-              end_line: 347
+              end_line: 349
               file: 2
               start_column: 26
-              start_line: 347
+              start_line: 349
             }
           }
         }
@@ -26498,10 +26498,10 @@ body {
         }
         src {
           end_column: 44
-          end_line: 347
+          end_line: 349
           file: 2
           start_column: 16
-          start_line: 347
+          start_line: 349
         }
         variadic: true
       }
@@ -26509,9 +26509,9 @@ body {
     symbol {
       value: "df317"
     }
-    uid: 161
+    uid: 162
     var_id {
-      bitfield1: 161
+      bitfield1: 162
     }
   }
 }
@@ -26536,20 +26536,20 @@ body {
               int64_val {
                 src {
                   end_column: 34
-                  end_line: 349
+                  end_line: 351
                   file: 2
                   start_column: 26
-                  start_line: 349
+                  start_line: 351
                 }
                 v: 1
               }
             }
             src {
               end_column: 34
-              end_line: 349
+              end_line: 351
               file: 2
               start_column: 26
-              start_line: 349
+              start_line: 351
             }
           }
         }
@@ -26562,10 +26562,10 @@ body {
         }
         src {
           end_column: 35
-          end_line: 349
+          end_line: 351
           file: 2
           start_column: 16
-          start_line: 349
+          start_line: 351
         }
         variadic: true
       }
@@ -26573,9 +26573,9 @@ body {
     symbol {
       value: "df318"
     }
-    uid: 162
+    uid: 163
     var_id {
-      bitfield1: 162
+      bitfield1: 163
     }
   }
 }
