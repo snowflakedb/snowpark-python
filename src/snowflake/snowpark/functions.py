@@ -11445,3 +11445,61 @@ def instr(str: ColumnOrName, substr: str, _emit_ast: bool = True):
     ast = build_function_expr("instr", [str, substr]) if _emit_ast else None
     s1 = _to_col_if_str(str, "instr")
     return position(lit(substr), s1, _emit_ast=False, _ast=ast)
+
+
+@publicapi
+def normal(
+    mean: Union[int, float],
+    stddev: Union[int, float],
+    gen: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+    _ast: Optional[proto.Expr] = None,
+):
+    """
+    Generates a normally-distributed pseudo-random floating point number with specified mean and stddev (standard deviation).
+
+    Example::
+        >>> df = session.create_dataframe([1,2,3], schema=["a"])
+        >>> df.select(normal(0, 1, "a").alias("normal")).collect()
+        [Row(NORMAL=-1.143416214223267), Row(NORMAL=-0.78469958830255), Row(NORMAL=-0.365971322006404)]
+    """
+    # SNOW-1906511: normal function does not support passing mean and stddev as column name in the following way:
+    # the following fails: SELECT normal("A", "A", 2) FROM ( SELECT $1 AS "A" FROM  VALUES (0 :: BIGINT))
+    # but it supports reading from a table, we don't do type validation on mean and stddev here so users can still
+    # use the functions on normal table
+    ast = build_function_expr("normal", [mean, stddev, gen]) if _emit_ast else _ast
+    mean = lit(mean, _emit_ast=False) if isinstance(mean, (int, float)) else mean
+    stddev = (
+        lit(stddev, _emit_ast=False) if isinstance(stddev, (int, float)) else stddev
+    )
+    gen = (
+        lit(gen, _emit_ast=False)
+        if isinstance(gen, (int, float))
+        else _to_col_if_str(gen, "normal")
+    )
+    return builtin("normal", _emit_ast=_emit_ast, _ast=ast)(mean, stddev, gen)
+
+
+@publicapi
+def randn(
+    seed: Optional[Union[ColumnOrName, int, float]] = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Generates a column with independent and identically distributed (i.i.d.) samples from the standard normal distribution.
+
+    Example::
+        >>> df = session.create_dataframe([1,2,3], schema=["seed"])
+        >>> df.select(randn("seed").alias("randn")).collect()
+        [Row(RANDN=-1.143416214223267), Row(RANDN=-0.78469958830255), Row(RANDN=-0.365971322006404)]
+        >>> df.select(randn().alias("randn")).collect()  # doctest: +SKIP
+    """
+    ast = build_function_expr("randn", [seed]) if _emit_ast else None
+    if seed is None:
+        seed = random(_emit_ast=False)  # pragma: no cover
+    return normal(
+        lit(0, _emit_ast=False),
+        lit(1, _emit_ast=False),
+        seed,
+        _emit_ast=False,
+        _ast=ast,
+    )
