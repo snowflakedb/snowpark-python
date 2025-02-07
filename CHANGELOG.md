@@ -1,6 +1,6 @@
 # Release History
 
-## 1.28.0 (TBD)
+# 1.28.0 (TBD)
 
 ### Snowpark Python API Updates
 
@@ -8,6 +8,12 @@
 
 - Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
 - Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
+
+#### New Features
+
+- Added support for the following functions in `functions.py`
+  - `normal`
+  - `randn`
 
 ### Snowpark pandas API Updates
 

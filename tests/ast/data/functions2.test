@@ -324,6 +324,10 @@ df315 = df.select(nth_value("A", 2), nth_value("A", 2, True), nth_value(col("B")
 
 df316 = df.select(bitshiftright_unsigned("A", 2), bitshiftright_unsigned("A", col("B")))
 
+df317 = df.select(normal(1, 2, "A"))
+
+df318 = df.select(randn(1))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -647,6 +651,10 @@ df314 = df.select(instr("A", "test_str"))
 df315 = df.select(nth_value("A", 2, False), nth_value("A", 2, True), nth_value(col("B"), 2, False))
 
 df316 = df.select(bitshiftright_unsigned("A", 2), bitshiftright_unsigned("A", col("B")))
+
+df317 = df.select(normal(1, 2, "A"))
+
+df318 = df.select(randn(1))
 
 ## EXPECTED ENCODED AST
 
@@ -26416,6 +26424,158 @@ body {
     uid: 161
     var_id {
       bitfield1: 161
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "normal"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 43
+                  end_line: 349
+                  file: 2
+                  start_column: 26
+                  start_line: 349
+                }
+                v: 1
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 43
+                  end_line: 349
+                  file: 2
+                  start_column: 26
+                  start_line: 349
+                }
+                v: 2
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 43
+                  end_line: 349
+                  file: 2
+                  start_column: 26
+                  start_line: 349
+                }
+                v: "A"
+              }
+            }
+            src {
+              end_column: 43
+              end_line: 349
+              file: 2
+              start_column: 26
+              start_line: 349
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 44
+          end_line: 349
+          file: 2
+          start_column: 16
+          start_line: 349
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df317"
+    }
+    uid: 162
+    var_id {
+      bitfield1: 162
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "randn"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 34
+                  end_line: 351
+                  file: 2
+                  start_column: 26
+                  start_line: 351
+                }
+                v: 1
+              }
+            }
+            src {
+              end_column: 34
+              end_line: 351
+              file: 2
+              start_column: 26
+              start_line: 351
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 35
+          end_line: 351
+          file: 2
+          start_column: 16
+          start_line: 351
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df318"
+    }
+    uid: 163
+    var_id {
+      bitfield1: 163
     }
   }
 }
