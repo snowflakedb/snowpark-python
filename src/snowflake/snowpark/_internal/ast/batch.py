@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import base64
@@ -100,6 +100,12 @@ class AstBatch:
     def flush(self) -> SerializedBatch:
         """Ties off a batch and starts a new one. Returns the tied-off batch."""
         req_id: str = str(self._request_id)
+
+        # Only filenames are interned, flush the lookup table as part of the request.
+        from snowflake.snowpark._internal.ast.utils import fill_interned_value_table
+
+        fill_interned_value_table(self._request.interned_value_table)
+
         batch = str(base64.b64encode(self._request.SerializeToString()), "utf-8")
         self._init_batch()
         return SerializedBatch(req_id, batch)

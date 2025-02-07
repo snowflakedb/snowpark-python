@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import sys
@@ -16,11 +16,14 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
 )
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
+    build_expr_from_snowpark_column_or_sql_str,
+    build_expr_from_snowpark_column_or_python_val,
     debug_check_missing_ast,
     fill_sp_save_mode,
     fill_sp_write_file,
     with_src_position,
     DATAFRAME_AST_PARAMETER,
+    build_sp_table_name,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -38,9 +41,12 @@ from snowflake.snowpark._internal.utils import (
     str_to_enum,
     validate_object_name,
     warning,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    STATEMENT_PARAMS_DATA_SOURCE,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_str
+from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.row import Row
@@ -91,6 +97,24 @@ class DataFrameWriter:
         self.__format: Optional[str] = None
         self._ast_stmt = _ast_stmt
 
+    @staticmethod
+    def _track_data_source_statement_params(
+        dataframe, statement_params: Optional[Dict] = None
+    ) -> Optional[Dict]:
+        """
+        Helper method to initialize and update data source tracking statement_params based on dataframe attributes.
+        """
+        statement_params = statement_params or {}
+        if (
+            dataframe._plan
+            and dataframe._plan.api_calls
+            and dataframe._plan.api_calls[0].get("name") == DATA_SOURCE_DBAPI_SIGNATURE
+        ):
+            # Track data source ingestion
+            statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
+
+        return statement_params if statement_params else None
+
     @publicapi
     def mode(self, save_mode: str, _emit_ast: bool = True) -> "DataFrameWriter":
         """Set the save mode of this :class:`DataFrameWriter`.
@@ -129,19 +153,37 @@ class DataFrameWriter:
 
         return self
 
-    def partition_by(self, expr: ColumnOrSqlExpr) -> "DataFrameWriter":
+    def partition_by(
+        self, expr: ColumnOrSqlExpr, _emit_ast: bool = True
+    ) -> "DataFrameWriter":
         """Specifies an expression used to partition the unloaded table rows into separate files. It can be a
         :class:`Column`, a column name, or a SQL expression.
         """
         self._partition_by = expr
+
+        # Update AST if it exists.
+        if _emit_ast:
+            if self._ast_stmt is not None:
+                build_expr_from_snowpark_column_or_sql_str(
+                    self._ast_stmt.expr.sp_dataframe_write.partition_by, expr
+                )
+
         return self
 
-    def option(self, key: str, value: Any) -> "DataFrameWriter":
+    def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameWriter":
         """Depending on the ``file_format_type`` specified, you can include more format specific options.
         Use the options documented in the `Format Type Options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-location.html#format-type-options-formattypeoptions>`__.
         """
         aliased_key = get_aliased_option_name(key, WRITER_OPTIONS_ALIAS_MAP)
         self._cur_options[aliased_key] = value
+
+        # Update AST if it exists.
+        if _emit_ast:
+            if self._ast_stmt is not None:
+                t = self._ast_stmt.expr.sp_dataframe_write.options.add()
+                t._1 = aliased_key
+                build_expr_from_snowpark_column_or_python_val(t._2, value)
+
         return self
 
     def options(self, configs: Optional[Dict] = None, **kwargs) -> "DataFrameWriter":
@@ -318,10 +360,7 @@ class DataFrameWriter:
             # copy_grants: bool = False,
             # iceberg_config: Optional[dict] = None,
 
-            if isinstance(table_name, str):
-                expr.table_name.sp_table_name_flat.name = table_name
-            elif isinstance(table_name, Iterable):
-                expr.table_name.sp_table_name_structured.name.extend(table_name)
+            build_sp_table_name(expr.table_name, table_name)
 
             if mode is not None:
                 fill_sp_save_mode(expr.mode, mode)
@@ -425,6 +464,9 @@ class DataFrameWriter:
             else:
                 table_exists = None
 
+            statement_params = self._track_data_source_statement_params(
+                self._dataframe, statement_params or self._dataframe._statement_params
+            )
             create_table_logic_plan = SnowflakeCreateTable(
                 table_name,
                 column_names,
@@ -442,10 +484,11 @@ class DataFrameWriter:
                 iceberg_config,
                 table_exists,
             )
+
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(
                 snowflake_plan,
-                _statement_params=statement_params or self._dataframe._statement_params,
+                _statement_params=statement_params,
                 block=block,
                 data_type=_AsyncResultType.NO_RESULT,
                 **kwargs,
@@ -605,6 +648,10 @@ class DataFrameWriter:
 
             cur_format_type_options.update(format_type_aliased_options)
 
+        statement_params = self._track_data_source_statement_params(
+            self._dataframe, statement_params or self._dataframe._statement_params
+        )
+
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
                 self._dataframe._plan,
@@ -619,7 +666,7 @@ class DataFrameWriter:
         )
         add_api_call(df, "DataFrameWriter.copy_into_location")
         return df._internal_collect_with_tag(
-            statement_params=statement_params or self._dataframe._statement_params,
+            statement_params=statement_params,
             block=block,
             **kwargs,
         )
@@ -915,4 +962,46 @@ class DataFrameWriter:
             **copy_options,
         )
 
+    @publicapi
+    def insert_into(
+        self, table_name: Union[str, Iterable[str]], overwrite: bool = False
+    ) -> None:
+        """
+        Inserts the content of the DataFrame to the specified table.
+        It requires that the schema of the DataFrame is the same as the schema of the table.
+
+        Args:
+            table_name: A string or list of strings representing table name.
+                If input is a string, it represents the table name; if input is of type iterable of strings,
+                it represents the fully-qualified object identifier (database name, schema name, and table name).
+            overwrite: If True, the content of table will be overwritten.
+                If False, the data will be appended to the table. Default is False.
+
+        Example::
+
+            >>> # save this dataframe to a json file on the session stage
+            >>> df = session.create_dataframe([["John", "Berry"]], schema = ["FIRST_NAME", "LAST_NAME"])
+            >>> df.write.save_as_table("my_table", table_type="temporary")
+            >>> df2 = session.create_dataframe([["Rick", "Berry"]], schema = ["FIRST_NAME", "LAST_NAME"])
+            >>> df2.write.insert_into("my_table")
+            >>> session.table("my_table").collect()
+            [Row(FIRST_NAME='John', LAST_NAME='Berry'), Row(FIRST_NAME='Rick', LAST_NAME='Berry')]
+        """
+        full_table_name = (
+            table_name if isinstance(table_name, str) else ".".join(table_name)
+        )
+        validate_object_name(full_table_name)
+        qualified_table_name = (
+            parse_table_name(table_name) if isinstance(table_name, str) else table_name
+        )
+        if not self._dataframe._session._table_exists(qualified_table_name):
+            raise SnowparkClientException(
+                f"Table {full_table_name} does not exist or not authorized."
+            )
+
+        self.save_as_table(
+            qualified_table_name, mode="truncate" if overwrite else "append"
+        )
+
+    insertInto = insert_into
     saveAsTable = save_as_table

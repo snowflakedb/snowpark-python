@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import time
@@ -7,8 +7,14 @@ import datetime
 from unittest import mock
 import pytest
 
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    DATA_SOURCE_SQL_COMMENT,
+    STATEMENT_PARAMS_DATA_SOURCE,
+)
 from snowflake.snowpark.dataframe_reader import (
-    task_fetch_from_data_source_with_retry,
+    _task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
 )
 from snowflake.snowpark.types import (
@@ -21,6 +27,12 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_all_type_small_data,
     sql_server_create_connection,
     sql_server_create_connection_small_data,
+)
+from tests.utils import Utils
+
+pytestmark = pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="feature not available in local testing",
 )
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
@@ -42,10 +54,6 @@ def upload_and_copy_into_table_with_retry(
     time.sleep(2)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
 def test_dbapi_with_temp_table(session):
     df = session.read.dbapi(
         sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
@@ -53,10 +61,6 @@ def test_dbapi_with_temp_table(session):
     assert df.collect() == sql_server_all_type_data
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
 def test_dbapi_batch_fetch(session):
     df = session.read.dbapi(
         sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=1
@@ -85,17 +89,13 @@ def test_dbapi_batch_fetch(session):
     assert df.collect() == sql_server_all_type_small_data
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
 def test_dbapi_retry(session):
 
     with mock.patch(
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
         side_effect=Exception("Test error"),
     ) as mock_task:
-        result = task_fetch_from_data_source_with_retry(
+        result = _task_fetch_from_data_source_with_retry(
             create_connection=sql_server_create_connection,
             query="SELECT * FROM test_table",
             schema=(("col1", int, 0, 0, 0, False),),
@@ -109,7 +109,7 @@ def test_dbapi_retry(session):
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
         side_effect=Exception("Test error"),
     ) as mock_task:
-        result = session.read.upload_and_copy_into_table_with_retry(
+        result = session.read._upload_and_copy_into_table_with_retry(
             local_file="fake_file",
             snowflake_stage_name="fake_stage",
             snowflake_table_name="fake_table",
@@ -127,11 +127,11 @@ def test_parallel(session):
     # this test meant to test whether ingest is fully parallelized
     # we cannot mock this function as process pool does not all mock object
     with mock.patch(
-        "snowflake.snowpark.dataframe_reader.task_fetch_from_data_source_with_retry",
+        "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source_with_retry",
         new=fake_task_fetch_from_data_source_with_retry,
     ):
         with mock.patch(
-            "snowflake.snowpark.dataframe_reader.DataFrameReader.upload_and_copy_into_table_with_retry",
+            "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
             wrap=upload_and_copy_into_table_with_retry,
         ) as mock_upload_and_copy:
             start = time.time()
@@ -293,3 +293,54 @@ def test_partition_unsupported_type(session):
             upper_bound=1,
             num_partitions=4,
         )
+
+
+def test_telemetry_tracking(caplog, session):
+    original_func = session._conn.run_query
+    called, comment_showed = 0, 0
+
+    def assert_datasource_statement_params_run_query(*args, **kwargs):
+        # assert we set statement_parameters to track datasourcee api usage
+        nonlocal comment_showed
+        statement_parameters = kwargs.get("_statement_params")
+        query = args[0]
+        assert statement_parameters[STATEMENT_PARAMS_DATA_SOURCE] == "1"
+        if "select" not in query.lower():
+            assert DATA_SOURCE_SQL_COMMENT in query
+            comment_showed += 1
+        nonlocal called
+        called += 1
+        return original_func(*args, **kwargs)
+
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=assert_datasource_statement_params_run_query,
+    ), mock.patch(
+        "snowflake.snowpark._internal.telemetry.TelemetryClient.send_performance_telemetry"
+    ) as mock_telemetry:
+        df = session.read.dbapi(sql_server_create_connection, SQL_SERVER_TABLE_NAME)
+    assert df._plan.api_calls == [{"name": DATA_SOURCE_DBAPI_SIGNATURE}]
+    assert (
+        called == 4 and comment_showed == 4
+    )  # 4 queries: create table, create stage, put file, copy into
+    assert mock_telemetry.called
+    assert df.collect() == sql_server_all_type_data
+
+    # assert when we save/copy, the statement_params is added
+    temp_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    called = 0
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=assert_datasource_statement_params_run_query,
+    ):
+        df.write.save_as_table(temp_table)
+        df.write.copy_into_location(
+            f"{temp_stage}/test.parquet",
+            file_format_type="parquet",
+            header=True,
+            overwrite=True,
+            single=True,
+        )
+        assert called == 2

@@ -1,6 +1,7 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
 import inspect
 import json
 import sys
@@ -8,6 +9,7 @@ from collections import namedtuple
 from collections.abc import Hashable
 from enum import Enum, auto
 from typing import Any, Callable, Literal, Optional, Union
+from datetime import datetime
 
 import cloudpickle
 import numpy as np
@@ -21,6 +23,9 @@ from collections.abc import Mapping
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 import functools
 from snowflake.snowpark.column import Column as SnowparkColumn
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    TimedeltaType,
+)
 from snowflake.snowpark.modin.plugin._internal.type_utils import (
     infer_object_type,
     pandas_lit,
@@ -45,13 +50,19 @@ from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
     ArrayType,
+    BinaryType,
+    BooleanType,
     DataType,
+    _IntegralType,
+    _FractionalType,
     IntegerType,
     LongType,
     MapType,
+    NullType,
     PandasDataFrameType,
     PandasSeriesType,
     StringType,
+    TimestampType,
     VariantType,
 )
 from snowflake.snowpark.udf import UserDefinedFunction
@@ -113,7 +124,7 @@ class GroupbyApplySortMethod(Enum):
 
 def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, DataType]:
     """Check whether the function returns a variant in Snowflake, and get its return type."""
-    return_type = deduce_return_type_from_function(func)
+    return_type = deduce_return_type_from_function(func, None)
     if return_type is None or isinstance(
         return_type, (VariantType, PandasSeriesType, PandasDataFrameType)
     ):
@@ -756,6 +767,8 @@ def create_udf_for_series_apply(
     else:
 
         def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
+            # TODO SNOW-1874779: Add verification here to ensure inferred type matches
+            #  actual type.
             return x.apply(func, args=args, **kwargs)
 
     func_udf = sp_func.udf(
@@ -829,14 +842,126 @@ def convert_numpy_int_result_to_int(value: Any) -> Any:
     )
 
 
+DUMMY_BOOL_INPUT = native_pd.Series([False, True])
+# Note: we use only small dummy values here to avoid the risk of certain callables
+# taking a long time to execute (where execution time is a function of the input value).
+# As a downside this reduces diversity in input data so will reduce the effectiveness
+# type inference framework in some rare cases.
+DUMMY_INT_INPUT = native_pd.Series([-37, -9, -2, -1, 0, 2, 3, 5, 7, 9, 13, 16, 20, 101])
+DUMMY_FLOAT_INPUT = native_pd.Series(
+    [-9.9, -2.2, -1.0, 0.0, 0.5, 0.33, None, 0.99, 2.0, 3.0, 5.0, 7.7, 9.898989, 100.1]
+)
+DUMMY_STRING_INPUT = native_pd.Series(
+    ["", "a", "A", "0", "1", "01", "123", "-1", "-12", "true", "True", "false", "False"]
+    + [None, "null", "Jane Smith", "janesmith@snowflake.com", "janesmith@gmail.com"]
+    + ["650-592-4563", "Jane Smith, 123 Main St., Anytown, CA 12345"]
+    + ["2020-12-23", "2020-12-23 12:34:56", "08/08/2024", "07-08-2022", "12:34:56"]
+    + ["ABC", "bat-man", "super_man", "1@#$%^&*()_+", "<>?:{}|[]\\;'/.,", "<tag>"]
+)
+DUMMY_BINARY_INPUT = native_pd.Series(
+    [bytes("snow", "utf-8"), bytes("flake", "utf-8"), bytes("12", "utf-8"), None]
+)
+DUMMY_TIMESTAMP_INPUT = native_pd.to_datetime(
+    ["2020-12-31 00:00:00", "2020-01-01 00:00:00", native_pd.Timestamp.min]  # past
+    + ["2090-01-01 00:00:00", "2090-12-31 00:00:00", native_pd.Timestamp.max]  # future
+    + [datetime.today(), None],  # current
+    format="mixed",
+)
+
+
+def infer_return_type_using_dummy_data(
+    func: Callable, input_type: DataType, **kwargs: Any
+) -> Optional[DataType]:
+    """
+    Infer the return type of given function by applying it to a dummy input.
+    This method only supports the following input types: _IntegralType, _FractionalType,
+     StringType, BooleanType, TimestampType, BinaryType.
+    Args:
+        func: The function to infer the return type from.
+        input_type: The input type of the function.
+        **kwargs : Additional keyword arguments to pass as keywords arguments to func.
+    Returns:
+        The inferred return type of the function. If the return type cannot be inferred,
+         return None.
+    """
+    if input_type is None:
+        return None
+    input_data = None
+    if isinstance(input_type, _IntegralType):
+        input_data = DUMMY_INT_INPUT
+    elif isinstance(input_type, _FractionalType):
+        input_data = DUMMY_FLOAT_INPUT
+    elif isinstance(input_type, StringType):
+        input_data = DUMMY_STRING_INPUT
+    elif isinstance(input_type, BooleanType):
+        input_data = DUMMY_BOOL_INPUT
+    elif isinstance(input_type, TimestampType):
+        input_data = DUMMY_TIMESTAMP_INPUT
+    elif isinstance(input_type, BinaryType):
+        input_data = DUMMY_BINARY_INPUT
+    else:
+        return None
+
+    def merge_types(t1: DataType, t2: DataType) -> DataType:
+        """
+        Merge two types into one as per the following rules:
+        - Null + T = T
+        - T + Null = T
+        - T1 + T2 = T1 where T1 == T2
+        - T1 + T2 = Variant where T1 != T2
+        Args:
+            t1: first type to merge.
+            t2: second type to merge.
+
+        Returns:
+            Merged type of t1 and t2.
+        """
+        # treat NullType as None
+        t1 = None if t1 == NullType() else t1
+        t2 = None if t2 == NullType() else t2
+
+        if t1 is None:
+            return t2
+        if t2 is None:
+            return t1
+        if t1 == t2:
+            return t1
+        if isinstance(t1, MapType) and isinstance(t2, MapType):
+            return MapType(
+                merge_types(t1.key_type, t2.key_type),
+                merge_types(t1.value_type, t2.value_type),
+            )
+        if isinstance(t1, ArrayType) and isinstance(t2, ArrayType):
+            return ArrayType(merge_types(t1.element_type, t2.element_type))
+        return VariantType()
+
+    inferred_type = None
+    for x in input_data:
+        try:
+            inferred_type = merge_types(
+                inferred_type, infer_object_type(func(x, **kwargs))
+            )
+        except Exception:
+            pass
+
+    if isinstance(inferred_type, TimedeltaType):
+        # TODO: SNOW-1619940: pd.Timedelta is encoded as string.
+        return StringType()
+    return inferred_type
+
+
 def deduce_return_type_from_function(
-    func: Union[AggFuncType, UserDefinedFunction]
+    func: Union[AggFuncType, UserDefinedFunction],
+    input_type: Optional[DataType],
+    **kwargs: Any,
 ) -> Optional[DataType]:
     """
     Deduce return type if possible from a function, list, dict or type object. List will be mapped to ArrayType(),
     dict to MapType(), and if a type object (e.g., str) is given a mapping will be consulted.
     Args:
         func: callable function, object or Snowpark UserDefinedFunction that can be passed in pandas to reference a function.
+        input_type: input data type this function is applied to.
+        **kwargs : Additional keyword arguments to pass as keywords arguments to func.
 
     Returns:
         Snowpark Datatype or None if no return type could be deduced.
@@ -860,13 +985,17 @@ def deduce_return_type_from_function(
     else:
         # handle special case 'object' type, in this case use Variant Type.
         # Catch potential TypeError exception here from python_type_to_snow_type.
-        # If it is not the object type, return None to indicate that type hint could not be extracted successfully.
+        # If it is not the object type, return None to indicate that type hint could not
+        # be extracted successfully.
         try:
-            return get_types_from_type_hints(func, TempObjectType.FUNCTION)[0]
+            return_type = get_types_from_type_hints(func, TempObjectType.FUNCTION)[0]
+            if return_type is not None:
+                return return_type
         except TypeError as te:
             if str(te) == "invalid type <class 'object'>":
                 return VariantType()
-            return None
+        # infer return type using dummy data.
+        return infer_return_type_using_dummy_data(func, input_type, **kwargs)
 
 
 def sort_apply_udtf_result_columns_by_pandas_positions(

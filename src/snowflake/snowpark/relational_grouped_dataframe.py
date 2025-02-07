@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
@@ -33,7 +33,6 @@ from snowflake.snowpark._internal.ast.utils import (
     build_proto_from_struct_type,
     with_src_position,
 )
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import (
@@ -220,8 +219,6 @@ class RelationalGroupedDataFrame:
                 self._dataframe._select_statement or self._dataframe._plan,
             )
         elif isinstance(self._group_type, _PivotType):
-            if len(agg_exprs) != 1:
-                raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             group_plan = Pivot(
                 unaliased_grouping,
                 self._group_type.pivot_col,

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """This module contains StringMethods an DateTimeMethods docstrings that override modin's docstrings."""
@@ -101,6 +101,14 @@ class StringMethods:
         1    [https:, , docs.python.org, 3, tutorial, index...
         2                                                 None
         dtype: object
+
+        When using expand=True, the split elements will expand out into separate columns. If NaN is present, it is propagated throughout the columns during the split.
+
+        >>> s.str.split(expand=True)
+                                                       0     1     2        3         4
+        0                                           this    is     a  regular  sentence
+        1  https://docs.python.org/3/tutorial/index.html  None  None     None      None
+        2                                           None  None  None     None      None
         """
 
     def rsplit():
@@ -454,7 +462,7 @@ class StringMethods:
         For Series.str.center:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
-        >>> ser.str.center(8, fillchar='.')  # doctest: +SKIP
+        >>> ser.str.center(8, fillchar='.')
         0    ..dog...
         1    ..bird..
         2    .mouse..
@@ -500,7 +508,7 @@ class StringMethods:
         For Series.str.center:
 
         >>> ser = pd.Series(['dog', 'bird', 'mouse'])
-        >>> ser.str.center(8, fillchar='.')  # doctest: +SKIP
+        >>> ser.str.center(8, fillchar='.')
         0    ..dog...
         1    ..bird..
         2    .mouse..
@@ -2218,7 +2226,49 @@ class CombinedDatetimelikeProperties:
         pass
 
     def strftime():
-        pass
+        """
+        Convert to Index using specified date_format.
+
+        Return an Index of formatted strings specified by date_format, which supports the same string format as the python standard library. Details of the string format can be found in python string format doc.
+
+        Formats supported by the C strftime API but not by the python string format doc (such as “%R”, “%r”) are not officially supported and should be preferably replaced with their supported equivalents (such as “%H:%M”, “%I:%M:%S %p”).
+
+        Note that PeriodIndex support additional directives, detailed in Period.strftime.
+
+        Parameters
+        ----------
+        date_format : str
+            Date format string (e.g. “%Y-%m-%d”).
+
+        Returns
+        -------
+        ndarray[object]
+            NumPy ndarray of formatted strings.
+
+        See also
+        --------
+        to_datetime
+            Convert the given argument to datetime.
+        DatetimeIndex.normalize
+            Return DatetimeIndex with times to midnight.
+        DatetimeIndex.round
+            Round the DatetimeIndex to the specified freq.
+        DatetimeIndex.floor
+            Floor the DatetimeIndex to the specified freq.
+        Timestamp.strftime
+            Format a single Timestamp.
+        Period.strftime
+            Format a single Period.
+
+        Examples
+        --------
+        >>> rng = pd.date_range(pd.Timestamp("2018-03-10 09:00"),
+        ...                     periods=3, freq='s')
+        >>> rng.strftime('%B %d, %Y, %r')  # doctest: +SKIP
+        Index(['March 10, 2018, 09:00:00 AM', 'March 10, 2018, 09:00:01 AM',
+               'March 10, 2018, 09:00:02 AM'],
+              dtype='object')
+        """
 
     def round():
         """

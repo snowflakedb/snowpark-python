@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 import math
@@ -185,6 +185,8 @@ WITH = "WITH "
 DEFAULT_ON_NULL = " DEFAULT ON NULL "
 ANY = " ANY "
 ICEBERG = " ICEBERG "
+RENAME_FIELDS = " RENAME FIELDS"
+ADD_FIELDS = " ADD FIELDS"
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -1117,13 +1119,21 @@ def rank_related_function_expression(
     )
 
 
-def cast_expression(child: str, datatype: DataType, try_: bool = False) -> str:
+def cast_expression(
+    child: str,
+    datatype: DataType,
+    try_: bool = False,
+    is_rename: bool = False,
+    is_add: bool = False,
+) -> str:
     return (
         (TRY_CAST if try_ else CAST)
         + LEFT_PARENTHESIS
         + child
         + AS
         + convert_sp_to_sf_type(datatype)
+        + (RENAME_FIELDS if is_rename else "")
+        + (ADD_FIELDS if is_add else "")
         + RIGHT_PARENTHESIS
     )
 
@@ -1133,13 +1143,12 @@ def order_expression(name: str, direction: str, null_ordering: str) -> str:
 
 
 def create_or_replace_view_statement(
-    name: str, child: str, is_temp: bool, comment: Optional[str]
+    name: str, child: str, is_temp: bool, comment: Optional[str], replace: bool
 ) -> str:
     comment_sql = get_comment_sql(comment)
     return (
         CREATE
-        + OR
-        + REPLACE
+        + f"{OR + REPLACE if replace else EMPTY_STRING}"
         + f"{TEMPORARY if is_temp else EMPTY_STRING}"
         + VIEW
         + name
@@ -1542,7 +1551,7 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     return COMMA.join(
         attr.name
         + SPACE
-        + convert_sp_to_sf_type(attr.datatype)
+        + convert_sp_to_sf_type(attr.datatype, attr.nullable)
         + (NOT_NULL if not attr.nullable else EMPTY_STRING)
         for attr in attributes
     )

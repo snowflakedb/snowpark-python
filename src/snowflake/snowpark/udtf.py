@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 """User-defined table functions (UDTFs) in Snowpark. Please see `Python UDTF <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udtfs>`_ for details.
@@ -968,6 +968,10 @@ class UDTFRegistration:
             name,
             output_schema=output_schema,
         )
+
+        # Structured Struct is interpreted as Object by function registration
+        # Force unstructured to ensure Table return type.
+        output_schema.structured = False
 
         # Capture original parameters.
         if _emit_ast:

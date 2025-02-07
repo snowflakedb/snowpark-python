@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
 # Licensed to Modin Development Team under one or more contributor license agreements.
@@ -533,10 +533,10 @@ class Index(metaclass=TelemetryMeta):
         # TODO: SNOW-1458146 implement drop
         pass  # pragma: no cover
 
-    @index_not_implemented()
-    def drop_duplicates(self) -> None:
-        # TODO: SNOW-1458147 implement drop_duplicates
-        pass  # pragma: no cover
+    def drop_duplicates(self, keep="first") -> None:
+        if keep not in ("first", "last", False):
+            raise ValueError('keep must be either "first", "last" or False')
+        return self.__constructor__(self.to_series().drop_duplicates(keep=keep))
 
     @index_not_implemented()
     def duplicated(self, keep: Literal["first", "last", False] = "first") -> np.ndarray:

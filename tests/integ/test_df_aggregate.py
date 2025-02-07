@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import decimal
 import math
@@ -465,12 +465,14 @@ def test_agg_double_column(session):
 
 def test_agg_function_multiple_parameters(session):
     origin_df = session.create_dataframe(["k1", "k1", "k3", "k4", [None]], schema=["v"])
-    assert origin_df.select(listagg("v", delimiter='~!1,."')).collect() == [
-        Row('k1~!1,."k1~!1,."k3~!1,."k4')
-    ]
+    assert origin_df.select(
+        listagg("v", delimiter='~!1,."').within_group(origin_df.v.asc())
+    ).collect() == [Row('k1~!1,."k1~!1,."k3~!1,."k4')]
 
     assert origin_df.select(
-        listagg("v", delimiter='~!1,."', is_distinct=True)
+        listagg("v", delimiter='~!1,."', is_distinct=True).within_group(
+            origin_df.v.asc()
+        )
     ).collect() == [Row('k1~!1,."k3~!1,."k4')]
 
 
@@ -609,4 +611,6 @@ def test_agg_column_naming(session):
 
     assert df2.columns == ['"UPPER(A)"', '"MAX(B)"']
     assert df3.columns == ["UPPER", "MAX"]
-    assert df2.collect() == df3.collect() == [Row("X", 2), Row("Y", 1)]
+    expected = [Row("X", 2), Row("Y", 1)]
+    Utils.check_answer(df2, expected)
+    Utils.check_answer(df3, expected)

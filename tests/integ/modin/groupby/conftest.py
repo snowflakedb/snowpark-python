@@ -1,6 +1,8 @@
 #
-# Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+
+import pandas as native_pd
 import modin.pandas as pd
 import numpy as np
 import pytest
@@ -153,13 +155,13 @@ def df_multi():
 
 
 @pytest.fixture(scope="function")
-def series_multi_numeric():
-    index = pd.MultiIndex(
+def native_series_multi_numeric():
+    index = native_pd.MultiIndex(
         levels=[[1, 2], [1, 2]],
         codes=[[0, 0, 0, 0, 1, 1], [1, 1, 0, 0, 0, 0]],
         names=["a", "b"],
     )
-    return pd.Series([0, 1.0, 2.0, 3.0, 4.0, 5.0], index=index)
+    return native_pd.Series([0, 1.0, 2.0, 3.0, 4.0, 5.0], index=index)
 
 
 @pytest.fixture(scope="function")
