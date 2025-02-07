@@ -1110,6 +1110,81 @@ class DataFrame:
             **kwargs,
         )
 
+    @experimental(version="1.27.0")
+    def to_arrow(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ):
+        """
+        Executes the query representing this DataFrame and returns the result as a
+        `pyarrow Table <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`.
+
+        When the data is too large to fit into memory, you can use :meth:`to_arrow_batches`.
+
+        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+        """
+        return self._session._conn.execute(
+            self._plan,
+            to_pandas=False,
+            to_iter=False,
+            to_arrow=True,
+            block=block,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+            ),
+            **kwargs,
+        )
+
+    @experimental(version="1.27.0")
+    def to_arrow_batches(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ):
+        """
+        Executes the query representing this DataFrame and returns an iterator of
+        pyarrow Tables (containing a subset of rows) that you can use to
+        retrieve the results.
+
+        Unlike :meth:`to_arrow`, this method does not load all data into memory
+        at once.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+        """
+        return self._session._conn.execute(
+            self._plan,
+            to_pandas=False,
+            to_iter=True,
+            to_arrow=True,
+            block=block,
+            data_type=_AsyncResultType.ITERATOR,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+            ),
+            **kwargs,
+        )
+
     @df_api_usage
     @publicapi
     def to_df(
