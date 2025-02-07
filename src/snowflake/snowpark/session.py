@@ -2799,7 +2799,8 @@ class Session:
             overwrite=overwrite,
             table_type=table_type,
             use_logical_type=use_logical_type,
-            use_scoped_temp_object=self._use_scoped_temp_objects,
+            use_scoped_temp_object=self._use_scoped_temp_objects
+            and is_in_stored_procedure(),
         )
 
         if success:
