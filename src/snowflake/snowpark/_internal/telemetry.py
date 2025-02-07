@@ -77,6 +77,7 @@ class TelemetryField(Enum):
     FUNC_CAT_CREATE = "create"
     # performance categories
     PERF_CAT_UPLOAD_FILE = "upload_file"
+    PERF_CAT_DATA_SOURCE = "data_source"
     # optimizations
     SESSION_ID = "session_id"
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
@@ -345,22 +346,50 @@ class TelemetryClient:
         self.send(message)
 
     @safe_telemetry
-    def send_upload_file_perf_telemetry(
-        self, func_name: str, duration: float, sfqid: str
+    def send_performance_telemetry(
+        self, category: str, func_name: str, duration: float, sfqid: str = None
     ):
+        """
+        Sends performance telemetry data.
+
+        Parameters:
+            category (str): The category of the telemetry (upload file or data source).
+            func_name (str): The name of the function.
+            duration (float): The duration of the operation.
+            sfqid (str, optional): The SFQID for upload file category. Defaults to None.
+        """
         message = {
             **self._create_basic_telemetry_data(
                 TelemetryField.TYPE_PERFORMANCE_DATA.value
             ),
             TelemetryField.KEY_DATA.value: {
-                PCTelemetryField.KEY_SFQID.value: sfqid,
-                TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_UPLOAD_FILE.value,
+                TelemetryField.KEY_CATEGORY.value: category,
                 TelemetryField.KEY_FUNC_NAME.value: func_name,
                 TelemetryField.KEY_DURATION.value: duration,
                 TelemetryField.THREAD_IDENTIFIER.value: threading.get_ident(),
+                **({PCTelemetryField.KEY_SFQID.value: sfqid} if sfqid else {}),
             },
         }
         self.send(message)
+
+    @safe_telemetry
+    def send_upload_file_perf_telemetry(
+        self, func_name: str, duration: float, sfqid: str
+    ):
+        self.send_performance_telemetry(
+            category=TelemetryField.PERF_CAT_UPLOAD_FILE.value,
+            func_name=func_name,
+            duration=duration,
+            sfqid=sfqid,
+        )
+
+    @safe_telemetry
+    def send_data_source_perf_telemetry(self, func_name: str, duration: float):
+        self.send_performance_telemetry(
+            category=TelemetryField.PERF_CAT_DATA_SOURCE.value,
+            func_name=func_name,
+            duration=duration,
+        )
 
     @safe_telemetry
     def send_function_usage_telemetry(

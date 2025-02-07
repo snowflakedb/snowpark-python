@@ -1422,3 +1422,9 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+STATEMENT_PARAMS_DATA_SOURCE = "SNOWPARK_PYTHON_DATASOURCE"
+DATA_SOURCE_DBAPI_SIGNATURE = "DataFrameReader.dbapi"
+DATA_SOURCE_SQL_COMMENT = (
+    f"/* Python:snowflake.snowpark.{DATA_SOURCE_DBAPI_SIGNATURE} */"
+)

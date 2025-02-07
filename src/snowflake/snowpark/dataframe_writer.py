@@ -38,6 +38,8 @@ from snowflake.snowpark._internal.utils import (
     str_to_enum,
     validate_object_name,
     warning,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    STATEMENT_PARAMS_DATA_SOURCE,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_str
@@ -90,6 +92,24 @@ class DataFrameWriter:
         self._cur_options: Dict[str, Any] = {}
         self.__format: Optional[str] = None
         self._ast_stmt = _ast_stmt
+
+    @staticmethod
+    def _track_data_source_statement_params(
+        dataframe, statement_params: Optional[Dict] = None
+    ) -> Optional[Dict]:
+        """
+        Helper method to initialize and update data source tracking statement_params based on dataframe attributes.
+        """
+        statement_params = statement_params or {}
+        if (
+            dataframe._plan
+            and dataframe._plan.api_calls
+            and dataframe._plan.api_calls[0].get("name") == DATA_SOURCE_DBAPI_SIGNATURE
+        ):
+            # Track data source ingestion
+            statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
+
+        return statement_params if statement_params else None
 
     @publicapi
     def mode(self, save_mode: str, _emit_ast: bool = True) -> "DataFrameWriter":
@@ -425,6 +445,9 @@ class DataFrameWriter:
             else:
                 table_exists = None
 
+            statement_params = self._track_data_source_statement_params(
+                self._dataframe, statement_params or self._dataframe._statement_params
+            )
             create_table_logic_plan = SnowflakeCreateTable(
                 table_name,
                 column_names,
@@ -442,10 +465,11 @@ class DataFrameWriter:
                 iceberg_config,
                 table_exists,
             )
+
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(
                 snowflake_plan,
-                _statement_params=statement_params or self._dataframe._statement_params,
+                _statement_params=statement_params,
                 block=block,
                 data_type=_AsyncResultType.NO_RESULT,
                 **kwargs,
@@ -605,6 +629,10 @@ class DataFrameWriter:
 
             cur_format_type_options.update(format_type_aliased_options)
 
+        statement_params = self._track_data_source_statement_params(
+            self._dataframe, statement_params or self._dataframe._statement_params
+        )
+
         df = self._dataframe._with_plan(
             CopyIntoLocationNode(
                 self._dataframe._plan,
@@ -619,7 +647,7 @@ class DataFrameWriter:
         )
         add_api_call(df, "DataFrameWriter.copy_into_location")
         return df._internal_collect_with_tag(
-            statement_params=statement_params or self._dataframe._statement_params,
+            statement_params=statement_params,
             block=block,
             **kwargs,
         )
