@@ -1711,7 +1711,7 @@ def write_arrow(
     with all of the COPY INTO command's output for debugging purposes.
 
     Args:
-        cursor: Snowflak connector cursor used to execute queries.
+        cursor: Snowflake connector cursor used to execute queries.
         table: The pyarrow Table that is written.
         table_name: Table name where we want to insert into.
         database: Database schema and table is in, if not provided the default one will be used (Default value = None).
