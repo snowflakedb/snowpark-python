@@ -147,8 +147,8 @@ def infer_metadata(
         # If source_plan is a SelectStatement, SQL simplifier is enabled
         elif isinstance(source_plan, SelectStatement):
             # When attributes is cached on source_plan, just use it
-            if source_plan._attributes is not None:
-                attributes = source_plan._attributes
+            if source_plan.attributes is not None:
+                attributes = source_plan.attributes
             # When _column_states.projection is available, we can just use it,
             # which is either (only one happen):
             # 1) cached on self._snowflake_plan._quoted_identifiers
@@ -199,7 +199,7 @@ def cache_metadata_if_select_statement(
         isinstance(source_plan, SelectStatement)
         and source_plan._session.reduce_describe_query_enabled
     ):
-        source_plan._attributes = metadata.attributes
+        source_plan.attributes = metadata.attributes
         # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
         # which means source_plan has the same metadata as its child plan,
         # we should cache it on the child plan too.
