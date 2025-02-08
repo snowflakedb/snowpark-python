@@ -2193,7 +2193,11 @@ def divnull(
         if isinstance(divisor, (int, float))
         else _to_col_if_str(divisor, "divnull")
     )
-    return dividend_col / nullifzero(divisor_col, _emit_ast=False)
+    ans = dividend_col / nullifzero(divisor_col, _emit_ast=False)
+    ans._ast = (
+        build_function_expr("divnull", [dividend, divisor]) if _emit_ast else None
+    )
+    return ans
 
 
 @publicapi
