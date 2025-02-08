@@ -17,7 +17,7 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
     [
         ([{"A": [1, 2], "B": [3, 4], "C": [5, 6]}], {}, 1),
         ([{"A": [], "B": []}], {}, 1),
-        ([np.random.rand(100, 10)], {}, 6),
+        ([np.random.rand(100, 10)], {}, 4),
         (
             [{"Value": [10, 20, 30, 40]}],
             {

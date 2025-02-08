@@ -4,16 +4,20 @@
 
 ### Snowpark Python API Updates
 
-#### Deprecations:
-
-- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
-- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
-
 #### New Features
 
 - Added support for the following functions in `functions.py`
   - `normal`
   - `randn`
+
+#### Deprecations:
+
+- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
+
+#### Bug Fixes
+
+- Fixed a bug where query_tag was overwritten to a stacktrace when it was set using any method other than `Session.query_tag`.
 
 ### Snowpark pandas API Updates
 
@@ -86,7 +90,7 @@
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
 - Added support for `value_contains_null` parameter to MapType.
-- Added support for using `Column` object in `Column.in_` and `functions.in_`. 
+- Added support for using `Column` object in `Column.in_` and `functions.in_`.
 - Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
 - Allow `session.file.get` in a Native App to read file paths starting with `/` from the current version
 - Added support for multiple aggregation functions after `DataFrame.pivot`.

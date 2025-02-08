@@ -125,7 +125,7 @@ def check_result_from_and_to_pandas(
     FROM_TO_PANDAS_VALUE_TYPE_MATCH_INDICES,
 )
 def test_value_type_match_index_type(name, indices_dict):
-    expected_query_count = 1 if name in ("uint-small", "tuples", "multi") else 6
+    expected_query_count = 1 if name in ("uint-small", "tuples", "multi") else 4
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
         size = len(index)
@@ -140,7 +140,7 @@ def test_value_type_match_index_type(name, indices_dict):
 @pytest.mark.parametrize("name", FROM_TO_PANDAS_TYPE_MISMATCH_INDICES)
 def test_type_mismatch_index_type(name, indices_dict):
     expected_query_count = (
-        1 if name == "uint-small" or "multi-with-dt64tz" in name else 6
+        1 if name == "uint-small" or "multi-with-dt64tz" in name else 4
     )
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
@@ -160,7 +160,7 @@ def test_type_mismatch_index_type(name, indices_dict):
 def test_value_type_mismatch_index_type(name, indices_dict):
     # We can create a pandas dataframe out of the datetime and timedelta
     # values, so we execute some queries for those cases.
-    expected_query_count = 6 if ("datetime" in name or "timedelta" in name) else 0
+    expected_query_count = 4 if ("datetime" in name or "timedelta" in name) else 0
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
         size = len(index)

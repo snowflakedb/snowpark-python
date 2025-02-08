@@ -67,7 +67,7 @@ class TestDataFrameGroupByHeadTail:
             check_index_type=False,
         )
 
-    @sql_count_checker(query_count=6)
+    @sql_count_checker(query_count=4)
     def test_df_groupby_head_tail_large_data(
         self, op_type, n, dropna, as_index, sort, group_keys, large_df_with_na_values
     ):

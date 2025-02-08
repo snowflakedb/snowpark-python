@@ -3815,7 +3815,7 @@ def test_df_setitem_boolean_key(key, index):
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 @pytest.mark.parametrize(
     "ops",
     [

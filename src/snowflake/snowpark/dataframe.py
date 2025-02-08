@@ -132,14 +132,11 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import add_package_to_existing_packages
 from snowflake.snowpark._internal.utils import (
-    SKIP_LEVELS_THREE,
-    SKIP_LEVELS_TWO,
     TempObjectType,
     check_agg_exprs,
     check_flatten_mode,
     check_is_pandas_dataframe_in_to_pandas,
     column_to_bool,
-    create_or_update_statement_params_with_query_tag,
     deprecated,
     escape_quotes,
     experimental,
@@ -785,11 +782,7 @@ class DataFrame:
             self._plan,
             block=block,
             data_type=data_type,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_THREE,
-            ),
+            _statement_params=statement_params or self._statement_params,
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
             **kwargs,
@@ -807,11 +800,7 @@ class DataFrame:
         with open_telemetry_context_manager(self._execute_and_get_query_id, self):
             return self._session._conn.get_result_query_id(
                 self._plan,
-                _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params or self._statement_params,
-                    self._session.query_tag,
-                    SKIP_LEVELS_THREE,
-                ),
+                _statement_params=statement_params or self._statement_params,
             )
 
     @overload
@@ -895,11 +884,7 @@ class DataFrame:
             to_iter=True,
             block=block,
             data_type=_AsyncResultType.ITERATOR,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_THREE,
-            ),
+            _statement_params=statement_params or self._statement_params,
             case_sensitive=case_sensitive,
             **kwargs,
         )
@@ -1001,11 +986,7 @@ class DataFrame:
                 to_pandas=True,
                 block=block,
                 data_type=_AsyncResultType.PANDAS,
-                _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params or self._statement_params,
-                    self._session.query_tag,
-                    SKIP_LEVELS_TWO,
-                ),
+                _statement_params=statement_params or self._statement_params,
                 **kwargs,
             )
 
@@ -1102,11 +1083,7 @@ class DataFrame:
             to_iter=True,
             block=block,
             data_type=_AsyncResultType.PANDAS_BATCH,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_TWO,
-            ),
+            _statement_params=statement_params or self._statement_params,
             **kwargs,
         )
 
@@ -4339,11 +4316,7 @@ class DataFrame:
                 self._show_string(
                     n,
                     max_width,
-                    _statement_params=create_or_update_statement_params_with_query_tag(
-                        statement_params or self._statement_params,
-                        self._session.query_tag,
-                        SKIP_LEVELS_TWO,
-                    ),
+                    _statement_params=statement_params or self._statement_params,
                     _emit_ast=_emit_ast,
                 )
             )
@@ -4794,11 +4767,7 @@ class DataFrame:
             formatted_name,
             PersistedView(),
             comment=comment,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_TWO,
-            ),
+            _statement_params=statement_params or self._statement_params,
             _ast_stmt=stmt,
         )
 
@@ -4943,9 +4912,7 @@ class DataFrame:
             is_transient=is_transient,
             data_retention_time=data_retention_time,
             max_data_extension_time=max_data_extension_time,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
-            ),
+            _statement_params=statement_params or self._statement_params,
             iceberg_config=iceberg_config,
         )
 
@@ -5000,11 +4967,7 @@ class DataFrame:
             formatted_name,
             LocalTempView(),
             comment=comment,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_TWO,
-            ),
+            _statement_params=statement_params or self._statement_params,
             _ast_stmt=stmt,
         )
 
@@ -5061,11 +5024,7 @@ class DataFrame:
             LocalTempView(),
             comment=comment,
             replace=False,
-            _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params or self._statement_params,
-                self._session.query_tag,
-                SKIP_LEVELS_TWO,
-            ),
+            _statement_params=statement_params or self._statement_params,
             _ast_stmt=stmt,
         )
 
@@ -5700,11 +5659,7 @@ class DataFrame:
             }
             self._session._conn.execute(
                 df._plan,
-                _statement_params=create_or_update_statement_params_with_query_tag(
-                    statement_params_for_cache_result,
-                    self._session.query_tag,
-                    SKIP_LEVELS_TWO,
-                ),
+                _statement_params=statement_params_for_cache_result,
             )
         cached_df = snowflake.snowpark.table.Table(
             temp_table_name,
