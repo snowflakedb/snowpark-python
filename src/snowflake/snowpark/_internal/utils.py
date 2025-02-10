@@ -51,6 +51,7 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.type_utils import python_type_to_snow_type
 from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
@@ -60,6 +61,7 @@ if TYPE_CHECKING:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
         ResultMetadataV2 = ResultMetadata
+    from snowflake.snowpark.types import StructType
 
 _logger = logging.getLogger("snowflake.snowpark")
 
@@ -1520,3 +1522,23 @@ DATA_SOURCE_DBAPI_SIGNATURE = "DataFrameReader.dbapi"
 DATA_SOURCE_SQL_COMMENT = (
     f"/* Python:snowflake.snowpark.{DATA_SOURCE_DBAPI_SIGNATURE} */"
 )
+
+
+def datasource_infer_schema_from_query(conn, query_or_table: str) -> "StructType":
+    from snowflake.snowpark.types import DecimalType, StructField, StructType
+
+    raw_schema = conn.execute(f"SELECT * FROM {query_or_table} WHERE 1 = 0").description
+    fields = []
+    for column in raw_schema:
+        datatype, _ = python_type_to_snow_type(column[1])
+        if datatype == DecimalType:
+            kwargs = {}
+            if column[4]:
+                kwargs["precision"] = int(column[4])
+            if column[5]:
+                kwargs["scale"] = int(column[5])
+            field = StructField(column[0], DecimalType(**kwargs), column[6])
+        else:
+            field = StructField(column[0], datatype, column[6])
+        fields.append(field)
+    return StructType(fields)
