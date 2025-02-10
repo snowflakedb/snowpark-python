@@ -58,6 +58,7 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     normalize_local_file,
     DATA_SOURCE_DBAPI_SIGNATURE,
+    datasource_infer_schema_from_query,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1067,8 +1068,9 @@ class DataFrameReader:
     def dbapi(
         self,
         create_connection: Callable[[], "Connection"],
-        table: str,
         *,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
@@ -1076,14 +1078,30 @@ class DataFrameReader:
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
         fetch_size: Optional[int] = 0,
+        session_init_statement: Optional[str] = None,
+        prepare_query: Optional[str] = None,
     ) -> DataFrame:
         """Reads data from a database table using a DBAPI connection."""
+        if not (table or query) or (table and query):
+            raise ValueError("Either table or query must be provided, but not both")
+        if query and column:
+            raise ValueError("column is not supported when query is provided")
+
+        table_or_query = table or query
+        if prepare_query:
+            table_or_query = f"{prepare_query} {table_or_query}"
+
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         conn = create_connection()
         # this is specified to pyodbc, need other way to manage timeout on other drivers
         conn.timeout = query_timeout
-        struct_schema, raw_schema = self._infer_data_source_schema(conn, table)
+        if table:
+            struct_schema, raw_schema = self._infer_data_source_schema(
+                conn, table_or_query
+            )
+        if query:
+            struct_schema, raw_schema = datasource_infer_schema_from_query(conn, query)
         if column is None:
             if (
                 lower_bound is not None
@@ -1093,7 +1111,7 @@ class DataFrameReader:
                 raise ValueError(
                     "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
                 )
-            partitioned_queries = [f"SELECT * FROM {table}"]
+            partitioned_queries = [f"SELECT * FROM {table_or_query}"]
         else:
             if lower_bound is None or upper_bound is None or num_partitions is None:
                 raise ValueError(
@@ -1161,6 +1179,7 @@ class DataFrameReader:
                         tmp_dir,
                         query_timeout,
                         fetch_size,
+                        session_init_statement,
                     )
                     for i, query in enumerate(partitioned_queries)
                 ]
@@ -1387,11 +1406,14 @@ def _task_fetch_from_data_source(
     tmp_dir: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
+    session_init_statement: Optional[str] = None,
 ) -> str:
     conn = create_connection()
     # this is specified to pyodbc, need other way to manage timeout on other drivers
     conn.timeout = query_timeout
     result = []
+    if session_init_statement:
+        conn.cursor().execute(session_init_statement)
     if fetch_size == 0:
         result = conn.cursor().execute(query).fetchall()
     elif fetch_size > 0:
@@ -1428,13 +1450,21 @@ def _task_fetch_from_data_source_with_retry(
     tmp_dir: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
+    session_init_statement: Optional[str] = None,
 ) -> Union[str, Exception]:
     retry_count = 0
     error = None
     while retry_count < MAX_RETRY_TIME:
         try:
             path = _task_fetch_from_data_source(
-                create_connection, query, schema, i, tmp_dir, query_timeout, fetch_size
+                create_connection,
+                query,
+                schema,
+                i,
+                tmp_dir,
+                query_timeout,
+                fetch_size,
+                session_init_statement,
             )
             return path
         except Exception as e:
