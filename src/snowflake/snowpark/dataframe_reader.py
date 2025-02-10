@@ -5,6 +5,7 @@ import datetime
 import decimal
 import os
 import tempfile
+import time
 from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
 from concurrent.futures import (
     ProcessPoolExecutor,
@@ -59,7 +60,6 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     get_temp_type_for_object,
     normalize_local_file,
-
     DATA_SOURCE_DBAPI_SIGNATURE,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
@@ -79,7 +79,6 @@ from snowflake.snowpark.types import (
     _NumericType,
     TimestampType,
 )
-from snowflake.connector.options import pandas as pd
 from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     STATEMENT_PARAMS_DATA_SOURCE,
@@ -1157,7 +1156,7 @@ class DataFrameReader:
                 thread_pool_futures = []
                 process_pool_futures = [
                     process_executor.submit(
-                        task_fetch_from_data_source_with_retry,
+                        _task_fetch_from_data_source_with_retry,
                         create_connection,
                         query,
                         raw_schema,

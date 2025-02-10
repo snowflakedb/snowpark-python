@@ -2,30 +2,30 @@ import datetime
 from _decimal import Decimal
 
 sql_server_all_type_schema = (
-    ("Id", "int", None, 10, 0, "NO"),
-    ("SmallIntCol", "smallint", None, 5, 0, "YES"),
-    ("TinyIntCol", "tinyint", None, 3, 0, "YES"),
-    ("BigIntCol", "bigint", None, 19, 0, "YES"),
-    ("DecimalCol", "decimal", None, 10, 2, "YES"),
-    ("FloatCol", "float", None, 53, None, "YES"),
-    ("RealCol", "real", None, 24, None, "YES"),
-    ("MoneyCol", "money", None, 19, 4, "YES"),
-    ("SmallMoneyCol", "smallmoney", None, 10, 4, "YES"),
-    ("CharCol", "char", 10, None, None, "YES"),
-    ("VarCharCol", "varchar", 50, None, None, "YES"),
-    ("TextCol", "text", 2147483647, None, None, "YES"),
-    ("NCharCol", "nchar", 10, None, None, "YES"),
-    ("NVarCharCol", "nvarchar", 50, None, None, "YES"),
-    ("NTextCol", "ntext", 1073741823, None, None, "YES"),
-    ("DateCol", "date", None, None, None, "YES"),
-    ("TimeCol", "time", None, None, None, "YES"),
-    ("DateTimeCol", "datetime", None, None, None, "YES"),
-    ("DateTime2Col", "datetime2", None, None, None, "YES"),
-    ("SmallDateTimeCol", "smalldatetime", None, None, None, "YES"),
-    ("BinaryCol", "binary", 5, None, None, "YES"),
-    ("VarBinaryCol", "varbinary", 50, None, None, "YES"),
-    ("BitCol", "bit", None, None, None, "YES"),
-    ("UniqueIdentifierCol", "uniqueidentifier", None, None, None, "YES"),
+    ("Id", "int", 10, 0, "NO"),
+    ("SmallIntCol", "smallint", 5, 0, "YES"),
+    ("TinyIntCol", "tinyint", 3, 0, "YES"),
+    ("BigIntCol", "bigint", 19, 0, "YES"),
+    ("DecimalCol", "decimal", 10, 2, "YES"),
+    ("FloatCol", "float", 53, None, "YES"),
+    ("RealCol", "real", 24, None, "YES"),
+    ("MoneyCol", "money", 19, 4, "YES"),
+    ("SmallMoneyCol", "smallmoney", 10, 4, "YES"),
+    ("CharCol", "char", None, None, "YES"),
+    ("VarCharCol", "varchar", None, None, "YES"),
+    ("TextCol", "text", None, None, "YES"),
+    ("NCharCol", "nchar", None, None, "YES"),
+    ("NVarCharCol", "nvarchar", None, None, "YES"),
+    ("NTextCol", "ntext", None, None, "YES"),
+    ("DateCol", "date", None, None, "YES"),
+    ("TimeCol", "time", None, None, "YES"),
+    ("DateTimeCol", "datetime", None, None, "YES"),
+    ("DateTime2Col", "datetime2", None, None, "YES"),
+    ("SmallDateTimeCol", "smalldatetime", None, None, "YES"),
+    ("BinaryCol", "binary", None, None, "YES"),
+    ("VarBinaryCol", "varbinary", None, None, "YES"),
+    ("BitCol", "bit", None, None, "YES"),
+    ("UniqueIdentifierCol", "uniqueidentifier", None, None, "YES"),
 )
 
 sql_server_all_type_data = [
@@ -322,6 +322,8 @@ sql_server_all_type_small_data = sql_server_all_type_data[5:]
 
 # we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
 class FakeConnection:
+    __module__ = "pyodbc"
+
     def __init__(self, data, schema) -> None:
         self.sql = ""
         self.start_index = 0
