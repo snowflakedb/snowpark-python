@@ -49,6 +49,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     data_source_data_to_pandas_df,
     Connection,
     infer_data_source_schema,
+    generate_select_query,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -1087,6 +1088,9 @@ class DataFrameReader:
         struct_schema, raw_schema = infer_data_source_schema(
             conn, table, type(conn).__module__
         )
+        select_query = generate_select_query(
+            table, struct_schema, type(conn).__module__
+        )
         if column is None:
             if (
                 lower_bound is not None
@@ -1096,7 +1100,7 @@ class DataFrameReader:
                 raise ValueError(
                     "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
                 )
-            partitioned_queries = [f"SELECT * FROM {table}"]
+            partitioned_queries = [select_query]
         else:
             if lower_bound is None or upper_bound is None or num_partitions is None:
                 raise ValueError(
@@ -1115,7 +1119,7 @@ class DataFrameReader:
             ):
                 raise ValueError(f"unsupported type {column_type}")
             partitioned_queries = self._generate_partition(
-                table,
+                select_query,
                 column_type,
                 column,
                 lower_bound,
@@ -1203,15 +1207,13 @@ class DataFrameReader:
 
     def _generate_partition(
         self,
-        table: str,
+        select_query: str,
         column_type: DataType,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
     ) -> List[str]:
-        select_query = f"SELECT * FROM {table}"
-
         processed_lower_bound = self._to_internal_value(lower_bound, column_type)
         processed_upper_bound = self._to_internal_value(upper_bound, column_type)
         if processed_lower_bound > processed_upper_bound:

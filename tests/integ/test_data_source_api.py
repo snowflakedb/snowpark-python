@@ -27,6 +27,10 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_all_type_small_data,
     sql_server_create_connection,
     sql_server_create_connection_small_data,
+    oracledb_all_type_data_result,
+    oracledb_create_connection,
+    oracledb_all_type_small_data_result,
+    oracledb_create_connection_small_data,
 )
 from tests.utils import Utils
 
@@ -36,6 +40,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
+ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
 
 
 def fake_task_fetch_from_data_source_with_retry(
@@ -59,6 +64,41 @@ def test_dbapi_with_temp_table(session):
         sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
     )
     assert df.collect() == sql_server_all_type_data
+
+
+def test_dbapi_oracledb(session):
+    df = session.read.dbapi(
+        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4
+    )
+    assert df.collect()[0] == oracledb_all_type_data_result[0]
+
+
+def test_dbapi_batch_fetch_oracledb(session):
+    df = session.read.dbapi(
+        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=1
+    )
+    assert df.collect() == oracledb_all_type_data_result
+
+    df = session.read.dbapi(
+        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=3
+    )
+    assert df.collect() == oracledb_all_type_data_result
+
+    df = session.read.dbapi(
+        oracledb_create_connection_small_data,
+        ORACLEDB_TABLE_NAME,
+        max_workers=4,
+        fetch_size=1,
+    )
+    assert df.collect() == oracledb_all_type_small_data_result
+
+    df = session.read.dbapi(
+        oracledb_create_connection_small_data,
+        ORACLEDB_TABLE_NAME,
+        max_workers=4,
+        fetch_size=3,
+    )
+    assert df.collect() == oracledb_all_type_small_data_result
 
 
 def test_dbapi_batch_fetch(session):

@@ -1,11 +1,15 @@
 #
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
+#
 # Copyright (c) 2012-2024 Snowflake Computing Inc. All rights reserved.
 #
 
 import datetime
 from typing import List, Any, Tuple, Protocol, Union
 from snowflake.connector.options import pandas as pd
-
+from dateutil import parser
 from snowflake.snowpark.types import (
     StringType,
     GeographyType,
@@ -66,10 +70,12 @@ SQL_SERVER_TYPE_TO_SNOW_TYPE = {
 ORACLEDB_TYPE_TO_SNOW_TYPE = {
     "varchar2": StringType,
     "varchar": StringType,
+    "nvarchar2": StringType,
+    # TODO: should we convert to float or int?
     "number": DecimalType,
     "float": FloatType,
     "long": LongType,
-    "date": DateType,
+    "date": TimestampType,
     "binary_float": FloatType,
     "binary_double": DoubleType,
     "timestamp": TimestampType,
@@ -128,7 +134,10 @@ def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
         elif column[1].lower() == "datetimeoffset":
             data_type = snow_type(TimestampTimeZone.LTZ)
         elif snow_type == DecimalType:
-            data_type = snow_type(column[2], column[3])
+            data_type = snow_type(
+                column[2] if column[2] is not None else 38,
+                column[3] if column[3] is not None else 0,
+            )
         else:
             data_type = snow_type()
         fields.append(StructField(column[0], data_type, column[4]))
@@ -153,10 +162,16 @@ def oracledb_to_snowpark_type(schema: List[tuple]) -> StructType:
             data_type = snow_type(TimestampTimeZone.TZ)
         elif "withlocaltimezone" in remove_space_column_name:
             data_type = snow_type(TimestampTimeZone.LTZ)
-        elif remove_space_column_name.startswith("timestamp"):
+        elif (
+            remove_space_column_name.startswith("timestamp")
+            or remove_space_column_name == "date"
+        ):
             data_type = snow_type(TimestampTimeZone.NTZ)
         elif snow_type == DecimalType:
-            data_type = snow_type(column[2], column[3])
+            data_type = snow_type(
+                column[2] if column[2] is not None else 38,
+                column[3] if column[3] is not None else 0,
+            )
         else:
             data_type = snow_type()
         fields.append(
@@ -215,13 +230,48 @@ def data_source_data_to_pandas_df(
         return df
     elif "oracledb" == connection_type.lower():
         clob_data = []
-        for i, col in enumerate(schema):
+        tz_data = []
+        for col in schema:
             if col[1].lower() in ["clob", "nclob"]:
-                clob_data.append(i)
+                clob_data.append(col[0])
+            if "time zone" in col[1].lower():
+                tz_data.append(col[0])
         for column in clob_data:
             df[column] = df[column].apply(lambda x: x.read())
+        for column in tz_data:
+            df[column] = df[column].apply(lambda x: parser.parse(x))
+
     else:
         raise NotImplementedError(
             f"currently supported drivers are pyodbc and oracledb, got: {connection_type}"
         )
     return df
+
+
+def generate_select_query(table: str, schema: StructType, connection_type: str) -> str:
+    if "pyodbc" == connection_type.lower():
+        return f"select * from {table}"
+    elif "oracledb" == connection_type.lower():
+        cols = []
+        for field in schema.fields:
+            if (
+                isinstance(field.datatype, TimestampType)
+                and field.datatype.tz == TimestampTimeZone.TZ
+            ):
+                cols.append(
+                    f"""TO_CHAR({field.name}, 'YYYY-MM-DD"T"HH24:MI:SS.FF6 TZH:TZM')"""
+                )
+            elif (
+                isinstance(field.datatype, TimestampType)
+                and field.datatype.tz == TimestampTimeZone.LTZ
+            ):
+                cols.append(
+                    f"""TO_CHAR({field.name} AT TIME ZONE SESSIONTIMEZONE, 'YYYY-MM-DD"T"HH24:MI:SS.FF6 TZH:TZM')"""
+                )
+            else:
+                cols.append(field.name)
+        return f"""select {" , ".join(cols)} from {table}"""
+    else:
+        raise NotImplementedError(
+            f"currently supported drivers are pyodbc and oracledb, got: {connection_type}"
+        )
