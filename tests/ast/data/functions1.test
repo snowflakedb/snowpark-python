@@ -426,13 +426,13 @@ df61 = df.select(grouping(col("A")), grouping(col("A"), col("B")))
 
 df62 = df.select(coalesce(), coalesce(col("A"), lit(10)))
 
-df63 = df.select(col("A").equal_nan())
+df63 = df.select(equal_nan("A"))
 
-df64 = df.select(col("A").is_null())
+df64 = df.select(is_null("A"))
 
-df65 = df.select(-col("A"))
+df65 = df.select(negate("A"))
 
-df66 = df.select(~col("A"))
+df66 = df.select(not_("A"))
 
 df67 = df.select(random(), random(), random(10))
 
@@ -7859,32 +7859,20 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_equal_nan {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "equal_nan"
                     }
                   }
                 }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 39
-                      end_line: 153
-                      file: 2
-                      start_column: 25
-                      start_line: 153
-                    }
-                    v: "A"
-                  }
-                }
+              }
+            }
+            pos_args {
+              string_val {
                 src {
                   end_column: 39
                   end_line: 153
@@ -7892,6 +7880,7 @@ body {
                   start_column: 25
                   start_line: 153
                 }
+                v: "A"
               }
             }
             src {
@@ -7934,32 +7923,20 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_is_null {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "is_null"
                     }
                   }
                 }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 37
-                      end_line: 155
-                      file: 2
-                      start_column: 25
-                      start_line: 155
-                    }
-                    v: "A"
-                  }
-                }
+              }
+            }
+            pos_args {
+              string_val {
                 src {
                   end_column: 37
                   end_line: 155
@@ -7967,6 +7944,7 @@ body {
                   start_column: 25
                   start_line: 155
                 }
+                v: "A"
               }
             }
             src {
@@ -8009,32 +7987,20 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          neg {
-            operand {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "negate"
                     }
                   }
                 }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 36
-                      end_line: 157
-                      file: 2
-                      start_column: 25
-                      start_line: 157
-                    }
-                    v: "A"
-                  }
-                }
+              }
+            }
+            pos_args {
+              string_val {
                 src {
                   end_column: 36
                   end_line: 157
@@ -8042,6 +8008,7 @@ body {
                   start_column: 25
                   start_line: 157
                 }
+                v: "A"
               }
             }
             src {
@@ -8084,32 +8051,20 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          not {
-            operand {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "not_"
                     }
                   }
                 }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 34
-                      end_line: 159
-                      file: 2
-                      start_column: 25
-                      start_line: 159
-                    }
-                    v: "A"
-                  }
-                }
+              }
+            }
+            pos_args {
+              string_val {
                 src {
                   end_column: 34
                   end_line: 159
@@ -8117,6 +8072,7 @@ body {
                   start_column: 25
                   start_line: 159
                 }
+                v: "A"
               }
             }
             src {
@@ -22052,5 +22008,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }

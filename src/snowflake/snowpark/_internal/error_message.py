@@ -136,14 +136,6 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR() -> SnowparkDataframeException:
-        return SnowparkDataframeException(
-            "You can apply only one aggregate expression to a RelationalGroupedDataFrame "
-            "returned by the pivot() method.",
-            error_code="1109",
-        )
-
-    @staticmethod
     def DF_JOIN_INVALID_JOIN_TYPE(type1: str, types: str) -> SnowparkJoinException:
         return SnowparkJoinException(
             f"Unsupported join type '{type1}'. Supported join types include: {types}.",

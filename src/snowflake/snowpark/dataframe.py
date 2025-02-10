@@ -1117,6 +1117,81 @@ class DataFrame:
             **kwargs,
         )
 
+    @experimental(version="1.27.0")
+    def to_arrow(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ):
+        """
+        Executes the query representing this DataFrame and returns the result as a
+        `pyarrow Table <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`.
+
+        When the data is too large to fit into memory, you can use :meth:`to_arrow_batches`.
+
+        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+        """
+        return self._session._conn.execute(
+            self._plan,
+            to_pandas=False,
+            to_iter=False,
+            to_arrow=True,
+            block=block,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+            ),
+            **kwargs,
+        )
+
+    @experimental(version="1.27.0")
+    def to_arrow_batches(
+        self,
+        *,
+        statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ):
+        """
+        Executes the query representing this DataFrame and returns an iterator of
+        pyarrow Tables (containing a subset of rows) that you can use to
+        retrieve the results.
+
+        Unlike :meth:`to_arrow`, this method does not load all data into memory
+        at once.
+
+        Args:
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: A bool value indicating whether this function will wait until the result is available.
+                When it is ``False``, this function executes the underlying queries of the dataframe
+                asynchronously and returns an :class:`AsyncJob`.
+        """
+        return self._session._conn.execute(
+            self._plan,
+            to_pandas=False,
+            to_iter=True,
+            to_arrow=True,
+            block=block,
+            data_type=_AsyncResultType.ITERATOR,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+            ),
+            **kwargs,
+        )
+
     @df_api_usage
     @publicapi
     def to_df(
@@ -4967,7 +5042,7 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
     ) -> List[Row]:
-        """Creates a temporary view that returns the same results as this DataFrame.
+        """Creates or replace a temporary view that returns the same results as this DataFrame.
 
         You can use the view in subsequent SQL queries and statements during the
         current session. The temporary view is only available in the session in which
@@ -5016,11 +5091,73 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @df_collect_api_telemetry
+    @publicapi
+    def create_temp_view(
+        self,
+        name: Union[str, Iterable[str]],
+        *,
+        comment: Optional[str] = None,
+        statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+    ) -> List[Row]:
+        """Creates a temporary view that returns the same results as this DataFrame.
+        If it already exists, an exception will be raised.
+
+        You can use the view in subsequent SQL queries and statements during the
+        current session. The temporary view is only available in the session in which
+        it is created.
+
+        For ``name``, you can include the database and schema name (i.e. specify a
+        fully-qualified name). If no database name or schema name are specified, the
+        view will be created in the current database or schema.
+
+        ``name`` must be a valid `Snowflake identifier <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
+        Args:
+            name: The name of the view to create or replace. Can be a list of strings
+                that specifies the database name, schema name, and view name.
+            comment: Adds a comment for the created view. See
+                `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+        """
+
+        formatted_name = self._format_name_for_view("create_or_temp_view", name)
+
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.assign()
+            expr = with_src_position(
+                stmt.expr.sp_dataframe_create_or_replace_view, stmt
+            )
+            expr.is_temp = True
+            self._set_ast_ref(expr.df)
+            build_sp_view_name(expr.name, name)
+            if comment is not None:
+                expr.comment.value = comment
+            if statement_params is not None:
+                build_expr_from_dict_str_str(expr.statement_params, statement_params)
+
+        return self._do_create_or_replace_view(
+            formatted_name,
+            LocalTempView(),
+            comment=comment,
+            replace=False,
+            _statement_params=create_or_update_statement_params_with_query_tag(
+                statement_params or self._statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+            ),
+            _ast_stmt=stmt,
+        )
+
     def _do_create_or_replace_view(
         self,
         view_name: str,
         view_type: ViewType,
         comment: Optional[str],
+        replace: bool = True,
         _ast_stmt: Optional[proto.Assign] = None,
         **kwargs,
     ):
@@ -5029,6 +5166,7 @@ class DataFrame:
             view_name,
             view_type,
             comment,
+            replace,
             self._plan,
         )
 
@@ -6597,6 +6735,7 @@ Query List:
     # Add aliases for user code migration
     createOrReplaceTempView = create_or_replace_temp_view
     createOrReplaceView = create_or_replace_view
+    createTempView = create_temp_view
     crossJoin = cross_join
     dropDuplicates = drop_duplicates
     groupBy = group_by

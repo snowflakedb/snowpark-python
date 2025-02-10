@@ -4,6 +4,7 @@
 syntax = "proto3";
 
 option java_package = "com.snowflake.snowpark.proto";
+option java_outer_classname = "JavaProto";
 
 package ast;
 

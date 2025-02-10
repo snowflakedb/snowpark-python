@@ -1502,7 +1502,9 @@ def execute_mock_plan(
     if isinstance(source_plan, CreateViewCommand):
         from_df = execute_mock_plan(source_plan.child, expr_to_alias)
         view_name = source_plan.name
-        entity_registry.create_or_replace_view(source_plan.child, view_name)
+        entity_registry.create_or_replace_view(
+            source_plan.child, view_name, source_plan.replace
+        )
         return from_df
 
     if isinstance(source_plan, TableUpdate):
