@@ -262,6 +262,7 @@ class DataFrameWriter:
             column_order: When ``mode`` is "append", data will be inserted into the target table by matching column sequence or column name. Default is "index". When ``mode`` is not "append", the ``column_order`` makes no difference.
 
                 "index": Data will be inserted into the target table by column sequence.
+
                 "name": Data will be inserted into the target table by matching column names. If the target table has more columns than the source DataFrame, use this one.
 
             create_temp_table: (Deprecated) The to-be-created table will be temporary if this is set to ``True``.
