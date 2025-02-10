@@ -2715,7 +2715,7 @@ class Session:
                 self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
 
-    @experimental(version="1.27.0")
+    @experimental(version="1.28.0")
     def write_arrow(
         self,
         table: "pyarrow.Table",

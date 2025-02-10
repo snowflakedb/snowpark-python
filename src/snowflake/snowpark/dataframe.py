@@ -1110,7 +1110,7 @@ class DataFrame:
             **kwargs,
         )
 
-    @experimental(version="1.27.0")
+    @experimental(version="1.28.0")
     def to_arrow(
         self,
         *,
@@ -1147,7 +1147,7 @@ class DataFrame:
             **kwargs,
         )
 
-    @experimental(version="1.27.0")
+    @experimental(version="1.28.0")
     def to_arrow_batches(
         self,
         *,
