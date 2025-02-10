@@ -11,13 +11,15 @@ import pytest
 
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
-    DATA_SOURCE_DBAPI_SIGNATURE,
-    DATA_SOURCE_SQL_COMMENT,
-    STATEMENT_PARAMS_DATA_SOURCE,
 )
 from snowflake.snowpark.dataframe_reader import (
     _task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
+)
+from snowflake.snowpark._internal.data_source_utils import (
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    DATA_SOURCE_SQL_COMMENT,
+    STATEMENT_PARAMS_DATA_SOURCE,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -46,6 +48,10 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_create_connection_small_data,
     sqlite3_db,
     create_connection_to_sqlite3_db,
+    oracledb_all_type_data_result,
+    oracledb_create_connection,
+    oracledb_all_type_small_data_result,
+    oracledb_create_connection_small_data,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -55,6 +61,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 SQL_SERVER_TABLE_NAME = "AllDataTypesTable"
+ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
 
 
 def fake_task_fetch_from_data_source_with_retry(
@@ -80,10 +87,41 @@ def test_dbapi_with_temp_table(session):
     assert df.collect() == sql_server_all_type_data
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="feature not available in local testing",
-)
+def test_dbapi_oracledb(session):
+    df = session.read.dbapi(
+        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4
+    )
+    assert df.collect()[0] == oracledb_all_type_data_result[0]
+
+
+def test_dbapi_batch_fetch_oracledb(session):
+    df = session.read.dbapi(
+        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=1
+    )
+    assert df.collect() == oracledb_all_type_data_result
+
+    df = session.read.dbapi(
+        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=3
+    )
+    assert df.collect() == oracledb_all_type_data_result
+
+    df = session.read.dbapi(
+        oracledb_create_connection_small_data,
+        ORACLEDB_TABLE_NAME,
+        max_workers=4,
+        fetch_size=1,
+    )
+    assert df.collect() == oracledb_all_type_small_data_result
+
+    df = session.read.dbapi(
+        oracledb_create_connection_small_data,
+        ORACLEDB_TABLE_NAME,
+        max_workers=4,
+        fetch_size=3,
+    )
+    assert df.collect() == oracledb_all_type_small_data_result
+
+
 def test_dbapi_batch_fetch(session):
     df = session.read.dbapi(
         sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=1
@@ -121,7 +159,7 @@ def test_dbapi_retry(session):
         result = _task_fetch_from_data_source_with_retry(
             create_connection=sql_server_create_connection,
             query="SELECT * FROM test_table",
-            schema=(("col1", int, 0, 0, 0, False),),
+            schema=(("col1", int, 0, 0, False),),
             i=0,
             tmp_dir="/tmp",
         )
