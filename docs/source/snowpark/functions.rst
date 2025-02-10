@@ -250,7 +250,9 @@ Functions
     months_between
     negate
     next_day
+    normal
     not_
+    nth_value
     ntile
     nullifzero
     nvl
@@ -274,6 +276,7 @@ Functions
     previous_day
     quarter
     radians
+    randn
     random
     rank
     regexp_count

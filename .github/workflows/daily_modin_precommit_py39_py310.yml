@@ -1,10 +1,10 @@
 # This is copied from original daily_precommit.yml with one change: only run Snowpark pandas tests
 
-name: Daily Snowpark pandas API test
+name: Daily Snowpark pandas API test with Py3.9 and Py3.10
 on:
   schedule:
-    # 8 AM UTC
-    - cron: "0 8 * * *"
+    # 9 AM UTC
+    - cron: "0 9 * * *"
   workflow_dispatch:
       inputs:
         logLevel:
@@ -124,7 +124,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest-64-cores
             download_name: windows
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10"]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
@@ -278,7 +278,7 @@ jobs:
         os:
           - image_name: windows-latest-64-cores
             download_name: windows
-        python-version: ["3.11"]
+        python-version: ["3.10"]
         cloud-provider: [azure]
     steps:
       - name: Checkout Code
