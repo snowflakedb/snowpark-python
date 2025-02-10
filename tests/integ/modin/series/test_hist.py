@@ -66,7 +66,7 @@ def test_hist_params_neg(
 
 
 @sql_count_checker(query_count=0)
-def test_hist_by_neg():
+def test_hist_by_unsupported():
     lst = ["a", "a", "a", "b", "b", "b"]
     native_ser = native_pd.Series([1, 2, 2, 4, 6, 6], index=lst)
     snow_ser = pd.Series(native_ser)

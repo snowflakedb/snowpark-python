@@ -182,7 +182,6 @@ def factorize(
     pass  # pragma: no cover
 
 
-# @register_series_not_implemented()
 @register_series_accessor("hist")
 def hist(
     self,
@@ -202,6 +201,8 @@ def hist(
     if bins is None:
         bins = 10
 
+    # Get the query compiler representing the histogram data to be plotted.
+    # Along with the query compiler, also get the minimum and maximum values in the input series, and the computed bin size.
     (
         new_query_compiler,
         min_val,
@@ -209,8 +210,6 @@ def hist(
         bin_size,
     ) = self._query_compiler.hist_on_series(
         by=by,
-        ax=ax,
-        grid=grid,
         xlabelsize=xlabelsize,
         xrot=xrot,
         ylabelsize=ylabelsize,
@@ -222,12 +221,18 @@ def hist(
         **kwargs,
     )
 
+    # Convert the result to native pandas in preparation for plotting it using Matplotlib's bar chart.
+    # Note that before converting to native pandas, the data had already been reduced in the previous step.
     native_ser = self.__constructor__(query_compiler=new_query_compiler)._to_pandas()
+
+    # Ensure that we have enough rows in the series corresponding to all bins, even if some of them are empty.
     native_ser_reindexed = native_ser.reindex(
-        native_pd.Index([i for i in np.linspace(min_val, max_val, bins + 1)]),
+        native_pd.Index(np.linspace(min_val, max_val, bins + 1)),
         method="nearest",
         tolerance=bin_size / 3,
     ).fillna(0)
+
+    # Prepare the visualization parameters to be used for rendering the bar chart.
     fig = kwargs.pop(
         "figure", plt.gcf() if plt.get_fignums() else plt.figure(figsize=figsize)
     )

@@ -7329,9 +7329,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     limit = 10
                     rows = (
                         qc._modin_frame.ordered_dataframe.group_by(
-                            snowflake_ids, count(col("*")).alias("cnt")
+                            snowflake_ids, count(col("*")).alias("count")
                         )
-                        .filter(col("cnt") > 1)
+                        .filter(col("count") > 1)
                         .limit(limit)
                         .select(snowflake_ids)
                         .collect()
@@ -15254,9 +15254,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     min_(col(frame.row_position_snowflake_quoted_identifier)).as_(
                         row_position_post_dedup_quoted_identifier
                     ),
-                    count(col("*")).as_("cnt"),
+                    count(col("*")).as_("count"),
                 )
-                .filter(col("cnt") == 1)
+                .filter(col("count") == 1)
                 .select(row_position_post_dedup_quoted_identifier)
             )
 
@@ -19879,8 +19879,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def hist_on_series(
         self,
         by: object = None,
-        ax: Any = None,
-        grid: bool = True,
         xlabelsize: Optional[int] = None,
         xrot: Optional[float] = None,
         ylabelsize: Optional[int] = None,
@@ -19898,10 +19896,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ----------
         by : object, optional
             If passed, then used to form histograms for separate groups.
-        ax : matplotlib axis object
-            If not passed, uses gca().
-        grid : bool, default True
-            Whether to show axis grid lines.
         xlabelsize : int, default None
             If specified changes the x-axis label size.
         xrot : float, default None
@@ -19923,33 +19917,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         Returns
         -------
-        A tuple that includes the SnowflakeQueryCompiler with the result of applying hist,
-        the minimum and maximum values in the series, and the bin size
+        A tuple containing the following in order:
+            1) A SnowflakeQueryCompiler representing the count of each group in the histogram
+            2) The minimum value in the series
+            3) The maximum value in the series
+            4) The bin size
         """
         if by is not None:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.hist' method does not yet support the 'by' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("by", "Series.hist")
         if xlabelsize is not None:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.hist' method does not yet support the 'xlabelsize' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("xlabelsize", "Series.hist")
         if xrot is not None:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.hist' method does not yet support the 'xrot' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("xrot", "Series.hist")
         if ylabelsize is not None:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.hist' method does not yet support the 'ylabelsize' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("ylabelsize", "Series.hist")
         if yrot is not None:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.hist' method does not yet support the 'yrot' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("yrot", "Series.hist")
         if figsize is not None:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.hist' method does not yet support the 'figsize' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("figsize", "Series.hist")
         if not isinstance(bins, int):
             ErrorMessage.not_implemented(
                 "Snowpark pandas 'Series.hist' method does not yet support the 'bins' parameter with types other than 'int'"
@@ -19957,15 +19942,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         elif bins <= 0:
             raise ValueError("`bins` must be positive, when an integer")
         if backend is not None:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.hist' method does not yet support the 'backend' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("backend", "Series.hist")
         if legend:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas 'Series.hist' method does not yet support the 'legend' parameter"
-            )
+            ErrorMessage.parameter_not_implemented_error("legend", "Series.hist")
 
-        hist_col = col(self._modin_frame.data_column_snowflake_quoted_identifiers[-1])
+        assert (
+            len(self.columns) == 1
+        ), "Internal error: this query compiler should represent a series."
+        hist_col = col(self._modin_frame.data_column_snowflake_quoted_identifiers[0])
         [min_val, max_val] = self._modin_frame.ordered_dataframe.agg(
             min_(hist_col).as_("min_count"),
             max_(hist_col).as_("max_count"),
@@ -19983,29 +19967,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ),
         )
 
-        cnt_quoted_identifier = frame_with_binned_column.ordered_dataframe.generate_snowflake_quoted_identifiers(
-            pandas_labels=["cnt"],
+        count_quoted_identifier = frame_with_binned_column.ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=["count"],
         )[
             0
         ]
 
+        groupby_quoted_identifier = (
+            frame_with_binned_column.data_column_snowflake_quoted_identifiers[-1]
+        )
         new_ordered_dataframe = frame_with_binned_column.ordered_dataframe.group_by(
-            [frame_with_binned_column.data_column_snowflake_quoted_identifiers[-1]],
-            count(col("*")).alias(cnt_quoted_identifier),
+            [groupby_quoted_identifier],
+            count(col("*")).alias(count_quoted_identifier),
         )
 
         qc = SnowflakeQueryCompiler(
             InternalFrame.create(
                 ordered_dataframe=new_ordered_dataframe,
-                data_column_pandas_labels=["cnt"],
-                data_column_snowflake_quoted_identifiers=[cnt_quoted_identifier],
+                data_column_pandas_labels=["count"],
+                data_column_snowflake_quoted_identifiers=[count_quoted_identifier],
                 data_column_pandas_index_names=frame_with_binned_column.data_column_pandas_index_names,
                 index_column_pandas_labels=[None],
-                index_column_snowflake_quoted_identifiers=[
-                    frame_with_binned_column.data_column_snowflake_quoted_identifiers[
-                        -1
-                    ]
-                ],
+                index_column_snowflake_quoted_identifiers=[groupby_quoted_identifier],
                 data_column_types=[None],
                 index_column_types=[None],
             )
