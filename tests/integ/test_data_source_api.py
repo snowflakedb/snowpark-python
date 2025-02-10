@@ -91,7 +91,7 @@ def test_dbapi_oracledb(session):
     df = session.read.dbapi(
         oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4
     )
-    assert df.collect()[0] == oracledb_all_type_data_result[0]
+    assert df.collect() == oracledb_all_type_data_result
 
 
 def test_dbapi_batch_fetch_oracledb(session):
@@ -221,7 +221,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=5,
@@ -239,7 +239,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=-5,
@@ -254,7 +254,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=5,
@@ -278,7 +278,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=5,
@@ -295,7 +295,7 @@ def test_partition_logic(session):
     ]
 
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=IntegerType(),
         column="ID",
         lower_bound=5,
@@ -314,7 +314,7 @@ def test_partition_date_timestamp(session):
         "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
     ]
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=DateType(),
         column="DATE",
         lower_bound=str(datetime.date(2020, 6, 15)),
@@ -332,7 +332,7 @@ def test_partition_date_timestamp(session):
         "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
     ]
     queries = session.read._generate_partition(
-        table="fake_table",
+        select_query="SELECT * FROM fake_table",
         column_type=DateType(),
         column="DATE",
         lower_bound=str(datetime.datetime(2020, 6, 15, 12, 25, 30)),
@@ -347,7 +347,7 @@ def test_partition_date_timestamp(session):
 def test_partition_unsupported_type(session):
     with pytest.raises(TypeError, match="unsupported column type for partition:"):
         session.read._generate_partition(
-            table="fake_table",
+            select_query="SELECT * FROM fake_table",
             column_type=MapType(),
             column="DATE",
             lower_bound=0,
