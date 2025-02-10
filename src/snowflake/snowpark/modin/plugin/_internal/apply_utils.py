@@ -97,9 +97,22 @@ SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
     sp_func.floor,
     sp_func.trunc,
     sp_func.sqrt,
-    sp_func.snowflake_cortex_summarize,
-    sp_func.snowflake_cortex_sentiment,
 }
+
+try:
+    import snowflake.cortex
+
+    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = {
+        snowflake.cortex.Summarize,
+        snowflake.cortex.Sentiment,
+    }
+
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple(
+        i[1] for i in inspect.getmembers(snowflake.cortex)
+    )
+except ImportError:
+    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = set()
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple()
 
 
 class GroupbyApplySortMethod(Enum):
