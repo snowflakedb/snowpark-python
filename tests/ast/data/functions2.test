@@ -322,6 +322,28 @@ df314 = df.select(instr("A", "test_str"))
 
 df315 = df.select(nth_value("A", 2), nth_value("A", 2, True), nth_value(col("B"), 2, False))
 
+df316 = df.select(bitshiftright_unsigned("A", 2), bitshiftright_unsigned("A", col("B")))
+
+df317 = df.select(array_reverse("A"))
+
+df318 = df.select(divnull("A", "B"), divnull(3, 4.2), divnull(4.2, col("A")), divnull(col("B"), 3))
+
+df319 = df.select(map_cat("A", "B"), map_cat(col("A"), "B", col("C")))
+
+df320 = df.select(map_contains_key(col("V"), "M"), map_contains_key("k1", "M"))
+
+df321 = df.select(map_keys("M"), map_keys(col("A")))
+
+df322 = df.select(nullifzero(col("A")), nullifzero("B"))
+
+df323 = df.select(snowflake_cortex_summarize(col("A")), snowflake_cortex_summarize("Test string"))
+
+df324 = df.select(snowflake_cortex_sentiment(col("A")), snowflake_cortex_sentiment("Test string"))
+
+df325 = df.select(normal(1, 2, "A"))
+
+df326 = df.select(randn(1))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -643,6 +665,28 @@ df313 = df.select(log2("A"))
 df314 = df.select(instr("A", "test_str"))
 
 df315 = df.select(nth_value("A", 2, False), nth_value("A", 2, True), nth_value(col("B"), 2, False))
+
+df316 = df.select(bitshiftright_unsigned("A", 2), bitshiftright_unsigned("A", col("B")))
+
+df317 = df.select(array_reverse(col("A")))
+
+df318 = df.select(divnull("A", "B"), divnull(3, 4.2), divnull(4.2, col("A")), divnull(col("B"), 3))
+
+df319 = df.select(map_cat("A", "B"), map_cat(col("A"), "B", col("C")))
+
+df320 = df.select(map_contains_key(col("V"), col("M")), map_contains_key("k1", col("M")))
+
+df321 = df.select(map_keys(col("M")), map_keys(col("A")))
+
+df322 = df.select(nullifzero(col("A")), nullifzero(col("B")))
+
+df323 = df.select(snowflake_cortex_summarize(col("A")), snowflake_cortex_summarize("Test string"))
+
+df324 = df.select(snowflake_cortex_sentiment(col("A")), snowflake_cortex_sentiment("Test string"))
+
+df325 = df.select(normal(1, 2, "A"))
+
+df326 = df.select(randn(1))
 
 ## EXPECTED ENCODED AST
 
@@ -26271,6 +26315,1536 @@ body {
     }
   }
 }
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "bitshiftright_unsigned"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 56
+                  end_line: 347
+                  file: 2
+                  start_column: 26
+                  start_line: 347
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 56
+                  end_line: 347
+                  file: 2
+                  start_column: 26
+                  start_line: 347
+                }
+                v: 2
+              }
+            }
+            src {
+              end_column: 56
+              end_line: 347
+              file: 2
+              start_column: 26
+              start_line: 347
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "bitshiftright_unsigned"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 95
+                  end_line: 347
+                  file: 2
+                  start_column: 58
+                  start_line: 347
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 94
+                      end_line: 347
+                      file: 2
+                      start_column: 86
+                      start_line: 347
+                    }
+                    v: "B"
+                  }
+                }
+                src {
+                  end_column: 94
+                  end_line: 347
+                  file: 2
+                  start_column: 86
+                  start_line: 347
+                }
+              }
+            }
+            src {
+              end_column: 95
+              end_line: 347
+              file: 2
+              start_column: 58
+              start_line: 347
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 96
+          end_line: 347
+          file: 2
+          start_column: 16
+          start_line: 347
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df316"
+    }
+    uid: 161
+    var_id {
+      bitfield1: 161
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "array_reverse"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 44
+                      end_line: 349
+                      file: 2
+                      start_column: 26
+                      start_line: 349
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  end_column: 44
+                  end_line: 349
+                  file: 2
+                  start_column: 26
+                  start_line: 349
+                }
+              }
+            }
+            src {
+              end_column: 44
+              end_line: 349
+              file: 2
+              start_column: 26
+              start_line: 349
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 45
+          end_line: 349
+          file: 2
+          start_column: 16
+          start_line: 349
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df317"
+    }
+    uid: 162
+    var_id {
+      bitfield1: 162
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "divnull"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 43
+                  end_line: 351
+                  file: 2
+                  start_column: 26
+                  start_line: 351
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 43
+                  end_line: 351
+                  file: 2
+                  start_column: 26
+                  start_line: 351
+                }
+                v: "B"
+              }
+            }
+            src {
+              end_column: 43
+              end_line: 351
+              file: 2
+              start_column: 26
+              start_line: 351
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "divnull"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 60
+                  end_line: 351
+                  file: 2
+                  start_column: 45
+                  start_line: 351
+                }
+                v: 3
+              }
+            }
+            pos_args {
+              float64_val {
+                src {
+                  end_column: 60
+                  end_line: 351
+                  file: 2
+                  start_column: 45
+                  start_line: 351
+                }
+                v: 4.2
+              }
+            }
+            src {
+              end_column: 60
+              end_line: 351
+              file: 2
+              start_column: 45
+              start_line: 351
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "divnull"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              float64_val {
+                src {
+                  end_column: 84
+                  end_line: 351
+                  file: 2
+                  start_column: 62
+                  start_line: 351
+                }
+                v: 4.2
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 83
+                      end_line: 351
+                      file: 2
+                      start_column: 75
+                      start_line: 351
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  end_column: 83
+                  end_line: 351
+                  file: 2
+                  start_column: 75
+                  start_line: 351
+                }
+              }
+            }
+            src {
+              end_column: 84
+              end_line: 351
+              file: 2
+              start_column: 62
+              start_line: 351
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "divnull"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 102
+                      end_line: 351
+                      file: 2
+                      start_column: 94
+                      start_line: 351
+                    }
+                    v: "B"
+                  }
+                }
+                src {
+                  end_column: 102
+                  end_line: 351
+                  file: 2
+                  start_column: 94
+                  start_line: 351
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 106
+                  end_line: 351
+                  file: 2
+                  start_column: 86
+                  start_line: 351
+                }
+                v: 3
+              }
+            }
+            src {
+              end_column: 106
+              end_line: 351
+              file: 2
+              start_column: 86
+              start_line: 351
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 107
+          end_line: 351
+          file: 2
+          start_column: 16
+          start_line: 351
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df318"
+    }
+    uid: 163
+    var_id {
+      bitfield1: 163
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "map_cat"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 43
+                  end_line: 353
+                  file: 2
+                  start_column: 26
+                  start_line: 353
+                }
+                v: "A"
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 43
+                  end_line: 353
+                  file: 2
+                  start_column: 26
+                  start_line: 353
+                }
+                v: "B"
+              }
+            }
+            src {
+              end_column: 43
+              end_line: 353
+              file: 2
+              start_column: 26
+              start_line: 353
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "map_cat"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 61
+                      end_line: 353
+                      file: 2
+                      start_column: 53
+                      start_line: 353
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  end_column: 61
+                  end_line: 353
+                  file: 2
+                  start_column: 53
+                  start_line: 353
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 77
+                  end_line: 353
+                  file: 2
+                  start_column: 45
+                  start_line: 353
+                }
+                v: "B"
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 76
+                      end_line: 353
+                      file: 2
+                      start_column: 68
+                      start_line: 353
+                    }
+                    v: "C"
+                  }
+                }
+                src {
+                  end_column: 76
+                  end_line: 353
+                  file: 2
+                  start_column: 68
+                  start_line: 353
+                }
+              }
+            }
+            src {
+              end_column: 77
+              end_line: 353
+              file: 2
+              start_column: 45
+              start_line: 353
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 78
+          end_line: 353
+          file: 2
+          start_column: 16
+          start_line: 353
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df319"
+    }
+    uid: 164
+    var_id {
+      bitfield1: 164
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "map_contains_key"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 51
+                      end_line: 355
+                      file: 2
+                      start_column: 43
+                      start_line: 355
+                    }
+                    v: "V"
+                  }
+                }
+                src {
+                  end_column: 51
+                  end_line: 355
+                  file: 2
+                  start_column: 43
+                  start_line: 355
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 57
+                      end_line: 355
+                      file: 2
+                      start_column: 26
+                      start_line: 355
+                    }
+                    v: "M"
+                  }
+                }
+                src {
+                  end_column: 57
+                  end_line: 355
+                  file: 2
+                  start_column: 26
+                  start_line: 355
+                }
+              }
+            }
+            src {
+              end_column: 57
+              end_line: 355
+              file: 2
+              start_column: 26
+              start_line: 355
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "map_contains_key"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 86
+                  end_line: 355
+                  file: 2
+                  start_column: 59
+                  start_line: 355
+                }
+                v: "k1"
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 86
+                      end_line: 355
+                      file: 2
+                      start_column: 59
+                      start_line: 355
+                    }
+                    v: "M"
+                  }
+                }
+                src {
+                  end_column: 86
+                  end_line: 355
+                  file: 2
+                  start_column: 59
+                  start_line: 355
+                }
+              }
+            }
+            src {
+              end_column: 86
+              end_line: 355
+              file: 2
+              start_column: 59
+              start_line: 355
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 87
+          end_line: 355
+          file: 2
+          start_column: 16
+          start_line: 355
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df320"
+    }
+    uid: 165
+    var_id {
+      bitfield1: 165
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "map_keys"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 39
+                      end_line: 357
+                      file: 2
+                      start_column: 26
+                      start_line: 357
+                    }
+                    v: "M"
+                  }
+                }
+                src {
+                  end_column: 39
+                  end_line: 357
+                  file: 2
+                  start_column: 26
+                  start_line: 357
+                }
+              }
+            }
+            src {
+              end_column: 39
+              end_line: 357
+              file: 2
+              start_column: 26
+              start_line: 357
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "map_keys"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 58
+                      end_line: 357
+                      file: 2
+                      start_column: 50
+                      start_line: 357
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  end_column: 58
+                  end_line: 357
+                  file: 2
+                  start_column: 50
+                  start_line: 357
+                }
+              }
+            }
+            src {
+              end_column: 59
+              end_line: 357
+              file: 2
+              start_column: 41
+              start_line: 357
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 60
+          end_line: 357
+          file: 2
+          start_column: 16
+          start_line: 357
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df321"
+    }
+    uid: 166
+    var_id {
+      bitfield1: 166
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "nullifzero"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 45
+                      end_line: 359
+                      file: 2
+                      start_column: 37
+                      start_line: 359
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  end_column: 45
+                  end_line: 359
+                  file: 2
+                  start_column: 37
+                  start_line: 359
+                }
+              }
+            }
+            src {
+              end_column: 46
+              end_line: 359
+              file: 2
+              start_column: 26
+              start_line: 359
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "nullifzero"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 63
+                      end_line: 359
+                      file: 2
+                      start_column: 48
+                      start_line: 359
+                    }
+                    v: "B"
+                  }
+                }
+                src {
+                  end_column: 63
+                  end_line: 359
+                  file: 2
+                  start_column: 48
+                  start_line: 359
+                }
+              }
+            }
+            src {
+              end_column: 63
+              end_line: 359
+              file: 2
+              start_column: 48
+              start_line: 359
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 64
+          end_line: 359
+          file: 2
+          start_column: 16
+          start_line: 359
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df322"
+    }
+    uid: 167
+    var_id {
+      bitfield1: 167
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "snowflake_cortex_summarize"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 61
+                      end_line: 361
+                      file: 2
+                      start_column: 53
+                      start_line: 361
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  end_column: 61
+                  end_line: 361
+                  file: 2
+                  start_column: 53
+                  start_line: 361
+                }
+              }
+            }
+            src {
+              end_column: 62
+              end_line: 361
+              file: 2
+              start_column: 26
+              start_line: 361
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "snowflake_cortex_summarize"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 105
+                  end_line: 361
+                  file: 2
+                  start_column: 64
+                  start_line: 361
+                }
+                v: "Test string"
+              }
+            }
+            src {
+              end_column: 105
+              end_line: 361
+              file: 2
+              start_column: 64
+              start_line: 361
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 106
+          end_line: 361
+          file: 2
+          start_column: 16
+          start_line: 361
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df323"
+    }
+    uid: 168
+    var_id {
+      bitfield1: 168
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "snowflake_cortex_sentiment"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        sp_name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 61
+                      end_line: 363
+                      file: 2
+                      start_column: 53
+                      start_line: 363
+                    }
+                    v: "A"
+                  }
+                }
+                src {
+                  end_column: 61
+                  end_line: 363
+                  file: 2
+                  start_column: 53
+                  start_line: 363
+                }
+              }
+            }
+            src {
+              end_column: 62
+              end_line: 363
+              file: 2
+              start_column: 26
+              start_line: 363
+            }
+          }
+        }
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "snowflake_cortex_sentiment"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 105
+                  end_line: 363
+                  file: 2
+                  start_column: 64
+                  start_line: 363
+                }
+                v: "Test string"
+              }
+            }
+            src {
+              end_column: 105
+              end_line: 363
+              file: 2
+              start_column: 64
+              start_line: 363
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 106
+          end_line: 363
+          file: 2
+          start_column: 16
+          start_line: 363
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df324"
+    }
+    uid: 169
+    var_id {
+      bitfield1: 169
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "normal"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 43
+                  end_line: 365
+                  file: 2
+                  start_column: 26
+                  start_line: 365
+                }
+                v: 1
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 43
+                  end_line: 365
+                  file: 2
+                  start_column: 26
+                  start_line: 365
+                }
+                v: 2
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 43
+                  end_line: 365
+                  file: 2
+                  start_column: 26
+                  start_line: 365
+                }
+                v: "A"
+              }
+            }
+            src {
+              end_column: 43
+              end_line: 365
+              file: 2
+              start_column: 26
+              start_line: 365
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 44
+          end_line: 365
+          file: 2
+          start_column: 16
+          start_line: 365
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df325"
+    }
+    uid: 170
+    var_id {
+      bitfield1: 170
+    }
+  }
+}
+body {
+  assign {
+    expr {
+      sp_dataframe_select__columns {
+        cols {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    sp_name_flat {
+                      name: "randn"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 34
+                  end_line: 367
+                  file: 2
+                  start_column: 26
+                  start_line: 367
+                }
+                v: 1
+              }
+            }
+            src {
+              end_column: 34
+              end_line: 367
+              file: 2
+              start_column: 26
+              start_line: 367
+            }
+          }
+        }
+        df {
+          sp_dataframe_ref {
+            id {
+              bitfield1: 1
+            }
+          }
+        }
+        src {
+          end_column: 35
+          end_line: 367
+          file: 2
+          start_column: 16
+          start_line: 367
+        }
+        variadic: true
+      }
+    }
+    symbol {
+      value: "df326"
+    }
+    uid: 171
+    var_id {
+      bitfield1: 171
+    }
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -26284,5 +27858,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }
