@@ -15,6 +15,10 @@
   - `normal`
   - `randn`
 
+#### Experimental Features
+
+- Added support for writing pyarrow Tables to Snowflake tables.
+
 ### Snowpark pandas API Updates
 
 #### New Features
@@ -97,7 +101,6 @@
   - `snowflake.core` is a dependency required for this feature.
 - Allow user input schema when reading JSON file on stage.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
-- Added support for writing pyarrow Tables to Snowflake tables.
 
 #### Improvements
 
