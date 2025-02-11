@@ -1039,20 +1039,20 @@ body {
                           string_val {
                             src {
                               end_column: 36
-                              end_line: 38
+                              end_line: 37
                               file: 2
                               start_column: 28
-                              start_line: 38
+                              start_line: 37
                             }
                             v: "a"
                           }
                         }
                         src {
                           end_column: 36
-                          end_line: 38
+                          end_line: 37
                           file: 2
                           start_column: 28
-                          start_line: 38
+                          start_line: 37
                         }
                       }
                     }
@@ -1060,38 +1060,38 @@ body {
                       string_val {
                         src {
                           end_column: 52
-                          end_line: 38
+                          end_line: 37
                           file: 2
                           start_column: 28
-                          start_line: 38
+                          start_line: 37
                         }
                         v: "foo"
                       }
                     }
                     src {
                       end_column: 52
-                      end_line: 38
+                      end_line: 37
                       file: 2
                       start_column: 28
-                      start_line: 38
+                      start_line: 37
                     }
                   }
                 }
                 src {
                   end_column: 60
-                  end_line: 38
+                  end_line: 37
                   file: 2
                   start_column: 23
-                  start_line: 38
+                  start_line: 37
                 }
                 value {
                   string_val {
                     src {
                       end_column: 60
-                      end_line: 38
+                      end_line: 37
                       file: 2
                       start_column: 23
-                      start_line: 38
+                      start_line: 37
                     }
                     v: "foo"
                   }
@@ -1100,19 +1100,19 @@ body {
               cases {
                 src {
                   end_column: 78
-                  end_line: 38
+                  end_line: 37
                   file: 2
                   start_column: 23
-                  start_line: 38
+                  start_line: 37
                 }
                 value {
                   string_val {
                     src {
                       end_column: 78
-                      end_line: 38
+                      end_line: 37
                       file: 2
                       start_column: 23
-                      start_line: 38
+                      start_line: 37
                     }
                     v: "null"
                   }
@@ -1138,20 +1138,20 @@ body {
                           string_val {
                             src {
                               end_column: 92
-                              end_line: 38
+                              end_line: 37
                               file: 2
                               start_column: 84
-                              start_line: 38
+                              start_line: 37
                             }
                             v: "a"
                           }
                         }
                         src {
                           end_column: 92
-                          end_line: 38
+                          end_line: 37
                           file: 2
                           start_column: 84
-                          start_line: 38
+                          start_line: 37
                         }
                       }
                     }
@@ -1159,38 +1159,38 @@ body {
                       string_val {
                         src {
                           end_column: 108
-                          end_line: 38
+                          end_line: 37
                           file: 2
                           start_column: 84
-                          start_line: 38
+                          start_line: 37
                         }
                         v: "bar"
                       }
                     }
                     src {
                       end_column: 108
-                      end_line: 38
+                      end_line: 37
                       file: 2
                       start_column: 84
-                      start_line: 38
+                      start_line: 37
                     }
                   }
                 }
                 src {
                   end_column: 116
-                  end_line: 38
+                  end_line: 37
                   file: 2
                   start_column: 23
-                  start_line: 38
+                  start_line: 37
                 }
                 value {
                   string_val {
                     src {
                       end_column: 116
-                      end_line: 38
+                      end_line: 37
                       file: 2
                       start_column: 23
-                      start_line: 38
+                      start_line: 37
                     }
                     v: "bar"
                   }
@@ -1198,10 +1198,10 @@ body {
               }
               src {
                 end_column: 60
-                end_line: 38
+                end_line: 37
                 file: 2
                 start_column: 23
-                start_line: 38
+                start_line: 37
               }
             }
           }
@@ -1216,10 +1216,10 @@ body {
         }
         src {
           end_column: 117
-          end_line: 38
+          end_line: 37
           file: 2
           start_column: 13
-          start_line: 38
+          start_line: 37
         }
       }
     }
@@ -1259,20 +1259,20 @@ body {
                           string_val {
                             src {
                               end_column: 36
-                              end_line: 40
+                              end_line: 39
                               file: 2
                               start_column: 28
-                              start_line: 40
+                              start_line: 39
                             }
                             v: "a"
                           }
                         }
                         src {
                           end_column: 36
-                          end_line: 40
+                          end_line: 39
                           file: 2
                           start_column: 28
-                          start_line: 40
+                          start_line: 39
                         }
                       }
                     }
@@ -1293,47 +1293,47 @@ body {
                           string_val {
                             src {
                               end_column: 47
-                              end_line: 40
+                              end_line: 39
                               file: 2
                               start_column: 39
-                              start_line: 40
+                              start_line: 39
                             }
                             v: "b"
                           }
                         }
                         src {
                           end_column: 47
-                          end_line: 40
+                          end_line: 39
                           file: 2
                           start_column: 39
-                          start_line: 40
+                          start_line: 39
                         }
                       }
                     }
                     src {
                       end_column: 47
-                      end_line: 40
+                      end_line: 39
                       file: 2
                       start_column: 28
-                      start_line: 40
+                      start_line: 39
                     }
                   }
                 }
                 src {
                   end_column: 56
-                  end_line: 40
+                  end_line: 39
                   file: 2
                   start_column: 23
-                  start_line: 40
+                  start_line: 39
                 }
                 value {
                   string_val {
                     src {
                       end_column: 56
-                      end_line: 40
+                      end_line: 39
                       file: 2
                       start_column: 23
-                      start_line: 40
+                      start_line: 39
                     }
                     v: "both"
                   }
@@ -1342,19 +1342,19 @@ body {
               cases {
                 src {
                   end_column: 75
-                  end_line: 40
+                  end_line: 39
                   file: 2
                   start_column: 23
-                  start_line: 40
+                  start_line: 39
                 }
                 value {
                   string_val {
                     src {
                       end_column: 75
-                      end_line: 40
+                      end_line: 39
                       file: 2
                       start_column: 23
-                      start_line: 40
+                      start_line: 39
                     }
                     v: "other"
                   }
@@ -1362,10 +1362,10 @@ body {
               }
               src {
                 end_column: 56
-                end_line: 40
+                end_line: 39
                 file: 2
                 start_column: 23
-                start_line: 40
+                start_line: 39
               }
             }
           }
@@ -1380,10 +1380,10 @@ body {
         }
         src {
           end_column: 76
-          end_line: 40
+          end_line: 39
           file: 2
           start_column: 13
-          start_line: 40
+          start_line: 39
         }
       }
     }
@@ -1423,20 +1423,20 @@ body {
                           string_val {
                             src {
                               end_column: 25
-                              end_line: 43
+                              end_line: 42
                               file: 2
                               start_column: 17
-                              start_line: 43
+                              start_line: 42
                             }
                             v: "a"
                           }
                         }
                         src {
                           end_column: 25
-                          end_line: 43
+                          end_line: 42
                           file: 2
                           start_column: 17
-                          start_line: 43
+                          start_line: 42
                         }
                       }
                     }
@@ -1444,38 +1444,38 @@ body {
                       int64_val {
                         src {
                           end_column: 30
-                          end_line: 43
+                          end_line: 42
                           file: 2
                           start_column: 17
-                          start_line: 43
+                          start_line: 42
                         }
                         v: 1
                       }
                     }
                     src {
                       end_column: 30
-                      end_line: 43
+                      end_line: 42
                       file: 2
                       start_column: 17
-                      start_line: 43
+                      start_line: 42
                     }
                   }
                 }
                 src {
                   end_column: 38
-                  end_line: 43
+                  end_line: 42
                   file: 2
                   start_column: 12
-                  start_line: 43
+                  start_line: 42
                 }
                 value {
                   string_val {
                     src {
                       end_column: 38
-                      end_line: 43
+                      end_line: 42
                       file: 2
                       start_column: 12
-                      start_line: 43
+                      start_line: 42
                     }
                     v: "one"
                   }
@@ -1484,19 +1484,19 @@ body {
               cases {
                 src {
                   end_column: 35
-                  end_line: 44
+                  end_line: 43
                   file: 2
                   start_column: 13
-                  start_line: 44
+                  start_line: 43
                 }
                 value {
                   string_val {
                     src {
                       end_column: 35
-                      end_line: 44
+                      end_line: 43
                       file: 2
                       start_column: 13
-                      start_line: 44
+                      start_line: 43
                     }
                     v: "other_one"
                   }
@@ -1522,20 +1522,20 @@ body {
                           string_val {
                             src {
                               end_column: 26
-                              end_line: 45
+                              end_line: 44
                               file: 2
                               start_column: 18
-                              start_line: 45
+                              start_line: 44
                             }
                             v: "a"
                           }
                         }
                         src {
                           end_column: 26
-                          end_line: 45
+                          end_line: 44
                           file: 2
                           start_column: 18
-                          start_line: 45
+                          start_line: 44
                         }
                       }
                     }
@@ -1543,38 +1543,38 @@ body {
                       int64_val {
                         src {
                           end_column: 31
-                          end_line: 45
+                          end_line: 44
                           file: 2
                           start_column: 18
-                          start_line: 45
+                          start_line: 44
                         }
                         v: 2
                       }
                     }
                     src {
                       end_column: 31
-                      end_line: 45
+                      end_line: 44
                       file: 2
                       start_column: 18
-                      start_line: 45
+                      start_line: 44
                     }
                   }
                 }
                 src {
                   end_column: 39
-                  end_line: 45
+                  end_line: 44
                   file: 2
                   start_column: 13
-                  start_line: 45
+                  start_line: 44
                 }
                 value {
                   string_val {
                     src {
                       end_column: 39
-                      end_line: 45
+                      end_line: 44
                       file: 2
                       start_column: 13
-                      start_line: 45
+                      start_line: 44
                     }
                     v: "two"
                   }
@@ -1583,19 +1583,19 @@ body {
               cases {
                 src {
                   end_column: 35
-                  end_line: 46
+                  end_line: 45
                   file: 2
                   start_column: 13
-                  start_line: 46
+                  start_line: 45
                 }
                 value {
                   string_val {
                     src {
                       end_column: 35
-                      end_line: 46
+                      end_line: 45
                       file: 2
                       start_column: 13
-                      start_line: 46
+                      start_line: 45
                     }
                     v: "other_two"
                   }
@@ -1621,20 +1621,20 @@ body {
                           string_val {
                             src {
                               end_column: 26
-                              end_line: 47
+                              end_line: 46
                               file: 2
                               start_column: 18
-                              start_line: 47
+                              start_line: 46
                             }
                             v: "a"
                           }
                         }
                         src {
                           end_column: 26
-                          end_line: 47
+                          end_line: 46
                           file: 2
                           start_column: 18
-                          start_line: 47
+                          start_line: 46
                         }
                       }
                     }
@@ -1642,38 +1642,38 @@ body {
                       int64_val {
                         src {
                           end_column: 31
-                          end_line: 47
+                          end_line: 46
                           file: 2
                           start_column: 18
-                          start_line: 47
+                          start_line: 46
                         }
                         v: 3
                       }
                     }
                     src {
                       end_column: 31
-                      end_line: 47
+                      end_line: 46
                       file: 2
                       start_column: 18
-                      start_line: 47
+                      start_line: 46
                     }
                   }
                 }
                 src {
                   end_column: 41
-                  end_line: 47
+                  end_line: 46
                   file: 2
                   start_column: 13
-                  start_line: 47
+                  start_line: 46
                 }
                 value {
                   string_val {
                     src {
                       end_column: 41
-                      end_line: 47
+                      end_line: 46
                       file: 2
                       start_column: 13
-                      start_line: 47
+                      start_line: 46
                     }
                     v: "three"
                   }
@@ -1682,19 +1682,19 @@ body {
               cases {
                 src {
                   end_column: 37
-                  end_line: 48
+                  end_line: 47
                   file: 2
                   start_column: 13
-                  start_line: 48
+                  start_line: 47
                 }
                 value {
                   string_val {
                     src {
                       end_column: 37
-                      end_line: 48
+                      end_line: 47
                       file: 2
                       start_column: 13
-                      start_line: 48
+                      start_line: 47
                     }
                     v: "other_three"
                   }
@@ -1720,20 +1720,20 @@ body {
                           string_val {
                             src {
                               end_column: 26
-                              end_line: 49
+                              end_line: 48
                               file: 2
                               start_column: 18
-                              start_line: 49
+                              start_line: 48
                             }
                             v: "a"
                           }
                         }
                         src {
                           end_column: 26
-                          end_line: 49
+                          end_line: 48
                           file: 2
                           start_column: 18
-                          start_line: 49
+                          start_line: 48
                         }
                       }
                     }
@@ -1741,38 +1741,38 @@ body {
                       int64_val {
                         src {
                           end_column: 31
-                          end_line: 49
+                          end_line: 48
                           file: 2
                           start_column: 18
-                          start_line: 49
+                          start_line: 48
                         }
                         v: 4
                       }
                     }
                     src {
                       end_column: 31
-                      end_line: 49
+                      end_line: 48
                       file: 2
                       start_column: 18
-                      start_line: 49
+                      start_line: 48
                     }
                   }
                 }
                 src {
                   end_column: 40
-                  end_line: 49
+                  end_line: 48
                   file: 2
                   start_column: 13
-                  start_line: 49
+                  start_line: 48
                 }
                 value {
                   string_val {
                     src {
                       end_column: 40
-                      end_line: 49
+                      end_line: 48
                       file: 2
                       start_column: 13
-                      start_line: 49
+                      start_line: 48
                     }
                     v: "four"
                   }
@@ -1781,19 +1781,19 @@ body {
               cases {
                 src {
                   end_column: 36
-                  end_line: 50
+                  end_line: 49
                   file: 2
                   start_column: 13
-                  start_line: 50
+                  start_line: 49
                 }
                 value {
                   string_val {
                     src {
                       end_column: 36
-                      end_line: 50
+                      end_line: 49
                       file: 2
                       start_column: 13
-                      start_line: 50
+                      start_line: 49
                     }
                     v: "other_four"
                   }
@@ -1819,20 +1819,20 @@ body {
                           string_val {
                             src {
                               end_column: 26
-                              end_line: 51
+                              end_line: 50
                               file: 2
                               start_column: 18
-                              start_line: 51
+                              start_line: 50
                             }
                             v: "a"
                           }
                         }
                         src {
                           end_column: 26
-                          end_line: 51
+                          end_line: 50
                           file: 2
                           start_column: 18
-                          start_line: 51
+                          start_line: 50
                         }
                       }
                     }
@@ -1840,38 +1840,38 @@ body {
                       int64_val {
                         src {
                           end_column: 31
-                          end_line: 51
+                          end_line: 50
                           file: 2
                           start_column: 18
-                          start_line: 51
+                          start_line: 50
                         }
                         v: 5
                       }
                     }
                     src {
                       end_column: 31
-                      end_line: 51
+                      end_line: 50
                       file: 2
                       start_column: 18
-                      start_line: 51
+                      start_line: 50
                     }
                   }
                 }
                 src {
                   end_column: 40
-                  end_line: 51
+                  end_line: 50
                   file: 2
                   start_column: 13
-                  start_line: 51
+                  start_line: 50
                 }
                 value {
                   string_val {
                     src {
                       end_column: 40
-                      end_line: 51
+                      end_line: 50
                       file: 2
                       start_column: 13
-                      start_line: 51
+                      start_line: 50
                     }
                     v: "five"
                   }
@@ -1880,19 +1880,19 @@ body {
               cases {
                 src {
                   end_column: 36
-                  end_line: 52
+                  end_line: 51
                   file: 2
                   start_column: 13
-                  start_line: 52
+                  start_line: 51
                 }
                 value {
                   string_val {
                     src {
                       end_column: 36
-                      end_line: 52
+                      end_line: 51
                       file: 2
                       start_column: 13
-                      start_line: 52
+                      start_line: 51
                     }
                     v: "other_five"
                   }
@@ -1900,10 +1900,10 @@ body {
               }
               src {
                 end_column: 38
-                end_line: 43
+                end_line: 42
                 file: 2
                 start_column: 12
-                start_line: 43
+                start_line: 42
               }
             }
           }
@@ -1918,10 +1918,10 @@ body {
         }
         src {
           end_column: 9
-          end_line: 53
+          end_line: 52
           file: 2
           start_column: 13
-          start_line: 42
+          start_line: 41
         }
       }
     }
