@@ -159,7 +159,7 @@ def test_dbapi_retry(session):
         result = _task_fetch_from_data_source_with_retry(
             create_connection=sql_server_create_connection,
             query="SELECT * FROM test_table",
-            schema=(("col1", int, 0, 0, False),),
+            schema=StructType([StructField("col1", IntegerType(), False)]),
             i=0,
             tmp_dir="/tmp",
         )

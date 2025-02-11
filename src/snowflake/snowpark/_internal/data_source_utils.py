@@ -5,7 +5,7 @@
 import datetime
 import logging
 from enum import Enum
-from typing import List, Any, Tuple, Protocol, Union
+from typing import List, Any, Tuple, Protocol
 from snowflake.connector.options import pandas as pd
 from dateutil import parser
 
@@ -109,6 +109,7 @@ DATA_SOURCE_SQL_COMMENT = (
 class DBMS_TYPE(Enum):
     SQL_SERVER_DB = "SQL_SERVER_DB"
     ORACLE_DB = "ORACLE_DB"
+    SQLITE_DB = "SQLITE3_DB"
 
 
 def detect_dbms(dbapi2_conn):
@@ -122,6 +123,7 @@ def detect_dbms(dbapi2_conn):
         "pyodbc": detect_dbms_pyodbc,
         "cx_oracle": lambda conn: DBMS_TYPE.ORACLE_DB,
         "oracledb": lambda conn: DBMS_TYPE.ORACLE_DB,
+        "sqlite3": lambda conn: DBMS_TYPE.SQLITE_DB,
     }
 
     if python_driver_name in dbms_mapping:
@@ -213,7 +215,7 @@ def oracledb_to_snowpark_type(schema: List[tuple]) -> StructType:
         snow_type = ORACLEDB_TYPE_TO_SNOW_TYPE.get(processed_column_name, None)
         if snow_type is None:
             # TODO: SNOW-1912068 support types that we don't have now
-            raise NotImplementedError(f"sql server type not supported: {column[1]}")
+            raise NotImplementedError(f"oracledb type not supported: {column[1]}")
         if "withtimezone" in remove_space_column_name:
             data_type = snow_type(TimestampTimeZone.TZ)
         elif "withlocaltimezone" in remove_space_column_name:
@@ -234,12 +236,11 @@ def oracledb_to_snowpark_type(schema: List[tuple]) -> StructType:
     return StructType(fields)
 
 
-def infer_data_source_schema(
-    conn: Connection, table: str
-) -> Tuple[StructType, List[Tuple[str, Any, int, int, Union[str, bool]]]]:
+def infer_data_source_schema(conn: Connection, table: str) -> StructType:
     try:
+        current_db = detect_dbms(conn)
         cursor = conn.cursor()
-        if detect_dbms(conn) == DBMS_TYPE.SQL_SERVER_DB:
+        if current_db == DBMS_TYPE.SQL_SERVER_DB:
             query = f"""
                     SELECT COLUMN_NAME, DATA_TYPE, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
                     FROM INFORMATION_SCHEMA.COLUMNS
@@ -247,8 +248,8 @@ def infer_data_source_schema(
                     """
             cursor.execute(query)
             raw_schema = cursor.fetchall()
-            return sql_server_to_snowpark_type(raw_schema), raw_schema
-        elif detect_dbms(conn) == DBMS_TYPE.ORACLE_DB:
+            return sql_server_to_snowpark_type(raw_schema)
+        elif current_db == DBMS_TYPE.ORACLE_DB:
             query = f"""
                     SELECT COLUMN_NAME, DATA_TYPE, DATA_PRECISION, DATA_SCALE, NULLABLE
                     FROM USER_TAB_COLUMNS
@@ -256,10 +257,10 @@ def infer_data_source_schema(
                     """
             cursor.execute(query)
             raw_schema = cursor.fetchall()
-            return oracledb_to_snowpark_type(raw_schema), raw_schema
+            return oracledb_to_snowpark_type(raw_schema)
         else:
             raise NotImplementedError(
-                f"currently supported drivers are pyodbc and oracledb, got: {detect_dbms(conn)}"
+                f"currently supported drivers are pyodbc and oracledb, got: {current_db}"
             )
     except Exception as exc:
         raise SnowparkDataframeReaderException(
@@ -268,9 +269,9 @@ def infer_data_source_schema(
 
 
 def data_source_data_to_pandas_df(
-    data: List[Any], schema: Tuple[Any], conn: Connection
+    data: List[Any], schema: StructType, conn: Connection
 ) -> pd.DataFrame:
-    columns = [col[0] for col in schema]
+    columns = [col.name for col in schema.fields]
     df = pd.DataFrame.from_records(data, columns=columns)
 
     # convert timestamp and date to string to work around SNOW-1911989
@@ -281,32 +282,36 @@ def data_source_data_to_pandas_df(
     )
     # convert binary type to object type to work around SNOW-1912094
     df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
-    if detect_dbms(conn) == DBMS_TYPE.SQL_SERVER_DB:
+    current_db = detect_dbms(conn)
+    if current_db == DBMS_TYPE.SQL_SERVER_DB or current_db == DBMS_TYPE.SQLITE_DB:
         return df
-    elif detect_dbms(conn) == DBMS_TYPE.ORACLE_DB:
-        clob_data = []
+    elif current_db == DBMS_TYPE.ORACLE_DB:
+        from oracledb import LOB
+
         tz_data = []
-        for col in schema:
-            if col[1].lower() in ["clob", "nclob"]:
-                clob_data.append(col[0])
-            if "time zone" in col[1].lower():
-                tz_data.append(col[0])
-        for column in clob_data:
-            df[column] = df[column].apply(lambda x: x.read())
+        for col in schema.fields:
+            if isinstance(col.datatype, TimestampType) and col.datatype.tz in [
+                TimestampTimeZone.TZ,
+                TimestampTimeZone.LTZ,
+            ]:
+                tz_data.append(col.name)
+        # apply read to LOB object, we currently have FakeOracleLOB because CLOB and BLOB is represented by an
+        # oracledb object and we cannot add it as our dependency in test, so we fake it in this way
+        # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
+        df = df.map(lambda x: x.read() if isinstance(x, (LOB, FakeOracleLOB)) else x)
         for column in tz_data:
             df[column] = df[column].apply(lambda x: parser.parse(x))
 
     else:
         raise NotImplementedError(
-            f"currently supported drivers are pyodbc and oracledb, got: {detect_dbms(conn)}"
+            f"currently supported drivers are pyodbc and oracledb, got: {current_db}"
         )
     return df
 
 
-def generate_select_query(table: str, schema: StructType, connection_type: str) -> str:
-    if "pyodbc" == connection_type.lower():
-        return f"select * from {table}"
-    elif "oracledb" == connection_type.lower():
+def generate_select_query(table: str, schema: StructType, conn: Connection) -> str:
+    current_db = detect_dbms(conn)
+    if current_db == DBMS_TYPE.ORACLE_DB:
         cols = []
         for field in schema.fields:
             if (
@@ -326,7 +331,17 @@ def generate_select_query(table: str, schema: StructType, connection_type: str) 
             else:
                 cols.append(field.name)
         return f"""select {" , ".join(cols)} from {table}"""
+    elif current_db == DBMS_TYPE.SQL_SERVER_DB or current_db == DBMS_TYPE.SQLITE_DB:
+        return f"select * from {table}"
     else:
         raise NotImplementedError(
-            f"currently supported drivers are pyodbc and oracledb, got: {connection_type}"
+            f"currently supported drivers are pyodbc and oracledb, got: {current_db}"
         )
+
+
+class FakeOracleLOB:
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    def read(self):
+        return self.value
