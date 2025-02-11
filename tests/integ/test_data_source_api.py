@@ -1,7 +1,9 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import functools
+import os
+import tempfile
 import time
 import datetime
 from unittest import mock
@@ -17,18 +19,35 @@ from snowflake.snowpark.dataframe_reader import (
     _task_fetch_from_data_source_with_retry,
     MAX_RETRY_TIME,
 )
+from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
+    StructType,
+    StructField,
     IntegerType,
     DateType,
     MapType,
+    FloatType,
+    StringType,
+    BinaryType,
+    NullType,
+    TimestampType,
+    TimeType,
+    ShortType,
+    LongType,
+    DoubleType,
+    DecimalType,
+    ArrayType,
+    VariantType,
 )
 from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_all_type_data,
     sql_server_all_type_small_data,
     sql_server_create_connection,
     sql_server_create_connection_small_data,
+    sqlite3_db,
+    create_connection_to_sqlite3_db,
 )
-from tests.utils import Utils
+from tests.utils import Utils, IS_WINDOWS
 
 pytestmark = pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
@@ -348,3 +367,55 @@ def test_telemetry_tracking(caplog, session):
             single=True,
         )
         assert called == 2
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared accorss processes on windows",
+)
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
+        StructType(
+            [
+                StructField("id", IntegerType()),
+                StructField("int_col", IntegerType()),
+                StructField("real_col", FloatType()),
+                StructField("text_col", StringType()),
+                StructField("blob_col", BinaryType()),
+                StructField("null_col", NullType()),
+                StructField("ts_col", TimestampType()),
+                StructField("date_col", DateType()),
+                StructField("time_col", TimeType()),
+                StructField("short_col", ShortType()),
+                StructField("long_col", LongType()),
+                StructField("double_col", DoubleType()),
+                StructField("decimal_col", DecimalType()),
+                StructField("map_col", MapType()),
+                StructField("array_col", ArrayType()),
+                StructField("var_col", VariantType()),
+            ]
+        ),
+    ],
+)
+def test_custom_schema(session, custom_schema):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
+
+        df = session.read.dbapi(
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            table_name,
+            custom_schema=custom_schema,
+        )
+        assert df.columns == [col.upper() for col in columns]
+        assert df.collect() == assert_data
+
+        with pytest.raises(
+            SnowparkDataframeReaderException, match="Unable to infer schema"
+        ):
+            session.read.dbapi(
+                functools.partial(create_connection_to_sqlite3_db, dbpath),
+                table_name,
+            )
