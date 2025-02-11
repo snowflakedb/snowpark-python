@@ -246,6 +246,9 @@ class Attribute(Expression, NamedExpression):
     def __str__(self):
         return self.name
 
+    def __repr__(self):
+        return f"Attribute({self.name}, {self.datatype}, {self.nullable})"
+
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return {self.name}
 

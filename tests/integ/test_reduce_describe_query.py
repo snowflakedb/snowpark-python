@@ -406,3 +406,37 @@ def test_reduce_describe_query_enabled_on_session(db_parameters):
         }
         with Session.builder.configs(parameters).create() as new_session2:
             assert new_session2.reduce_describe_query_enabled is not default_value
+
+
+def test_update_schema_query_when_attributes_available(session):
+    df = session.create_dataframe(data=[(1, 2), (3, 4)], schema=["a", "b"])
+    df = df.withColumn("c", df.a + df.b)
+    df = df.withColumn("d", df.a + df.b + df.c)
+
+    original_schema_query = df._plan.schema_query
+    simplified_schema_query1 = ' SELECT 0 :: BIGINT AS "A", 0 :: BIGINT AS "B", 0 :: BIGINT AS "C", 0 :: BIGINT AS "D"'
+    simplified_schema_query2 = ' SELECT 0 :: BIGINT AS "A", 0 :: BIGINT AS "B", 0 :: BIGINT AS "C", 0 :: BIGINT AS "D", 0 :: BIGINT AS "E"'
+
+    assert df._plan._metadata.attributes is None
+    df.columns  # trigger describe query
+
+    assert df._plan._metadata.attributes is not None
+    if session.reduce_describe_query_enabled:
+        assert df._plan.schema_query == simplified_schema_query1
+    else:
+        assert df._plan.schema_query == original_schema_query
+
+    # Check that dataframe built on top of the previous one with
+    # attributes updated will build a simplified schema query
+    df = df.withColumn("e", df.a + df.b + df.c + df.d)
+
+    assert df._plan._metadata.attributes is None
+    if session.reduce_describe_query_enabled:
+        assert simplified_schema_query1 in df._plan.schema_query
+    else:
+        assert original_schema_query in df._plan.schema_query
+
+    df.columns  # trigger describe query
+    assert df._plan._metadata.attributes is not None
+    if session.reduce_describe_query_enabled:
+        assert df._plan.schema_query == simplified_schema_query2
