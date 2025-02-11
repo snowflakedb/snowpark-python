@@ -55,7 +55,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     detect_dbms,
     DBMS_TYPE,
     STATEMENT_PARAMS_DATA_SOURCE,
-    DATA_SOURCE_SQL_COMMENT
+    DATA_SOURCE_SQL_COMMENT,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -1088,7 +1088,7 @@ class DataFrameReader:
         start_time = time.perf_counter()
         conn = create_connection()
         if custom_schema is None:
-            struct_schema, raw_schema = infer_data_source_schema(conn, table)
+            struct_schema = infer_data_source_schema(conn, table)
         else:
             if isinstance(custom_schema, str):
                 struct_schema = type_string_to_type_object(custom_schema)
@@ -1102,9 +1102,7 @@ class DataFrameReader:
             else:
                 raise TypeError(f"Invalid schema type: {type(custom_schema)}. ")
 
-        select_query = generate_select_query(
-            table, struct_schema, type(conn).__module__
-        )
+        select_query = generate_select_query(table, struct_schema, conn)
         if column is None:
             if (
                 lower_bound is not None
@@ -1177,7 +1175,7 @@ class DataFrameReader:
                         _task_fetch_from_data_source_with_retry,
                         create_connection,
                         query,
-                        raw_schema,
+                        struct_schema,
                         i,
                         tmp_dir,
                         query_timeout,
@@ -1379,7 +1377,7 @@ class DataFrameReader:
 def _task_fetch_from_data_source(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Any],
+    schema: StructType,
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,
@@ -1413,7 +1411,7 @@ def _task_fetch_from_data_source(
 def _task_fetch_from_data_source_with_retry(
     create_connection: Callable[[], "Connection"],
     query: str,
-    schema: Tuple[Any],
+    schema: StructType,
     i: int,
     tmp_dir: str,
     query_timeout: int = 0,

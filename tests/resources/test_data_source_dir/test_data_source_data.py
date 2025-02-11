@@ -3,16 +3,10 @@ import sqlite3
 from _decimal import Decimal
 from dateutil import parser
 
+from snowflake.snowpark._internal.data_source_utils import FakeOracleLOB
+
 
 # we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
-class FakeOracleLOB:
-    def __init__(self, value: str) -> None:
-        self.value = value
-
-    def read(self):
-        return self.value
-
-
 class FakeConnection:
     def __init__(self, data, schema, connection_type) -> None:
         self.__class__.__module__ = connection_type
@@ -43,6 +37,9 @@ class FakeConnection:
         )
         self.start_index = end_index
         return res
+
+    def getinfo(self, sql_dbms_name):
+        return "sqlserver"
 
 
 sql_server_all_type_schema = (
