@@ -1,10 +1,25 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import datetime
+import decimal
+import os
+import tempfile
+import time
+from _decimal import ROUND_HALF_EVEN, ROUND_HALF_UP
+from concurrent.futures import (
+    ProcessPoolExecutor,
+    wait,
+    ALL_COMPLETED,
+    ThreadPoolExecutor,
+    as_completed,
+)
 
+import pytz
+from dateutil import parser
 import sys
 from logging import getLogger
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -13,6 +28,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_file_format_if_exists_statement,
     infer_schema_statement,
     quote_name_without_upper_casing,
+    TEMPORARY_STRING_SET,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
@@ -28,6 +44,9 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
+    Connection,
+    sql_server_type_to_snow_type,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
@@ -37,15 +56,37 @@ from snowflake.snowpark._internal.utils import (
     get_copy_into_table_options,
     parse_positional_args_to_list_variadic,
     publicapi,
-    random_name_for_temp_object,
+    get_temp_type_for_object,
+    normalize_local_file,
+    DATA_SOURCE_DBAPI_SIGNATURE,
+    detect_dbms,
+    DBMS_TYPE,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
-from snowflake.snowpark.exceptions import SnowparkSessionException
+from snowflake.snowpark.exceptions import (
+    SnowparkSessionException,
+    SnowparkClientException,
+    SnowparkDataframeReaderException,
+)
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
-from snowflake.snowpark.types import StructType, VariantType
+from snowflake.snowpark.types import (
+    StructType,
+    VariantType,
+    StructField,
+    DateType,
+    DataType,
+    _NumericType,
+    TimestampType,
+)
+from snowflake.connector.options import pandas as pd
+from snowflake.snowpark._internal.utils import (
+    random_name_for_temp_object,
+    STATEMENT_PARAMS_DATA_SOURCE,
+    DATA_SOURCE_SQL_COMMENT,
+)
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -71,6 +112,8 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
 }
+
+MAX_RETRY_TIME = 3
 
 
 def _validate_stage_path(path: str) -> str:
@@ -1023,3 +1066,408 @@ class DataFrameReader:
         df._reader = self
         set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
+
+    @publicapi
+    def dbapi(
+        self,
+        create_connection: Callable[[], "Connection"],
+        table: str,
+        *,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        max_workers: Optional[int] = None,
+        query_timeout: Optional[int] = 0,
+        fetch_size: Optional[int] = 0,
+        custom_schema: Optional[Union[str, StructType]] = None,
+    ) -> DataFrame:
+        """Reads data from a database table using a DBAPI connection."""
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
+        start_time = time.perf_counter()
+        conn = create_connection()
+        if custom_schema is None:
+            struct_schema = self._infer_data_source_schema(conn, table)
+        else:
+            if isinstance(custom_schema, str):
+                struct_schema = type_string_to_type_object(custom_schema)
+                if not isinstance(struct_schema, StructType):
+                    raise ValueError(
+                        f"Invalid schema string: {custom_schema}. "
+                        f"You should provide a valid schema string representing a struct type."
+                    )
+            elif isinstance(custom_schema, StructType):
+                struct_schema = custom_schema
+            else:
+                raise TypeError(f"Invalid schema type: {type(custom_schema)}. ")
+        if column is None:
+            if (
+                lower_bound is not None
+                or upper_bound is not None
+                or num_partitions is not None
+            ):
+                raise ValueError(
+                    "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
+                )
+            partitioned_queries = [f"SELECT * FROM {table}"]
+        else:
+            if lower_bound is None or upper_bound is None or num_partitions is None:
+                raise ValueError(
+                    "when column is specified, lower_bound, upper_bound, num_partitions must be specified"
+                )
+
+            column_type = None
+            for field in struct_schema.fields:
+                if field.name.lower() == column.lower():
+                    column_type = field.datatype
+            if column_type is None:
+                raise ValueError("Column does not exist")
+
+            if not isinstance(column_type, _NumericType) and not isinstance(
+                column_type, DateType
+            ):
+                raise ValueError(f"unsupported type {column_type}")
+            partitioned_queries = self._generate_partition(
+                table,
+                column_type,
+                column,
+                lower_bound,
+                upper_bound,
+                num_partitions,
+            )
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # create temp table
+            snowflake_table_type = "temporary"
+            snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+            create_table_sql = (
+                "CREATE "
+                f"{get_temp_type_for_object(self._session._use_scoped_temp_objects, True) if snowflake_table_type.lower() in TEMPORARY_STRING_SET else snowflake_table_type} "
+                "TABLE "
+                f"{snowflake_table_name} "
+                f"""({" , ".join([f'"{field.name}" {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
+                f"""{DATA_SOURCE_SQL_COMMENT}"""
+            )
+            self._session.sql(create_table_sql).collect(
+                statement_params=statements_params_for_telemetry
+            )
+            res_df = self.table(snowflake_table_name)
+
+            # create temp stage
+            snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+            sql_create_temp_stage = (
+                f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
+                f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+            )
+            self._session.sql(sql_create_temp_stage).collect(
+                statement_params=statements_params_for_telemetry
+            )
+            with ProcessPoolExecutor(
+                max_workers=max_workers
+            ) as process_executor, ThreadPoolExecutor(
+                max_workers=max_workers
+            ) as thread_executor:
+                thread_pool_futures = []
+                process_pool_futures = [
+                    process_executor.submit(
+                        _task_fetch_from_data_source_with_retry,
+                        create_connection,
+                        query,
+                        struct_schema,
+                        i,
+                        tmp_dir,
+                        query_timeout,
+                        fetch_size,
+                    )
+                    for i, query in enumerate(partitioned_queries)
+                ]
+                for future in as_completed(process_pool_futures):
+                    if isinstance(future.result(), Exception):
+                        logger.error(
+                            "fetch from data source failed, canceling all running tasks"
+                        )
+                        process_executor.shutdown(wait=False)
+                        thread_executor.shutdown(wait=False)
+                        raise future.result()
+                    else:
+                        thread_pool_futures.append(
+                            thread_executor.submit(
+                                self._upload_and_copy_into_table_with_retry,
+                                future.result(),
+                                snowflake_stage_name,
+                                snowflake_table_name,
+                                "abort_statement",
+                                statements_params_for_telemetry,
+                            )
+                        )
+                completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
+                for f in completed_futures.done:
+                    if f.result() is not None and isinstance(f.result(), Exception):
+                        logger.error(
+                            "upload and copy into table failed, canceling all running tasks"
+                        )
+                        process_executor.shutdown(wait=False)
+                        thread_executor.shutdown(wait=False)
+                        raise f.result()
+            self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+                DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
+            )
+            set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
+            return res_df
+
+    def _infer_data_source_schema(self, conn: Connection, table: str) -> StructType:
+        # TODO: SNOW-1893781 change implementation if oracle has different way of infer schema
+        try:
+            query = f"""
+                SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, IS_NULLABLE
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = '{table}'
+                """
+            raw_schema = conn.cursor().execute(query).fetchall()
+            return self._to_snowpark_type(raw_schema)
+        except Exception as exc:
+            raise SnowparkDataframeReaderException(
+                f"Unable to infer schema from table {table}"
+            ) from exc
+
+    def _generate_partition(
+        self,
+        table: str,
+        column_type: DataType,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+    ) -> List[str]:
+        select_query = f"SELECT * FROM {table}"
+
+        processed_lower_bound = self._to_internal_value(lower_bound, column_type)
+        processed_upper_bound = self._to_internal_value(upper_bound, column_type)
+        if processed_lower_bound > processed_upper_bound:
+            raise ValueError("lower_bound cannot be greater than upper_bound")
+
+        if processed_lower_bound == processed_upper_bound or num_partitions <= 1:
+            return [select_query]
+
+        if (processed_upper_bound - processed_lower_bound) >= num_partitions or (
+            processed_upper_bound - processed_lower_bound
+        ) < 0:
+            actual_num_partitions = num_partitions
+        else:
+            actual_num_partitions = processed_upper_bound - processed_lower_bound
+            logger.warning(
+                "The number of partitions is reduced because the specified number of partitions is less than the difference between upper bound and lower bound."
+            )
+
+        # decide stride length
+        upper_stride = (
+            processed_upper_bound / decimal.Decimal(actual_num_partitions)
+        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        lower_stride = (
+            processed_lower_bound / decimal.Decimal(actual_num_partitions)
+        ).quantize(decimal.Decimal("1e-18"), rounding=ROUND_HALF_EVEN)
+        preciseStride = upper_stride - lower_stride
+        stride = int(preciseStride)
+
+        lost_num_of_strides = (
+            (preciseStride - decimal.Decimal(stride))
+            * decimal.Decimal(actual_num_partitions)
+            / decimal.Decimal(stride)
+        )
+        lower_bound_with_stride_alignment = processed_lower_bound + int(
+            (lost_num_of_strides / 2 * decimal.Decimal(stride)).quantize(
+                decimal.Decimal("1"), rounding=ROUND_HALF_UP
+            )
+        )
+
+        current_value = lower_bound_with_stride_alignment
+
+        partition_queries = []
+        for i in range(actual_num_partitions):
+            l_bound = (
+                f"{column} >= '{self._to_external_value(current_value, column_type)}'"
+                if i != 0
+                else ""
+            )
+            current_value += stride
+            u_bound = (
+                f"{column} < '{self._to_external_value(current_value, column_type)}'"
+                if i != actual_num_partitions - 1
+                else ""
+            )
+
+            if u_bound == "":
+                where_clause = l_bound
+            elif l_bound == "":
+                where_clause = f"{u_bound} OR {column} is null"
+            else:
+                where_clause = f"{l_bound} AND {u_bound}"
+
+            partition_queries.append(select_query + f" WHERE {where_clause}")
+
+        return partition_queries
+
+    # this function is only used in data source API for SQL server
+    def _to_internal_value(self, value: Union[int, str, float], column_type: DataType):
+        if isinstance(column_type, _NumericType):
+            return int(value)
+        elif isinstance(column_type, (TimestampType, DateType)):
+            # TODO: SNOW-1909315: support timezone
+            dt = parser.parse(value)
+            return int(dt.replace(tzinfo=pytz.UTC).timestamp())
+        else:
+            raise TypeError(f"unsupported column type for partition: {column_type}")
+
+    # this function is only used in data source API for SQL server
+    def _to_external_value(self, value: Union[int, str, float], column_type: DataType):
+        if isinstance(column_type, _NumericType):
+            return value
+        elif isinstance(column_type, (TimestampType, DateType)):
+            # TODO: SNOW-1909315: support timezone
+            return datetime.datetime.fromtimestamp(value, tz=pytz.UTC)
+        else:
+            raise TypeError(f"unsupported column type for partition: {column_type}")
+
+    def _to_snowpark_type(self, schema: Tuple[tuple]) -> StructType:
+        fields = []
+        for column in schema:
+            datatype = sql_server_type_to_snow_type(column)
+            field = StructField(
+                column[0], datatype, True if column[5].lower() == "yes" else False
+            )
+            fields.append(field)
+        return StructType(fields)
+
+    def _upload_and_copy_into_table(
+        self,
+        local_file: str,
+        snowflake_stage_name: str,
+        snowflake_table_name: Optional[str] = None,
+        on_error: Optional[str] = "abort_statement",
+        statements_params: Optional[Dict[str, str]] = None,
+    ):
+        file_name = os.path.basename(local_file)
+        put_query = (
+            f"PUT {normalize_local_file(local_file)} "
+            f"@{snowflake_stage_name} OVERWRITE=TRUE {DATA_SOURCE_SQL_COMMENT}"
+        )
+        copy_into_table_query = f"""
+        COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{file_name}
+        FILE_FORMAT = (TYPE = PARQUET)
+        MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
+        PURGE=TRUE
+        ON_ERROR={on_error}
+        {DATA_SOURCE_SQL_COMMENT}
+        """
+        self._session.sql(put_query).collect(statement_params=statements_params)
+        self._session.sql(copy_into_table_query).collect(
+            statement_params=statements_params
+        )
+
+    def _upload_and_copy_into_table_with_retry(
+        self,
+        local_file: str,
+        snowflake_stage_name: str,
+        snowflake_table_name: str,
+        on_error: Optional[str] = "abort_statement",
+        statements_params: Optional[Dict[str, str]] = None,
+    ) -> Optional[Exception]:
+        retry_count = 0
+        error = None
+        while retry_count < MAX_RETRY_TIME:
+            try:
+                self._upload_and_copy_into_table(
+                    local_file,
+                    snowflake_stage_name,
+                    snowflake_table_name,
+                    on_error,
+                    statements_params,
+                )
+                return
+            except Exception as e:
+                error = e
+                retry_count += 1
+                logger.debug(
+                    f"upload and copy into table failed with {error.__repr__()}, retry count: {retry_count}, retrying ..."
+                )
+        error = SnowparkClientException(
+            message=f"failed to load data to snowflake, got {error.__repr__()}"
+        )
+        logger.error(
+            f"upload and copy into table failed with {error.__repr__()}, exceed max retry time"
+        )
+        return error
+
+
+def _task_fetch_from_data_source(
+    create_connection: Callable[[], "Connection"],
+    query: str,
+    schema: StructType,
+    i: int,
+    tmp_dir: str,
+    query_timeout: int = 0,
+    fetch_size: int = 0,
+) -> str:
+    conn = create_connection()
+    # this is specified to pyodbc, need other way to manage timeout on other drivers
+    dbms = detect_dbms(conn)
+    if dbms == DBMS_TYPE.SQL_SERVER_DB:
+        conn.timeout = query_timeout
+    result = []
+    if fetch_size == 0:
+        result = conn.cursor().execute(query).fetchall()
+    elif fetch_size > 0:
+        cursor = conn.cursor()
+        cursor = cursor.execute(query)
+        rows = cursor.fetchmany(fetch_size)
+        while rows:
+            result.extend(rows)
+            rows = cursor.fetchmany(fetch_size)
+    else:
+        raise ValueError("fetch size cannot be smaller than 0")
+
+    columns = [field.name for field in schema.fields]
+    df = pd.DataFrame.from_records(result, columns=columns)
+
+    # convert timestamp and date to string to work around SNOW-1911989
+    df = df.map(
+        lambda x: x.isoformat()
+        if isinstance(x, (datetime.datetime, datetime.date))
+        else x
+    )
+    # convert binary type to object type to work around SNOW-1912094
+    df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
+    path = os.path.join(tmp_dir, f"data_{i}.parquet")
+    df.to_parquet(path)
+    return path
+
+
+def _task_fetch_from_data_source_with_retry(
+    create_connection: Callable[[], "Connection"],
+    query: str,
+    schema: StructType,
+    i: int,
+    tmp_dir: str,
+    query_timeout: int = 0,
+    fetch_size: int = 0,
+) -> Union[str, Exception]:
+    retry_count = 0
+    error = None
+    while retry_count < MAX_RETRY_TIME:
+        try:
+            path = _task_fetch_from_data_source(
+                create_connection, query, schema, i, tmp_dir, query_timeout, fetch_size
+            )
+            return path
+        except Exception as e:
+            error = e
+            retry_count += 1
+            logger.debug(
+                f"fetch from data source failed with {error.__repr__()}, retry count: {retry_count}, retrying ..."
+            )
+    error = SnowparkClientException(
+        message=f"failed to fetch from data source, got {error.__repr__()}"
+    )
+    logger.error(
+        f"fetch from data source failed with {error.__repr__()}, exceed max retry time"
+    )
+    return error
