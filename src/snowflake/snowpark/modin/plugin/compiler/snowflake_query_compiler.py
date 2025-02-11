@@ -8760,21 +8760,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # we have named kwargs, which may be positional
             # in nature, and we need to align them to the snowpark
             # function call alongside the column reference
-            # Get the total arg count for the function
-            function_arg_count = snowpark_function.__code__.co_argcount
-            # Get all variables for the function and slice off only the arguments
-            positional_args = snowpark_function.__code__.co_varnames[
-                :function_arg_count
-            ]
+
+            params = inspect.signature(snowpark_function).parameters
             resolved_positional = []
-            col_specified = False
-            for arg in positional_args:
+            found_snowpark_column = False
+            for arg in params:
                 if arg in kwargs:
                     resolved_positional.append(kwargs[arg])
                 else:
-                    if not col_specified:
+                    if not found_snowpark_column:
                         resolved_positional.append(col)
-                        col_specified = True
+                        found_snowpark_column = True
+                    elif params[arg].default is not inspect.Parameter.empty:
+                        # if the unspecified arg has a default value, don't need to add to resolved_positional
+                        continue
                     else:
                         ErrorMessage.not_implemented(
                             f"Unspecified Argument: {arg} - when using apply with kwargs, all function arguments should be specified except the single column reference (if applicable)."
