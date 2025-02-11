@@ -29,7 +29,6 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     StructType,
     StructField,
-    DoubleType,
 )
 
 _logger = logging.getLogger("snowflake.snowpark")
@@ -70,6 +69,7 @@ SQL_SERVER_TYPE_TO_SNOW_TYPE = {
     "sysname": StringType,
 }
 ORACLEDB_TYPE_TO_SNOW_TYPE = {
+    "bfile": BinaryType,
     "varchar2": StringType,
     "varchar": StringType,
     "nvarchar2": StringType,
@@ -77,16 +77,25 @@ ORACLEDB_TYPE_TO_SNOW_TYPE = {
     "number": DecimalType,
     "float": FloatType,
     "long": LongType,
-    "date": TimestampType,
+    "date": DateType,
+    "intervalyeartomonth": StringType,
+    "intervaldaytosecond": StringType,
+    "json": VariantType,
     "binary_float": FloatType,
-    "binary_double": DoubleType,
+    "binary_double": FloatType,
     "timestamp": TimestampType,
+    "longraw": BinaryType,
     "raw": BinaryType,
     "clob": StringType,
     "nclob": StringType,
     "blob": BinaryType,
     "char": StringType,
     "nchar": StringType,
+    "rowid": StringType,
+    "sys.anydata": VariantType,
+    "uritype": VariantType,
+    "urowid": StringType,
+    "xmltype": VariantType,
 }
 
 
@@ -209,11 +218,6 @@ def oracledb_to_snowpark_type(schema: List[tuple]) -> StructType:
             data_type = snow_type(TimestampTimeZone.TZ)
         elif "withlocaltimezone" in remove_space_column_name:
             data_type = snow_type(TimestampTimeZone.LTZ)
-        elif (
-            remove_space_column_name.startswith("timestamp")
-            or remove_space_column_name == "date"
-        ):
-            data_type = snow_type(TimestampTimeZone.NTZ)
         elif snow_type == DecimalType:
             data_type = snow_type(
                 column[2] if column[2] is not None else 38,
