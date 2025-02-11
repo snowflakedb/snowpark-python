@@ -1006,26 +1006,26 @@ def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
 
 
 # When the minimum supported Python version is at least 3.10, the type
-# annotations for publicapi should use typing.ParamSpec instead:
+# annotations for publicapi should use typing.ParamSpec:
 # P = ParamSpec("P")
 # def publicapi(func: Callable[P, ReturnT]) -> Callable[P, ReturnT]:
 #   ...
 #   @functools.wraps(func)
-#   def call_wrapper(*args: P.args, **kwargs: P.kwargs) -> ReturnT:
+#   def call_wrapper(*args: P.args, **kwargs: P.kwargs) -> Callable[P, ReturnT]:
 #     ...
 #   ...
 #   return call_wrapper
-ReturnT = TypeVar("ReturnT")
+CallableT = TypeVar("CallableT", bound=Callable)
 
 
-def publicapi(func: Callable[..., ReturnT]) -> Callable[..., ReturnT]:
+def publicapi(func: CallableT) -> CallableT:
     """decorator to safeguard public APIs with global feature flags."""
 
     # Note that co_varnames also includes local variables. This can trigger false positives.
     has_emit_ast: bool = "_emit_ast" in func.__code__.co_varnames
 
     @functools.wraps(func)
-    def call_wrapper(*args, **kwargs) -> ReturnT:  # pragma: no cover
+    def call_wrapper(*args, **kwargs) -> CallableT:  # pragma: no cover
         # warning(func.__qualname__, warning_text)
 
         if not has_emit_ast:
