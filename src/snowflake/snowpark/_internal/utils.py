@@ -1538,3 +1538,43 @@ DATA_SOURCE_DBAPI_SIGNATURE = "DataFrameReader.dbapi"
 DATA_SOURCE_SQL_COMMENT = (
     f"/* Python:snowflake.snowpark.{DATA_SOURCE_DBAPI_SIGNATURE} */"
 )
+
+
+class DBMS_TYPE(Enum):
+    SQL_SERVER_DB = "SQL_SERVER_DB"
+    ORACLE_DB = "ORACLE_DB"
+
+
+def detect_dbms(dbapi2_conn):
+    """Detects the DBMS type from a DBAPI2 connection."""
+
+    # Get the Python driver name
+    python_driver_name = type(dbapi2_conn).__module__.lower()
+
+    # Dictionary-based lookup for known DBMS
+    dbms_mapping = {
+        "pyodbc": detect_dbms_pyodbc,
+        "cx_oracle": lambda conn: DBMS_TYPE.ORACLE_DB,
+        "oracledb": lambda conn: DBMS_TYPE.ORACLE_DB,
+    }
+
+    if python_driver_name in dbms_mapping:
+        return dbms_mapping[python_driver_name](dbapi2_conn)
+
+    _logger.debug(f"Unsupported database driver: {python_driver_name}")
+    return None
+
+
+def detect_dbms_pyodbc(dbapi2_conn):
+    """Detects the DBMS type for a pyodbc connection."""
+    import pyodbc
+
+    dbms_name = dbapi2_conn.getinfo(pyodbc.SQL_DBMS_NAME).lower()
+
+    # Set-based lookup for SQL Server
+    sqlserver_keywords = {"sql server", "mssql", "sqlserver"}
+    if any(keyword in dbms_name for keyword in sqlserver_keywords):
+        return DBMS_TYPE.SQL_SERVER_DB
+
+    _logger.debug(f"Unsupported DBMS for pyodbc: {dbms_name}")
+    return None
