@@ -6,7 +6,6 @@ import uuid
 
 # Many of the tests have been moved to unit/scala/test_datattype_suite.py
 from decimal import Decimal
-from unittest import mock
 
 import logging
 import pytest
@@ -533,18 +532,10 @@ def test_structured_dtypes_negative(structured_type_session, structured_type_sup
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
 
-    # SNOW-1862700: Map Type missing element or value fails to generate AST.
-    with pytest.raises(
-        NotImplementedError, match="AST does not support empty key or value type."
-    ):
-        x = MapType()
-        x._fill_ast(mock.Mock())
+    with pytest.raises(ValueError, match="MapType requires key and value type be set."):
+        MapType()
 
-    # Maptype requires both key and value type be set if either is set
-    with pytest.raises(
-        ValueError,
-        match="Must either set both key_type and value_type or leave both unset.",
-    ):
+    with pytest.raises(ValueError, match="MapType requires key and value type be set."):
         MapType(StringType())
 
 
@@ -586,7 +577,7 @@ def test_udaf_structured_map_downcast(
             "Snowflake does not support structured maps as return type for UDAFs. Downcasting to semi-structured object."
             in caplog.text
         )
-        assert MapCollector._return_type == MapType()
+        assert MapCollector._return_type == StructType()
 
 
 @pytest.mark.skipif(
@@ -978,8 +969,8 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
     expected_semi_schema = StructType(
         [
             StructField("ARR", ArrayType(), nullable=True),
-            StructField("MAP", MapType(), nullable=True),
-            StructField("OBJ", MapType(), nullable=True),
+            StructField("MAP", StructType(), nullable=True),
+            StructField("OBJ", StructType(), nullable=True),
         ]
     )
     expected_structured_schema = StructType(
@@ -1008,8 +999,8 @@ def test_structured_dtypes_cast(structured_type_session, structured_type_support
         schema=StructType(
             [
                 StructField("arr", ArrayType()),
-                StructField("map", MapType()),
-                StructField("obj", MapType()),
+                StructField("map", StructType()),
+                StructField("obj", StructType()),
             ]
         ),
     )
