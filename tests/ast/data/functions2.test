@@ -336,13 +336,9 @@ df321 = df.select(map_keys("M"), map_keys(col("A")))
 
 df322 = df.select(nullifzero(col("A")), nullifzero("B"))
 
-df323 = df.select(snowflake_cortex_summarize(col("A")), snowflake_cortex_summarize("Test string"))
+df323 = df.select(normal(1, 2, "A"))
 
-df324 = df.select(snowflake_cortex_sentiment(col("A")), snowflake_cortex_sentiment("Test string"))
-
-df325 = df.select(normal(1, 2, "A"))
-
-df326 = df.select(randn(1))
+df324 = df.select(randn(1))
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -680,13 +676,9 @@ df321 = df.select(map_keys(col("M")), map_keys(col("A")))
 
 df322 = df.select(nullifzero(col("A")), nullifzero(col("B")))
 
-df323 = df.select(snowflake_cortex_summarize(col("A")), snowflake_cortex_summarize("Test string"))
+df323 = df.select(normal(1, 2, "A"))
 
-df324 = df.select(snowflake_cortex_sentiment(col("A")), snowflake_cortex_sentiment("Test string"))
-
-df325 = df.select(normal(1, 2, "A"))
-
-df326 = df.select(randn(1))
+df324 = df.select(randn(1))
 
 ## EXPECTED ENCODED AST
 
@@ -27464,85 +27456,53 @@ body {
                 name {
                   name {
                     sp_name_flat {
-                      name: "snowflake_cortex_summarize"
+                      name: "normal"
                     }
                   }
                 }
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 61
-                      end_line: 361
-                      file: 2
-                      start_column: 53
-                      start_line: 361
-                    }
-                    v: "A"
-                  }
-                }
+              int64_val {
                 src {
-                  end_column: 61
+                  end_column: 43
                   end_line: 361
                   file: 2
-                  start_column: 53
+                  start_column: 26
                   start_line: 361
                 }
+                v: 1
               }
             }
-            src {
-              end_column: 62
-              end_line: 361
-              file: 2
-              start_column: 26
-              start_line: 361
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "snowflake_cortex_summarize"
-                    }
-                  }
+            pos_args {
+              int64_val {
+                src {
+                  end_column: 43
+                  end_line: 361
+                  file: 2
+                  start_column: 26
+                  start_line: 361
                 }
+                v: 2
               }
             }
             pos_args {
               string_val {
                 src {
-                  end_column: 105
+                  end_column: 43
                   end_line: 361
                   file: 2
-                  start_column: 64
+                  start_column: 26
                   start_line: 361
                 }
-                v: "Test string"
+                v: "A"
               }
             }
             src {
-              end_column: 105
+              end_column: 43
               end_line: 361
               file: 2
-              start_column: 64
+              start_column: 26
               start_line: 361
             }
           }
@@ -27555,7 +27515,7 @@ body {
           }
         }
         src {
-          end_column: 106
+          end_column: 44
           end_line: 361
           file: 2
           start_column: 16
@@ -27584,85 +27544,29 @@ body {
                 name {
                   name {
                     sp_name_flat {
-                      name: "snowflake_cortex_sentiment"
+                      name: "randn"
                     }
                   }
                 }
               }
             }
             pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 61
-                      end_line: 363
-                      file: 2
-                      start_column: 53
-                      start_line: 363
-                    }
-                    v: "A"
-                  }
-                }
+              int64_val {
                 src {
-                  end_column: 61
+                  end_column: 34
                   end_line: 363
                   file: 2
-                  start_column: 53
+                  start_column: 26
                   start_line: 363
                 }
+                v: 1
               }
             }
             src {
-              end_column: 62
+              end_column: 34
               end_line: 363
               file: 2
               start_column: 26
-              start_line: 363
-            }
-          }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "snowflake_cortex_sentiment"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 105
-                  end_line: 363
-                  file: 2
-                  start_column: 64
-                  start_line: 363
-                }
-                v: "Test string"
-              }
-            }
-            src {
-              end_column: 105
-              end_line: 363
-              file: 2
-              start_column: 64
               start_line: 363
             }
           }
@@ -27675,7 +27579,7 @@ body {
           }
         }
         src {
-          end_column: 106
+          end_column: 35
           end_line: 363
           file: 2
           start_column: 16
@@ -27690,158 +27594,6 @@ body {
     uid: 169
     var_id {
       bitfield1: 169
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_dataframe_select__columns {
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "normal"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              int64_val {
-                src {
-                  end_column: 43
-                  end_line: 365
-                  file: 2
-                  start_column: 26
-                  start_line: 365
-                }
-                v: 1
-              }
-            }
-            pos_args {
-              int64_val {
-                src {
-                  end_column: 43
-                  end_line: 365
-                  file: 2
-                  start_column: 26
-                  start_line: 365
-                }
-                v: 2
-              }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 43
-                  end_line: 365
-                  file: 2
-                  start_column: 26
-                  start_line: 365
-                }
-                v: "A"
-              }
-            }
-            src {
-              end_column: 43
-              end_line: 365
-              file: 2
-              start_column: 26
-              start_line: 365
-            }
-          }
-        }
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        src {
-          end_column: 44
-          end_line: 365
-          file: 2
-          start_column: 16
-          start_line: 365
-        }
-        variadic: true
-      }
-    }
-    symbol {
-      value: "df325"
-    }
-    uid: 170
-    var_id {
-      bitfield1: 170
-    }
-  }
-}
-body {
-  assign {
-    expr {
-      sp_dataframe_select__columns {
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    sp_name_flat {
-                      name: "randn"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              int64_val {
-                src {
-                  end_column: 34
-                  end_line: 367
-                  file: 2
-                  start_column: 26
-                  start_line: 367
-                }
-                v: 1
-              }
-            }
-            src {
-              end_column: 34
-              end_line: 367
-              file: 2
-              start_column: 26
-              start_line: 367
-            }
-          }
-        }
-        df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
-          }
-        }
-        src {
-          end_column: 35
-          end_line: 367
-          file: 2
-          start_column: 16
-          start_line: 367
-        }
-        variadic: true
-      }
-    }
-    symbol {
-      value: "df326"
-    }
-    uid: 171
-    var_id {
-      bitfield1: 171
     }
   }
 }
