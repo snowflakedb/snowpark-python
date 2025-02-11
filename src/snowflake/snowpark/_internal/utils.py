@@ -42,6 +42,7 @@ from typing import (
     Tuple,
     Type,
     Union,
+    TypeVar,
 )
 
 import snowflake.snowpark
@@ -1004,7 +1005,11 @@ def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
     return _ast_state.set_state(source, enabled)
 
 
-def publicapi(func) -> Callable:
+CallableT = TypeVar("CallableT", bound=Callable)
+ReturnT = TypeVar("ReturnT")
+
+
+def publicapi(func: CallableT[..., ReturnT]) -> CallableT[..., ReturnT]:
     """decorator to safeguard public APIs with global feature flags."""
 
     # Note that co_varnames also includes local variables. This can trigger false positives.
