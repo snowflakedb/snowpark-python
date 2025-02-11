@@ -212,7 +212,6 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     validate_object_name,
     check_create_map_parameter,
-    deprecated,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -10812,57 +10811,6 @@ def make_interval(
 
     res._ast = ast
     return res
-
-
-@publicapi
-@deprecated(
-    version="1.28.0",
-    extra_warning_text="Please consider installing snowflake-ml-python and using `snowflake.cortex.summarize` instead.",
-    extra_doc_string="Use :meth:`snowflake.cortex.summarize` instead.",
-)
-def snowflake_cortex_summarize(
-    text: ColumnOrLiteralStr, _emit_ast: bool = True
-) -> Column:
-    """
-    Summarizes the given English-language input text.
-    Args:
-        text: A string containing the English text from which a summary should be generated.
-    Returns:
-        A string containing a summary of the original text.
-    """
-    ast = (
-        build_function_expr("snowflake_cortex_summarize", [text]) if _emit_ast else None
-    )
-
-    sql_func_name = "snowflake.cortex.summarize"
-    text_col = _to_col_if_lit(text, sql_func_name)
-    return builtin(sql_func_name, _ast=ast, _emit_ast=_emit_ast)(text_col)
-
-
-@publicapi
-@deprecated(
-    version="1.28.0",
-    extra_warning_text="Please consider installing snowflake-ml-python and using `snowflake.cortex.sentiment` instead.",
-    extra_doc_string="Use :meth:`snowflake.cortex.sentiment` instead.",
-)
-def snowflake_cortex_sentiment(
-    text: ColumnOrLiteralStr, _emit_ast: bool = True
-) -> Column:
-    """
-    A string containing the text for which a sentiment score should be calculated.
-    Args:
-        text: A string containing the English text from which a summary should be generated.
-    Returns:
-        A floating-point number from -1 to 1 (inclusive) indicating the level of negative or positive sentiment in the
-        text. Values around 0 indicate neutral sentiment.
-    """
-    ast = (
-        build_function_expr("snowflake_cortex_sentiment", [text]) if _emit_ast else None
-    )
-
-    sql_func_name = "snowflake.cortex.sentiment"
-    text_col = _to_col_if_lit(text, sql_func_name)
-    return builtin(sql_func_name, _ast=ast, _emit_ast=_emit_ast)(text_col)
 
 
 @publicapi
