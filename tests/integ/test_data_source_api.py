@@ -396,8 +396,9 @@ def test_telemetry_tracking(caplog, session):
     ],
 )
 def test_custom_schema(session, custom_schema):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+    temp_dir = tempfile.TemporaryDirectory()
+    try:
+        dbpath = os.path.join(temp_dir.name, "testsqlite3.db")
         table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
 
         df = session.read.dbapi(
@@ -415,3 +416,5 @@ def test_custom_schema(session, custom_schema):
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
                 table_name,
             )
+    finally:
+        temp_dir.cleanup()
