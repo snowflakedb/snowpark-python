@@ -358,12 +358,10 @@ class SnowflakePlan(LogicalPlan):
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
         cache_metadata_if_select_statement(self.source_plan, self._metadata)
-        # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
-        if (
-            not self.schema_query
-            or not self.session.sql_simplifier_enabled
-            or self.session.reduce_describe_query_enabled
-        ):
+        # When the reduce_describe_query_enabled is enabled, we cache the attributes in
+        # self._metadata using original schema query. Thus we can update the schema query
+        # to simplify plans built on top of this plan.
+        if self.session.reduce_describe_query_enabled:
             self.schema_query = schema_value_statement(attributes)
         return attributes
 
