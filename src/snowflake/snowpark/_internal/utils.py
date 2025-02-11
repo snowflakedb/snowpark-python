@@ -1025,7 +1025,7 @@ def publicapi(func: CallableT) -> CallableT:
     has_emit_ast: bool = "_emit_ast" in func.__code__.co_varnames
 
     @functools.wraps(func)
-    def call_wrapper(*args, **kwargs) -> CallableT:  # pragma: no cover
+    def call_wrapper(*args, **kwargs):  # pragma: no cover
         # warning(func.__qualname__, warning_text)
 
         if not has_emit_ast:
