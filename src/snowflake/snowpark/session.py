@@ -281,6 +281,7 @@ _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE = False
 DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> "Session":
@@ -2716,7 +2717,8 @@ class Session:
                 self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
 
-    @experimental(version="1.27.0")
+    @experimental(version="1.28.0")
+    @publicapi
     def write_arrow(
         self,
         table: "pyarrow.Table",
@@ -2724,7 +2726,7 @@ class Session:
         *,
         database: Optional[str] = None,
         schema: Optional[str] = None,
-        chunk_size: Optional[int] = WRITE_PANDAS_CHUNK_SIZE,
+        chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
         parallel: int = 4,
