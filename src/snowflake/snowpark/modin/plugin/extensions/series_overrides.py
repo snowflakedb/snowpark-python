@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from typing import IO, Any, Callable, Hashable, Literal, Mapping, Sequence, get_args
 
-import matplotlib.pyplot as plt
 import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
@@ -233,6 +232,8 @@ def hist(
     ).fillna(0)
 
     # Prepare the visualization parameters to be used for rendering the bar chart.
+    import matplotlib.pyplot as plt
+
     fig = kwargs.pop(
         "figure", plt.gcf() if plt.get_fignums() else plt.figure(figsize=figsize)
     )
