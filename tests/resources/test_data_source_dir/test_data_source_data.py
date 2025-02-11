@@ -284,6 +284,8 @@ for row in oracledb_all_type_data:
             new_row.append(Decimal(str(item)))
         elif i == 12 or i == 13:
             new_row.append(parser.parse(item))
+        elif i == 10:
+            new_row.append(item.date())
         else:
             new_row.append(item)
     oracledb_all_type_data_result.append(tuple(new_row))
