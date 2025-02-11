@@ -47,7 +47,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sqlite3_db,
     create_connection_to_sqlite3_db,
 )
-from tests.utils import Utils
+from tests.utils import Utils, IS_WINDOWS
 
 pytestmark = pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
@@ -369,6 +369,10 @@ def test_telemetry_tracking(caplog, session):
         assert called == 2
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared accorss processes on windows",
+)
 @pytest.mark.parametrize(
     "custom_schema",
     [
@@ -396,9 +400,8 @@ def test_telemetry_tracking(caplog, session):
     ],
 )
 def test_custom_schema(session, custom_schema):
-    temp_dir = tempfile.TemporaryDirectory()
-    try:
-        dbpath = os.path.join(temp_dir.name, "testsqlite3.db")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
 
         df = session.read.dbapi(
@@ -416,5 +419,3 @@ def test_custom_schema(session, custom_schema):
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
                 table_name,
             )
-    finally:
-        temp_dir.cleanup()
