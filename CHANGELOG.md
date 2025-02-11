@@ -14,6 +14,7 @@
 - Added support for the following functions in `functions.py`
   - `normal`
   - `randn`
+- Added support for `allow_missing_columns` parameter to `Dataframe.union_by_name` and `Dataframe.union_all_by_name`.
 
 ### Snowpark pandas API Updates
 
