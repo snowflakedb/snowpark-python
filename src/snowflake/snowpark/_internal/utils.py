@@ -1008,10 +1008,11 @@ def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
 # When the minimum supported Python version is at least 3.10, the type
 # annotations for publicapi should use typing.ParamSpec:
 # P = ParamSpec("P")
+# ReturnT = TypeVar("ReturnT")
 # def publicapi(func: Callable[P, ReturnT]) -> Callable[P, ReturnT]:
 #   ...
 #   @functools.wraps(func)
-#   def call_wrapper(*args: P.args, **kwargs: P.kwargs) -> Callable[P, ReturnT]:
+#   def call_wrapper(*args: P.args, **kwargs: P.kwargs) -> ReturnT:
 #     ...
 #   ...
 #   return call_wrapper
