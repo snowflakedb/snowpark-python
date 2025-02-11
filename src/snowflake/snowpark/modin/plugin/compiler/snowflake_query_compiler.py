@@ -19951,8 +19951,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ), "Internal error: this query compiler should represent a series."
         hist_col = col(self._modin_frame.data_column_snowflake_quoted_identifiers[0])
         [min_val, max_val] = self._modin_frame.ordered_dataframe.agg(
-            min_(hist_col).as_("min_count"),
-            max_(hist_col).as_("max_count"),
+            min_(hist_col).as_("min_value"),
+            max_(hist_col).as_("max_value"),
         ).collect()[0]
 
         bin_size = (max_val - min_val) / bins
