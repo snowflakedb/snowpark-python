@@ -1182,7 +1182,7 @@ class DataFrameReader:
                 ]
                 for future in as_completed(process_pool_futures):
                     if isinstance(future.result(), Exception):
-                        logger.debug(
+                        logger.error(
                             "fetch from data source failed, canceling all running tasks"
                         )
                         process_executor.shutdown(wait=False)
@@ -1202,7 +1202,7 @@ class DataFrameReader:
                 completed_futures = wait(thread_pool_futures, return_when=ALL_COMPLETED)
                 for f in completed_futures.done:
                     if f.result() is not None and isinstance(f.result(), Exception):
-                        logger.debug(
+                        logger.error(
                             "upload and copy into table failed, canceling all running tasks"
                         )
                         process_executor.shutdown(wait=False)
@@ -1392,7 +1392,7 @@ class DataFrameReader:
         error = SnowparkClientException(
             message=f"failed to load data to snowflake, got {error.__repr__()}"
         )
-        logger.debug(
+        logger.error(
             f"upload and copy into table failed with {error.__repr__()}, exceed max retry time"
         )
         return error
@@ -1467,7 +1467,7 @@ def _task_fetch_from_data_source_with_retry(
     error = SnowparkClientException(
         message=f"failed to fetch from data source, got {error.__repr__()}"
     )
-    logger.debug(
+    logger.error(
         f"fetch from data source failed with {error.__repr__()}, exceed max retry time"
     )
     return error

@@ -29,6 +29,15 @@ from snowflake.snowpark.types import (
     FloatType,
     StringType,
     BinaryType,
+    NullType,
+    TimestampType,
+    TimeType,
+    ShortType,
+    LongType,
+    DoubleType,
+    DecimalType,
+    ArrayType,
+    VariantType,
 )
 from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_all_type_data,
@@ -363,7 +372,7 @@ def test_telemetry_tracking(caplog, session):
 @pytest.mark.parametrize(
     "custom_schema",
     [
-        "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING",
+        "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT",
         StructType(
             [
                 StructField("id", IntegerType()),
@@ -371,7 +380,17 @@ def test_telemetry_tracking(caplog, session):
                 StructField("real_col", FloatType()),
                 StructField("text_col", StringType()),
                 StructField("blob_col", BinaryType()),
-                StructField("null_col", StringType()),
+                StructField("null_col", NullType()),
+                StructField("ts_col", TimestampType()),
+                StructField("date_col", DateType()),
+                StructField("time_col", TimeType()),
+                StructField("short_col", ShortType()),
+                StructField("long_col", LongType()),
+                StructField("double_col", DoubleType()),
+                StructField("decimal_col", DecimalType()),
+                StructField("map_col", MapType()),
+                StructField("array_col", ArrayType()),
+                StructField("var_col", VariantType()),
             ]
         ),
     ],
@@ -379,20 +398,20 @@ def test_telemetry_tracking(caplog, session):
 def test_custom_schema(session, custom_schema):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
-        with sqlite3_db(dbpath) as (conn, table_name, columns, example_data):
+        table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
 
-            df = session.read.dbapi(
+        df = session.read.dbapi(
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            table_name,
+            custom_schema=custom_schema,
+        )
+        assert df.columns == [col.upper() for col in columns]
+        assert df.collect() == assert_data
+
+        with pytest.raises(
+            SnowparkDataframeReaderException, match="Unable to infer schema"
+        ):
+            session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
                 table_name,
-                custom_schema=custom_schema,
             )
-            assert df.columns == [col.upper() for col in columns]
-            assert df.collect() == example_data
-
-            with pytest.raises(
-                SnowparkDataframeReaderException, match="Unable to infer schema"
-            ):
-                session.read.dbapi(
-                    functools.partial(create_connection_to_sqlite3_db, dbpath),
-                    table_name,
-                )
