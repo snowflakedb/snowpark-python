@@ -661,30 +661,32 @@ body {
     expr {
       sp_dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 42
-              end_line: 36
-              file: 2
-              start_column: 18
-              start_line: 36
+          args {
+            string_val {
+              src {
+                end_column: 42
+                end_line: 36
+                file: 2
+                start_column: 18
+                start_line: 36
+              }
+              v: "C1_L"
             }
-            v: "C1_L"
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 42
-              end_line: 36
-              file: 2
-              start_column: 18
-              start_line: 36
+          args {
+            string_val {
+              src {
+                end_column: 42
+                end_line: 36
+                file: 2
+                start_column: 18
+                start_line: 36
+              }
+              v: "C2_L"
             }
-            v: "C2_L"
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
           sp_dataframe_ref {
             id {
