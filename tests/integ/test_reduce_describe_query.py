@@ -29,6 +29,7 @@ from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
     Session,
 )
+from snowflake.snowpark.types import LongType, StructField, StructType
 from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import IS_IN_STORED_PROC, TestData
 
@@ -211,6 +212,7 @@ join_df_ops_expected_quoted_identifiers = [
 
 
 def check_attributes_equality(attrs1: List[Attribute], attrs2: List[Attribute]) -> None:
+    assert len(attrs1) == len(attrs2)
     for attr1, attr2 in zip(attrs1, attrs2):
         assert attr1.name == attr2.name
         assert attr1.datatype == attr2.datatype
@@ -409,18 +411,29 @@ def test_reduce_describe_query_enabled_on_session(db_parameters):
 
 
 def test_update_schema_query_when_attributes_available(session):
-    df = session.create_dataframe(data=[(1, 2), (3, 4)], schema=["a", "b"])
+    schema = StructType(
+        [StructField("A", LongType(), False), StructField("B", LongType(), True)]
+    )
+    df = session.create_dataframe(data=[(1, 2), (3, 4)], schema=schema)
     df = df.withColumn("c", df.a + df.b)
     df = df.withColumn("d", df.a + df.b + df.c)
 
     original_schema_query = df._plan.schema_query
-    simplified_schema_query1 = ' SELECT 0 :: BIGINT AS "A", 0 :: BIGINT AS "B", 0 :: BIGINT AS "C", 0 :: BIGINT AS "D"'
-    simplified_schema_query2 = ' SELECT 0 :: BIGINT AS "A", 0 :: BIGINT AS "B", 0 :: BIGINT AS "C", 0 :: BIGINT AS "D", 0 :: BIGINT AS "E"'
+    simplified_schema_query1 = ' SELECT 0 :: BIGINT AS "A", NULL :: BIGINT AS "B", NULL :: BIGINT AS "C", NULL :: BIGINT AS "D"'
+    simplified_schema_query2 = ' SELECT 0 :: BIGINT AS "A", NULL :: BIGINT AS "B", NULL :: BIGINT AS "C", NULL :: BIGINT AS "D", NULL :: BIGINT AS "E"'
 
     assert df._plan._metadata.attributes is None
     df.columns  # trigger describe query
 
-    assert df._plan._metadata.attributes is not None
+    check_attributes_equality(
+        df._plan._metadata.attributes,
+        [
+            Attribute('"A"', LongType(), False),
+            Attribute('"B"', LongType(), True),
+            Attribute('"C"', LongType(), True),
+            Attribute('"D"', LongType(), True),
+        ],
+    )
     if session.reduce_describe_query_enabled:
         assert df._plan.schema_query == simplified_schema_query1
     else:
@@ -437,6 +450,15 @@ def test_update_schema_query_when_attributes_available(session):
         assert original_schema_query in df._plan.schema_query
 
     df.columns  # trigger describe query
-    assert df._plan._metadata.attributes is not None
+    check_attributes_equality(
+        df._plan._metadata.attributes,
+        [
+            Attribute('"A"', LongType(), False),
+            Attribute('"B"', LongType(), True),
+            Attribute('"C"', LongType(), True),
+            Attribute('"D"', LongType(), True),
+            Attribute('"E"', LongType(), True),
+        ],
+    )
     if session.reduce_describe_query_enabled:
         assert df._plan.schema_query == simplified_schema_query2
