@@ -1745,7 +1745,7 @@ def write_arrow(
         raise ProgrammingError(
             "Schema has to be provided to write_arrow when a database is provided"
         )
-    compression_map = {"gzip": "auto", "snappy": "snappy"}
+    compression_map = {"gzip": "auto", "snappy": "snappy", "none": "none"}
     if compression not in compression_map.keys():
         raise ProgrammingError(
             f"Invalid compression '{compression}', only acceptable values are: {compression_map.keys()}"
