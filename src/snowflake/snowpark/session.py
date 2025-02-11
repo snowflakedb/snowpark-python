@@ -3054,6 +3054,8 @@ class Session:
             if modin_is_imported and isinstance(
                 df, (modin_pandas.DataFrame, modin_pandas.Series)
             ):
+                # use_logical_type should be ignored for Snowpark pandas
+                kwargs.pop("use_logical_type", None)
                 self._write_modin_pandas_helper(
                     df,
                     table_name,
