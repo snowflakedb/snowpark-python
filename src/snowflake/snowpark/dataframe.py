@@ -28,7 +28,7 @@ from typing import (
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.connector.options import installed_pandas, pandas
+from snowflake.connector.options import installed_pandas, pandas, pyarrow
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Cross,
@@ -1117,7 +1117,9 @@ class DataFrame:
             **kwargs,
         )
 
-    @experimental(version="1.27.0")
+    @experimental(version="1.28.0")
+    @df_collect_api_telemetry
+    @publicapi
     def to_arrow(
         self,
         *,
@@ -1125,7 +1127,7 @@ class DataFrame:
         block: bool = True,
         _emit_ast: bool = True,
         **kwargs: Dict[str, Any],
-    ):
+    ) -> Union["pyarrow.Table", AsyncJob]:
         """
         Executes the query representing this DataFrame and returns the result as a
         `pyarrow Table <https://arrow.apache.org/docs/python/generated/pyarrow.Table.html>`.
@@ -1154,7 +1156,9 @@ class DataFrame:
             **kwargs,
         )
 
-    @experimental(version="1.27.0")
+    @experimental(version="1.28.0")
+    @df_collect_api_telemetry
+    @publicapi
     def to_arrow_batches(
         self,
         *,
@@ -1162,7 +1166,7 @@ class DataFrame:
         block: bool = True,
         _emit_ast: bool = True,
         **kwargs: Dict[str, Any],
-    ):
+    ) -> Union[Iterator["pyarrow.Table"], AsyncJob]:
         """
         Executes the query representing this DataFrame and returns an iterator of
         pyarrow Tables (containing a subset of rows) that you can use to

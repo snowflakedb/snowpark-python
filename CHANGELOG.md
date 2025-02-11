@@ -6,8 +6,6 @@
 
 #### Removed Features:
 
-- Removed Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
-- Removed Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 #### New Features
 
@@ -23,6 +21,12 @@
   - `flat_map`: A method to apply user function on each row with one to many mapping.
   - `toJSON` and its alias `to_json`: Convert each row of dataframe into json string.
   - `transform`: Chain multiple transformations on dataframe.
+- Removed Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Removed Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
+
+#### Experimental Features
+
+- Added support for writing pyarrow Tables to Snowflake tables.
 
 ### Snowpark pandas API Updates
 
@@ -107,7 +111,6 @@
   - `snowflake.core` is a dependency required for this feature.
 - Allow user input schema when reading JSON file on stage.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
-- Added support for writing pyarrow Tables to Snowflake tables.
 
 #### Improvements
 
