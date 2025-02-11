@@ -547,18 +547,20 @@ body {
     expr {
       sp_dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 63
-              end_line: 38
-              file: 2
-              start_column: 14
-              start_line: 38
+          args {
+            string_val {
+              src {
+                end_column: 63
+                end_line: 38
+                file: 2
+                start_column: 14
+                start_line: 38
+              }
+              v: "k"
             }
-            v: "k"
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
           sp_dataframe_ref {
             id {
@@ -726,18 +728,20 @@ body {
     expr {
       sp_dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 97
-              end_line: 40
-              file: 2
-              start_column: 14
-              start_line: 40
+          args {
+            string_val {
+              src {
+                end_column: 97
+                end_line: 40
+                file: 2
+                start_column: 14
+                start_line: 40
+              }
+              v: "k"
             }
-            v: "k"
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
           sp_dataframe_ref {
             id {

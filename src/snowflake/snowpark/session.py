@@ -2507,12 +2507,13 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_generator, stmt)
-            col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+            col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
+                *columns
+            )
             for col_name in col_names:
-                ast.columns.append(col_name._ast)
+                ast.columns.args.append(col_name._ast)
             ast.row_count = rowcount
             ast.time_limit_seconds = timelimit
-            ast.variadic = is_variadic
 
         # TODO: Support generator in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
