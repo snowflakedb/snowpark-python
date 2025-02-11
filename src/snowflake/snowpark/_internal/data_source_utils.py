@@ -73,7 +73,7 @@ ORACLEDB_TYPE_TO_SNOW_TYPE = {
     "varchar2": StringType,
     "varchar": StringType,
     "nvarchar2": StringType,
-    # TODO: should we convert to float or int?
+    # TODO: SNOW-1922043 Investigation on handling number type in oracle db
     "number": DecimalType,
     "float": FloatType,
     "long": LongType,
@@ -82,8 +82,6 @@ ORACLEDB_TYPE_TO_SNOW_TYPE = {
     "binary_double": DoubleType,
     "timestamp": TimestampType,
     "raw": BinaryType,
-    # TODO: test if longraw can be convert to binary
-    "longraw": BinaryType,
     "clob": StringType,
     "nclob": StringType,
     "blob": BinaryType,
