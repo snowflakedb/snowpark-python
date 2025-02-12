@@ -343,41 +343,6 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     bytes: BinaryType,
 }
 
-SQL_SERVER_TYPE_TO_SNOW_TYPE = {
-    "bigint": LongType,
-    "bit": BooleanType,
-    "decimal": DecimalType,
-    "float": FloatType,
-    "int": IntegerType,
-    "money": DecimalType,
-    "real": FloatType,
-    "smallint": ShortType,
-    "smallmoney": DecimalType,
-    "tinyint": ByteType,
-    "numeric": DecimalType,
-    "date": DateType,
-    "datetime2": TimestampType,
-    "datetime": TimestampType,
-    "datetimeoffset": TimestampType,
-    "smalldatetime": TimestampType,
-    "time": TimeType,
-    "timestamp": TimestampType,
-    "char": StringType,
-    "text": StringType,
-    "varchar": StringType,
-    "nchar": StringType,
-    "ntext": StringType,
-    "nvarchar": StringType,
-    "binary": BinaryType,
-    "varbinary": BinaryType,
-    "image": BinaryType,
-    "sql_variant": VariantType,
-    "geography": GeographyType,
-    "geometry": GeometryType,
-    "uniqueidentifier": StringType,
-    "xml": StringType,
-    "sysname": StringType,
-}
 if installed_pandas:
     import numpy
 
@@ -660,23 +625,6 @@ def python_type_str_to_object(
         return pandas.DataFrame
     else:
         return eval(tp_str)
-
-
-def sql_server_type_to_snow_type(
-    tp: Tuple[Tuple[str, str, int, int, int, int, str]],
-) -> DataType:
-    snow_type = SQL_SERVER_TYPE_TO_SNOW_TYPE.get(tp[1].lower(), None)
-    if snow_type is None:
-        # TODO: SNOW-1912068 support types that we don't have now
-        raise NotImplementedError(f"sql server type not supported: {tp}")
-    if tp[1].lower() in ["datetime2", "datetime", "smalldatetime"]:
-        return snow_type(TimestampTimeZone.NTZ)
-    elif tp[1].lower() == "datetimeoffset":
-        return snow_type(TimestampTimeZone.LTZ)
-    elif snow_type == DecimalType:
-        return snow_type(tp[3], tp[4])
-    else:
-        return snow_type()
 
 
 def python_type_to_snow_type(
@@ -1285,38 +1233,6 @@ def type_string_to_type_object(type_str: str) -> DataType:
         return DATA_TYPE_STRING_OBJECT_MAPPINGS[type_str]()
     except KeyError:
         raise ValueError(f"'{type_str}' is not a supported type")
-
-
-class Connection(Protocol):
-    """External datasource connection created from user-input create_connection function."""
-
-    def cursor(self) -> "Cursor":
-        pass
-
-    def close(self):
-        pass
-
-    def commit(self):
-        pass
-
-    def rollback(self):
-        pass
-
-
-class Cursor(Protocol):
-    """Cursor created from external datasource connection"""
-
-    def execute(self, sql: str, *params: Any) -> "Cursor":
-        pass
-
-    def fetchall(self):
-        pass
-
-    def fetchone(self):
-        pass
-
-    def close(self):
-        pass
 
 
 # Type hints
