@@ -5,7 +5,7 @@
 import datetime
 import logging
 from enum import Enum
-from typing import List, Any, Tuple, Protocol
+from typing import List, Any, Tuple, Protocol, Union
 from snowflake.connector.options import pandas as pd
 from dateutil import parser
 
@@ -31,7 +31,7 @@ from snowflake.snowpark.types import (
     StructField,
 )
 
-_logger = logging.getLogger("snowflake.snowpark")
+_logger = logging.getLogger(__name__)
 
 SQL_SERVER_TYPE_TO_SNOW_TYPE = {
     "bigint": LongType,
@@ -112,7 +112,7 @@ class DBMS_TYPE(Enum):
     SQLITE_DB = "SQLITE3_DB"
 
 
-def detect_dbms(dbapi2_conn):
+def detect_dbms(dbapi2_conn) -> Union[DBMS_TYPE, str]:
     """Detects the DBMS type from a DBAPI2 connection."""
 
     # Get the Python driver name
@@ -127,7 +127,7 @@ def detect_dbms(dbapi2_conn):
     }
 
     if python_driver_name in dbms_mapping:
-        return dbms_mapping[python_driver_name](dbapi2_conn)
+        return dbms_mapping[python_driver_name](dbapi2_conn), python_driver_name
 
     _logger.debug(f"Unsupported database driver: {python_driver_name}")
     return None
@@ -181,6 +181,15 @@ class Cursor(Protocol):
 
 
 def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
+    """
+    This is used to convert sql server raw schema to snowpark structtype.
+    Each tuple in the list represent a column and values are as follows:
+    column name: str
+    data type: str
+    precision: int
+    scale: int
+    nullable: bool
+    """
     fields = []
     for column in schema:
         snow_type = SQL_SERVER_TYPE_TO_SNOW_TYPE.get(column[1].lower(), None)
@@ -204,6 +213,15 @@ def sql_server_to_snowpark_type(schema: List[tuple]) -> StructType:
 
 
 def oracledb_to_snowpark_type(schema: List[tuple]) -> StructType:
+    """
+    This is used to convert oracledb raw schema to snowpark structtype.
+    Each tuple in the list represent a column and values are as follows:
+    column name: str
+    data type: str
+    precision: int
+    scale: int
+    nullable: str
+    """
     fields = []
     for column in schema:
         remove_space_column_name = column[1].lower().replace(" ", "")
@@ -227,18 +245,14 @@ def oracledb_to_snowpark_type(schema: List[tuple]) -> StructType:
             )
         else:
             data_type = snow_type()
-        fields.append(
-            StructField(
-                column[0], data_type, True if column[4].lower() == "y" else False
-            )
-        )
+        fields.append(StructField(column[0], data_type, bool(column[4].lower() == "y")))
 
     return StructType(fields)
 
 
 def infer_data_source_schema(conn: Connection, table: str) -> StructType:
     try:
-        current_db = detect_dbms(conn)
+        current_db, driver_info = detect_dbms(conn)
         cursor = conn.cursor()
         if current_db == DBMS_TYPE.SQL_SERVER_DB:
             query = f"""
@@ -260,7 +274,7 @@ def infer_data_source_schema(conn: Connection, table: str) -> StructType:
             return oracledb_to_snowpark_type(raw_schema)
         else:
             raise NotImplementedError(
-                f"currently supported drivers are pyodbc and oracledb, got: {current_db}"
+                f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
             )
     except Exception as exc:
         raise SnowparkDataframeReaderException(
@@ -282,7 +296,7 @@ def data_source_data_to_pandas_df(
     )
     # convert binary type to object type to work around SNOW-1912094
     df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
-    current_db = detect_dbms(conn)
+    current_db, driver_info = detect_dbms(conn)
     if current_db == DBMS_TYPE.SQL_SERVER_DB or current_db == DBMS_TYPE.SQLITE_DB:
         return df
     elif current_db == DBMS_TYPE.ORACLE_DB:
@@ -304,13 +318,13 @@ def data_source_data_to_pandas_df(
 
     else:
         raise NotImplementedError(
-            f"currently supported drivers are pyodbc and oracledb, got: {current_db}"
+            f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
         )
     return df
 
 
 def generate_select_query(table: str, schema: StructType, conn: Connection) -> str:
-    current_db = detect_dbms(conn)
+    current_db, driver_info = detect_dbms(conn)
     if current_db == DBMS_TYPE.ORACLE_DB:
         cols = []
         for field in schema.fields:
@@ -319,14 +333,14 @@ def generate_select_query(table: str, schema: StructType, conn: Connection) -> s
                 and field.datatype.tz == TimestampTimeZone.TZ
             ):
                 cols.append(
-                    f"""TO_CHAR({field.name}, 'YYYY-MM-DD"T"HH24:MI:SS.FF6 TZH:TZM')"""
+                    f"""TO_CHAR({field.name}, 'YYYY-MM-DD"T"HH24:MI:SS.FF9 TZH:TZM')"""
                 )
             elif (
                 isinstance(field.datatype, TimestampType)
                 and field.datatype.tz == TimestampTimeZone.LTZ
             ):
                 cols.append(
-                    f"""TO_CHAR({field.name} AT TIME ZONE SESSIONTIMEZONE, 'YYYY-MM-DD"T"HH24:MI:SS.FF6 TZH:TZM')"""
+                    f"""TO_CHAR({field.name} AT TIME ZONE SESSIONTIMEZONE, 'YYYY-MM-DD"T"HH24:MI:SS.FF9 TZH:TZM')"""
                 )
             else:
                 cols.append(field.name)
@@ -335,7 +349,7 @@ def generate_select_query(table: str, schema: StructType, conn: Connection) -> s
         return f"select * from {table}"
     else:
         raise NotImplementedError(
-            f"currently supported drivers are pyodbc and oracledb, got: {current_db}"
+            f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
         )
 
 
