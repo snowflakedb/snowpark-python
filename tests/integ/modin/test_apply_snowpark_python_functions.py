@@ -11,11 +11,11 @@ import pytest
 
 from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
 from tests.integ.utils.sql_counter import sql_count_checker
+from snowflake.snowpark.functions import trunc, sin, _log10, log, desc, asc
 
 
 @sql_count_checker(query_count=4)
 def test_apply_sin():
-    from snowflake.snowpark.functions import sin
 
     native_s = native_pd.Series([0.00, -1.23, 10, math.pi, math.pi / 2])
     s = pd.Series(native_s)
@@ -33,7 +33,6 @@ def test_apply_sin():
 
 @sql_count_checker(query_count=4)
 def test_apply_log10():
-    from snowflake.snowpark.functions import _log10
 
     native_s = native_pd.Series([1.0, 2.0, 3.0, 4.0, 5.0])
     s = pd.Series(native_s)
@@ -51,9 +50,60 @@ def test_apply_log10():
     )
 
 
+@sql_count_checker(query_count=4)
+def test_apply_trunc_default_scale(session):
+
+    native_s = native_pd.Series([7, 20.033, 4.09, 7.0, None])
+    s = pd.Series(native_s)
+
+    assert_series_equal(s.apply(trunc), native_s.apply(np.trunc))
+    assert_series_equal(s.map(trunc), native_s.map(np.trunc))
+    assert_frame_equal(
+        s.to_frame().applymap(trunc), native_s.to_frame().applymap(np.trunc)
+    )
+    assert_frame_equal(s.to_frame().apply(trunc), native_s.to_frame().apply(np.trunc))
+
+
+@sql_count_checker(query_count=4)
+def test_apply_log_base(session):
+
+    native_s = native_pd.Series([7, 20.033, 4.09, 7.0, 8.33])
+    s = pd.Series(native_s)
+
+    assert_series_equal(s.apply(log, base=10), native_s.apply(np.log10))
+    assert_series_equal(s.map(log, base=10), native_s.map(np.log10))
+    assert_frame_equal(
+        s.to_frame().applymap(log, base=10), native_s.to_frame().applymap(np.log10)
+    )
+    assert_frame_equal(
+        s.to_frame().apply(log, base=10), native_s.to_frame().apply(np.log10)
+    )
+
+
+@sql_count_checker(query_count=4)
+def test_apply_log_x(session):
+
+    native_s = native_pd.Series([7, 20.033, 4.09, 7.0, 8.33])
+    s = pd.Series(native_s)
+
+    assert_series_equal(
+        s.apply(log, x=2), native_pd.Series(np.emath.logn(n=native_s, x=2))
+    )
+    assert_series_equal(
+        s.map(log, x=2), native_pd.Series(np.emath.logn(n=native_s, x=2))
+    )
+    assert_frame_equal(
+        s.to_frame().applymap(log, x=2),
+        native_pd.DataFrame(np.emath.logn(n=native_s, x=2)),
+    )
+    assert_frame_equal(
+        s.to_frame().apply(log, x=2),
+        native_pd.DataFrame(np.emath.logn(n=native_s, x=2)),
+    )
+
+
 @sql_count_checker(query_count=0)
 def test_apply_snowpark_python_function_not_implemented():
-    from snowflake.snowpark.functions import desc, asc
 
     with pytest.raises(NotImplementedError):
         pd.Series([1, 2, 3]).apply(desc)

@@ -30,6 +30,10 @@
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
 - Added support for `Series.hist`.
 
+#### Bug Fixes
+
+- Fixed a bug in `apply` where kwargs were not being passed into the applied function.
+
 ## 1.27.0 (2025-02-03)
 
 ### Snowpark Python API Updates
