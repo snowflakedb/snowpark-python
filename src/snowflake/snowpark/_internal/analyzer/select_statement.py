@@ -473,6 +473,10 @@ class SelectableEntity(Selectable):
         assert isinstance(entity, SnowflakeTable)
         super().__init__(analyzer)
         self.entity = entity
+        self.sample_applied: bool = False
+        self.probability_fraction: Optional[float] = None
+        self.row_count: Optional[int] = None
+        self.seed: Optional[int] = None
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
         copied = SelectableEntity(
@@ -484,7 +488,23 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_query(self) -> str:
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
+        seed_clause = (
+            f"{analyzer_utils.SEED}({self.seed})" if self.seed is not None else ""
+        )
+        probability_fraction_clause = (
+            f" ({self.probability_fraction * 100})"
+            if self.probability_fraction is not None
+            else ""
+        )
+        row_count_clause = (
+            f" ({self.row_count} ROWS)" if self.row_count is not None else ""
+        )
+        sample_clause = (
+            f"{analyzer_utils.SAMPLE}{probability_fraction_clause}{row_count_clause}{seed_clause}"
+            if self.sample_applied
+            else analyzer_utils.EMPTY_STRING
+        )
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}{sample_clause}"
 
     @property
     def sql_in_subquery(self) -> str:
@@ -508,6 +528,31 @@ class SelectableEntity(Selectable):
         # the SelectableEntity only allows select from base table. No
         # CTE table will be referred.
         return dict()
+
+    def sample(
+        self,
+        probability_fraction: Optional[float],
+        row_count: Optional[int],
+        seed: Optional[int],
+    ) -> "Selectable":
+        if self.sample_applied:
+            # to prevent the .sample().sample() being applied
+            raise ValueError(
+                "The sample method has already been applied to this Selectable."
+            )
+        if probability_fraction is not None and row_count is not None:
+            raise ValueError(
+                "Only one of probability_fraction and row_count can be specified."
+            )
+        if probability_fraction is None or row_count is None:
+            raise ValueError(
+                "Either 'probability_fraction' or 'row_count' must not be None."
+            )
+        self.probability_fraction = probability_fraction
+        self.row_count = row_count
+        self.seed = seed
+        self.sample_applied = True
+        return self
 
 
 class SelectSQL(Selectable):
@@ -871,8 +916,7 @@ class SelectStatement(Selectable):
         if not self.projection:
             self._schema_query = self.from_.schema_query
             return self._schema_query
-        from_clause = self.from_.sql_in_subquery
-        self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}"
+        self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}({self.from_.schema_query})"
         return self._schema_query
 
     @property

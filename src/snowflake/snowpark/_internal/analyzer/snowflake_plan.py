@@ -772,11 +772,15 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         probability_fraction: Optional[float] = None,
         row_count: Optional[int] = None,
+        seed: Optional[int] = None,
     ) -> SnowflakePlan:
         """Builds the sample part of the resultant sql statement"""
         return self.build(
             lambda x: sample_statement(
-                x, probability_fraction=probability_fraction, row_count=row_count
+                x,
+                probability_fraction=probability_fraction,
+                row_count=row_count,
+                seed=seed,
             ),
             child,
             source_plan,
