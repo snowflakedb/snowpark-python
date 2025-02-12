@@ -204,6 +204,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     make_series_map_snowpark_function,
     SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY,
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS,
+    is_external_kwarg,
 )
 from collections import defaultdict
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
@@ -8796,9 +8797,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     if not found_snowpark_column:
                         resolved_positional.append(col)
                         found_snowpark_column = True
+                    elif not is_external_kwarg(arg):
+                        continue
                     elif params[arg].default is not inspect.Parameter.empty:
                         # if the unspecified arg has a default value, don't need to add to resolved_positional
-                        continue
+                        resolved_positional.append(params[arg].default)
                     else:
                         ErrorMessage.not_implemented(
                             f"Unspecified Argument: {arg} - when using apply with kwargs, all function arguments should be specified except the single column reference (if applicable)."
