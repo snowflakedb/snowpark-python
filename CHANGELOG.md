@@ -15,6 +15,10 @@
   - `normal`
   - `randn`
 
+#### Bug Fixes
+
+- Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
+
 #### Experimental Features
 
 - Added support for writing pyarrow Tables to Snowflake tables.
