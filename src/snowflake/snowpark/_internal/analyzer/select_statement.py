@@ -473,47 +473,38 @@ class SelectableEntity(Selectable):
         assert isinstance(entity, SnowflakeTable)
         super().__init__(analyzer)
         self.entity = entity
-        self.sample_applied: bool = False
-        self.probability_fraction: Optional[float] = None
-        self.row_count: Optional[int] = None
-        self.seed: Optional[int] = None
+        self._sample_clause: Optional[str] = None
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
         copied = SelectableEntity(
             deepcopy(self.entity, memodict), analyzer=self.analyzer
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        copied._sample_clause = self._sample_clause
 
         return copied
 
     @property
+    def select_clause(self) -> str:
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
+
+    @property
+    def sample_clause(self) -> str:
+        return (
+            self._sample_clause if self._sample_clause else analyzer_utils.EMPTY_STRING
+        )
+
+    @property
     def sql_query(self) -> str:
-        seed_clause = (
-            f"{analyzer_utils.SEED}({self.seed})" if self.seed is not None else ""
-        )
-        probability_fraction_clause = (
-            f" ({self.probability_fraction * 100})"
-            if self.probability_fraction is not None
-            else ""
-        )
-        row_count_clause = (
-            f" ({self.row_count} ROWS)" if self.row_count is not None else ""
-        )
-        sample_clause = (
-            f"{analyzer_utils.SAMPLE}{probability_fraction_clause}{row_count_clause}{seed_clause}"
-            if self.sample_applied
-            else analyzer_utils.EMPTY_STRING
-        )
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}{sample_clause}"
+        return f"{self.select_clause}{self.sample_clause}"
 
     @property
     def sql_in_subquery(self) -> str:
-        # TODO handle for sample
-        return self.entity.name
+        return f"{self.entity.name}{self.sample_clause}"
 
     @property
     def schema_query(self) -> str:
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
+        return self.select_clause
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -536,7 +527,7 @@ class SelectableEntity(Selectable):
         row_count: Optional[int],
         seed: Optional[int],
     ) -> "Selectable":
-        if self.sample_applied:
+        if self._sample_clause is not None:
             # to prevent .sample().sample() being applied
             raise ValueError(
                 "The sample method has already been applied to this Selectable."
@@ -549,11 +540,22 @@ class SelectableEntity(Selectable):
             raise ValueError(
                 "Either 'probability_fraction' or 'row_count' must not be None."
             )
-        self.probability_fraction = probability_fraction
-        self.row_count = row_count
-        self.seed = seed
-        self.sample_applied = True
-        return self
+
+        new = copy(self)
+        seed_clause = (
+            f"{analyzer_utils.SEED}({seed})"
+            if seed is not None
+            else analyzer_utils.EMPTY_STRING
+        )
+        probability_or_rowcount_clause = (
+            f"{row_count} ROWS"
+            if row_count is not None
+            else f"{probability_fraction*100.0}"
+        )
+        new._sample_clause = (
+            f"{analyzer_utils.SAMPLE}({probability_or_rowcount_clause}){seed_clause}"
+        )
+        return new
 
 
 class SelectSQL(Selectable):

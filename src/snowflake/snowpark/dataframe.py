@@ -5270,17 +5270,17 @@ class DataFrame:
             self._plan, probability_fraction=frac, row_count=n, seed=seed
         )
         if self._select_statement:
-            new_from = self._session._analyzer.create_select_snowflake_plan(
+            from_ = self._session._analyzer.create_select_snowflake_plan(
                 sample_plan, analyzer=self._session._analyzer
             )
             if isinstance(self._select_statement.from_, SelectableEntity):
-                new_from = self._select_statement.from_.sample(
+                from_ = self._select_statement.from_.sample(
                     probability_fraction=frac, row_count=n, seed=seed
                 )
 
             return self._with_plan(
                 self._session._analyzer.create_select_statement(
-                    from_=new_from,
+                    from_=from_,
                     analyzer=self._session._analyzer,
                 ),
                 _ast_stmt=stmt,
