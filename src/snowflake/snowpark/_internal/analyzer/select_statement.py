@@ -871,7 +871,8 @@ class SelectStatement(Selectable):
         if not self.projection:
             self._schema_query = self.from_.schema_query
             return self._schema_query
-        self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}({self.from_.schema_query})"
+        from_clause = self.from_.sql_in_subquery
+        self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}{from_clause}"
         return self._schema_query
 
     @property
