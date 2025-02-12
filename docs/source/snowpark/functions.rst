@@ -81,6 +81,9 @@ Functions
     atanh
     atan2
     avg
+    base64
+    base64_decode_string
+    base64_encode
     bit_length
     bitmap_bit_position
     bitmap_bucket_number
@@ -157,6 +160,7 @@ Functions
     desc_nulls_last
     div0
     divnull
+    editdistance
     endswith
     equal_nan
     equal_null
@@ -178,12 +182,15 @@ Functions
     grouping
     grouping_id
     hash
+    hex
+    hex_encode
     hour
     iff
     ifnull
     in_
     initcap
     insert
+    instr
     is_array
     is_binary
     is_boolean
@@ -217,6 +224,9 @@ Functions
     locate
     localtimestamp
     log
+    log1p
+    log2
+    log10
     lower
     lpad
     ltrim
@@ -240,7 +250,9 @@ Functions
     months_between
     negate
     next_day
+    normal
     not_
+    nth_value
     ntile
     nullifzero
     nvl
@@ -257,12 +269,14 @@ Functions
     parse_json
     parse_xml
     percent_rank
+    percentile_approx
     percentile_cont
     position
     pow
     previous_day
     quarter
     radians
+    randn
     random
     rank
     regexp_count
@@ -350,6 +364,7 @@ Functions
     udaf
     udf
     udtf
+    unbase64
     uniform
     unix_timestamp
     upper

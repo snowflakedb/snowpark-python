@@ -62,6 +62,8 @@ def test_split_path(path: str, expected_dir: str, expected_file: str) -> None:
             False,
             "'snow://domain/test_entity/versions/test_version/file.txt'",
         ),
+        ("/some/file.yml", False, "'/some/file.yml'"),
+        ("'/some/file.yml'", False, "'/some/file.yml'"),
     ],
 )
 def test_normalize_path(path: str, is_local: bool, expected: str) -> None:
@@ -76,4 +78,4 @@ def test__pandas_importer():
 
         assert imported_pandas == pandas
     except ImportError:
-        assert imported_pandas == MissingPandas
+        assert isinstance(imported_pandas, MissingPandas)
