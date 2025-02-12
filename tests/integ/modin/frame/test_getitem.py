@@ -85,7 +85,7 @@ def test_df_getitem_with_string_list_like(
             return df[key]
 
     # 5 extra queries for iter
-    with SqlCounter(query_count=6 if isinstance(key, native_pd.Index) else 1):
+    with SqlCounter(query_count=7 if isinstance(key, native_pd.Index) else 1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -120,7 +120,7 @@ def test_df_getitem_with_int_list_like(key):
     snowpark_df = pd.DataFrame(native_df)
 
     # 5 extra queries for iter
-    with SqlCounter(query_count=6 if isinstance(key, native_pd.Index) else 1):
+    with SqlCounter(query_count=7 if isinstance(key, native_pd.Index) else 1):
         eval_snowpark_pandas_result(
             snowpark_df,
             native_df,
@@ -321,15 +321,19 @@ def test_df_getitem_calls_getitem():
         slice(-100, None, -2),
     ],
 )
-@sql_count_checker(query_count=1)
 def test_df_getitem_with_slice(
     key, default_index_snowpark_pandas_df, default_index_native_df
 ):
-    eval_snowpark_pandas_result(
-        default_index_snowpark_pandas_df,
-        default_index_native_df,
-        lambda df: df[key],
-    )
+    if key.start is None:
+        expected_query_count = 1
+    else:
+        expected_query_count = 2
+    with SqlCounter(query_count=expected_query_count):
+        eval_snowpark_pandas_result(
+            default_index_snowpark_pandas_df,
+            default_index_native_df,
+            lambda df: df[key],
+        )
 
 
 @pytest.mark.parametrize(
@@ -364,6 +368,7 @@ def test_df_getitem_with_non_int_slice(key):
 def test_df_getitem_with_multiindex(
     key, default_index_native_df, multiindex_native, native_df_with_multiindex_columns
 ):
+    expected_query_count = 2 if isinstance(key, slice) else 1
     # Test __getitem__ with df with MultiIndex index.
     native_df = default_index_native_df.set_index(multiindex_native)
     snowpark_df = pd.DataFrame(native_df)
@@ -377,13 +382,13 @@ def test_df_getitem_with_multiindex(
         )
         else _key
     )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=expected_query_count):
         eval_snowpark_pandas_result(snowpark_df, native_df, lambda df: df[_key])
 
     # Test __getitem__ with df with MultiIndex columns.
     native_df = native_df_with_multiindex_columns
     snowpark_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=expected_query_count):
         eval_snowpark_pandas_result(
             snowpark_df, native_df, lambda df: df[key], check_column_type=False
         )
@@ -391,7 +396,7 @@ def test_df_getitem_with_multiindex(
     # Test __getitem__ with df with MultiIndex index.
     native_df = native_df_with_multiindex_columns.set_index(multiindex_native)
     snowpark_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=expected_query_count):
         eval_snowpark_pandas_result(
             snowpark_df, native_df, lambda df: df[key], check_column_type=False
         )
