@@ -353,212 +353,215 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_alias {
-            col {
-              add {
-                lhs {
-                  apply_expr {
-                    fn {
-                      builtin_fn {
-                        name {
+          args {
+            sp_column_alias {
+              col {
+                add {
+                  lhs {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
                           name {
-                            sp_name_flat {
-                              name: "col"
+                            name {
+                              sp_name_flat {
+                                name: "col"
+                              }
                             }
                           }
                         }
                       }
-                    }
-                    pos_args {
-                      string_val {
-                        src {
-                          end_column: 73
-                          end_line: 29
-                          file: 2
-                          start_column: 61
-                          start_line: 29
+                      pos_args {
+                        string_val {
+                          src {
+                            end_column: 73
+                            end_line: 29
+                            file: 2
+                            start_column: 61
+                            start_line: 29
+                          }
+                          v: "\"A\""
                         }
-                        v: "\"A\""
+                      }
+                      src {
+                        end_column: 73
+                        end_line: 29
+                        file: 2
+                        start_column: 61
+                        start_line: 29
                       }
                     }
-                    src {
-                      end_column: 73
-                      end_line: 29
-                      file: 2
-                      start_column: 61
-                      start_line: 29
+                  }
+                  rhs {
+                    int64_val {
+                      src {
+                        end_column: 77
+                        end_line: 29
+                        file: 2
+                        start_column: 61
+                        start_line: 29
+                      }
+                      v: 1
                     }
                   }
-                }
-                rhs {
-                  int64_val {
-                    src {
-                      end_column: 77
-                      end_line: 29
-                      file: 2
-                      start_column: 61
-                      start_line: 29
-                    }
-                    v: 1
+                  src {
+                    end_column: 77
+                    end_line: 29
+                    file: 2
+                    start_column: 61
+                    start_line: 29
                   }
-                }
-                src {
-                  end_column: 77
-                  end_line: 29
-                  file: 2
-                  start_column: 61
-                  start_line: 29
                 }
               }
-            }
-            fn {
-              sp_column_alias_fn_as: true
-            }
-            name: "\"A\""
-            src {
-              end_column: 91
-              end_line: 29
-              file: 2
-              start_column: 60
-              start_line: 29
+              fn {
+                sp_column_alias_fn_as: true
+              }
+              name: "\"A\""
+              src {
+                end_column: 91
+                end_line: 29
+                file: 2
+                start_column: 60
+                start_line: 29
+              }
             }
           }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 105
-                  end_line: 29
-                  file: 2
-                  start_column: 93
-                  start_line: 29
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 105
+                    end_line: 29
+                    file: 2
+                    start_column: 93
+                    start_line: 29
+                  }
+                  v: "\"B\""
                 }
-                v: "\"B\""
+              }
+              src {
+                end_column: 105
+                end_line: 29
+                file: 2
+                start_column: 93
+                start_line: 29
               }
             }
-            src {
-              end_column: 105
-              end_line: 29
-              file: 2
-              start_column: 93
-              start_line: 29
-            }
           }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 119
-                  end_line: 29
-                  file: 2
-                  start_column: 107
-                  start_line: 29
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 119
+                    end_line: 29
+                    file: 2
+                    start_column: 107
+                    start_line: 29
+                  }
+                  v: "\"C\""
                 }
-                v: "\"C\""
+              }
+              src {
+                end_column: 119
+                end_line: 29
+                file: 2
+                start_column: 107
+                start_line: 29
               }
             }
-            src {
-              end_column: 119
-              end_line: 29
-              file: 2
-              start_column: 107
-              start_line: 29
-            }
           }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 140
-                  end_line: 29
-                  file: 2
-                  start_column: 121
-                  start_line: 29
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 140
+                    end_line: 29
+                    file: 2
+                    start_column: 121
+                    start_line: 29
+                  }
+                  v: "\"l_0001_C\""
                 }
-                v: "\"l_0001_C\""
+              }
+              src {
+                end_column: 140
+                end_line: 29
+                file: 2
+                start_column: 121
+                start_line: 29
               }
             }
-            src {
-              end_column: 140
-              end_line: 29
-              file: 2
-              start_column: 121
-              start_line: 29
-            }
           }
-        }
-        cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 161
-                  end_line: 29
-                  file: 2
-                  start_column: 142
-                  start_line: 29
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 161
+                    end_line: 29
+                    file: 2
+                    start_column: 142
+                    start_line: 29
+                  }
+                  v: "\"l_0003_B\""
                 }
-                v: "\"l_0003_B\""
+              }
+              src {
+                end_column: 161
+                end_line: 29
+                file: 2
+                start_column: 142
+                start_line: 29
               }
             }
-            src {
-              end_column: 161
-              end_line: 29
-              file: 2
-              start_column: 142
-              start_line: 29
-            }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -574,7 +577,6 @@ body {
           start_column: 49
           start_line: 29
         }
-        variadic: true
       }
     }
     symbol {
@@ -630,135 +632,137 @@ body {
     expr {
       sp_dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"l_0004_A\""
             }
-            v: "\"l_0004_A\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"l_0004_B\""
             }
-            v: "\"l_0004_B\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"l_0004_C\""
             }
-            v: "\"l_0004_C\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"r_0000_A\""
             }
-            v: "\"r_0000_A\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"l_0000_A\""
             }
-            v: "\"l_0000_A\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"l_0002_A\""
             }
-            v: "\"l_0002_A\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"r_0006_A\""
             }
-            v: "\"r_0006_A\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"r_0006_B\""
             }
-            v: "\"r_0006_B\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"r_0006_C\""
             }
-            v: "\"r_0006_C\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"l_0001_C\""
             }
-            v: "\"l_0001_C\""
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 35
-              end_line: 31
-              file: 2
-              start_column: 14
-              start_line: 31
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 31
+                file: 2
+                start_column: 14
+                start_line: 31
+              }
+              v: "\"l_0003_B\""
             }
-            v: "\"l_0003_B\""
           }
         }
         df {

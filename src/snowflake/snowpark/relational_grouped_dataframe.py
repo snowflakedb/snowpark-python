@@ -129,12 +129,14 @@ class GroupingSets:
     ) -> None:
         self._ast = None
         if _emit_ast:
-            self._ast = with_src_position(proto.SpGroupingSets())
-            set_list, self._ast.sets.variadic = parse_positional_args_to_list_variadic(
-                *sets
-            )
+            self._ast = proto.Expr()
+            grouping_sets_ast = with_src_position(self._ast.sp_grouping_sets)
+            (
+                set_list,
+                grouping_sets_ast.sets.variadic,
+            ) = parse_positional_args_to_list_variadic(*sets)
             for s in set_list:
-                build_expr_from_python_val(self._ast.sets.args.add(), s)
+                build_expr_from_python_val(grouping_sets_ast.sets.args.add(), s)
 
         prepared_sets = parse_positional_args_to_list(*sets)
         prepared_sets = (

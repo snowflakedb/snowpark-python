@@ -879,6 +879,16 @@ class SelectStatement(Selectable):
         return self.from_.query_params
 
     @property
+    def attributes(self) -> Optional[List[Attribute]]:
+        return self._attributes
+
+    @attributes.setter
+    def attributes(self, value: Optional[List[Attribute]]):
+        self._attributes = value
+        if self._session.reduce_describe_query_enabled and value is not None:
+            self._schema_query = analyzer_utils.schema_value_statement(value)
+
+    @property
     def schema_query(self) -> str:
         if self._schema_query:
             return self._schema_query
@@ -1214,7 +1224,7 @@ class SelectStatement(Selectable):
                 from_=self.to_subqueryable(), where=col, analyzer=self.analyzer
             )
         if self._session.reduce_describe_query_enabled:
-            new._attributes = self._attributes
+            new.attributes = self.attributes
 
         return new
 
@@ -1249,7 +1259,7 @@ class SelectStatement(Selectable):
                 analyzer=self.analyzer,
             )
         if self._session.reduce_describe_query_enabled:
-            new._attributes = self._attributes
+            new.attributes = self.attributes
 
         return new
 
@@ -1366,7 +1376,7 @@ class SelectStatement(Selectable):
             new.post_actions = new.from_.post_actions
             new._merge_projection_complexity_with_subquery = False
         if self._session.reduce_describe_query_enabled:
-            new._attributes = self._attributes
+            new.attributes = self.attributes
 
         return new
 
