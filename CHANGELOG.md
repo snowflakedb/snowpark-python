@@ -24,6 +24,7 @@
 #### New Features
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
+- Added support for `Series.hist`.
 
 ## 1.27.0 (2025-02-03)
 
