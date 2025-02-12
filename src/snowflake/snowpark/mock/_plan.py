@@ -2352,8 +2352,14 @@ def calculate_expression(
 
         if len(remaining) > 0 and exp.else_value:
             value = calculate_expression(
-                exp.else_value, remaining, analyzer, expr_to_alias
+                exp.else_value,
+                remaining.reset_index(drop=True),
+                analyzer,
+                expr_to_alias,
             )
+            # Index was reset in order to calculate expression correctly, but needs to be in the original
+            # order to replace the output data rows correctly.
+            value.index = remaining.index
             if output_data.sf_type is None:
                 output_data.sf_type = value.sf_type
             elif output_data.sf_type.datatype != value.sf_type.datatype:
