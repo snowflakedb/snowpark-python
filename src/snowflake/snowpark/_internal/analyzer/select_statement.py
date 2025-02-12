@@ -541,7 +541,7 @@ class SelectableEntity(Selectable):
                 "Either 'probability_fraction' or 'row_count' must not be None."
             )
 
-        new = copy(self)
+        new = SelectableEntity(self.entity, analyzer=self.analyzer)
         seed_clause = (
             f"{analyzer_utils.SEED}({seed})"
             if seed is not None
