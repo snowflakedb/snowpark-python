@@ -25,6 +25,7 @@
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
 - Added support for `Series.hist`.
+- Added support for list values in `Series.str.get`.
 
 ## 1.27.0 (2025-02-03)
 

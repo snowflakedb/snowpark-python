@@ -16548,7 +16548,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 "Snowpark pandas method 'Series.str.get' doesn't yet support non-numeric 'i' argument"
             )
 
-        def output_col(column: SnowparkColumn) -> SnowparkColumn:
+        def output_col_string(column: SnowparkColumn) -> SnowparkColumn:
             col_len_exp = length(column)
             if i is None:
                 new_col = pandas_lit(None)
@@ -16573,9 +16573,44 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
             return self._replace_non_str(column, new_col)
 
-        new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
-            output_col
-        )
+        def output_col_list(column: SnowparkColumn) -> SnowparkColumn:
+            col_len_exp = array_size(column)
+            if i is None:
+                new_col = pandas_lit(None)
+            elif i < 0:
+                # Index is relative to the end boundary.
+                # If it falls before the beginning boundary, Null is returned.
+                # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
+                new_col = iff(
+                    pandas_lit(i) + col_len_exp < pandas_lit(0),
+                    pandas_lit(None),
+                    get(column, pandas_lit(i) + col_len_exp),
+                )
+            else:
+                assert i >= 0
+                # Index is relative to the beginning boundary.
+                # If it falls after the end boundary, Null is returned.
+                # Note that string methods in pandas are 0-based while in Snowflake, they are 1-based.
+                new_col = iff(
+                    pandas_lit(i) >= col_len_exp,
+                    pandas_lit(None),
+                    get(column, pandas_lit(i)),
+                )
+            return new_col
+
+        col = self._modin_frame.data_column_snowflake_quoted_identifiers[0]
+        if isinstance(
+            self._modin_frame.quoted_identifier_to_snowflake_type([col]).get(col),
+            ArrayType,
+        ):
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                output_col_list
+            )
+        else:
+            new_internal_frame = self._modin_frame.apply_snowpark_function_to_columns(
+                output_col_string
+            )
+
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_get_dummies(self, sep: str) -> None:
