@@ -1546,6 +1546,13 @@ def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
     return True
 
 
+def is_external_kwarg(arg: str) -> bool:
+    """Return True if the `arg` is kwarg from the supported Snowpark Python function."""
+    if "_ast" in arg or arg == "session":
+        return False
+    return True
+
+
 def make_series_map_snowpark_function(
     mapping: Union[Mapping, native_pd.Series], self_type: DataType
 ) -> Callable[[SnowparkColumn], SnowparkColumn]:
