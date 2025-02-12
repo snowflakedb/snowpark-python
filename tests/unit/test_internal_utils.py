@@ -1,12 +1,16 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import concurrent.futures
+import random
 import pytest
 from snowflake.connector.options import MissingPandas
 
 from snowflake.snowpark._internal import utils
-from snowflake.snowpark._internal.utils import _pandas_importer
+from snowflake.snowpark._internal.utils import (
+    _pandas_importer,
+    generate_random_alphanumeric,
+)
 
 
 @pytest.mark.parametrize(
@@ -79,3 +83,21 @@ def test__pandas_importer():
         assert imported_pandas == pandas
     except ImportError:
         assert isinstance(imported_pandas, MissingPandas)
+
+
+def test_generate_random_alphanumeric():
+    random.seed(42)
+    random_string1 = generate_random_alphanumeric()
+    random.seed(42)
+    random_string2 = generate_random_alphanumeric()
+    assert (
+        isinstance(random_string1, str)
+        and isinstance(random_string2, str)
+        and random_string1 != random_string2
+    )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        # Submit tasks to the pool and get future objects
+        futures = [executor.submit(generate_random_alphanumeric) for _ in range(5)]
+        res = [f.result() for f in futures]
+        assert len(set(res)) == 5  # no duplicate string

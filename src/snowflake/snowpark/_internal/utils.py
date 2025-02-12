@@ -26,7 +26,7 @@ from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache
 from itertools import count
 from json import JSONEncoder
-from random import choice
+from random import Random
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -690,7 +690,7 @@ def random_name_for_temp_object(object_type: TempObjectType) -> str:
 
 
 def generate_random_alphanumeric(length: int = 10) -> str:
-    return "".join(choice(ALPHANUMERIC) for _ in range(length))
+    return "".join(Random().choice(ALPHANUMERIC) for _ in range(length))
 
 
 def column_to_bool(col_):
