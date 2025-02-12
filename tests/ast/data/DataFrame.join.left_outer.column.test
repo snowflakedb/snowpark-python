@@ -163,16 +163,19 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_sql_expr {
-            sql: "*"
-            src {
-              end_column: 63
-              end_line: 29
-              file: 2
-              start_column: 14
-              start_line: 29
+          args {
+            sp_column_sql_expr {
+              sql: "*"
+              src {
+                end_column: 63
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -188,7 +191,6 @@ body {
           start_column: 14
           start_line: 29
         }
-        variadic: true
       }
     }
     symbol {
