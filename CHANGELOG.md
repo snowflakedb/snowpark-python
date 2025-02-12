@@ -1,6 +1,32 @@
 # Release History
 
-## 1.27.0 (TBD)
+# 1.28.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Deprecations:
+
+- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
+
+#### New Features
+
+- Added support for the following functions in `functions.py`
+  - `normal`
+  - `randn`
+
+#### Experimental Features
+
+- Added support for writing pyarrow Tables to Snowflake tables.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
+- Added support for `Series.hist`.
+
+## 1.27.0 (2025-02-03)
 
 ### Snowpark Python API Updates
 
@@ -21,6 +47,7 @@
   - `bitmap_bit_position`
   - `bitmap_bucket_number`
   - `bitmap_construct_agg`
+  - `bitshiftright_unsigned`
   - `cbrt`
   - `equal_null`
   - `from_json`
@@ -28,6 +55,7 @@
   - `localtimestamp`
   - `max_by`
   - `min_by`
+  - `nth_value`
   - `nvl`
   - `octet_length`
   - `position`
@@ -41,35 +69,53 @@
   - `regr_sxy`
   - `regr_syy`
   - `try_to_binary`
+  - `base64`
+  - `base64_decode_string`
+  - `base64_encode`
+  - `editdistance`
+  - `hex`
+  - `hex_encode`
+  - `instr`
+  - `log1p`
+  - `log2`
+  - `log10`
+  - `percentile_approx`
+  - `unbase64`
+- Added support for `seed` argument in `DataFrame.stat.sample_by`. Note that it only supports a `Table` object, and will be ignored for a `DataFrame` object.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
 - Added support for `DataFrameWriter.insert_into/insertInto`. This method also supports local testing mode.
-
-#### Experimental Features
-
-- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
-- Added support for querying json element of a VARIANT column in `functions.col` and `functions.column` with an optional keyword argument `json_element`.
-- Allow user input schema when reading JSON file on stage.
-- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
-  - `snowflake.core` is a dependency required for this feature.
-
-#### Improvements
-
-- Updated README.md to include instructions on how to verify package signatures using `cosign`.
+- Added support for `DataFrame.create_temp_view` to create a temporary view. It will fail if the view already exists.
+- Added support for multiple columns in the functions `map_cat` and `map_concat`.
 - Added an option `keep_column_order` for keeping original column order in `DataFrame.with_column` and `DataFrame.with_columns`.
 - Added options to column casts that allow renaming or adding fields in StructType columns.
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
 - Added support for `value_contains_null` parameter to MapType.
+- Added support for using `Column` object in `Column.in_` and `functions.in_`. 
 - Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
+- Allow `session.file.get` in a Native App to read file paths starting with `/` from the current version
+- Added support for multiple aggregation functions after `DataFrame.pivot`.
+
+#### Experimental Features
+
+- Added `Catalog` class to manage snowflake objects. It can be accessed via `Session.catalog`.
+  - `snowflake.core` is a dependency required for this feature.
+- Allow user input schema when reading JSON file on stage.
+- Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
+
+#### Improvements
+
+- Updated README.md to include instructions on how to verify package signatures using `cosign`.
 
 #### Bug Fixes
 
-- Fixed a bug in local testing mode that caused a column to contain None when it should contain 0
+- Fixed a bug in local testing mode that caused a column to contain None when it should contain 0.
 - Fixed a bug in `StructField.from_json` that prevented TimestampTypes with `tzinfo` from being parsed correctly.
 - Fixed a bug in function `date_format` that caused an error when the input column was date type or timestamp type.
 - Fixed a bug in dataframe that null value can be inserted in a non-nullable column.
 - Fixed a bug in `replace` and `lit` which raised type hint assertion error when passing `Column` expression objects.
 - Fixed a bug in `pandas_udf` and `pandas_udtf` where `session` parameter was erroneously ignored.
+- Fixed a bug that raised incorrect type conversion error for system function called through `session.call`.
 
 ### Snowpark pandas API Updates
 
@@ -100,14 +146,12 @@
 - Added support for `DataFrame.pop` and `Series.pop`.
 - Added support for `first` and `last` in `DataFrameGroupBy.agg` and `SeriesGroupBy.agg`.
 - Added support for `Index.drop_duplicates`.
-
-#### Bug Fixes
-
-- Fixed a bug that system function called through `session.call` have incorrect type conversion.
+- Added support for aggregations `"count"`, `"median"`, `np.median`,
+  `"skew"`, `"std"`, `np.std` `"var"`, and `np.var` in
+  `pd.pivot_table()`, `DataFrame.pivot_table()`, and `pd.crosstab()`.
 
 #### Improvements
 - Improve performance of `DataFrame.map`, `Series.apply` and `Series.map` methods by mapping numpy functions to snowpark functions if possible.
-- Updated integration testing for `session.lineage.trace` to exclude deleted objects
 - Added documentation for `DataFrame.map`.
 - Improve performance of `DataFrame.apply` by mapping numpy functions to snowpark functions if possible.
 - Added documentation on the extent of Snowpark pandas interoperability with scikit-learn.
