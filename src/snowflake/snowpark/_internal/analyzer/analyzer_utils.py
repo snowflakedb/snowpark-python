@@ -154,6 +154,7 @@ RESULT_SCAN = " RESULT_SCAN"
 INFER_SCHEMA = " INFER_SCHEMA "
 SAMPLE = " SAMPLE "
 ROWS = " ROWS "
+SEED = " SEED "
 CASE = " CASE "
 WHEN = " WHEN "
 THEN = " THEN "
@@ -465,8 +466,10 @@ def sample_statement(
     child: str,
     probability_fraction: Optional[float] = None,
     row_count: Optional[int] = None,
+    seed: Optional[int] = None,
 ):
     """Generates the sql text for the sample part of the plan being executed"""
+    seed_clause = f"{SEED}({seed})" if seed is not None else EMPTY_STRING
     if probability_fraction is not None:
         return (
             project_statement([], child)
@@ -474,6 +477,7 @@ def sample_statement(
             + LEFT_PARENTHESIS
             + str(probability_fraction * 100)
             + RIGHT_PARENTHESIS
+            + seed_clause
         )
     elif row_count is not None:
         return (
@@ -483,6 +487,7 @@ def sample_statement(
             + str(row_count)
             + ROWS
             + RIGHT_PARENTHESIS
+            + seed_clause
         )
     # this shouldn't happen because upstream code will validate either probability_fraction or row_count will have a value.
     else:  # pragma: no cover

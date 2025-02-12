@@ -62,6 +62,7 @@ from snowflake.snowpark._internal.analyzer.select_statement import (
     SelectSnowflakePlan,
     SelectStatement,
     SelectTableFunction,
+    SelectableEntity,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import PlanQueryType
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
@@ -5239,6 +5240,7 @@ class DataFrame:
         self,
         frac: Optional[float] = None,
         n: Optional[int] = None,
+        seed: Optional[int] = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Samples rows based on either the number of rows to be returned or a
@@ -5254,6 +5256,7 @@ class DataFrame:
 
         stmt = None
         if _emit_ast:
+            # TODO: add seed support in ast
             # AST.
             stmt = self._session._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_dataframe_sample, stmt)
@@ -5263,13 +5266,21 @@ class DataFrame:
                 ast.num.value = n
             self._set_ast_ref(ast.df)
 
-        sample_plan = Sample(self._plan, probability_fraction=frac, row_count=n)
+        sample_plan = Sample(
+            self._plan, probability_fraction=frac, row_count=n, seed=seed
+        )
         if self._select_statement:
+            new_from = self._session._analyzer.create_select_snowflake_plan(
+                sample_plan, analyzer=self._session._analyzer
+            )
+            if isinstance(self._select_statement.from_, SelectableEntity):
+                new_from = self._select_statement.from_.sample(
+                    probability_fraction=frac, row_count=n, seed=seed
+                )
+
             return self._with_plan(
                 self._session._analyzer.create_select_statement(
-                    from_=self._session._analyzer.create_select_snowflake_plan(
-                        sample_plan, analyzer=self._session._analyzer
-                    ),
+                    from_=new_from,
                     analyzer=self._session._analyzer,
                 ),
                 _ast_stmt=stmt,
