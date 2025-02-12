@@ -1291,8 +1291,7 @@ class SelectStatement(Selectable):
             )
 
         if self._session.reduce_describe_query_enabled:
-            # TODO: update this
-            new._attributes = self._attributes
+            new.attributes = self.attributes
         return new
 
     def set_operator(
