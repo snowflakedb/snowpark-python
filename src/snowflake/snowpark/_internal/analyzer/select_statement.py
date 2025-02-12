@@ -508,11 +508,12 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_in_subquery(self) -> str:
+        # TODO handle for sample
         return self.entity.name
 
     @property
     def schema_query(self) -> str:
-        return self.sql_query
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
@@ -536,7 +537,7 @@ class SelectableEntity(Selectable):
         seed: Optional[int],
     ) -> "Selectable":
         if self.sample_applied:
-            # to prevent the .sample().sample() being applied
+            # to prevent .sample().sample() being applied
             raise ValueError(
                 "The sample method has already been applied to this Selectable."
             )
@@ -544,7 +545,7 @@ class SelectableEntity(Selectable):
             raise ValueError(
                 "Only one of probability_fraction and row_count can be specified."
             )
-        if probability_fraction is None or row_count is None:
+        if probability_fraction is None and row_count is None:
             raise ValueError(
                 "Either 'probability_fraction' or 'row_count' must not be None."
             )
