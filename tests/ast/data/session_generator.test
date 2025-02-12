@@ -32,72 +32,75 @@ body {
     expr {
       sp_generator {
         columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 40
-                  end_line: 27
-                  file: 2
-                  start_column: 32
-                  start_line: 27
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 40
+                    end_line: 27
+                    file: 2
+                    start_column: 32
+                    start_line: 27
+                  }
+                  v: "A"
                 }
-                v: "A"
+              }
+              src {
+                end_column: 40
+                end_line: 27
+                file: 2
+                start_column: 32
+                start_line: 27
               }
             }
-            src {
-              end_column: 40
-              end_line: 27
-              file: 2
-              start_column: 32
-              start_line: 27
-            }
           }
-        }
-        columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 50
-                  end_line: 27
-                  file: 2
-                  start_column: 42
-                  start_line: 27
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 50
+                    end_line: 27
+                    file: 2
+                    start_column: 42
+                    start_line: 27
+                  }
+                  v: "B"
                 }
-                v: "B"
+              }
+              src {
+                end_column: 50
+                end_line: 27
+                file: 2
+                start_column: 42
+                start_line: 27
               }
             }
-            src {
-              end_column: 50
-              end_line: 27
-              file: 2
-              start_column: 42
-              start_line: 27
-            }
           }
+          variadic: true
         }
         src {
           end_column: 51
@@ -106,7 +109,6 @@ body {
           start_column: 14
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
@@ -123,162 +125,165 @@ body {
     expr {
       sp_generator {
         columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "seq1"
+                    name {
+                      sp_name_flat {
+                        name: "seq1"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              int64_val {
-                src {
-                  end_column: 39
-                  end_line: 29
-                  file: 2
-                  start_column: 32
-                  start_line: 29
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 39
+                    end_line: 29
+                    file: 2
+                    start_column: 32
+                    start_line: 29
+                  }
+                  v: 1
                 }
-                v: 1
               }
-            }
-            src {
-              end_column: 39
-              end_line: 29
-              file: 2
-              start_column: 32
-              start_line: 29
+              src {
+                end_column: 39
+                end_line: 29
+                file: 2
+                start_column: 32
+                start_line: 29
+              }
             }
           }
-        }
-        columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "uniform"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
                     name {
-                      name {
-                        sp_name_flat {
-                          name: "lit"
-                        }
+                      sp_name_flat {
+                        name: "uniform"
                       }
                     }
                   }
                 }
-                pos_args {
-                  int64_val {
-                    src {
-                      end_column: 58
-                      end_line: 29
-                      file: 2
-                      start_column: 41
-                      start_line: 29
-                    }
-                    v: 1
-                  }
-                }
-                src {
-                  end_column: 58
-                  end_line: 29
-                  file: 2
-                  start_column: 41
-                  start_line: 29
-                }
               }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "lit"
+                        name {
+                          sp_name_flat {
+                            name: "lit"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      end_column: 58
-                      end_line: 29
-                      file: 2
-                      start_column: 41
-                      start_line: 29
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 58
+                        end_line: 29
+                        file: 2
+                        start_column: 41
+                        start_line: 29
+                      }
+                      v: 1
                     }
-                    v: 10
+                  }
+                  src {
+                    end_column: 58
+                    end_line: 29
+                    file: 2
+                    start_column: 41
+                    start_line: 29
                   }
                 }
-                src {
-                  end_column: 58
-                  end_line: 29
-                  file: 2
-                  start_column: 41
-                  start_line: 29
-                }
               }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "lit"
+                        name {
+                          sp_name_flat {
+                            name: "lit"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      end_column: 58
-                      end_line: 29
-                      file: 2
-                      start_column: 41
-                      start_line: 29
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 58
+                        end_line: 29
+                        file: 2
+                        start_column: 41
+                        start_line: 29
+                      }
+                      v: 10
                     }
-                    v: 2
+                  }
+                  src {
+                    end_column: 58
+                    end_line: 29
+                    file: 2
+                    start_column: 41
+                    start_line: 29
                   }
                 }
-                src {
-                  end_column: 58
-                  end_line: 29
-                  file: 2
-                  start_column: 41
-                  start_line: 29
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          sp_name_flat {
+                            name: "lit"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 58
+                        end_line: 29
+                        file: 2
+                        start_column: 41
+                        start_line: 29
+                      }
+                      v: 2
+                    }
+                  }
+                  src {
+                    end_column: 58
+                    end_line: 29
+                    file: 2
+                    start_column: 41
+                    start_line: 29
+                  }
                 }
               }
-            }
-            src {
-              end_column: 58
-              end_line: 29
-              file: 2
-              start_column: 41
-              start_line: 29
+              src {
+                end_column: 58
+                end_line: 29
+                file: 2
+                start_column: 41
+                start_line: 29
+              }
             }
           }
+          variadic: true
         }
         row_count: 3
         src {
@@ -288,7 +293,6 @@ body {
           start_column: 14
           start_line: 29
         }
-        variadic: true
       }
     }
     symbol {
@@ -305,161 +309,164 @@ body {
     expr {
       sp_generator {
         columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "seq8"
+                    name {
+                      sp_name_flat {
+                        name: "seq8"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              int64_val {
-                src {
-                  end_column: 39
-                  end_line: 31
-                  file: 2
-                  start_column: 32
-                  start_line: 31
+              pos_args {
+                int64_val {
+                  src {
+                    end_column: 39
+                    end_line: 31
+                    file: 2
+                    start_column: 32
+                    start_line: 31
+                  }
                 }
               }
-            }
-            src {
-              end_column: 39
-              end_line: 31
-              file: 2
-              start_column: 32
-              start_line: 31
+              src {
+                end_column: 39
+                end_line: 31
+                file: 2
+                start_column: 32
+                start_line: 31
+              }
             }
           }
-        }
-        columns {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "uniform"
-                    }
-                  }
-                }
-              }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
                     name {
-                      name {
-                        sp_name_flat {
-                          name: "lit"
-                        }
+                      sp_name_flat {
+                        name: "uniform"
                       }
                     }
                   }
                 }
-                pos_args {
-                  int64_val {
-                    src {
-                      end_column: 58
-                      end_line: 31
-                      file: 2
-                      start_column: 41
-                      start_line: 31
-                    }
-                    v: 1
-                  }
-                }
-                src {
-                  end_column: 58
-                  end_line: 31
-                  file: 2
-                  start_column: 41
-                  start_line: 31
-                }
               }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "lit"
+                        name {
+                          sp_name_flat {
+                            name: "lit"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      end_column: 58
-                      end_line: 31
-                      file: 2
-                      start_column: 41
-                      start_line: 31
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 58
+                        end_line: 31
+                        file: 2
+                        start_column: 41
+                        start_line: 31
+                      }
+                      v: 1
                     }
-                    v: 10
+                  }
+                  src {
+                    end_column: 58
+                    end_line: 31
+                    file: 2
+                    start_column: 41
+                    start_line: 31
                   }
                 }
-                src {
-                  end_column: 58
-                  end_line: 31
-                  file: 2
-                  start_column: 41
-                  start_line: 31
-                }
               }
-            }
-            pos_args {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "lit"
+                        name {
+                          sp_name_flat {
+                            name: "lit"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      end_column: 58
-                      end_line: 31
-                      file: 2
-                      start_column: 41
-                      start_line: 31
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 58
+                        end_line: 31
+                        file: 2
+                        start_column: 41
+                        start_line: 31
+                      }
+                      v: 10
                     }
-                    v: 2
+                  }
+                  src {
+                    end_column: 58
+                    end_line: 31
+                    file: 2
+                    start_column: 41
+                    start_line: 31
                   }
                 }
-                src {
-                  end_column: 58
-                  end_line: 31
-                  file: 2
-                  start_column: 41
-                  start_line: 31
+              }
+              pos_args {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          sp_name_flat {
+                            name: "lit"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 58
+                        end_line: 31
+                        file: 2
+                        start_column: 41
+                        start_line: 31
+                      }
+                      v: 2
+                    }
+                  }
+                  src {
+                    end_column: 58
+                    end_line: 31
+                    file: 2
+                    start_column: 41
+                    start_line: 31
+                  }
                 }
               }
-            }
-            src {
-              end_column: 58
-              end_line: 31
-              file: 2
-              start_column: 41
-              start_line: 31
+              src {
+                end_column: 58
+                end_line: 31
+                file: 2
+                start_column: 41
+                start_line: 31
+              }
             }
           }
+          variadic: true
         }
         src {
           end_column: 72
@@ -469,7 +476,6 @@ body {
           start_line: 31
         }
         time_limit_seconds: 1
-        variadic: true
       }
     }
     symbol {
