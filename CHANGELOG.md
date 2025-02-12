@@ -4,16 +4,25 @@
 
 ### Snowpark Python API Updates
 
-#### Deprecations:
+#### Removed Features:
 
-- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
-- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 #### New Features
 
 - Added support for the following functions in `functions.py`
   - `normal`
   - `randn`
+
+#### Behavior Changes
+
+- Added new methods in class `DataFrame`:
+  - `col_regex`: Select columns that match with provided regex.
+  - `map` and its alias `foreach`: A method to apply user function on each row with 1-1 mapping.
+  - `flat_map`: A method to apply user function on each row with one to many mapping.
+  - `toJSON` and its alias `to_json`: Convert each row of dataframe into json string.
+  - `transform`: Chain multiple transformations on dataframe.
+- Removed Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Removed Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 #### Experimental Features
 
@@ -32,6 +41,7 @@
 
 #### New Features
 
+- Added support for `DataFrame.summary()` to compute desired statistics of a DataFrame.
 - Added support for the following functions in `functions.py`
   - `array_reverse`
   - `divnull`
@@ -164,6 +174,7 @@
 
 #### New Features
 
+- Added support for property `version` and class method `get_active_session` for `Session` class.
 - Added support for property `version` and class method `get_active_session` for `Session` class.
 - Added new methods and variables to enhance data type handling and JSON serialization/deserialization:
   - To `DataType`, its derived classes, and `StructField`:
