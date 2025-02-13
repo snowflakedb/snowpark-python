@@ -130,9 +130,56 @@ def test_set_same_operator(session, set_operator):
     )
 
 
-def test_select_distinct_set_operator(session, distinct_table):
-    # TODO: test set operator with distinct
-    pass
+@pytest.mark.parametrize(
+    "operator,action",
+    [
+        (SET_UNION, lambda df1, df2: df1.union(df2)),
+        (SET_UNION_ALL, lambda df1, df2: df1.union_all(df2)),
+        (SET_EXCEPT, lambda df1, df2: df1.except_(df2)),
+        (SET_INTERSECT, lambda df1, df2: df1.intersect(df2)),
+    ],
+)
+def test_distinct_set_operator(session, distinct_table, action, operator):
+    df1 = session.table(distinct_table)
+    df2 = session.table(distinct_table)
+
+    df = action(df1, df2.distinct())
+    df1.union(df2.distinct())
+    assert (
+        df.queries["queries"][0]
+        == f"""( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table})"""
+    )
+
+    df = action(df1.distinct(), df2)
+    assert (
+        df.queries["queries"][0]
+        == f"""( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table})"""
+    )
+
+    df = action(df1, df2).distinct()
+    assert (
+        df.queries["queries"][0]
+        == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+    )
+
+    df = action(df1, df2.distinct()).distinct()
+    df1.union(df2.distinct())
+    assert (
+        df.queries["queries"][0]
+        == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
+    )
+
+    df = action(df1.distinct(), df2).distinct()
+    assert (
+        df.queries["queries"][0]
+        == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  *  FROM {distinct_table}))"""
+    )
+
+    df = action(df1.distinct(), df2.distinct()).distinct()
+    assert (
+        df.queries["queries"][0]
+        == f"""SELECT  DISTINCT  *  FROM (( SELECT  DISTINCT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
+    )
 
 
 @pytest.mark.parametrize("set_operator", [SET_UNION_ALL, SET_EXCEPT, SET_INTERSECT])
