@@ -29,6 +29,13 @@
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
 - Added support for `Series.hist`.
+- Added support for list values in `Series.str.get`.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 
 #### Bug Fixes
 
