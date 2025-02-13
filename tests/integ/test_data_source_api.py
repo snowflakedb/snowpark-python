@@ -52,6 +52,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_create_connection,
     oracledb_all_type_small_data_result,
     oracledb_create_connection_small_data,
+    fake_detect_dbms_pyodbc,
 )
 from tests.utils import Utils, IS_WINDOWS
 
@@ -81,10 +82,14 @@ def upload_and_copy_into_table_with_retry(
 
 
 def test_dbapi_with_temp_table(session):
-    df = session.read.dbapi(
-        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
-    )
-    assert df.collect() == sql_server_all_type_data
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ):
+        df = session.read.dbapi(
+            sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4
+        )
+        assert df.collect() == sql_server_all_type_data
 
 
 def test_dbapi_oracledb(session):
@@ -123,31 +128,41 @@ def test_dbapi_batch_fetch_oracledb(session):
 
 
 def test_dbapi_batch_fetch(session):
-    df = session.read.dbapi(
-        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=1
-    )
-    assert df.collect() == sql_server_all_type_data
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ):
+        df = session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            fetch_size=1,
+        )
+        assert df.collect() == sql_server_all_type_data
 
-    df = session.read.dbapi(
-        sql_server_create_connection, SQL_SERVER_TABLE_NAME, max_workers=4, fetch_size=3
-    )
-    assert df.collect() == sql_server_all_type_data
+        df = session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            fetch_size=3,
+        )
+        assert df.collect() == sql_server_all_type_data
 
-    df = session.read.dbapi(
-        sql_server_create_connection_small_data,
-        SQL_SERVER_TABLE_NAME,
-        max_workers=4,
-        fetch_size=1,
-    )
-    assert df.collect() == sql_server_all_type_small_data
+        df = session.read.dbapi(
+            sql_server_create_connection_small_data,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            fetch_size=1,
+        )
+        assert df.collect() == sql_server_all_type_small_data
 
-    df = session.read.dbapi(
-        sql_server_create_connection_small_data,
-        SQL_SERVER_TABLE_NAME,
-        max_workers=4,
-        fetch_size=3,
-    )
-    assert df.collect() == sql_server_all_type_small_data
+        df = session.read.dbapi(
+            sql_server_create_connection_small_data,
+            SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            fetch_size=3,
+        )
+        assert df.collect() == sql_server_all_type_small_data
 
 
 def test_dbapi_retry(session):
@@ -190,26 +205,29 @@ def test_parallel(session):
     with mock.patch(
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source_with_retry",
         new=fake_task_fetch_from_data_source_with_retry,
-    ):
-        with mock.patch(
-            "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
-            wrap=upload_and_copy_into_table_with_retry,
-        ) as mock_upload_and_copy:
-            start = time.time()
-            session.read.dbapi(
-                sql_server_create_connection,
-                SQL_SERVER_TABLE_NAME,
-                column="Id",
-                upper_bound=100,
-                lower_bound=0,
-                num_partitions=num_partitions,
-                max_workers=4,
-            )
-            end = time.time()
-            # totally time without parallel is 12 seconds
-            assert end - start < 12
-            # verify that mocked function is called for each partition
-            assert mock_upload_and_copy.call_count == num_partitions
+    ), mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ), mock.patch(
+        "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table_with_retry",
+        wrap=upload_and_copy_into_table_with_retry,
+    ) as mock_upload_and_copy:
+
+        start = time.time()
+        session.read.dbapi(
+            sql_server_create_connection,
+            SQL_SERVER_TABLE_NAME,
+            column="Id",
+            upper_bound=100,
+            lower_bound=0,
+            num_partitions=num_partitions,
+            max_workers=4,
+        )
+        end = time.time()
+        # totally time without parallel is 12 seconds
+        assert end - start < 12
+        # verify that mocked function is called for each partition
+        assert mock_upload_and_copy.call_count == num_partitions
 
 
 def test_partition_logic(session):
@@ -376,6 +394,9 @@ def test_telemetry_tracking(caplog, session):
     with mock.patch(
         "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
         side_effect=assert_datasource_statement_params_run_query,
+    ), mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
     ), mock.patch(
         "snowflake.snowpark._internal.telemetry.TelemetryClient.send_performance_telemetry"
     ) as mock_telemetry:
