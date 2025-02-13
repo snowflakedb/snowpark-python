@@ -66,23 +66,26 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_dataframe_col {
-            col_name: "STR"
-            df {
-              sp_dataframe_ref {
-                id {
-                  bitfield1: 1
+          args {
+            sp_dataframe_col {
+              col_name: "STR"
+              df {
+                sp_dataframe_ref {
+                  id {
+                    bitfield1: 1
+                  }
                 }
               }
-            }
-            src {
-              end_column: 37
-              end_line: 27
-              file: 2
-              start_column: 28
-              start_line: 27
+              src {
+                end_column: 37
+                end_line: 27
+                file: 2
+                start_column: 28
+                start_line: 27
+              }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -98,7 +101,6 @@ body {
           start_column: 18
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
@@ -115,23 +117,26 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_dataframe_col {
-            col_name: "STR"
-            df {
-              sp_dataframe_ref {
-                id {
-                  bitfield1: 1
+          args {
+            sp_dataframe_col {
+              col_name: "STR"
+              df {
+                sp_dataframe_ref {
+                  id {
+                    bitfield1: 1
+                  }
                 }
               }
-            }
-            src {
-              end_column: 34
-              end_line: 29
-              file: 2
-              start_column: 28
-              start_line: 29
+              src {
+                end_column: 34
+                end_line: 29
+                file: 2
+                start_column: 28
+                start_line: 29
+              }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -147,7 +152,6 @@ body {
           start_column: 18
           start_line: 29
         }
-        variadic: true
       }
     }
     symbol {
@@ -164,23 +168,26 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_dataframe_col {
-            col_name: "STR"
-            df {
-              sp_dataframe_ref {
-                id {
-                  bitfield1: 1
+          args {
+            sp_dataframe_col {
+              col_name: "STR"
+              df {
+                sp_dataframe_ref {
+                  id {
+                    bitfield1: 1
+                  }
                 }
               }
-            }
-            src {
-              end_column: 37
-              end_line: 31
-              file: 2
-              start_column: 24
-              start_line: 31
+              src {
+                end_column: 37
+                end_line: 31
+                file: 2
+                start_column: 24
+                start_line: 31
+              }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -196,7 +203,6 @@ body {
           start_column: 14
           start_line: 31
         }
-        variadic: true
       }
     }
     symbol {
@@ -221,5 +227,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }

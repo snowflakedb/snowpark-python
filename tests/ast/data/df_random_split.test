@@ -383,83 +383,86 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          gt {
-            lhs {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            gt {
+              lhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 29
-                      end_line: 39
-                      file: 2
-                      start_column: 19
-                      start_line: 39
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 29
+                        end_line: 39
+                        file: 2
+                        start_column: 19
+                        start_line: 39
+                      }
+                      v: "NUM"
                     }
-                    v: "NUM"
+                  }
+                  src {
+                    end_column: 29
+                    end_line: 39
+                    file: 2
+                    start_column: 19
+                    start_line: 39
                   }
                 }
-                src {
-                  end_column: 29
-                  end_line: 39
-                  file: 2
-                  start_column: 19
-                  start_line: 39
-                }
               }
-            }
-            rhs {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+              rhs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "lit"
+                        name {
+                          sp_name_flat {
+                            name: "lit"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  int64_val {
-                    src {
-                      end_column: 39
-                      end_line: 39
-                      file: 2
-                      start_column: 32
-                      start_line: 39
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 39
+                        end_line: 39
+                        file: 2
+                        start_column: 32
+                        start_line: 39
+                      }
+                      v: 10
                     }
-                    v: 10
+                  }
+                  src {
+                    end_column: 39
+                    end_line: 39
+                    file: 2
+                    start_column: 32
+                    start_line: 39
                   }
                 }
-                src {
-                  end_column: 39
-                  end_line: 39
-                  file: 2
-                  start_column: 32
-                  start_line: 39
-                }
               }
-            }
-            src {
-              end_column: 39
-              end_line: 39
-              file: 2
-              start_column: 19
-              start_line: 39
+              src {
+                end_column: 39
+                end_line: 39
+                file: 2
+                start_column: 19
+                start_line: 39
+              }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -475,7 +478,6 @@ body {
           start_column: 8
           start_line: 39
         }
-        variadic: true
       }
     }
     symbol {
@@ -709,5 +711,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }

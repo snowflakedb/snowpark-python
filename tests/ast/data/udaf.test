@@ -345,8 +345,33 @@ body {
   assign {
     expr {
       sp_dataframe_to_df {
-        col_names: "a"
-        col_names: "b"
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 87
+                end_line: 53
+                file: 2
+                start_column: 13
+                start_line: 53
+              }
+              v: "a"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 87
+                end_line: 53
+                file: 2
+                start_column: 13
+                start_line: 53
+              }
+              v: "b"
+            }
+          }
+          variadic: true
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -361,7 +386,6 @@ body {
           start_column: 13
           start_line: 53
         }
-        variadic: true
       }
     }
     symbol {
@@ -654,5 +678,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }

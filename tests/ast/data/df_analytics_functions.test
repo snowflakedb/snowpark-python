@@ -360,9 +360,45 @@ body {
   assign {
     expr {
       sp_dataframe_to_df {
-        col_names: "ORDERDATE"
-        col_names: "PRODUCTKEY"
-        col_names: "SALESAMOUNT"
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 34
+                file: 2
+                start_column: 13
+                start_line: 32
+              }
+              v: "ORDERDATE"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 34
+                file: 2
+                start_column: 13
+                start_line: 32
+              }
+              v: "PRODUCTKEY"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 9
+                end_line: 34
+                file: 2
+                start_column: 13
+                start_line: 32
+              }
+              v: "SALESAMOUNT"
+            }
+          }
+          variadic: true
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -377,7 +413,6 @@ body {
           start_column: 13
           start_line: 32
         }
-        variadic: true
       }
     }
     symbol {
@@ -973,5 +1008,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }

@@ -91,56 +91,59 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            sp_column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 27
-                      file: 2
-                      start_column: 23
-                      start_line: 27
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 27
+                        file: 2
+                        start_column: 23
+                        start_line: 27
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 27
+                    file: 2
+                    start_column: 23
+                    start_line: 27
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 27
-                  file: 2
-                  start_column: 23
-                  start_line: 27
-                }
               }
-            }
-            src {
-              end_column: 50
-              end_line: 27
-              file: 2
-              start_column: 23
-              start_line: 27
-            }
-            to {
-              sp_string_type {
-                length {
-                  value: 42
+              src {
+                end_column: 50
+                end_line: 27
+                file: 2
+                start_column: 23
+                start_line: 27
+              }
+              to {
+                sp_string_type {
+                  length {
+                    value: 42
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -156,7 +159,6 @@ body {
           start_column: 13
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
@@ -173,56 +175,59 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            sp_column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 29
-                      file: 2
-                      start_column: 23
-                      start_line: 29
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 29
+                        file: 2
+                        start_column: 23
+                        start_line: 29
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 29
+                    file: 2
+                    start_column: 23
+                    start_line: 29
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 29
-                  file: 2
-                  start_column: 23
-                  start_line: 29
-                }
               }
-            }
-            src {
-              end_column: 74
-              end_line: 29
-              file: 2
-              start_column: 23
-              start_line: 29
-            }
-            to {
-              sp_timestamp_type {
-                time_zone {
-                  sp_timestamp_time_zone_ntz: true
+              src {
+                end_column: 74
+                end_line: 29
+                file: 2
+                start_column: 23
+                start_line: 29
+              }
+              to {
+                sp_timestamp_type {
+                  time_zone {
+                    sp_timestamp_time_zone_ntz: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -238,7 +243,6 @@ body {
           start_column: 13
           start_line: 29
         }
-        variadic: true
       }
     }
     symbol {
@@ -255,56 +259,59 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            sp_column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 31
-                      file: 2
-                      start_column: 23
-                      start_line: 31
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 31
+                        file: 2
+                        start_column: 23
+                        start_line: 31
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 31
+                    file: 2
+                    start_column: 23
+                    start_line: 31
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 31
-                  file: 2
-                  start_column: 23
-                  start_line: 31
-                }
               }
-            }
-            src {
-              end_column: 74
-              end_line: 31
-              file: 2
-              start_column: 23
-              start_line: 31
-            }
-            to {
-              sp_timestamp_type {
-                time_zone {
-                  sp_timestamp_time_zone_ltz: true
+              src {
+                end_column: 74
+                end_line: 31
+                file: 2
+                start_column: 23
+                start_line: 31
+              }
+              to {
+                sp_timestamp_type {
+                  time_zone {
+                    sp_timestamp_time_zone_ltz: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -320,7 +327,6 @@ body {
           start_column: 13
           start_line: 31
         }
-        variadic: true
       }
     }
     symbol {
@@ -337,56 +343,59 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            sp_column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 33
-                      file: 2
-                      start_column: 23
-                      start_line: 33
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 33
+                        file: 2
+                        start_column: 23
+                        start_line: 33
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 33
+                    file: 2
+                    start_column: 23
+                    start_line: 33
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 33
-                  file: 2
-                  start_column: 23
-                  start_line: 33
-                }
               }
-            }
-            src {
-              end_column: 73
-              end_line: 33
-              file: 2
-              start_column: 23
-              start_line: 33
-            }
-            to {
-              sp_timestamp_type {
-                time_zone {
-                  sp_timestamp_time_zone_tz: true
+              src {
+                end_column: 73
+                end_line: 33
+                file: 2
+                start_column: 23
+                start_line: 33
+              }
+              to {
+                sp_timestamp_type {
+                  time_zone {
+                    sp_timestamp_time_zone_tz: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -402,7 +411,6 @@ body {
           start_column: 13
           start_line: 33
         }
-        variadic: true
       }
     }
     symbol {
@@ -419,57 +427,60 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            sp_column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 35
-                      file: 2
-                      start_column: 23
-                      start_line: 35
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 35
+                        file: 2
+                        start_column: 23
+                        start_line: 35
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 35
+                    file: 2
+                    start_column: 23
+                    start_line: 35
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 35
-                  file: 2
-                  start_column: 23
-                  start_line: 35
-                }
               }
-            }
-            src {
-              end_column: 80
-              end_line: 35
-              file: 2
-              start_column: 23
-              start_line: 35
-            }
-            to {
-              sp_array_type {
-                structured: true
-                ty {
-                  sp_geometry_type: true
+              src {
+                end_column: 80
+                end_line: 35
+                file: 2
+                start_column: 23
+                start_line: 35
+              }
+              to {
+                sp_array_type {
+                  structured: true
+                  ty {
+                    sp_geometry_type: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -485,7 +496,6 @@ body {
           start_column: 13
           start_line: 35
         }
-        variadic: true
       }
     }
     symbol {
@@ -502,60 +512,63 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            sp_column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 37
-                      file: 2
-                      start_column: 23
-                      start_line: 37
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 37
+                        file: 2
+                        start_column: 23
+                        start_line: 37
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 37
+                    file: 2
+                    start_column: 23
+                    start_line: 37
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 37
-                  file: 2
-                  start_column: 23
-                  start_line: 37
-                }
               }
-            }
-            src {
-              end_column: 94
-              end_line: 37
-              file: 2
-              start_column: 23
-              start_line: 37
-            }
-            to {
-              sp_map_type {
-                key_ty {
-                  sp_geography_type: true
-                }
-                structured: true
-                value_ty {
-                  sp_variant_type: true
+              src {
+                end_column: 94
+                end_line: 37
+                file: 2
+                start_column: 23
+                start_line: 37
+              }
+              to {
+                sp_map_type {
+                  key_ty {
+                    sp_geography_type: true
+                  }
+                  structured: true
+                  value_ty {
+                    sp_variant_type: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -571,7 +584,6 @@ body {
           start_column: 13
           start_line: 37
         }
-        variadic: true
       }
     }
     symbol {
@@ -588,57 +600,60 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            sp_column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
+                        name {
+                          sp_name_flat {
+                            name: "col"
+                          }
                         }
                       }
                     }
                   }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 39
-                      file: 2
-                      start_column: 23
-                      start_line: 39
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 39
+                        file: 2
+                        start_column: 23
+                        start_line: 39
+                      }
+                      v: "A"
                     }
-                    v: "A"
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 39
+                    file: 2
+                    start_column: 23
+                    start_line: 39
                   }
                 }
-                src {
-                  end_column: 31
-                  end_line: 39
-                  file: 2
-                  start_column: 23
-                  start_line: 39
-                }
               }
-            }
-            src {
-              end_column: 57
-              end_line: 39
-              file: 2
-              start_column: 23
-              start_line: 39
-            }
-            to {
-              sp_vector_type {
-                dimension: 64
-                ty {
-                  sp_integer_type: true
+              src {
+                end_column: 57
+                end_line: 39
+                file: 2
+                start_column: 23
+                start_line: 39
+              }
+              to {
+                sp_vector_type {
+                  dimension: 64
+                  ty {
+                    sp_integer_type: true
+                  }
                 }
               }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -654,7 +669,6 @@ body {
           start_column: 13
           start_line: 39
         }
-        variadic: true
       }
     }
     symbol {
@@ -671,113 +685,116 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          sp_column_cast {
-            col {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
+          args {
+            sp_column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
                       name {
-                        sp_name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 31
-                      end_line: 41
-                      file: 2
-                      start_column: 23
-                      start_line: 41
-                    }
-                    v: "A"
-                  }
-                }
-                src {
-                  end_column: 31
-                  end_line: 41
-                  file: 2
-                  start_column: 23
-                  start_line: 41
-                }
-              }
-            }
-            src {
-              end_column: 28
-              end_line: 46
-              file: 2
-              start_column: 23
-              start_line: 41
-            }
-            to {
-              sp_struct_type {
-                fields {
-                  list {
-                    column_identifier {
-                      name: "test1"
-                    }
-                    data_type {
-                      sp_string_type {
-                        length {
-                        }
-                      }
-                    }
-                  }
-                  list {
-                    column_identifier {
-                      name: "test2"
-                    }
-                    data_type {
-                      sp_integer_type: true
-                    }
-                    nullable: true
-                  }
-                  list {
-                    column_identifier {
-                      name: "test3"
-                    }
-                    data_type {
-                      sp_array_type {
-                        ty {
-                          sp_long_type: true
-                        }
-                      }
-                    }
-                    nullable: true
-                  }
-                  list {
-                    column_identifier {
-                      name: "test4"
-                    }
-                    data_type {
-                      sp_map_type {
-                        key_ty {
-                          sp_decimal_type {
-                            precision: 42
-                            scale: 23
+                        name {
+                          sp_name_flat {
+                            name: "col"
                           }
                         }
-                        value_ty {
-                          sp_vector_type {
-                            dimension: 64
-                            ty {
-                              sp_float_type: true
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 41
+                        file: 2
+                        start_column: 23
+                        start_line: 41
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 41
+                    file: 2
+                    start_column: 23
+                    start_line: 41
+                  }
+                }
+              }
+              src {
+                end_column: 28
+                end_line: 46
+                file: 2
+                start_column: 23
+                start_line: 41
+              }
+              to {
+                sp_struct_type {
+                  fields {
+                    list {
+                      column_identifier {
+                        name: "test1"
+                      }
+                      data_type {
+                        sp_string_type {
+                          length {
+                          }
+                        }
+                      }
+                    }
+                    list {
+                      column_identifier {
+                        name: "test2"
+                      }
+                      data_type {
+                        sp_integer_type: true
+                      }
+                      nullable: true
+                    }
+                    list {
+                      column_identifier {
+                        name: "test3"
+                      }
+                      data_type {
+                        sp_array_type {
+                          ty {
+                            sp_long_type: true
+                          }
+                        }
+                      }
+                      nullable: true
+                    }
+                    list {
+                      column_identifier {
+                        name: "test4"
+                      }
+                      data_type {
+                        sp_map_type {
+                          key_ty {
+                            sp_decimal_type {
+                              precision: 42
+                              scale: 23
+                            }
+                          }
+                          value_ty {
+                            sp_vector_type {
+                              dimension: 64
+                              ty {
+                                sp_float_type: true
+                              }
                             }
                           }
                         }
                       }
+                      nullable: true
                     }
-                    nullable: true
                   }
+                  structured: true
                 }
-                structured: true
               }
             }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -793,7 +810,6 @@ body {
           start_column: 13
           start_line: 41
         }
-        variadic: true
       }
     }
     symbol {
@@ -818,5 +834,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }

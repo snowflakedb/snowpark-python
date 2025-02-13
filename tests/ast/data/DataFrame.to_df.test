@@ -62,8 +62,33 @@ body {
   assign {
     expr {
       sp_dataframe_to_df {
-        col_names: "one"
-        col_names: "two"
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 41
+                end_line: 27
+                file: 2
+                start_column: 19
+                start_line: 27
+              }
+              v: "one"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 41
+                end_line: 27
+                file: 2
+                start_column: 19
+                start_line: 27
+              }
+              v: "two"
+            }
+          }
+          variadic: true
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -78,7 +103,6 @@ body {
           start_column: 19
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
@@ -94,8 +118,32 @@ body {
   assign {
     expr {
       sp_dataframe_to_df {
-        col_names: "one"
-        col_names: "two"
+        col_names {
+          args {
+            string_val {
+              src {
+                end_column: 47
+                end_line: 29
+                file: 2
+                start_column: 23
+                start_line: 29
+              }
+              v: "one"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 47
+                end_line: 29
+                file: 2
+                start_column: 23
+                start_line: 29
+              }
+              v: "two"
+            }
+          }
+        }
         df {
           sp_dataframe_ref {
             id {
@@ -134,5 +182,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }

@@ -58,38 +58,41 @@ body {
     expr {
       sp_dataframe_select__columns {
         cols {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
                   name {
-                    sp_name_flat {
-                      name: "col"
+                    name {
+                      sp_name_flat {
+                        name: "col"
+                      }
                     }
                   }
                 }
               }
-            }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 29
-                  end_line: 26
-                  file: 2
-                  start_column: 13
-                  start_line: 26
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 29
+                    end_line: 26
+                    file: 2
+                    start_column: 13
+                    start_line: 26
+                  }
+                  v: "num"
                 }
-                v: "num"
+              }
+              src {
+                end_column: 29
+                end_line: 26
+                file: 2
+                start_column: 13
+                start_line: 26
               }
             }
-            src {
-              end_column: 29
-              end_line: 26
-              file: 2
-              start_column: 13
-              start_line: 26
-            }
           }
+          variadic: true
         }
         df {
           sp_dataframe_ref {
@@ -105,7 +108,6 @@ body {
           start_column: 13
           start_line: 26
         }
-        variadic: true
       }
     }
     symbol {
@@ -130,5 +132,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }

@@ -1106,18 +1106,20 @@ body {
     expr {
       sp_dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 94
-              end_line: 46
-              file: 2
-              start_column: 76
-              start_line: 46
+          args {
+            string_val {
+              src {
+                end_column: 94
+                end_line: 46
+                file: 2
+                start_column: 76
+                start_line: 46
+              }
+              v: "temp_c"
             }
-            v: "temp_c"
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
           sp_dataframe_ref {
             id {
@@ -1721,30 +1723,32 @@ body {
     expr {
       sp_dataframe_sort {
         cols {
-          string_val {
-            src {
-              end_column: 89
-              end_line: 56
-              file: 2
-              start_column: 8
-              start_line: 56
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 56
+                file: 2
+                start_column: 8
+                start_line: 56
+              }
+              v: "empid"
             }
-            v: "empid"
           }
-        }
-        cols {
-          string_val {
-            src {
-              end_column: 89
-              end_line: 56
-              file: 2
-              start_column: 8
-              start_line: 56
+          args {
+            string_val {
+              src {
+                end_column: 89
+                end_line: 56
+                file: 2
+                start_column: 8
+                start_line: 56
+              }
+              v: "team"
             }
-            v: "team"
           }
+          variadic: true
         }
-        cols_variadic: true
         df {
           sp_dataframe_ref {
             id {
@@ -1807,5 +1811,5 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 27
 }
