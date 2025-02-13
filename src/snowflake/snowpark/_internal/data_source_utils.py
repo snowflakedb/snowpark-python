@@ -135,9 +135,9 @@ def detect_dbms(dbapi2_conn) -> Union[DBMS_TYPE, str]:
 
 def detect_dbms_pyodbc(dbapi2_conn):
     """Detects the DBMS type for a pyodbc connection."""
-    from pyodbc import SQL_DBMS_NAME
+    import pyodbc
 
-    dbms_name = dbapi2_conn.getinfo(SQL_DBMS_NAME).lower()
+    dbms_name = dbapi2_conn.getinfo(pyodbc.SQL_DBMS_NAME).lower()
 
     # Set-based lookup for SQL Server
     sqlserver_keywords = {"sql server", "mssql", "sqlserver"}

@@ -4,6 +4,8 @@ from _decimal import Decimal
 from dateutil import parser
 from oracledb import LOB
 
+from snowflake.snowpark._internal.data_source_utils import DBMS_TYPE
+
 
 # we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
 class FakeConnection:
@@ -41,12 +43,22 @@ class FakeConnection:
         return "sqlserver"
 
 
+class FakeImpl:
+    def free_lob(self):
+        return
+
+
 class FakeOracleLOB(LOB):
     def __init__(self, value) -> None:
         self.value = value
+        self._impl = FakeImpl()
 
     def read(self, offset: int = 1, amount: int = None):
         return self.value
+
+
+def fake_detect_dbms_pyodbc(conn):
+    return DBMS_TYPE.SQL_SERVER_DB
 
 
 sql_server_all_type_schema = (
