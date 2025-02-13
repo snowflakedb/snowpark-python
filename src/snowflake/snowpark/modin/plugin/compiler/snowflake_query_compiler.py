@@ -4101,13 +4101,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO(SNOW-1210489): When type hints show that `agg_func` returns a
         # scalar, we can use a vUDF instead of a vUDTF and we can skip the
         # pivot.
+        data_columns_index = self._modin_frame.data_columns_index[
+            input_data_column_positions
+        ]
+        is_transform = groupby_kwargs.get("apply_op") == "transform"
         udtf = create_udtf_for_groupby_apply(
             agg_func,
             agg_args,
             agg_kwargs,
-            data_column_index=self._modin_frame.data_columns_index[
-                input_data_column_positions
-            ],
+            data_column_index=data_columns_index,
             index_column_names=self._modin_frame.index_column_pandas_labels,
             input_data_column_types=[
                 snowflake_type_map[quoted_identifier]
@@ -4119,6 +4121,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ],
             session=self._modin_frame.ordered_dataframe.session,
             series_groupby=series_groupby,
+            by_labels=by_pandas_labels,
             by_types=[]
             if force_single_group
             else [
@@ -4127,12 +4130,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ],
             existing_identifiers=self._modin_frame.ordered_dataframe._dataframe_ref.snowflake_quoted_identifiers,
             force_list_like_to_series=force_list_like_to_series,
+            is_transform=is_transform,
         )
 
         new_internal_df = self._modin_frame.ensure_row_position_column()
-        row_position_snowflake_quoted_identifier = (
-            new_internal_df.row_position_snowflake_quoted_identifier
-        )
 
         # drop the rows if any value in groupby key is NaN
         ordered_dataframe = new_internal_df.ordered_dataframe
@@ -4184,6 +4185,44 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         |        1 |        2 | k1                   |                 14 | b                     |                  1 |
         |        0 |        0 | k0                   |                 15 | c                     |                  2 |
         """
+        if is_transform:
+            x = udtf(
+                row_position_snowflake_quoted_identifier,
+                *by_snowflake_quoted_identifiers_list,
+                *new_internal_df.index_column_snowflake_quoted_identifiers,
+                *input_data_column_identifiers,
+            ).over(
+                partition_by=None
+                if force_single_group
+                else [*by_snowflake_quoted_identifiers_list],
+                order_by=row_position_snowflake_quoted_identifier,
+            )
+            ordered_dataframe = ordered_dataframe.select(x)
+            # output frame has the following columns in order
+            # 1. row position column
+            # 2. index columns
+            # 3. data columns (excluding by columns)
+            ids = ordered_dataframe.projected_column_snowflake_quoted_identifiers
+            data_col_labels = [
+                col for col in data_columns_index if col not in by_pandas_labels
+            ]
+            return SnowflakeQueryCompiler(
+                InternalFrame.create(
+                    ordered_dataframe=ordered_dataframe,
+                    data_column_pandas_labels=data_col_labels,
+                    data_column_pandas_index_names=self._modin_frame.data_column_pandas_index_names,
+                    data_column_snowflake_quoted_identifiers=ids[
+                        1 + self._modin_frame.num_index_levels() :
+                    ],
+                    index_column_pandas_labels=self._modin_frame.index_column_pandas_labels,
+                    index_column_snowflake_quoted_identifiers=ids[
+                        1 : 1 + self._modin_frame.num_index_levels()
+                    ],
+                    data_column_types=None,
+                    index_column_types=None,
+                )
+            )
+
         # NOTE we are keeping the cache_result for performance reasons. DO NOT
         # REMOVE the cache_result unless you can prove that doing so will not
         # materially slow down CI or individual groupby.apply() calls.
