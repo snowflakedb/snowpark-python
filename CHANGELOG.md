@@ -37,6 +37,12 @@
 
 - Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for NULL_IF parameter to csv reader
+
 ## 1.27.0 (2025-02-03)
 
 ### Snowpark Python API Updates
