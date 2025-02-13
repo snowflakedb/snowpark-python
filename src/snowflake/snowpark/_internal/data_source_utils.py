@@ -135,9 +135,9 @@ def detect_dbms(dbapi2_conn) -> Union[DBMS_TYPE, str]:
 
 def detect_dbms_pyodbc(dbapi2_conn):
     """Detects the DBMS type for a pyodbc connection."""
-    import pyodbc
+    from pyodbc import SQL_DBMS_NAME
 
-    dbms_name = dbapi2_conn.getinfo(pyodbc.SQL_DBMS_NAME).lower()
+    dbms_name = dbapi2_conn.getinfo(SQL_DBMS_NAME).lower()
 
     # Set-based lookup for SQL Server
     sqlserver_keywords = {"sql server", "mssql", "sqlserver"}
@@ -312,7 +312,7 @@ def data_source_data_to_pandas_df(
         # apply read to LOB object, we currently have FakeOracleLOB because CLOB and BLOB is represented by an
         # oracledb object and we cannot add it as our dependency in test, so we fake it in this way
         # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
-        df = df.map(lambda x: x.read() if isinstance(x, (LOB, FakeOracleLOB)) else x)
+        df = df.map(lambda x: x.read() if isinstance(x, LOB) else x)
         for column in tz_data:
             df[column] = df[column].apply(lambda x: parser.parse(x))
 
@@ -351,11 +351,3 @@ def generate_select_query(table: str, schema: StructType, conn: Connection) -> s
         raise NotImplementedError(
             f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
         )
-
-
-class FakeOracleLOB:
-    def __init__(self, value: str) -> None:
-        self.value = value
-
-    def read(self):
-        return self.value
