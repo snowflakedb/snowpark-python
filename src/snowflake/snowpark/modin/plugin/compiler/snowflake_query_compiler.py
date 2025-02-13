@@ -204,7 +204,6 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     make_series_map_snowpark_function,
     SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY,
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS,
-    is_external_kwarg,
 )
 from collections import defaultdict
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
@@ -8797,7 +8796,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     if not found_snowpark_column:
                         resolved_positional.append(col)
                         found_snowpark_column = True
-                    elif not is_external_kwarg(arg):
+                    # TODO: SNOW-1927811 Kwargs "_emit_ast" and "_ast" will appear in the function signature
+                    # anyways so it's not needed to pass them positionally here
+                    elif arg in ("_emit_ast", "_ast"):
                         continue
                     elif params[arg].default is not inspect.Parameter.empty:
                         # if the unspecified arg has a default value, don't need to add to resolved_positional

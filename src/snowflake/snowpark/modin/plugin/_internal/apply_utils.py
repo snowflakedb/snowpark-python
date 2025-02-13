@@ -1546,13 +1546,6 @@ def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
     return True
 
 
-def is_external_kwarg(arg: str) -> bool:
-    """Return True if the `arg` is kwarg from the supported Snowpark Python function."""
-    if "_ast" in arg or arg == "session":
-        return False
-    return True
-
-
 def make_series_map_snowpark_function(
     mapping: Union[Mapping, native_pd.Series], self_type: DataType
 ) -> Callable[[SnowparkColumn], SnowparkColumn]:
@@ -1645,3 +1638,24 @@ def make_series_map_snowpark_function(
         return case_expression
 
     return do_map
+
+
+def trunc_util(
+    e: native_pd.Series, scale: Union[Any, int, float] = 0
+) -> Union[Any, float]:
+    """
+    Util function for validating snowflake.snowpark.functions.trunc in apply
+    with pandas input. Rounds the input expression down to the nearest (or equal) integer closer to zero,
+    or to the nearest equal or smaller value with the specified number of
+    places after the decimal point.
+
+    Args
+    ----
+    e: The input expression to truncate
+    scale: The number of places after the decimal point which to truncate
+
+    Returns
+    -------
+        truncated input as an int
+    """
+    return round(e * 10**scale) / (10**scale)
