@@ -144,7 +144,6 @@ def test_distinct_set_operator(session, distinct_table, action, operator):
     df2 = session.table(distinct_table)
 
     df = action(df1, df2.distinct())
-    df1.union(df2.distinct())
     assert (
         df.queries["queries"][0]
         == f"""( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table})"""
@@ -163,7 +162,6 @@ def test_distinct_set_operator(session, distinct_table, action, operator):
     )
 
     df = action(df1, df2.distinct()).distinct()
-    df1.union(df2.distinct())
     assert (
         df.queries["queries"][0]
         == f"""SELECT  DISTINCT  *  FROM (( SELECT  *  FROM {distinct_table}){operator}( SELECT  DISTINCT  *  FROM {distinct_table}))"""
