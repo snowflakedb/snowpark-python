@@ -15,15 +15,7 @@ from pyspark.sql import SparkSession
 from snowflake.snowpark import Session
 
 # Oracle DB connection parameters
-CONNECTION_PARAMETERS = {
-    "account": "sfctest0",
-    "user": "yuwang",
-    "password": "Test1@snfl",
-    "role": "SYSADMIN",
-    "database": "DEMO_DB",
-    "schema": "PUBLIC",
-    "warehouse": "YUWANG_DBAPI_PERF_TEST",
-}
+
 
 
 def create_table(conn):
