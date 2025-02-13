@@ -9,6 +9,7 @@ import numpy as np
 import pandas as native_pd
 import pytest
 
+from snowflake.snowpark.modin.plugin._internal.apply_utils import trunc_util
 from tests.integ.modin.utils import assert_frame_equal, assert_series_equal
 from tests.integ.utils.sql_counter import sql_count_checker
 from snowflake.snowpark.functions import trunc, sin, _log10, log, desc, asc
@@ -64,6 +65,25 @@ def test_apply_trunc_default_scale(session):
     assert_frame_equal(s.to_frame().apply(trunc), native_s.to_frame().apply(np.trunc))
 
 
+@sql_count_checker(query_count=3)
+def test_apply_trunc_scale(session):
+
+    native_s = native_pd.Series(
+        [-1.0, -0.9, -0.5, -0.2, 0.0, 0.2, 0.5, 0.9, 1.1, 3.14159]
+    )
+    s = pd.Series(native_s)
+
+    assert_series_equal(s.apply(trunc, scale=1), native_s.apply(trunc_util, scale=1))
+    assert_frame_equal(
+        s.to_frame().applymap(trunc, scale=1),
+        native_s.to_frame().applymap(trunc_util, scale=1),
+    )
+    assert_frame_equal(
+        s.to_frame().apply(trunc, scale=1),
+        native_s.to_frame().apply(trunc_util, scale=1),
+    )
+
+
 @sql_count_checker(query_count=4)
 def test_apply_log_base(session):
 
@@ -81,7 +101,7 @@ def test_apply_log_base(session):
 
 
 @sql_count_checker(query_count=4)
-def test_apply_log_x(session):
+def test_apply_pass_base_as_column(session):
 
     native_s = native_pd.Series([7, 20.033, 4.09, 7.0, 8.33])
     s = pd.Series(native_s)
