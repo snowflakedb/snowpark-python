@@ -8796,13 +8796,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     if not found_snowpark_column:
                         resolved_positional.append(col)
                         found_snowpark_column = True
-                    # TODO: SNOW-1927811 Kwargs "_emit_ast" and "_ast" will appear in the function signature
-                    # anyways so it's not needed to pass them positionally here
+                    # TODO: SNOW-1927811 Kwargs "_emit_ast" and "_ast" appear in the function signature
+                    # and will be passed to the function by Snowpark Python so they should not be added as
+                    # positional args here
                     elif arg in ("_emit_ast", "_ast"):
                         continue
-                    elif params[arg].default is not inspect.Parameter.empty:
-                        # if the unspecified arg has a default value, don't need to add to resolved_positional
-                        resolved_positional.append(params[arg].default)
+                    elif (
+                        params[arg].default is not inspect.Parameter.empty
+                    ):  # pragma: no cover
+                        #  If the unspecified arg has a default value, that default value most likely needs to be added
+                        #  to the positional arguments. This however cannot be validated because this case
+                        #  is not applicable in any of the currently supported Snowpark Python functions yet.
+                        ErrorMessage.not_implemented(
+                            f"Function with default value parameter {arg} not passed as a kwarg is not currently supported."
+                        )
                     else:
                         ErrorMessage.not_implemented(
                             f"Unspecified Argument: {arg} - when using apply with kwargs, all function arguments should be specified except the single column reference (if applicable)."
