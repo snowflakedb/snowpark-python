@@ -281,6 +281,7 @@ _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE = False
 DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> "Session":
@@ -2507,12 +2508,13 @@ class Session:
         if _emit_ast:
             stmt = self._ast_batch.assign()
             ast = with_src_position(stmt.expr.sp_generator, stmt)
-            col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+            col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
+                *columns
+            )
             for col_name in col_names:
-                ast.columns.append(col_name._ast)
+                ast.columns.args.append(col_name._ast)
             ast.row_count = rowcount
             ast.time_limit_seconds = timelimit
-            ast.variadic = is_variadic
 
         # TODO: Support generator in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -2715,7 +2717,8 @@ class Session:
                 self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
 
-    @experimental(version="1.27.0")
+    @experimental(version="1.28.0")
+    @publicapi
     def write_arrow(
         self,
         table: "pyarrow.Table",
@@ -2723,7 +2726,7 @@ class Session:
         *,
         database: Optional[str] = None,
         schema: Optional[str] = None,
-        chunk_size: Optional[int] = WRITE_PANDAS_CHUNK_SIZE,
+        chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
         parallel: int = 4,
@@ -3052,6 +3055,8 @@ class Session:
             if modin_is_imported and isinstance(
                 df, (modin_pandas.DataFrame, modin_pandas.Series)
             ):
+                # use_logical_type should be ignored for Snowpark pandas
+                kwargs.pop("use_logical_type", None)
                 self._write_modin_pandas_helper(
                     df,
                     table_name,
