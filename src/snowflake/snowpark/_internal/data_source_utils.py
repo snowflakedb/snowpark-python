@@ -312,7 +312,9 @@ def data_source_data_to_pandas_df(
         # apply read to LOB object, we currently have FakeOracleLOB because CLOB and BLOB is represented by an
         # oracledb object and we cannot add it as our dependency in test, so we fake it in this way
         # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
-        df = df.map(lambda x: x.read() if isinstance(x, LOB) else x)
+        df = df.map(
+            lambda x: x.read() if isinstance(x, LOB) or x.__name__ == "LOB" else x
+        )
         for column in tz_data:
             df[column] = df[column].apply(lambda x: parser.parse(x))
 

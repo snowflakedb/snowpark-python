@@ -2,7 +2,6 @@ import datetime
 import sqlite3
 from _decimal import Decimal
 from dateutil import parser
-from oracledb import LOB
 
 from snowflake.snowpark._internal.data_source_utils import DBMS_TYPE
 
@@ -43,15 +42,9 @@ class FakeConnection:
         return "sqlserver"
 
 
-class FakeImpl:
-    def free_lob(self):
-        return
-
-
-class FakeOracleLOB(LOB):
+class FakeOracleLOB:
     def __init__(self, value) -> None:
         self.value = value
-        self._impl = FakeImpl()
 
     def read(self, offset: int = 1, amount: int = None):
         return self.value
