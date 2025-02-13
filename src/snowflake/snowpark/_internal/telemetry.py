@@ -169,9 +169,20 @@ def safe_telemetry(func):
 def df_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        with args[0]._session.query_history() as query_history:
-            result = func(*args, **kwargs)
         plan = args[0]._select_statement or args[0]._plan
+        with args[0]._session.query_history() as query_history:
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                if not args[
+                    0
+                ]._session._collect_snowflake_plan_telemetry_at_critical_path:
+                    args[
+                        0
+                    ]._session._conn._telemetry_client.send_plan_metrics_telemetry(
+                        session_id=args[0]._session.session_id,
+                        data=plan.get_plan_metrics(),
+                    )
         api_calls = [
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
@@ -198,9 +209,20 @@ def df_collect_api_telemetry(func):
 def dfw_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        with args[0]._dataframe._session.query_history() as query_history:
-            result = func(*args, **kwargs)
         plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
+        with args[0]._dataframe._session.query_history() as query_history:
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                if not args[
+                    0
+                ]._session._collect_snowflake_plan_telemetry_at_critical_path:
+                    args[
+                        0
+                    ]._session._conn._telemetry_client.send_plan_metrics_telemetry(
+                        session_id=args[0]._session.session_id,
+                        data=plan.get_plan_metrics(),
+                    )
         api_calls = [
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}"},
@@ -452,6 +474,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_COMPILATION_STAGE_STATS.value,
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
                 **compilation_stage_summary,
             },
@@ -467,6 +490,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_COMPILATION_STAGE_ERROR.value,
                 CompilationStageTelemetryField.PLAN_UUID.value: plan_uuid,
                 CompilationStageTelemetryField.ERROR_TYPE.value: error_type,
                 CompilationStageTelemetryField.ERROR_MESSAGE.value: error_message,
@@ -483,6 +507,7 @@ class TelemetryClient:
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_SNOWFLAKE_PLAN_METRICS.value,
                 **data,
             },
         }
