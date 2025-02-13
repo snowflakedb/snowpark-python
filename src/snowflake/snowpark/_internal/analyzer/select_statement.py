@@ -350,9 +350,6 @@ class Selectable(LogicalPlan, ABC):
     def plan_state(self) -> Dict[PlanState, Any]:
         return self.snowflake_plan.plan_state
 
-    def get_plan_telemetry_metrics(self) -> Dict[str, Any]:
-        return self.snowflake_plan.get_plan_telemetry_metrics()
-
     @property
     def cumulative_node_complexity(self) -> Dict[PlanNodeCategory, int]:
         with self._session._plan_lock:

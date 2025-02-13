@@ -49,7 +49,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.telemetry import TelemetryClient
+from snowflake.snowpark._internal.telemetry import (
+    TelemetryClient,
+    get_plan_telemetry_metrics,
+)
 from snowflake.snowpark._internal.utils import (
     create_rlock,
     create_thread_local,
@@ -778,7 +781,7 @@ class ServerConnection:
                     )
 
             if plan.session._collect_snowflake_plan_telemetry_at_critical_path:
-                data = plan.get_plan_telemetry_metrics()
+                data = get_plan_telemetry_metrics(plan)
                 self._telemetry_client.send_plan_metrics_telemetry(
                     session_id=self.get_session_id(), data=data
                 )

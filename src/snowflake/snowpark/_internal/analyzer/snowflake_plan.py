@@ -22,14 +22,9 @@ from typing import (
     Union,
 )
 
-from snowflake.snowpark._internal.compiler.telemetry_constants import (
-    CompilationStageTelemetryField,
-)
-
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     PlanState,
-    get_complexity_score,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
@@ -387,37 +382,6 @@ class SnowflakePlan(LogicalPlan):
                 attr.name: (attr.datatype, attr.nullable) for attr in self.output
             }
         return self._output_dict
-
-    def get_plan_telemetry_metrics(self) -> Dict[str, Any]:
-        data = {CompilationStageTelemetryField.PLAN_UUID.value: self.uuid}
-        try:
-            # plan state
-            plan_state = self.plan_state
-            data[CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value] = plan_state[
-                PlanState.PLAN_HEIGHT
-            ]
-            data[
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_SELECTS_WITH_COMPLEXITY_MERGED.value
-            ] = plan_state[PlanState.NUM_SELECTS_WITH_COMPLEXITY_MERGED]
-            data[
-                CompilationStageTelemetryField.QUERY_PLAN_NUM_DUPLICATE_NODES.value
-            ] = plan_state[PlanState.NUM_CTE_NODES]
-            data[
-                CompilationStageTelemetryField.QUERY_PLAN_DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION.value
-            ] = plan_state[PlanState.DUPLICATED_NODE_COMPLEXITY_DISTRIBUTION]
-
-            # plan complexity score
-            data[CompilationStageTelemetryField.QUERY_PLAN_COMPLEXITY.value] = {
-                key.value: value
-                for key, value in self.cumulative_node_complexity.items()
-            }
-            data[
-                CompilationStageTelemetryField.COMPLEXITY_SCORE_BEFORE_COMPILATION.value
-            ] = get_complexity_score(self)
-        except Exception as e:
-            data[CompilationStageTelemetryField.ERROR_MESSAGE.value] = str(e)
-
-        return data
 
     @property
     def plan_state(self) -> Dict[PlanState, Any]:
