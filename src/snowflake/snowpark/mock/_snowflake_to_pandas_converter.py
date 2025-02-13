@@ -38,9 +38,12 @@ TIME_FORMAT = "%H:%M:%S"
 
 
 def _integer_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: bool = None,
 ) -> Optional[int]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
         return int(value)
@@ -51,9 +54,12 @@ def _integer_converter(
 
 
 def _fraction_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: bool = None,
 ) -> Optional[float]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
         return float(value)
@@ -64,9 +70,12 @@ def _fraction_converter(
 
 
 def _decimal_converter(
-    value: str, datatype: DecimalType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DecimalType,
+    field_optionally_enclosed_by: str = None,
+    null_if: bool = None,
 ) -> Optional[Union[int, Decimal]]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
         precision = datatype.precision
@@ -93,9 +102,12 @@ def _decimal_converter(
 
 
 def _bool_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: bool = None,
 ) -> Optional[bool]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     if value.lower() == "true":
         return True
@@ -111,17 +123,25 @@ def _bool_converter(
 
 
 def _string_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: bool = None,
 ) -> Optional[str]:
+    if null_if is not None and value in null_if:
+        return None
     if value is None or value == "":
         return value
     return value
 
 
 def _date_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: bool = None,
 ) -> Optional[datetime.date]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
         return datetime.datetime.strptime(value, DATE_FORMAT).date()
@@ -132,9 +152,12 @@ def _date_converter(
 
 
 def _timestamp_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: bool = None,
 ) -> Optional[datetime.datetime]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
         return datetime.datetime.strptime(value, TIMESTAMP_FORMAT)
@@ -145,9 +168,12 @@ def _timestamp_converter(
 
 
 def _time_converter(
-    value: str, datatype: DataType, field_optionally_enclosed_by: str = None
+    value: str,
+    datatype: DataType,
+    field_optionally_enclosed_by: str = None,
+    null_if: bool = None,
 ) -> Optional[datetime.time]:
-    if value is None or value == "":
+    if value is None or value == "" or null_if is not None and value in null_if:
         return None
     try:
         return datetime.datetime.strptime(value, TIME_FORMAT).time()
