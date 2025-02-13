@@ -639,6 +639,22 @@ def mock_current_time(column_index):
     )
 
 
+@patch("hour")
+def mock_hour(expr):
+    return ColumnEmulator(
+        data=[None if value is None else value.hour for value in expr],
+        sf_type=ColumnType(LongType(), False),
+    )
+
+
+@patch("minute")
+def mock_minute(expr):
+    return ColumnEmulator(
+        data=[None if value is None else value.minute for value in expr],
+        sf_type=ColumnType(LongType(), False),
+    )
+
+
 @patch("contains")
 def mock_contains(expr1: ColumnEmulator, expr2: ColumnEmulator):
     if isinstance(expr1, str) and isinstance(expr2, str):
