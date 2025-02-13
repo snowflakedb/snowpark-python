@@ -16,11 +16,27 @@
   - `randn`
 - Added support for `allow_missing_columns` parameter to `Dataframe.union_by_name` and `Dataframe.union_all_by_name`.
 
+#### Bug Fixes
+
+- Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
+
+#### Experimental Features
+
+- Added support for writing pyarrow Tables to Snowflake tables.
+
 ### Snowpark pandas API Updates
 
 #### New Features
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
+- Added support for `Series.hist`.
+- Added support for list values in `Series.str.get`.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 
 ## 1.27.0 (2025-02-03)
 
@@ -98,7 +114,6 @@
   - `snowflake.core` is a dependency required for this feature.
 - Allow user input schema when reading JSON file on stage.
 - Added support for specifying a schema string (including implicit struct syntax) when calling `DataFrame.create_dataframe`.
-- Added support for writing pyarrow Tables to Snowflake tables.
 
 #### Improvements
 

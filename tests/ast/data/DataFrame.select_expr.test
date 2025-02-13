@@ -77,7 +77,21 @@ body {
             }
           }
         }
-        exprs: "$1"
+        exprs {
+          args {
+            string_val {
+              src {
+                end_column: 33
+                end_line: 27
+                file: 2
+                start_column: 13
+                start_line: 27
+              }
+              v: "$1"
+            }
+          }
+          variadic: true
+        }
         src {
           end_column: 33
           end_line: 27
@@ -85,7 +99,6 @@ body {
           start_column: 13
           start_line: 27
         }
-        variadic: true
       }
     }
     symbol {
@@ -108,7 +121,20 @@ body {
             }
           }
         }
-        exprs: "$1"
+        exprs {
+          args {
+            string_val {
+              src {
+                end_column: 35
+                end_line: 29
+                file: 2
+                start_column: 13
+                start_line: 29
+              }
+              v: "$1"
+            }
+          }
+        }
         src {
           end_column: 35
           end_line: 29
@@ -138,12 +164,81 @@ body {
             }
           }
         }
-        exprs: "COUNT $1"
-        exprs: "SUM $2"
-        exprs: "AVG $3"
-        exprs: "MIN $4"
-        exprs: "MAX $5"
-        exprs: "COUNT DISTINCT $6"
+        exprs {
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "COUNT $1"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "SUM $2"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "AVG $3"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "MIN $4"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "MAX $5"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 100
+                end_line: 31
+                file: 2
+                start_column: 13
+                start_line: 31
+              }
+              v: "COUNT DISTINCT $6"
+            }
+          }
+          variadic: true
+        }
         src {
           end_column: 100
           end_line: 31
@@ -151,7 +246,6 @@ body {
           start_column: 13
           start_line: 31
         }
-        variadic: true
       }
     }
     symbol {
@@ -174,12 +268,80 @@ body {
             }
           }
         }
-        exprs: "COUNT $1"
-        exprs: "SUM $2"
-        exprs: "AVG $3"
-        exprs: "MIN $4"
-        exprs: "MAX $5"
-        exprs: "COUNT DISTINCT $6"
+        exprs {
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "COUNT $1"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "SUM $2"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "AVG $3"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "MIN $4"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "MAX $5"
+            }
+          }
+          args {
+            string_val {
+              src {
+                end_column: 102
+                end_line: 33
+                file: 2
+                start_column: 13
+                start_line: 33
+              }
+              v: "COUNT DISTINCT $6"
+            }
+          }
+        }
         src {
           end_column: 102
           end_line: 33
