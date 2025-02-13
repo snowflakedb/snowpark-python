@@ -1302,7 +1302,6 @@ class SelectStatement(Selectable):
         ],
         operator: str,
     ) -> "SelectStatement":
-        # TODO: Analyze this for distinct
         if (
             isinstance(self.from_, SetStatement)
             and not self.has_clause
