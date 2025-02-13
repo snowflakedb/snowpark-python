@@ -43,6 +43,8 @@ class FakeConnection:
 
 
 class FakeOracleLOB:
+    __name__ = "LOB"
+
     def __init__(self, value) -> None:
         self.value = value
 

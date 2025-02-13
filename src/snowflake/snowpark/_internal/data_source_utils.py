@@ -313,7 +313,10 @@ def data_source_data_to_pandas_df(
         # oracledb object and we cannot add it as our dependency in test, so we fake it in this way
         # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
         df = df.map(
-            lambda x: x.read() if isinstance(x, LOB) or x.__name__ == "LOB" else x
+            lambda x: x.read()
+            if isinstance(x, LOB)
+            or (hasattr(x, "__name__") and x.__name__.lower() == "lob")
+            else x
         )
         for column in tz_data:
             df[column] = df[column].apply(lambda x: parser.parse(x))
