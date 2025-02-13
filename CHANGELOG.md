@@ -44,6 +44,10 @@
 
 - Fixed a bug in `apply` where kwargs were not being correctly passed into the applied function.
 
+#### Improvements
+- Improved performance of `DataFrame.groupby.transform` and `Series.groupby.transform` by avoiding expensive pivot step.
+
+
 ### Snowpark Local Testing Updates
 
 #### Bug Fixes

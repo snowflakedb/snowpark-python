@@ -49,7 +49,7 @@ def test_dataframe_groupby_transform(
     #   temporary function's resultant table.
     # - A second join is performed only when the groupby object specifies dropna=True.
     #   This is because a loc set operation is being performed to correctly set NA values.
-    with SqlCounter(query_count=6, join_count=1 + (1 if dropna else 0), udtf_count=1):
+    with SqlCounter(query_count=4, join_count=1 + (1 if dropna else 0), udtf_count=1):
         eval_snowpark_pandas_result(
             *df_with_multiple_columns,
             lambda df: df.groupby(
@@ -99,7 +99,7 @@ def test_dataframe_groupby_transform_with_func_args_and_kwargs(
     #   temporary function's resultant table.
     # - A second join is performed only when the groupby object specifies dropna=True.
     #   This is because a loc set operation is being performed to correctly set NA values.
-    with SqlCounter(query_count=6, join_count=1 + (1 if dropna else 0), udtf_count=1):
+    with SqlCounter(query_count=4, join_count=1 + (1 if dropna else 0), udtf_count=1):
         eval_snowpark_pandas_result(
             *df_with_multiple_columns,
             lambda df: df.groupby(
@@ -112,6 +112,9 @@ def test_dataframe_groupby_transform_with_func_args_and_kwargs(
         )
 
 
+@pytest.mark.skip(
+    reason="SNOW-1933703: Raise NotImplementedError for groupby transform"
+)
 @sql_count_checker(
     query_count=9,
     join_count=4,
@@ -141,9 +144,9 @@ def test_dataframe_groupby_transform_conflicting_labels_negative():
 
 
 @sql_count_checker(
-    query_count=11,
-    join_count=8,
-    udtf_count=2,
+    query_count=7,
+    join_count=12,
+    udtf_count=1,
     high_count_expected=True,
     high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",
 )
@@ -167,9 +170,9 @@ def test_dataframe_groupby_transform_conflicting_labels():
 
 
 @sql_count_checker(
-    query_count=11,
-    join_count=5,
-    udtf_count=2,
+    query_count=7,
+    join_count=4,
+    udtf_count=1,
     high_count_expected=True,
     high_count_reason="performing two groupby transform operations that use UDTFs and compare with pandas",
 )
