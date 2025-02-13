@@ -80,6 +80,7 @@ SUPPORT_READ_OPTIONS = {
         "COMPRESSION": ("AUTO", "NONE"),
         "PATTERN": None,
         "ENCODING": ("UTF8", "UTF-8"),
+        "NULL_IF": None,
     },
     "json": {
         "INFER_SCHEMA": ("TRUE", "FALSE"),
@@ -448,6 +449,7 @@ class StageEntity:
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
+            null_if = options.get("NULL_IF", None)
 
             if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
                 raise SnowparkLocalTestingException(
@@ -498,11 +500,15 @@ class StageEntity:
                         converter,
                         datatype=column_series.sf_type.datatype,
                         field_optionally_enclosed_by=field_optionally_enclosed_by,
+                        null_if=null_if,
                     )
                     if field_optionally_enclosed_by
-                    else partial(converter, datatype=column_series.sf_type.datatype)
+                    else partial(
+                        converter,
+                        datatype=column_series.sf_type.datatype,
+                        null_if=null_if,
+                    )
                 )
-
             for local_file in local_files:
                 # pre-read to check columns number
                 df = pd.read_csv(

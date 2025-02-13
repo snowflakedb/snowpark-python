@@ -1822,3 +1822,15 @@ def test_read_json_user_input_schema(session):
     )
     with pytest.raises(SnowparkSQLException, match="Failed to cast variant value"):
         session.read.schema(schema).json(test_file).collect()
+
+
+def test_read_csv_nulls(session):
+    # Test that a csv read with NULLVALUE set loads the configured representation as None
+    reader = get_reader(session, "select")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = (
+        reader.option("NULLVALUE", ["one", "two"])
+        .schema(user_schema)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(df, [Row(A=1, B=None, C=1.2), Row(A=2, B=None, C=2.2)])
