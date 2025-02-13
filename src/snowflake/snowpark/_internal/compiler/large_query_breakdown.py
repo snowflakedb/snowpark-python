@@ -38,6 +38,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateDynamicTableCommand,
     CreateViewCommand,
+    Distinct,
     Pivot,
     Sample,
     Sort,
@@ -515,7 +516,9 @@ class LargeQueryBreakdown:
         If the node contains a SnowflakePlan, we check its source plan recursively.
         """
         # Pivot/Unpivot, Sort, and GroupBy+Aggregate are pipeline breakers.
-        if isinstance(node, (Pivot, Unpivot, Sort, Aggregate, WithQueryBlock)):
+        if isinstance(
+            node, (Pivot, Unpivot, Sort, Aggregate, WithQueryBlock, Distinct)
+        ):
             return True
 
         if isinstance(node, Sample):
@@ -531,9 +534,10 @@ class LargeQueryBreakdown:
             return True
 
         if isinstance(node, SelectStatement):
-            # SelectStatement is a pipeline breaker if it contains an order by clause since sorting
-            # is a pipeline breaker.
-            return node.order_by is not None
+            # SelectStatement is a pipeline breaker if
+            # - it contains an order by clause since sorting is a pipeline breaker.
+            # - it contains a distinct clause since distinct is a pipeline breaker.
+            return node.order_by is not None or node.distinct_
 
         if isinstance(node, SetStatement):
             # If the last operator applied in the SetStatement is a pipeline breaker, then the

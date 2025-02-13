@@ -802,7 +802,9 @@ def test_aggregate(session, action):
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
         temp_table_name, table_type="temp"
     )
-    df = action(session.table(temp_table_name)).filter(col("a") == 1)
+    # add limit to add a layer of nesting for distinct()
+    base_df = session.table(temp_table_name).limit(10)
+    df = action(base_df).filter(col("a") == 1)
     df_result = df.union_by_name(df)
     check_result(
         session,

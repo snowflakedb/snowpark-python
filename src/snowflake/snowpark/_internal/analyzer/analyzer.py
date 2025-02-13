@@ -137,6 +137,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Aggregate,
     CreateDynamicTableCommand,
     CreateViewCommand,
+    Distinct,
     Filter,
     LocalTempView,
     PersistedView,
@@ -900,6 +901,14 @@ class Analyzer:
                 ),
                 resolved_children[logical_plan.child],
                 logical_plan,
+            )
+
+        if isinstance(logical_plan, Distinct):
+            return self.plan_builder.project(
+                [],
+                child=resolved_children[logical_plan.child],
+                source_plan=logical_plan,
+                is_distinct=True,
             )
 
         if isinstance(logical_plan, Filter):
