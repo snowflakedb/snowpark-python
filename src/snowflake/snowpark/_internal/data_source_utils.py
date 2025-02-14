@@ -287,25 +287,35 @@ def data_source_data_to_pandas_df(
     columns = [col.name for col in schema.fields]
     df = pd.DataFrame.from_records(data, columns=columns)
 
+    bytes_cols = [
+        col for col in df.columns if isinstance(df[col].iloc[0], (bytes, bytearray))
+    ]
+    date_cols = [
+        col
+        for col in df.columns
+        if isinstance(df[col].iloc[0], (datetime.datetime, datetime.date))
+    ]
+
     # convert timestamp and date to string to work around SNOW-1911989
-    df = df.map(
-        lambda x: x.isoformat()
-        if isinstance(x, (datetime.datetime, datetime.date))
-        else x
-    )
+    for col in date_cols:
+        df[col] = df[col].apply(lambda x: x.isoformat())
     # convert binary type to object type to work around SNOW-1912094
-    df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
+    for col in bytes_cols:
+        df[col] = df[col].apply(lambda x: x.hex())
     if current_db == DBMS_TYPE.SQL_SERVER_DB or current_db == DBMS_TYPE.SQLITE_DB:
         return df
     elif current_db == DBMS_TYPE.ORACLE_DB:
         # apply read to LOB object, we currently have FakeOracleLOB because CLOB and BLOB is represented by an
-        # oracledb object and we cannot add it as our dependency in test, so we fake it in this way
-        # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
-        df = df.map(
-            lambda x: x.read()
-            if (hasattr(x, "__name__") and x.__name__.lower() == "lob")
-            else x
-        )
+        lob_cols = [
+            col
+            for col in df.columns
+            if (
+                hasattr(df[col].iloc[0], "__class__")
+                and df[col].iloc[0].__class__.__name__.lower() == "lob"
+            )
+        ]
+        for col in lob_cols:
+            df[col] = df[col].apply(lambda x: x.read())
 
     else:
         raise NotImplementedError(

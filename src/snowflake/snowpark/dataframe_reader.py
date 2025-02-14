@@ -1350,6 +1350,8 @@ class DataFrameReader:
         on_error: Optional[str] = "abort_statement",
         statements_params: Optional[Dict[str, str]] = None,
     ) -> Optional[Exception]:
+        start = time.time()
+        print(f"start upload {local_file} to snowflake")  # noqa: T201
         retry_count = 0
         error = None
         while retry_count < MAX_RETRY_TIME:
@@ -1360,6 +1362,11 @@ class DataFrameReader:
                     snowflake_table_name,
                     on_error,
                     statements_params,
+                )
+                end = time.time()
+                print(  # noqa: T201
+                    f"finish upload {local_file} to snowflake",
+                    f"take {end - start} seconds",
                 )
                 return
             except Exception as e:
@@ -1389,6 +1396,8 @@ def _task_fetch_from_data_source(
     fetch_size: int = 0,
 ) -> str:
     conn = create_connection()
+    start = time.time()
+    print(f"start read partition {i} from data source")  # noqa: T201
     # this is specified to pyodbc, need other way to manage timeout on other drivers
     if current_db == DBMS_TYPE.SQL_SERVER_DB:
         conn.timeout = query_timeout
@@ -1405,10 +1414,20 @@ def _task_fetch_from_data_source(
             rows = cursor.fetchmany(fetch_size)
     else:
         raise ValueError("fetch size cannot be smaller than 0")
+    end = time.time()
+    print(  # noqa: T201
+        f"finish read partition {i} from data source", f"took {end - start} seconds"
+    )
 
     df = data_source_data_to_pandas_df(result, schema, current_db, driver_info)
+    end3 = time.time()
+    print(f"finish pandas df conversion {i} took {end3 - end} seconds")  # noqa: T201
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
+    end2 = time.time()
+    print(  # noqa: T201
+        f"finish save partition {i} to parquet took {end2 - end3} seconds"
+    )
     return path
 
 
@@ -1423,6 +1442,8 @@ def _task_fetch_from_data_source_with_retry(
     query_timeout: int = 0,
     fetch_size: int = 0,
 ) -> Union[str, Exception]:
+    print(f"start ingest partition {i}")  # noqa: T201
+    start = time.time()
     retry_count = 0
     error = None
     while retry_count < MAX_RETRY_TIME:
@@ -1437,6 +1458,10 @@ def _task_fetch_from_data_source_with_retry(
                 driver_info,
                 query_timeout,
                 fetch_size,
+            )
+            end = time.time()
+            print(  # noqa: T201
+                f"finish ingest partition {i}", f"take {end - start} seconds"
             )
             return path
         except Exception as e:
