@@ -4497,6 +4497,7 @@ class DataFrame:
             debug_check_missing_ast(self._ast_id, self)
             if self._ast_id is not None:
                 repr.expr.sp_dataframe_show.id.bitfield1 = self._ast_id
+                repr.expr.sp_dataframe_show.n = n
             self._session._ast_batch.eval(repr)
 
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush()

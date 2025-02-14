@@ -127,7 +127,7 @@ twoxsix_udtf = udtf("TwoXSixXUDTF", output_schema=StructType([StructField("two_x
 
 df.select(df["a"], (twoxsix_udtf(df["a"]))).collect()
 
-df.select(col("a"), (twoxsix_udtf("a").alias("double", "six_x")), col("c")).collect()
+df.select("a", (twoxsix_udtf("a").alias("double", "six_x")), "c").collect()
 
 ## EXPECTED ENCODED AST
 
@@ -664,6 +664,7 @@ body {
         id {
           bitfield1: 9
         }
+        n: 10
       }
     }
     symbol {
@@ -1772,30 +1773,7 @@ body {
       sp_dataframe_select__columns {
         cols {
           args {
-            apply_expr {
-              fn {
-                builtin_fn {
-                  name {
-                    name {
-                      sp_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 71
-                    end_line: 122
-                    file: 2
-                    start_column: 8
-                    start_line: 122
-                  }
-                  v: "a"
-                }
-              }
+            string_val {
               src {
                 end_column: 71
                 end_line: 122
@@ -1803,6 +1781,7 @@ body {
                 start_column: 8
                 start_line: 122
               }
+              v: "a"
             }
           }
           args {
@@ -1824,30 +1803,7 @@ body {
             }
           }
           args {
-            apply_expr {
-              fn {
-                builtin_fn {
-                  name {
-                    name {
-                      sp_name_flat {
-                        name: "col"
-                      }
-                    }
-                  }
-                }
-              }
-              pos_args {
-                string_val {
-                  src {
-                    end_column: 71
-                    end_line: 122
-                    file: 2
-                    start_column: 8
-                    start_line: 122
-                  }
-                  v: "c"
-                }
-              }
+            string_val {
               src {
                 end_column: 71
                 end_line: 122
@@ -1855,6 +1811,7 @@ body {
                 start_column: 8
                 start_line: 122
               }
+              v: "c"
             }
           }
           variadic: true
