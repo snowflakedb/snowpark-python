@@ -93,38 +93,46 @@ def test_dbapi_with_temp_table(session):
 
 
 def test_dbapi_oracledb(session):
-    df = session.read.dbapi(
-        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4
-    )
-    assert df.collect() == oracledb_all_type_data_result
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ):
+        df = session.read.dbapi(
+            oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4
+        )
+        assert df.collect() == oracledb_all_type_data_result
 
 
 def test_dbapi_batch_fetch_oracledb(session):
-    df = session.read.dbapi(
-        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=1
-    )
-    assert df.collect() == oracledb_all_type_data_result
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ):
+        df = session.read.dbapi(
+            oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=1
+        )
+        assert df.collect() == oracledb_all_type_data_result
 
-    df = session.read.dbapi(
-        oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=3
-    )
-    assert df.collect() == oracledb_all_type_data_result
+        df = session.read.dbapi(
+            oracledb_create_connection, ORACLEDB_TABLE_NAME, max_workers=4, fetch_size=3
+        )
+        assert df.collect() == oracledb_all_type_data_result
 
-    df = session.read.dbapi(
-        oracledb_create_connection_small_data,
-        ORACLEDB_TABLE_NAME,
-        max_workers=4,
-        fetch_size=1,
-    )
-    assert df.collect() == oracledb_all_type_small_data_result
+        df = session.read.dbapi(
+            oracledb_create_connection_small_data,
+            ORACLEDB_TABLE_NAME,
+            max_workers=4,
+            fetch_size=1,
+        )
+        assert df.collect() == oracledb_all_type_small_data_result
 
-    df = session.read.dbapi(
-        oracledb_create_connection_small_data,
-        ORACLEDB_TABLE_NAME,
-        max_workers=4,
-        fetch_size=3,
-    )
-    assert df.collect() == oracledb_all_type_small_data_result
+        df = session.read.dbapi(
+            oracledb_create_connection_small_data,
+            ORACLEDB_TABLE_NAME,
+            max_workers=4,
+            fetch_size=3,
+        )
+        assert df.collect() == oracledb_all_type_small_data_result
 
 
 def test_dbapi_batch_fetch(session):
@@ -168,6 +176,9 @@ def test_dbapi_batch_fetch(session):
 def test_dbapi_retry(session):
 
     with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ), mock.patch(
         "snowflake.snowpark.dataframe_reader._task_fetch_from_data_source",
         side_effect=Exception("Test error"),
     ) as mock_task:
@@ -182,6 +193,9 @@ def test_dbapi_retry(session):
         assert isinstance(result, Exception)
 
     with mock.patch(
+        "snowflake.snowpark._internal.data_source_utils.detect_dbms_pyodbc",
+        new=fake_detect_dbms_pyodbc,
+    ), mock.patch(
         "snowflake.snowpark.dataframe_reader.DataFrameReader._upload_and_copy_into_table",
         side_effect=Exception("Test error"),
     ) as mock_task:
