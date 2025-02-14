@@ -781,9 +781,9 @@ class ServerConnection:
                     )
 
             if plan.session._collect_snowflake_plan_telemetry_at_critical_path:
-                data = get_plan_telemetry_metrics(plan)
                 self._telemetry_client.send_plan_metrics_telemetry(
-                    session_id=self.get_session_id(), data=data
+                    session_id=self.get_session_id(),
+                    data=get_plan_telemetry_metrics(plan),
                 )
 
         if result is None:

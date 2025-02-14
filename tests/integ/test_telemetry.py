@@ -1117,6 +1117,7 @@ def test_post_compilation_stage_telemetry(session):
     expected_data = {
         "session_id": session.session_id,
         "plan_uuid": uuid_str,
+        "category": "query_compilation_stage_statistics",
         "cte_optimization_enabled": True,
         "large_query_breakdown_enabled": True,
         "complexity_score_bounds": (300, 600),
@@ -1228,6 +1229,7 @@ def test_plan_metrics_telemetry(session):
     client = session._conn._telemetry_client
     telemetry_data = {
         "plan_uuid": "plan_uuid_placeholder",
+        "category": "snowflake_plan_metrics",
         "query_plan_height": 10,
         "query_plan_num_duplicate_nodes": 5,
         "query_plan_num_selects_with_complexity_merged": 3,

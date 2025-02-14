@@ -6,7 +6,7 @@
 import functools
 import threading
 from enum import Enum, unique
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from snowflake.connector import SnowflakeConnection
 from snowflake.connector.telemetry import (
@@ -19,7 +19,6 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanState,
     get_complexity_score,
 )
-from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 from snowflake.snowpark._internal.compiler.telemetry_constants import (
     CompilationStageTelemetryField,
@@ -175,7 +174,6 @@ def safe_telemetry(func):
 def df_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        plan = args[0]._select_statement or args[0]._plan
         session = args[0]._session
         with session.query_history() as query_history:
             try:
@@ -184,16 +182,15 @@ def df_collect_api_telemetry(func):
                 if not session._collect_snowflake_plan_telemetry_at_critical_path:
                     session._conn._telemetry_client.send_plan_metrics_telemetry(
                         session_id=session.session_id,
-                        data=get_plan_telemetry_metrics(plan),
+                        data=get_plan_telemetry_metrics(args[0]._plan),
                     )
+        plan = args[0]._select_statement or args[0]._plan
         api_calls = [
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrame.{func.__name__}"},
         ]
         # The first api call will indicate following:
         # - sql simplifier is enabled.
-        # - height of the query plan
-        # - number of unique duplicate subtrees in the query plan
         api_calls[0][
             TelemetryField.SQL_SIMPLIFIER_ENABLED.value
         ] = session.sql_simplifier_enabled
@@ -212,17 +209,17 @@ def df_collect_api_telemetry(func):
 def dfw_collect_api_telemetry(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
-        plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
         session = args[0]._dataframe._session
         with session.query_history() as query_history:
             try:
                 result = func(*args, **kwargs)
             finally:
                 if not session._collect_snowflake_plan_telemetry_at_critical_path:
-                    args[0].session._conn._telemetry_client.send_plan_metrics_telemetry(
+                    session._conn._telemetry_client.send_plan_metrics_telemetry(
                         session_id=session.session_id,
-                        data=get_plan_telemetry_metrics(plan),
+                        data=get_plan_telemetry_metrics(args[0]._dataframe._plan),
                     )
+        plan = args[0]._dataframe._select_statement or args[0]._dataframe._plan
         api_calls = [
             *plan.api_calls,
             {TelemetryField.NAME.value: f"DataFrameWriter.{func.__name__}"},
@@ -294,11 +291,10 @@ def relational_group_df_api_usage(func):
     return wrap
 
 
-def get_plan_telemetry_metrics(
-    plan: Union[SnowflakePlan, Selectable]
-) -> Dict[str, Any]:
-    data = {CompilationStageTelemetryField.PLAN_UUID.value: plan.uuid}
+def get_plan_telemetry_metrics(plan: SnowflakePlan) -> Dict[str, Any]:
+    data = {}
     try:
+        data[CompilationStageTelemetryField.PLAN_UUID.value] = plan.uuid
         # plan state
         plan_state = plan.plan_state
         data[CompilationStageTelemetryField.QUERY_PLAN_HEIGHT.value] = plan_state[
