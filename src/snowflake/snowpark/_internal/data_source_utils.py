@@ -342,3 +342,7 @@ def generate_select_query(table: str, schema: StructType, conn: Connection) -> s
         raise NotImplementedError(
             f"currently supported drivers are pyodbc and oracledb, got: {driver_info}"
         )
+
+
+def generate_sql_with_predicates(select_query: str, predicates: List[str]):
+    return [select_query + f" WHERE {predicate}" for predicate in predicates]
