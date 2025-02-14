@@ -1,13 +1,8 @@
 # Release History
 
-# 1.28.0 (TBD)
+## 1.28.0 (TBD)
 
 ### Snowpark Python API Updates
-
-#### Deprecations:
-
-- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
-- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
 
 #### New Features
 
@@ -15,8 +10,14 @@
   - `normal`
   - `randn`
 
+#### Deprecations
+
+- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
+
 #### Bug Fixes
 
+- Fixed a bug where session-level query tag was overwritten by a stacktrace for dataframes that generate multiple queries. Now, the query tag will only be set to the stacktrace if `session.conf.set("collect_stacktrace_in_query_tag", True)`.
 - Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
 
 #### Improvements
@@ -106,7 +107,7 @@
 - Added support for `contains_null` parameter to ArrayType.
 - Added support for creating a temporary view via `DataFrame.create_or_replace_temp_view` from a DataFrame created by reading a file from a stage.
 - Added support for `value_contains_null` parameter to MapType.
-- Added support for using `Column` object in `Column.in_` and `functions.in_`. 
+- Added support for using `Column` object in `Column.in_` and `functions.in_`.
 - Added `interactive` to telemetry that indicates whether the current environment is an interactive one.
 - Allow `session.file.get` in a Native App to read file paths starting with `/` from the current version
 - Added support for multiple aggregation functions after `DataFrame.pivot`.
