@@ -17,7 +17,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
 from snowflake.snowpark.functions import trunc, sin, _log10, log, desc, asc
 
 
-def trunc_with_scale(e: Scalar, scale: Union[Any, int, float] = 0) -> Union[Any, float]:
+def trunc_with_scale(e: Scalar, scale: Union[Any, int, float] = 0) -> float:
     """
     Util function for validating snowflake.snowpark.functions.trunc in apply
     with pandas input. Rounds the input expression down to the nearest (or equal) integer closer to zero,
@@ -31,7 +31,7 @@ def trunc_with_scale(e: Scalar, scale: Union[Any, int, float] = 0) -> Union[Any,
 
     Returns
     -------
-        truncated input as an int
+        truncated input
     """
     assert is_numeric_dtype(type(e))
     return math.trunc(e * 10**scale) / (10**scale)
@@ -92,7 +92,22 @@ def test_apply_trunc_default_scale(session):
 def test_apply_trunc_scale(session, scale):
 
     native_s = native_pd.Series(
-        [-1.0, -0.9, -0.5234, -0.268, 0.0, 0.23, 0.582, 0.9, 1.1, 3.14159]
+        [
+            -1.0,
+            -0.9,
+            -0.5234,
+            -0.268,
+            0.0,
+            0.23,
+            0.582,
+            0.9,
+            1.1,
+            3.14159,
+            31.4159,
+            39,
+            -31.4159,
+            -39,
+        ]
     )
     s = pd.Series(native_s)
 
