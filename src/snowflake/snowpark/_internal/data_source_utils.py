@@ -299,8 +299,6 @@ def data_source_data_to_pandas_df(
     if current_db == DBMS_TYPE.SQL_SERVER_DB or current_db == DBMS_TYPE.SQLITE_DB:
         return df
     elif current_db == DBMS_TYPE.ORACLE_DB:
-        from oracledb import LOB
-
         tz_data = []
         for col in schema.fields:
             if isinstance(col.datatype, TimestampType) and col.datatype.tz in [
@@ -313,8 +311,7 @@ def data_source_data_to_pandas_df(
         # TODO: SNOW-1923698 remove FakeOracleLOB after we have test environment
         df = df.map(
             lambda x: x.read()
-            if isinstance(x, LOB)
-            or (hasattr(x, "__name__") and x.__name__.lower() == "lob")
+            if (hasattr(x, "__name__") and x.__name__.lower() == "lob")
             else x
         )
         for column in tz_data:

@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.data_source_utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
     DATA_SOURCE_SQL_COMMENT,
     STATEMENT_PARAMS_DATA_SOURCE,
+    DBMS_TYPE,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -66,7 +67,15 @@ ORACLEDB_TABLE_NAME = "ALL_TYPES_TABLE"
 
 
 def fake_task_fetch_from_data_source_with_retry(
-    create_connection, query, schema, i, tmp_dir, query_timeout, fetch_size
+    create_connection,
+    query,
+    schema,
+    i,
+    tmp_dir,
+    current_db,
+    driver_info,
+    query_timeout,
+    fetch_size,
 ):
     time.sleep(2)
 
@@ -188,6 +197,8 @@ def test_dbapi_retry(session):
             schema=StructType([StructField("col1", IntegerType(), False)]),
             i=0,
             tmp_dir="/tmp",
+            current_db=DBMS_TYPE.SQL_SERVER_DB,
+            driver_info="pyodbc",
         )
         assert mock_task.call_count == MAX_RETRY_TIME
         assert isinstance(result, Exception)
