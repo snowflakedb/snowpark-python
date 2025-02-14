@@ -283,7 +283,7 @@ def infer_data_source_schema(conn: Connection, table: str) -> StructType:
 
 
 def data_source_data_to_pandas_df(
-    data: List[Any], schema: StructType, conn: Connection
+    data: List[Any], schema: StructType, current_db: str, driver_info: str
 ) -> pd.DataFrame:
     columns = [col.name for col in schema.fields]
     df = pd.DataFrame.from_records(data, columns=columns)
@@ -296,7 +296,6 @@ def data_source_data_to_pandas_df(
     )
     # convert binary type to object type to work around SNOW-1912094
     df = df.map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
-    current_db, driver_info = detect_dbms(conn)
     if current_db == DBMS_TYPE.SQL_SERVER_DB or current_db == DBMS_TYPE.SQLITE_DB:
         return df
     elif current_db == DBMS_TYPE.ORACLE_DB:

@@ -1087,6 +1087,7 @@ class DataFrameReader:
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
         conn = create_connection()
+        current_db, driver_info = detect_dbms(conn)
         if custom_schema is None:
             struct_schema = infer_data_source_schema(conn, table)
         else:
@@ -1178,6 +1179,8 @@ class DataFrameReader:
                         struct_schema,
                         i,
                         tmp_dir,
+                        current_db,
+                        driver_info,
                         query_timeout,
                         fetch_size,
                     )
@@ -1380,13 +1383,14 @@ def _task_fetch_from_data_source(
     schema: StructType,
     i: int,
     tmp_dir: str,
+    current_db: str,
+    driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
 ) -> str:
     conn = create_connection()
     # this is specified to pyodbc, need other way to manage timeout on other drivers
-    dbms = detect_dbms(conn)
-    if dbms == DBMS_TYPE.SQL_SERVER_DB:
+    if current_db == DBMS_TYPE.SQL_SERVER_DB:
         conn.timeout = query_timeout
     result = []
     cursor = conn.cursor()
@@ -1402,7 +1406,7 @@ def _task_fetch_from_data_source(
     else:
         raise ValueError("fetch size cannot be smaller than 0")
 
-    df = data_source_data_to_pandas_df(result, schema, conn)
+    df = data_source_data_to_pandas_df(result, schema, current_db, driver_info)
     path = os.path.join(tmp_dir, f"data_{i}.parquet")
     df.to_parquet(path)
     return path
@@ -1414,6 +1418,8 @@ def _task_fetch_from_data_source_with_retry(
     schema: StructType,
     i: int,
     tmp_dir: str,
+    current_db: str,
+    driver_info: str,
     query_timeout: int = 0,
     fetch_size: int = 0,
 ) -> Union[str, Exception]:
@@ -1422,7 +1428,15 @@ def _task_fetch_from_data_source_with_retry(
     while retry_count < MAX_RETRY_TIME:
         try:
             path = _task_fetch_from_data_source(
-                create_connection, query, schema, i, tmp_dir, query_timeout, fetch_size
+                create_connection,
+                query,
+                schema,
+                i,
+                tmp_dir,
+                current_db,
+                driver_info,
+                query_timeout,
+                fetch_size,
             )
             return path
         except Exception as e:
