@@ -790,6 +790,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             log_on_exception=log_on_exception,
             case_sensitive=case_sensitive,
@@ -812,6 +815,9 @@ class DataFrame:
                     statement_params or self._statement_params,
                     self._session.query_tag,
                     SKIP_LEVELS_THREE,
+                    collect_stacktrace=self._session.conf.get(
+                        "collect_stacktrace_in_query_tag"
+                    ),
                 ),
             )
 
@@ -900,6 +906,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_THREE,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             case_sensitive=case_sensitive,
             **kwargs,
@@ -1006,6 +1015,9 @@ class DataFrame:
                     statement_params or self._statement_params,
                     self._session.query_tag,
                     SKIP_LEVELS_TWO,
+                    collect_stacktrace=self._session.conf.get(
+                        "collect_stacktrace_in_query_tag"
+                    ),
                 ),
                 **kwargs,
             )
@@ -1107,6 +1119,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             **kwargs,
         )
@@ -1146,6 +1161,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             **kwargs,
         )
@@ -1186,6 +1204,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             **kwargs,
         )
@@ -4347,6 +4368,9 @@ class DataFrame:
                         statement_params or self._statement_params,
                         self._session.query_tag,
                         SKIP_LEVELS_TWO,
+                        collect_stacktrace=self._session.conf.get(
+                            "collect_stacktrace_in_query_tag"
+                        ),
                     ),
                     _emit_ast=_emit_ast,
                 )
@@ -4802,6 +4826,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             _ast_stmt=stmt,
         )
@@ -4948,7 +4975,12 @@ class DataFrame:
             data_retention_time=data_retention_time,
             max_data_extension_time=max_data_extension_time,
             _statement_params=create_or_update_statement_params_with_query_tag(
-                statement_params, self._session.query_tag, SKIP_LEVELS_TWO
+                statement_params,
+                self._session.query_tag,
+                SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             iceberg_config=iceberg_config,
         )
@@ -5008,6 +5040,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             _ast_stmt=stmt,
         )
@@ -5069,6 +5104,9 @@ class DataFrame:
                 statement_params or self._statement_params,
                 self._session.query_tag,
                 SKIP_LEVELS_TWO,
+                collect_stacktrace=self._session.conf.get(
+                    "collect_stacktrace_in_query_tag"
+                ),
             ),
             _ast_stmt=stmt,
         )
@@ -5708,6 +5746,9 @@ class DataFrame:
                     statement_params_for_cache_result,
                     self._session.query_tag,
                     SKIP_LEVELS_TWO,
+                    collect_stacktrace=self._session.conf.get(
+                        "collect_stacktrace_in_query_tag"
+                    ),
                 ),
             )
         cached_df = snowflake.snowpark.table.Table(

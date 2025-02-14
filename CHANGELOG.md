@@ -4,11 +4,6 @@
 
 ### Snowpark Python API Updates
 
-#### Deprecations
-
-- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
-- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
-
 #### New Features
 
 - Added support for the following functions in `functions.py`
@@ -19,9 +14,19 @@
 
 - Improved query generation for `Dataframe.distinct` to generate `SELECT DISTINCT` instead of `SELECT` with `GROUP BY` all columns.
 
+#### Deprecations
+
+- Deprecated Snowpark Python function `snowflake_cortex_summarize`. Users can install snowflake-ml-python and use the snowflake.cortex.summarize function instead.
+- Deprecated Snowpark Python function `snowflake_cortex_sentiment`. Users can install snowflake-ml-python and use the snowflake.cortex.sentiment function instead.
+
 #### Bug Fixes
 
+- Fixed a bug where session-level query tag was overwritten by a stacktrace for dataframes that generate multiple queries. Now, the query tag will only be set to the stacktrace if `session.conf.set("collect_stacktrace_in_query_tag", True)`.
 - Fixed a bug in `Session._write_pandas` where it was erroneously passing `use_logical_type` parameter to `Session._write_modin_pandas_helper` when writing a Snowpark pandas object.
+
+#### Improvements
+
+- Improved the random object name generation to avoid collisions.
 
 #### Experimental Features
 
@@ -33,6 +38,13 @@
 
 - Added support for applying Snowflake Cortex functions `Summarize` and `Sentiment`.
 - Added support for `Series.hist`.
+- Added support for list values in `Series.str.get`.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug in Dataframe.join that caused columns to have incorrect typing.
 
 ## 1.27.0 (2025-02-03)
 

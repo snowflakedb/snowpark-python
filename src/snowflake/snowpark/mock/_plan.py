@@ -1366,6 +1366,8 @@ def execute_mock_plan(
                     col for col in result_df.columns.tolist() if col not in on
                 ]
                 result_df = result_df[reordered_cols]
+                sf_types = {col: result_df.sf_types[col] for col in reordered_cols}
+                result_df.sf_types = sf_types
 
         common_columns = set(L_expr_to_alias.keys()).intersection(
             R_expr_to_alias.keys()

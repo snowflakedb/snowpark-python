@@ -525,7 +525,9 @@ body {
               fields {
                 list {
                   column_identifier {
-                    name: "a"
+                    sp_column_name {
+                      name: "a"
+                    }
                   }
                   data_type {
                     sp_integer_type: true
@@ -534,7 +536,9 @@ body {
                 }
                 list {
                   column_identifier {
-                    name: "b"
+                    sp_column_name {
+                      name: "b"
+                    }
                   }
                   data_type {
                     sp_string_type {

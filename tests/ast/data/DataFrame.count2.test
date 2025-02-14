@@ -48,7 +48,9 @@ body {
               fields {
                 list {
                   column_identifier {
-                    name: "\"A\""
+                    sp_column_name {
+                      name: "\"A\""
+                    }
                   }
                   data_type {
                     sp_string_type {
@@ -61,7 +63,9 @@ body {
                 }
                 list {
                   column_identifier {
-                    name: "\"B\""
+                    sp_column_name {
+                      name: "\"B\""
+                    }
                   }
                   data_type {
                     sp_long_type: true
