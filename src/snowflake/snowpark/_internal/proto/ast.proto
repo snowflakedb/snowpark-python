@@ -122,12 +122,12 @@ message SpColumnRef {
   }
 }
 
-// type.ir:31
+// type.ir:32
 message SpColumnIdentifier {
   string name = 1;
 }
 
-// type.ir:32
+// type.ir:33
 message SpColumnName {
   string name = 1;
 }
@@ -245,7 +245,7 @@ message SpDataframeData_Pandas {
   StagedPandasDataframe v = 1;
 }
 
-// type.ir:42
+// type.ir:43
 message SpDataframeSchema {
   oneof sealed_value {
     SpDataframeSchema_List sp_dataframe_schema__list = 1;
@@ -253,12 +253,12 @@ message SpDataframeSchema {
   }
 }
 
-// type.ir:43
+// type.ir:44
 message SpDataframeSchema_List {
   repeated string vs = 1;
 }
 
-// type.ir:44
+// type.ir:45
 message SpDataframeSchema_Struct {
   SpStructType v = 1;
 }
@@ -350,7 +350,7 @@ message SpTableVariant {
   }
 }
 
-// type.ir:35
+// type.ir:36
 message SpTimestampTimeZone {
   oneof variant {
     bool sp_timestamp_time_zone_default = 1;
